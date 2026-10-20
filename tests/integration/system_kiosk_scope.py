@@ -101,12 +101,28 @@ def retained_observation(account, backend):
                   valid_invocation(before['InvocationID']), 'retained-manager:not-active')
     boundary = confinement.manager_boundary(account, unit, backend, retained_view=True)
     view = confinement.bootstrap_view(confinement.PROC / str(boundary['pid']))
-    # Unlinking an ambient host name changes the pinned object's ctime/nlink;
-    # changing children changes a directory's timestamps. Neither replaces its
-    # original dentry. Keep inode/type/ownership and file content metadata, plus
-    # the observer's complete required-source, receipt and mount assertions.
-    view['objects'] = {path: info[:7] if stat.S_ISREG(info[2]) else info[:5]
-                       for path, info in view['objects'].items()}
+    # V, rather than a caller's mutation list, identifies optional ambient
+    # leaves. Their retained inode may intentionally lose/recover trust between
+    # visits; the gate must then omit/mask it. Keep the original inode and type
+    # (and file content metadata) without freezing mode/owner. Consumers still
+    # independently check the actual trust change and invocation omission/mask.
+    # Required ownership/mode, complete source proofs, receipts and mounts stay
+    # exact. Unlink ctime/nlink and directory-child timestamps do not replace a
+    # dentry, matching the existing retained observation contract.
+    ambient = set(view['ambient_paths'])
+    view['objects'] = {
+        path: (info[:2] + [stat.S_IFMT(info[2])] +
+               (info[5:7] if stat.S_ISREG(info[2]) else [])) if path in ambient
+        else info[:7] if stat.S_ISREG(info[2]) else info[:5]
+        for path, info in view['objects'].items()}
+    # A vendor privilege mutation followed by exact restoration necessarily
+    # changes ctime. Only that timestamp is excluded from lifetime equality;
+    # the independent observer still checks current trust and bytes, while
+    # original inode, privilege/content metadata and link count remain exact.
+    view['sources'] = {
+        path: dict(source, identity=source['identity'][:7] + [None] + source['identity'][8:])
+        if isinstance(source, dict) and source.get('class') == 'vendor' and 'identity' in source
+        else source for path, source in view['sources'].items()}
     guest.require(manager(unit) == before and
                   confinement.manager_boundary(account, unit, backend, retained_view=True) == boundary,
                   'retained-manager:observation-changed')

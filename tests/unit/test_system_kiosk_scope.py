@@ -463,6 +463,7 @@ def test_retained_observation_composes_independent_live_view_proof(tmp_path, mon
     monkeypatch.setattr(confinement, 'manager_boundary', observer)
     monkeypatch.setattr(confinement, 'PROC', tmp_path)
     view = Mock(return_value={'material': 'M', 'view': 'V', 'sources': {'a': [1, 42]},
+                             'ambient_paths': [],
                              'objects': {'a': [1, 42, 0o100444, 0, 0, 10, 20, 30, 1]}})
     if fault == 'view': view.side_effect = scope.guest.GuestError('independent-mounted-source-refusal')
     monkeypatch.setattr(confinement, 'bootstrap_view', view)
@@ -478,28 +479,107 @@ def test_retained_observation_composes_independent_live_view_proof(tmp_path, mon
     view.assert_called_once_with(tmp_path / '4321')
 
 
-@pytest.mark.parametrize('change,same', [('unlink', True), ('directory-child', True),
-    ('inode', False), ('mode', False), ('file-bytes-metadata', False), ('mount', False)])
-def test_retained_observer_keeps_source_identity_without_ambient_link_metadata(
+@pytest.mark.parametrize('change,same', [('unlink', True), ('ctime', True), ('directory-child', True),
+    ('mode', True), ('owner', True), ('group', True), ('directory-mode', True),
+    ('directory-owner', True), ('link-owner', True), ('inode', False), ('device', False),
+    ('type', False), ('required-mode', False), ('required-owner', False),
+    ('required-group', False), ('file-bytes-metadata', False), ('file-size', False),
+    ('source', False), ('coverage', False), ('receipt', False), ('mount', False),
+    ('classification', False)])
+def test_retained_observer_permits_only_ambient_trust_changes_on_original_sources(
         monkeypatch, change, same):
     import system_kiosk_confinement as confinement
     monkeypatch.setattr(scope, 'manager', lambda unit: dict(
         ActiveState='active', InvocationID='a' * 32, MainPID='4321'))
     monkeypatch.setattr(confinement, 'manager_boundary', lambda *args, **kwargs: {'pid': 4321})
     view = {'objects': {'file': [1, 42, 0o100444, 0, 0, 10, 20, 30, 1],
-                        'directory': [1, 43, 0o40755, 0, 0, 10, 20, 30, 2]},
-            'sources': {'native': [1, 50]}, 'mounts': {'/usr': {'id': 42, 'options': ['ro']}}}
+                        'directory': [1, 43, 0o40755, 0, 0, 10, 20, 30, 2],
+                        'link': [1, 44, 0o120777, 0, 0, 10, 20, 30, 1],
+                        'required': [1, 45, 0o100444, 0, 0, 10, 20, 30, 1]},
+            'ambient_paths': ['directory', 'file', 'link'],
+            'sources': {'native': [1, 50]}, 'coverage': {'nested': [1, 51]},
+            'completed': {'view': [1, 52, 'digest']},
+            'mounts': {'/usr': {'id': 42, 'options': ['ro']}}}
     monkeypatch.setattr(confinement, 'bootstrap_view', lambda *args:
         json.loads(json.dumps(view)))
     account = SimpleNamespace(pw_uid=1001)
     before = scope.retained_observation(account, 'apparmor')
     if change == 'unlink': view['objects']['file'][7:] = [999, 0]
+    elif change == 'ctime': view['objects']['file'][7] = 999
     elif change == 'directory-child': view['objects']['directory'][5:] = [20, 999, 999, 3]
     elif change == 'inode': view['objects']['file'][1] = 999
+    elif change == 'device': view['objects']['file'][0] = 999
+    elif change == 'type': view['objects']['file'][2] = 0o40755
     elif change == 'mode': view['objects']['file'][2] = 0o100666
+    elif change == 'owner': view['objects']['file'][3] = 1001
+    elif change == 'group': view['objects']['file'][4] = 1001
+    elif change == 'directory-mode': view['objects']['directory'][2] = 0o40777
+    elif change == 'directory-owner': view['objects']['directory'][3] = 1001
+    elif change == 'link-owner': view['objects']['link'][3] = 1001
+    elif change == 'required-mode': view['objects']['required'][2] = 0o100666
+    elif change == 'required-owner': view['objects']['required'][3] = 1001
+    elif change == 'required-group': view['objects']['required'][4] = 1001
     elif change == 'file-bytes-metadata': view['objects']['file'][6] = 999
+    elif change == 'file-size': view['objects']['file'][5] = 999
+    elif change == 'source': view['sources']['native'][1] = 999
+    elif change == 'coverage': view['coverage']['nested'][1] = 999
+    elif change == 'receipt': view['completed']['view'][2] = 'other'
     elif change == 'mount': view['mounts']['/usr']['id'] = 999
+    elif change == 'classification': view['ambient_paths'].append('required')
     assert (scope.retained_observation(account, 'apparmor') == before) is same
+    owner = scope.RetainedManager('b' * 32)
+    records = {'owned': {'observed': before}, 'ready': {}, 'intent': {'backend': 'apparmor'}}
+    monkeypatch.setattr(owner, 'load', lambda: (records, account))
+    monkeypatch.setattr(scope, 'login_state', lambda account: {'Linger': 'yes', 'Sessions': ''})
+    if same:
+        assert owner.check() == before
+    else:
+        with pytest.raises(scope.guest.GuestError, match='retained-manager:identity-changed'):
+            owner.check()
+
+
+@pytest.mark.parametrize('change,same', [('restored-ctime', True), ('device', False),
+    ('inode', False), ('mode', False), ('owner', False), ('group', False), ('bytes', False),
+    ('size', False), ('mtime', False), ('nlink', False), ('native-ctime', False)])
+def test_retained_vendor_restoration_excludes_only_ctime(monkeypatch, change, same):
+    import system_kiosk_confinement as confinement
+    monkeypatch.setattr(scope, 'manager', lambda unit: dict(
+        ActiveState='active', InvocationID='a' * 32, MainPID='4321'))
+    monkeypatch.setattr(confinement, 'manager_boundary', lambda *args, **kwargs: {'pid': 4321})
+    identity = [1, 42, 0o104755, 0, 0, 10, 20, 30, 1]
+    view = {'ambient_paths': [], 'objects': {'helper': list(identity)}, 'sources': {
+        'helper': {'class': 'vendor', 'kind': 'file', 'role': 'helper',
+                   'sha256': 'a' * 64, 'identity': list(identity)},
+        'native': {'class': 'native', 'kind': 'file', 'role': 'manager',
+                   'sha256': 'b' * 64, 'identity': list(identity)}}}
+    monkeypatch.setattr(confinement, 'bootstrap_view', lambda *args:
+        json.loads(json.dumps(view)))
+    account = SimpleNamespace(pw_uid=1001)
+    before = scope.retained_observation(account, 'apparmor')
+    assert before['view']['sources']['helper']['identity'] == identity[:7] + [None, 1]
+    assert view['sources']['helper']['identity'] == identity
+    helper = view['sources']['helper']
+    # Even exact mode/owner restoration cannot restore the original ctime.
+    helper['identity'][7] = 999
+    view['objects']['helper'][7] = 999
+    fields = {'device': 0, 'inode': 1, 'mode': 2, 'owner': 3, 'group': 4,
+              'size': 5, 'mtime': 6, 'nlink': 8}
+    if change in fields:
+        helper['identity'][fields[change]] += 1
+    elif change == 'bytes':
+        helper['sha256'] = 'c' * 64
+    elif change == 'native-ctime':
+        view['sources']['native']['identity'][7] = 999
+    assert (scope.retained_observation(account, 'apparmor') == before) is same
+    owner = scope.RetainedManager('b' * 32)
+    records = {'owned': {'observed': before}, 'ready': {}, 'intent': {'backend': 'apparmor'}}
+    monkeypatch.setattr(owner, 'load', lambda: (records, account))
+    monkeypatch.setattr(scope, 'login_state', lambda account: {'Linger': 'yes', 'Sessions': ''})
+    if same:
+        assert owner.check() == before
+    else:
+        with pytest.raises(scope.guest.GuestError, match='retained-manager:identity-changed'):
+            owner.check()
 
 
 @pytest.mark.parametrize('fault', [None, 'enter', 'exit', 'interrupt', 'replacement', 'lost-start-reply',

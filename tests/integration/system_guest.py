@@ -876,6 +876,17 @@ def collect_native_checkpoints(output, redacted):
              ('intent', 'old', 'retained-intent', 'updated', 'retired', 'loader-drained', 'complete')]
     names += ['required-ancestor.json', 'required-native-refusal.json', 'required-gdm-refusal.json',
               'required-restored.json', 'required-cleanup.json']
+    from system_kiosk_ambient_history import checkpoint_names as ambient_checkpoints
+    from system_kiosk_required_history import checkpoint_names as required_checkpoints
+    from system_kiosk_scope import RetainedManager
+    names += [*ambient_checkpoints(), *required_checkpoints()]
+    managers = sorted((PAYLOAD / 'private').glob('retained-manager-*.json'))
+    require(len(managers) <= 5 * len(RetainedManager.phases), 'retained-history:collection-bound')
+    for source in managers:
+        require(re.fullmatch(r'retained-manager-[a-f0-9]{32}-(' +
+                            '|'.join(RetainedManager.phases) + r')\.json', source.name),
+                'retained-history:collection-name')
+    names += [source.name for source in managers]
     for name in names:
         source = PAYLOAD / 'private' / name
         if not source.exists():

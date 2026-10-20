@@ -12,7 +12,8 @@ def attempts(selection, *, fresh_install=False):
     """Keep lifecycle transitions together; restore before each installed area."""
     full = system.REMOVAL_HISTORIES[0]
     lifecycle = ('previous-policy', *full.prerequisites, *full.phases)
-    independent = (system.SIBLING_PHASE, system.REQUIRED_PHASE, 'authorization', 'enforcement', 'session')
+    independent = (system.SIBLING_PHASE, system.REQUIRED_PHASE, *system.RETAINED_PHASES,
+                   'authorization', 'enforcement', 'session')
     groups = ([((*lifecycle, *independent), False)] if fresh_install else
               [(lifecycle, full.start == 'installed'), *(((phase,), True) for phase in independent)])
     # Each destructive focused history starts from its own product-free

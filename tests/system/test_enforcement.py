@@ -30,6 +30,16 @@ def test_kiosk_native_bootstrap_permissions(record_testsuite_property):
     verify_bootstrap_permissions(record_testsuite_property)
 
 
+def test_kiosk_retained_ambient_history(record_testsuite_property):
+    from system_kiosk_ambient_history import verify_history
+    verify_history(record_testsuite_property)
+
+
+def test_kiosk_retained_required_history(record_testsuite_property):
+    from system_kiosk_required_history import verify_history
+    verify_history(record_testsuite_property)
+
+
 def test_kiosk_login_admission(record_testsuite_property):
     from system_kiosk_admission import verify
     verify(record_testsuite_property)

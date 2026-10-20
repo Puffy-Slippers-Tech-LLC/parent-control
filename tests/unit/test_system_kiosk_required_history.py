@@ -345,3 +345,15 @@ def test_checkpoint_inventory_is_finite_complete_and_unique():
     assert len(names) == len(set(names)) == 24
     assert 'required-history-native-public-refusal.json' in names
     assert 'required-history-privilege-complete.json' in names
+
+
+@pytest.mark.parametrize('phase', ['pam', 'public'])
+def test_refusal_diagnostics_use_the_existing_redacted_text_export_route(files, phase):
+    path = history.diagnostic_path('config', phase)
+    assert path == files.path.parent / 'required-history-output' / ('config-' + phase + '.txt')
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert path.parent.stat().st_mode & 0o777 == 0o700
+    path.write_text('first failure')
+    with pytest.raises(FileExistsError):
+        history.diagnostic_path('config', phase)
+    assert path.read_text() == 'first failure'

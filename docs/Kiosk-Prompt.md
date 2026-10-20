@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **007a1 — [Implement canonical retained-view histories](Kiosk-Prompt-Tasks/007a1-retained-history-host.md)**.
+Next task: **007a2 — [Qualify Ubuntu retained ambient changes](Kiosk-Prompt-Tasks/007a2-ambient-ubuntu.md)**.
 
 ## Outcome
 
@@ -28,20 +28,14 @@ production transactions and all prerequisite evidence are preserved. The host
 fixtures retain their explicit policy/account/bus doubles; actual bootstrap
 permissions use the applicable complete [006e receipts](#bootstrap-permission-reconciliation--006e)
 from both systems. This supplies no new installed public-form history.
-The partial [007a1](Kiosk-Prompt-Tasks/007a1-retained-history-host.md) composition
-can now resume after the accepted native diagnostic prerequisite
-[007a1c](#retained-material-refusal-witness--007a1c).
-[007a1b's accepted transport](#preparation-refusal-transport--007a1b) now carries
-closed measurement causes through the native-owned channel. 007a1c supplies
-verified material-mismatch classification and exact per-call observers.
-[007a1a's accepted lifetime helper](#owned-retained-manager-history-lifetime--007a1a)
-now supplies ownership across public exits and later admissions. 007a1 keeps
-every mutation, refusal, registration and host-acceptance obligation and remains
-unchecked. Partial histories now use IDs 293 (ambient) and 294 (required), but
-neither has task acceptance or installed qualification. The required history
-now has its distinct production refusal observers, with full composition and
-acceptance still required at 007a1. The lifetime's host
-safety controls grant no installed public-history acceptance.
+[007a1's canonical histories](#canonical-retained-view-histories--007a1) now pass
+host acceptance with IDs 293 (ambient) and 294 (required). They compose
+[007a1a's lifetime helper](#owned-retained-manager-history-lifetime--007a1a),
+[007a1b's refusal transport](#preparation-refusal-transport--007a1b) and
+[007a1c's material/per-call observers](#retained-material-refusal-witness--007a1c).
+The eleven ambient visits and all four required-drift/refusal/restoration/reboot/
+reentry branches are implemented. Actual installed qualification remains with
+007a2/007a3 and 0071/0072; host doubles establish none of those public histories.
 
 Prerequisite-insertion verification passed **313/313** documentation checks in
 `20261020T002405Z-2bcd792c` (historical report retired by normal retention)
@@ -157,7 +151,7 @@ retained-history acceptance.
 
 ### Retained-history checkpoint and diagnostic prerequisites — 007a1
 
-007a1 remains unchecked. Its partial ambient and required histories register
+At this checkpoint, 007a1 remained unchecked. Its partial ambient and required histories registered
 IDs **293** and **294**, freeze the guest/host source closure and compose the
 accepted cross-entry manager owner. Eleven ambient visits cover empty addition/
 removal, cross-kind and link replacement/restoration, mode/owner changes and
@@ -186,7 +180,7 @@ These are partial engineering results, not 007a1 host acceptance or installed
 qualification. Generated coverage, resource inventories, links and whitespace
 checks passed. No package/build input changed; no build is needed here.
 
-The verified [5,893-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+The verified [5,893-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 preserves all 5,855 earlier records and all 38 files from these three reports,
 including first failures and corrected checks. SHA-256:
 `3668868ab4c589f7000ce751d154b72b39ea17b3dcfc09b9651cb57d6e4df656`.
@@ -196,6 +190,111 @@ spawn owns no resources. Runner, verified export retirement and
 commit or push operation occurred. At that checkpoint, 007a1b was the first unchecked pointer; only
 the new prerequisite block and the consumer's permitted Requires chain changed.
 Every existing row's completion, relative order and Scope are preserved.
+
+### Canonical retained-view histories — 007a1
+
+Host acceptance passed **4,231/4,231** in `20261020T014956Z-bcb5e386`.
+The final maintained `tools/run-tests unit` selection, with `-q`, was:
+
+```text
+tests/unit/test_system_kiosk_ambient_history.py
+tests/unit/test_system_kiosk_required_history.py
+tests/unit/test_system_retained_history.py
+tests/unit/test_system_kiosk_scope.py
+tests/unit/test_system_runner.py
+tests/unit/test_system_runner_cleanup_safety.py
+tests/unit/test_system_guest.py
+tests/unit/test_system_snapshots.py
+tests/unit/test_system_native_update.py
+tests/unit/test_native_update_runner.py
+tests/unit/test_kiosk_confinement.py
+tests/unit/test_e2e_kiosk_entry.py
+tests/unit/test_regression_unit.py
+tests/unit/test_regression_cleanup.py
+tests/unit/test_regression_resources.py
+tests/unit/test_e2e_plan.py
+tests/unit/test_e2e_inventory.py
+tests/unit/test_coverage_generation.py
+tests/unit/test_e2e_case_composition.py
+```
+
+Initial informational source-input SHA-256:
+`94a7af4a865b4c58e2e11151548cf34277b9a1a438edfdc7f046d63608db9886`.
+The preliminary unchanged selection passed 4,195/4,195 in
+`20261020T014531Z-c11958b3` (historical report retired by normal retention);
+focused ambient/composition checks passed 78/78 in
+`20261020T014752Z-92522d7c`. Final acceptance supersedes these intermediate counts.
+
+Canonical selectors are enforcement **293**, `test_kiosk_retained_ambient_history`,
+phase `retained-ambient`; and **294**, `test_kiosk_retained_required_history`,
+phase `retained-required`. Each is one independent complete attempt through
+`system_runner.run_retained_phase()` and `system_snapshots.attempts()`.
+007a2/0071 consume 293; 007a3/0072 consume 294 on their declared targets through
+the maintained system runner. This host task declares no Targets and performs
+no VM or installed acceptance.
+
+`system_kiosk_ambient_history.STEPS` owns eleven separate public visits: initial,
+empty-directory addition/removal, file/directory cross-kind and link replacement/
+restoration, writable/restored modes, foreign/restored ownership and actual
+file/empty-directory unlink/reappearance. Independent expected states reject
+ineffective or wrong mutations before saving success and again before observation.
+Observations bind the original manager/unit/boot, material/view, retained source
+inodes and bytes, actual application invocation mounts, absent new host sources,
+empty private masks for unsafe directories, enforcing positive/negative execution
+and ordinary-account controls. Raw manager metadata changes remain observable;
+only the fresh invocation narrows. Original source replacements, unknown children,
+unattributable ownership and interrupted cleanup are refused and preserved.
+
+`system_kiosk_required_history.BRANCHES` owns native/config/policy/privilege drift.
+Native mutates the inventory-selected `/usr/bin/xdg-dbus-proxy` and requires the
+actual `manager-material/stale-manager-reboot-required` cause. Config/policy use
+the attested pair and require `measurement/attestation-command-failed`; vendor
+helper privilege drift requires `measurement/unexpected-preserved-executable`.
+The public refusal uses a new GDM call/window, with no admitted graphical session.
+Every branch retains exact in-place restoration, owned manager cleanup, normal
+reboot and usable public reentry with enforcing census/ordinary-account controls.
+An earlier attestation refusal cannot supply native-material evidence.
+Internal/public diagnostic captures now use the normal private-subdirectory text
+collector, so redacted failed observations survive even without a result checkpoint.
+
+The source review and private-file controls cover original pins versus host
+replacements, exact mutation data/order, narrowed invocation views, partial
+creation/rename/metadata/removal recovery, first-error preservation through failed
+restoration, and stops at prepare/mutate/internal or public refusal/cleanup/
+collection/reboot/reentry cuts. Controller checkpoints append/fsync before uncertain
+operations and retain each guest manager receipt. These controls use explicit
+account/PAM/journal/manager/command/public-UI doubles; actual logind, loaded policy,
+journal transport and public installed histories remain unqualified here.
+
+Selected inputs freeze the guest `Bundle` import closure from both history owners,
+`COMMON_SELECTED_INPUTS` and the selected enforcement case, including confinement,
+scope, native-update, guest, account/platform and wellbeing owners. The host map
+is `retained_history_host_inputs()`: that closure plus every
+`KIOSK_ACTIVATION_HOST_INPUTS` observer/transport/controller input. Both initial and
+final host-map checks bind the attempt; package and preparation identities remain
+separate in its receipt. Consumers must retain the actual selected-input manifest
+and package identity; this host receipt grants no reuse of an installed history.
+
+Generated coverage and applicable unit/cleanup/resource inventories passed.
+All added controls use pytest-private files, metadata and command/UI doubles;
+no live manager, mount, child, bus, display, network or shared cache owner is added.
+No package/build input or build dependency changed, so no new build is required;
+the accepted 007a1c package builds remain the latest production candidate.
+Runner/fixture and `tools/cleanup-e2e --host-only` cleanup passed before queue
+close-out. The attempted review subagent failed before starting; none remains.
+Only 007a1 closes. Every other canonical row's completion/order/Scope/Requires
+is preserved, and Git close-out belongs to the controller.
+
+After queue/pointer/brief close-out, the same four documentation modules in the
+selection above passed **313/313** in `20261020T015155Z-994ce84a`. Changed-document
+links and whitespace passed. The verified
+[6,006-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
+retains all 5,972 earlier records and the 34 files from focused verification,
+final acceptance and close-out. ZIP SHA-256:
+`1b511913380d0a0bf55bb5fdfe73e964a955b71ee4a1505d2158e548eb3e2361`.
+Historical bundle links resolve to these carried-forward contents; their original
+counts and hashes stay historical. Export verification and owned retirement
+cleanup finished; only evidence references changed after the documentation check.
 
 ### Preparation refusal transport — 007a1b
 
@@ -261,7 +360,7 @@ passed **313/313** in `20261020T011813Z-552591a3`. Its initial informational
 digest is `cbb8e86b98ab2c733651552f058ab053240f3c6617f6006dcf111d8932f84a2f`;
 only prose changed after the accepted host selection. Changed-document links
 and whitespace review passed.
-The verified [5,929-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+The verified [5,929-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all 5,893 earlier records and the three new reports, including exact
 selectors and resource schedules. SHA-256:
 `246aaa48a2081bde3c4d5e4cac7ff65378a9ca262e0f424b8cf5ba757998dfe7`.
@@ -350,7 +449,7 @@ their reviewed scheduling and cleanup owners. Runner/fixture/build and
 `tools/cleanup-e2e --host-only` cleanup passed. No installation, VM, live policy,
 service, staging, commit or push operation occurred.
 
-The verified [5,960-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+The verified [5,960-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all 5,929 previous records and the three reports above. SHA-256:
 `a86564188051bf88fab25839868b735313489d0e8e24ac6f35c6c174545cbc94`.
 Export verification and owned retirement cleanup passed. Historical bundle links
@@ -381,7 +480,7 @@ and all unfinished 006 composition work are preserved.
 
 After the final policy/logger edits, **2,175/2,175** focused host checks and both
 package builds passed; **313/313** documentation checks passed. The verified
-[1,332-file cumulative archive](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+[1,332-file cumulative archive](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all five attempts, exact input manifests, host receipts and cleanup;
 SHA-256 `deb29c21587c0275cd0ce0368f54b03c3d61b027f1c8de6a42948a6ecd3dfce0`.
 The archive retains precise failure locations and input manifests. The fifth
@@ -448,7 +547,7 @@ Only 006e1 closes; 006e2 is next and 006e/006 retain their complete scope.
 
 Post-close-out documentation checks passed **313/313** in
 `20261019T214004Z-7622e598`. The verified
-[1,397-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+[1,397-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all 1,332 checkpoint records, this task's first failures and focused pass,
 final affected acceptance and both documentation passes. SHA-256:
 `34bd4e9ea353bd00159faf32eecdafa65fa2b67d4a8a13055c35bc1d7802dc24`.
@@ -520,7 +619,7 @@ No subagent remains. Only 006e2 closes; 006e3, 006e and 006 retain all obligatio
 
 Post-close-out documentation checks passed **313/313** in
 `20261019T220533Z-1c67037c`. Changed-document links and whitespace review passed.
-The verified [3,166-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+The verified [3,166-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all 1,397 prior records, both installed failures, the final complete
 receipt and frozen input tree, the focused test-label failure, final host and
 documentation passes, and cleanup journals. SHA-256:
@@ -612,7 +711,7 @@ This 006e3 receipt alone supplies no both-target completion.
 
 Post-close-out documentation checks passed **313/313** in
 `20261019T230137Z-eff318a3`. The verified
-[4,057-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+[4,057-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all 3,166 earlier records, the second/third failures and final complete
 Fedora receipt, their frozen source closures/packages, the exported first JUnit,
 and final focused host/documentation receipts. SHA-256:
@@ -687,7 +786,7 @@ selection and final build; its staged prerequisite insertion is its next action.
 
 Post-close-out documentation checks passed **313/313** in
 `20261019T230907Z-3a8c6437`; changed-document links and whitespace checks passed.
-The verified [5,654-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+The verified [5,654-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains every prior 4,057-file checkpoint record, the fresh complete Ubuntu
 receipt, its full frozen input/package closure, both-target cleanup journals and
 the final host report. SHA-256:
@@ -788,7 +887,7 @@ This grants no additional installed acceptance.
 After queue/pointer/brief close-out, the same four documentation modules passed
 **313/313** in `20261019T232902Z-ce88745b`. Changed-document links and whitespace
 checks passed. The verified
-[5,698-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+[5,698-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all 5,654 prior records, the eleven original fixture failures, the focused
 repair pass, final host acceptance and post-close-out checks. SHA-256:
 `deac710692963dc3582cecc9e5b8d380a541bfb988d971a55c82f3023b7d3f27`.
@@ -870,7 +969,7 @@ including 006's complete matrix audit, cumulative host checks and final build.
 After queue/pointer/brief close-out, the same four documentation modules passed
 **313/313** in `20261019T234357Z-2ab04ec9`. Changed-document links and whitespace
 checks passed. The verified
-[5,750-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+[5,750-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all 5,698 prior records, the 27-case focused pass, all three first
 fixture failures, their exact three-case repair pass, final 672-case acceptance
 and post-close-out documentation checks. SHA-256:
@@ -993,7 +1092,7 @@ After queue/pointer/brief close-out, the four documentation modules above passed
 review passed. Only 006h closes; every other queue row's status, order, Scope
 and Requires are preserved. The sole pointer is now on 006.
 
-The verified [5,831-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+The verified [5,831-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all 5,750 prior records, both first diagnostic failures, the fresh pass,
 the retained fixture failures and their repair pass, final 1,086-case acceptance
 and post-close-out documentation checks. SHA-256:
@@ -1109,7 +1208,7 @@ to 007a. The temporary 006 brief is removed.
 
 Post-close-out documentation checks passed **313/313** in
 `20261020T001718Z-b69df272`; changed-document links and whitespace checks passed.
-The verified [5,855-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+The verified [5,855-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains all 5,831 prior records plus the final 5,145-case and documentation
 reports. SHA-256:
 `57c0402c852d384cf5416e5945f2c70d1dd5e566ccd992186cb00353d03ace0d`.
@@ -1138,7 +1237,7 @@ without editing a running controller's checkpoint or starting a second launcher.
 | Consumer when selected | Prepared prerequisite block | Consumer retains |
 | --- | --- | --- |
 | 006 | [006f manager lifetime](#manager-lifetime-composition--006f), [006g writers and host sources](#writer-and-host-source-composition--006g), [006h publication and closure](#receipt-publication-and-closure-composition--006h) | Full composition-table audit, exact bootstrap receipt applicability, cumulative host checks and final build |
-| 007a | [007a1 canonical histories](Kiosk-Prompt-Tasks/007a1-retained-history-host.md), [007a2 Ubuntu ambient](Kiosk-Prompt-Tasks/007a2-ambient-ubuntu.md), [007a3 Ubuntu required drift](Kiosk-Prompt-Tasks/007a3-required-ubuntu.md) | Complete Ubuntu retained-view and refusal/recovery acceptance, using only applicable full receipts |
+| 007a | [007a1 canonical histories](#canonical-retained-view-histories--007a1), [007a2 Ubuntu ambient](Kiosk-Prompt-Tasks/007a2-ambient-ubuntu.md), [007a3 Ubuntu required drift](Kiosk-Prompt-Tasks/007a3-required-ubuntu.md) | Complete Ubuntu retained-view and refusal/recovery acceptance, using only applicable full receipts |
 | 007 | [0071 Fedora ambient](Kiosk-Prompt-Tasks/0071-ambient-fedora.md), [0072 Fedora required drift](Kiosk-Prompt-Tasks/0072-required-fedora.md) | Complete Fedora acceptance and both-target receipt reconciliation |
 | 009a | [009a1 canonical authentication history](Kiosk-Prompt-Tasks/009a1-auth-history-host.md) | Entire effective-policy/refusal/restoration/ordinary-account/public-reentry history on Ubuntu |
 | 010a | [010a1 canonical diagnostic history](Kiosk-Prompt-Tasks/010a1-feedback-history-host.md) | Entire failure/recovery/reboot/public-download/privacy history on Ubuntu |
@@ -2355,7 +2454,7 @@ Source-only ambient errors may omit or mask only the fresh invocation; original
 source indices and manager dentries remain unchanged, with no host-source reopen.
 
 The exact eight-module selection passed **1,701/1,701** cases in
-[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 (report retained in the cumulative bundle),
 including **157 selection** and **53 current-material** cases, existing native
 pin/storage and confinement/PAM callers, and both scheduling inventories.
@@ -2412,7 +2511,7 @@ and is closed.
 The original verified cumulative host bundle retained those reports, the final
 affected run, original fixture failures and all available 006a host evidence
 (162 files). Its contents are now carried forward in the
-[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip),
+[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip),
 whose current identity is recorded at 006c below. Original bundle SHA-256:
 `70b2aa0b52b76360f11685455cd5f8a1fd095fd2e67979d3e09278c1509e7a78`.
 Export verification and owned cleanup completed. Historical 006a report links
@@ -2513,7 +2612,7 @@ unregistered build outputs are outside the test-bundle selection contract.
 After queue/pointer/brief close-out, the four documentation modules listed above
 passed **313/313** in `20261019T190633Z-b665fed2`. Changed-document links passed
 (five documents, 267 links), as did whitespace review.
-The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains **645 files**, including every available original 006/006a/006b checkpoint
 receipt, all this task's intermediate test failures, the final affected pass and
 the post-close-out documentation pass.
@@ -2615,7 +2714,7 @@ After queue/pointer/brief close-out, the same four documentation modules listed
 in 006c passed **313/313** in `20261019T193722Z-ad511616`. Changed-document links
 passed (four documents, 257 links after adding the bundle reference), as did
 whitespace review.
-The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains **701 files**: all 669 carried-forward records, the four filename
 reproductions, final affected acceptance and post-close-out documentation checks.
 SHA-256: `f51c3f4637591345a4af04d93f2016f71ee809302272f9fa553a7f3c3f017c72`.
@@ -2665,7 +2764,7 @@ needed at this checkpoint; 006's final build remains required after 006e.
 
 The post-handoff documentation selection passed **313/313** in
 `20261019T195047Z-c35b2061`. The verified
-[756-file cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-6x7dg5nt/evidence.zip)
+[756-file cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-58yd2vl_/evidence.zip)
 retains every prior receipt, both fixture-selection failures and all corrected
 verification above. SHA-256:
 `14900f5f8579ccdbc357622dceda0e324decc8a56e8951edcc33b04dfb1efcc8`.

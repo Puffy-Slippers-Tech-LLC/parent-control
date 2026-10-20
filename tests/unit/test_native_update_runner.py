@@ -229,11 +229,14 @@ def test_native_station_receipt_and_retirement_follow_normal_public_exit(tmp_pat
 
 
 @pytest.mark.parametrize('fault', [None, 'mode', 'link', 'size', 'owner'])
-def test_native_collection_is_finite_private_bounded_and_redacted(tmp_path, monkeypatch, fault):
+@pytest.mark.parametrize('name', ['native-update-old.json', 'retained-ambient-observed-initial.json',
+                                  'required-history-native-complete.json',
+                                  'retained-manager-' + 'a' * 32 + '-intent.json'])
+def test_native_collection_is_finite_private_bounded_and_redacted(tmp_path, monkeypatch, fault, name):
     import system_guest as guest
     monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
     (tmp_path / 'private').mkdir()
-    source = tmp_path / 'private/native-update-old.json'
+    source = tmp_path / 'private' / name
     source.write_text(json.dumps({'binding': 'sensitive-value'}))
     (tmp_path / 'private/native-update-foreign.json').write_text('{}')
     output = tmp_path / 'results'
@@ -254,6 +257,6 @@ def test_native_collection_is_finite_private_bounded_and_redacted(tmp_path, monk
         assert not list(output.iterdir())
     else:
         guest.collect_native_checkpoints(output, redact)
-        assert [path.name for path in output.iterdir()] == ['native-update-old.json']
+        assert [path.name for path in output.iterdir()] == [source.name]
         assert json.loads((output / source.name).read_text()) == {'binding': '[redacted]'}
         assert 'sensitive-value' in source.read_text()

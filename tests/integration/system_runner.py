@@ -57,6 +57,11 @@ SIBLING_CASE = 'test_kiosk_writable_sibling_isolation'
 SIBLING_PHASE = 'sibling-isolation'
 REQUIRED_CASE = 'test_kiosk_required_ancestor_refusal'
 REQUIRED_PHASE = 'required-ancestor'
+RETAINED_AMBIENT_CASE = 'test_kiosk_retained_ambient_history'
+RETAINED_REQUIRED_CASE = 'test_kiosk_retained_required_history'
+RETAINED_AMBIENT_PHASE = 'retained-ambient'
+RETAINED_REQUIRED_PHASE = 'retained-required'
+RETAINED_PHASES = (RETAINED_AMBIENT_PHASE, RETAINED_REQUIRED_PHASE)
 
 
 @dataclass(frozen=True)
@@ -115,7 +120,7 @@ PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
 PHASE_ORDER = (*NATIVE_UPDATE_PHASES, TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
-               SIBLING_PHASE, REQUIRED_PHASE, 'authorization', 'enforcement', 'session')
+               SIBLING_PHASE, REQUIRED_PHASE, *RETAINED_PHASES, 'authorization', 'enforcement', 'session')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'removal': ROOT / 'tests/system/test_removal.py',
@@ -158,6 +163,7 @@ NATIVE_UPDATE_HOST_INPUTS = (
     'tools/regression.py', 'tools/regression_process.py',
 )
 PHASE_DEPENDENCIES = {
+    **{phase: () for phase in RETAINED_PHASES},
     REQUIRED_PHASE: (),
     SIBLING_PHASE: (),
     NATIVE_UPDATE_PHASES[0]: (),
@@ -180,6 +186,10 @@ PHASE_DEPENDENCIES = {
     'session': (),
 }
 PHASE_PREREQUISITES = {
+    RETAINED_AMBIENT_PHASE: ('retained-app-snapshot', 'owned-retained-manager',
+                             'owned-ambient-inputs', 'separate-public-station-visits'),
+    RETAINED_REQUIRED_PHASE: ('retained-app-snapshot', 'owned-retained-manager',
+                              'owned-required-drift', 'public-refusal-restoration-reboot-reentry'),
     REQUIRED_PHASE: ('retained-app-snapshot', 'owned-required-ancestor', 'public-refusal-and-recovery'),
     SIBLING_PHASE: ('retained-app-snapshot', 'owned-sibling-inputs', 'retained-public-station'),
     NATIVE_UPDATE_PHASES[0]: ('verified-native-artifacts', 'old-native-before-install',
@@ -394,6 +404,8 @@ def collect_area_cases(area, *, invoke=None):
 
 
 def case_phases(area, case_id):
+    if area == 'enforcement' and case_id in (RETAINED_AMBIENT_CASE, RETAINED_REQUIRED_CASE):
+        return (RETAINED_AMBIENT_PHASE if case_id == RETAINED_AMBIENT_CASE else RETAINED_REQUIRED_PHASE,)
     if area == 'enforcement' and case_id == SIBLING_CASE:
         return (SIBLING_PHASE,)
     if area == 'enforcement' and case_id == REQUIRED_CASE:
@@ -1558,12 +1570,15 @@ def stage_selected_inputs(selection, destination):
         },
         'files': files,
     }
-    if any(item.case_id in (SIBLING_CASE, REQUIRED_CASE) or
+    if any(item.case_id in (SIBLING_CASE, REQUIRED_CASE, RETAINED_AMBIENT_CASE, RETAINED_REQUIRED_CASE) or
            (item.area == 'package' and item.case_id in (KIOSK_ACTIVATION_CASE, NATIVE_UPDATE_CASE))
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
         if any(item.case_id == NATIVE_UPDATE_CASE for item in selection.executions):
             identity['host_files'] = native_update_host_inputs()
+        if any(item.case_id in (RETAINED_AMBIENT_CASE, RETAINED_REQUIRED_CASE)
+               for item in selection.executions):
+            identity['host_files'] = retained_history_host_inputs()
     path = destination / 'selected-inputs.json'
     path.write_bytes(baseline.encode(identity))
     digest = baseline.digest(path)
@@ -1582,6 +1597,18 @@ def native_update_host_inputs():
     return {**kiosk_activation_host_inputs(),
             **{source: hashlib.sha256(read(ROOT, source)).hexdigest()
                for source in NATIVE_UPDATE_HOST_INPUTS}}
+
+
+def retained_history_host_inputs():
+    # The controller imports only the finite case plans, but freeze their entire
+    # local import closure too. Guest staging independently freezes those bytes.
+    from guest_inputs import Bundle
+    bundle = Bundle(ROOT, [*COMMON_SELECTED_INPUTS,
+        *((f'tests/integration/system_kiosk_{name}_history.py', f'system_kiosk_{name}_history.py')
+          for name in ('ambient', 'required'))])
+    return {**kiosk_activation_host_inputs(), **{
+        bundle.sources[target]: hashlib.sha256(data).hexdigest()
+        for target, data in bundle.files.items()}}
 
 
 def observe_kiosk_activation(vm, lease, directory, selection, phase):
@@ -2197,6 +2224,156 @@ def run_required_phase(vm, lease, directory, selection):
             'kiosk-required:incomplete-history')
 
 
+def retained_history_checkpoint(directory, phase):
+    """Append/fsync recovery handles before uncertain commands or public input.
+
+    The existing attempt allocation owns these immutable snapshots. A recovery
+    reader uses the last numbered file; a restart never replays this history.
+    """
+    output = directory / 'guest-results'
+    output.mkdir(mode=0o700, exist_ok=True)
+    serial = 0
+
+    def save(receipt):
+        nonlocal serial
+        target = output / (phase + '-checkpoint-' + f'{serial:04d}' + '.json')
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(baseline.encode(receipt))
+            stream.flush()
+            os.fsync(stream.fileno())
+        descriptor = os.open(output, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        serial += 1
+    return save
+
+
+def run_retained_phase(vm, lease, directory, selection, phase):
+    """Canonical histories; mutations and their finite assertions live in cases.
+
+    No VM baseline restore may splice a partial history into a later attempt.
+    The installed starting-state owner restores after this entire function.
+    """
+    from kiosk_entry import native_update_station, observe_station_refusal
+    from system_kiosk_ambient_history import STEPS
+    from system_kiosk_required_history import BRANCHES
+    require(phase in RETAINED_PHASES, 'retained-history:phase')
+    inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
+    require(retained_history_host_inputs() == inputs['host_files'], 'retained-history:host-inputs-changed')
+    receipt = {'phase': phase, 'host_files': inputs['host_files'],
+               'selected_inputs_sha256': baseline.digest(directory / 'input/selected-inputs.json'),
+               'managers': [], 'branches': []}
+    save = retained_history_checkpoint(directory, phase)
+    command = ['env', 'ONPC_EXPECTED_RUN=' + lease.state['run'], 'PYTHONDONTWRITEBYTECODE=1',
+               '/usr/bin/python3', '-B', PAYLOAD + '/system_kiosk_' +
+               ('ambient' if phase == RETAINED_AMBIENT_PHASE else 'required') + '_history.py']
+
+    def call(action, branch=None):
+        lease.guard()
+        receipt['pending'] = [action, branch]
+        save(receipt)
+        result = vm.call([*command, action, *([branch] if branch is not None else [])], timeout=300)
+        lease.guard()
+        receipt.pop('pending')
+        save(receipt)
+        return result
+
+    def checkpoint_manager(value):
+        receipt['managers'][-1] = value
+        save(receipt)
+
+    def recover(action, branch=None):
+        failure = sys.exc_info()[1]
+        try:
+            call(action, branch)
+        except BaseException as error:
+            if failure is None:
+                raise
+            receipt.setdefault('cleanup_failures', []).append(type(error).__name__ + ': ' + str(error))
+            failure.add_note('retained-history:recovery-failed:' + type(error).__name__)
+
+    primary = None
+    try:
+        if phase == RETAINED_AMBIENT_PHASE:
+            try:
+                call('prepare')
+                manager = {}
+                receipt['managers'].append(manager)
+                with owned_retained_manager(vm, lease, receipt=manager,
+                                            checkpoint=checkpoint_manager) as history:
+                    call('capture')
+                    for step in STEPS:
+                        if step != 'initial':
+                            call('change', step)
+                        with history.station():
+                            call('observe', step)
+                        receipt['branches'].append(step)
+                        save(receipt)
+            finally:
+                # An uncertain prepare/change still invokes guarded recovery.
+                recover('cleanup')
+        else:
+            for branch in BRANCHES:
+                call('idle')
+                manager = {}
+                receipt['managers'].append(manager)
+                branch_receipt = {'branch': branch, 'refusal': {}, 'recovery': {}}
+                receipt['branches'].append(branch_receipt)
+                with owned_retained_manager(vm, lease, receipt=manager,
+                                            checkpoint=checkpoint_manager) as history:
+                    with history.station():
+                        pass
+                    try:
+                        call('prepare', branch)
+                        call('mutate', branch)
+                        call('refusal', branch)
+                        save(receipt)  # bind ownership before one public attempt
+                        observe_station_refusal(vm, lease, lambda: call('public-refusal', branch),
+                                                receipt=branch_receipt['refusal'])
+                        save(receipt)
+                    finally:
+                        recover('cleanup')
+                    history.check()
+                call('cleanup')
+                # Preserve the original failure/refusal/restoration before a
+                # normal reboot; each branch includes its own fresh recovery.
+                vm.call(guest_command(lease.state['run'], 'collect', 'installed'), timeout=180)
+                vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+                lease.save('retained-required-reboot-' + branch)
+                vm.reboot()
+                save(receipt)
+                with native_update_station(vm, lease, receipt=branch_receipt['recovery']):
+                    call('complete', branch)
+                require(branch_receipt['refusal'].get('safe_return') and
+                        branch_receipt['recovery'].get('normal_exit'), 'retained-history:public-incomplete')
+                save(receipt)
+        run_pytest(vm, lease.state['run'], phase, selection)
+        receipt['passed'] = True
+    except BaseException as error:
+        primary = error
+        receipt.setdefault('first_failure', type(error).__name__ + ': ' + str(error))
+        raise
+    finally:
+        try:
+            receipt['host_inputs_unchanged'] = retained_history_host_inputs() == inputs['host_files']
+            save(receipt)
+        except BaseException as error:
+            if primary is None:
+                raise
+            receipt.setdefault('cleanup_failures', []).append(type(error).__name__ + ': ' + str(error))
+            primary.add_note('retained-history:checkpoint-failed:' + type(error).__name__)
+            try:
+                save(receipt)
+            except BaseException:
+                pass  # the first exception and its note remain authoritative
+    require(receipt.get('passed') and receipt['host_inputs_unchanged'] and
+            all(manager.get('cleanup_complete') for manager in receipt['managers']),
+            'retained-history:incomplete')
+
+
 def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False):
     ledger = ledger or RunLedger()
     run = lease.state['run']
@@ -2341,7 +2518,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                          for phase in history.phases[1:])
         for phase in (*NATIVE_UPDATE_PHASES, TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *recovery_phases,
-                      SIBLING_PHASE, REQUIRED_PHASE, 'authorization', 'enforcement', 'session'):
+                      SIBLING_PHASE, REQUIRED_PHASE, *RETAINED_PHASES, 'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
             if phase in (NATIVE_UPDATE_PHASES[1], *rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
@@ -2387,6 +2564,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         run_sibling_phase(vm, lease, directory, selection)
                     elif phase == REQUIRED_PHASE:
                         run_required_phase(vm, lease, directory, selection)
+                    elif phase in RETAINED_PHASES:
+                        run_retained_phase(vm, lease, directory, selection, phase)
                     else:
                         run_pytest(vm, run, phase, selection)
                 except CommandError as error:

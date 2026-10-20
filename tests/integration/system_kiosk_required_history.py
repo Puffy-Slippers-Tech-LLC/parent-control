@@ -218,14 +218,24 @@ def mutate(branch, record=lambda *_: None):
     record('onpc.kiosk.required.' + branch + '.changed', True)
 
 
-def capture_refusal(account, branch):
-    """Use the native owner's journal transport for this one owned PAM call."""
-    directory = native.private()
-    path = directory / ('required-history-' + branch + '-pam.jsonl')
+def diagnostic_path(branch, phase):
+    guest.require(branch in BRANCHES and phase in ('pam', 'public'),
+                  'required-history:diagnostic-name')
+    # The normal collector exports redacted private subdirectory .txt files,
+    # including failed observations that never reached a result checkpoint.
+    directory = native.private() / 'required-history-output'
+    directory.mkdir(mode=0o700, exist_ok=True)
+    path = directory / (branch + '-' + phase + '.txt')
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     os.close(fd)
+    return path
+
+
+def capture_refusal(account, branch):
+    """Use the native owner's journal transport for this one owned PAM call."""
+    path = diagnostic_path(branch, 'pam')
     stage, reason = refusal_cause(branch)
-    return native.pam_refusal(account, directory, stage=stage, reason=reason, diagnostic=path)
+    return native.pam_refusal(account, native.private(), stage=stage, reason=reason, diagnostic=path)
 
 
 def refusal_cause(branch):
@@ -291,7 +301,7 @@ def public_refusal(branch, record=lambda *_: None):
     guest.require(prior['public_window']['boot'] == intent['boot'].replace('-', ''),
                   'required-history:refusal-boot')
     markers = native.journal_refusal(prior['public_window'], stage=stage, reason=reason,
-                                     timeout=75)
+                                     timeout=75, diagnostic=diagnostic_path(branch, 'public'))
     guest.require(all(row['pid'] != prior['observation']['call']['pid'] for row in markers),
                   'required-history:reused-internal-call')
     sessions = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'])

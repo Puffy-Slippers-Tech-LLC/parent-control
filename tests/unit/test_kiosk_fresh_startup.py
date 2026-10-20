@@ -241,11 +241,15 @@ static int original_source=-1, partial_write;
 static struct stat original_nested;
 static struct stat original_target_info;
 static struct statx original_target_mount;
+static const char *origin_paths[]={"/usr/bin/native","/usr/bin/script","/usr/bin/ambient",
+    "/usr/bin/ambient-tree","/usr/share/oh-no-parent-control/confinement/config.json",
+    "/usr/share/oh-no-parent-control/confinement/onpc-kiosk.apparmor"};
+static struct stat original_origins[sizeof(origin_paths)/sizeof(*origin_paths)];
 static uint64_t transaction_deadline;
 static struct stat caller_objects[4096];
 static unsigned char caller_fds[4096];
 static unsigned selinux_order;
-static unsigned fault_hits, contention_checks, writer_barriers;
+static unsigned fault_hits, contention_checks, writer_barriers, cleanup_hits;
 static void contend(void);
 static void writer_barrier(const char *phase) {
     char prefix[64];snprintf(prefix,sizeof(prefix),"writer-%s-",phase);
@@ -255,7 +259,7 @@ static void writer_barrier(const char *phase) {
 static int ready_expected(void) {
     return !strcmp(mode,"healthy") || !strcmp(mode,"ambient-narrow") || !strcmp(mode,"concurrent-writers") ||
         !strncmp(mode,"writer-",7) ||
-        !strcmp(mode,"mac-failure") || !strcmp(mode,"mac-readback") || !strcmp(mode,"mac-deadline") ||
+        !strcmp(mode,"mac-failure") || !strcmp(mode,"mac-cleanup-cut") || !strcmp(mode,"mac-readback") || !strcmp(mode,"mac-deadline") ||
         !strcmp(mode,"environment-failure") || !strcmp(mode,"post-attach-required-drift") ||
         !strncmp(mode,"ready-",6) || !strncmp(mode,"premac-",7) || !strcmp(mode,"generation-three");
 }
@@ -394,9 +398,33 @@ static int fixture_mount(const char *source,const char *target,const char *type,
             }
         }
     }
-    char out[PATH_MAX]; return mount(source,!strcmp(target,"/")?target:map(target,out),type,flags,data);
+    char out[PATH_MAX];int result=mount(source,!strcmp(target,"/")?target:map(target,out),type,flags,data);
+    if(!result && (flags&MS_BIND) && !strcmp(mode,"ambient-bind-undo-cleanup-cut") && !fault_hits) {
+        char named[PATH_MAX],ambient[PATH_MAX];ssize_t length=readlink(source,named,sizeof(named)-1);
+        snprintf(ambient,sizeof(ambient),"%s/host/usr/bin/ambient",base);
+        if(length>0) {
+            named[length]=0;
+            if(!strcmp(named,ambient)) {
+                struct stat before,after,mounted;char mounted_path[PATH_MAX];
+                ssize_t mounted_length=readlink(target,mounted_path,sizeof(mounted_path)-1);
+                require(mounted_length>0,"independent-mounted-ambient-target-path");mounted_path[mounted_length]=0;
+                require(lstat(ambient,&before)==0 && stat(mounted_path,&mounted)==0 &&
+                    before.st_dev==original_origins[2].st_dev && before.st_ino==original_origins[2].st_ino &&
+                    mounted.st_dev==before.st_dev && mounted.st_ino==before.st_ino &&
+                    (before.st_mode&0777)==0644,"real-ambient-bind-precedes-same-origin-trust-drift");
+                require(chmod(ambient,0666)==0 && lstat(ambient,&after)==0 &&
+                    after.st_dev==before.st_dev && after.st_ino==before.st_ino &&
+                    (after.st_mode&0777)==0666,"late-ambient-trust-drift-preserves-original-inode");
+                fault_hits++;
+            }
+        }
+    }
+    return result;
 }
 static int fixture_umount(const char *target,int flags) {
+    if(!strcmp(mode,"publication-cleanup-cut") && fault_hits && !cleanup_hits++) {errno=EBUSY;return -1;}
+    if(!strcmp(mode,"mac-cleanup-cut") && mac_calls && !cleanup_hits++) {errno=EBUSY;return -1;}
+    if(!strcmp(mode,"ambient-bind-undo-cleanup-cut") && fault_hits && !cleanup_hits++) {errno=EBUSY;return -1;}
     if(!strcmp(mode,"staging-detach-cut") && !fault_hits++) {errno=EIO;return -1;}
     char out[PATH_MAX];return umount2(map(target,out),flags);
 }
@@ -407,6 +435,10 @@ static int fixture_open_tree(int fd,const char *path,unsigned flags) {
 static int fixture_move_mount(int from,const char *source,int to,const char *target,unsigned flags) {
     if(!strcmp(mode,"attachment-cut") && !fault_hits++) {errno=EIO;return -1;}
     return move_mount(from,source,to,target,flags);
+}
+static int fixture_mount_setattr(int fd,const char *path,unsigned flags,struct mount_attr *attr,size_t size) {
+    if(!strcmp(mode,"readonly-cut") && !fault_hits++) {errno=EIO;return -1;}
+    return mount_setattr(fd,path,flags,attr,size);
 }
 static int fixture_unshare(int flags) {
     int result=unshare(flags);
@@ -443,6 +475,7 @@ static int fixture_account(const char *name,struct passwd *p,char *bytes,size_t 
 }
 static int fixture_environment(pam_handle_t *p,const char *value) {
     (void)p; require(!strcmp(value,"SYSTEMD_UNIT_PATH=/usr/share/oh-no-parent-control/confinement/user-units:"),"manager-environment");
+    require(ready_commits==1 && !mac_calls,"ready-before-environment-before-MAC");
     environment_calls++;
     if(!strcmp(mode,"concurrent-writers")) contend();
     if(!strncmp(mode,"premac-",7)) {
@@ -476,7 +509,9 @@ static int profile(const char *name) {
         if(end.tv_nsec>=1000000000) {end.tv_sec++;end.tv_nsec-=1000000000;}
         require(clock_nanosleep(CLOCK_MONOTONIC,TIMER_ABSTIME,&end,NULL)==0,"original-deadline-expires-in-final-MAC");
     }
-    if(!strcmp(mode,"mac-failure")) {errno=EACCES;return -1;}return 0;
+    if(!strcmp(mode,"mac-failure") || !strcmp(mode,"mac-cleanup-cut")) {
+        fault_hits++;errno=EACCES;return -1;
+    }return 0;
 }
 static int get_profile(char **label,char **enforce) {
     *label=strdup("onpc-kiosk-manager\0enforce");
@@ -539,7 +574,9 @@ static int fixture_rename(int a,const char *from,int b,const char *to,unsigned f
         struct stat s;require(fstatat(a,"material.json",&s,AT_SYMLINK_NOFOLLOW)==0 &&
             fstatat(a,"view",&s,AT_SYMLINK_NOFOLLOW)==0 && fstatat(a,"pins",&s,AT_SYMLINK_NOFOLLOW)==0 &&
             fstatat(a,"runtime.json",&s,AT_SYMLINK_NOFOLLOW)==0,"ready-after-complete-records");
-        if(!strcmp(mode,"publication-cut")) {errno=EIO;return -1;}
+        if(!strcmp(mode,"publication-cut") || !strcmp(mode,"publication-cleanup-cut")) {
+            fault_hits++;errno=EIO;return -1;
+        }
         if(!strcmp(mode,"post-attach-required-drift")) {
             char source[PATH_MAX],bytes[32]={0};snprintf(source,sizeof(source),"%s/host/usr/bin/native",base);
             int selected=open(source,O_RDONLY|O_CLOEXEC);
@@ -643,6 +680,7 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 #define fsync fixture_fsync
 #define open_tree fixture_open_tree
 #define move_mount fixture_move_mount
+#define mount_setattr fixture_mount_setattr
 #define recvmsg fixture_recvmsg
 #include "kiosk_confinement.h"
 #include "kiosk_fresh_startup.h"
@@ -667,6 +705,7 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 #undef fsync
 #undef open_tree
 #undef move_mount
+#undef mount_setattr
 #undef recvmsg
 static void contend(void) {
     char path[PATH_MAX];snprintf(path,sizeof(path),"%s/lock",base);
@@ -743,6 +782,11 @@ static void independent_coverage(const struct kiosk_fresh_startup *s) {
         const struct kiosk_receipt_row *n=s->realized.receipt.nodes+i;unsigned j;
         for(j=0;j<sizeof(expected)/sizeof(*expected);j++) if(!strcmp(expected[j],n->v[KR_PATH])) break;
         require(j<sizeof(expected)/sizeof(*expected),"no-unexpected-actual-source");
+        for(unsigned origin=0;origin<sizeof(origin_paths)/sizeof(*origin_paths);origin++)
+            if(!strcmp(n->v[KR_PATH],origin_paths[origin]))
+                require(n->number[KR_ORIGIN_DEV]==(uint64_t)original_origins[origin].st_dev &&
+                    n->number[KR_ORIGIN_INO]==(uint64_t)original_origins[origin].st_ino,
+                    "independent-original-host-source-provenance");
         char path[PATH_MAX];snprintf(path,sizeof(path),"%s/host%s",base,n->v[KR_PATH]);struct stat info;
         if(!strcmp(n->v[KR_KIND],"absent")) {require(lstat(path,&info)!=0 && errno==ENOENT,"actual-source-absent");continue;}
         require(lstat(path,&info)==0 && (uint64_t)info.st_dev==n->number[KR_DEV] &&
@@ -761,6 +805,26 @@ static void independent_coverage(const struct kiosk_fresh_startup *s) {
         statx(AT_FDCWD,path,AT_SYMLINK_NOFOLLOW,STATX_MNT_ID,&child_mount)==0 &&
         statx(AT_FDCWD,parent,AT_SYMLINK_NOFOLLOW,STATX_MNT_ID,&parent_mount)==0 &&
         child_mount.stx_mnt_id!=parent_mount.stx_mnt_id,"independent-real-nested-mount");
+}
+static void completion_boundary(const struct kiosk_fresh_startup *s) {
+    /* Assert the actual transaction stop, independently of the injected API's
+     * return. In particular, a committed ready rename survives later refusal. */
+    const char *publication[]={"publication-cut","publication-cleanup-cut","publication-partial",
+        "material-fsync-cut","view-fsync-cut","pins-fsync-cut","pending-fsync-cut",
+        "generation-rename-cut","generation-durability-cut","ready-durability-cut","generation-four"};
+    const char *expected=NULL;
+    for(unsigned i=0;i<sizeof(publication)/sizeof(*publication);i++)
+        if(!strcmp(mode,publication[i])) expected="publication";
+    if(!strcmp(mode,"bind-cut") || !strcmp(mode,"ambient-bind-undo-cleanup-cut")) expected="realization";
+    if(!strcmp(mode,"clone-cut") || !strcmp(mode,"attachment-cut") || !strcmp(mode,"readonly-cut")) expected="attachment";
+    if(!strcmp(mode,"staging-detach-cut")) expected="staging";
+    if(!strcmp(mode,"environment-failure")) expected="environment";
+    if(!strcmp(mode,"mac-failure") || !strcmp(mode,"mac-cleanup-cut") || !strcmp(mode,"mac-readback") || !strcmp(mode,"mac-deadline")) expected="mac";
+    if(expected) require(s->stage && !strcmp(s->stage,expected),"exact-completion-refusal-stage");
+    if(expected && strcmp(expected,"mac") && strcmp(expected,"environment"))
+        require(!environment_calls && !mac_calls,"publication-or-mount-refusal-prevents-environment-and-MAC");
+    if(expected && !strcmp(expected,"publication"))
+        require(s->ready==!strcmp(mode,"ready-durability-cut"),"atomic-ready-commit-is-completion-boundary");
 }
 int main(int argc,char **argv) {
     require(argc==3,"arguments");mode=argv[1];base=argv[2];
@@ -797,6 +861,10 @@ int main(int argc,char **argv) {
     char original_usr[PATH_MAX];snprintf(original_usr,sizeof(original_usr),"%s/host/usr",base);
     require(lstat(original_usr,&original_target_info)==0 &&
         statx(AT_FDCWD,original_usr,AT_SYMLINK_NOFOLLOW,STATX_MNT_ID,&original_target_mount)==0,"independent-original-target-mount");
+    for(unsigned origin=0;origin<sizeof(origin_paths)/sizeof(*origin_paths);origin++) {
+        snprintf(path,sizeof(path),"%s/host%s",base,origin_paths[origin]);
+        require(lstat(path,&original_origins[origin])==0,"capture-original-host-source-before-attachment");
+    }
     final_fd_baseline=(int)descriptors();
     for(int caller=0;caller<4096;caller++) caller_fds[caller]=fstat(caller,&caller_objects[caller])==0;
     struct kiosk_fresh_startup startup;kiosk_fresh_startup_init(&startup);
@@ -812,6 +880,50 @@ int main(int argc,char **argv) {
     if((result==0)!=positive) fprintf(stderr,"fresh-result mode=%s result=%d stage=%s child-started=%d reaped=%d phase=%u pidfd=%d channel=%d\n",mode,result,startup.stage?startup.stage:"-",
         startup.child.started,startup.child.reaped,startup.child.phase,startup.child.pidfd,startup.child.channel);
     require((result==0)==positive,"complete-transaction-result");
+    completion_boundary(&startup);
+    struct kiosk_failure primary=startup.failure, cleanup=startup.cleanup_failure;
+    if(!strcmp(mode,"publication-cleanup-cut")) {
+        require(fault_hits==1 && cleanup_hits==1 && !startup.recovered && startup.pin.attached &&
+            startup.pin.parent>=0 && kiosk_fresh_close(&startup)!=0,
+            "failed-detach-retains-exact-attachment-owner");
+        require(primary.stage && !strcmp(primary.stage,"publication") && !strcmp(primary.reason,"refused") &&
+            cleanup.stage && !strcmp(cleanup.stage,"pin") && !strcmp(cleanup.reason,"detach") && cleanup.error==EBUSY,
+            "independent-primary-publication-and-cleanup-detach-failures");
+    }
+    if(!strcmp(mode,"mac-cleanup-cut")) {
+        struct statx attached;
+        require(fault_hits==1 && cleanup_hits==1 && mac_calls==1 && startup.ready && ready_commits==1 &&
+            !startup.recovered && !startup.armed && startup.view.cloned && !startup.pin.attached &&
+            statx(AT_FDCWD,original_usr,AT_SYMLINK_NOFOLLOW,STATX_MNT_ID,&attached)==0 &&
+            attached.stx_mnt_id==startup.view.clone_id && kiosk_fresh_close(&startup)!=0,
+            "post-closure-failed-detach-retains-exact-view-owner");
+        fprintf(stderr,"mac-cleanup primary=%s/%s/%d common=%s/%s/%d view=%s/%s/%d\n",
+            primary.stage?primary.stage:"-",primary.reason?primary.reason:"-",primary.error,
+            cleanup.stage?cleanup.stage:"-",cleanup.reason?cleanup.reason:"-",cleanup.error,
+            startup.view.cleanup_failure.stage?startup.view.cleanup_failure.stage:"-",
+            startup.view.cleanup_failure.reason?startup.view.cleanup_failure.reason:"-",startup.view.cleanup_failure.error);
+        require(primary.stage && !strcmp(primary.stage,"mac") && !strcmp(primary.reason,"refused") &&
+            cleanup.stage && !strcmp(cleanup.stage,"detach") && !strcmp(cleanup.reason,"detach") && cleanup.error==EBUSY &&
+            startup.view.cleanup_failure.stage && !strcmp(startup.view.cleanup_failure.stage,"detach") &&
+            !strcmp(startup.view.cleanup_failure.reason,"detach") && startup.view.cleanup_failure.error==EBUSY,
+            "independent-primary-MAC-and-post-closure-cleanup-detach-failures");
+    }
+    if(!strcmp(mode,"ambient-bind-undo-cleanup-cut")) {
+        require(fault_hits==1 && cleanup_hits>=2 && startup.recovered && !startup.ready &&
+            !ready_commits && !environment_calls && !mac_calls,
+            "late-ambient-bind-undo-failure-recovered-without-admission");
+        fprintf(stderr,"ambient-undo primary=%s/%s/%d common=%s/%s/%d realization=%s/%s/%d\n",
+            primary.stage?primary.stage:"-",primary.reason?primary.reason:"-",primary.error,
+            cleanup.stage?cleanup.stage:"-",cleanup.reason?cleanup.reason:"-",cleanup.error,
+            startup.realized.cleanup_failure.stage?startup.realized.cleanup_failure.stage:"-",
+            startup.realized.cleanup_failure.reason?startup.realized.cleanup_failure.reason:"-",
+            startup.realized.cleanup_failure.error);
+        require(primary.stage && !strcmp(primary.stage,"realization") && !strcmp(primary.reason,"identity") &&
+            cleanup.stage && !strcmp(cleanup.stage,"detach") && !strcmp(cleanup.reason,"detach") && cleanup.error==EBUSY &&
+            startup.realized.cleanup_failure.stage && !strcmp(startup.realized.cleanup_failure.stage,"detach") &&
+            !strcmp(startup.realized.cleanup_failure.reason,"detach") && startup.realized.cleanup_failure.error==EBUSY,
+            "successful-recovery-preserves-primary-and-native-bind-undo-cleanup-failures");
+    }
     if(!strcmp(mode,"concurrent-writers")) require(contention_checks==3,"all-competing-production-writers-observed");
     if(!strncmp(mode,"writer-",7)) require(writer_barriers==1 && contention_checks==1,
         "exact-independent-writer-at-requested-composition-barrier");
@@ -835,14 +947,22 @@ int main(int argc,char **argv) {
             "premac-replaced-lock-refuses-after-setup-closure-before-MAC");
     if(strstr(mode,"-cut") && strcmp(mode,"publication-cut")) require(fault_hits>0,"requested-failure-boundary-observed");
     if(!positive) require(!startup.armed && startup.failure.stage && (mac_calls==0)==
-        (strcmp(mode,"mac-failure") && strcmp(mode,"mac-readback") && strcmp(mode,"mac-deadline")),
+        (strcmp(mode,"mac-failure") && strcmp(mode,"mac-cleanup-cut") && strcmp(mode,"mac-readback") && strcmp(mode,"mac-deadline")),
         "primary-refusal-keeps-MAC-boundary-closed");
     if(!strcmp(mode,"ticket-parent") || !strcmp(mode,"ticket-malformed")) {
         require(startup.transferred_scratch && !startup.ticket_adopted && startup.child.reaped &&
-            startup.child.pidfd<0 && startup.response.count==2 && descriptors()>(unsigned)final_fd_baseline,
+            startup.child.pidfd<0 && startup.child.channel<0 && startup.response.count==2 &&
+            descriptors()>(unsigned)final_fd_baseline,
             "ambiguous-ticket-retains-exact-owner");
         require(kiosk_pin_now(&now)==0 && kiosk_fresh_recover_until(&startup,now+5000000)!=0 &&
             kiosk_fresh_close(&startup)!=0 && !ready_commits && !mac_calls,"ambiguous-ticket-no-sweep-or-admission");
+        siginfo_t remaining={0};errno=0;
+        require(waitid(P_ALL,0,&remaining,WEXITED|WNOHANG|__WALL)<0 && errno==ECHILD,
+            "ambiguous-ticket-child-independently-reaped");
+        require(startup.deadline==deadline && startup.failure.stage==primary.stage &&
+            startup.failure.reason==primary.reason && startup.failure.error==primary.error &&
+            startup.cleanup_failure.stage==cleanup.stage && startup.cleanup_failure.reason==cleanup.reason &&
+            startup.cleanup_failure.error==cleanup.error,"ambiguous-ticket-preserves-separate-first-failures");
         /* The enclosing fixture owns this entire private process namespace;
          * process exit releases its unresolved test FDs, never a host object. */
         puts("retained");return 0;
@@ -877,6 +997,19 @@ int main(int argc,char **argv) {
         require(unlink(path)==0 && rename(displaced,path)==0,"restore-owned-copy-inode");
     }
     if(!positive) require(kiosk_pin_now(&now)==0 && kiosk_fresh_recover_until(&startup,now+5000000)==0,"owned-failed-attempt-recovery");
+    require(startup.deadline==deadline && startup.failure.stage==primary.stage &&
+        startup.failure.reason==primary.reason && startup.failure.error==primary.error &&
+        startup.cleanup_failure.stage==cleanup.stage && startup.cleanup_failure.reason==cleanup.reason &&
+        startup.cleanup_failure.error==cleanup.error,"recovery-preserves-deadline-and-separate-first-failures");
+    require(!startup.child.started || (startup.child.reaped && startup.child.pidfd<0 && startup.child.channel<0),
+        "bounded-preparation-child-reaped-and-channel-closed");
+    siginfo_t remaining={0};errno=0;
+    require(waitid(P_ALL,0,&remaining,WEXITED|WNOHANG|__WALL)<0 && errno==ECHILD,
+        "independent-no-unreaped-owned-child");
+    require(!startup.pin.attached && startup.pin.worker<0 && !startup.view.mounted,
+        "no-owned-worker-or-writable-staging-alias-survives");
+    for(unsigned i=0;i<startup.realized.stage_count;i++)
+        require(!startup.realized.stages[i].live,"every-owned-staging-mount-detached");
     if(!positive) {
         struct statx restored;struct stat info;require(statx(AT_FDCWD,original_usr,AT_SYMLINK_NOFOLLOW,STATX_MNT_ID,&restored)==0 &&
             restored.stx_mnt_id==original_target_mount.stx_mnt_id && lstat(original_usr,&info)==0 &&
@@ -958,7 +1091,8 @@ def fresh_scene(tmp_path):
     'healthy', 'ambient-narrow', 'helper-exit', 'helper-result-exit', 'helper-timeout', 'helper-order',
     'helper-identity', 'result-malformed', 'ticket-parent', 'ticket-malformed', 'copy-replacement', 'source-replacement',
     'required-drift', 'measurement-required-drift', 'bind-required-drift', 'post-attach-required-drift', 'publication-cut',
-    'publication-partial', 'expired', 'environment-failure', 'mac-failure', 'mac-readback', 'mac-deadline',
+    'publication-cleanup-cut',
+    'publication-partial', 'expired', 'environment-failure', 'mac-failure', 'mac-cleanup-cut', 'mac-readback', 'mac-deadline',
     'concurrent-writers', 'selection-lock-replaced', 'selection-lease-replaced',
     'writer-measurement-admission', 'writer-measurement-configuration', 'writer-measurement-loader',
     'writer-bind-admission', 'writer-bind-configuration', 'writer-bind-loader',
@@ -966,7 +1100,7 @@ def fresh_scene(tmp_path):
     'ready-lock-replaced', 'ready-lease-replaced', 'premac-lock-replaced', 'premac-lease-replaced',
     'material-fsync-cut', 'view-fsync-cut', 'pins-fsync-cut', 'pending-fsync-cut',
     'generation-rename-cut', 'generation-durability-cut', 'ready-durability-cut',
-    'bind-cut', 'clone-cut', 'attachment-cut', 'staging-detach-cut',
+    'bind-cut', 'ambient-bind-undo-cleanup-cut', 'clone-cut', 'readonly-cut', 'attachment-cut', 'staging-detach-cut',
     'generation-three', 'generation-four',
     'ready-material-replaced', 'ready-view-replaced', 'ready-pins-replaced', 'ready-account-drift',
 ])
@@ -1032,7 +1166,7 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
         assert (actual.st_dev, actual.st_ino) == (member_identity.st_dev, member_identity.st_ino)
     generations = [path for path in (directory / 'runtime').iterdir()
                    if len(path.name) == 64 and path.name not in retained_generations]
-    if mode.startswith('writer-') or mode in ('healthy', 'ambient-narrow', 'environment-failure', 'mac-failure', 'mac-readback', 'mac-deadline',
+    if mode.startswith('writer-') or mode in ('healthy', 'ambient-narrow', 'environment-failure', 'mac-failure', 'mac-cleanup-cut', 'mac-readback', 'mac-deadline',
                 'post-attach-required-drift', 'concurrent-writers', 'ready-lock-replaced', 'ready-lease-replaced',
                 'premac-lock-replaced', 'premac-lease-replaced', 'ready-durability-cut', 'generation-three',
                 'ready-material-replaced', 'ready-view-replaced', 'ready-pins-replaced', 'ready-account-drift'):

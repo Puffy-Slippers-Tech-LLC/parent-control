@@ -427,6 +427,11 @@ static inline void kiosk_fresh_descriptors_close(struct kiosk_fresh_startup *s)
 static inline int kiosk_fresh_recover_until(struct kiosk_fresh_startup *s, uint64_t recovery_deadline)
 {
     uint64_t ns;
+    /* A failed ambient bind undo owns a cleanup witness even when subsequent
+     * recovery succeeds. Keep it before any early recovery/deadline refusal. */
+    if (s && s->realized.cleanup_failure.stage)
+        kiosk_failure(&s->cleanup_failure, s->realized.cleanup_failure.stage,
+            s->realized.cleanup_failure.reason, s->realized.cleanup_failure.error);
     if (s && s->recovered) return 0;
     if (!s || s->armed || kiosk_preparation_deadline_ns(recovery_deadline, &ns)) return -1;
     if (s->child.started && !s->child.reaped && kiosk_preparation_cancel_until(&s->child, ns)) return -1;
@@ -441,7 +446,14 @@ static inline int kiosk_fresh_recover_until(struct kiosk_fresh_startup *s, uint6
             stage->live = 0;
         }
     }
-    if (cleanup_kiosk_view(&s->view, 0)) return -1;
+    int view_cleanup = cleanup_kiosk_view(&s->view, 0);
+    /* The view owner can fail after setup FDs have closed. Preserve its first
+     * exact cleanup cause before the caller adds a generic recovery failure or
+     * projects the transaction's diagnostic back into the view. */
+    if (s->view.cleanup_failure.stage)
+        kiosk_failure(&s->cleanup_failure, s->view.cleanup_failure.stage,
+            s->view.cleanup_failure.reason, s->view.cleanup_failure.error);
+    if (view_cleanup) return -1;
     if (s->ticket_adopted && !s->ready && kiosk_publication_abort_until(&s->publication, recovery_deadline)) return -1;
     s->transferred_scratch = 0; s->ticket_adopted = 0;
     kiosk_fresh_descriptors_close(s); s->recovered = 1; return 0;

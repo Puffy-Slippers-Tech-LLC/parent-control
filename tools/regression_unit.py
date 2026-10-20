@@ -1112,6 +1112,13 @@ from regression_ui import Bucket
 # child with its own mount namespace; the parent alone owns and retires the
 # original manager. No shared lock, service, cache, UI or cleanup owner is added;
 # the existing bounded probe/compile resource class and compatible overlap hold.
+# Receipt/publication composition keeps mutations and independent provenance
+# snapshots in these same private trees. Failure cuts use process-local syscall
+# doubles; real recursive mounts, descriptor censuses and child-reap checks use
+# the existing bounded native probe owner. Failed/interrupted future exec uses
+# that same parent-death-protected manager child and pidfd-bounded reap, not a new
+# process owner. No shared path/cache/service or new cleanup/UI inventory owner
+# is introduced; compatible unit overlap still holds.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof

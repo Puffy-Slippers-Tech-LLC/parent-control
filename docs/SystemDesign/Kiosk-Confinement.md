@@ -706,6 +706,9 @@ open through a last same-manager check and then close before MAC. Explicit faile
 recovery has its own bounded cleanup budget, never new admission authority.
 An unresolved cleanup keeps the exact PAM-owned state and preparation lock and
 denies; it never signals a manager or sweeps ambiguous files.
+The transaction preserves the first detailed cleanup failure from realization
+and view teardown separately from its original refusal, including when a later
+owned recovery succeeds; generic recovery diagnostics cannot replace it.
 
 Finite host fixtures exercise these native transactions with real private mount
 trees and a real copied/reexecuted fixture manager. Account/PAM/system-bus/MAC
@@ -869,7 +872,9 @@ for **006**. [006f's finite host map](../Kiosk-Prompt.md#manager-lifetime-compos
 records the registered manager-identity and exit/reexec controls and their exact
 input/acceptance limits. [006g's writer/host-source map](../Kiosk-Prompt.md#writer-and-host-source-composition--006g)
 records the concurrent-writer and original-host-after-attachment controls.
-Neither slice closes 006's cumulative table. Use barriers
+[006h's receipt/publication/closure map](../Kiosk-Prompt.md#receipt-publication-and-closure-composition--006h)
+records source provenance, invocation narrowing and the completion/cleanup cuts.
+These slices do not close 006's cumulative table. Use barriers
 and independently opened descriptors/real native fixtures, not timing sleeps or
 only producer/parser agreement. Keep tests inside existing resource owners.
 

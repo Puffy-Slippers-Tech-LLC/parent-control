@@ -17,6 +17,50 @@ from tools import test_storage
 from tests.unit import test_kiosk_fresh_startup as fresh
 
 
+RECEIPT_MUTATIONS = r'''
+if mode.startswith('receipt-'):
+    encode_original = service._canonical
+    def mutate_receipt(record, deadline_ns):
+        if isinstance(record, dict) and record.get('role') == 'gate':
+            plan = record['plan']
+            native = next(row for row in plan['source_nodes'] if row['path'] == '/usr/bin/native')
+            field = mode.removeprefix('receipt-')
+            if field in ('format', 'role', 'backend', 'material', 'source'):
+                record[field] = {'format': 2, 'role': 'manager', 'backend': 'selinux',
+                                 'material': 'f' * 64, 'source': 'e' * 64}[field]
+            elif field == 'plan-material':
+                plan['material'] = 'd' * 64
+            elif field == 'slot':
+                plan['source_slots']['/usr/bin/native'] += 1
+            elif field == 'source-index':
+                plan['sources']['/usr/bin/native']['index'] += 1
+            elif field == 'foreign-inode':
+                plan['sources']['/usr/bin/native']['assertion'] = list(plan['sources']['/usr/bin/native']['assertion'])
+                plan['sources']['/usr/bin/native']['assertion'][1] += 1
+            elif field == 'missing-required':
+                del plan['sources']['/usr/bin/native']
+            elif field == 'required-placeholder':
+                next(row for row in plan['layout'] if row['path'] == '/usr/bin/native')['kind'] = 'empty-directory'
+            elif field.startswith('coverage-'):
+                assert len(plan['source_coverage']) == 1
+                if field == 'coverage-missing':
+                    plan['source_coverage'].clear()
+                else:
+                    key = {'coverage-owner': 'owner', 'coverage-origin': 'origin_inode',
+                           'coverage-inode': 'inode'}[field]
+                    plan['source_coverage'][0][key] += 1
+            else:
+                key = {'node-index': 'source_index', 'class': 'source_class', 'node-role': 'role',
+                       'required-ambient': 'required', 'origin': 'origin_inode',
+                       'node-inode': 'inode', 'mount': 'mountpoint'}[field]
+                native[key] = ('ambient' if key == 'source_class' else 'gate' if key == 'role'
+                               else 0 if key in ('required', 'mountpoint') else native[key] + 1)
+            (base / 'receipt-fault').write_text(field)
+        return encode_original(record, deadline_ns)
+    service._canonical = mutate_receipt
+'''
+
+
 PLATFORM = r'''
 static pid_t manager_pid;
 static int manager_release=-1, manager_ready=-1, manager_pidfd=-1, gate_phase, unit_reads;
@@ -26,6 +70,8 @@ static unsigned post_attach_drift, manager_acquisitions;
 static int forced_elapsed;
 static int independently_wrong_usr=-1;
 static unsigned invocation_attached, task_scans;
+static unsigned receipt_checks;
+#define completion_cuts (clone_state[7])
 static unsigned changed_start_reads, field_fault_reads, closure_checks;
 static unsigned crypto_references;
 static int sequential_child;
@@ -34,6 +80,7 @@ static int sequential_child;
 #define host_lookup_checks (clone_state[6])
 static void composition_clone(void);
 static void composition_attachment(void);
+static void invocation_sources(void);
 static void composition_before_attachment(int target);
 static void *retained_crypto;
 static void check_closure_resources(void);
@@ -183,10 +230,13 @@ static int retained_profile(const char *name) {
         require(owned_locks==1,"one-owned-preparation-lock-before-MAC");
         if(!strcmp(mode,"exit-after-decision"))exit_manager();
     }
+    if(gate_phase && !strcmp(mode,"mac-cut")){completion_cuts++;return -1;}
+    if(gate_phase && !strcmp(mode,"mac-deadline")){completion_cuts++;forced_elapsed=1;}
     return 0;
 }
 static int retained_get_profile(char **label,char **enforce) {
     const char *name=gate_phase?"onpc-kiosk-gate":"onpc-kiosk-manager";
+    if(gate_phase && !strcmp(mode,"mac-readback")){name="unconfined";completion_cuts++;}
     *label=calloc(1,64);strcpy(*label,name);*enforce=*label+40;strcpy(*enforce,"enforce");return 1;
 }
 static int bus_new(struct sd_bus **out){bus_descriptor=open("/dev/null",O_RDONLY|O_CLOEXEC);*out=&fixture_bus;return bus_descriptor<0?-1:0;}
@@ -201,7 +251,9 @@ static int bus_new_call(struct sd_bus *b,struct sd_bus_message **out,const char 
 static int bus_append(struct sd_bus_message *m,const char *signature,...){
     va_list a;va_start(a,signature);(void)va_arg(a,const char *);m->property=va_arg(a,const char *);va_end(a);return !strcmp(signature,"ss")?1:-1;}
 static int bus_call(struct sd_bus *b,struct sd_bus_message *m,uint64_t timeout,void *error,struct sd_bus_message **out){
-    (void)b;(void)error;require(timeout>0 && timeout<=5000000,"bounded-manager-query");bus_reply.property=m->property;*out=&bus_reply;return 1;}
+    (void)b;(void)error;require(timeout>0 && timeout<=5000000,"bounded-manager-query");
+    if(gate_phase && !strcmp(mode,"query-cut")){completion_cuts++;return -EIO;}
+    bus_reply.property=m->property;*out=&bus_reply;return 1;}
 static int bus_enter(struct sd_bus_message *m,char type,const char *contents){(void)m;(void)contents;return type=='v'?1:-1;}
 static int bus_end(struct sd_bus_message *m,int complete){(void)m;(void)complete;return 1;}
 static int bus_leave(struct sd_bus_message *m){(void)m;return 1;}
@@ -242,6 +294,7 @@ static int retained_dlclose(void *library){
 static int retained_open_tree(int dir,const char *path,unsigned flags) {
     int result=-1;
     if(gate_phase && (flags&OPEN_TREE_CLONE) && !clone_seen) {
+        if(!strcmp(mode,"clone-cut")){completion_cuts++;errno=EIO;return -1;}
         if(!strcmp(mode,"missing-nested-clone"))flags&=~AT_RECURSIVE;
         if(!strcmp(mode,"wrong-clone")) {
             /* The clone worker has already entered the manager namespace.
@@ -259,6 +312,19 @@ static int retained_open_tree(int dir,const char *path,unsigned flags) {
     if(result<0)result=open_tree(dir,path,flags);
     if(gate_phase && result>=0 && (flags&OPEN_TREE_CLONE)) {
         clone_seen++;
+        if(clone_seen==1) {
+            int original=openat(dir,"bin/native",O_RDONLY|O_CLOEXEC);
+            int acquired=openat(result,"bin/native",O_RDONLY|O_CLOEXEC);
+            struct stat a,b;char magic[4];
+            require(original>=0 && acquired>=0 && fstat(original,&a)==0 && fstat(acquired,&b)==0,
+                "independent-required-recursive-source-descriptors");
+            int same=a.st_dev==b.st_dev && a.st_ino==b.st_ino;
+            if(!strcmp(mode,"missing-nested-clone"))require(!same && b.st_size==0 && read(acquired,magic,4)==0,
+                "shallow-clone-drops-required-native-mount-and-exposes-placeholder");
+            else if(strcmp(mode,"wrong-clone"))require(same && read(acquired,magic,4)==4 && !memcmp(magic,"\177ELF",4),
+                "recursive-clone-preserves-required-native-mounted-inode-and-bytes");
+            require(close(original)==0 && close(acquired)==0,"independent-required-clone-check-FDs-closed");
+        }
         if(clone_seen==1 && !strcmp(mode,"same-reexec"))manager_command('r');
         if(clone_seen==1 && !strcmp(mode,"same-fd-reexec"))manager_command('d');
         if(clone_seen==1 && !strcmp(mode,"foreign-reexec"))manager_command('f');
@@ -278,6 +344,12 @@ static int retained_open_tree(int dir,const char *path,unsigned flags) {
 }
 static int retained_move_mount(int from,const char *source,int to,const char *target,unsigned flags) {
     if(gate_phase)composition_before_attachment(to);
+    if(gate_phase && !strcmp(mode,"attachment-cut")) {
+        char proc[64],actual[PATH_MAX],expected[PATH_MAX];snprintf(proc,sizeof(proc),"/proc/self/fd/%d",to);
+        ssize_t n=readlink(proc,actual,sizeof(actual)-1);if(n>0){actual[n]=0;snprintf(expected,sizeof(expected),"%s/host/usr",base);
+            if(!strcmp(actual,expected)){completion_cuts++;errno=EIO;return -1;}}
+    }
+    if(gate_phase && !strcmp(mode,"source-attachment-cut")){completion_cuts++;errno=EIO;return -1;}
     int result=move_mount(from,source,to,target,flags);
     if(gate_phase && !result) {
         char proc[64],actual[PATH_MAX],expected[PATH_MAX];snprintf(proc,sizeof(proc),"/proc/self/fd/%d",to);
@@ -298,8 +370,16 @@ static int retained_mount(const char *source,const char *target,const char *type
     return result;
 }
 static int retained_umount(const char *path,int flags) {
+    if(gate_phase && !strcmp(mode,"staging-detach-cut") && !completion_cuts++){errno=EIO;return -1;}
     if(gate_phase && !strcmp(mode,"cleanup-failure") && !cleanup_failures++){errno=EBUSY;return -1;}
     return fixture_umount(path,flags);
+}
+static int retained_mount_setattr(int fd,const char *path,unsigned flags,struct mount_attr *attr,size_t size) {
+    /* The second recursive clone is I, after the acquired V has already been
+     * attached read-only to owned source staging. Refuse only I's read-only cut. */
+    if(gate_phase && !strcmp(mode,"readonly-cut") && clone_seen==2 && !completion_cuts++){errno=EIO;return -1;}
+    if(gate_phase && !strcmp(mode,"source-readonly-cut") && clone_seen==1 && !completion_cuts++){errno=EIO;return -1;}
+    return mount_setattr(fd,path,flags,attr,size);
 }
 static int retained_clock_gettime(clockid_t clock,struct timespec *time) {
     int result=clock_gettime(clock,time);
@@ -386,6 +466,7 @@ static void composition_before_attachment(int target) {
     kiosk_host_roots_close(&independent);
 }
 static void composition_attachment(void) {
+    invocation_sources();
     if(!strcmp(mode,"attached-lock-replaced"))replace_named_lock("lock");
     if(!strcmp(mode,"attached-lease-replaced"))replace_named_lock("lease");
     if(strcmp(mode,"post-attach-required-drift") && strcmp(mode,"host-lookup-aliases") &&
@@ -479,9 +560,52 @@ static void put_text(const char *name,const char *text) {
     char path[PATH_MAX];snprintf(path,sizeof(path),"%s/%s",base,name);int fd=open(path,O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC,0600);
     require(fd>=0 && write(fd,text,strlen(text))==(ssize_t)strlen(text) && close(fd)==0,"owned-scene-record");
 }
+static void invocation_sources(void) {
+    struct kiosk_admission_transaction *owner=(void *)pam_data[1];
+    struct kiosk_retained_startup *g=&owner->retained;
+    struct kiosk_receipt *v=&g->record.receipt,*i=&g->common.realized.receipt;
+    require(!strcmp(i->kind,"I") && !strcmp(i->role,"gate") && !strcmp(i->backend,v->backend) &&
+        !strcmp(i->material,v->material) && !strcmp(i->source,v->digest) && i->nn==v->nn,
+        "actual-I-binds-original-V-material-role-backend-and-complete-slot-domain");
+    for(unsigned n=0;n<i->nn;n++) {
+        const struct kiosk_receipt_row *a=i->nodes+n,*b=v->nodes+n;
+        require(!strcmp(a->v[KR_PATH],b->v[KR_PATH]) && !strcmp(a->v[KR_CLASS],b->v[KR_CLASS]) &&
+            !strcmp(a->v[KR_ROLE],b->v[KR_ROLE]) && a->number[KR_INDEX]==b->number[KR_INDEX] &&
+            a->number[KR_REQUIRED]==b->number[KR_REQUIRED] &&
+            a->number[KR_ORIGIN_DEV]==b->number[KR_ORIGIN_DEV] && a->number[KR_ORIGIN_INO]==b->number[KR_ORIGIN_INO],
+            "I-preserves-every-original-slot-class-role-required-status-and-origin");
+        int omitted=!strcmp(a->v[KR_KIND],"absent") || !strcmp(a->v[KR_KIND],"empty-directory");
+        if(omitted){require(!a->number[KR_REQUIRED] && !strcmp(a->v[KR_CLASS],"ambient"),"only-eligible-ambient-I-narrowing");continue;}
+        const char *relative=!strcmp(a->v[KR_PATH],"/usr")?".":a->v[KR_PATH]+5;
+        struct stat actual,original;
+        require(fstatat(g->common.pin.fd,relative,&actual,AT_SYMLINK_NOFOLLOW)==0 &&
+            fstatat(g->manager.usr,relative,&original,AT_SYMLINK_NOFOLLOW)==0 &&
+            (uint64_t)actual.st_dev==a->number[KR_DEV] && (uint64_t)actual.st_ino==a->number[KR_INO] &&
+            (uint64_t)original.st_dev==b->number[KR_DEV] && (uint64_t)original.st_ino==b->number[KR_INO],
+            "independently-opened-I-and-original-manager-V-inodes");
+        if(strcmp(a->v[KR_KIND],"tree"))require(actual.st_dev==original.st_dev && actual.st_ino==original.st_ino,
+            "every-retained-concrete-required-or-ambient-source-uses-original-mounted-inode");
+        else require(actual.st_dev!=original.st_dev || actual.st_ino!=original.st_ino,"I-uses-fresh-parent-dentries");
+    }
+    for(unsigned n=0;n<i->nc;n++) {
+        const struct kiosk_receipt_row *a=i->coverage+n;unsigned match=0;
+        for(unsigned m=0;m<v->nc;m++)if(!strcmp(a->v[KC_PATH],v->coverage[m].v[KC_PATH])) {
+            const struct kiosk_receipt_row *b=v->coverage+m;struct stat actual,original;
+            require(a->number[KC_OWNER]==b->number[KC_OWNER] && a->number[KC_ORIGIN_DEV]==b->number[KC_ORIGIN_DEV] &&
+                a->number[KC_ORIGIN_INO]==b->number[KC_ORIGIN_INO] &&
+                fstatat(g->common.pin.fd,a->v[KC_PATH]+5,&actual,AT_SYMLINK_NOFOLLOW)==0 &&
+                fstatat(g->manager.usr,a->v[KC_PATH]+5,&original,AT_SYMLINK_NOFOLLOW)==0 &&
+                actual.st_dev==original.st_dev && actual.st_ino==original.st_ino &&
+                (uint64_t)actual.st_dev==a->number[KC_DEV] && (uint64_t)actual.st_ino==a->number[KC_INO],
+                "actual-I-recursive-mount-preserves-original-V-owner-inode-and-provenance");match++;
+        }
+        require(match==1,"no-foreign-recursive-coverage-in-I");
+    }
+    put_text("invocation-receipt",g->common.realized.bytes);receipt_checks++;
+}
 static void release_pam(void) {for(int slot=1;slot>=0;slot--)if(pam_data[slot]){pam_cleanup[slot](NULL,(void *)pam_data[slot],PAM_SUCCESS);pam_data[slot]=NULL;}}
 static const char *expected_stage(const char *name) {
-    if(!strcmp(name,"healthy") || !strcmp(name,"ambient-narrow") || !strcmp(name,"same-reexec") ||
+    if(!strcmp(name,"healthy") || !strcmp(name,"ambient-narrow") || !strcmp(name,"ambient-mask") || !strcmp(name,"same-reexec") ||
         !strcmp(name,"same-fd-reexec") || !strcmp(name,"exit-after-decision") ||
         !strcmp(name,"stable-two-tasks") || !strcmp(name,"capabilities-inherited") || !strcmp(name,"capabilities-zero") ||
         !strcmp(name,"retained-concurrent-writers") || !strcmp(name,"sequential-healthy") || !strcmp(name,"host-lookup-aliases"))return "armed";
@@ -489,6 +613,12 @@ static const char *expected_stage(const char *name) {
     if(!strncmp(name,"attached-",9))return "final-lock";
     if(!strcmp(name,"post-attach-root-drift"))return "final-host";
     if(!strncmp(name,"capabilities-",13))return "final-lock";
+    if(!strncmp(name,"receipt-",8))return "retained-plan";
+    if(!strcmp(name,"mac-cut") || !strcmp(name,"mac-readback") || !strcmp(name,"mac-deadline"))return "mac";
+    if(!strcmp(name,"query-cut"))return "manager";
+    if(!strcmp(name,"source-attachment-cut") || !strcmp(name,"source-readonly-cut"))return "source-staging";
+    if(!strcmp(name,"attachment-cut") || !strcmp(name,"readonly-cut"))return "attachment";
+    if(!strcmp(name,"staging-detach-cut"))return "staging";
     if(fault_phase) {
         if(!strcmp(fault_kind,"same-reexec") || !strcmp(fault_kind,"fd-reexec"))return "armed";
         if(!strcmp(fault_phase,"closure"))return "closure";
@@ -544,18 +674,48 @@ static void manager_loop(int out,int in,int reexecuted) {
 }
 static void actual_nested(void) {
     char path[PATH_MAX],parent[PATH_MAX],text[32]={0};struct statx a,b;
-    require(actual_walk("/usr")==(!strcmp(mode,"ambient-narrow")?13U:14U),"independent-closed-actual-tree-domain");
+    require(actual_walk("/usr")==(!strcmp(mode,"ambient-narrow")?13U:!strcmp(mode,"ambient-mask")?12U:14U),"independent-closed-actual-tree-domain");
     snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree/nested/leaf",base);
+    if(!strcmp(mode,"ambient-mask")) {
+        require(access(path,F_OK)!=0 && errno==ENOENT,"eligible-ambient-directory-narrowed-to-empty-mask");
+        snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree",base);struct stat info;
+        require(lstat(path,&info)==0 && S_ISDIR(info.st_mode) && (info.st_mode&07777)==0755,
+            "ambient-mask-is-fresh-safe-directory");return;
+    }
     int fd=open(path,O_RDONLY|O_CLOEXEC);require(fd>=0 && read(fd,text,sizeof(text))==13 && !strcmp(text,"nested-source"),"independent-recursive-bytes");close(fd);
     require(open(path,O_WRONLY|O_CLOEXEC)<0 && errno==EROFS,"independent-nested-mount-readonly");
     snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree/nested",base);snprintf(parent,sizeof(parent),"%s/host/usr/bin/ambient-tree",base);
     require(statx(AT_FDCWD,path,AT_SYMLINK_NOFOLLOW,STATX_MNT_ID,&a)==0 && statx(AT_FDCWD,parent,AT_SYMLINK_NOFOLLOW,STATX_MNT_ID,&b)==0 && a.stx_mnt_id!=b.stx_mnt_id,"independent-recursive-submount");
     snprintf(path,sizeof(path),"%s/host/usr/forbidden-write",base);require(mkdir(path,0755)!=0 && errno==EROFS,"independent-private-readonly");
 }
+static int completed_without_live_manager(void) {
+    struct pollfd lifetime={.fd=manager_pidfd,.events=POLLIN};
+    require(poll(&lifetime,1,5000)==1 && (lifetime.revents&POLLIN),"failed-exec-or-interruption-has-no-live-manager");
+    char path[PATH_MAX];snprintf(path,sizeof(path),"%s/runtime",base);
+    int records=open(path,O_RDONLY|O_DIRECTORY|O_CLOEXEC);require(records>=0,"independent-completed-record-root-after-manager-exit");
+    observe_tree(records,".",records_before,&record_count,0);
+    mode="healthy";gate_phase=1;pam_service="gdm-password";put_text("mode",mode);
+    require(kiosk_admission(NULL,"oh-no-parent-control-kiosk")==PAM_SUCCESS,"owned-gate-without-manager-admission");
+    unsigned baseline=descriptors();int result=kiosk_confinement(NULL);
+    struct kiosk_admission_transaction *owner=(void *)pam_data[1];require(owner!=NULL,"failed-bootstrap-gate-owner");
+    struct kiosk_fresh_startup *s=&owner->retained.common;
+    require(result!=PAM_SUCCESS && s->stage && !strcmp(s->stage,"manager") && !s->armed && s->closed && owner->closed &&
+        s->child.started && s->child.reaped && s->child.pidfd<0 && s->child.channel<0 &&
+        manager_acquisitions==1 && !clone_seen && !mac_calls && descriptors()==baseline,
+        "completed-ready-without-live-manager-cannot-authorize-gate-and-owned-helper-reaped");
+    require(s->deadline>0 && s->child.deadline_ns==s->deadline*1000ULL,"failed-bootstrap-gate-retains-one-deadline");
+    release_pam();unsigned rows=0;observe_tree(records,".",records_before,&rows,1);
+    require(rows==record_count,"failed-bootstrap-gate-preserves-every-completed-dentry-and-byte");
+    int status;require(waitpid(manager_pid,&status,0)==manager_pid && WIFEXITED(status) && WEXITSTATUS(status)==0,
+        "failed-bootstrap-owned-manager-bounded-reap-after-pidfd-readiness");
+    require(close(records)==0 && close(manager_ready)==0 && close(manager_release)==0 && close(manager_pidfd)==0 &&
+        close(original_source)==0,"failed-bootstrap-fixture-setup-FDs-closed");
+    puts("verified");return 0;
+}
 int main(int argc,char **argv) {
     if(argc==5 && !strcmp(argv[1],"manager-loop")){base=argv[2];manager_loop(atoi(argv[3]),atoi(argv[4]),1);return 0;}
     require(argc==3,"arguments");base=argv[2];mode="healthy";namespaces();
-    clone_state=mmap(NULL,7*sizeof(*clone_state),PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);require(clone_state!=MAP_FAILED,"shared-clone-barrier");
+    clone_state=mmap(NULL,8*sizeof(*clone_state),PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);require(clone_state!=MAP_FAILED,"shared-clone-barrier");
     char path[PATH_MAX];snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree/nested",base);
     require(mount("tmpfs",path,"tmpfs",0,"size=1m,mode=0755")==0,"private-recursive-source");
     snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree/nested/leaf",base);
@@ -563,23 +723,37 @@ int main(int argc,char **argv) {
     snprintf(path,sizeof(path),"%s/host/usr/bin/native",base);original_source=open(path,O_RDWR|O_CLOEXEC);char original_required_byte;
     require(original_source>=0 && pread(original_source,&original_required_byte,1,100)==1,"original-host-required-fd-and-byte");
     snprintf(path,sizeof(path),"%s/host/usr",base);require(lstat(path,&original_target_info)==0,"original-host-root");
-    int ready[2],release[2];require(pipe(ready)==0 && pipe(release)==0,"manager-owned-pipes");manager_pid=fork();require(manager_pid>=0,"manager-owned-fork");
+    int ready[2],release[2];pid_t manager_parent=getpid();
+    require(pipe(ready)==0 && pipe(release)==0,"manager-owned-pipes");manager_pid=fork();require(manager_pid>=0,"manager-owned-fork");
     if(!manager_pid) {
+        if(prctl(PR_SET_PDEATHSIG,SIGKILL) || getppid()!=manager_parent)_exit(127);
         close(ready[0]);close(release[1]);int result=kiosk_confinement(NULL);
         require(result==PAM_SUCCESS,"exact-production-fresh-caller");release_pam();actual_nested();
+        if(!strcmp(argv[1],"failed-manager-exec") || !strcmp(argv[1],"interrupted-manager-before-exec")) {
+            if(!strcmp(argv[1],"failed-manager-exec")) {
+                char missing[PATH_MAX];snprintf(missing,sizeof(missing),"%s/missing-manager-executable",base);
+                execl(missing,missing,"manager-loop",base,NULL);
+                require(errno==ENOENT,"actual-post-ready-manager-exec-failed");
+            }
+            require(ready_commits==1 && mac_calls==1 && write(ready[1],"q",1)==1,
+                "post-ready-MAC-without-future-manager-exec");_exit(0);
+        }
         char executable[PATH_MAX],a[32],b[32];snprintf(executable,sizeof(executable),"%s/host/usr/bin/native",base);
         snprintf(a,sizeof(a),"%d",ready[1]);snprintf(b,sizeof(b),"%d",release[0]);
         execl(executable,executable,"manager-loop",base,a,b,NULL);_exit(127);
     }
     close(ready[1]);close(release[0]);manager_ready=ready[0];manager_release=release[1];char token;
-    require(read(manager_ready,&token,1)==1 && token=='r',"manager-fresh-and-exec-complete");
+    int incomplete=!strcmp(argv[1],"failed-manager-exec") || !strcmp(argv[1],"interrupted-manager-before-exec");
+    require(read(manager_ready,&token,1)==1 && token==(incomplete?'q':'r'),"manager-fresh-and-exec-boundary");
     manager_pidfd=syscall(SYS_pidfd_open,manager_pid,0);require(manager_pidfd>=0,"independent-owned-manager-pidfd");
+    if(incomplete)return completed_without_live_manager();
     snprintf(path,sizeof(path),"/proc/%ld/ns/mnt",(long)manager_pid);
     int held_manager_namespace=open(path,O_RDONLY|O_CLOEXEC);require(held_manager_namespace>=0,"independent-manager-namespace-lifetime");
     mode=argv[1];gate_phase=1;pam_service="gdm-password";put_text("mode",mode);
     if(capability_model())capability_begin();
     const char *phases[]={"acquire","clone","final","closure"};
-    for(unsigned i=0;i<4;i++)if(!strncmp(mode,phases[i],strlen(phases[i])) && mode[strlen(phases[i])]=='-'){
+    for(unsigned i=0;i<4;i++)if(strcmp(mode,"clone-cut") &&
+        !strncmp(mode,phases[i],strlen(phases[i])) && mode[strlen(phases[i])]=='-'){
         fault_phase=phases[i];fault_kind=mode+strlen(phases[i])+1;
     }
     if(!strcmp(mode,"stable-two-tasks") || (fault_kind && (!strcmp(fault_kind,"task-exit") || !strncmp(fault_kind,"worker-",7))))manager_command('t');
@@ -590,6 +764,10 @@ int main(int argc,char **argv) {
         (!strcmp(fault_kind,"task-exit") || !strncmp(fault_kind,"worker-",7))))?2U:1U),"independent-original-task-count");
     snprintf(path,sizeof(path),"%s/host/usr/bin/ambient",base);
     if(!strcmp(mode,"ambient-narrow"))require(chmod(path,0666)==0,"host-ambient-narrowing");
+    if(!strcmp(mode,"ambient-mask")) {
+        snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree",base);
+        require(chmod(path,0777)==0,"same-origin-ambient-directory-trust-loss");
+    }
     if(!strcmp(mode,"required-drift"))require(pwrite(original_source,"X",1,100)==1 && fsync(original_source)==0,"host-required-drift");
     if(!strcmp(mode,"absent-ready") || !strcmp(mode,"stale-ready") || !strcmp(mode,"forged-ready") || !strcmp(mode,"missing-source") || !strcmp(mode,"foreign-source")) {
         char runtime[PATH_MAX];snprintf(runtime,sizeof(runtime),"%s/runtime",base);DIR *d=opendir(runtime);require(d!=NULL,"completed-generation-list");struct dirent *e;char selected[65]={0};
@@ -641,7 +819,7 @@ int main(int argc,char **argv) {
             observe_tree(held_manager,".",manager_before,&manager_rows,1);observe_tree(held_records,".",records_before,&record_rows,1);
             require(manager_rows==manager_count && record_rows==record_count,"first-sequential-admission-preserves-original-manager-and-record-domains");
             identity_snapshot(independent_proc,&identity_after);identity_unchanged(&identity_before,&identity_after);
-            memset(clone_state,0,7*sizeof(*clone_state));
+            memset(clone_state,0,8*sizeof(*clone_state));
         }
     }
     int lookup_mode=!strcmp(mode,"post-attach-required-drift") || !strcmp(mode,"host-lookup-aliases") || !strcmp(mode,"post-attach-root-drift");
@@ -661,6 +839,18 @@ int main(int argc,char **argv) {
     require(transaction->child.started && transaction->child.reaped && transaction->child.pidfd<0 && transaction->child.channel<0 &&
         transaction->closed && owner->closed && transaction->armed==positive,"helper-reaped-transaction-closed-and-arm-state");
     require(transaction->deadline>0 && transaction->child.deadline_ns==transaction->deadline*1000ULL,"original-transaction-deadline-never-renewed");
+    if(!strncmp(mode,"receipt-",8))require(clone_seen==1 && !invocation_attached && !mac_calls,
+        "mixed-or-foreign-receipt-refuses-after-original-clone-before-realization");
+    if(!strcmp(mode,"clone-cut") || !strcmp(mode,"attachment-cut") || !strcmp(mode,"readonly-cut") ||
+        !strcmp(mode,"mac-cut") || !strcmp(mode,"mac-readback") || !strcmp(mode,"mac-deadline"))
+        require(completion_cuts==1,"one-exact-completion-boundary-fault");
+    if(!strcmp(mode,"source-attachment-cut") || !strcmp(mode,"source-readonly-cut"))require(completion_cuts==1 && clone_seen==1 && !invocation_attached,
+        "source-staging-attachment-cut-precedes-I-realization");
+    if(!strcmp(mode,"query-cut"))require(completion_cuts==1 && !manager_acquisitions && !clone_seen && !invocation_attached,
+        "native-query-error-refuses-before-any-manager-source-acquisition");
+    if(!strcmp(mode,"staging-detach-cut"))require(completion_cuts>0 && invocation_attached==1 && transaction->failure.stage,
+        "staging-detach-cut-keeps-primary-failure-and-recovers-only-owned-mounts");
+    if(invocation_attached)require(receipt_checks==1,"actual-I-witness-before-transaction-closes-receipt");
     if(fault_phase) {
         require(fault_hits==1 && manager_acquisitions==1,"one-finite-original-manager-fault");
         if(!strcmp(fault_phase,"final"))require(invocation_attached==1,"final-fault-after-complete-private-attachment");
@@ -671,10 +861,11 @@ int main(int argc,char **argv) {
         require(owner->retained.manager.deadline==transaction->deadline,"manager-retains-original-absolute-deadline");
     }
     if(positive && !manager_exited){identity_snapshot(independent_proc,&identity_after);identity_unchanged(&identity_before,&identity_after);}
-    if(!strcmp(expected_stage(mode),"source-clone") || positive || !strcmp(mode,"post-attach-required-drift") ||
+    if((!strcmp(expected_stage(mode),"source-clone") && strcmp(mode,"clone-cut")) || positive || !strcmp(mode,"post-attach-required-drift") ||
         !strcmp(mode,"result-malformed") || !strcmp(mode,"cleanup-failure")) {
         require(clone_seen>0 && manager_acquisitions==1 && owner->retained.manager.unit.pid==(uint32_t)manager_pid,"fault-after-clone-keeps-original-manager");
     }
+    if(!strcmp(mode,"clone-cut"))require(!clone_seen && manager_acquisitions==1,"clone-syscall-cut-keeps-original-manager-without-source");
     if(!strcmp(mode,"post-attach-required-drift"))require(post_attach_drift==1,"late-original-host-fault-injected-once");
     if(lookup_mode)require(host_lookup_checks==1 && invocation_attached==1,"one-original-host-lookup-control-after-attachment");
     if(!strcmp(mode,"retained-concurrent-writers"))require(writer_checks==3 && invocation_attached==1,"all-independent-writer-barriers-preserve-healthy-admission");
@@ -703,7 +894,7 @@ int main(int argc,char **argv) {
     if(positive){actual_nested();require(mac_calls==1,"gate-final-MAC-once");snprintf(path,sizeof(path),"%s/host/usr/bin/ambient",base);
         require((access(path,F_OK)==0)==(strcmp(mode,"ambient-narrow")!=0),"invocation-ambient-selection");}
     else {
-        require(!mac_calls,"refusal-before-final-MAC");struct stat info;struct statx mount;
+        require(mac_calls==(!strncmp(mode,"mac-",4)?1U:0U),"refusal-at-declared-final-MAC-boundary");struct stat info;struct statx mount;
         snprintf(path,sizeof(path),"%s/host/usr",base);
         require(lstat(path,&info)==0 && statx(AT_FDCWD,path,AT_SYMLINK_NOFOLLOW,STATX_MNT_ID,&mount)==0 &&
             info.st_dev==original_target_info.st_dev && info.st_ino==original_target_info.st_ino &&
@@ -733,6 +924,7 @@ def _native(helper):
     source = source.replace('#define dlclose fixture_dlclose', '#define dlclose retained_dlclose')
     source = source.replace('#define umount2 fixture_umount', '#define umount2 retained_umount')
     source = source.replace('#define mount fixture_mount', '#define mount retained_mount')
+    source = source.replace('#define mount_setattr fixture_mount_setattr', '#define mount_setattr retained_mount_setattr')
     source = source.replace('#include "kiosk_confinement.h"', '''
 #define openat retained_openat
 #define stat(...) retained_stat(__VA_ARGS__)
@@ -783,6 +975,7 @@ def retained_scene(fresh_scene):
     # Existing malformed-result controls cover both roles in this composition.
     text = text.replace("record.get('role') == 'manager'", "record.get('role') in ('manager', 'gate')")
     text = text.replace("if mode == 'helper-timeout':\n    import signal", "if mode == 'helper-timeout':\n    (base / 'timeout-waiting').write_text('waiting')\n    import signal")
+    text = text.replace('encode_result = service._canonical', RECEIPT_MUTATIONS + '\nencode_result = service._canonical')
     helper.write_text(text)
     source = directory / 'retained.c'
     source.write_text(_native(helper))
@@ -809,8 +1002,22 @@ def retained_scene(fresh_scene):
 fresh_scene = fresh.fresh_scene
 
 
+@pytest.mark.parametrize('mode', ['failed-manager-exec', 'interrupted-manager-before-exec'])
+def test_completed_ready_requires_live_manager_after_exec_boundary(retained_scene, mode):
+    directory, binary = retained_scene
+    completed = subprocess.run([str(binary), mode, str(directory)],
+                               capture_output=True, text=True, timeout=30,
+                               pass_fds=test_storage.scratch_descriptors())
+    assert completed.returncode == 0, f'{mode}: {completed.stdout}\n{completed.stderr}'
+    assert completed.stdout == 'verified\n'
+    generations = [p for p in (directory / 'runtime').iterdir() if len(p.name) == 64]
+    assert len(generations) == 1
+    assert (generations[0] / 'ready').is_file()
+    assert not any(p.name.startswith('.runtime-') for p in (directory / 'runtime').iterdir())
+
+
 @pytest.mark.parametrize('mode', [
-    'healthy', 'ambient-narrow', 'same-reexec', 'same-fd-reexec', 'exit-after-decision',
+    'healthy', 'ambient-narrow', 'ambient-mask', 'same-reexec', 'same-fd-reexec', 'exit-after-decision',
     'wrong-clone', 'missing-nested-clone', 'required-drift', 'post-attach-required-drift', 'absent-ready',
     'stale-ready', 'forged-ready', 'missing-source', 'foreign-source', 'inactive',
     'manager', 'invocation', 'namespace', 'foreign-reexec', 'exit-after-clone',
@@ -820,7 +1027,14 @@ fresh_scene = fresh.fresh_scene
     'capabilities-effective-drift', 'capabilities-permitted-drift',
     'retained-concurrent-writers', 'sequential-healthy', 'selection-lock-replaced', 'selection-lease-replaced',
     'attached-lock-replaced', 'attached-lease-replaced', 'host-lookup-aliases', 'post-attach-root-drift',
-] + [f'{phase}-{kind}' for phase in ('acquire', 'clone', 'final') for kind in (
+    'query-cut', 'clone-cut', 'source-attachment-cut', 'source-readonly-cut', 'attachment-cut', 'readonly-cut',
+    'staging-detach-cut', 'mac-cut', 'mac-readback', 'mac-deadline',
+] + [f'receipt-{field}' for field in (
+    'format', 'role', 'backend', 'material', 'source', 'plan-material', 'slot', 'source-index',
+    'foreign-inode', 'missing-required', 'required-placeholder', 'node-index', 'class', 'node-role',
+    'required-ambient', 'origin', 'node-inode', 'mount', 'coverage-missing', 'coverage-owner',
+    'coverage-origin', 'coverage-inode',
+)] + [f'{phase}-{kind}' for phase in ('acquire', 'clone', 'final') for kind in (
     'exit', 'mainpid', 'invocation', 'cgroup', 'root', 'namespace', 'label',
     'uid', 'gid', 'groups', 'capabilities', 'executable', 'tasks',
 ) if phase != 'clone' or kind not in ('exit', 'mainpid', 'invocation', 'namespace', 'executable')]
@@ -845,6 +1059,9 @@ def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
     witness = json.loads((directory / 'transaction-witness.json').read_text())
     helper_started = json.loads((directory / 'helper-started').read_text())
     assert helper_started['deadline'] == witness['helper_deadline'] == witness['deadline'] * 1000
+    if mode.startswith('receipt-'):
+        assert (directory / 'receipt-fault').read_text() == mode.removeprefix('receipt-')
+        assert witness['stage'] == 'retained-plan'
     if mode == 'sequential-healthy':
         first = json.loads((directory / 'sequential-first-witness.json').read_text())
         assert first['stage'] == witness['stage'] == 'armed'
@@ -862,3 +1079,35 @@ def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
     generations = [p for p in (directory / 'runtime').iterdir() if len(p.name) == 64]
     assert len(generations) == 1
     assert not any(p.name.startswith('.runtime-') for p in (directory / 'runtime').iterdir())
+    invocation = directory / 'invocation-receipt'
+    if invocation.exists():
+        source = [line.split('\t') for line in (generations[0] / 'view').read_text().splitlines()]
+        actual = [line.split('\t') for line in invocation.read_text().splitlines()]
+        ready = (generations[0] / 'ready').read_text().split('\t')
+        assert actual[0][:5] == ['ONPC-KIOSK-RECEIPT', '2', 'I', 'apparmor', 'gate']
+        assert actual[0][5] == source[0][5]
+        assert actual[0][6] == ready[3]
+        original_nodes = {row[1]: row for row in source[1:] if row[0] == 'N'}
+        actual_nodes = {row[1]: row for row in actual[1:] if row[0] == 'N'}
+        assert actual_nodes.keys() == original_nodes.keys()
+        for path, row in actual_nodes.items():
+            original = original_nodes[path]
+            # Required bit, class, role, stable index and original provenance
+            # are independently compared with the unchanged disk V.
+            assert row[3:5] == original[3:5]
+            assert row[6:10] == original[6:10]
+            if row[3] == '1':
+                assert row[2] == original[2]
+                if row[2] != 'tree':
+                    assert row[10:13] == original[10:13]
+            if row[2] in ('absent', 'empty-directory'):
+                assert row[3:6] == ['0', 'ambient', 'none']
+        omitted = {path: row[2] for path, row in actual_nodes.items()
+                   if row[2] in ('absent', 'empty-directory')}
+        assert omitted == ({'/usr/bin/ambient': 'absent'} if mode == 'ambient-narrow' else
+                           {'/usr/bin/ambient-tree': 'empty-directory'} if mode == 'ambient-mask' else {})
+        source_coverage = {row[2]: row for row in source[1:] if row[0] == 'C'}
+        actual_coverage = {row[2]: row for row in actual[1:] if row[0] == 'C'}
+        assert actual_coverage.keys() == (set() if mode == 'ambient-mask' else source_coverage.keys())
+        for path, row in actual_coverage.items():
+            assert row[:7] == source_coverage[path][:7]

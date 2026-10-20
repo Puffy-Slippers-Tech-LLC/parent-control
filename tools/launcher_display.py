@@ -98,6 +98,8 @@ class TaskDisplay(LauncherDisplay):
         self.dragging = None
         self.totals = totals
         self.task_totals = None
+        self.runtime_tasks = None
+        self.completed_before = None
         self.pointer = ''
         self.focus = 'chat' if input_mode == 'chat' else 'bottom'
         self.offsets['info'] = 0
@@ -163,11 +165,24 @@ class TaskDisplay(LauncherDisplay):
         self.refresh_description()
         if self.totals is not None:
             try:
-                self.task_totals = self.totals()
+                from launcher_runtime import task_counters
+                runtime, totals, baseline = task_counters(
+                    self.run, self.totals(), completed_before=self.completed_before)
+                self.runtime_tasks, self.task_totals, self.completed_before = runtime, totals, baseline
+                if self.tty:
+                    self.steps = self.counter_steps(self.steps)
             except (OSError, ValueError):
                 # A partially rewritten queue must not detach the observer or
                 # replace the last valid totals with misleading zeroes.
                 pass
+
+    def update(self, steps, details):
+        super().update(self.counter_steps(steps), details)
+
+    def counter_steps(self, steps):
+        if self.runtime_tasks is not None:
+            return [self.runtime_tasks, *(step for step in steps if step['key'] != 'runtime-tasks')]
+        return steps
 
     def refresh_description(self):
         try:

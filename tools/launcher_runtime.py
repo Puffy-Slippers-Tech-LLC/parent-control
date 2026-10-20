@@ -162,6 +162,11 @@ def task_progress(run, steps, *, remaining=None):
     if not path.exists():
         return steps
     value = TaskBudget(run).read()
+    return budget_progress(value, steps, remaining=remaining)
+
+
+def budget_progress(value, steps, *, remaining=None):
+    """Render one budget snapshot without rereading changing controller state."""
     limit = value['tasks']
     completed = value.get('completed', 0)
     if limit is None:
@@ -174,3 +179,25 @@ def task_progress(run, steps, *, remaining=None):
     unfinished = max(0, limit - completed) if isinstance(limit, int) else '—'
     return [{'key': 'runtime-tasks', 'pinned': True,
              'lines': [f'Tasks: {completed}/{unfinished}/{limit}']}, *steps]
+
+
+def task_counters(run, totals, *, completed_before=None):
+    """Both observer counters share the controller's accepted completion count."""
+    try:
+        value = TaskBudget(run).read()
+    except FileNotFoundError:
+        return None, totals, completed_before
+    if completed_before is None:
+        # The retained queue and runtime total describe the same task boundary.
+        # Prefer that queue over live edits, including newly inserted tasks.
+        try:
+            before = json.loads((run / 'checkpoint.json').read_text()).get('queue_before')
+        except FileNotFoundError:
+            before = None
+        total_before = len(before) if isinstance(before, dict) else totals[2]
+        completed_before = max(0, total_before - value['remaining'] if 'remaining' in value
+                               else totals[0] - value.get('completed', 0))
+    completed = completed_before + value.get('completed', 0)
+    unfinished = max(0, totals[2] - completed)
+    runtime = budget_progress(value, [], remaining=lambda: unfinished)[0]
+    return runtime, (completed, unfinished, totals[2]), completed_before

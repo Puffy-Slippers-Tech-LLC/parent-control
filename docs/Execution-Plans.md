@@ -412,7 +412,11 @@ the normal text color.
 Both counters use the shared count styling function, overriding retained ANSI
 colors so completed and unfinished counts stay distinct.
 These counts cover the plan's entire active queue, excluding deferred future
-work, regardless of `--tasks`, and refresh automatically as the queue changes.
+work, regardless of `--tasks`. Completed is the accepted completion count from
+the top-left counter plus tasks completed before this run; both counters use
+the same budget snapshot. A queue checkbox edited during a session or pending
+Git close-out grants no completion credit in either counter. The total refreshes
+as the active queue changes, and unfinished is total minus accepted completions.
 Displays without a Markdown plan show unavailable counts as dashes.
 Below the counts, `Total Duration` shows elapsed time for the backend launcher
 in the same minute/hour format. It refreshes every minute and continues across

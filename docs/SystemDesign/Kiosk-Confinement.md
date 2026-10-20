@@ -340,6 +340,94 @@ receipts below are not active requirements, selected mechanisms or acceptance
 for this rebuilt candidate. Public baseline use precedes new protections, and
 final acceptance remains both-platform installed evidence.
 
+##### C02a prepared session runtime
+
+The six files in `data/kiosk-runtime-unselected/` prepare the release-based
+session arrangement without selecting it. Their relative destinations match
+`data/wayland-sessions`, `data/gnome-session/sessions` and `data/systemd/user`.
+They are excluded from `PACKAGE_SOURCE_FILES`, package installation and activation;
+the existing native session entry and private runtime remain selected until C02.
+There is no second session name, enabled target or live admission route.
+
+The desktop directly selects
+`gnome-session --session oh-no-parent-control`, as at pin
+`188be907c46b1cd0dabae06ac898c43e75beb05e`.
+The unchanged session identity is `oh-no-parent-control`, with `Kiosk=true` and
+`DesktopNames=GNOME-Kiosk;GNOME;`. Its target requires `org.gnome.Kiosk.target`
+and `oh-no-parent-control-app.service`; it wants the current notification and
+authentication-agent services. The current kiosk-only Apport conflicts remain:
+those systemd-started crash windows bypass XDG autostart suppression. Ordinary
+desktop crash reporting is unaffected. This is the existing bounded route
+barrier, not an inventory of unfamiliar services.
+
+The app service runs main's `/usr/bin/oh-no-parent-control` isolated Python
+entrypoint, retaining the shared form and its features. It remains bound to
+`gnome-session.target`, ordered after the compositor and notification service,
+with no automatic restart. Both successful exit and failure request
+`gnome-session-shutdown.target`; failure retains `replace-irreversibly` job mode.
+Main's `KioskLogout` still owns the cooperative GNOME client/logout exchange and
+its exit-action-only fallback deadline. No idle or authentication deadline is
+introduced by these assets.
+
+The agent keeps `oh-no-parent-control-polkit-agent.service`, its optional
+`%t/oh-no-parent-control/polkit-agent.env`, foreground vendor executable
+`/usr/libexec/polkit-mate-authentication-agent-1` and failure restart behavior.
+C02b must preserve `KioskAgentLocale`'s service/job association and pending
+authentication cancellation. The notification service keeps
+`org.freedesktop.Notifications`, the GNOME Kiosk notification client tag and
+compositor/session stop ownership, invoking the current provider through the
+vendor `gnome-service-client` with isolated Python commands. Neither prepared
+service depends on an obsolete native role wrapper.
+
+C02b/C02c consume these same public session/service identities; C02c's account
+and PAM preparation must route only the dedicated Wayland session while leaving
+ordinary-user policy intact. Only C02 may move these assets into the selected
+locations and update package source/install/activation wiring together with the
+prepared account, PAM, broker and lifecycle slices. That cutover must disconnect
+the old graph and preserve live/foreign session ownership; C02d/e then remove its
+unconsumed sources. C02a changes no installed state and grants no live usability
+or installed-acceptance credit.
+
+C02a host acceptance passed on 2026-10-20: **318 checks passed** in the affected
+`test_kiosk_login.py`, `test_package_payload.py`, `test_rpm_packaging.py`,
+`test_request_time_estimate.py` and `test_regression_unit.py` modules, using
+`tools/run-tests unit` with an explicit 600-second worker deadline. The retained
+[host report](../../output/test-runs/host/reports/20261020T233410Z-8e05168e/report.md)
+records the exact selection and successful four-branch join. It verifies prepared
+commands, session identity, service/exit ownership, current agent/logout behavior,
+source exclusion and unchanged selected Ubuntu/Fedora payloads. C02 must update
+the temporary unselected/current-payload assertions when it activates this slice.
+The resource review retains the existing compatible unit classifications: the
+new checks read small source assets, wait for one bounded Make source-list child
+and reuse existing pytest-private staged payloads. No new shared cache, bus,
+display, service, network or cleanup owner is acquired.
+
+Independent Astra xHigh backend review found no actionable issues:
+**Usability priority: passed; Threat scope: passed; ownership/lifecycle and
+unselected boundary: passed**. It confirmed pin provenance, current feature
+preservation, the notification client's vendor argument/descriptor contract and
+the existing Apport route justification. Review grants no runtime acceptance.
+`make build` then passed for both DEB and RPM; retained outputs include
+`output/deb/oh-no-parent-control_1.4+local1~ubuntu26.04.1_amd64.deb`,
+`output/rpm/oh-no-parent-control-1.4-0.1.dev.fc44.x86_64.rpm` and
+`output/rpm/build.log`. These build the unchanged selected runtime, not an
+installed or live qualification of the prepared assets. Both agents finished;
+the test runner and build completed owned cleanup. No task-owned VM, installed
+state, temporary file or live process remains; normal reports/build outputs
+are retained. No staging, commit or push was performed.
+
+Close-out passed all **639 metadata checks** in the four maintained consistency
+modules and `test_execution_plan_launcher.py`, with the same 600-second worker
+deadline and completed cleanup; see the retained
+[close-out report](../../output/test-runs/host/reports/20261020T233554Z-13bb7527/report.md).
+The plan check selects C02b1 with 59 remaining tasks. The C01 report had rotated;
+its link destination alone now uses the accepted-evidence locator after the
+maintained bundle reader verified the exact original report (639/639), accepted
+result, command record and completed cleanup in bundle
+`onpc-evidence-bundle-vhi564vh` (SHA-256
+`8effa470abe2dc49daa80738a20e3cf11e3ab271d1065355eca28c9ef266644a`).
+This repairs no completion claim and changes no other queue row.
+
 ##### C01 selective replacement boundary
 
 C01 combines the C01a/C01b/C01c inventories below into the implementation
@@ -463,7 +551,7 @@ with the named receiving tasks above, without inherited acceptance.
 Markdown links, plan structure and the four maintained host consistency modules
 plus `test_execution_plan_launcher.py` passed. The same 639 checks passed again
 after advancing the pointer, with owned cleanup complete in the retained
-[final runner report](../../output/test-runs/host/reports/20261020T232237Z-3903e211/report.md).
+[final runner report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 The plan check selects C02a with 60 remaining tasks. Concurrent commit
 `484e38ea` changes only launcher instructions/tooling and its tests, leaving
 the reviewed product inputs unchanged. These docs are outside package/build inputs;

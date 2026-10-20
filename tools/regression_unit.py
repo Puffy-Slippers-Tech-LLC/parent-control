@@ -979,6 +979,9 @@ from regression_ui import Bucket
 # Wellbeing identity/environment cases compile a tiny private launcher with
 # linker-wrapped NSS/exec observers and run bounded waited children. They read
 # no live account or settings backend and preserve compatible unit scheduling.
+# Prepared runtime assertions read inert source assets and own one bounded,
+# waited Make source-list child. The package_payload/rpm_packaging checks reuse
+# their existing private staged payloads, without new builders or cleanup owners.
 # No real session, system bus, display, root lock, shared cache or service mutates.
 # Admission/removal regressions use real advisory locks only on pytest-private
 # files. Native PAM leases cover root-executor/session teardown intervals and

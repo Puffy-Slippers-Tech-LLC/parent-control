@@ -29,6 +29,30 @@ def fedora_payload(tmp_path_factory):
     return destination
 
 
+def test_prepared_kiosk_runtime_does_not_replace_fedora_payload(fedora_payload):
+    for source, installed in (
+        ('wayland-sessions/oh-no-parent-control.desktop',
+         'usr/share/wayland-sessions/oh-no-parent-control.desktop'),
+        ('gnome-session/sessions/oh-no-parent-control.session',
+         'usr/share/gnome-session/sessions/oh-no-parent-control.session'),
+        ('systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf',
+         'usr/lib/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf'),
+        ('systemd/user/oh-no-parent-control-app.service',
+         'usr/lib/systemd/user/oh-no-parent-control-app.service'),
+        ('systemd/user/oh-no-parent-control-polkit-agent.service',
+         'usr/lib/systemd/user/oh-no-parent-control-polkit-agent.service'),
+        ('systemd/user/oh-no-parent-control-notifications.service',
+         'usr/lib/systemd/user/oh-no-parent-control-notifications.service'),
+    ):
+        assert (fedora_payload / installed).read_bytes() == (ROOT / 'data' / source).read_bytes()
+    assert not any('kiosk-runtime-unselected' in path.parts
+                   for path in fedora_payload.rglob('*'))
+    desktop = (fedora_payload / 'usr/share/wayland-sessions/oh-no-parent-control.desktop').read_text()
+    app = (fedora_payload / 'usr/lib/systemd/user/oh-no-parent-control-app.service').read_text()
+    assert 'Exec=/usr/libexec/oh-no-parent-control-kiosk-session\n' in desktop
+    assert 'ExecStart=/usr/libexec/oh-no-parent-control-kiosk-app\n' in app
+
+
 def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payload):
     payload = fedora_payload
     assert not (payload / 'etc/apt').exists()

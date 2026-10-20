@@ -1,5 +1,6 @@
 """Kiosk routing policy and real PAM transactions, without a live login or bus."""
 
+import configparser
 import ctypes
 from contextlib import contextmanager
 import fcntl
@@ -16,6 +17,119 @@ from types import SimpleNamespace
 import pytest
 
 from tests.support.paths import ROOT
+
+
+PREPARED_RUNTIME = ROOT / 'data/kiosk-runtime-unselected'
+
+
+def _prepared_config(relative):
+    settings = configparser.ConfigParser(interpolation=None)
+    settings.read(PREPARED_RUNTIME / relative)
+    return settings
+
+
+def test_prepared_session_preserves_release_identity_and_kiosk_selection():
+    desktop = _prepared_config('wayland-sessions/oh-no-parent-control.desktop')['Desktop Entry']
+    assert shlex.split(desktop['Exec']) == [
+        'gnome-session', '--session', 'oh-no-parent-control']
+    assert desktop['TryExec'] == 'gnome-session'
+    assert desktop['DesktopNames'] == 'GNOME-Kiosk;GNOME;'
+    assert desktop['X-GDM-SessionRegisters'] == 'false'
+    assert desktop['X-GDM-CanRunHeadless'] == 'true'
+    session = _prepared_config('gnome-session/sessions/oh-no-parent-control.session')
+    assert dict(session['GNOME Session']) == {
+        'name': 'Oh No! Parent Control Kiosk', 'kiosk': 'true'}
+
+
+def test_prepared_target_owns_only_the_dedicated_session_composition():
+    target = PREPARED_RUNTIME / (
+        'systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf')
+    settings = {}
+    for line in target.read_text().splitlines():
+        key, separator, value = line.partition('=')
+        if separator:
+            settings.setdefault(key, set()).update(value.split())
+    assert settings == {
+        'Requires': {'org.gnome.Kiosk.target', 'oh-no-parent-control-app.service'},
+        'Wants': {'oh-no-parent-control-notifications.service',
+                  'oh-no-parent-control-polkit-agent.service'},
+        'After': {'oh-no-parent-control-polkit-agent.service',
+                  'update-notifier-crash.path', 'update-notifier-crash.service'},
+        'Conflicts': {'update-notifier-crash.path', 'update-notifier-crash.service'},
+    }
+
+
+def test_prepared_app_keeps_current_form_and_session_shutdown_ownership():
+    source = PREPARED_RUNTIME / 'systemd/user/oh-no-parent-control-app.service'
+    app = configparser.ConfigParser(strict=False, interpolation=None)
+    app.read(source)
+    assert app['Unit']['BindsTo'] == 'gnome-session.target'
+    ordered_after = {unit for line in source.read_text().splitlines()
+                     if line.startswith('After=') for unit in line.partition('=')[2].split()}
+    assert ordered_after == {'gnome-session.target', 'org.gnome.Kiosk@wayland.service',
+                             'oh-no-parent-control-notifications.service'}
+    assert app['Unit']['OnSuccess'] == 'gnome-session-shutdown.target'
+    assert app['Unit']['OnFailure'] == 'gnome-session-shutdown.target'
+    assert app['Unit']['OnFailureJobMode'] == 'replace-irreversibly'
+    assert app['Service']['Type'] == 'simple'
+    assert app['Service']['Restart'] == 'no'
+    assert shlex.split(app['Service']['ExecStart']) == ['/usr/bin/oh-no-parent-control']
+    # This is the current shared form's isolated entry, including KioskLogout;
+    # no release frontend or native confinement launcher is substituted.
+    assert (ROOT / 'kiosk/oh-no-parent-control').read_text().splitlines()[0] == (
+        '#!/usr/bin/python3 -I')
+
+
+def test_prepared_agent_preserves_main_vendor_and_locale_restart_interface():
+    relative = 'systemd/user/oh-no-parent-control-polkit-agent.service'
+    agent = _prepared_config(relative)
+    active = configparser.ConfigParser(interpolation=None)
+    active.read(ROOT / 'data' / relative)
+    assert {section: dict(agent[section]) for section in agent.sections()} == {
+        section: dict(active[section]) for section in active.sections()}
+    assert agent['Service']['EnvironmentFile'] == '-%t/oh-no-parent-control/polkit-agent.env'
+    assert agent['Service']['Type'] == 'simple'
+    assert shlex.split(agent['Service']['ExecStart']) == [
+        '/usr/libexec/polkit-mate-authentication-agent-1']
+    assert agent['Service']['Restart'] == 'on-failure'
+
+
+def test_prepared_notifications_keep_tagged_current_provider_without_native_wrappers():
+    notifications = _prepared_config('systemd/user/oh-no-parent-control-notifications.service')
+    assert notifications['Unit']['BindsTo'] == 'org.gnome.Kiosk@wayland.service'
+    assert notifications['Unit']['PartOf'] == 'gnome-session@oh-no-parent-control.target'
+    assert notifications['Unit']['After'] == 'org.gnome.Kiosk@wayland.service'
+    assert notifications['Service']['Type'] == 'dbus'
+    assert notifications['Service']['BusName'] == 'org.freedesktop.Notifications'
+    assert shlex.split(notifications['Service']['ExecStart']) == [
+        '/usr/bin/python3', '-I', '/usr/bin/gnome-service-client',
+        '--tag=gnome-kiosk-notification', '--', '/usr/bin/python3', '-I',
+        '/usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/notifications.py',
+    ]
+    assert notifications['Service']['Restart'] == 'on-failure'
+
+
+def test_prepared_runtime_has_no_production_package_source_selection():
+    result = subprocess.run(
+        ['make', '--no-print-directory', 'package-source-files'], cwd=ROOT,
+        check=True, capture_output=True, text=True, timeout=30)
+    selected = set(result.stdout.splitlines())
+    prepared = {path.relative_to(ROOT).as_posix()
+                for path in PREPARED_RUNTIME.rglob('*') if path.is_file()}
+    assert len(prepared) == 6
+    assert prepared.isdisjoint(selected)
+    assert not any(path.startswith('data/kiosk-runtime-unselected/') for path in selected)
+    assert {
+        'data/wayland-sessions/oh-no-parent-control.desktop',
+        'data/gnome-session/sessions/oh-no-parent-control.session',
+        'data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf',
+        'data/systemd/user/oh-no-parent-control-app.service',
+        'data/systemd/user/oh-no-parent-control-polkit-agent.service',
+        'data/systemd/user/oh-no-parent-control-notifications.service',
+        'kiosk/oh-no-parent-control',
+        'kiosk/oh_no_parent_control_kiosk/notifications.py',
+        'kiosk/oh_no_parent_control_kiosk/session_logout.py',
+    } <= selected
 
 
 @pytest.fixture(scope="module")

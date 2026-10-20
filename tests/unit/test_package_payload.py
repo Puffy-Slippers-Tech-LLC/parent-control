@@ -54,6 +54,30 @@ def test_payload_excludes_development_files_and_keeps_runtime_assets(production_
         assert path in paths
 
 
+def test_prepared_kiosk_runtime_does_not_replace_selected_payload(production_payload):
+    for source, installed in (
+        ('wayland-sessions/oh-no-parent-control.desktop',
+         'usr/share/wayland-sessions/oh-no-parent-control.desktop'),
+        ('gnome-session/sessions/oh-no-parent-control.session',
+         'usr/share/gnome-session/sessions/oh-no-parent-control.session'),
+        ('systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf',
+         'usr/lib/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf'),
+        ('systemd/user/oh-no-parent-control-app.service',
+         'usr/lib/systemd/user/oh-no-parent-control-app.service'),
+        ('systemd/user/oh-no-parent-control-polkit-agent.service',
+         'usr/lib/systemd/user/oh-no-parent-control-polkit-agent.service'),
+        ('systemd/user/oh-no-parent-control-notifications.service',
+         'usr/lib/systemd/user/oh-no-parent-control-notifications.service'),
+    ):
+        assert (production_payload / installed).read_bytes() == (ROOT / 'data' / source).read_bytes()
+    assert not any('kiosk-runtime-unselected' in path.parts
+                   for path in production_payload.rglob('*'))
+    desktop = (production_payload / 'usr/share/wayland-sessions/oh-no-parent-control.desktop').read_text()
+    app = (production_payload / 'usr/lib/systemd/user/oh-no-parent-control-app.service').read_text()
+    assert 'Exec=/usr/libexec/oh-no-parent-control-kiosk-session\n' in desktop
+    assert 'ExecStart=/usr/libexec/oh-no-parent-control-kiosk-app\n' in app
+
+
 @pytest.mark.parametrize("command, arguments, expected", [
     ("oh-no-parent-control", [], []),
     ("oh-no-parent-control", ["--child-overlay"], ["--child-overlay"]),

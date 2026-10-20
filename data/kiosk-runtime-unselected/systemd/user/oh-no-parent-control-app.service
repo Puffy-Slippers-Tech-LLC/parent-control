@@ -1,0 +1,15 @@
+# Prepared release-based runtime; production selection remains with C02.
+[Unit]
+Description=Oh No! Parent Control kiosk application
+BindsTo=gnome-session.target
+After=gnome-session.target org.gnome.Kiosk@wayland.service
+After=oh-no-parent-control-notifications.service
+OnFailure=gnome-session-shutdown.target
+OnFailureJobMode=replace-irreversibly
+OnSuccess=gnome-session-shutdown.target
+
+[Service]
+Type=simple
+# Keep main's isolated shared form, agent locale and public logout client.
+ExecStart=/usr/bin/oh-no-parent-control
+Restart=no

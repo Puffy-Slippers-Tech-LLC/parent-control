@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C02a — [Prepare the release-based session runtime](Kiosk-Prompt-Tasks/C02a-runtime.md)**.
+Next task: **C02b1 — [Prepare the broker approval boundary](Kiosk-Prompt-Tasks/C02b1-broker.md)**.
 
 ## Outcome
 

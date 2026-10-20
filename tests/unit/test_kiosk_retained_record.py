@@ -15,8 +15,8 @@ import subprocess
 
 import pytest
 
-from tests.unit.test_kiosk_material_authority import material_case
-from tests.unit.test_kiosk_preparation_plan import initial_case, identity
+from tests.support.kiosk_material_authority import material_case
+from tests.support.kiosk_preparation_plan import initial_case, identity
 from tests.support.paths import ROOT
 from tools import kiosk_confinement as preparation, kiosk_view_receipt as receipt, test_storage
 

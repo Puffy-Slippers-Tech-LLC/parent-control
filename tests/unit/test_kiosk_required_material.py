@@ -9,73 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.unit.test_kiosk_pin_storage import private_store, named_fixture
-
-
-@pytest.fixture
-def material_host(private_store, monkeypatch):
-    scene, helper = private_store, private_store.helper
-    specs = named_fixture(scene)
-    native = '/usr/bin/native'
-    library = '/usr/lib/library.so'
-    vendor = '/usr/lib/helper'
-    for name in (native, library, vendor):
-        path = scene.host / name.lstrip('/')
-        path.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-        path.write_bytes(b'\x7fELF' + name.encode())
-        path.chmod(0o755)
-    payload = scene.host / str(helper.PAYLOAD).lstrip('/')
-    payload.mkdir(mode=0o755, parents=True)
-    for path in scene.host.rglob('*'):
-        if path.is_dir() and not path.is_symlink():
-            path.chmod(0o755)
-    config = dict(backend='apparmor', runtime_inputs=specs,
-                  executables=[dict(role='service', paths=[native]),
-                               dict(role='library', paths=[library]),
-                               dict(role='service', paths=['/usr/bin/optional'], optional=True)],
-                  preserved_executables=[dict(path=vendor, mode=0o755, label=None)])
-
-    def physical(path):
-        path = Path(path)
-        return scene.host / str(path).lstrip('/') if path == Path('/usr') or Path('/usr') in path.parents else path
-
-    def logical(path):
-        return Path('/') / path.relative_to(scene.host) if scene.host in path.parents else path
-
-    # Only names are translated. Real trust walks, no-follow opens, full inode
-    # assertions, byte hashing, membership and all failure checks stay active.
-    raw_stat, raw_open, raw_readlink = helper.os.stat, helper.os.open, helper.os.readlink
-    path_open, real_trusted = Path.open, helper.trusted
-    path_exists, path_is_link, path_iterdir = Path.exists, Path.is_symlink, Path.iterdir
-    monkeypatch.setattr(Path, 'exists', lambda path, **kw: path_exists(physical(path), **kw))
-    monkeypatch.setattr(Path, 'is_symlink', lambda path: path_is_link(physical(path)))
-    monkeypatch.setattr(Path, 'iterdir', lambda path: iter(logical(child) for child in path_iterdir(physical(path))))
-    monkeypatch.setattr(Path, 'lstat', lambda path: raw_stat(physical(path), follow_symlinks=False))
-    monkeypatch.setattr(Path, 'stat', lambda path, **kw: raw_stat(physical(path), **kw))
-    monkeypatch.setattr(Path, 'open', lambda path, *a, **kw: path_open(physical(path), *a, **kw))
-    monkeypatch.setattr(helper.os, 'open', lambda path, *a, **kw:
-                        raw_open(physical(path) if isinstance(path, (str, Path)) and
-                                 str(path).startswith('/') else path, *a, **kw))
-    monkeypatch.setattr(helper.os, 'readlink', lambda path, *a, **kw:
-                        raw_readlink(physical(path) if path else path, *a, **kw))
-    monkeypatch.setattr(helper, 'trusted', lambda path, **kw: logical(real_trusted(physical(path), **kw)))
-    monkeypatch.setattr(helper, 'runtime_input_specs', lambda distribution: copy.deepcopy(specs))
-    monkeypatch.setattr(helper, 'enforcing', lambda cfg: None)  # No host MAC operations.
-    policy = b'attested-private-policy'
-
-    def inputs():
-        data = json.dumps(config, sort_keys=True).encode()
-        (payload / 'config.json').write_bytes(data)
-        (payload / 'config.json').chmod(0o644)
-        (payload / 'onpc-kiosk.apparmor').write_bytes(policy)
-        (payload / 'onpc-kiosk.apparmor').chmod(0o644)
-        return data, policy, ' '.join(hashlib.sha256(item).hexdigest() for item in (data, policy)) + '\n'
-
-    def measure():
-        return helper.required_material(*inputs())
-
-    return SimpleNamespace(helper=helper, fixture=scene, specs=specs, config=config,
-                           physical=physical, inputs=inputs, measure=measure, payload=payload)
+from tests.support.kiosk_material import private_store, named_fixture, material_host
 
 
 def test_required_material_is_unchanged_by_ambient_parent_metadata(material_host):

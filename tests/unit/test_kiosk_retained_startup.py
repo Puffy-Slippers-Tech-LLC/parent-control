@@ -15,7 +15,7 @@ import subprocess
 import pytest
 
 from tools import test_storage
-from tests.unit import test_kiosk_fresh_startup as fresh
+from tests.support import kiosk_fresh_startup as fresh
 
 
 RECEIPT_MUTATIONS = r'''

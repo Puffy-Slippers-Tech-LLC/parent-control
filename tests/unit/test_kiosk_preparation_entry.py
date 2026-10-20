@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.unit.test_kiosk_pin_storage import private_store
+from tests.support.kiosk_material import private_store
 
 
 NAMES = ('kiosk_preparation_input', 'kiosk_view_receipt', 'kiosk_preparation_service')

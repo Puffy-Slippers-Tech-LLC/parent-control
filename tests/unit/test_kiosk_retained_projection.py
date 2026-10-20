@@ -8,8 +8,8 @@ import os
 
 import pytest
 
-from tests.unit.test_kiosk_material_selection import material_scene, selected_scene
-from tests.unit.test_kiosk_pin_storage import private_store
+from tests.support.kiosk_material_selection import material_scene, selected_scene
+from tests.support.kiosk_material import private_store
 
 
 def projection(scene, extra=0):

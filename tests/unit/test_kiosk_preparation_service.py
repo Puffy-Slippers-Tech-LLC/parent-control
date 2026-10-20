@@ -21,9 +21,8 @@ from types import SimpleNamespace
 import pytest
 
 from tests.support.paths import ROOT
-from tests.unit.test_kiosk_material_selection import material_scene, selected_scene
-from tests.unit.test_kiosk_pin_storage import private_store
-from tests.unit.test_kiosk_required_material import material_host
+from tests.support.kiosk_material_selection import material_scene, selected_scene
+from tests.support.kiosk_material import private_store, material_host
 from tools import kiosk_preparation_input, kiosk_view_receipt as receipt
 
 

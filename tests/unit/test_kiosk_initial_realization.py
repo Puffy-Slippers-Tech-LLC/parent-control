@@ -5,8 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.unit.test_kiosk_pin_storage import private_store
-from tests.unit.test_kiosk_required_material import material_host
+from tests.support.kiosk_material import private_store, material_host
 
 
 def test_all_required_consumers_have_independent_skeleton_parents(material_host):

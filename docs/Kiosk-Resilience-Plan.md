@@ -124,7 +124,7 @@ each row to executable checks without creating a second policy table.
 | Valid distro aliases, local configuration, supported PAM variation or inherited GDM credentials | **Allow entry** | Validate needed behavior and authority, not resemblance to a clean VM. Isolate an unnecessary integration rather than rejecting the session. |
 | Slow/restarting dependency, temporary lock contention or incomplete owned startup | **Bounded wait/recovery** | Preserve the attempt where safe. Use measured deadlines, not tight clean-VM timing assumptions; no busy loop or unlimited retries. |
 | Owned stale/failed kiosk infrastructure with no active public session | **Bounded renewal and entry** | Serialize with login; prove ownership, stop only that instance, preserve data, then retry once. Never kill by guessed PID or blanket UID. |
-| Product-owned temporary account quarantine left by interrupted configuration | **Recover after required setup** | Verify field/transaction ownership, restore the captured prior expiry and preserve later administrator denial. Optional setup failure cannot strand a correctly enforced account in quarantine. |
+| Product-owned temporary account quarantine left by interrupted configuration | **Recover after required setup** | Verify field/transaction ownership and release the separate product gate, leaving captured prior expiry and later administrator denial authoritative under the [configuration decision](SystemDesign/Lifecycle.md#r01d-configuration-and-quarantine-decision). Optional setup failure cannot strand a correctly enforced account in quarantine. |
 | Healthy concurrent kiosk visit or uncertain/foreign infrastructure | **Preserve it; resolve safely** | Do not terminate another session. R01 defines attach/wait/clear conflict handling; unexplained normal-use conflicts cannot be waived as passing availability. |
 | Selecting an ordinary desktop, console/SSH login as the kiosk, or a reachable kiosk action launching a terminal/general application handler | **Block that route** | Explicit defense of the dedicated request-only account. Keep the valid kiosk route available; an optional action refusal must not abort the entire session. |
 | Child-controlled startup/module/plugin/activation input that would actually be consumed | **Exclude that input or block the affected route** | Prove the path is reachable and attacker-controlled. Unrelated files elsewhere cannot cause rejection. |
@@ -226,9 +226,15 @@ Completed work remains historical evidence, not acceptance of this redesign:
 | 005a/005; 006a–006h and their 006e prerequisites; 006 | Existing material/view implementation, composition checks and historical bootstrap observations; no obligation to retain that architecture |
 | 007a1a/007a1b/007a1c/007a1; 007a2a/007a2b | Canonical history helpers, refusal transport and caller-independent native/Python creation repairs |
 
-The latest [cumulative evidence bundle](../output/test-runs/host/exports/onpc-evidence-bundle-1j5a8l1p/evidence.zip)
-contains 6,470 files, SHA-256
-`e8042b34cdc19d6e7bbd9b4032c4b77797262661cbc3d63eb0e47d92be2e5fba`.
+The latest [cumulative evidence bundle](../output/test-runs/host/exports/onpc-evidence-bundle-47xdgdp4/evidence.zip)
+contains 6,604 files, SHA-256
+`17f1782925b55984c6212f4b7eaa3c5d1797f05229472aebfaa984abd8f21a3c`.
+R01d0 preserved every member of the three earlier retained bundles, the three
+R01d host reports, the R01c recovery checkpoint and its initial storage-safety
+checks, plus its scoped regression results and corrective rerun. The guarded
+controller recovery now discloses the lost detailed proof and relocates R01d's
+retained reports; the live queue and saved state agree. This supplies no missing
+historical check result or acceptance credit for R01d.
 007a2b recorded 4,120 cumulative host checks, 386 final entry/resource checks,
 313 documentation checks and both package builds. These are host/build results,
 not corrected installed public-entry acceptance. Case 291's historical final

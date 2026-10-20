@@ -6,17 +6,21 @@ Required tasks: R04 — both-platform early architecture proof.
 Estimate: 20–30 minutes.
 
 Read the [master](../Kiosk-Resilience-Plan.md#target-design), R01's accepted
-configuration decision, [lifecycle target](../SystemDesign/Lifecycle.md#prospective-configuration-and-activation-recovery)
+configuration decision in the [lifecycle owner](../SystemDesign/Lifecycle.md#r01d-configuration-and-quarantine-decision)
 and [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
 
 ## Session boundary and deliverable
 
 Extract AccountsService visibility repair from R05. Read complete
 `repair_kiosk_visibility()`, cache-version/schema/transaction and provisioning/
-package callers. Implement the accepted capability/schema-based choice or public
-repair route without exact-version admission. Preserve unknown/unowned fields,
+package callers. Implement R01d's selected recognized-key-file boolean adapter,
+clean visible-state fast path and public fresh-cache/readback route without
+exact-version admission. Preserve unknown/unowned fields,
 ordinary users and ownership checks; do not write an unknown schema blindly.
-An unfamiliar compatible version alone cannot veto setup. R05b owns quarantine
+An unfamiliar compatible version alone cannot veto setup. Validate actual grammar
+and the single target key; no private write on unknown/ambiguous representation.
+Keep exact slot recovery, stopped-daemon serialization and one bounded retained
+repair/reload with durable plus public verification. R05b owns quarantine
 release and R08a owns optional icon fallback.
 
 ## Acceptance and close-out

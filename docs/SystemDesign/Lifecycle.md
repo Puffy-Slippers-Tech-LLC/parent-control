@@ -641,31 +641,10 @@ A's unavailable home at broker startup with a successful request for healthy
 child B, then restores A and verifies recovery. Keep this a finite readiness
 repair, not a redesign of every broker failure path.
 
-Current [package configuration](../../packaging/lifecycle/postinst.in) quarantines
-the kiosk before provisioning and releases it after successful configuration.
-`accounts_service_provision_kiosk()` calls `accounts_service_set_icon_file()` in
-[provisioning](../../tools/provision.py); an icon failure can abort that path.
-The target treats icon assignment as optional: record the cause, skip the failed
-assignment and allow the display default while completing required setup. The
-fallback must not require another successful icon API call. Release product-owned
-quarantine only when required enforcement/configuration is ready and ownership
-of the quarantined field is established. Preserve the captured prior expiry and
-any later administrator denial; product-owned temporary expiry is not itself
-administrator policy. Interrupted or ambiguous ownership needs bounded
-reconciliation and an accurate setup diagnostic, never a guessed reset.
-R01 must address a later administrator write of the same expiry value used by
-quarantine: equality with the saved value does not establish who wrote it.
-Choose an ownership mechanism that preserves both bounded product recovery and
-effective administrator denial; the current expiry snapshot alone is insufficient.
-
-The current AccountsService cache-repair adapter uses exact daemon/RPM versions.
-R01 must replace version identity as the admission authority with narrowly
-verified capability/schema behavior or a maintained public repair route; R05a
-implements that choice. Preserve unowned account fields, transaction ownership
-and ordinary users. Do not write an unknown cache schema blindly, but an
-unfamiliar version alone cannot veto configuration or otherwise usable entry.
-If necessary visibility cannot be restored, diagnose the actual failed public
-result and exhausted safe repair, separately from optional icon assignment.
+R01d selects the [configuration ownership decision](#r01d-configuration-and-quarantine-decision)
+below. R05a implements visibility, R05b the separate product setup gate and
+R08a optional icon degradation. Their decisions contribute to the
+[single rejection ledger](Kiosk-Confinement.md#single-decisionrejection-ledger--execution-contribution).
 
 R01 also maps changed inputs to no action, safe owned renewal, session renewal
 or a justified reboot. Retaining the old manager is not a requirement; preserving
@@ -676,6 +655,238 @@ form and authentication path; retries cannot restart that budget. R03/R04
 validate the proposed budget against representative observations. Human time
 entering parent credentials is separate. A successful unit start alone is not
 readiness, and genuine approval still needs a public proof.
+
+### R01d configuration and quarantine decision
+
+**Selected, prospective design; review only.** Keep the fixed-account
+AccountsService start-pre adapter, but select it by the representation and public
+behavior it actually needs, not daemon/RPM version identity. Move temporary
+configuration quarantine out of native account expiry into a durable
+product-owned native admission gate. Keep native expiry and effective
+administrator policy authoritative. Optional icon work has no vote on setup
+completion. These choices implement nothing and claim no installed acceptance;
+R01 still owns integrated architecture review and revision.
+
+#### Audited configuration path
+
+[Postinst](../../packaging/lifecycle/postinst.in) uses `set -e`. For an existing
+owned account it calls `configure_account_access()` before migration or other
+configuration; both platform account templates create a new account with expiry
+day 1. Creation precedes both the expiry journal and UID marker, so interruption
+there leaves an identity the next configure refuses as unowned. Reconfiguration
+also currently deletes the existing password, which can erase an administrator's
+later credential lock. [Provisioning](../../tools/provision.py) validates UID/home/admin groups,
+writes machine configuration and bus policy, then resolves the AccountsService
+object, repairs/caches visibility, assigns the icon, disables kiosk time limits
+and verifies session routing. Icon lookup, malformed icon metadata or the setter
+can currently abort before required time-limit/routing work. Required package
+integration, PAM, services and final confinement installation must then succeed
+before `--release-account`. Later broker activation/reset-failed errors can fail
+configuration after that release; account release alone is no readiness receipt.
+R01e owns that later readiness/activation boundary.
+
+The current v1 expiry record contains only version, UID, original expiry and
+`quarantined`/`releasing` phase. Its lock serializes product callers, not ordinary
+administrator account tools. Retry accepts native expiry 1 or the captured value;
+release writes the captured value and deletes the record after readback. Thus a
+later administrator write of 1 can be erased. A matching value, inode timestamp,
+phase, private journal or successful `usermod` readback supplies no missing writer
+provenance. Preserve current tests/evidence as historical until their allocated
+implementation tasks explicitly adapt these mechanism assertions.
+
+#### Visibility capability and schema contract — R05a
+
+Use public `FindUserById`, `CacheUser` for fresh state and typed property
+readbacks. Required results are the exact owned UID's `SystemAccount=false`,
+`Saved=true`, `Session=oh-no-parent-control`, `SessionType=wayland` and disabled
+kiosk `LimitType`, with verification after necessary setters. Preserve an already
+correct retained account without setters or a daemon restart. A method/property
+failure is a concrete capability failure; an unfamiliar version string is not.
+
+Retained hidden state needs the narrow adapter because current `CacheUser` does
+not durably repair it. Accept only the recognized UTF-8 key-file representation
+with one unambiguous `[User]` group and at most one `SystemAccount=true|false`
+key. Recognized omission of that optional key permits insertion at the validated
+group boundary, as in the current adapter. Check the key-file grammar as well as
+the target locator; duplicate target groups/keys, NUL, malformed syntax or an
+unknown classification representation receive no private-cache write. Unknown
+unrelated keys/groups are preserved verbatim and are not an incompatibility.
+Fresh state without a cache uses public `CacheUser`, not fabricated private
+metadata. Never force a save through icon/session changes just to rewrite a cache.
+
+Retain fixed UID/home/non-administrator ownership checks, pinned no-follow
+directories/files, bounded input, metadata/xattr/SELinux preservation and the
+single transaction slot with exact before/after/metadata identities. Repair only
+at the serialized systemd start-pre boundary with the old daemon gone; recover
+an owned interrupted slot before deciding that no write is needed. Patch only
+the recognized boolean bytes or insert the omitted key at that boundary.
+No version command or RPM package spelling grants
+or withholds write authority. Start/restart once for the retained repair and
+verify both durable false with no unfinished transaction and public visible/saved
+state after reload. A successful file patch alone is insufficient. If this fails,
+preserve metadata and the first cause, then finish within R01e's shared budget;
+no restart loop, cache deletion or `UncacheUser` fallback. Start-pre refusal stays
+nonfatal to AccountsService for ordinary users. Only failed required kiosk results
+can fail kiosk setup; a clean public/durable account needs no repair capability.
+
+#### Separate configuration gate and expiry authority — R05b
+
+Use a fixed root-private durable configuration record, read directly by the
+native kiosk prerequisite before vendor auth/account work and before either
+GDM or `systemd-user` opens a new kiosk session. This is an additional product
+setup condition, never an authentication success or replacement account policy.
+It does not apply to ordinary accounts or parent Polkit handles. Reuse the
+admission/lifecycle lock and handle-owned lease model; configuration cannot
+modify a live/competing visit. Wait within the shared budget, preserve that visit
+and report a conflict if it cannot drain. Teardown remains possible while the
+gate is closed. Do not reuse or clear removal's independent denial marker.
+
+The bounded record has its own schema version, transaction nonce, reserved
+identity/UID binding, captured prior native expiry (including no-expiry), and
+`creating`, `configuring` or `ready` phase. Pin root-owned private paths and a
+regular singly linked record, atomically publish and fsync record and parent;
+serialize transitions and revalidate the same nonce/identity before publication.
+The record is product state; native shadow expiry, credential locks and
+administrator PAM access rules are not. No shadow write is part of closing or
+releasing this new quarantine. The captured expiry remains in force without
+restoration writes; a later administrator change, even to day 1 or the captured
+value, remains in force too. Do not re-delete a password during retry; R01b's
+locked/nonempty-credential denial remains effective.
+
+For a fresh identity, first install and verify the native gate on effective
+kiosk PAM paths, then publish a reserved-name `creating` record while the account
+is absent, before the native account tool creates it. This is a setup-only
+bootstrap phase in the maintained confinement installer: it uses the packaged
+native module and reserved name, without requiring a UID, provision-generated
+machine configuration, AccountsService or completed MAC setup. Install the
+prerequisite before vendor auth/account/session callbacks for both GDM and
+`systemd-user`; keep ordinary branches unchanged. Journal and verify effective
+PAM publication before creation, and retain it through final full integration.
+The current installer runs near postinst's end; R05b adds this early phase,
+not an early claim of final readiness.
+
+Reserve unused UID/GID values and fresh credential defaults in the intent. Use
+native unique-UID creation with a temporary GECOS ownership nonce written with
+that UID/name, no temporary expiry and an initially empty credential. The name
+is denied even before a UID marker exists. Native name/UID/GID collisions are
+not adopted. Disable native home creation: prepare an empty home in a recorded,
+root-private adjacent staging directory, with its nonce and inode bound before
+publishing it at the reserved home using a no-replace rename. Retry identifies
+either location by that same inode/record, rather than trusting an unrecorded
+root-owned partial home. Preserve substituted paths and existing homes. After
+ownership transfer, home-local work runs with dropped credentials.
+
+Native creation is not a multi-file transaction. Upstream
+[`useradd` publication ordering](https://github.com/shadow-maint/shadow/blob/4.19.0/src/useradd.c)
+commits passwd before shadow/group records and creates the home later; the
+creation nonce alone therefore proves neither credential nor group completion.
+Select a fixed-account **absent-only creation completion** helper for that gap,
+not a retry of password deletion or a general account editor. It uses the public
+libc [shadow entry and locking APIs](https://www.man7.org/linux/man-pages/man3/getspnam.3.html),
+[group entry API](https://www.man7.org/linux/man-pages/man3/putgrent.3.html) and
+[gshadow API](https://www.gnu.org/software/gnulib/manual/html_node/gshadow_002eh.html).
+Hold lifecycle exclusion first, then the native account-database lock through
+identity/absence readback and publication. Shadow-utils
+[`commonio_lock`](https://github.com/shadow-maint/shadow/blob/4.19.0/lib/commonio.c)
+uses `lckpwdf()` for normal non-prefix builds with that libc capability. R05b
+must verify the actual Ubuntu/Fedora tools share this lock; a product-only flock
+or precheck followed by `usermod` does not serialize administrator changes.
+
+| Interrupted fresh creation state | Owned completion and policy limit |
+| --- | --- |
+| Name/UID absent and no conflicting native records | Retry the recorded native creation once; retain the gate and intent until all required readbacks pass. |
+| Exact creating nonce/name/UID/GID and expected passwd shadow locator (`x`), but a shadow/group/gshadow entry is absent | Under the shared native lock, revalidate the fresh unbound intent, local identity and all target slots. Append only absent entries from that intent, with an empty initial user credential, no account expiry and a locked group credential. Never initialize an existing or previously bound account this way. |
+| Any target native entry already exists | Preserve every field, including passwd-level or shadow credential locks, expiry, group password and membership. Verify required identity/non-administrator properties; allow effective PAM policy to decide access. A present denial is never converted into missing setup. |
+| Ambiguous/malformed target entry, foreign name/UID/GID, unexpected passwd credential field, substituted home or changed transaction | Preserve it and diagnose the actual ownership/setup failure; do not delete/recreate the account, reset a field or manufacture a new intent. Restoration must precede a permitted control. |
+
+The helper pins local database paths without symlinks, distinguishes an absent
+entry from a read/parse error, rejects duplicate target rows and preserves all
+unrelated bytes, metadata, ACLs/xattrs and SELinux labels. Serialize only the new
+entry with the public API into an atomic, fsynced replacement; read back before
+releasing the native lock. It never runs a native tool that reacquires that lock.
+Each absent-only publication is independently retryable: a crash after rename
+finds a present row and performs no credential/expiry write. Administrator tools
+that commit first are observed; those that commit afterward remain authoritative.
+This does not claim serialization with direct edits that ignore native locks.
+R05b must exercise both ordered administrator-lock/expiry races and every native
+record publication on both supported tool implementations before accepting this
+route; upstream source is its design basis, not installed qualification.
+
+Publish permanent UID/transaction ownership only after native records and the
+recorded home are complete, before replacing the temporary comment with the
+display name. Retry after comment replacement requires those permanent records.
+After binding, even a matching creation nonce authorizes no credential creation
+or clearing. Bind verified UID/home/ownership durably before exposing visibility.
+If the gate cannot be established, do not create/expose the account or change
+credentials. This closes creation-to-marker recovery without treating native
+account creation as atomic or inferring ownership from name/home equality.
+
+For an existing owned identity, durably change `ready` to `configuring` before
+any setup mutation. First upgrade from a shipped account without the new record
+may publish its first closed `configuring` record only under lifecycle exclusion
+after validating the existing package UID marker, home and non-administrator
+identity; revalidate the same identity before ready publication. This bootstrap
+grants no readiness and changes no native expiry or credential. Missing, unsafe,
+unknown, mismatched or non-ready state denies
+new kiosk entry, including after reboot; absence is not permission. Required
+setup comprises validated account/config/bus policy, visible/saved dedicated
+session state and kiosk limits, effective policy-preserving PAM, and the actual
+required confinement/enforcement integration. Home markers still run with dropped
+credentials. Optional artwork is excluded. After required setup succeeds, publish
+`ready` for that same transaction under the lifecycle lock. A crash before
+publication stays closed; a crash after it is idempotently ready. Retry reconciles
+only proven owned state once within the shared recovery budget, rechecking the
+required results before publication. Do not infer readiness merely from a phase,
+erase later policy, or manufacture a new transaction to adopt foreign state.
+Keep one bounded current receipt, not an image/generation framework.
+
+Legacy v1 expiry transactions cannot retrospectively prove a same-value writer.
+Migrate under the new closed gate and preserve native expiry without writing it.
+If current expiry already equals the captured prior value, retirement needs no
+native write; effective policy, including an expired prior value, still applies.
+If they differ (especially current=1 and captured=no-expiry), retain the v1 record
+and captured value and report the ownership ambiguity. A bounded retry cannot
+infer whether that is product residue or a later administrator denial. Explicit
+administrator reconciliation of native expiry is required before retiring that
+legacy record. Provide a maintained explicit administrator acknowledgement bound
+to that exact v1 record, owned identity and current native expiry; revalidate those
+inputs under the lifecycle lock before retirement. The administrator may retain
+the current denial or select another expiry through normal account management;
+acknowledgement never requires restoring the captured prior value and itself
+changes no shadow field. Changed inputs invalidate acknowledgement. This outcome
+is not automatic availability recovery and receives no success
+credit. No timestamp/audit-log guess or blanket install authorization resolves
+this missing historical fact. New gate transactions eliminate this ambiguity and
+must automatically recover after interrupted required setup without administrator
+intervention. R05b must implement the legacy transition and keep removal's
+identity-checked cleanup consistent; never drop the gate while an owned account
+survives removal.
+
+#### Optional icon and finite proof allocation — R08a
+
+Catch only icon-specific lookup/parse/assignment failures at the optional operation
+boundary, retain a sanitized first cause and continue required setup. Make at
+most one bounded assignment attempt; the greeter's display default is the fallback
+without another `SetIconFile`, empty-icon setter, file copy or successful icon
+read requirement. Preserve a retained custom icon. Failure in later required
+visibility, routing, limits or enforcement remains a setup failure, even after
+an icon error. Required result verification decides gate release, not whether
+the optional step returned success.
+
+R05a's finite host controls pair compatible unfamiliar-version repair with actual
+unsupported/ambiguous representation, missing capability, transaction interruption
+and byte/metadata/ordinary-user preservation. R05b covers early gate bootstrap,
+every partial native-record/home/ownership publication and native-lock ordering,
+configuration and ready publication, owned retry, required-setup failure,
+prior/later expiry and same-value administrator writes, credential denial,
+legacy ambiguity and foreign state. R08a pairs failed icon get/parse/set with
+successful required setup/release and with required failure that stays closed.
+All must preserve the original cause. R09a/R09c1 compose installed B/F histories;
+R10/R11 prove public visibility, passwordless usable entry, genuine approval and
+restoration on Ubuntu and Fedora. Compatible-version simulation is not a real
+dependency update. The ledger owns rejection/control details; these selectors
+remain unimplemented until their owning tasks register them. R01d creates no
+runtime resources, changes no executable expectations and needs no package build.
 
 ### Package activation and session renewal
 

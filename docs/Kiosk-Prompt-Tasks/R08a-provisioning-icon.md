@@ -6,7 +6,7 @@ Required tasks: R07 — policy-preserving authentication/session integration.
 Estimate: 15–30 minutes.
 
 Read the [master family B](../Kiosk-Resilience-Plan.md#acceptance),
-[lifecycle target](../SystemDesign/Lifecycle.md#prospective-configuration-and-activation-recovery),
+[configuration decision](../SystemDesign/Lifecycle.md#r01d-configuration-and-quarantine-decision),
 R05b's required-setup/release boundary and
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
 
@@ -17,6 +17,10 @@ Extract optional pre-GDM icon assignment from R08. Read complete
 `packaging/lifecycle/postinst.in` callers through quarantine release. An invalid
 or unavailable optional icon must record its cause, use the display default
 without another required icon API call, and let required configuration complete.
+Isolate icon get/parse/set errors only, bound the single optional attempt and
+preserve retained custom artwork. Continue required visibility/routing/limit and
+enforcement verification; no icon clearing/copy or successful reread is a fallback
+prerequisite. Consume the separate product gate; never write native expiry.
 Consume R05b's proven ownership/release interface; never release before required
 enforcement or override administrator expiry. Runtime presentation is R08c.
 

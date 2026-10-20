@@ -71,7 +71,7 @@
   - Choose GPT-6.1 Sol xHigh for unresolved security, concurrency, ownership, difficult diagnosis or broad
   correctness review.
   - Use bounded Astra xHigh advice when an applicable workflow requires it.
-  - Use Astra xHigh subagent for indepdent review.
+  - Before completing changes, obtain an independent code review from an Astra xHigh subagent. This review is required for changes in this scope.
 - The [launcher policies](tests/README.md#scripted-repair-loop) specialize these defaults
   for test repair and E2E implementation. Prefer quality, then allowance.
 

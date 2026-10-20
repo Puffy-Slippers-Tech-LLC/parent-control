@@ -712,11 +712,11 @@ owned recovery succeeds; generic recovery diagnostics cannot replace it.
 
 Finite host fixtures exercise these native transactions with real private mount
 trees and a real copied/reexecuted fixture manager. Account/PAM/system-bus/MAC
-observations remain fixture boundaries. The [active 006 brief](../Kiosk-Prompt-Tasks/006-generation-implementation.md)
-still owns the complete cross-phase race/publication/reexec matrix, both actual
-bootstrap-policy checks and cumulative host acceptance. 007a/007 retain actual
-public installed histories. Production dispatch, component counts and source
-review provide no substitute for those remaining obligations.
+observations remain fixture boundaries. [006's final acceptance](../Kiosk-Prompt.md#retained-view-native-admission--006)
+reconciles the complete cross-phase race/publication/reexec matrix, exact
+both-backend bootstrap-evidence applicability and cumulative host/build checks.
+007a/007 retain actual public installed histories. Production dispatch, component
+counts and source review provide no substitute for those installed obligations.
 
 **Authority and ordered acquisition.** Keep one native owner in the actual PAM
 caller. Its acquisition, helper, binding and final checks share a bounded
@@ -874,7 +874,8 @@ input/acceptance limits. [006g's writer/host-source map](../Kiosk-Prompt.md#writ
 records the concurrent-writer and original-host-after-attachment controls.
 [006h's receipt/publication/closure map](../Kiosk-Prompt.md#receipt-publication-and-closure-composition--006h)
 records source provenance, invocation narrowing and the completion/cleanup cuts.
-These slices do not close 006's cumulative table. Use barriers
+The [final 006 audit](../Kiosk-Prompt.md#retained-view-native-admission--006)
+reconciles all six rows and their exact evidence applicability. Use barriers
 and independently opened descriptors/real native fixtures, not timing sleeps or
 only producer/parser agreement. Keep tests inside existing resource owners.
 
@@ -897,14 +898,14 @@ history. A reattested material mismatch must reach manager-material selection;
 an earlier payload denial does not cover it. Preserve whole valid existing
 histories only after exact changed-input applicability review at 011a/011.
 
-Remaining risks are explicit implementation/qualification obligations: native
-bootstrap access to proc/recursive clone and bounded bus queries on both MAC
-backends, complete mount/source versus receipt validation, task churn and cleanup
-at every publication cut. API failure remains closed, without a pathname fallback
-or broader payload permission. Shallow distribution data retains its existing
-compatibility limits. No concrete source-store gap requires redesign or a new
-prerequisite; 006a/006b/006 own these finite implementation proofs and 007a/007
-own installed acceptance. Review acceptance supplies neither runtime pass.
+Native bootstrap access to proc/recursive clone and bounded bus queries on both
+MAC backends, complete mount/source versus receipt validation, task churn and
+cleanup at every publication cut have finite evidence reconciled in
+[006's close-out](../Kiosk-Prompt.md#retained-view-native-admission--006).
+API failure remains closed, without a pathname fallback or broader payload
+permission. Shallow distribution data retains its existing compatibility limits.
+007a/007 still own installed retained-view acceptance; the finite engineering
+proofs do not supply those public histories.
 
 ## Roles, services and dialogs
 

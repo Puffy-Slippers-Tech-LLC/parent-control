@@ -100,8 +100,11 @@ def test_command_prompt_and_display_use_selected_tier(tmp_path, monkeypatch,
     config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
     assert command[command.index('--model') + 1] == model
     assert config['model_reasoning_effort'] == effort
-    assert config['features']['multi_agent'] is (effort == 'high')
-    assert config['agents']['enabled'] is (effort == 'high')
+    assert config['features']['multi_agent'] is True
+    assert config['agents']['enabled'] is True
+    assert 'backend_reviewer' in config['agents']
+    assert ('e2e_adviser' in config['agents']) is (effort == 'high')
+    assert ('plan_worker' in config['agents']) is (effort == 'high')
     assert config['service_tier'] == 'default' and config['features']['fast_mode'] is False
     assert '--output-schema' in command and '--ephemeral' in command
     prompt = workflow.session_prompt(state)
@@ -113,7 +116,7 @@ def test_command_prompt_and_display_use_selected_tier(tmp_path, monkeypatch,
     else:
         assert 'do not spawn an adviser' in prompt and 'e2e_adviser agent' not in prompt
     assert f'({model} {effort})' in workflow.session_progress(tmp_path, state, 20)[-1]
-    assert 'never use Astra' in prompt
+    assert 'mandatory backend_reviewer instructions for core backend changes' in prompt
     assert 'Never use Sol High' not in prompt
     assert 'Leave investigation and repairs of this new failure to the next session' in prompt
 
@@ -124,7 +127,7 @@ def test_follow_up_keeps_implementation_and_acceptance_with_sol_high(phase):
                  handoff='Legacy recommendation: continue with Astra High.')
     prompt = workflow.session_prompt(state)
     assert 'GPT-6.1-Sol High coordinator and implementer for this session' in prompt
-    assert 'never use Astra' in prompt
+    assert 'mandatory backend_reviewer instructions for core backend changes' in prompt
     assert 'Ignore model recommendations in older handoffs' in prompt
     assert 'or review to the e2e_adviser agent using GPT-6.1-Sol Max only when' in prompt
     assert 'No parallel agents or overlapping work' in prompt

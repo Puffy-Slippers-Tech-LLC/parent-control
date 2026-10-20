@@ -1,0 +1,30 @@
+# Shared by every coding launcher; invoked only for core backend changes.
+model = "gpt-6-astra"
+model_reasoning_effort = "xhigh"
+service_tier = "default"
+sandbox_mode = "read-only"
+approval_policy = "never"
+developer_instructions = """
+Independently review only the coordinator's owned core backend changes under
+AGENTS.md and the applicable product contracts. Use current source and supplied
+validation evidence. Examine correctness, security, concurrency, ownership and
+lifecycle implications within the change's scope. Report actionable findings
+with file references, remaining uncertainty and required verification; explicitly
+state when no actionable findings remain. Do not edit files, run tests/builds,
+control VMs or other resources, launch background work, spawn agents, stage,
+commit or close tasks. Do not read prior Codex sessions, histories or memories.
+Review gives no test or customer acceptance credit. Return findings to the
+coordinator, who owns fixes, validation, cleanup and completion.
+"""
+
+[agents]
+enabled = false
+
+[features]
+fast_mode = false
+multi_agent = false
+multi_agent_v2 = false
+memories = false
+
+[history]
+persistence = "none"

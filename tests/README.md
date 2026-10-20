@@ -398,7 +398,9 @@ difficult diagnosis end that session without edits and transfer to a fresh
 **GPT-6.1 Sol High** session to recheck and repair, or **GPT-6.1 Sol Medium**
 for unit failures. This raises reasoning effort
 at the judgment boundary without paying for an additional adviser and a second
-implementation context. Delegation stays disabled; classification is not an
+implementation context. Ordinary delegation stays disabled; the shared mandatory
+[backend review](../docs/Execution-Plans.md#execution-and-delegation) remains
+required only for core backend changes. Classification is not an
 extra read-only agent before every mechanical repair.
 
 If verification still reports the same case, its next repair escalates from
@@ -686,7 +688,8 @@ its own five-session cap, renewed on restart; it does not
 count against `--tasks`. A due optimization runs even after the task limit, while
 stop and cancellation can defer it. Restart performs the due work
 before another task, including when the active queue is empty. No parallel or
-adviser agents run during optimization. A blocked optimization uses the same
+ordinary adviser agents run during optimization; the shared mandatory backend
+review remains required for core backend changes. A blocked optimization uses the same
 developer question and answer recovery as task work.
 
 New tasks start with **GPT-6.1 Sol High** as coordinator and implementer. The
@@ -701,7 +704,8 @@ task cap:
 | Further failures with verified progress or new diagnostic evidence | Keep the selected tier; the two-attempt promotion still applies |
 
 Every tier uses `gpt-6.1-sol`, with `high`, `xhigh`, then `max` reasoning effort.
-Astra is prohibited for all `write-e2e` work and consultations.
+Astra is reserved for the shared mandatory independent review of core backend
+changes; implementation and ordinary consultations retain their Sol policy.
 Promotion survives launcher restarts,
 answered blockers and prerequisite suspension; a new task resets to Sol High.
 A GPT-6.1 Sol Max reasoning stall stops the launcher early with retained
@@ -739,7 +743,8 @@ design question remains unresolved. State the concrete escalation reason and
 what High already established. Ordinary diagnosis, missing prerequisites,
 permissions and preparation failures use their maintained repair/blocker routes.
 After promotion, the selected Sol 6.1 tier owns implementation and validation
-directly, with delegation disabled; do not add an adviser or hand the repair
+directly, with ordinary delegation disabled; the mandatory backend review remains
+available at every tier. Do not add an ordinary adviser or hand the repair
 back to Sol High. The adviser configuration pins `gpt-6.1-sol` at `max` effort.
 This policy overrides model recommendations in older saved handoffs.
 Consult before implementing such an unresolved risky design, including in the
@@ -773,7 +778,8 @@ coverage refreshes under the [common delegation contract](../docs/Execution-Plan
 These roles never implement repairs, operate VMs, run acceptance or close tasks;
 coverage writes are limited to explicitly assigned generated assets. The
 coordinator verifies their output. Higher coordinator tiers retain their existing
-direct-work policy. `fix-tests` keeps delegation disabled.
+direct-work policy. `fix-tests` keeps ordinary delegation disabled. Both retain
+the shared mandatory backend review, without changing their model ladders.
 Start a new launcher run to adopt this policy; attaching to an existing run
 does not reconfigure its already-running coordinator.
 

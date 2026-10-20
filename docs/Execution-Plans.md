@@ -154,6 +154,20 @@ close-out; join and close workers before handoff or releasing resources. A
 subagent's report is evidence to assess, not automatic acceptance.
 
 Each derived launcher owns its coordinator default and escalation policy.
+For product backend code involving core functionalities, the model, effort and
+consultation requirements in
+[AGENTS.md](../AGENTS.md) take precedence over ordinary-plan coordinator and
+subagent defaults. Delegate scoped implementation or review to appropriately
+configured subagents when the coordinator or routine `plan_worker` defaults do
+not meet those requirements.
+The mandatory independent **Astra xHigh** review for core backend changes applies
+across **all launchers**, including repair, recovery and optimization. The shared
+`detached_launcher.agent_command` injects this instruction and configures a
+read-only `backend_reviewer` role, so a new launcher inherits the mandate while
+choosing its own coordinator model and effort. Resolve actionable findings and
+revalidate material revisions before completion. No review is required by this
+exception for changes outside core backend code. Review supplies no acceptance
+credit and changes no generic implementation, consultation or escalation policy.
 `write-e2e` and `fix-tests` retain their existing
 [model ladders and specialized execution contracts](../tests/README.md#scripted-repair-loop).
 Their existing consultation/repair boundaries still apply; reusable infrastructure

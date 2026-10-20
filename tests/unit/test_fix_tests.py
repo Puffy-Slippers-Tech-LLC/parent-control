@@ -3,6 +3,7 @@ from tests.support.vm_registry import vm_name
 
 import json
 import io
+import tomllib
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -362,7 +363,12 @@ def test_agent_is_ephemeral_sol_medium_standard_without_parent_context(monkeypat
     assert 'model_reasoning_effort="medium"' in command
     assert 'service_tier="default"' in command and 'features.fast_mode=false' in command
     assert 'features.memories=false' in command and 'history.persistence="none"' in command
-    assert 'agents.enabled=false' in command and 'features.multi_agent=false' in command
+    assert 'agents.enabled=true' in command and 'features.multi_agent=true' in command
+    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
+    assert config['agents']['max_concurrent_threads_per_session'] == 1
+    assert config['agents']['max_depth'] == 1
+    assert 'backend_reviewer' in config['agents']
+    assert 'e2e_adviser' not in config['agents'] and 'plan_worker' not in config['agents']
     assert 'features.multi_agent_v2=false' in command
     assert 'workspace-write' in command
     assert '--json' in command
@@ -373,6 +379,33 @@ def test_agent_is_ephemeral_sol_medium_standard_without_parent_context(monkeypat
     assert fix_tests.repair_prompt('LATEST FAILURE').startswith('LATEST FAILURE\n')
     assert 'status "test_fixed"' in fix_tests.repair_prompt('LATEST FAILURE')
     assert 'status "uncertain"' in fix_tests.repair_prompt('LATEST FAILURE')
+
+
+@pytest.mark.parametrize('mode', ['review-only', 'delegation', 'adviser'])
+def test_shared_backend_review_preserves_any_launcher_model(tmp_path, monkeypatch, mode):
+    monkeypatch.setattr(detached_launcher.shutil, 'which', lambda _: '/opt/codex')
+    options = {}
+    if mode == 'delegation':
+        options['delegation'] = True
+    elif mode == 'adviser':
+        options['adviser_config'] = tmp_path / 'existing adviser.toml'
+    # A future launcher can select a different coordinator without opting into review.
+    command = detached_launcher.agent_command(tmp_path, 'future-coordinator-model', 'high', **options)
+    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
+    assert command[command.index('--model') + 1] == 'future-coordinator-model'
+    assert config['model_reasoning_effort'] == 'high'
+    assert config['features']['multi_agent'] is True and config['agents']['enabled'] is True
+    assert config['agents']['max_depth'] == 1
+    assert config['agents']['max_concurrent_threads_per_session'] == (3 if mode == 'delegation' else 1)
+    assert config['developer_instructions'] == detached_launcher.BACKEND_REVIEW_INSTRUCTIONS
+    role = tomllib.loads(Path(config['agents']['backend_reviewer']['config_file']).read_text())
+    assert role['model'] == 'gpt-6-astra' and role['model_reasoning_effort'] == 'xhigh'
+    assert role['sandbox_mode'] == 'read-only' and role['approval_policy'] == 'never'
+    assert role['features']['multi_agent'] is False and role['agents']['enabled'] is False
+    assert role['features']['fast_mode'] is False and role['history']['persistence'] == 'none'
+    if mode != 'review-only':
+        assert config['agents']['default_subagent_model'] == 'gpt-6.1-sol'
+        assert config['agents']['default_subagent_reasoning_effort'] == ('max' if mode == 'adviser' else 'medium')
 
 
 def test_model_catalog_requires_all_sol_escalation_efforts(monkeypatch):

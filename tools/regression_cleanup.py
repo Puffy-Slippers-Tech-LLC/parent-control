@@ -83,6 +83,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Pidfd-acquisition refusal owns one finite Python Popen child and private pipe;
 # only that direct unreaped child is killed/waited, with finally cleanup. No
 # process scan or shared fixture is added; unit/cleanup overlap stays compatible.
+# Retained-manager history recovery uses process-local lifecycle/transport/public
+# entry doubles and tiny receipt dictionaries; no live VM, manager, bus, display,
+# subprocess or shared path is acquired. Existing compatible scheduling applies.
 # system_runner diagnostic-filter checks use bounded in-memory output, private
 # pytest logs and mocked children/pidfds. Existing interruption ownership and
 # compatible cleanup/unit scheduling remain; no real process or VM is started.

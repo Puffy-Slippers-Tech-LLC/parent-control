@@ -1991,6 +1991,127 @@ def run_native_update_phase(vm, lease, directory, selection, phase, ledger=None)
         vm.call(guest_command(lease.state['run'], 'native-retired'), timeout=180)
 
 
+class RetainedManagerHistory:
+    """One recoverable manager owner; each station still owns its public exit.
+
+    checkpoint must durably save the supplied receipt in the caller's existing
+    retained evidence allocation. Recovery uses that receipt/owner and cleanup(),
+    never another start or UI input.
+    The consumer owns mutations, their order and the observations between visits.
+    """
+    def __init__(self, vm, lease, *, receipt, checkpoint):
+        require(callable(checkpoint), 'retained-manager:checkpoint-callback')
+        self.vm, self.lease, self.receipt = vm, lease, receipt
+        self.checkpoint = checkpoint
+        receipt.setdefault('owner', uuid.uuid4().hex)
+        receipt.setdefault('entries', [])
+        receipt.setdefault('cleanup_failures', [])
+
+    def call(self, action):
+        require(action in ('prepare', 'start', 'check', 'cleanup'), 'retained-manager:action')
+        self.lease.guard()
+        arguments = ['env', 'ONPC_EXPECTED_RUN=' + self.lease.state['run'],
+            'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
+            PAYLOAD + '/system_kiosk_scope.py', action, self.receipt['owner']]
+        if action != 'prepare':
+            require('handle' in self.receipt, 'retained-manager:missing-handle')
+            arguments.append(json.dumps(self.receipt['handle'], sort_keys=True))
+        self.receipt['pending_action'] = action
+        self.persist()  # caller durably saves the owner/handle before submission
+        result = json.loads(self.vm.call(arguments, timeout=300 if action == 'start' else 180))
+        self.lease.guard()
+        if action != 'check':
+            require(result.get('owner') == self.receipt['owner'], 'retained-manager:reply-owner')
+            self.receipt['handle'] = result
+        self.receipt.pop('pending_action')
+        self.persist()
+        return result
+
+    def persist(self):
+        self.checkpoint(json.loads(json.dumps(self.receipt)))
+
+    def failure(self, error):
+        # Retain the first failure independently from later recovery failures.
+        self.receipt.setdefault('first_failure', type(error).__name__ + ': ' + str(error))
+        try:
+            self.persist()
+        except BaseException as failure:
+            error.add_note('retained-manager:failure-checkpoint-failed:' + type(failure).__name__)
+
+    def check(self):
+        observed = self.call('check')
+        if 'original' not in self.receipt:
+            self.receipt['original'] = observed
+        require(observed == self.receipt['original'], 'retained-manager:observation-changed')
+        return observed
+
+    @contextmanager
+    def station(self):
+        from kiosk_entry import native_update_station
+        require(all(entry.get('normal_exit') for entry in self.receipt['entries']),
+                'retained-manager:uncertain-public-input')
+        self.check()  # no public input after manager death or replacement
+        entry = {'attempted': True}
+        self.receipt['entries'].append(entry)
+        self.persist()
+        primary = None
+        try:
+            with native_update_station(self.vm, self.lease, receipt=entry):
+                self.check()
+                yield entry
+            require(entry['normal_exit'], 'retained-manager:public-exit-required')
+            self.check()
+        except BaseException as error:
+            primary = error
+            self.failure(error)
+            raise
+        finally:
+            try:
+                self.persist()
+            except BaseException as error:
+                if primary is None:
+                    raise
+                primary.add_note('retained-manager:entry-checkpoint-failed:' + type(error).__name__)
+
+    def cleanup(self):
+        try:
+            self.call('cleanup')
+            self.receipt['cleanup_complete'] = True
+            self.persist()
+        except BaseException as error:
+            self.receipt['cleanup_failures'].append(type(error).__name__ + ': ' + str(error))
+            try:
+                self.persist()
+            except BaseException as failure:
+                error.add_note('retained-manager:cleanup-checkpoint-failed:' + type(failure).__name__)
+            raise
+
+
+@contextmanager
+def owned_retained_manager(vm, lease, *, receipt, checkpoint):
+    """Prepare before uncertain start; cleanup only after public session exit."""
+    history = RetainedManagerHistory(vm, lease, receipt=receipt, checkpoint=checkpoint)
+    primary = None
+    try:
+        require('handle' not in receipt, 'retained-manager:start-not-replayable')
+        history.call('prepare')
+        history.call('start')
+        history.check()
+        yield history
+    except BaseException as error:
+        primary = error
+        history.failure(error)
+        raise
+    finally:
+        if 'handle' in receipt:
+            try:
+                history.cleanup()
+            except BaseException as error:
+                if primary is None:
+                    raise
+                primary.add_note('retained-manager:cleanup-failed:' + type(error).__name__)
+
+
 def run_sibling_phase(vm, lease, directory, selection):
     """One uninterrupted public entry, replacement, restoration and exit."""
     from kiosk_entry import native_update_station

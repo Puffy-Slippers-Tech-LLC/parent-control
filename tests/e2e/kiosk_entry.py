@@ -162,17 +162,28 @@ def native_update_station(transport, lease, *, receipt=None):
         receipt['boot_sha256'] = ui.boot_proof
         observe('station-default-entry')
         receipt['station_confirmed'] = True
+        primary = None
         try:
             observe('kiosk-request-form')
             observe('restart-kiosk-missing-refused')
             receipt['engineering_confinement'] = confinement_census(transport, lease)
             yield receipt
+        except BaseException as error:
+            primary = error
+            receipt['first_failure'] = type(error).__name__ + ': ' + str(error)
+            raise
         finally:
             # Public cancellation owns logout. Never terminate the manager to
             # manufacture an inactive session, including on an assertion error.
-            observe('kiosk-request-cancel')
-            observe('gdm-station-returned')
-            receipt['normal_exit'] = True
+            try:
+                observe('kiosk-request-cancel')
+                observe('gdm-station-returned')
+                receipt['normal_exit'] = True
+            except BaseException as error:
+                receipt['exit_failure'] = type(error).__name__ + ': ' + str(error)
+                if primary is None:
+                    raise
+                primary.add_note('kiosk-activation:public-exit-failed:' + type(error).__name__)
 
 
 class KioskEntryJourney(InstalledJourney):

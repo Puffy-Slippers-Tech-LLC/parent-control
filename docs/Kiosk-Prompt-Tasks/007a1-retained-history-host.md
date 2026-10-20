@@ -2,9 +2,30 @@
 
 Acceptance: host
 
-Requires 006. Staged prerequisite of [007a](007a-generation-ubuntu.md), inserted
+Requires 006 and [007a1a](../Kiosk-Prompt.md#owned-retained-manager-history-lifetime--007a1a). Staged prerequisite of [007a](007a-generation-ubuntu.md), inserted
 only when that consumer becomes active under the
 [master's split route](../Kiosk-Prompt.md#smaller-execution-slices).
+
+## Retained implementation handoff
+
+007a1a delivered the reusable lifetime boundary. Compose
+`system_runner.owned_retained_manager(..., receipt=receipt, checkpoint=save_receipt)`
+and its yielded `RetainedManagerHistory.station()` for the separate public visits.
+The required callback saves recovery ownership before uncertain operations;
+`check()` independently binds the original manager/view, and recovery uses the
+saved receipt with `RetainedManagerHistory.cleanup()`. The
+[accepted helper/input map](../Kiosk-Prompt.md#owned-retained-manager-history-lifetime--007a1a)
+retains exact callables, refusal/recovery controls, finite host selectors and
+evidence limits. Use these owners without copying entry or lifecycle mechanics.
+
+No canonical ambient/required-drift selector has been registered.
+Existing case 290 is masked-sibling isolation, not the missing cross-admission
+history. Existing native-update `stale_admission()` requires an actual stale
+manager reason; config/policy attestation negatives cannot replace it. Resume
+this task after 007a1a with every deliverable and acceptance assertion below
+unchanged. 007a2/007a3 and 0071/0072 still require full installed histories.
+
+## Implementation and acceptance
 
 Read the original Ubuntu/Fedora retained-view briefs, reviewed transition table
 and current canonical confinement/native-update/public-entry owners. Implement

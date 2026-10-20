@@ -1001,6 +1001,10 @@ from regression_ui import Bucket
 # process-local account/systemd doubles. Its lifecycle refusal checks start no
 # real manager or child and use no shared cache, bus, display or host policy;
 # small CPU/I/O work is compatible, with no cleanup prerequisite inventory.
+# Retained-manager lifetime controls add append-only pytest-private records and
+# process-local logind/systemd, transport and public-observer doubles. Composed
+# two-entry/recovery checks run no live manager, VM, bus, display or subprocess;
+# the existing scope/kiosk-entry/runner cleanup modules remain compatible.
 # Overlay reminder facade/journey/registration safety uses process-local API,
 # transport and clock doubles, tiny pytest-private replies and bounded waited
 # Perl workers. No live settings, bus, display, VM, shared cache or new cleanup

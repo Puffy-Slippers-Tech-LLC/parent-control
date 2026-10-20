@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **007a — [Qualify Ubuntu retained ambient changes](Kiosk-Prompt-Tasks/007a-generation-ubuntu.md)**.
+Next task: **007a1 — [Implement canonical retained-view histories](Kiosk-Prompt-Tasks/007a1-retained-history-host.md)**.
 
 ## Outcome
 
@@ -28,9 +28,123 @@ production transactions and all prerequisite evidence are preserved. The host
 fixtures retain their explicit policy/account/bus doubles; actual bootstrap
 permissions use the applicable complete [006e receipts](#bootstrap-permission-reconciliation--006e)
 from both systems. This supplies no new installed public-form history.
-Continue only when selected with [007a](Kiosk-Prompt-Tasks/007a-generation-ubuntu.md),
-which retains its complete Ubuntu installed scope and declared staged split.
+Continue only when selected with [007a1](Kiosk-Prompt-Tasks/007a1-retained-history-host.md).
+[007a1a's accepted lifetime helper](#owned-retained-manager-history-lifetime--007a1a)
+now supplies ownership across public exits and later admissions. 007a1 keeps
+every mutation, refusal, registration and host-acceptance obligation and remains
+unchecked. No canonical retained-history selector exists yet; the lifetime's
+host safety controls grant no installed public-history acceptance.
+
+Prerequisite-insertion verification passed **313/313** documentation checks in
+`20261020T002405Z-2bcd792c` (historical report retired by normal retention)
+through the four-module maintained consistency selection with `-q`. Exact
+before/after queue comparison preserved all 39 existing rows' completion, order
+and Scope, added only 007a1a immediately before 007a1, retained 006 in the
+consumer's Requires, and verified backward dependencies and the first-unchecked
+pointer. Changed-document links and whitespace checks passed. Runner cleanup
+and `tools/cleanup-e2e --host-only` finished. No subagent started successfully;
+none owns resources. No VM, installation, live policy/service, staging or commit
+operation occurred. Documentation-only changes affect no package/build inputs;
+no build is required. 007a1 and all installed consumers remain unchecked.
+
+007a's prepared prerequisite block is now inserted: shared host histories first,
+then complete Ubuntu ambient and required-drift histories in 007a2/007a3.
+[007a](Kiosk-Prompt-Tasks/007a-generation-ubuntu.md) stays unchecked and retains
+its complete Ubuntu installed scope, exact-input reconciliation and cleanup.
+This split grants no acceptance credit. No VM or product state was changed;
+no task-owned resources were acquired.
+Split validation passed all 313 maintained documentation checks in
+`20261020T002032Z-ce336570` (historical report retired by normal retention).
+The three prepared briefs, backward dependencies, unchanged existing row
+statuses/order/Scope and first-unchecked pointer were reviewed; runner cleanup
+finished. Installed Ubuntu acceptance remains unrun in this split session.
 007 retains Fedora's history and both-target reconciliation.
+
+### Owned retained-manager history lifetime — 007a1a
+
+Host acceptance passed **1,884/1,884** in
+[`20261020T003722Z-b8351487`](../output/test-runs/host/reports/20261020T003722Z-b8351487/report.md).
+The exact maintained `tools/run-tests unit` selection, with `-q`, was:
+
+```text
+tests/unit/test_system_kiosk_scope.py
+tests/unit/test_e2e_kiosk_entry.py
+tests/unit/test_system_runner.py
+tests/unit/test_system_runner_cleanup_safety.py
+tests/unit/test_system_native_update.py
+tests/unit/test_regression_unit.py
+tests/unit/test_regression_cleanup.py
+tests/unit/test_e2e_plan.py
+tests/unit/test_e2e_inventory.py
+tests/unit/test_coverage_generation.py
+tests/unit/test_e2e_case_composition.py
+```
+
+Use `system_runner.owned_retained_manager(vm, lease, receipt=receipt,
+checkpoint=save_receipt)` and call the yielded `RetainedManagerHistory.station()`
+for each public visit. The caller's required checkpoint callback durably saves
+each supplied receipt in its existing retained allocation before commands or
+entry input. `check()` returns the independently observed original manager/view;
+the consumer retains mutation data, ordering and private-content assertions.
+Recovery reconstructs `RetainedManagerHistory` with that saved receipt and
+callback and calls `cleanup()`, with no new start or public input. Failed or
+uncertain public input prevents another visit; public session cleanup precedes
+manager cleanup. `kiosk_entry.native_update_station()` retains its existing
+guarded entry/Cancel/greeter route and now preserves the first failure separately
+from a failed public exit.
+
+The guest owner is `system_kiosk_scope.RetainedManager` with `prepare()`,
+`start()`, `check()` and `cleanup()`, exposed by `retained_command()` and the
+module's fixed transport leaf. Its chained append-only records reuse
+`system_native_update.private()`, `publish()` and `read_private()`. They bind
+the exact attempt/package/preparation/selected-input identity, boot, account,
+backend, unit invocation, PID/start identity, namespace and original material/V.
+`retained_observation()` composes the existing `manager_boundary(retained_view=True)`
+and `bootstrap_view()` observers around repeated unit/process observations.
+Original mounted identities, required sources, completed receipts and recursive
+read-only coverage remain checked; ambient unlink ctime/link-count changes and
+directory-child timestamps do not turn the same pinned dentry into a replacement.
+
+Acquisition requires independently inactive manager and session observations.
+One bounded systemd start is recorded before submission; public logind linger
+retains only that manager between visits. Cleanup checks the same owner and live
+identity, independently refuses remaining public sessions, restores the original
+linger value and stops only the owned invocation. Lost replies, interrupted
+start/retention/restoration/stop, changed boot/records/unit/process/view,
+replacement after restoration, public entry/exit failure, caller interruption,
+checkpoint replacement during live observation, exact restoration and idempotent
+recovery all have host controls. Ownership is rechecked before protected commands. An interrupted
+start without saved live identity refuses adoption and preserves its records.
+No automatic restart or replay supplies recovery authority.
+Final interface review corrected the logind query to use one `--property`
+option per name, as required by the public
+[loginctl interface](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html).
+Its command-shape and empty-session controls passed in the final selection.
+
+The input closure for 007a1 includes `system_kiosk_scope.py`,
+`system_kiosk_confinement.py`, `system_native_update.py`, `system_guest.py`,
+`system_wellbeing_qualification.py` and their existing guest command/account
+dependencies, plus `system_runner.py`, `kiosk_entry.py` and the existing
+`KIOSK_ACTIVATION_HOST_INPUTS` public observer/transport closure. Freeze these
+through canonical selected inputs when registering the consumer. The host
+receipt retains the owner, checkpoint inode/hash handles, original observation,
+public entries and separate first/cleanup failures. Guest records remain in the
+attempt's existing private evidence allocation; retain them with the consumer's
+normal collection before VM restoration. This task registers no persistent case
+and supplies no installed-history or actual logind/MAC qualification.
+
+All tests use pytest-private records and explicit lifecycle/transport/public
+observer doubles. Applicable unit/cleanup resource inventories passed; no live
+manager, VM, bus, display or new subprocess owner is introduced. Generated
+coverage was refreshed. No package/build input changed, so no build is required.
+Runner and `tools/cleanup-e2e --host-only` cleanup passed. The attempted subagent
+could not start; no subagent owns resources. Only 007a1a closes; 007a1 and every
+installed assertion remain unfinished. Git close-out belongs to the controller.
+Post-close-out consistency passed **313/313** in
+[`20261020T003754Z-4ab9a2f2`](../output/test-runs/host/reports/20261020T003754Z-4ab9a2f2/report.md).
+Changed-document links and whitespace checks passed. The two earlier planning
+reports above expired under normal retention and are explicitly historical;
+the required final acceptance and close-out reports remain retained.
 
 ### Bootstrap qualification checkpoint — 006e
 

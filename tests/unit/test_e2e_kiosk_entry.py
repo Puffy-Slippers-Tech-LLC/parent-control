@@ -163,6 +163,30 @@ def test_native_station_records_entry_refusal_and_owned_exit_failure(monkeypatch
     lease.source.domain.sendKey.assert_called_once()
 
 
+@pytest.mark.parametrize('failure', ['body', 'interrupt', 'form'])
+def test_native_station_keeps_first_failure_when_public_exit_also_fails(monkeypatch, failure):
+    helper, transport, lease, ui, factory, events = activation_harness(monkeypatch)
+    original = ui.observe.side_effect
+    def observe(operation):
+        if operation == 'kiosk-request-cancel':
+            raise EvidenceError('uncertain-cancel')
+        if failure == 'form' and operation == 'kiosk-request-form':
+            raise RuntimeError('first-form')
+        return original(operation)
+    ui.observe.side_effect = observe
+    receipt = {}
+    expected = KeyboardInterrupt if failure == 'interrupt' else RuntimeError
+    with pytest.raises(expected, match='first') as caught:
+        with helper.native_update_station(transport, lease, receipt=receipt):
+            raise expected('first-' + failure)
+    assert receipt['first_failure'].startswith(expected.__name__ + ': first')
+    assert receipt['exit_failure'] == 'EvidenceError: uncertain-cancel'
+    assert not receipt['normal_exit']
+    assert caught.value.__notes__ == ['kiosk-activation:public-exit-failed:EvidenceError']
+    assert [call.args[0] for call in ui.observe.call_args_list].count('kiosk-request-cancel') == 1
+    lease.source.domain.sendKey.assert_called_once()
+
+
 @pytest.mark.parametrize('fault', ['wrong-recipient', 'failed-proof', 'stale', 'backward-clock', 'boot'])
 def test_real_activation_refuses_bad_or_stale_recipient_without_retry(monkeypatch, fault):
     recipient = {'operation': 'gdm-station-focused', 'outcome': 'passed',

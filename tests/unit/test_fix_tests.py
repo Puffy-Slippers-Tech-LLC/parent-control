@@ -382,7 +382,8 @@ def test_agent_is_ephemeral_sol_medium_standard_without_parent_context(monkeypat
 
 
 @pytest.mark.parametrize('mode', ['review-only', 'delegation', 'adviser'])
-def test_shared_backend_review_preserves_any_launcher_model(tmp_path, monkeypatch, mode):
+@pytest.mark.parametrize('transport', ['exec', 'app-server'])
+def test_shared_backend_review_preserves_any_launcher_model(tmp_path, monkeypatch, mode, transport):
     monkeypatch.setattr(detached_launcher.shutil, 'which', lambda _: '/opt/codex')
     options = {}
     if mode == 'delegation':
@@ -391,13 +392,20 @@ def test_shared_backend_review_preserves_any_launcher_model(tmp_path, monkeypatc
         options['adviser_config'] = tmp_path / 'existing adviser.toml'
     # A future launcher can select a different coordinator without opting into review.
     command = detached_launcher.agent_command(tmp_path, 'future-coordinator-model', 'high', **options)
-    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
     assert command[command.index('--model') + 1] == 'future-coordinator-model'
+    assert '--ephemeral' in command
+    if transport == 'app-server':
+        from launcher_chat import app_command
+        command = app_command(command)
+    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
     assert config['model_reasoning_effort'] == 'high'
     assert config['features']['multi_agent'] is True and config['agents']['enabled'] is True
     assert config['agents']['max_depth'] == 1
     assert config['agents']['max_concurrent_threads_per_session'] == (3 if mode == 'delegation' else 1)
-    assert config['developer_instructions'] == detached_launcher.BACKEND_REVIEW_INSTRUCTIONS
+    instructions = config['developer_instructions']
+    assert 'On every spawn_agent call, explicitly set fork_turns="none".' in instructions
+    assert 'self-contained assignment' in instructions
+    assert detached_launcher.BACKEND_REVIEW_INSTRUCTIONS in instructions
     role = tomllib.loads(Path(config['agents']['backend_reviewer']['config_file']).read_text())
     assert role['model'] == 'gpt-6-astra' and role['model_reasoning_effort'] == 'xhigh'
     assert role['sandbox_mode'] == 'read-only' and role['approval_policy'] == 'never'

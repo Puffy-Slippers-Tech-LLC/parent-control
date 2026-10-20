@@ -120,6 +120,17 @@ def environment():
     return result
 
 
+SUBAGENT_CONTEXT_INSTRUCTIONS = """This launcher coordinator is ephemeral and has no
+stored rollout to fork. On every spawn_agent call, explicitly set fork_turns="none".
+Never omit fork_turns or use "all": copying the coordinator's stored conversation
+can fail with "no rollout found". Give every helper a self-contained assignment
+with its exact scope, paths, relevant instructions, current evidence and disjoint
+write ownership. This applies to workers, monitors, advisers and backend reviewers;
+it does not authorize delegation beyond the launcher's existing policy.
+
+"""
+
+
 BACKEND_REVIEW_INSTRUCTIONS = """For product backend code involving core functionalities,
 AGENTS.md requires an independent code review by the backend_reviewer agent
 (GPT-6 Astra xHigh) before completing the changes. This mandate applies across
@@ -149,7 +160,8 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
             '-c', 'features.multi_agent=true',
             '-c', 'features.multi_agent_v2=false',
             '-c', 'agents.enabled=true',
-            '-c', 'developer_instructions=' + json.dumps(BACKEND_REVIEW_INSTRUCTIONS),
+            '-c', 'developer_instructions=' + json.dumps(
+                SUBAGENT_CONTEXT_INSTRUCTIONS + BACKEND_REVIEW_INSTRUCTIONS),
             '-c', 'agents.backend_reviewer.description="Mandatory independent review of core backend changes only; no implementation"',
             '-c', 'agents.backend_reviewer.config_file=' + json.dumps(str(Path(__file__).with_name('backend_reviewer.toml'))),
             '--json', '--color', 'never', '--cd', str(root)]

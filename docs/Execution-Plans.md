@@ -153,6 +153,14 @@ The coordinator owns task selection, resource/VM ownership, acceptance and
 close-out; join and close workers before handoff or releasing resources. A
 subagent's report is evidence to assess, not automatic acceptance.
 
+Launcher coordinators are ephemeral and have no stored conversation rollout to
+fork. On every `spawn_agent` call, explicitly set `fork_turns="none"`; omitting it
+or using `"all"` can fail with `no rollout found`. Supply a self-contained helper
+assignment with the exact scope, paths, relevant instructions, current evidence
+and write ownership. The shared launcher injects this requirement for workers,
+monitors, advisers and backend reviewers in both CLI and interactive sessions.
+Existing delegation and model policies still apply.
+
 Each derived launcher owns its coordinator default and escalation policy.
 For product backend code involving core functionalities, the model, effort and
 consultation requirements in

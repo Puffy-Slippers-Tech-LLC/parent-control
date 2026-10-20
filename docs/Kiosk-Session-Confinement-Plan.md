@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C01 — [Define the v1.3 session-confinement boundary](Kiosk-Prompt-Tasks/C01-boundary.md)**.
+Next task: **C02a — [Prepare the release-based session runtime](Kiosk-Prompt-Tasks/C02a-runtime.md)**.
 
 ## Outcome
 
@@ -234,11 +234,14 @@ recovery and extra frontend readiness coupling. These are reasons to rebuild
 from the specified release slice, not a backlog to perfect the old mechanism.
 The unimplemented custom Python/native-loader proposal is discarded.
 
-Pre-existing frontend edits remove human/presentation readiness gates and
-redundant ordinary-reply checks while retaining final approval visit validation,
-and add optional stylesheet fallback. Their earlier bounded review is historical;
-C01 must assess these edits with the current code and callers. This planning
-revision supplies no new product review, build or runtime acceptance.
+The [C01 source boundary](SystemDesign/Kiosk-Confinement.md#c01-selective-replacement-boundary)
+supersedes the earlier frontend work report: the selected source has no visit
+validation protocol or stylesheet fallback, and no active old-plan delta supplies
+them. Current form readiness protects accounts, preferences and single-flight
+requests; paint timings do not gate approval. Preserve those real feature guards,
+pending-authentication cancellation and the direct broker request interfaces.
+The post-authentication lifetime gap and C-only locale/stylesheet limitations
+remain explicit receiving-task obligations, not accepted historical fixes.
 
 ## Scope reconciliation
 

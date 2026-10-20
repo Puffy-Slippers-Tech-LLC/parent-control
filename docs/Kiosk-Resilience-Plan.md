@@ -1,7 +1,7 @@
 # Reliable kiosk entry with explicit confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **R01d — [Settle configuration and quarantine ownership](Kiosk-Prompt-Tasks/R01d-configuration.md)**.
+Next task: **R01e — [Settle readiness and activation recovery](Kiosk-Prompt-Tasks/R01e-readiness.md)**.
 
 ## Outcome
 

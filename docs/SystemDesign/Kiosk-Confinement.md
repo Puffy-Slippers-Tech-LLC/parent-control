@@ -795,6 +795,128 @@ bridge behavior. No actionable review findings remain. No product or installed
 acceptance is claimed. All read-only source/review agents finished; no task-owned
 processes, VMs or temporary source artifacts require cleanup.
 
+##### C01b feature and approval source lineage
+
+Source review on 2026-10-20 compared release
+`188be907c46b1cd0dabae06ac898c43e75beb05e` with checked-in HEAD
+`235f76839b7b4442c5a26d5ea89c43c87b9f51ea`. The same four Git inventory
+commands recorded in C01a were empty at entry: **no staged, unstaged or
+untracked old-plan source additions exist in this checkout**. All post-release
+changes below are committed main source, not accepted replacement work. There
+is no separate active implementation to retain or remove. Later consumers must
+repeat that inventory if their inputs change.
+
+This extends C01a's table, with feature behavior owned by
+[Front ends](Frontends.md#main-flows), [Localization](Localization.md#responsibilities-and-language-ownership),
+[Broker transactions](Broker.md#authorization-and-grant-transactions) and the
+[specification](../Specification.md#request-station). It maps source and future
+disposition, not a new protection design or installed qualification. Test paths
+identify consumers for C01c, not checks executed or reusable live evidence.
+
+| Release source / interface | Checked-in main responsibility and callers | Retained behavior / disposition and receiving task | Direct test consumers for C01c |
+| --- | --- | --- | --- |
+| `kiosk/oh-no-parent-control` imports `main`; child alias inserts `--child-overlay` | Same dispatch, now isolated Python shebang; native `app` role calls it with `python3 -I`. `main.py:main`, `Application.do_activate` / `do_command_line` and `RequestWindow` own startup and request lifecycle directly. HEAD adds `--preferences` and the Preferences action; `child/extension.js:_showRequest` opens the overlay, and `ChildErrorHandler.report` uses `--error-report-stdin`. | Retain one shared form, error-report entry and separate kiosk/overlay application identities. C02a/C02b adapt entry commands selectively; C02 switches them; C02d/e remove superseded wrappers only after their callers move. | `tests/unit/test_kiosk_login.py`, `test_package_payload.py`, `test_kiosk_rendering.py` in `tests/unit/`; `tests/ui/test_request_form_component.py`. |
+| No `controller.py`, `startup.py` or `kiosk_visits.py` at either pin | None tracked or present in the working source. Neither broker XML nor form implements visit registration, startup receipts, `AdmitKioskSession` or a final visit-validation call. Startup frame timestamps are diagnostics, not admission votes. | No fictitious protocol deletion or historical implementation acceptance. C01/C02b1/C02b must start from the actual direct request/agent interfaces below, and preserve required cancellation/identity outcomes without importing the old proposed protocol. | `tests/unit/test_request_time_estimate.py`, `test_service_contract.py`; C01c reconciles historical-only claims separately. |
+| `main.py` request callbacks and `model.py:RequestState` already serve both surfaces | `_request_access`, `_preferences_saved`, `_agent_prepared`, `_request_done` validate, snapshot and serialize one request; the saved tuple fixes child, approver, duration and soft-app choice. `RequestContent.selected` rejects invalid custom values before save/authentication. | Retain single-flight, disabled pending edits/Cancel, silent authentication cancellation, denied retry, error reporting and three-second success exit. C02b preserves this pipeline while adapting C02b1's coherent broker boundary; no UI/backend interface may dangle until C03. | `tests/unit/test_request_time_estimate.py`; `tests/ui/test_request_form_component.py`; `tests/component/test_authorization_lifecycle.py`; public `tests/e2e/restricted_station.py`. |
+| `agent_locale.py:installed_locales`, `agent_environment`, `KioskAgentLocale.prepare` already exist | `main.py` warms the selected child's locale after language loads/changes and requires `prepare` before kiosk `RequestAccess`. HEAD queues required preparation behind warm work; revision checks suppress stale callbacks. Writes `%t/oh-no-parent-control/polkit-agent.env`, then systemd `RestartUnit(ss)->o` and matching `JobRemoved(uoss)` completion. Overlay skips this kiosk agent. | Retain selected-child language, genuine vendor authentication, finite restart/error handling and owned subscription/timer disposal. This is ordinary locale/service integration, not an obsolete visit protocol. Unit completion alone does not prove agent registration. C02a/C02b preserve it or provide equivalent coherent wiring; C02e removes only unconsumed coupling. | `tests/unit/test_request_time_estimate.py`, `test_systemd_unit.py`, `test_kiosk_login.py`, `test_rpm_packaging.py`; `tests/ui/test_language_settings.py`. |
+| Language chooser, request choices, selection store and shared duration validation exist | HEAD replaces kiosk `language_dialog.py` with `preference_dialog.py` (compatibility `LanguageDialog`), adds `duration_controls.py` / `preset_dialog.py`, custom minutes/hours, editable presets and reminders. Main follows selected-child language context; overlay uses own account/language. `selection_store.py` keeps OS-user child/approver defaults separate from shared per-child choices. | Retain language/setup/Preferences, input drafts, custom units and exact durations, sorted presets, empty preset lists, selected-preset conversion to Custom and stale-selection guards. C02b changes only confinement coupling; no whole-file release restoration. State and localization APIs remain main's feature source. | `tests/unit/test_preferences.py`, `test_request_selections.py`, `test_request_time_estimate.py`; `tests/ui/test_language_settings.py`, `test_request_form_component.py`. |
+| No release kiosk notification provider or reminder editor | `preference_dialog.py:ReminderDialog._preview` calls session-bus `org.freedesktop.Notifications.Notify(susssasa{sv}i)->u`, and `CloseNotification(u)` on disposal. `notifications.py:NotificationApplication` bounds content and owns one sender-bound banner, timer and `NotificationClosed(uu)`; its Preferences action calls the form's `org.gtk.Actions.Activate(sava{sv})`. Overlay preview uses `child/reminderPreview.js:PreviewLocalized`, not this provider. | Preserve actual reminder preview, localization, fullscreen urgency, dismissal and unsaved draft. Native `notification-client` → `gnome-service-client --tag=gnome-kiosk-notification` → `notifications` is launch plumbing, not the feature. C02a/C02b retain working commands; C02d/e remove obsolete wrappers/wiring after replacement; C03/C04 port only mechanism assertions. | `tests/ui/kiosk_notification_preview.py`, `test_language_settings.py`; `tests/unit/test_e2e_kiosk_notification_wellbeing.py`, `test_accessible_e2e_ui.py`, `test_kiosk_login.py`; C01c follows `tests/support/preview.py` and E2E registrations. |
+| No release Wellbeing service/suppression modules | `child/extension.js` → `wellbeingSuppression.js` → `wellbeingService.js:SetWindow(sd)` on the user bus; sender/token-bound leases and persisted setting backup restore the original banner setting. The shared user unit and D-Bus activation run native `wellbeing`; ordinary users explicitly bypass kiosk environment filtering in `kiosk_session.c`. | Retain independent child reminder/Wellbeing behavior and recovery, without classifying leases for a personal notification setting as kiosk admission receipts. C02a/C02d/e must preserve shared activation and ordinary-user settings while replacing confinement-only launch plumbing. | `tests/component/test_wellbeing_service.py`, `tests/unit/test_package_payload.py`, `test_package_activation.py`, `test_e2e_kiosk_notification_wellbeing.py`; `tests/child/` notification/Wellbeing tests. |
+| No release kiosk What's New coordinator/dialog | `main.py` uses `whats_new.py` / `whats_new_dialog.py`, shared release renderer/catalogues and role-specific broker query/acknowledgement. Both request surfaces share the child's acknowledgement and wait for language resolution. | Retain current-version visibility, language and acknowledgement behavior. C02b keeps feature code/assets; C02e removes only obsolete confinement inventory entries, never notes/translations as feature cleanup. No translation sync is authorized here. | `tests/unit/test_whats_new.py`; `tests/ui/test_language_settings.py`; `tests/unit/test_service_contract.py`. |
+| Shared scene/artwork, About and error reporting already exist | HEAD adds lava cache/artwork generation and current layout/features. `REQUEST_MEDIA_ENABLED=False` keeps sound/lightning off and mute hidden. `GatewayBackground._load_texture` tolerates missing texture; font registration tolerates missing font; lava cache failure recomputes. `_load_stylesheet` directly loads `style.css`, with no fallback. | Retain main artwork/layout and current media state. Optional presentation cannot become an admission clock. C02b preserves features; C01 records actual fallback gaps for C09a rather than accepting the historical stylesheet-fallback claim. | `tests/unit/test_kiosk_rendering.py`, `test_automation_ids.py`; `tests/ui/test_request_form_component.py`, `test_request_layout.py`, `test_preview_smoke.py`, `test_language_settings.py`. |
+| Kiosk hides external Help/About/file actions; shared feedback already exists | Main still supplies in-app About/error/report flows; shared `feedback.py` / `rich_text_editor.py` use the standard WebKit widget with blocked external navigation. `system_info.py:_rpm_dependency_info` calls the fixed native `packages` role for a bounded RPM query. `tools/kiosk_confinement_policy.py` / `kiosk_bwrap.c` substitute the private helper view; the editor itself has no private receipt API. | Retain drafts, diagnostics and normal vendor WebKit/Glycin/authentication support. C02b keeps exposed feature restrictions; C02d/e remove obsolete private-wrapper machinery only after functional consumers move, including shared RPM diagnostics outside kiosk. Keep useful sanitized original causes when retiring confinement-specific diagnostic parsing. | `tests/unit/test_system_info.py`, `test_e2e_kiosk_feedback_confinement.py`; `tests/ui/test_error_feedback.py`, `test_parent_feedback.py`; `tests/integration/check_e2e_kiosk_feedback_confinement.py`, `check_e2e_kiosk_preferences_confinement.py`; public `tests/e2e/kiosk_about.py`. |
+| Main used direct session logout before post-release `session_logout.py` | `main.py` creates `KioskLogout.prepare` while idle, calls `begin` on exit, and closes it on destruction. `session_logout.py` uses GNOME SessionManager registration, logout signals and responses, with a 750 ms exit-action deadline; app-unit `OnSuccess`/`OnFailure` supplies shutdown fallback. | Retain Cancel/Escape and success returning to sign-in, overlay close without session logout, and cancelled external logout leaving the idle form usable. This is a public lifecycle helper, not a disposable private controller. C02a/C02b preserve coherent exit wiring. | `tests/unit/test_request_time_estimate.py`, `test_systemd_unit.py`; public `tests/e2e/kiosk_cancel.py`, `kiosk_escape.py`, `restricted_station.py`. |
+| `authorization.py:PolkitAuthorizer`, `_PendingAuthorization` | Byte-identical release→HEAD. Selected-parent Polkit action, sender/session resolution, lifecycle subscriptions, remote/local cancellation, five-second kiosk challenge grace and bounded remote cleanup. `core.py:_request_access` is its production caller through `service.py` dependencies. | Preserve genuine selected-parent authentication and pending cancellation, original subject/cancellation ID, no late revival and no human authentication timeout. Do not delete role/session checks as confinement plumbing. C02b1 owns any compatible boundary adaptation and C02b its callers. | `tests/component/test_authorization_lifecycle.py`, `test_private_dbus_service.py`; `tests/unit/test_core.py`, `test_service_contract.py`; `tests/system/test_authorization.py`. |
+| `core.py:request_access`, `request_own_access`, `_request_access`, `_apply` already exist | Main retains kiosk-only selected-target versus enabled-child own-target authority, eligibility/preference revalidation around authentication and usage, nonblocking shared transaction lock, UID cooldown only after success, fixed/rest-of-day calculation and verified app/time transaction/rollback. Post-release changes add feature settings, running-soft-app queries and shared policy improvements. | Retain main policy/grant/enforcement code, target-only termination, hard/soft behavior and rollback limits. C02b1 must separate actual session integration selectively, not restore core/service from release or remove validation because it precedes a grant. C02e deletes only proven unconsumed protocol code; no visit module currently exists. | `tests/unit/test_core.py`, `test_broker_properties.py`, `test_broker_state_machine.py`; `tests/component/test_private_dbus_service.py`, `test_authorization_lifecycle.py`; `tests/system/test_authorization.py`; public request/time/app cases traced by C01c. |
+| `service.py` and installed `com.puffyslippers.OhNoParentControl1.xml` publish the same direct approval signatures | Service workers dispatch `RequestAccess` / `RequestOwnAccess` without visit tokens. HEAD adds custom-unit/presets/notifications/What's New and running-soft-app methods in both XML copies, diagnostic collection and policy adapter improvements. Role derivation, bounded inputs, diagnostics-only mode and role recheck before export remain separate from form availability. | Retain public API parity and all current feature/management callers. C02b1 owns producer changes, C02b consumers; C02e cannot remove a public method or copied/generated definition merely because historical prose called it a confinement protocol. C01c follows private-bus and packaging copies. | `tests/unit/test_service_contract.py`; `tests/component/test_private_dbus_service.py`; `tests/unit/test_package_payload.py`, `test_package_activation.py`. |
+
+##### C01b concrete interface and cancellation handoff
+
+The authority is the pair of executable `service.py:INTROSPECTION_XML` and
+[installed XML](../../data/dbus-1/com.puffyslippers.OhNoParentControl1.xml), with
+permissions in [Broker](Broker.md#broker-interface-and-roles). Relevant form
+calls use these signatures (input → output; parentheses denote tuple encoding):
+
+| Interface family | Exact methods and signatures | Caller / preservation boundary |
+| --- | --- | --- |
+| Accounts and request | `ListManagedUsers`, `ListKioskUsers`, `ListApprovers`: `()→(a(uss))`; `GetOwnAccount`: `()→(uss)`; `RequestAccess`: `(uuub)→(ss)`; `RequestOwnAccess`: `(uub)→(ssu)` | Parent uses Managed; kiosk uses Kiosk; shared form loads approvers; broker derives overlay child from caller credentials. No visit argument. |
+| Request state / estimate | `GetPreferences(u)→(s)`; `UpdateRequestPreferences(usdbu)→(s)`; `UpdateRequestPreferencesWithUnit(usdbus)→(s)`; `SetRequestMuted(usb)→(s)`; `GetTimeStatus(uu)→(uuuu)` | Main saves unit-aware choices before approval; old update method still has a public contract. Estimate failure does not block valid submission. |
+| Language | `GetOwnLanguage()→(s)`, `SetOwnLanguage(s)→(s)`; `GetChildLanguage(u)→(s)`, `GetChildLanguageContext(u)→(ss)`, `SetChildLanguage(us)→(s)` | Own surface versus kiosk selected child; locale preparation is user-service integration, not a new system-bus authority. |
+| Presets and reminders | `GetOwnTimeGrantPresets`, `GetOwnNotifications`: `()→(s)`; `GetChildTimeGrantPresets`, `GetChildNotifications`: `(u)→(s)`; `SetOwnTimeGrantPresets`, `SetOwnNotifications`: `(s)→(s)`; `SetChildTimeGrantPresets`, `SetChildNotifications`: `(us)→(s)`; `GetOwnSessionAllowsSoftApps()→(b)` | Preferences and child notification code; personal settings never authorize policy/grant changes. |
+| What's New | `GetOwnWhatsNew()→(s)`, `GetChildWhatsNew(u)→(s)`, `AcknowledgeOwnWhatsNew(s)→(s)`, `AcknowledgeChildWhatsNew(us)→(s)` | Parent own record versus both forms' shared child record; keep broker role checks. |
+| Shared policy / calculations | `GetPolicyWarnings(u)→(as)`, `ListApplications(u)→(a(ssssasas))`, `ListRunningSoftBlockedApps(u)→(as)`, `HasRunningSoftBlockedApps(u)→(b)`, `SetPreferences(us)→(s)`, `SetParentControl(ubu)→(s)`, `RevokeOneTimeGrant(u)→()`; `CalculateRemainingTime(uuuu)→(u)`, `CalculateOwnRemainingTime(u)→(u)`, `PrepareOwnSession()→(b)` | Parent management, child countdown and expired-grant session reconciliation retain their distinct role/transaction contracts. Arithmetic calls authorize no grant; ordinary child policy is outside the session-confinement rollback. |
+| Shared diagnostics | `LogEvent(sss)→()`, `ExportDiagnosticLogs()→(ay)`, `GetStartupTimings()→(a{st})` | Frontend event handler/report collection and technical timing readers; preserve bounded role-scoped diagnostics, not obsolete mechanism-specific admission authority. The separate frontend session-bus `KioskTiming1.GetStartupTimings()→(ttt)` reports Python-start/paint/presentation only. |
+
+The actual order is local validation → saved request choices → kiosk locale
+preparation (overlay skips it) → broker role/target/snapshot/lock/cooldown
+checks → Polkit → caller/target/preferences/usage rechecks → account transaction
+→ result. During authentication, `_PendingAuthorization` cancels on caller loss,
+lock, inactivity, closing/removal or logind loss; it retains subscriptions and
+the original cancellation identity through the kiosk challenge retry. Denial and
+cancellation make no grant and consume no successful-request cooldown.
+
+**Known boundary, not an implemented visit protocol:** authentication completion
+sets `auth_done`, disables cancellation and drops lifecycle subscriptions.
+Post-authentication usage/preflight/account reads precede the first policy write;
+`NameHasOwner` proves connection survival, not continued session activity. Session
+resolution may fall back to the user manager's primary `Display`, or permit a
+sessionless caller. See the existing [audited implementation gap](Broker.md#audited-implementation-gap).
+C01 must distinguish required pending-authentication cancellation and the
+prospective outcome from the superseded mechanism. C02b1/C02b must preserve
+required no-stale/no-duplicate-grant and fresh-request outcomes; this map neither
+accepts the gap nor chooses new visit/admission machinery.
+
+The master's historical frontend note describes final visit validation and a
+stylesheet fallback that are **absent from this source baseline**. There is no
+active delta containing them. Actual account/preference/language readiness and
+single-flight guards serve form correctness; frame presentation measurements
+do not gate approval and human pauses have no frontend admission deadline.
+C01 owns reconciliation of that obsolete prospective narrative, without
+inventing a prerequisite or transferring historical review credit.
+`agent_environment` also currently requires an installed non-C UTF-8 locale;
+an inventory containing only C locales refuses preparation. C01/C09a must keep
+that current limitation distinct from the required native-language fallback.
+
+For C01c, `test_private_dbus_service.py` exercises a finite public-method matrix;
+its name does not mean every newer feature API is covered there. Feature JSON,
+role and XML dispatch checks also live in `test_service_contract.py`. Keep host
+pending-authentication tests distinct from the post-authentication gap and from
+real installed authentication. Follow the shared `tests/e2e/accessible_ui.py`,
+entry/approval/rejection/cancel and overlay/choice/language/reminder callers into
+`tests/e2e/scenarios.json`; no existing selector or qualification is declared
+reusable by this source review.
+
+##### C01b packaging, removal and review boundary
+
+`Makefile:KIOSK_SOURCES`, `BROKER_SOURCES`, `COMMON_SOURCES`,
+`EXTENSION_SOURCES`, `PRODUCT_USER_SERVICES` and `PACKAGE_SOURCE_FILES` name
+the real payload. `_install-product-files` installs the shared launcher/child
+alias, Python modules, agent environment consumer, notification/Wellbeing units,
+D-Bus activation and XML; compiles the native role wrappers; and generates the
+private confinement inputs described in C01a. `ACTIVATION_MANIFEST_PATHS`
+tracks the native commands and unit/drop-in paths. C01c must follow those lists,
+generated copies and lifecycle removal wiring before C02d/e delete wrappers,
+policy entries or diagnostic parsers. Preserve the feature implementations,
+ordinary-user Wellbeing/audio environment, agent vendor helper, shared RPM
+diagnostics and WebKit/Glycin consumers. Removing their confinement inventory
+does not authorize deleting their ordinary packaged assets.
+
+There are no active old-plan files to delete now. Committed private launch,
+material/view/proof and helper-substitution coupling remains a later removal
+input; release-origin locale preparation and post-release public logout are
+feature/lifecycle interfaces to preserve. This review edits documentation only;
+no product, test registration, generated input or installed state changes.
+C01b acceptance: **review passed**, with no declared targets. Independent
+GPT-6.1 Sol High review checked provenance, exact APIs, feature preservation,
+cancellation limits and caller/package/test handoffs; no actionable findings
+remain. Usability priority: **passed**; Threat scope: **passed**, for this
+source-review scope. Markdown links, plan structure, the four maintained host
+consistency modules and `test_execution_plan_launcher.py` passed (639 tests).
+These documentation-only paths are excluded from package inputs; no build or
+installed acceptance is required or claimed. All three read-only source/review
+agents finished and were closed. The maintained test runner finished its owned
+cleanup; no task-owned VMs, processes or temporary source artifacts remain.
+
 #### Single decision/rejection ledger — execution contribution
 
 This is the single integrated ledger from R01a–R01e and R01. Causes below are

@@ -342,7 +342,7 @@ final acceptance remains both-platform installed evidence.
 
 ##### C02a prepared session runtime
 
-The six files in `data/kiosk-runtime-unselected/` prepare the release-based
+The six session assets in `data/kiosk-runtime-unselected/` prepare the release-based
 session arrangement without selecting it. Their relative destinations match
 `data/wayland-sessions`, `data/gnome-session/sessions` and `data/systemd/user`.
 They are excluded from `PACKAGE_SOURCE_FILES`, package installation and activation;
@@ -555,7 +555,7 @@ are required.
 
 Host acceptance passed with no declared targets: **350 unit and 169 UI checks
 passed** across the maintained selections and focused repair. The
-[main report](../../output/test-runs/host/reports/20261020T235942Z-e87262ed/report.md)
+[main report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 records the six unit modules (`test_request_time_estimate.py`,
 `test_request_selections.py`, `test_kiosk_model.py`, `test_systemd_unit.py`,
 `test_kiosk_login.py`, `test_service_contract.py`) with a 600-second worker
@@ -565,7 +565,7 @@ The two new UI loop failures expected a second refused mutation after the
 automation guard had already marked input uncertain. Cancel and duplicate-submit
 refusals now use separate fresh attempts, preserving disabled controls, exactly
 one broker request and successful completion. All four kiosk/overlay variants
-passed in the [focused repair report](../../output/test-runs/host/reports/20261021T001715Z-08b14c49/report.md),
+passed in the [focused repair report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json),
 using the same 1,800-second deadline. Product source was unchanged by that
 test-only repair. No assertion or input-safety guard was weakened.
 
@@ -592,6 +592,118 @@ reports, exact command selections, accepted result and completed cleanup in
 `onpc-evidence-bundle-kh4nne3g` (SHA-256
 `ce79885d4398d61d6d069ba01237e77716760b30bc7e0b25cac7895763f904c9`).
 Only destinations changed; predecessor completion and claims are preserved.
+
+##### C02c1 prepared account provisioning
+
+`data/kiosk-runtime-unselected/provision.py` reconstructs the account/configuration
+slice from pin `188be907c46b1cd0dabae06ac898c43e75beb05e`, retaining main's
+account ownership and public AccountsService improvements. It is excluded from
+`PACKAGE_SOURCE_FILES`, installation and activation. The selected
+`tools/provision.py`, package lifecycle, native PAM and login helper remain
+unchanged; only C02 may select the prepared entry. It supplies no second live
+admission path or new login-route defense.
+
+The prepared CLI retains `--kiosk-user oh-no-parent-control`, `--prefix` and
+`--check-account`. It validates the reserved NSS identity, non-root/non-admin
+UID, reserved home and its owner, and the lifecycle's private numeric UID marker
+before any provisioning write. `--check-account` performs only that validation.
+The package lifecycle owns creation, `nologin`, password deletion and marker
+publication; the marker must exist before either prepared CLI mode is called.
+Ordinary accounts and their credentials, time policy and metadata are untouched.
+
+Configuration retains main's broker schema validation, numeric `kiosk_uid`,
+root-owned mode-0600 config and mode-0644 account-specific system-bus policy.
+Live provisioning resolves the fixed UID with `FindUserById`, uses `CacheUser`
+only for an unsaved account, disables its kiosk `LimitType`, and sets/verifies
+`Session=oh-no-parent-control`, `SessionType=wayland`, `SystemAccount=false`
+and `Saved=true`. Correct retained settings need no setter calls. Custom retained
+artwork is preserved; optional artwork failures emit a fixed diagnostic and
+cannot prevent required routing. Required account-service failures remain
+operational failures, rather than claimed confinement successes.
+
+The prepared module has no old admission imports, cache-version/package checks,
+daemon restarts, shadow changes or private cache/transaction writes. The current
+public API exposes `SystemAccount` read-only; `UncacheUser` would discard saved
+metadata and is not a migration shortcut. A retained hidden account therefore
+requires C02c2's owned migration before this entry is selected. Public visible
+state alone does not prove that old private visibility work has been recovered.
+
+The handoff is finite:
+
+- **C02c2:** preserve `/var/lib/oh-no-parent-control/package-created-kiosk-uid`
+  as the root-owned mode-0600 numeric UID authority. Recover the UID-bound
+  `kiosk-configuration-account.json` (`version`, `uid`, original `expires`,
+  `phase=quarantined|releasing`) and preserve unrelated native expiry policy.
+  Recover AccountsService's `.onpc-kiosk-visibility-v1` slot and
+  `user.oh-no-parent-control.visibility-v1` xattr using their recorded
+  UID/inode/digest/metadata ownership; durably migrate retained hidden state
+  without losing comments, unknown fields, groups or custom icons. Source
+  cleanup does not authorize deleting these installed records or foreign state.
+- **C02c/C02:** use the same fixed UID, public session identity and Wayland
+  transport as the prepared session assets. Preserve passwordless entry and
+  effective administrator/ordinary-account policy. The old GDM PreSession hook
+  is historical and is not current-GDM routing proof. C02 must complete the
+  lifecycle migration, replace the selected provisioner and coordinate native
+  PAM/account admission before retiring quarantine/release and visibility-repair
+  callers, the AccountsService start-pre drop-in and old integration verification.
+  C02d/e may then delete their unconsumed sources and package wiring. No legacy
+  fallback may remain selected.
+
+Independent Astra xHigh backend review found no actionable issues:
+**Usability priority: passed; Threat scope: passed; ownership, lifecycle and
+unselected boundary: passed**. It confirmed that the retained-hidden-account
+precondition is acceptable only after C02c2 completes its declared migration.
+Review supplies no host or installed acceptance credit.
+
+Host acceptance passed with no declared targets: **694 checks passed** in the
+[focused report](../../output/test-runs/host/reports/20261021T002506Z-6250c0fa/report.md),
+using `tools/run-tests unit` with a 600-second worker deadline. The selection
+includes `test_provision.py`, `test_package_configuration.py`,
+`test_package_removal.py`, `test_system_first_configure.py`,
+`test_system_kiosk_accounts.py`, `test_kiosk_login.py` and
+`test_regression_unit.py`, plus the prepared-runtime payload-exclusion case in
+each of `test_package_payload.py` and `test_rpm_packaging.py`. Sixteen new
+provisioning methods cover fresh/retained public API composition, required
+readbacks, optional artwork failure, reserved ownership and atomic-write
+rollback. Existing selected-path configuration, ownership, interruption/retry
+and removal tests remain intact. Public readbacks and service doubles do not
+qualify installed persistence, migration or passwordless GDM/PAM behavior.
+
+The parallelism review retains the compatible `provision` and `kiosk_login`
+unit classifications. New cases load the inert prepared source without bytecode
+output and use existing private temporary trees and process-local NSS/bus/owner
+doubles. Atomic faults preserve the prior private file and remove only their
+owned temporary file. The existing bounded Make source-list child and staged
+Ubuntu/Fedora payload fixtures are reused. No shared cache, host account,
+service, bus, display, socket or cleanup inventory changes; the rationale is
+recorded in `tools/regression_unit.py` and its inventory checks passed.
+
+Final `make build` passed for both DEB and RPM. Retained outputs are
+`output/deb/oh-no-parent-control_1.4+local1~ubuntu26.04.1_amd64.deb`,
+`output/rpm/oh-no-parent-control-1.4-0.1.dev.fc44.x86_64.rpm` and
+`output/rpm/build.log`. These build the unchanged selected account/runtime path;
+the prepared entry remains outside package selection. The implementation worker
+and independent reviewer are finished/closed. The host runner and build finished
+owned cleanup; no task-owned VM, installed state, temporary source artifact or
+live process remains. Normal reports and package outputs are retained. No
+installation, staging, commit or push was performed.
+
+Close-out passed all **639 metadata checks** in the four maintained consistency
+modules and `test_execution_plan_launcher.py`, with a 600-second worker deadline
+and completed cleanup; see the
+[close-out report](../../output/test-runs/host/reports/20261021T003125Z-8759f281/report.md).
+The plan check selects C02c2 with 56 remaining tasks. Only C02c1 is newly checked;
+its temporary brief is removed and every other queue row is preserved.
+
+The rotated C02b main and focused-repair report destinations alone now use the
+accepted-proof locator. The maintained bundle reader verified their exact original reports,
+original test commands, accepted result and completed cleanup in
+`onpc-evidence-bundle-5rgw5klr` (SHA-256
+`fc1c8364c724d1aaa115390f27fd6dc30b65c83c76c6269b9127f6b5f8acbf4e`).
+The original 350 unit/165 unchanged UI passes and four passing repaired UI cases remain
+unchanged historical claims; this repair grants no new acceptance.
+Final Markdown validation checked 262 links with none missing; the plan check
+and `git diff --check` also passed. No product input changed after review or build.
 
 ##### C01 selective replacement boundary
 

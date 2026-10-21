@@ -982,6 +982,11 @@ from regression_ui import Bucket
 # Prepared runtime assertions read inert source assets and own one bounded,
 # waited Make source-list child. The package_payload/rpm_packaging checks reuse
 # their existing private staged payloads, without new builders or cleanup owners.
+# Prepared provisioning checks load only the unselected source and use private
+# account/config/marker trees plus process-local NSS, busctl and ownership doubles.
+# Atomic-write faults retain their private prior file and remove their own temp;
+# no host account, shadow/cache, daemon, bus, shared path or cleanup owner changes.
+# provision and kiosk_login retain their existing compatible classifications.
 # No real session, system bus, display, root lock, shared cache or service mutates.
 # Admission/removal regressions use real advisory locks only on pytest-private
 # files. Native PAM leases cover root-executor/session teardown intervals and

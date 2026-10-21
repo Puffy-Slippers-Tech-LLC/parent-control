@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C02c1 — [Prepare kiosk account provisioning](Kiosk-Prompt-Tasks/C02c1-provisioning.md)**.
+Next task: **C02c2 — [Prepare owned lifecycle migration](Kiosk-Prompt-Tasks/C02c2-lifecycle.md)**.
 
 ## Outcome
 

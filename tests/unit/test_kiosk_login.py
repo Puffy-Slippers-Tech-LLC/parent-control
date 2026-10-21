@@ -116,7 +116,9 @@ def test_prepared_runtime_has_no_production_package_source_selection():
     selected = set(result.stdout.splitlines())
     prepared = {path.relative_to(ROOT).as_posix()
                 for path in PREPARED_RUNTIME.rglob('*') if path.is_file()}
-    assert len(prepared) == 6
+    prepared_account = 'data/kiosk-runtime-unselected/provision.py'
+    assert prepared_account in prepared
+    assert len(prepared - {prepared_account}) == 6
     assert prepared.isdisjoint(selected)
     assert not any(path.startswith('data/kiosk-runtime-unselected/') for path in selected)
     assert {
@@ -129,6 +131,7 @@ def test_prepared_runtime_has_no_production_package_source_selection():
         'kiosk/oh-no-parent-control',
         'kiosk/oh_no_parent_control_kiosk/notifications.py',
         'kiosk/oh_no_parent_control_kiosk/session_logout.py',
+        'tools/provision.py',
     } <= selected
 
 

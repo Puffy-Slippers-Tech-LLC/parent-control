@@ -362,6 +362,19 @@ def reproduce_kiosk_approval(lease):
                             'approval-qualified', 'kiosk-approval', native_log=True)
 
 
+def reproduce_baseline_auth_pause(lease):
+    """Retain the genuine paused-approval history at the original return guard.
+
+    The shared maintenance envelope stops the worker and closes callbacks,
+    leaving the owned scene for diagnosis without supplying acceptance.
+    """
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from baseline_auth_pause import BaselineAuthPauseJourney, PLAN
+    return reproduce_denial(lease, BaselineAuthPauseJourney, PLAN,
+        'return-entry-guard', 'baseline-auth-pause',
+        boundary_operation='system:parent-entry-retained')
+
+
 def reproduce_baseline_app_effects(lease):
     """Attempt one allowed native launch after the real grant and child login.
 
@@ -885,6 +898,13 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         surface == 'retained-unlock' and boundary == 'unlock-desktop'
         and boundary_operation == 'child-retained-unlock-diagnostic')),
         'retained-unlock-capture:caller')
+    system_boundary = (boundary_operation is not None
+                       and boundary_operation.startswith('system:'))
+    if system_boundary:
+        system.require(surface == 'baseline-auth-pause' and boundary == 'return-entry-guard'
+            and boundary_operation == 'system:parent-entry-retained'
+            and plan is not None and plan.screen_tags.get(boundary) == boundary_operation,
+            'diagnosis:system-boundary-binding')
 
     with operation('Reproducing the child ' + surface + ' boundary for live diagnosis'), recovery_session():
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + surface + '-diagnosis-'))
@@ -968,7 +988,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 if boundary_operation is not None:
                     from ui_observations import UiObservations
                     try:
-                        observed = UiObservations(transport).observe(boundary_operation)
+                        if system_boundary:
+                            from session_control import observe as observe_session
+                            observed = observe_session(transport, boundary_operation.removeprefix('system:'))
+                        else:
+                            observed = UiObservations(transport).observe(boundary_operation)
                     except Exception as error:
                         observed = {'outcome': 'refused', 'error_type': type(error).__name__}
                         # Capture before guard probes can replace the SSH status.

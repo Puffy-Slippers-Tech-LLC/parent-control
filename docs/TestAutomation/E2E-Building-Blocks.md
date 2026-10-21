@@ -1710,7 +1710,7 @@ An expired report or different provider supplies no acceptance credit.
 | REQUEST12 / reentry: cases 47/48/49, `kiosk_cancel.PLAN`, `kiosk_escape.PLAN`, `kiosk_approved.PLAN`; `onpc_kiosk_cancel::run`, `onpc_kiosk_escape::run`, shared request exit/approval | **Changed.** Historical case 47 `20260926T051531Z-576edf40`, case 48 `20260926T052659Z-8144eb94`, case 49 `20261001T124720Z-77d15a97`. Normal API Cancel/close and immediate/automatic approved exits must renew current session shutdown/GDM results. Case 49 alone adds fresh child/countdown: daily 900 + request 75, expected 975, precision 1 second, elapsed at most 180 seconds. It proves no soft/hard app effect. | C04u/f operation exits; B4 full reentry/repeated-request composition |
 | Shared overlay REQUEST02–09 / AUTH01/02 / FLOW04/05/07: `journey_blocks.overlay_entry`, `request_flow.prepared_request(surface='overlay')`, `overlay_approved_request`, `overlay_rejected_request` → `onpc_request_flow::overlay_*` | **Changed approval caller** through C02b1/b shared broker/form cancellation; kiosk MATE evidence cannot qualify Shell. Historical Shell Cancel `20261003T194901Z-f8ac692b` (Ubuntu Shell `50.1-0ubuntu1.2`), approval `20261008T051602Z-bcc96b27`, rejection `20261008T050819Z-ffdb973c` (`50.1-0ubuntu1.3`), English/US, fixed Riley/Jamie/75/soft true. Command entry and fixed-child reads remain reusable leaf contracts, not renewal of the approval caller. | Independent surface gap B1 before C04 readiness; outside C04u/f's paired kiosk operation |
 | FLOW01/02/16, FLOW03 and Allowed FLOW08: `onpc_parent::set_allowance`, `policy_edits.policy_edit` / `onpc_app_rows::edit_policy`, `app_launch.PLAN` / `onpc_app_launch::run` | **Unchanged leaf scope only.** FLOW16 zero/15-minute `20260926T210708Z-8962d2d1`, fresh 30-minute `20260926T211055Z-daafbf03`; FLOW03 currently accepts only fixture A's match/access edits. Case 80 Allowed/native-command/30-minute Jordan then unaffected Riley: Ubuntu `20261011T014639Z-c50a592c`, Fedora `20261011T014639Z-eda36595`. Reuse only verified exact policy/Allowed-use leaves; current PAM entry and different Riley policy, H/S target edits or temporary-access effects are not supplied. | B2 supplies the missing finite target/denial bindings; no rerun of unrelated Allowed route matrices |
-| TIME01–04 and TIME03 pause mechanism | **Unchanged stated leaves; missing baseline composition.** `real_interval.wait_real_interval` / `interval_action` supports at most 300 seconds, guarded sleeps at most 250 ms; exact five-second About slice `20260929T212620Z-9ce87d41` is reusable only for that scope. `natural_expiry_observation.await_natural_expiry` has Riley/native two-minute daily-only qualification on both targets; see [TIME04](#natural-enforced-lock-qualification). Neither proves grant-only expiry or an open language/authentication pause. | B2/B4 downstream time; B3 pauses |
+| TIME01–04 and TIME03 pause mechanism | **Fixed confinement pauses qualified; complete baseline composition pending.** `real_interval.wait_real_interval` / `interval_action` supports at most 300 seconds, guarded sleeps at most 250 ms; exact five-second About slice `20260929T212620Z-9ce87d41` is reusable only for that scope. [C04l](#c04l-kiosk-language-and-human-pause) qualifies the 90-second Jordan chooser pause and [C04w](#c04w-parent-decision-pause) the 45-second Riley/Jamie MATE pause on both targets. `natural_expiry_observation.await_natural_expiry` has Riley/native two-minute daily-only qualification on both targets; see [TIME04](#natural-enforced-lock-qualification). These supply no grant-only expiry qualification. | B3 fixed pauses closed; B4 complete time history remains |
 | LANG01: `kiosk_language.PLAN` / `KioskLanguageJourney` → `onpc_request_flow::kiosk_language` / shared `language_selection` | **Qualified fixed Jordan caller and chooser pause.** [C04l](#c04l-kiosk-language-and-human-pause) renewed both targets: en/de/zh-Hans/he Save, Chinese Cancel retaining German, German reentry, unchanged policy/request and guarded TIME03(90) with fresh same-chooser/session/choice proof before Save. Historical Ubuntu `20261004T103336Z-73d60bd2` retains its original immediate-Save scope. This does not qualify Riley's language binding or a different native-prompt locale. | B3 language/chooser slice closed; other feature/authentication-pause scopes remain |
 | Reminders: `kiosk_reminders.PLAN` / `KioskReminderJourney` → `onpc_kiosk_reminders::run` | **Qualified rebuilt caller on both targets.** [C04r](#c04r-shared-reminder-persistence-renewal) renews `check_e2e_kiosk_reminder_binding`: Riley's overlay-created 90-second record, kiosk edit to 75 seconds, same ID in overlay, untouched Jordan defaults, approver isolation and public restored-defaults readback. Historical Ubuntu `20261013T193554Z-2f3ca206` / Fedora `20261013T193554Z-a3336e1b` retain their prior scope. No natural-notification credit. | B3 reminder slice closed; [local matrices](#reminder-controls-and-notification-qualification) remain host UI |
 | About / Preferences: `kiosk_about.E2E_CASES['kiosk']` → `onpc_kiosk_about::run`; `kiosk_preferences_confinement.PLAN` | **About operation renewed on both rebuilt targets.** [C04i](#c04i-existing-kiosk-about-renewal) qualifies `restricted_station_about.PLAN` / `check_e2e_read_restricted_station_about`: installed product/version/legal information, external-action absence, unchanged usable request and Cancel/GDM return. Historical tasks 185k/234 and case 192 retain their original scope; task 192's host metadata exception is unrelated. Preferences engineering checks only cancel editor drafts and do not prove saved preset persistence. | B3 About slice closed; new general features belong to E2E 314/315; no renewed complete-case credit |
@@ -1747,7 +1747,8 @@ required for both targets. C04o/C04p have closed the fixed B1/B2 slices;
 pause slice, and [C04s](#c04s-existing-request-choice-renewal) renewed its existing
 request choices and remembered reentry. [C04r](#c04r-shared-reminder-persistence-renewal)
 and [C04i](#c04i-existing-kiosk-about-renewal) renewed reminders and About.
-B3's authentication pause and B4 remain open.
+[C04w](#c04w-parent-decision-pause) closed B3's fixed authentication pause.
+B4 remains open.
 Queue insertion itself supplies no readiness, implementation or acceptance credit; C04 must recheck exact
 evidence applicability after the qualifications finish.
 
@@ -1809,7 +1810,7 @@ exact matching evidence without closing E2E rows or duplicating feature mechanic
 | Request choices | Existing **012c**, `check_e2e_kiosk_valid_duration`; **014**, `check_e2e_request_flow` | [C04s renewed both targets](#c04s-existing-request-choice-renewal): existing presets/custom Minutes/rest-of-day/soft choices, independent estimates, Cancel/GDM and remembered reentry. New saved-preset/Hours journey is **314**, outside baseline prerequisites. |
 | Reminders | Existing **312a/312b**, `check_e2e_kiosk_reminder_binding` | C04r renews only changed caller scope. **312** still owns its complete delete/Cancel/reboot history; **311** owns natural notification/fullscreen behavior. |
 | Kiosk information | Existing **185k/234**, `check_e2e_read_restricted_station_about`, case 192 | [C04i renewed both targets](#c04i-existing-kiosk-about-renewal): installed information, external-action absence and unchanged usable request after ordinary About close. No renewed case 192 credit. New What's New content/return journey is **315**, outside baseline prerequisites. |
-| Authentication pause | Shared approval/recipient operations and TIME03 | C04w adds only the 45-second confinement lifetime check on the existing fixed MATE request. E2E-048 retains six complete arithmetic/second-request scenarios and uses the same wait/recipient mechanics; no second pause framework. |
+| Authentication pause | Shared approval/recipient operations and TIME03 | [C04w qualified both targets](#c04w-parent-decision-pause) through `baseline_auth_pause.PLAN` / `check_e2e_baseline_auth_pause`: the fixed 45-second MATE wait, two fresh same-challenge proofs, one approval, automatic GDM return and independent grant read. E2E-048 retains six complete arithmetic/second-request scenarios and uses the same wait/recipient mechanics. |
 | Failure recovery and repeated access | Shared rejected/cancelled/approved requests and public effect comparisons | C04j makes a thin confinement core composition. **088/089**, E2E-048 and E2E-049 keep their own finite complete histories; no case is closed by a baseline pass. |
 | Baseline acceptance | C04j's complete core history plus applicable existing feature checks | C04 audits readiness; C05u/f reuse matching evidence. Feature matrices are not replayed in that core history, and unchanged complete histories are not rerun for new task labels. |
 
@@ -2373,8 +2374,8 @@ Renewal therefore uses the existing qualifiers, with no new feature binding.
 
 | Target | Valid choices: result / duration | Remembered reentry: result / duration | Retained report |
 | --- | --- | --- | --- |
-| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-wb0rin6f/result.json`; 44 stages / 262.663s | `output/test-runs/privileged/allocations/onpc-graphical-smoke-knv_w5_c/result.json`; 53 stages / 328.941s | [Both attempts](../../output/test-runs/host/reports/20261021T215633Z-9b213821/report.md) |
-| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-7z8dkxi8/result.json`; 44 stages / 289.655s | `output/test-runs/privileged/allocations/onpc-graphical-smoke-4dwpwrvb/result.json`; 53 stages / 353.953s | [Both attempts](../../output/test-runs/host/reports/20261021T215633Z-14eaad00/report.md) |
+| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-wb0rin6f/result.json`; 44 stages / 262.663s | `output/test-runs/privileged/allocations/onpc-graphical-smoke-knv_w5_c/result.json`; 53 stages / 328.941s | [Both attempts](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) |
+| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-7z8dkxi8/result.json`; 44 stages / 289.655s | `output/test-runs/privileged/allocations/onpc-graphical-smoke-4dwpwrvb/result.json`; 53 stages / 353.953s | [Both attempts](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) |
 
 Public Parent preparation read Riley's daily/grant/total as **900/0/900**.
 `kiosk_valid_duration.PLAN` / `onpc_kiosk_valid_duration::run` independently
@@ -2430,8 +2431,8 @@ retained its 1800-second bound and 90-second kiosk / 45-second overlay observati
 
 | Target | Retained result | Stages / duration | Retained report |
 | --- | --- | --- | --- |
-| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-chvpyywr/result.json` | 103 / 1249.570s | [Ubuntu attempt](../../output/test-runs/host/reports/20261021T221700Z-8d633e74/report.md) |
-| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-o1fe03il/result.json` | 103 / 1322.812s | [Fedora attempt](../../output/test-runs/host/reports/20261021T221700Z-f75af3f2/report.md) |
+| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-chvpyywr/result.json` | 103 / 1249.570s | [Ubuntu attempt](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) |
+| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-o1fe03il/result.json` | 103 / 1322.812s | [Fedora attempt](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) |
 
 Riley's overlay created literal `Save <work> & games!` at 90 seconds. Kiosk
 independently read its saved ID, edited that same ID to 75 seconds, saved and
@@ -2541,18 +2542,97 @@ preservation and owned baseline restoration passed on both targets. Serial
 final `tools/cleanup-e2e` passed and independent status reads confirmed both off.
 The focused information/return and installed-journey safety selection passed
 **1,294/1,294** with `--timeout 180s` in the
-[host report](../../output/test-runs/host/reports/20261021T224812Z-742a1203/report.md).
+[host report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 No executable or package input changed; no product build or backend review is
 required. This closes only B3's existing About operation, without renewed case
 192, What's New, other B3/B4 or C05 acceptance.
 
 The final consistency selection passed **313/313** with `--timeout 180s` in
-[the close-out report](../../output/test-runs/host/reports/20261021T225544Z-10c3434d/report.md).
+[the close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Both read-only plan checks select C04w. Two rotated C04l report links now resolve
 to its stable accepted-evidence locator: the verified 4,572-file bundle
 `onpc-evidence-bundle-0u6mgx1y` retains its accepted result and exact per-target
 results, inputs and cleanup. The original report files are absent; no original
 result, scope, timing or completion claim changed.
+
+### C04w parent decision pause
+
+`baseline_auth_pause.PLAN` / `BaselineAuthPauseJourney` and
+`onpc_request_flow::auth_pause` reuse C04f's shared `approve` and independent
+grant comparison. The new argument-free `check_e2e_baseline_auth_pause` passed
+through `tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_baseline_auth_pause'`.
+Both attempts retained 1800-second bounds and 90-second kiosk observations.
+
+| Target | Retained result | Stages / duration / real pause | Retained report |
+| --- | --- | --- | --- |
+| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-e24y_u2m/result.json` | 43 / 293.434s / 45.077s | [Ubuntu attempt](../../output/test-runs/host/reports/20261021T233800Z-8a3fcd82/report.md) |
+| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-q59jtc7m/result.json` | 43 / 313.807s / 45.068s | [Fedora attempt](../../output/test-runs/host/reports/20261021T233800Z-e86da13c/report.md) |
+
+Each public history prepared Riley/Jamie, English, daily/grant/total 0/0/0,
+Custom `1.25` Minutes (75 seconds), soft included and a 75-second estimate.
+Guarded TIME03 withheld the opening reply for 45 real seconds. The same native
+request/challenge survived, followed by two newly acquired recipient proofs
+with the unchanged under-30-second freshness bound, one password submission,
+explicit approval/form success and independently observed automatic GDM return.
+Parent reentry independently read Riley's genuine daily/grant/total as 0/60/60
+on Ubuntu and 0/58/58 on Fedora, each with one-second precision and the original
+estimate/real-elapsed bounds. No password entered the product API.
+
+The opening/qualified/rechecked observations retain identical challenge IDs:
+`6221686839b9d7a5177db69c76a5d7368e4275d301a068d7fa9e2a4d94bf0650`
+on Ubuntu and
+`63d965eed8ef552e124fe450f5b9944973711fdb1acdccf32edd291bedf9438a`
+on Fedora. MATE versions are `1.26.1-6` / `0:1.28.1-8.fc44`; all three proofs
+per target retain `en_US.utf8` and `xkb/us`.
+
+Both results bind source SHA-256
+`b74b02f58606c9fe7aa13683c12dac2bb00a01a7436c3890bbd848a5f4967001`,
+inventory `756bf5176c3b9d8ff96ee382d6ee1b6327bd072960dcddc8dbedfadc3700855b`
+and worker distribution `9831b9c77cc780d40d27902d49a10af9b7abea1274c887b5658819ddaf73fa37`.
+All 605 caller input hashes agree between targets and match the checkout.
+Per-target source-bound package inputs retain
+`c605f6015816741e7a6054342a4b24dbc4783e540049d5c3eb1a275cfc2e87f5`.
+Expected/actual online `onpc-v1.4` baseline/package/content/recipe identities
+agree. Ubuntu package/content hashes are
+`daf2b8805916d1b0eddeb8e608fa3e6df4d475d7d88a1a5176779d52a777d194` /
+`6137e210d878d1a5d67ce7bca42a30da4eae1a8288afaef1fce96115965526cf`;
+Fedora package/content is
+`29014e5a66b65705d930576501034a166aed485bdd61493220ec3fa4f53c4fdd`.
+Matching snapshots used `--overwrite false`; maintenance stopped before acceptance.
+
+The original Fedora [stopped attempt](../../output/test-runs/host/reports/20261021T230613Z-adda800e/report.md)
+retains `session:source-changed` at the Parent return guard and supplies no
+acceptance. Strict whole-session equality remains unchanged; private diagnostic
+logging now retains both observations if it recurs. The maintained
+`reproduce-baseline-auth-pause` route separately reached that original guard
+successfully in `onpc-baseline-auth-pause-diagnosis-tyfpbaxn/boundary-observation.json`.
+An earlier maintenance run stopped at `ui:mate-field-empty`; a later read found
+the original field populated without another input. The shared native submit
+now waits read-only for that same field, revalidating owner, challenge, recipient,
+request and field state on every sample. Only empty input may wait; replacements
+and other refusals stop immediately. Final filled proof and single submission
+remain mandatory. This renews the affected fixed C04f approval binding on both
+targets; its default 900/975 comparison and other declared bindings are preserved.
+
+Coordinator protection/usability review found no relaxed recipient, freshness,
+ownership or uncertain-input guard. The [2,518-check host report](../../output/test-runs/host/reports/20261021T233548Z-b62d0a34/report.md)
+passed with `--timeout 180s`, covering real waits, stale/replaced proofs,
+input refusal, grant bounds, Perl order, selector preparation, composition,
+diagnostic ownership and cleanup. Collection, worker shutdown, callback closure,
+lease completion, source/host preservation and baseline restoration passed on
+both targets. Serial final `tools/cleanup-e2e` passed; independent status reads
+confirmed both off. Changes affect tests/documentation only, outside product
+build inputs; no product build or backend review is required. This closes only
+B3's fixed pause; B4, complete E2E-048 histories and C05 remain pending.
+
+Six rotated C04i host/C04s and C04r installed report destinations now use their existing
+stable accepted-evidence locator. The verified 4,611-file bundle
+`onpc-evidence-bundle-v6yv0n1w`, SHA-256
+`8fdc641b5fc29791d538ffb2360bb0fcb896d5309baed082858dcd5487516bfc`,
+retains the original reports, inputs and cleanup. No predecessor claim changed.
+
+The final plan/inventory/coverage/composition selection passed **313/313** with
+`--timeout 180s` in the [close-out report](../../output/test-runs/host/reports/20261021T234557Z-b5392af9/report.md).
 
 ### Kiosk, child overlay and the shared request form
 

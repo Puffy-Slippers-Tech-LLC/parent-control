@@ -1567,6 +1567,15 @@ this route supplies no authentication or customer-acceptance credit.
 Only this fixed kiosk approval reproduction also retains the bounded native
 journal evidence described below, including when its observer fails.
 
+`tools/test-vm --vm NAME reproduce-baseline-auth-pause` uses the same owned
+envelope with `BaselineAuthPauseJourney` / `baseline_auth_pause.PLAN`. It runs
+the fixed zero-time Riley/Jamie request, guarded 45-second pause, fresh native
+recipient checks and single password submission. After explicit approval and
+automatic GDM return, it stops at `return-entry-guard` and records the shared
+`parent-entry-retained` system observation in `boundary-observation.json`.
+The worker and callbacks close while the owned scene remains available for
+diagnosis. Finish with `tools/test-vm stop`; this route supplies no acceptance.
+
 `tools/test-vm --vm NAME probe-kiosk-approval` opens one native prompt in an
 already retained owned failed form. Its finite diagnostic leaf
 `kiosk-diagnostic-retry-estimate` independently requires the exact prepared

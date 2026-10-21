@@ -134,7 +134,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec',
                                       'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                                       'reproduce-kiosk-preferences',
-                                      'reproduce-baseline-app-effects',
+                                      'reproduce-baseline-app-effects', 'reproduce-baseline-auth-pause',
                                       'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                       'reproduce-lock-denial',
                                       'reproduce-retained-entry', 'probe-lock-curtain',

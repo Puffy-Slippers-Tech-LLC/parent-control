@@ -1447,7 +1447,8 @@ def test_multiple_prompt_rejects_wrong_binding_and_never_replays(binding, fault)
 
 @pytest.mark.parametrize('fault', [None, 'child', 'duration', 'soft', 'missing-time',
                                   'duplicate', 'hidden', 'legacy'])
-def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fault):
+@pytest.mark.parametrize('paused', [False, True])
+def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fault, paused):
     ui, desktop, agent, dialog, field, cancel, submit, message, recipient = mate_form()
     ui.mate_challenge_identity = Mock(return_value='a' * 64)
     if fault == 'child':
@@ -1464,17 +1465,21 @@ def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fa
         message.states.discard('visible')
     elif fault == 'legacy':
         message.name = f'Grant {accessible_ui.CHILD} 1 minute, 15 seconds and allow soft blocked apps?'
+    opening = 'kiosk-pause-mate-open' if paused else 'kiosk-mate-open'
     if fault:
         with pytest.raises(UiError, match='ui:mate-request-context-missing'):
-            ui.run('kiosk-mate-open', '')
+            ui.run(opening, '')
         ui.mate_challenge_identity.assert_not_called()
         with pytest.raises(UiError, match='uncertain-input'):
-            ui.run('kiosk-mate-open', '')
+            ui.run(opening, '')
     else:
-        assert ui.run('kiosk-mate-open', '')['approval'] == {'challenge_id': 'a' * 64}
+        expected = {'challenge_id': 'a' * 64,
+                    **({'provider': ui.mate_provider_metadata.return_value} if paused else {})}
+        assert ui.run(opening, '')['approval'] == expected
         ui.expected_mate_challenge = 'a' * 64
-        for operation in ('kiosk-mate-qualified', 'kiosk-mate-rechecked'):
-            assert ui.run(operation, '')['approval'] == {'challenge_id': 'a' * 64}
+        for operation in (accessible_ui.PAUSE_MATE_ORDER[1:3] if paused else
+                          ('kiosk-mate-qualified', 'kiosk-mate-rechecked')):
+            assert ui.run(operation, '')['approval'] == expected
     submit.action.do_action.assert_called_once()
     cancel.action.do_action.assert_not_called()
     field.get_child_count.assert_not_called()
@@ -2125,6 +2130,46 @@ def test_approval_proofs_preserve_recipient_and_challenge(fault):
         assert ui.run('kiosk-mate-qualified', '')['approval'] == {'challenge_id': 'a' * 64}
         assert ui.run('kiosk-mate-rechecked', '')['approval'] == {'challenge_id': 'a' * 64}
     submit.action.do_action.assert_called_once()
+    cancel.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'owner', 'challenge', 'focus', 'recipient', 'request',
+                                  'field', 'timeout'])
+def test_consumed_mate_input_waits_only_for_same_owned_recipient(monkeypatch, fault):
+    ui, desktop, agent, dialog, field, cancel, submit, message, recipient = mate_form()
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    ui.run('kiosk-pause-mate-open', '')
+    ui.expected_mate_challenge = 'a' * 64
+    ui.timeout = 1
+    now, samples = [100.0], []
+    get_text = Mock(side_effect=AssertionError('password contents'))
+    def length():
+        samples.append(now[0])
+        return 5 if not fault and now[0] >= 100.4 else 0
+    field.get_text_iface = lambda: SimpleNamespace(get_character_count=length, get_text=get_text)
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    def sleep(seconds):
+        now[0] += seconds
+        if fault == 'owner': ui.mate_agent_pid.return_value = 101
+        if fault == 'challenge': ui.mate_challenge_identity.return_value = 'b' * 64
+        if fault == 'focus': field.states.discard('focused')
+        if fault == 'recipient': recipient.name = 'Password for wrong-parent:'
+        if fault == 'request': message.name = 'Changed request'
+        if fault == 'field':
+            replacement = Node(role='password text', states=('showing', 'visible', 'sensitive', 'focused'))
+            replacement.get_text_iface = field.get_text_iface
+            replacement.parent = dialog
+            dialog.children[dialog.children.index(field)] = replacement
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    if fault:
+        with pytest.raises(UiError):
+            ui.wait_filled_mate_prompt(100)
+    else:
+        assert ui.wait_filled_mate_prompt(100)[2] is field
+        assert len(samples) >= 3 and now[0] >= 100.4
+    assert now[0] <= 101.2
+    get_text.assert_not_called()
+    submit.action.do_action.assert_called_once()  # Original Request only.
     cancel.action.do_action.assert_not_called()
 
 

@@ -41,8 +41,10 @@ QUALIFICATION_PLAN = replace(PLAN,
 
 
 class KioskApprovalJourney(RequestFlowJourney):
-    def __init__(self, context, progress):
-        super().__init__(context, progress, plan=QUALIFICATION_PLAN)
+    def __init__(self, context, progress, plan=QUALIFICATION_PLAN, *, actions=None,
+                 daily_seconds=900):
+        super().__init__(context, progress, plan=plan, actions=actions)
+        self.daily_seconds = daily_seconds
         self.grant_estimate = None
         self.grant_observed = False
 
@@ -58,16 +60,17 @@ class KioskApprovalJourney(RequestFlowJourney):
         value = observed['ui']['time_explanation']
         require(value['child'] == 'fixture-child', 'kiosk-approval:wrong-child')
         estimate = self.grant_estimate
-        require(estimate['estimate']['kind'] == 'fixed' and estimate['estimate']['seconds'] == 975,
+        expected = self.daily_seconds + 75
+        require(estimate['estimate']['kind'] == 'fixed' and estimate['estimate']['seconds'] == expected,
                 'kiosk-approval:expected-estimate')
         daily, grant, total = (value[key]['seconds'] for key in ('daily', 'one_time', 'total'))
         precision = max(value[key]['precision_seconds'] for key in ('daily', 'one_time', 'total'))
-        require(abs(daily - 900) < value['daily']['precision_seconds'] and grant > 0
+        require(abs(daily - self.daily_seconds) < value['daily']['precision_seconds'] and grant > 0
                 and abs(total - max(daily, grant)) < precision,
                 'kiosk-approval:real-grant')
         elapsed = (value['observed_monotonic_ns'] - estimate['observed_monotonic_ns']) / 1e9
-        require(0 <= elapsed <= 600 and 975 - elapsed - value['one_time']['precision_seconds']
-                <= grant <= 975 + value['one_time']['precision_seconds'],
+        require(0 <= elapsed <= 600 and expected - elapsed - value['one_time']['precision_seconds']
+                <= grant <= expected + value['one_time']['precision_seconds'],
                 'kiosk-approval:approved-balance')
         observed.setdefault('comparison', {}).update(
             independent_grant=True, unchanged_daily=True, approved_estimate_with_elapsed_bounds=True)

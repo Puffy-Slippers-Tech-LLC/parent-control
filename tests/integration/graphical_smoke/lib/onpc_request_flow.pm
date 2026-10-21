@@ -804,6 +804,30 @@ sub daily_station_entry {
     return onpc_gdm::enter_station($journey, '');
 }
 
+sub auth_pause {
+    onpc_progress::operation('Approving the same MATE challenge after the guarded human pause');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'auth-pause:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'baseline-auth-pause', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'child', 0, 0, 1));
+    $journey->seen($_) for qw(switch-user gdm-switched);
+    onpc_gdm::enter_station($journey, '');
+    prepare($journey, 'new', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1);
+    # The durable opening reply is withheld by TIME03. It carries no recipient
+    # authority; the password helper obtains both proofs after that reply.
+    approve($journey, 'fixture-child', 'fixture-parent', 75, 1, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'return');
+    $journey->consume_observation('supplied-parent-retained', onpc_parent::open_for_child(
+        $journey, 'desktop', 'same-user', 'retained', 'child', 'supplied'));
+    $journey->seen('approved-balance');
+    $journey->finish();
+}
+
 sub run {
     onpc_progress::operation('Qualifying open and fresh kiosk request composition');
     my ($exchange, $mate, $declared, $challenges) = @_;

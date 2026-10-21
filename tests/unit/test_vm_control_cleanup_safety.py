@@ -383,6 +383,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     for action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                    'reproduce-kiosk-preferences',
                    'reproduce-baseline-app-effects',
+                   'reproduce-baseline-auth-pause',
                    'reproduce-lock-denial', 'reproduce-retained-entry',
                    'reproduce-retained-app-visits',
                    'reproduce-revoke-cancel', 'probe-revoke-balances',
@@ -690,8 +691,9 @@ def test_kiosk_approval_reproduction_stops_before_qualification_and_secret_input
     assert not {'approval-rechecked', 'approval-success'} & set(prefix)
 
 
-def test_baseline_app_effects_dispatch_resumes_owned_lease_and_releases_controller(
-        monkeypatch, tmp_path):
+@pytest.mark.parametrize('surface', ['baseline-app-effects', 'baseline-auth-pause'])
+def test_baseline_diagnostic_dispatch_resumes_owned_lease_and_releases_controller(
+        monkeypatch, tmp_path, surface):
     import vm_probe
     import tools.test_storage as storage
     api, source, lease, commands = Mock(), Mock(), Mock(), Mock()
@@ -709,9 +711,9 @@ def test_baseline_app_effects_dispatch_resumes_owned_lease_and_releases_controll
     monkeypatch.setattr(control, 'check_identity', identity)
     monkeypatch.setattr(control, 'resume', resume)
     monkeypatch.setattr(control, 'operate', operate)
-    monkeypatch.setattr(vm_probe, 'reproduce_baseline_app_effects', reproduce)
+    monkeypatch.setattr(vm_probe, 'reproduce_' + surface.replace('-', '_'), reproduce)
     assert control.main([*VM_ARGS, '--expected-uuid', UUID,
-                         'reproduce-baseline-app-effects']) == 0
+                         'reproduce-' + surface]) == 0
     identity.assert_called_once_with(source, UUID)
     resume.assert_called_once_with(lease)
     reproduce.assert_called_once_with(lease)
@@ -720,6 +722,100 @@ def test_baseline_app_effects_dispatch_resumes_owned_lease_and_releases_controll
     source.domain.destroyFlags.assert_not_called()
     lease.release.assert_called_once_with()
     source.close.assert_called_once_with()
+
+
+def test_baseline_auth_pause_reproduction_reuses_genuine_full_prefix(monkeypatch):
+    import vm_probe
+    from baseline_auth_pause import BaselineAuthPauseJourney, PLAN
+    reproduce = Mock()
+    monkeypatch.setattr(vm_probe, 'reproduce_denial', reproduce)
+    lease = object()
+    vm_probe.reproduce_baseline_auth_pause(lease)
+    reproduce.assert_called_once_with(lease, BaselineAuthPauseJourney, PLAN,
+        'return-entry-guard', 'baseline-auth-pause',
+        boundary_operation='system:parent-entry-retained')
+    prefix = PLAN.stages[:PLAN.stages.index('return-entry-guard')]
+    assert prefix[-1] == 'new-returned'
+    assert {'approval-open', 'approval-qualified', 'approval-rechecked',
+            'approval-success', 'new-returned'} <= set(prefix)
+    assert PLAN.stage_actions == {'approval-open': 'real-interval'}
+    assert PLAN.screen_tags['approval-success'] == 'ui:kiosk-pause-mate-submit-success'
+    assert PLAN.screen_tags['new-returned'] == 'ui:gdm-station-returned'
+    assert PLAN.screen_tags['return-entry-guard'] == 'system:parent-entry-retained'
+    assert not {'return-entry-guard', 'return-desktop', 'approved-balance'} & set(prefix)
+
+
+@pytest.mark.parametrize('refused', [False, True])
+@pytest.mark.parametrize('worker_stopped,callback_closed', [(True, True), (False, True), (True, False)])
+def test_auth_pause_boundary_uses_original_session_guard_without_acceptance(
+        tmp_path, monkeypatch, capsys, refused, worker_stopped, callback_closed):
+    from contextlib import nullcontext
+    import vm_probe
+    import fixture_credentials
+    import e2e_worker
+    import qualification_storage
+    import session_control
+    import ui_observations
+    from baseline_auth_pause import PLAN
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    credentials = Mock()
+    monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock(return_value=credentials))
+    transport = object()
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
+    result = {'operation': 'parent-entry-retained', 'outcome': 'passed'}
+    observe = Mock(side_effect=RuntimeError('session:source-changed') if refused else None,
+                   return_value=result)
+    monkeypatch.setattr(session_control, 'observe', observe)
+    ui = Mock()
+    monkeypatch.setattr(ui_observations, 'UiObservations', ui)
+    boundary = 'return-entry-guard'
+    prefix = PLAN.stages[:PLAN.stages.index(boundary)]
+    class Journey:
+        def __init__(self, context, progress, *, plan):
+            self.plan, self.failed = plan, False
+            self.steps = [{'stage': stage} for stage in prefix]
+        def step(self, guard):
+            pytest.fail('diagnosis must not advance the boundary or accept the journey')
+    def run(directory, lease, ledger, **kwargs):
+        assert kwargs['maintenance'] is True
+        assert kwargs['timeout'] == 900
+        assert kwargs['credentials'] is credentials
+        (directory / (boundary + '.request.json')).write_text(json.dumps(
+            {'stage': boundary, 'screenshot': None}))
+        assert kwargs['guarded_observe'](Mock()) is True
+        kwargs['validate']()
+        assert not (directory / (boundary + '.reply.json')).exists()
+        observe.assert_called_once_with(transport, 'parent-entry-retained')
+        ui.assert_not_called()
+        return {'worker_stopped': worker_stopped, 'callback_closed': callback_closed}
+    monkeypatch.setattr(e2e_worker, 'run_distribution', run)
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
+    if worker_stopped and callback_closed:
+        vm_probe.reproduce_denial(lease, Journey, PLAN, boundary, 'baseline-auth-pause',
+            boundary_operation='system:parent-entry-retained')
+        assert 'scene retained; evidence=' in capsys.readouterr().out
+    else:
+        with pytest.raises(runner.Error, match='diagnosis:cleanup-incomplete'):
+            vm_probe.reproduce_denial(lease, Journey, PLAN, boundary, 'baseline-auth-pause',
+                boundary_operation='system:parent-entry-retained')
+        assert 'scene retained' not in capsys.readouterr().out
+    credentials.provision_online.assert_called_once_with(lease, transport)
+    retained = json.loads((tmp_path / 'boundary-observation.json').read_text())
+    assert retained == ({'outcome': 'refused', 'error_type': 'RuntimeError'} if refused else result)
+
+
+@pytest.mark.parametrize('surface,boundary,operation,binding', [
+    ('kiosk-entry', 'return-entry-guard', 'system:parent-entry-retained', 'system:parent-entry-retained'),
+    ('baseline-auth-pause', 'request-form', 'system:parent-entry-retained', 'system:parent-entry-retained'),
+    ('baseline-auth-pause', 'return-entry-guard', 'system:parent-entry-fresh', 'system:parent-entry-fresh'),
+    ('baseline-auth-pause', 'return-entry-guard', 'system:parent-entry-retained', 'ui:gdm-returned'),
+])
+def test_auth_pause_system_boundary_refuses_other_contexts(surface, boundary, operation, binding):
+    import vm_probe
+    plan = SimpleNamespace(screen_tags={boundary: binding})
+    with pytest.raises(runner.Error, match='diagnosis:system-boundary-binding'):
+        vm_probe.reproduce_denial(None, object, plan, boundary, surface, boundary_operation=operation)
 
 
 def test_baseline_app_effects_reproduction_stops_at_allowed_native_launch(monkeypatch):

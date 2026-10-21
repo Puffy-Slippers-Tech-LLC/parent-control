@@ -390,7 +390,13 @@ def execute(binding):
             identity = entry_identity(current, account.pw_uid, 'same')
         else:
             identity = entry_identity(current, account.pw_uid, mode)
-        require(sessions() == current, 'source-changed')
+        confirmed = sessions()
+        if confirmed != current:
+            # Private engineering evidence: public session IDs/properties only,
+            # never names, passwords or product state. Preserve the refusal.
+            print('session-entry-observation: ' + json.dumps(
+                {'before': current, 'after': confirmed}, sort_keys=True), file=sys.stderr)
+        require(confirmed == current, 'source-changed')
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
                 'entry': mode, 'session_sha256': identity}
     if action == 'enter-locked':

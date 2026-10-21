@@ -1143,17 +1143,27 @@ class UiObservations:
                         self.mate_rejection = operation == accessible_ui.MATE_REJECTION_ORDER[0]
                         self.mate_chinese = operation == accessible_ui.CHINESE_MATE_ORDER[0]
                         self.mate_long_request = operation == accessible_ui.LONG_MATE_ORDER[0]
+                        self.mate_paused = operation == accessible_ui.PAUSE_MATE_ORDER[0]
                     if getattr(self, 'mate_chinese', False):
                         order = accessible_ui.CHINESE_MATE_ORDER
                     if getattr(self, 'mate_long_request', False):
                         order = accessible_ui.LONG_MATE_ORDER
+                    if getattr(self, 'mate_paused', False):
+                        order = accessible_ui.PAUSE_MATE_ORDER
                     if self.mate_rejection:
                         order = accessible_ui.MATE_REJECTION_ORDER
                     elif operation == 'kiosk-mate-submit-immediate':
                         order = (*order[:3], operation)
                     require(index < len(order) and operation == order[index], 'ui:mate-order')
                     if index:
-                        require(time.monotonic() - self.mate_approval_checked < 30, 'ui:mate-stale-proof')
+                        elapsed = time.monotonic() - self.mate_approval_checked
+                        # The opening observation retains identity only. Its
+                        # authority expires during TIME03; two newly observed
+                        # recipient proofs are still required before input.
+                        if getattr(self, 'mate_paused', False) and index == 1:
+                            require(45 <= elapsed < 135, 'ui:mate-pause-bound')
+                        else:
+                            require(elapsed < 30, 'ui:mate-stale-proof')
                     self.mate_approval_index = index + 1
                     self.mate_approval_checked = time.monotonic()
                 if operation in accessible_ui.MATE_OPERATIONS | accessible_ui.SHELL_PROMPT_OPERATIONS:
@@ -1161,6 +1171,8 @@ class UiObservations:
                 read_started = time.monotonic_ns()
                 result = self._observe(operation, **({'child': child} if child else {}))
                 self.read_bounds = (read_started, time.monotonic_ns())
+                if operation == accessible_ui.PAUSE_MATE_ORDER[0]:
+                    self.mate_approval_checked = time.monotonic()
                 if operation in ('revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances'):
                     result['revoke_cancel']['read_bounds'] = [read_started, time.monotonic_ns()]
                 if operation in accessible_ui.COUNTDOWN_OPERATIONS:
@@ -1301,7 +1313,8 @@ class UiObservations:
                     re.fullmatch(r'[0-9a-f]{64}', self.boot_guard)), 'ui:boot-binding')
             binding = [self.boot_guard]
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
-                'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open', 'kiosk-long-mate-open'):
+                'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open', 'kiosk-long-mate-open',
+                'kiosk-pause-mate-open'):
             binding = [self.boot_guard or '', self.mate_approval_identity]
         if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in (
                 'overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0]):
@@ -1868,19 +1881,27 @@ class UiObservations:
                 require(value == {'rejected': True, 'cancelled': True, 'no_error': True}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
             elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate',
-                               'chinese-mate-submit-success', 'kiosk-long-mate-submit-success'):
+                               'chinese-mate-submit-success', 'kiosk-long-mate-submit-success',
+                               'kiosk-pause-mate-submit-success'):
                 require(value == {'approved': True, 'form_success': True,
                                   **({'immediate_exit': True} if operation.endswith('immediate') else {})}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
             else:
                 chinese = operation in accessible_ui.CHINESE_MATE_ORDER
                 long_request = operation in accessible_ui.LONG_MATE_ORDER
+                paused = operation in accessible_ui.PAUSE_MATE_ORDER
                 fields = {'challenge_id'} | ({'provider', 'texts', 'child', 'approver', 'agent_id',
                     'duration_seconds', 'allow_soft', 'rejected_proofs'} if chinese else set()) | (
-                    {'request'} if long_request else set())
+                    {'request'} if long_request else set()) | ({'provider'} if paused else set())
                 require(type(value) is dict and set(value) == fields and
                         type(value['challenge_id']) is str and
                         re.fullmatch(r'[0-9a-f]{64}', value['challenge_id']), 'ui:mate-identity')
+                if paused:
+                    accessible_ui.validate_shell_metadata(value['provider'])
+                    if operation == accessible_ui.PAUSE_MATE_ORDER[0]:
+                        self.mate_pause_provider = dict(value['provider'])
+                    else:
+                        require(value['provider'] == self.mate_pause_provider, 'ui:mate-provider-changed')
                 if long_request:
                     request = value['request']
                     require(type(request) is dict and request == accessible_ui.LONG_MATE_REQUEST
@@ -1897,7 +1918,7 @@ class UiObservations:
                                 list(accessible_ui.CHINESE_MATE_REFUSALS) if operation == 'chinese-mate-open' else []),
                             'ui:mate-native-response')
                 if operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open',
-                                 'kiosk-long-mate-open'):
+                                 'kiosk-long-mate-open', 'kiosk-pause-mate-open'):
                     require(value['challenge_id'] not in self.challenges, 'ui:challenge-replay')
                     self.challenges.add(value['challenge_id'])
                     self.mate_approval_identity = value['challenge_id']

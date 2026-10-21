@@ -27,14 +27,15 @@ def clock(monkeypatch):
 
 
 @pytest.mark.parametrize('early', [False, True])
-def test_complete_real_duration_and_finite_checkpoints(clock, monkeypatch, early):
+@pytest.mark.parametrize('duration', [5, 45])
+def test_complete_real_duration_and_finite_checkpoints(clock, monkeypatch, early, duration):
     if early:
         original = interval.time.sleep
         monkeypatch.setattr(interval.time, 'sleep', lambda seconds: original(min(seconds, .125)))
     guard, progress = Mock(), Mock()
-    elapsed = interval.wait_real_interval(5, deadline=110, guard=guard, progress=progress)
-    assert elapsed == 5 and type(elapsed) is float
-    assert [call.args for call in progress.call_args_list] == [(i, i * 1.25) for i in range(5)]
+    elapsed = interval.wait_real_interval(duration, deadline=200, guard=guard, progress=progress)
+    assert elapsed == duration and type(elapsed) is float
+    assert [call.args for call in progress.call_args_list] == [(i, i * duration / 4) for i in range(5)]
     assert max(clock.sleeps) <= .25 and guard.call_count > len(clock.sleeps)
 
 

@@ -1,7 +1,7 @@
 # Kiosk confinement baseline validation for v1.4
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04w — [Qualify the parent decision pause](Kiosk-Prompt-Tasks/C04w-auth-pause.md)**.
+Next task: **C04j — [Register and qualify the baseline composition](Kiosk-Prompt-Tasks/C04j-baseline-composition.md)**.
 
 ## Outcome
 

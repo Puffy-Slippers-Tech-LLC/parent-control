@@ -121,6 +121,7 @@ sub enter_kiosk_mate_password {
             && ($long_request ? ($journey->{prefix} // '') eq 'baseline-app-effects' :
                 ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
                 || ($journey->{prefix} // '') eq 'kiosk-approval-flow'
+                || (!$reject && ($journey->{prefix} // '') eq 'baseline-auth-pause')
                 || (!$reject && (($journey->{prefix} // '') eq 'package-removal'
                     || ($journey->{prefix} // '') eq 'revoke-cancel'
                     || ($journey->{prefix} // '') eq 'revocation'))))

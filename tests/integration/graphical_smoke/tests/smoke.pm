@@ -784,6 +784,12 @@ sub run {
         onpc_request_flow::run(\&exchange, 'approval', $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{baseline_auth_pause}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::auth_pause(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{baseline_app_effects}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -925,6 +925,9 @@ MATE_APPROVAL_OPERATIONS |= frozenset(LONG_MATE_ORDER)
 CHINESE_MATE_ORDER = tuple('chinese-mate-' + suffix for suffix in
                            ('open', 'qualified', 'rechecked', 'submit-success'))
 MATE_APPROVAL_OPERATIONS |= frozenset(CHINESE_MATE_ORDER)
+PAUSE_MATE_ORDER = ('kiosk-pause-mate-open', 'kiosk-pause-mate-qualified',
+                    'kiosk-pause-mate-rechecked', 'kiosk-pause-mate-submit-success')
+MATE_APPROVAL_OPERATIONS |= frozenset(PAUSE_MATE_ORDER)
 OPERATIONS |= MATE_APPROVAL_OPERATIONS
 MATE_REFUSALS = ('wrong-agent', 'owner', 'recipient', 'child', 'duration', 'apps',
                  'multiple-fields', 'hidden', 'disabled', 'unfocused', 'nonempty',
@@ -10274,6 +10277,7 @@ class AccessibleUI:
         return pid
 
     def mate_prompt(self, pid, *, observation=None, challenge=None, filled=False,
+                    pending_filled=False,
                     binding=None, language='en', request=None):
         """MATE-only semantic adapter; never reads password contents or types.
 
@@ -10281,6 +10285,8 @@ class AccessibleUI:
         meaning checks inside the sole service-owned authentication dialog.
         Missing context refuses; the form/broker cannot supply it instead.
         """
+        require(type(pending_filled) is bool and not (pending_filled and filled),
+                'ui:mate-field-mode')
         require(binding is None or binding in MULTIPLE_MATE_BINDINGS, 'ui:mate-binding')
         require(language in ('en', 'zh-Hans') and (language == 'en' or binding is None),
                 'ui:mate-language-binding')
@@ -10315,8 +10321,9 @@ class AccessibleUI:
         require(len(fields) == 1, 'ui:mate-field-ambiguous')
         field = fields[0]
         proof = self.mate_field_proof(field, facts)
-        if filled:
-            require(type(proof['length']) is int and 1 <= proof['length'] <= 256,
+        nonempty = proof['length'] > 0 if type(proof['length']) is int else False
+        if filled or pending_filled:
+            require(type(proof['length']) is int and (0 if pending_filled else 1) <= proof['length'] <= 256,
                     'ui:mate-field-empty')
             proof = {**proof, 'length': 0}
         self.validate_mate_field(proof)
@@ -10347,7 +10354,29 @@ class AccessibleUI:
                 'ui:mate-cancel')
         current = (owner, dialog, field, buttons[0])
         require(challenge is None or current == challenge, 'ui:mate-replacement')
-        return current
+        return (current, nonempty) if pending_filled else current
+
+    def wait_filled_mate_prompt(self, pid, **options):
+        """Observe delivery of the consumed input; never send it again.
+
+        Empty and filled samples validate the full native context. Only the
+        empty state can wait, under the original observation deadline.
+        """
+        pinned = None
+
+        def ready():
+            nonlocal pinned
+            require(self.mate_agent_pid() == pid, 'ui:mate-owner')
+            observed = self.mate_prompt(pid, challenge=pinned, pending_filled=True, **options)
+            require(observed is not None, 'ui:mate-missing')
+            current, nonempty = observed
+            require(self.mate_challenge_identity(pid, current) == self.expected_mate_challenge,
+                    'ui:mate-replacement')
+            require(self.mate_agent_pid() == pid, 'ui:mate-owner')
+            pinned = current
+            return current if nonempty else None
+
+        return self.wait(ready, 'mate-filled-prompt', prompt_in_predicate=True)
 
     def mate_challenge_identity(self, pid, challenge):
         """Opaque public object identity, bound to this boot, session and process."""
@@ -10483,9 +10512,11 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         chinese = operation in CHINESE_MATE_ORDER
         long_request = operation in LONG_MATE_ORDER
+        paused = operation in PAUSE_MATE_ORDER
         language = 'zh-Hans' if chinese else 'en'
         action = (operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else
-                  operation.replace('kiosk-long-mate-', 'kiosk-mate-', 1) if long_request else operation)
+                  operation.replace('kiosk-long-mate-', 'kiosk-mate-', 1) if long_request else
+                  operation.replace('kiosk-pause-mate-', 'kiosk-mate-', 1) if paused else operation)
         options = ({'language': language} if chinese else
                    {'request': dict(LONG_MATE_REQUEST)} if long_request else {})
         pid = self.mate_agent_pid()
@@ -10501,7 +10532,8 @@ class AccessibleUI:
                     **({'child': EXISTING_CHILD} if chinese else {})))
                 pid, challenge = self.wait_mate_prompt(**options)
             else:
-                challenge = self.mate_prompt(pid, filled=submitting, **options)
+                challenge = (self.wait_filled_mate_prompt(pid, **options) if submitting else
+                             self.mate_prompt(pid, **options))
                 require(challenge is not None, 'ui:mate-missing')
             identity = self.mate_challenge_identity(pid, challenge)
             if not opening:
@@ -10542,6 +10574,7 @@ class AccessibleUI:
                         'child': 'existing-fixture-child', 'approver': 'fixture-parent',
                         'duration_seconds': 75, 'allow_soft': True, 'rejected_proofs': rejected}
             return {'challenge_id': identity,
+                    **({'provider': self.mate_provider_metadata(pid)} if paused else {}),
                     **({'request': dict(LONG_MATE_REQUEST)} if long_request else {})}
         except BaseException:
             self.input_uncertain = True

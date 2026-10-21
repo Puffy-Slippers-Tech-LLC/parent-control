@@ -267,7 +267,7 @@ def test_explicit_entry_guard_and_decoder_are_read_only(monkeypatch, role, mode)
 
 @pytest.mark.parametrize('mode', ['fresh', 'retained', 'same', 'lock'])
 @pytest.mark.parametrize('fault', ['wrong-state', 'wrong-owner', 'ambiguous', 'changed'])
-def test_explicit_entry_guard_refuses_wrong_state_without_input(monkeypatch, mode, fault):
+def test_explicit_entry_guard_refuses_wrong_state_without_input(monkeypatch, capsys, mode, fault):
     current = {'g': props('42', kind='greeter')}
     if mode == 'retained': current['7'] = props(active='no', locked='yes')
     if mode in ('same', 'lock'): current = {'7': props(locked='yes' if mode == 'lock' else 'no')}
@@ -284,6 +284,12 @@ def test_explicit_entry_guard_refuses_wrong_state_without_input(monkeypatch, mod
     monkeypatch.setattr(control, 'submit', submit)
     with pytest.raises(control.SessionError): control.execute('child-entry-' + mode)
     submit.assert_not_called()
+    diagnostic = capsys.readouterr().err
+    if fault == 'changed':
+        assert json.loads(diagnostic.removeprefix('session-entry-observation: ')) == {
+            'before': current, 'after': {}}
+    else:
+        assert diagnostic == ''
 
 
 def test_retained_entry_registration_uses_maintained_vm_fixture_inputs(monkeypatch):

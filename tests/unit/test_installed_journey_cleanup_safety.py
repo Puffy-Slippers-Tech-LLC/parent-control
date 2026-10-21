@@ -45,7 +45,7 @@ import approval_flow
 @pytest.mark.parametrize('recipient', [
     'gdm-parent-recipient-rechecked', 'gdm-standard-recipient-rechecked',
     'gdm-child-recipient-rechecked', 'parent-lock-recipient-rechecked',
-    'child-lock-recipient-rechecked', 'kiosk-mate-rechecked',
+    'child-lock-recipient-rechecked', 'kiosk-mate-rechecked', 'kiosk-pause-mate-rechecked',
     'kiosk-mate-rejection-rechecked', 'chinese-mate-rechecked',
     'overlay-shell-rechecked', 'overlay-shell-rejection-rechecked',
 ])
@@ -202,6 +202,7 @@ import restricted_station
                                           ('read_restricted_station_about', 'restricted_station_about'),
                                           ('kiosk_multiple', 'kiosk_multiple'),
                                           ('kiosk_approval', 'kiosk_approval'),
+                                          ('baseline_auth_pause', 'baseline_auth_pause'),
                                           ('auth_result', 'auth_result'),
                                           ('kiosk_approved_flow', 'kiosk_approved_flow'),
                                           ('kiosk_rejection', 'kiosk_rejection')])
@@ -214,7 +215,8 @@ def test_auth_prompt_qualification_reuses_owned_mate_envelope(selector, mode):
              and isinstance(node.func, ast.Name) and node.func.id == 'smoke']
     assert len(calls) == 1
     keywords = {item.arg: ast.unparse(item.value) for item in calls[0].keywords}
-    assets = ('named_input(package_source=True)' if selector in ('kiosk_approval', 'kiosk_approved_flow')
+    assets = ('named_input(package_source=True)' if selector in (
+        'kiosk_approval', 'kiosk_approved_flow', 'baseline_auth_pause')
               else 'named_input()')
     assert keywords == {'assets': assets, 'provision_credentials': 'True',
                         mode: 'True'}

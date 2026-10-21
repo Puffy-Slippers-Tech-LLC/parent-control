@@ -407,6 +407,7 @@ def main(argv=None):
                                           'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                                           'reproduce-kiosk-preferences',
                                           'reproduce-baseline-app-effects',
+                                          'reproduce-baseline-auth-pause',
                                           'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                           'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain',
@@ -483,6 +484,7 @@ def main(argv=None):
         elif args.action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval',
                              'reproduce-kiosk-preferences',
                              'reproduce-baseline-app-effects',
+                             'reproduce-baseline-auth-pause',
                              'reproduce-lock-denial', 'reproduce-retained-entry',
                              'reproduce-revoke-cancel',
                              'reproduce-countdown-minutes',
@@ -504,6 +506,7 @@ def main(argv=None):
             from vm_probe import reproduce_kiosk_entry, reproduce_kiosk_approval, reproduce_kiosk_preferences
             from vm_probe import reproduce_kiosk_refusal
             from vm_probe import reproduce_baseline_app_effects
+            from vm_probe import reproduce_baseline_auth_pause
             resume(lease)
             {'reproduce-gdm-denial': reproduce_gdm_denial,
              'reproduce-kiosk-entry': reproduce_kiosk_entry,
@@ -511,6 +514,7 @@ def main(argv=None):
              'reproduce-kiosk-preferences': reproduce_kiosk_preferences,
              'reproduce-kiosk-approval': reproduce_kiosk_approval,
              'reproduce-baseline-app-effects': reproduce_baseline_app_effects,
+             'reproduce-baseline-auth-pause': reproduce_baseline_auth_pause,
              'reproduce-lock-denial': reproduce_lock_denial,
              'reproduce-retained-entry': reproduce_retained_entry,
              'reproduce-revoke-cancel': reproduce_revoke_cancel,

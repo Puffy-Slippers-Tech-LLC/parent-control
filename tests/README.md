@@ -242,6 +242,13 @@ host categories, review the [resource and compatibility policy](../tools/regress
 Record the specific conflicting shared resource for any required exclusivity.
 Do not declare work complete with a module merely left in the unreviewed fallback.
 
+`test_e2e_baseline_auth_pause.py` uses pytest-private records, in-memory public
+UI/transport doubles, fake clocks and bounded waited Perl children. It owns no
+VM, display, socket, bus, external service, shared cache or fixture build; its
+small CPU/I/O load permits compatible unit overlap. It adds no cleanup module
+or resource owner. Existing MATE and TIME03 host checks retain those same
+private resources and their current classifications.
+
 The [host inventory regression](unit/test_regression_unit.py) detects modules
 left unreviewed across all three inventories; a reviewed exclusive exception
 requires an explicit path and concrete reason. Unknown modules still execute

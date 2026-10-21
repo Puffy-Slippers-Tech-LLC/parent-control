@@ -981,23 +981,15 @@ from regression_ui import Bucket
 # compatible with other private unit work, with no owned child or shared cache.
 # Both ordinary-role witnesses use those same private files and account/command
 # doubles; expanded role/refusal/metadata cases add no resource or cleanup owner.
-# system_kiosk_platform uses private proc/audit-shaped files and process-local
-# command/account doubles. Fixture identity/cleanup checks touch only pytest
-# directories; no live manager, module loader, bus, VM, mount or child lifetime.
 # system_kiosk_scope uses pytest-private PAM/proc-shaped files, symlinks and
 # process-local account/systemd doubles. Its lifecycle refusal checks start no
 # real manager or child and use no shared cache, bus, display or host policy;
 # small CPU/I/O work is compatible, with no cleanup prerequisite inventory.
-# Retained-manager lifetime controls add append-only pytest-private records and
-# process-local logind/systemd, transport and public-observer doubles. Composed
-# two-entry/recovery checks run no live manager, VM, bus, display or subprocess;
-# the existing scope/kiosk-entry/runner cleanup modules remain compatible.
-# system_kiosk_ambient_history, system_kiosk_required_history and
-# system_retained_history use only tiny pytest-private file/checkpoint trees,
-# in-memory account/PAM/journal/manager/transport/public-entry doubles and
-# synchronous fsyncs. No live manager, VM, mount, package, bus, display, network,
-# child process or shared cache is acquired. Compatible unit overlap applies;
-# the cleanup and UI inventories acquire no module or resource owner.
+# C04a removes private-runtime history fixtures. The remaining session census,
+# composition, admission and ordinary-role controls use pytest-private files
+# and in-memory logind/systemd/PAM/process doubles. No new host process, service,
+# socket, display, shared cache or mutable path is acquired; existing compatible
+# unit and cleanup classifications still apply.
 # Overlay reminder facade/journey/registration safety uses process-local API,
 # transport and clock doubles, tiny pytest-private replies and bounded waited
 # Perl workers. No live settings, bus, display, VM, shared cache or new cleanup
@@ -1019,6 +1011,10 @@ from regression_ui import Bucket
 # No live package manager, mount, account, VM, bus, display, service or shared
 # cache is touched; system_first_configure is compatible unit work. Existing
 # system_kiosk_admission classification remains applicable with no new owner.
+# Its current-command port also runs relocated Ubuntu/Fedora postinst doubles
+# with exact private install/sysusers wrappers, plus immutable guest closure
+# staging/imports. All paths remain pytest-private and shell/Python children are
+# bounded and waited; no package manager, native mount or shared resource is used.
 # Recording units use pytest-private identity journals and short owned AF_UNIX
 # sockets, in-process timeline/control doubles, and one bounded single-thread
 # encoder child. Complete-playback checks run tiny fixture clips through serial
@@ -1045,7 +1041,7 @@ from regression_ui import Bucket
 # they acquire no worker or live pipe reader and retain compatible isolation.
 REVIEWED = frozenset("""
 plan_evidence plan_evidence_recovery
-native_history_routes native_update_runner system_native_update
+native_history_routes native_update_runner
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures
 system_previous_upgrade
@@ -1062,7 +1058,6 @@ overlay_reminder_cleanup_safety
 overlay_reminder_journey_cleanup_safety
 overlay_reminder_registration_cleanup_safety
 system_kiosk_accounts
-system_kiosk_platform
 e2e_kiosk_notification_wellbeing
 application_ui_support
 test_checkpoint
@@ -1140,8 +1135,8 @@ session_limit_check setup_entrypoint setup_privileges shell_overview storage_mig
 support_architecture support_shell system_accounts_cleanup_safety system_agent
 system_agent_cleanup_safety system_assertions system_caller system_caller_cleanup_safety
 system_diagnostics system_enforcement system_enforcement_cleanup_safety system_guest
-system_info system_kiosk_scope system_kiosk_ambient_history system_kiosk_required_history
-system_retained_history system_probe_decision system_probe_sandbox_cleanup_safety system_qualification
+system_info system_kiosk_scope
+system_probe_decision system_probe_sandbox_cleanup_safety system_qualification
 system_remote_accounts system_runner system_runner_cleanup_safety system_snapshots systemd_unit
 terminal_cleanup_safety test_account_password test_activity test_artifacts test_launchers
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety

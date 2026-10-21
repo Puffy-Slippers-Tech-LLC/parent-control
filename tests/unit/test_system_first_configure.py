@@ -15,6 +15,8 @@ import pytest
 
 import system_first_configure as configure
 import system_kiosk_admission as admission
+from tests.support.package_scripts import package_machine
+from tools.test_storage import scratch_descriptors
 
 
 def test_reboot_history_keeps_native_execution_enforcing_without_policy_loss_faults(tmp_path, monkeypatch):
@@ -33,15 +35,12 @@ def test_reboot_history_keeps_native_execution_enforcing_without_policy_loss_fau
         monkeypatch.setattr(configure.guest, name, Mock())
     monkeypatch.setattr(configure.guest, 'reboot_cleared', lambda: True)
     execution, collateral = Mock(), Mock()
-    full_matrix = Mock(side_effect=AssertionError('policy-loss faults are outside this history'))
-    monkeypatch.setattr(confinement, 'verify_execution_boundary', execution)
-    monkeypatch.setattr(confinement, 'verify', full_matrix)
+    monkeypatch.setattr(confinement, 'verify_session_composition', execution)
     monkeypatch.setattr(scope, 'verify', collateral)
     record = Mock()
     configure.verify_reboot(record)
     execution.assert_called_once_with(record)
     collateral.assert_called_once_with(record)
-    full_matrix.assert_not_called()
     assert configure.verify_loaded_confinement.call_count == 2
     assert configure.guest.guard.call_count == 2
     configure.verify_compatibility_profile.assert_called_once_with(record, 'after-reboot')
@@ -190,31 +189,31 @@ def test_default_pam_deferral_uses_public_disable_and_preserves_explicit_enables
 
 
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-@pytest.mark.parametrize('stage', ['visibility', 'owned-passwordless', 'before-final-confinement'])
+@pytest.mark.parametrize('stage', ['visibility', 'owned-passwordless', 'pam-ready'])
 def test_quarantine_requires_exact_native_stack_statuses(monkeypatch, package_format, stage):
     monkeypatch.setattr(configure.guest, 'package_path', lambda: Path('package.' + package_format))
     statuses = configure.quarantine_statuses(stage)
     assert set(statuses) == {'gdm-password', 'login', 'sshd', 'systemd-user'}
-    assert statuses['systemd-user'] == (7 if package_format == 'deb' else 13)
-    assert {statuses[name] for name in ('gdm-password', 'login', 'sshd')} == {
-        7 if package_format == 'deb' else (6 if stage == 'before-final-confinement' else 13)}
+    assert statuses == ({name: 7 for name in statuses} if package_format == 'deb' else
+                        {'gdm-password': 13, 'login': 6, 'sshd': 6, 'systemd-user': 13}
+                        if stage == 'pam-ready' else {name: 13 for name in statuses})
 
 
-@pytest.mark.parametrize('after', [False, True])
 @pytest.mark.parametrize('invocation', ['exact', 'prefix', 'suffix', 'different', 'empty'])
-def test_fault_wrapper_matches_only_exact_native_invocation(tmp_path, after, invocation):
+def test_fault_wrapper_matches_only_exact_native_invocation(tmp_path, invocation):
     original, wrapper, witness = (tmp_path / name for name in (
         'original with spaces', 'wrapper', 'witness with spaces'))
     original.write_text('#!/bin/sh\nprintf "native:%s\\n" "$#"\n')
     original.chmod(0o700)
     arguments = ['-r', '/policy with spaces']
-    wrapper.write_text(configure.wrapper_source(original, witness, arguments, after=after))
+    wrapper.write_text(configure.wrapper_source(original, witness, arguments))
     wrapper.chmod(0o700)
     selected = {'exact': arguments, 'prefix': arguments[:1], 'suffix': [*arguments, 'extra'],
                 'different': ['-i', arguments[1]], 'empty': []}[invocation]
-    result = subprocess.run([str(wrapper), *selected], capture_output=True, timeout=5)
+    result = subprocess.run([str(wrapper), *selected], capture_output=True, timeout=5,
+                            pass_fds=scratch_descriptors())
     assert result.returncode == (79 if invocation == 'exact' else 0)
-    assert result.stdout == (b'' if invocation == 'exact' and not after else
+    assert result.stdout == (b'' if invocation == 'exact' else
                              f'native:{len(selected)}\n'.encode())
     assert witness.exists() == (invocation == 'exact')
     if witness.exists():
@@ -222,32 +221,84 @@ def test_fault_wrapper_matches_only_exact_native_invocation(tmp_path, after, inv
         assert stat.S_IMODE(witness.stat().st_mode) == 0o600
 
 
-def test_after_publication_fault_requires_native_success(tmp_path):
-    original, wrapper, witness = (tmp_path / name for name in ('original', 'wrapper', 'witness'))
-    original.write_text('#!/bin/sh\nexit 23\n')
-    original.chmod(0o700)
-    wrapper.write_text(configure.wrapper_source(original, witness, ['selected'], after=True))
-    wrapper.chmod(0o700)
-    result = subprocess.run([str(wrapper), 'selected'], capture_output=True, timeout=5)
-    assert result.returncode == 23
-    assert not witness.exists()
-
-
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 def test_faults_bind_exact_native_boundaries(monkeypatch, package_format):
     monkeypatch.setattr(configure.guest, 'package_path', lambda: Path('package.' + package_format))
-    native = Mock(return_value=(Path('/native-loader'), ('aliases',)))
-    monkeypatch.setattr(configure, 'native_tool', native)
-    tool, aliases, arguments, after = configure.fault_command('visibility')
-    assert (tool, aliases, arguments, after) == (
-        Path('/etc/gdm' if package_format == 'rpm' else '/etc/gdm3'), (), [], False)
-    native.assert_not_called()
-    tool, aliases, arguments, after = configure.fault_command('confinement')
-    assert (tool, aliases, after) == (Path('/native-loader'), ('aliases',), False)
-    assert arguments == ['-i' if package_format == 'rpm' else '-r',
-        '/usr/share/oh-no-parent-control/confinement/onpc-kiosk.' +
-        ('cil' if package_format == 'rpm' else 'apparmor')]
-    native.assert_called_once_with('selinux' if package_format == 'rpm' else 'apparmor')
+    assert configure.fault_command('visibility') == (
+        Path('/usr/bin/install'), (), ['-o', 'root', '-g', 'root', '-m', '0644',
+            '/usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules',
+            '/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules'], False)
+    assert configure.fault_command('pam-ready') == (
+        Path('/usr/bin/systemd-sysusers'), (), ['malcontent-timer-extension-agent.conf',
+            'malcontent-timerd.conf', 'malcontent-webd.conf'], False)
+    if package_format == 'deb':
+        assert configure.fault_command('early-pam') == (
+            Path('/usr/sbin/pam-auth-update'), (), ['--package'], False)
+    else:
+        with pytest.raises(configure.guest.GuestError, match='unexpected-default-pam-tool'):
+            configure.fault_command('early-pam')
+    with pytest.raises(configure.guest.GuestError, match='unknown-fault-stage'):
+        configure.fault_command('confinement')
+
+
+@pytest.mark.parametrize('package_machine,package_format', [('ubuntu', 'deb'), ('fedora', 'rpm')],
+                         indirect=['package_machine'])
+@pytest.mark.parametrize('stage', ['visibility', 'pam-ready'])
+def test_exact_fault_interrupts_rendered_postinst_before_commit_and_allows_retry(
+        package_machine, monkeypatch, package_format, stage):
+    root, state, run = package_machine
+    monkeypatch.setattr(configure.guest, 'package_path', lambda: Path('package.' + package_format))
+    tool, aliases, arguments, after = configure.fault_command(stage)
+    assert aliases == () and after is False
+    arguments = [str(root / value.lstrip('/')) if value.startswith('/') else value
+                 for value in arguments]
+    target = root / 'bin' / tool.name
+    delegated = root / 'delegated' / tool.name
+    delegated.parent.mkdir()
+    # Keep the native double's basename: it dispatches on argv[0].
+    target.rename(delegated)
+    witness = root / 'fault-witness'
+    target.write_text(configure.wrapper_source(delegated, witness, arguments))
+    target.chmod(0o700)
+    marker = state / 'package-created-kiosk-uid'
+    identity = (marker.stat().st_ino, marker.read_bytes())
+    result = run(DPKG_FRONTEND_LOCKED='true')
+    assert result.returncode == 79, result.stderr
+    assert witness.read_bytes() == configure.WITNESS
+    assert stat.S_IMODE(witness.stat().st_mode) == 0o600
+    assert (marker.stat().st_ino, marker.read_bytes()) == identity
+    commands = (root / 'commands').read_text().splitlines()
+    lifecycle = 'oh-no-parent-control-kiosk-lifecycle --distribution '
+    assert not any(line.startswith(lifecycle) and line.endswith((' commit', ' release'))
+                   for line in commands)
+    assert not any('oh-no-parent-control-broker.service' in line and
+                   (' start ' in line or ' restart ' in line) for line in commands)
+    assert (state / 'migration-in-progress').exists()
+    assert (state / 'package-activation-pending').exists()
+    complete = root / 'run/oh-no-parent-control-package-configuration-complete'
+    assert not complete.exists()
+    published = root / 'etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules'
+    assert published.exists() == (stage == 'pam-ready')
+    if stage == 'pam-ready':
+        assert any(line.startswith('oh-no-parent-control-distro-pam ') and
+                   line.endswith(' install') for line in commands)
+    target.unlink()
+    delegated.rename(target)
+    result = run(DPKG_FRONTEND_LOCKED='true')
+    assert result.returncode == 0, result.stderr
+    assert (marker.stat().st_ino, marker.read_bytes()) == identity
+    assert not (state / 'migration-in-progress').exists()
+    assert not (state / 'package-activation-pending').exists()
+    # Debian retains this marker for the package frontend's post-invoke hook.
+    # RPM uses the successful script, commit/release and cleared guards.
+    assert complete.exists() == (package_format == 'deb')
+    assert published.read_bytes() == (root / 'usr/share/oh-no-parent-control' /
+                                      published.name).read_bytes()
+    commands = (root / 'commands').read_text().splitlines()
+    prefix = lifecycle + ('fedora' if package_format == 'rpm' else 'ubuntu')
+    assert commands.index(prefix + ' commit') < commands.index(prefix + ' release')
+    assert any('oh-no-parent-control-broker.service' in line and
+               (' start ' in line or ' restart ' in line) for line in commands)
 
 
 @pytest.mark.parametrize('failure', ['none', 'wrapper', 'mode', 'witness', 'artifact'])
@@ -266,6 +317,127 @@ def test_fault_requires_exact_owned_witness(monkeypatch, failure):
         with pytest.raises((configure.guest.GuestError, ValueError)):
             fault.verify_triggered()
     fault.verify_artifacts.assert_called_once()
+
+
+@pytest.mark.parametrize('expiry', [1, None, 0])
+def test_quarantine_reads_installed_expiry_after_ordinary_controls_before_kiosk_probes(
+        monkeypatch, expiry):
+    events = []
+    monkeypatch.setattr(configure.guest, 'guard', Mock())
+    monkeypatch.setattr(configure.guest, 'package_path', lambda: Path('package.deb'))
+    monkeypatch.setattr(configure.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1006))
+    saved = {'version': 1, 'uid': 1006, 'expires': None, 'phase': 'quarantined'}
+    monkeypatch.setattr(configure, 'identity', lambda path:
+                        (1, 2, 0, 0, stat.S_IFREG | 0o600, 1, json.dumps(saved).encode()))
+    monkeypatch.setattr(configure, 'ordinary_controls', lambda record, stage:
+                        events.append(('ordinary', stage)))
+    def current_expiry():
+        events.append(('expiry',))
+        return expiry
+    reader = Mock(return_value={'current_expiry': current_expiry})
+    monkeypatch.setattr(configure.runpy, 'run_path', reader)
+    monkeypatch.setattr(configure, 'passwordless', lambda: True)
+    for name in ('probe', 'durable_probe', 'empty_authentication_probe'):
+        monkeypatch.setattr(configure, name, lambda *args, _name=name:
+                            events.append((_name, args)))
+    monkeypatch.setattr(configure.guest, 'run', Mock(return_value='0'))
+    monkeypatch.setattr(configure.guest.commands, 'run', Mock())
+    monkeypatch.setattr(configure.guest.commands, 'last_returncode', 1)
+    if expiry == 1:
+        configure.verify_quarantine(Mock(), 'pam-ready')
+        assert [event[0] for event in events] == [
+            'ordinary', 'expiry', 'empty_authentication_probe', 'probe', 'probe',
+            'probe', 'durable_probe']
+        assert events[2][1][0] == 7
+        assert [(event[1][0], event[1][2]) for event in events[3:6]] == [
+            ('gdm-password', 7), ('login', 7), ('sshd', 7)]
+        assert events[6][1][:4] == ('systemd-user', 'kiosk', 'account', 7)
+    else:
+        with pytest.raises(configure.guest.GuestError, match='native-expiry-not-retained'):
+            configure.verify_quarantine(Mock(), 'pam-ready')
+        assert events == [('ordinary', 'pam-ready'), ('expiry',)]
+    reader.assert_called_once_with(
+        '/usr/lib/oh-no-parent-control/lifecycle/lifecycle_migration.py')
+
+
+def test_first_configuration_history_retains_two_faults_quarantine_and_retry_endpoint(
+        tmp_path, monkeypatch):
+    events = Mock()
+    monkeypatch.setattr(configure.guest, 'PAYLOAD', tmp_path)
+    cache = tmp_path / 'var/lib/AccountsService/users' / configure.PRODUCT
+    cache.parent.mkdir(parents=True)
+    cache.write_bytes(b'owned account cache')
+    monkeypatch.setattr(configure, 'Path', lambda path: tmp_path / str(path).lstrip('/'))
+    monkeypatch.setattr(configure, 'boot', lambda: 'before-reboot')
+    monkeypatch.setattr(configure, 'ordinary_state', lambda: {'ordinary': 'unchanged'})
+    monkeypatch.setattr(configure, 'account_identity', lambda: {'uid': 1006})
+    monkeypatch.setattr(configure, 'passwordless', lambda: True)
+    monkeypatch.setattr(configure.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1006))
+    for name in ('verify_compatibility_profile', 'ordinary_controls', 'interrupted_install',
+                 'verify_quarantine', 'verify_ordinary', 'verify_visibility',
+                 'verify_account_identity', 'verify_loaded_confinement', 'verify_gates',
+                 'empty_authentication_probe'):
+        monkeypatch.setattr(configure, name, getattr(events, name))
+    for name in ('guard', 'enable_diagnostics', 'before_install', 'installed'):
+        monkeypatch.setattr(configure.guest, name, getattr(events, name))
+    monkeypatch.setattr(configure.guest, 'reboot_requested', lambda: True)
+    @contextmanager
+    def deferred(record):
+        events.defer()
+        yield
+    @contextmanager
+    def fault(stage, record):
+        events.fault_enter(stage)
+        yield stage
+        events.fault_exit(stage)
+    monkeypatch.setattr(configure, 'deferred_default_pam', deferred)
+    monkeypatch.setattr(configure, 'configure_fault', fault)
+    retried = False
+    def retry():
+        nonlocal retried
+        events.retry()
+        retried = True
+    monkeypatch.setattr(configure, 'retry_configuration', retry)
+    manager = 'user@1006.service'
+    def run(arguments):
+        events.command(arguments)
+        if arguments[1] == 'show':
+            return 'inactive' if retried else 'failed'
+        if arguments[1] == 'list-units':
+            return '' if retried else manager
+        return ''
+    monkeypatch.setattr(configure.guest, 'run', run)
+    record = Mock()
+    configure.exercise(record)
+    events.assert_has_calls([
+        call.before_install(), call.ordinary_controls(record, 'baseline'), call.defer(),
+        call.fault_enter('visibility'), call.interrupted_install('visibility', record, 'visibility'),
+        call.verify_visibility(), call.verify_quarantine(record, 'visibility'),
+        call.verify_ordinary({'ordinary': 'unchanged'}), call.fault_exit('visibility'),
+        call.verify_account_identity({'uid': 1006}, 'before-passwordless-fixture', record),
+        call.command(['passwd', '--delete', configure.PRODUCT]),
+        call.verify_quarantine(record, 'owned-passwordless'), call.fault_enter('pam-ready'),
+        call.interrupted_install('pam-ready', record, 'pam-ready'), call.verify_visibility(),
+        call.verify_account_identity({'uid': 1006}, 'during-retry', record),
+        call.verify_loaded_confinement(), call.verify_quarantine(record, 'pam-ready'),
+        call.verify_ordinary({'ordinary': 'unchanged'}), call.fault_exit('pam-ready'),
+    ])
+    assert events.fault_enter.call_count == events.interrupted_install.call_count == 2
+    events.verify_account_identity.assert_any_call({'uid': 1006}, 'after-retry', record)
+    events.installed.assert_called_once_with(reboot_required=True)
+    assert events.verify_loaded_confinement.call_count == 2
+    assert events.verify_visibility.call_count == 3
+    assert events.verify_ordinary.call_args_list == [call({'ordinary': 'unchanged'})] * 3
+    events.verify_gates.assert_called_once_with(record)
+    events.empty_authentication_probe.assert_called_once_with(
+        0, 'first-configure.final.empty-authentication', record)
+    assert events.mock_calls.index(call.retry()) < events.mock_calls.index(
+        call.installed(reboot_required=True))
+    assert json.loads(configure.state_path().read_text()) == {
+        'schema': 1, 'boot': 'before-reboot', 'identity': {'uid': 1006},
+        'ordinary': {'ordinary': 'unchanged'}}
+    assert (tmp_path / 'results/first-configure-cache-before.txt').read_bytes() == cache.read_bytes()
+    assert record.call_args.args[0] == 'onpc.first-configure.retry'
 
 
 @pytest.mark.parametrize('status', ['install ok half-configured', 'install ok installed',

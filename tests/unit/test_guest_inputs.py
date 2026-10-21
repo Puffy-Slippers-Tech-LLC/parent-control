@@ -6,6 +6,7 @@ import pytest
 
 from guest_inputs import Bundle, InputError
 from tests.support.paths import ROOT
+from tools.test_storage import scratch_descriptors
 
 
 def write(root, name, text):
@@ -97,15 +98,44 @@ def test_real_setup_closure_imports_without_checkout_or_host_observer(tmp_path):
     frozen = installed_setup.inputs(ROOT)
     assert {'system_guest.py', 'e2e_dynamic_account.py', 'owned_commands.py',
             'guest_install_recipe.py', 'guest/redact.py', 'system_kiosk_confinement.py',
-            'system_removal.py', 'baseline_assets.py', 'native_assets.py'} <= frozen.files.keys()
+            'system_kiosk_admission.py', 'system_kiosk_feedback.py',
+            'baseline_assets.py', 'native_assets.py'} <= frozen.files.keys()
+    assert 'system_removal.py' not in frozen.files
     assert 'watch_activity.py' not in frozen.files
     frozen.stage(tmp_path)
     result = subprocess.run([sys.executable, '-I', '-B', '-c',
         'import sys; sys.path.insert(0, sys.argv[1]); '
         'import system_guest, e2e_dynamic_account, guest_install_recipe, '
-        'system_kiosk_confinement, system_removal; '
-        'from system_enforcement import catalog_entries; assert catalog_entries()', str(tmp_path)],
+        'system_kiosk_confinement, system_kiosk_admission, system_kiosk_feedback; '
+        'assert callable(system_kiosk_confinement.census)', str(tmp_path)],
         capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+
+
+def test_first_configuration_frozen_closure_imports_without_retired_helpers(tmp_path):
+    import system_runner as runner
+    from tests.support.vm_runner import INVENTORIES
+    selection = runner.resolve_selection('package', runner.FIRST_CONFIGURE_CASE,
+        inventories={**INVENTORIES,
+                     'package': (*INVENTORIES['package'], runner.FIRST_CONFIGURE_CASE)})
+    runner.stage_selected_inputs(selection, tmp_path)
+    # Use the real consumer's explicit fixture inputs, including flat aliases
+    # for baseline/native assets, before following its immutable import closure.
+    frozen = Bundle.from_staged(ROOT, tmp_path)
+    assert {'system_first_configure.py', 'system_removal.py', 'system_removal_faults.py',
+            'system_kiosk_admission.py', 'system_kiosk_confinement.py',
+            'system_kiosk_scope.py'} <= frozen.files.keys()
+    assert not {'system_kiosk_platform.py', 'system_native_update.py',
+                'system_kiosk_required_history.py', 'system_kiosk_ambient_history.py'} & frozen.files.keys()
+    assert frozen.files['system_first_configure.py'] == (
+        ROOT / 'tests/integration/system_first_configure.py').read_bytes()
+    result = subprocess.run([sys.executable, '-I', '-B', '-c',
+        'import sys; sys.path.insert(0, sys.argv[1]); import system_first_configure; '
+        'assert callable(system_first_configure.exercise); '
+        'assert callable(system_first_configure.verify_reboot); '
+        'assert callable(system_first_configure.configure_fault)',
+        str(tmp_path)], capture_output=True, timeout=10,
+        pass_fds=scratch_descriptors())
     assert result.returncode == 0, result.stderr
 
 

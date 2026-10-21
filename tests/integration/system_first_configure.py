@@ -1,7 +1,7 @@
 """One product-free configure interruption/retry/reboot history.
 
-Faults use an owned read-only native directory and an exact native-command
-refusal through the shared mount fixture. Product scripts, PAM configuration
+Faults refuse exact current integration and service-account commands through
+the shared owned mount fixture. Product scripts, PAM configuration
 and policy bytes remain the package's own; fixture evidence stays private.
 """
 
@@ -23,7 +23,7 @@ from system_kiosk_admission import (durable_probe, empty_authentication_probe,
                                    probe, routing, verify_gates)
 from system_kiosk_accounts import ordinary_state, verify_fresh_restart, verify_ordinary
 from system_removal import persistent_home_identity, verify_loaded_confinement
-from system_removal_faults import Fault, identity, mounted_fault, native_tool, parents
+from system_removal_faults import Fault, identity, mounted_fault, parents
 
 
 PRODUCT = 'oh-no-parent-control'
@@ -56,8 +56,8 @@ def verify_compatibility_profile(record, stage):
     record('onpc.first-configure.pam-compatibility.' + stage, json.dumps(result, sort_keys=True))
 
 
-def wrapper_source(original, witness, arguments, *, after=False):
-    """Fail exactly one invocation, optionally after its real publication."""
+def wrapper_source(original, witness, arguments):
+    """Refuse exactly one invocation before its native side effects."""
     require(bool(arguments), 'empty-native-invocation')
     quote = shlex.quote
     comparisons = ' && '.join(
@@ -65,7 +65,6 @@ def wrapper_source(original, witness, arguments, *, after=False):
     delegated = f'{quote(str(original))} "$@"'
     return ('#!/bin/sh\nset -eu\n'
             f'if [ "$#" -eq {len(arguments)} ] && {comparisons}; then\n'
-            + (f'    {delegated}\n' if after else '')
             + '    (set -C; umask 077; '
             + f'printf %s {quote(WITNESS.decode())} > {quote(str(witness))})\n'
             + '    exit 79\nfi\n'
@@ -87,10 +86,6 @@ def deferred_pam_source(original, witness):
 class ConfigureFault(Fault):
     def verify_triggered(self):
         self.verify_artifacts()
-        if self.directory:
-            require(identity(self.path, directory=True) == self.expected,
-                    'readonly-native-directory-changed')
-            return
         require(identity(self.path) == self.wrapper, 'native-wrapper-changed')
         observed = identity(self.witness)
         expected = (1 <= len(observed[-1].splitlines()) <= 32 and
@@ -102,37 +97,32 @@ class ConfigureFault(Fault):
 
 def fault_command(stage):
     """Select published paths from the verified package format, never VM names."""
-    require(stage in ('visibility', 'confinement', 'early-pam'), 'unknown-fault-stage')
+    require(stage in ('visibility', 'pam-ready', 'early-pam'), 'unknown-fault-stage')
     fedora = guest.package_path().suffix == '.rpm'
     if stage == 'early-pam':
         require(not fedora, 'unexpected-default-pam-tool')
         return Path('/usr/sbin/pam-auth-update'), (), ['--package'], False
     if stage == 'visibility':
-        # Refuse the next integration write after account publication. The
-        # read-only native directory prevents partial target publication and
-        # leaves the installer and its distribution aliases unchanged.
-        # GDM is part of the product-free desktop baseline; fapolicyd may only
-        # be installed by this transaction, so its directory is not a fixture
-        # prerequisite at this starting boundary.
-        return Path('/etc/gdm' if fedora else '/etc/gdm3'), (), [], False
-    backend = 'selinux' if fedora else 'apparmor'
-    tool, aliases = native_tool(backend)
-    return tool, aliases, [
-        '-i' if fedora else '-r',
-        '/usr/share/oh-no-parent-control/confinement/onpc-kiosk.' +
-        ('cil' if fedora else 'apparmor')], False
+        # This is the first integration publication after account provisioning
+        # in postinst. Match its full command, not an unused historical GDM
+        # directory. The tool exists in the product-free baseline even when
+        # fapolicyd's target directory is created by this installation.
+        return Path('/usr/bin/install'), (), [
+            '-o', 'root', '-g', 'root', '-m', '0644',
+            '/usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules',
+            '/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules'], False
+    # Both distributions reach this exact dependency-account command after
+    # real distro PAM activation and before lifecycle commit/release. Refuse
+    # it before side effects; native expiry must still quarantine the kiosk.
+    return Path('/usr/bin/systemd-sysusers'), (), [
+        'malcontent-timer-extension-agent.conf', 'malcontent-timerd.conf',
+        'malcontent-webd.conf'], False
 
 
 @contextmanager
 def configure_fault(stage, record):
     guest.guard()
     tool, aliases, arguments, after = fault_command(stage)
-    if stage == 'visibility':
-        fault = ConfigureFault(stage, tool, identity(tool, directory=True), directory=True)
-        with mounted_fault(fault, tool, record, readonly=True):
-            yield fault
-        record('onpc.first-configure.fault-cleanup.' + stage, 'exact-native-directory-restored')
-        return
     expected = identity(tool)
     private = guest.PAYLOAD / 'private'
     info = private.lstat()
@@ -146,7 +136,7 @@ def configure_fault(stage, record):
     require(identity(tool) == expected and original.read_bytes() == expected[-1],
             'native-tool-changed-during-copy')
     wrapper.write_text(deferred_pam_source(original, witness) if stage == 'early-pam' else
-                       wrapper_source(original, witness, arguments, after=after))
+                       wrapper_source(original, witness, arguments))
     shutil.copystat(tool, wrapper, follow_symlinks=False)
     for name in os.listxattr(tool):
         require(os.getxattr(tool, name) == os.getxattr(original, name) == os.getxattr(wrapper, name),
@@ -198,8 +188,8 @@ def verify_quarantine(record, stage):
         'quarantine-record-not-retained')
     # Capture only the expiry field through the installed reader. Shadow
     # credentials never enter the command recorder or the result properties.
-    provision = runpy.run_path('/usr/libexec/oh-no-parent-control-provision')
-    require(provision['kiosk_account_expiry'](account) == 1, 'native-expiry-not-retained')
+    lifecycle = runpy.run_path('/usr/lib/oh-no-parent-control/lifecycle/lifecycle_migration.py')
+    require(lifecycle['current_expiry']() == 1, 'native-expiry-not-retained')
     record('onpc.first-configure.native-expiry.' + stage,
            'day=1; exact-private-uid-record-retained')
     expected = quarantine_statuses(stage)
@@ -224,12 +214,12 @@ def verify_quarantine(record, stage):
     if guest.package_path().suffix == '.rpm':
         require(guest.run(['getenforce']) == 'Enforcing', 'selinux-not-enforcing')
         permissive = guest.run(['/usr/sbin/semanage', 'permissive', '-l'])
-        require(not {'xdm_t', 'init_t', 'onpc_kiosk_t', 'onpc_kiosk_manager_t'} &
+        require(not {'xdm_t', 'init_t'} &
                 set(permissive.split()), 'selinux-domain-permissive')
 
 
 def quarantine_statuses(stage):
-    require(stage in ('visibility', 'owned-passwordless', 'before-final-confinement'),
+    require(stage in ('visibility', 'owned-passwordless', 'pam-ready'),
             'unknown-quarantine-stage')
     services = ('gdm-password', 'login', 'sshd', 'systemd-user')
     if guest.package_path().suffix == '.deb':
@@ -237,12 +227,12 @@ def quarantine_statuses(stage):
         # pam_deny (PAM_AUTH_ERR). Native empty-token authentication succeeds
         # separately; this is an account-stage denial, not a password failure.
         return dict.fromkeys(services, 7)
-    # Fedora preserves PAM_ACCT_EXPIRED until the managed account gate precedes
-    # the vendor stack. That gate refuses missing final integration with exact
-    # PAM_PERM_DENIED; systemd-user still reaches the vendor expiry check.
+    # Fedora's selected shared gate permits dedicated GDM routing and the user
+    # manager, leaving vendor expiry authoritative. It refuses login/sshd at
+    # its service boundary once activated, before their vendor expiry checks.
     result = dict.fromkeys(services, PAM_ACCT_EXPIRED)
-    if stage == 'before-final-confinement':
-        result.update(dict.fromkeys(services[:3], 6))
+    if stage == 'pam-ready':
+        result.update(dict.fromkeys(('login', 'sshd'), 6))
     return result
 
 
@@ -370,9 +360,11 @@ def exercise(record):
         interrupted_install(fault, record, 'visibility')
         verify_visibility()
         require(not Path('/var/lib/oh-no-parent-control/installed-gdm-presession').exists(),
-                'readonly-gdm-integration-was-published')
+                'obsolete-gdm-integration-was-published')
         require(not Path('/var/lib/oh-no-parent-control/installed-fapolicyd-fallback').exists(),
-                'readonly-integration-was-published')
+                'refused-integration-was-published')
+        require(not Path('/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules').exists(),
+                'refused-integration-target-was-published')
         # The original vulnerable interval must be reached before activation of
         # the product's shared account gate, rather than accidentally testing it.
         for name in ('common-account', 'system-auth'):
@@ -390,12 +382,13 @@ def exercise(record):
     guest.run(['passwd', '--delete', PRODUCT])
     require(passwordless(), 'passwordless-retry-fixture-not-established')
     verify_quarantine(record, 'owned-passwordless')
-    with configure_fault('confinement', record) as fault:
-        interrupted_install(fault, record, 'confinement')
+    with configure_fault('pam-ready', record) as fault:
+        interrupted_install(fault, record, 'pam-ready')
         verify_visibility()
         verify_account_identity(saved, 'during-retry', record)
         require(passwordless(), 'owned-passwordless-retry-changed-password')
-        verify_quarantine(record, 'before-final-confinement')
+        verify_loaded_confinement()
+        verify_quarantine(record, 'pam-ready')
         verify_ordinary(ordinary)
     manager = f'user@{pwd.getpwnam(PRODUCT).pw_uid}.service'
     require(guest.run(['systemctl', 'show', '--property=ActiveState', '--value', manager]) ==
@@ -445,11 +438,11 @@ def verify_reboot(record):
     verify_gates(record)
     empty_authentication_probe(0, 'first-configure.rebooted.empty-authentication', record)
     verify_loaded_confinement()
-    from system_kiosk_confinement import verify_execution_boundary
+    from system_kiosk_confinement import verify_session_composition
     from system_kiosk_scope import verify as verify_ordinary_scope
-    verify_execution_boundary(record)
+    verify_session_composition(record)
     verify_ordinary_scope(record)
     verify_ordinary(saved['ordinary'])
     verify_loaded_confinement()
     guest.guard()
-    record('onpc.first-configure.reboot', 'new-boot; same-owned-identity; native-enforcing-execution; dedicated-routing; ordinary-controls')
+    record('onpc.first-configure.reboot', 'new-boot; same-owned-identity; selected-pam-ready; dedicated-routing; ordinary-controls')

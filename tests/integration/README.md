@@ -105,68 +105,20 @@ coordinates host results and VM artifacts for the same source content.
 
 ## Retained-session native dependency update
 
-`package` → `test_native_dependency_update_retained_session` (ID **289**) is an
-isolated baseline history. It uses the
-[verified finite native inputs](Environment.md#verified-finite-native-transaction-inputs),
-separately from earlier **product** release inputs. Prepare and run both targets
-in parallel through the existing registry scheduler:
+Stable ID **289** is pending and has no executable binding for the rebuilt
+session. Its old private-manager, generation and loader-refusal history is
+retired. The required real dependency update, continued permitted use, normal
+exit and fresh-entry outcome remains with C09c1 and final C10 mapping in the
+[C04a dispositions](../../docs/SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions).
+Historical receipts retain their original inputs and cleanup; they grant no
+current-candidate qualification.
 
-```sh
-tools/run-tests system --vm 'onpc-Ubuntu26.04,onpc-Fedora44' --id 289 --native-inputs
-```
-
-Each VM worker owns its current product bundle and the exact native DEB or RPM
-pair selected by its verified baseline. The explicit single-target route accepts
-`--artifacts 'PRODUCT-DIRECTORY' --native-artifacts 'NATIVE-DIRECTORY'`; prepare
-the latter with `tools/run-tests artifacts prepare --for-vm --native-inputs --vm NAME`.
-Automatic `--native-inputs` refuses explicit input paths and `--upgrade-inputs`.
-This history cannot be combined with other cases or earlier-product inputs.
-Listing the selector requires no artifact preparation or VM operation.
-The installed test dispatcher must include `--native-artifacts`; refresh changed
-development helpers through `./setup.sh --test-tools-only` under the
-[setup contract](../../docs/Approval-Tools.md#one-time-setup) before first live use.
-
-The runner establishes the verified old native package, with normal scripts and
-triggers, **before** installing the product through `make install`. Initial
-configuration and a real reboot precede `native-update`. That phase keeps a
-publicly entered request-station session and an identified old executable
-mapping alive during the offline native upgrade.
-Ubuntu's first mapping snapshot waits for the identified native child's one-byte
-read on the owned release pipe, after mount setup, using the kernel's
-[`/proc/pid/syscall` observation](https://man7.org/linux/man-pages/man5/proc_pid_syscall.5.html).
-An early root view or info notification alone is insufficient. The pinned
-[native block-fd read](https://github.com/containers/bubblewrap/blob/v0.11.1/bubblewrap.c#L3260)
-follows mount setup and privilege dropping. The same child, pipe and executable
-identity remain required; later observations do not retry a changed boundary.
-The history verifies changed host bytes, retained generation and enforcement,
-fresh unsafe-admission refusal, exclusion
-of the policy loader under a held admission lease and explicit safe manager
-reexecution. The station exits normally before a second real reboot.
-The open station's PAM handle retains an admission lease: the loader must refuse
-while an additional independently held native admission is exercised. Only after
-normal public station exit and the required reboot does the history require the
-drained loader to succeed, before entering a fresh station. The manager's own PAM
-handle may retain its lease until that reboot. The loader preserves attestation/PAM
-bytes and child policy, and cannot revive the retired generation. Recovery requires
-that completed checkpoint; it cannot skip the deferred drain check.
-`native-update-rebooted` requires the bound predecessor checkpoint, changed boot,
-fresh station admission, public broker operation and unchanged saved child
-policy and vendor PAM. These are engineering assertions; the existing synthetic
-replacement/reexec matrix remains separate.
-
-Both phases stay in one owned baseline attempt. Resume reconstructs the whole
-history rather than splicing old phase passes into a restored guest. Native
-inputs, baseline, selected helper sources and private checkpoints bind that
-attempt. Pre-reboot phase evidence and failure collection use the existing
-runner; baseline restoration and off verification remain its cleanup owner.
-Each pytest phase and the old-package establishment command has a finite
-2,400-second timeout; the post-exit retirement check has a 180-second timeout.
-The pre-admission loader checkpoint has a 900-second timeout, covering the
-maintained boot-readiness wait and bounded loader verification after SSH returns.
-Registration and host doubles supply no installed transaction acceptance.
-The [accepted native update receipts](../README.md#core-installation-and-runtime-compatibility)
-record both complete passing target histories with exact input/helper bindings
-and cleanup. Later candidates require matching evidence or a complete rerun.
+The [finite native input builders](Environment.md#verified-finite-native-transaction-inputs)
+and independent integrity checks remain available. Preparing their package pair
+does not make this pending selector runnable or provide an installed result.
+The runner refuses the pending history before collecting cases or preparing
+inputs. Renew the complete history through a registered current composition
+before consuming it.
 
 ## Running the current installed suite
 
@@ -264,8 +216,8 @@ phase. This system history supplies no general customer E2E completion.
 
 `package` → `test_first_configuration_interruption_retry` starts from the
 verified product-free baseline in its own attempt. Its `first-configure` phase
-owns fresh installation, failures after visibility publication and before final
-confinement integration, the already-passwordless owned retry, and successful
+owns fresh installation, failures after visibility publication and after current
+PAM activation but before configuration commit, the already-passwordless owned retry, and successful
 configuration. Native account admission must remain denied while configuration
 is incomplete; ordinary-account controls precede the denials. The controller
 also verifies that successful retry clears the kiosk's failed user manager,
@@ -279,17 +231,24 @@ On Ubuntu the history now requires the baseline's real LXC `cgfs` session profil
 in both shared session stacks before installation, after retry and after reboot.
 Its fixed compatibility receipts prove that the optional module was active;
 absence, comments, duplicate entries or changed controls/options cannot become
-a compatibility pass. The shared confinement lifecycle additionally observes
-the native module's executable mapping and retains its package/file receipts
-before testing confined close/delete/end callbacks. These witnesses extend
-existing cases 4 and 267. Their installed acceptance, including failed-manager
-recovery, passed on both targets under
+a compatibility pass. The earlier implementation's native mapping and confined
+callback witnesses and its installed acceptance, including failed-manager
+recovery, are historical under
 [the accepted installation receipts](../README.md#core-installation-and-runtime-compatibility).
-Faults belong to this engineering qualification and use an owned read-only
-integration directory plus an exact native policy-loader refusal. Mount identity,
+The port retains case 4 and the complete reboot endpoint; its changed inputs
+still need installed qualification. Current fault inputs use owned wrappers
+that refuse only the exact `install -o root -g root -m 0644` publication from
+`/usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules` to
+`/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules`, and the exact
+`systemd-sysusers malcontent-timer-extension-agent.conf malcontent-timerd.conf malcontent-webd.conf`
+invocation after distro PAM activation. Neither command executes at its selected
+pause. Private command witnesses prove the actual fault was reached; an unrelated
+package failure or absent completion marker alone cannot count. Mount identity,
 native empty-token authentication/account results and retained expiry are
 independent observations. Ubuntu's vendor account stack maps expiry to its
-requisite denial; Fedora preserves expiry or the earlier shared admission denial.
+requisite denial. After Fedora PAM activation, GDM and systemd-user reach vendor
+expiry while login/sshd receive the shared service-boundary denial. The installed
+lifecycle's read-only expiry reader keeps shadow credentials out of the recorder.
 No product test hook or second installation route is used.
 Ubuntu dependency configuration can enable newly unpacked default profiles
 before the product's explicit activation. For the first interruption only, an
@@ -308,10 +267,10 @@ the native daemon makes a new cache private at startup while all cache bytes,
 ownership and extended attributes remain exact. The broker's native private
 state-directory group normalization likewise preserves the marker inode,
 root ownership, private mode and bytes; every other identity field stays exact.
-The reboot endpoint uses the shared native execution boundary and both ordinary
-roles' scope checks with MAC enforcement continuously enabled. The complete
-standalone confinement matrix additionally retains its deliberate policy-loss
-faults; those faults are outside this first-configuration history.
+The reboot endpoint checks selected session/PAM composition and both ordinary
+roles' real execution and scope controls with Fedora SELinux enforcement enabled.
+It supplies no removed private-policy or execution-fence proof. Deliberate reachable
+escape-route checks remain with their independently allocated histories.
 
 `enforcement` → `test_kiosk_login_admission` checks the installed
 `gdm-password`, `login` and `sshd` account stacks through libpam's `pam_start`
@@ -331,118 +290,26 @@ an unconfined synthetic caller must not create that inode with a different type.
 The fixture changes no policy or runtime-lock label and cleans up its own
 interpreter after success or failure.
 
-`enforcement` → `test_kiosk_writable_sibling_isolation` (290) keeps one public
-station entry, host replacement and restoration together in the dedicated
-`sibling-isolation` phase. `system_kiosk_confinement` creates attempt-owned inert
-siblings under `/usr/share`: root-owned 0775/0777 directories, ordinary-user-owned
-0755/0555 directories and a user-owned 0644 file. The existing public station
-helper observes the usable form and normal Cancel/greeter return. Independent
-live process-root reads require empty directories and an absent file; the
-complete confinement census and native positive/denied execution remain
-enforcing. Both ordinary roles retain contents/access. One masked directory and
-the omitted file are replaced while the same manager, namespace and generation
-remain live, then their exact original inodes and bytes are restored. Cleanup
-refuses changed identities or unknown contents and removes only recorded inputs.
+The [current engineering disposition map](../../docs/SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions)
+owns cases 267–271 and 289–294. Only 267 (installed session composition),
+268 (account/routing admission) and 271 (ordinary-role controls) retain runnable
+bindings in this family. Cases 269/289/290/291/293/294 are pending with explicit
+surviving behavior and receiving tasks; 270/292 are retired private-mechanism
+witnesses. Numeric IDs and original evidence remain reserved.
 
-`enforcement` → `test_kiosk_required_ancestor_refusal` (291) keeps the complete
-required-input refusal/restoration/recovery history in one `required-ancestor`
-attempt. The canonical confinement helper records `/usr/lib/systemd` and its
-required executable, original inode/owner/mode and executable digest before
-adding only group write permission, including with group root. Real native PAM
-must refuse at executable inventory with `untrusted-path`; a separate public
-GDM selection must produce new preparation/native denials and no station
-session. `kiosk_entry.observe_station_refusal` independently reads GDM's safe
-fallback without a password or an error-text oracle. A missing or duplicated
-station label permits only another bounded read, never input authority.
-Restoration verifies the recorded inode/owner/bytes and expected mode before
-changing it back. Fresh public passwordless entry must reach the loaded form;
-the full confinement census, allowed native execution and an attributed enforcing
-shell denial remain required. Both ordinary roles retain metadata, contents,
-execution access and actual installed PAM authentication/account success before,
-during and after refusal. Existing fixture credentials travel on guarded stdin
-and are never changed. Public Cancel, inactive-manager checks, exact fixture
-restoration and runner baseline restoration complete cleanup.
+The shared census now observes session/service identity only and explicitly
+reports that confinement is unqualified. Public form, approval, Preferences
+and feedback results remain independent. Optional notification/agent services
+do not veto the form. Private namespace, generation, retained-view, ambient-mask,
+global material and continuous native-library assertions are removed together
+with their workers and host doubles. Registration and host checks supply no
+renewed installed qualification.
 
-For bounded diagnosis, `tools/test-vm --vm NAME reproduce-kiosk-refusal` selects
-the station once through the same guarded helper and retains three read-only
-fallback samples in the existing recovery allocation. The caller owns any
-deliberate fault and its restoration. This route leaves the maintenance guest
-available for probes and grants no acceptance; use the complete system selector
-for qualification.
-The runner freezes both guest mechanics and the public observer's host closure.
-This is installed engineering qualification; historical both-target receipts
-remain in the [implementation baseline](../../docs/Kiosk-Session-Confinement-Plan.md#implementation-baseline).
-The [successor acceptance](../../docs/Kiosk-Session-Confinement-Plan.md#acceptance) owns
-current candidate applicability and compatibility qualification.
-The Fedora vendor-caller probe carries native stderr over a separate inherited
-nonblocking pipe because its real caller domain cannot write the harness's
-temporary capture files. Result and diagnostic channels stay distinct and bounded;
-no product permission is added for the engineering fixture.
-
-`enforcement` → `test_kiosk_native_bootstrap_permissions` (292) is the bounded
-real-policy bootstrap qualifier for the existing native implementation.
-Its applicability to the redesign follows the
-[scope reconciliation](../../docs/Kiosk-Session-Confinement-Plan.md#scope-reconciliation).
-It uses the ordinary enforcement
-phase and its frozen guest input closure, with one owned manager invocation.
-It qualifies fresh manager PAM, retained gate PAM, copied systemd/executor
-entrypoints and notify-reload reexecution under the installed enforcing policy.
-Independent proc/pidfd, source/view, descriptor and policy/PAM observations remain
-required; a PAM success alone is insufficient. It runs no package/plugin
-replacement matrix and grants no public request-form acceptance.
-
-`enforcement` → `test_kiosk_shared_integration_scope` checks preserved vendor
-PAM callback bytes/options and the manager credential fallback, then starts and
-stops one owned ordinary administrator and standard-user manager. It also
-reuses the complete namespace callback qualifier below, keeping both-role
-callback and policy assertions in one retained result. Both roles
-must retain their measured ordinary security labels, global executable inodes
-and generation, vendor unit hardening and D-Bus launch/environment, and usable
-shell/Python/GJS transient services. Effective unit paths and drop-ins must
-exclude the kiosk's private overrides; Ubuntu's six private Snap masks must not
-mask ordinary vendor units. Shared audio and Wellbeing launchers must preserve
-ordinary settings/startup environments. Invocation guards prevent cleanup from
-stopping a preexisting or replacement manager. This engineering selector does
-not authenticate a graphical login or separately measure keyring autostart;
-the public ordinary-desktop qualifier owns login/desktop availability.
-
-`enforcement` → `test_kiosk_platform_integrations` owns bounded distro loading
-and service-API qualification in
-[system_kiosk_platform.py](system_kiosk_platform.py). It records the actual
-WirePlumber executable, mapped Lua/native library hashes, package/source owners
-and shipped script hashes, requiring unmodified distro packages and trusted
-storage. Hostile startup directories must not replace the fixed system roots.
-The actual mapped Lua library must load a cwd canary with default paths, then
-refuse it with the launcher's empty paths. Both probes run as the kiosk UID.
-
-The same-user `sm-objects` metadata API first loads a trusted genuine ELF far
-enough to reach its missing LADSPA descriptor, then must produce an exact
-enforcing kernel mapping denial for an identical user-owned copy. The retained
-property identifies the live audio PID, path and audit record. Ubuntu's single
-negative request is spaced by its existing bounded printk audit interval;
-Fedora reads auditd's bounded log tail. Neither audit settings nor policy change,
-and a missing denial is a failure. Transient services also exercise native
-positive execution, rejected unconfined profile/context selection and forbidden
-shell execution when profile-setting errors are ignored.
-
-The execution and platform matrices share `require_service_denial` in
-`system_kiosk_confinement.py`. Each manager command, writable executable/alias,
-`ExecStart=+` unit and profile/context request retains its own unit invocation,
-executor PID, target/loader identities, native failure step/error and fresh
-matching enforcing AppArmor/SELinux event. Failed units remain available until
-those observations are saved, then only the matching invocation is reset.
-Native status alone, missing inputs/loaders and unrelated setup errors fail.
-Successful native controls precede the negatives; the writable unit also pins
-its exact bytes/metadata, loaded fragment and effective privileged-prefix flag.
-
-Small planted runtime files are deliberate user-runtime test targets, rather
-than a report or scratch root. Root holds their directory descriptor, writes
-exclusively and checks every owned inode before cleanup; foreign or replaced
-entries refuse cleanup. The helper stops only its recorded manager invocation
-and deletes only its metadata key. Diagnostics and results remain in the
-controller's existing private allocation. These engineering checks remain
-separate from customer journeys and do not attest to every optional native
-plugin or the remaining scanner/lifecycle acceptance.
+`test_kiosk_shared_integration_scope` retains both ordinary account roles,
+finite current distro-PAM readiness, ordinary vendor processes/services and
+usable shell/Python/GJS controls. It stops only its recorded manager invocation.
+It does not authenticate graphical login or certify vendor/administrator denial
+variants. Those installed histories remain separate obligations.
 
 The `removal::test_remove_reboot_reinstall` selector starts product-free and
 keeps installation, configuration,
@@ -831,12 +698,9 @@ failed test assertion.
   the [E2E contract and regressions](../e2e/README.md#customer-reboot-observation-boundary).
 - `owned_commands.Commands`: pins directly spawned host/guest processes and
   bounds interruption cleanup. No guessed process discovery or ownership.
-- `test_kiosk_namespace_guard_callbacks`: under the exclusive guest lease,
-  exercises real PAM namespace open/init/close and credential callbacks with a
-  unique temporary configuration and four directly forked, bounded workers.
-  It verifies root, prepared administrator and standard-user callbacks, the
-  kiosk skip and parent namespace isolation. The configuration is removed only after inode/content checks;
-  attempt restoration owns recovery. It changes no host PAM or namespace state.
+- Private namespace callback case 270 is retired. The current
+  [disposition map](../../docs/SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions)
+  keeps ordinary PAM/callback outcomes with their actual current consumers.
 - `test_kiosk_account_classification_survives_reboot`: the package area exercises
   fresh caching, retained-visible no-op retries, retained-hidden disk/live-state
   disagreement and unsafe-state refusal/recovery. Its complete cache-byte oracle

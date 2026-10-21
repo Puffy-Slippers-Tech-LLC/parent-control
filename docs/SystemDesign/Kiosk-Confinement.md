@@ -852,7 +852,7 @@ The label and acceptance claims remain unchanged; no predecessor is re-executed
 or newly checked by this destination-only retention repair.
 
 Host acceptance passed with no declared targets: **1,239 unit and 202 UI checks**
-in the [focused report](../../output/test-runs/host/reports/20261021T033844Z-8b8d01a7/report.md).
+in the [focused report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Its inventories retain the exact ten-module unit selection, complete request
 component/layout/language modules and focused feedback, identity, preview,
 About and draft-preservation cases. All kiosk/overlay parameters, including the
@@ -873,9 +873,193 @@ row's completion, relative order, Scope and Requires remains unchanged.
 Close-out passed **639 metadata checks** in the four maintained host consistency
 modules plus `test_execution_plan_launcher.py`, with a 600-second worker deadline
 and completed cleanup; see the
-[close-out report](../../output/test-runs/host/reports/20261021T040636Z-202b3281/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Coverage generation, Markdown links, plan structure and the final diff check
 passed. Both acceptance reports remain retained.
+
+##### C04a installed engineering dispositions
+
+The installed-helper audit starts from the C03 source baseline. The only
+pre-existing untracked work is `.worktrees/`, outside this task's ownership.
+No staged or unstaged old-plan helper delta exists separately from the checked-in
+consumers. The following bindings describe source readiness, not installed
+qualification or passing customer results. Numeric IDs and historical evidence
+remain reserved; a removed implementation never makes its ID reusable.
+
+| IDs / consumers | Current disposition and surviving obligation |
+| --- | --- |
+| 267, `system_kiosk_confinement.verify_session_composition` | Runnable engineering composition read: selected account/routing, finite distro PAM verification and shipped GNOME Kiosk session/app definitions. The old name remains the stable case selector. This grants no execution-fence proof. Deliberate reachable routes require the C06–C08 protections and C10 final binding review. |
+| Entry, installation activation, Preferences and feedback census callers | The shared `census()` observes the live logind Wayland session and required compositor/app identities. Its result explicitly says `session-identity-only` and `confinement_qualified: false`. Optional providers have no startup vote. This replaces the all-process/private namespace/generation/MAC-role census; public form/editor observations remain independent. C04b maps the exact changed compositions; C04u/C04f renew entry/approval qualification. |
+| 268, admission | Runnable installed account-only PAM/routing checks retain ordinary-account positives, empty kiosk token, deliberate alternate session/transport refusal, retry and exact restoration. Fedora's engineering caller fixture and root-held PAM-handle cleanup remain. They do not prove graphical sign-in, session callbacks or an enabled SSH/remote-desktop route. C06a/C07 and later public acceptance own those results. |
+| 271, ordinary integration scope | Runnable ordinary administrator/standard-user controls retain vendor execution, selected distro PAM readiness and invocation-owned manager cleanup. Private executable-generation, namespace and ambient-mask equality assertions are removed. Vendor/admin-denial histories and ordinary graphical login remain separate installed checks. |
+| 269 | Pending reachable startup/audio input checks with ordinary-use controls under C08 and final C10 mapping. Removed the unconsumed platform library/MAC/loading audit and its host doubles; continuous distro library auditing is outside the threat model. |
+| 270, 292 | Retired private namespace-callback and native bootstrap/loader matrices. Shared PAM/ordinary-role behavior survives in 268/271 and lifecycle histories; no private namespace/loader mechanism is required. |
+| 289 | Pending complete real dependency-update, retained use, normal exit and fresh-entry history under C09c1/C10. Removed the obsolete private-manager/bubblewrap/generation/loader-refusal worker and phase dispatch. Finite native input builders and their independent integrity guards remain; neither those inputs nor historical receipts qualify the rebuilt product. |
+| 290, 293 | Pending unrelated writable/ambient host variation with usable repeated entry under C09/C10. Removed masked-sibling/view equality, private source-pin mutation workers, phase dispatch and host doubles. Unknown ambient content has no admission vote. |
+| 291, 294 | Pending essential-service recovery and owned interrupted-state recovery under C09b/C09c/C10, preserving original useful causes and foreign/live state. Removed deliberate global inventory/required-generation refusal and forced-reboot workers. Ordinary machine variation must not be called a successful protective refusal. |
+| Frozen inputs and evidence | Import closure still derives from actual current consumers through `guest_inputs.Bundle`; no missing-module guard is weakened. Historical checkpoint exports remain bounded read-only readers. No existing bundle, report, recording, input or VM baseline is deleted or adopted. Changed helper bytes invalidate old qualification even when a callable name is unchanged. |
+
+`system_case_ids.UNBOUND_CASES` records pending/retired reserved bindings and
+refuses their accidental executable registration. Only current pytest selectors
+are runnable. The installed runner list and host registration/composition checks
+must be validated again after the final caller port. The current read-only list
+shows 267/268/271 and the ordinary enforcement cases, with all eight removed
+bindings explicitly pending/retired. The list alone does not qualify a binding.
+
+The audit exposed three independent unfinished families, now prerequisites
+C04a1–C04a3 immediately before this consumer:
+
+- Case 4: `system_first_configure.fault_command`, `configure_fault`, `exercise`
+  and `quarantine_statuses` assumed consumed PreSession writes, private policy
+  loading or old callback ordering. The [C04a1 port](#c04a1-first-configuration-interruption-inputs)
+  binds actual finite interruption inputs while retaining quarantine, genuine
+  ordinary positives and retry/reboot; installed qualification remains pending.
+- Cases 6–25: removal's foreign-integration, rollback/rearmed, finalization,
+  post-erase, ownership and filesystem-refusal histories still assume fresh
+  legacy records/hooks or the removed integration CLI. Map complete histories
+  to selected lifecycle records, distinguishing explicit legacy migration from
+  fresh installation. The current readiness/live-holder port is partial.
+- Cases 283–286: PAM `pending_retry` still expects removed strict vendor-text
+  refusal, fresh legacy records and obsolete activation exclusions. Preserve
+  vendor/admin authority and the full install/reconfigure/reboot/remove history.
+
+C04a keeps its original scope and host acceptance and receives **no acceptance
+credit** from this suspension. Only its Requires chain gains the three explicit
+prerequisites; their briefs name the exact remaining sources and checks.
+
+Supporting host validation completed with 600-second worker deadlines. The
+[initial 2,661-case attempt](../../output/test-runs/host/exports/onpc-evidence-bundle-_ba0ncb0/evidence.zip)
+passed 2,640 and exposed 21 maintenance failures: eleven unconsumed retired
+history-cleanup tests, nine admission doubles missing the newly required guard,
+and a stale frozen-input expectation. The eleven obsolete tests were removed
+with their producer; current manager/command ownership checks remain. The
+[focused repair and metadata attempt](../../output/test-runs/host/exports/onpc-evidence-bundle-_ba0ncb0/evidence.zip)
+passed 762/763, including all nine guard repairs, retained cleanup checks and
+all 639 metadata checks. Its remaining frozen-input smoke imported the now
+unconsumed enforcement module; the
+[exact 12-case input retry](../../output/test-runs/host/exports/onpc-evidence-bundle-_ba0ncb0/evidence.zip)
+passed after following only the actual current setup closure. Assertions still
+verify immutable staging and successful isolated imports; the dependency guards
+were not weakened. These retained attempts validate the partial port, not the
+unfinished lifecycle histories or installed product.
+
+Those three exact original report directories, including selections, results,
+failures and cleanup-complete runs, are retained in the verified 35-file partial
+evidence bundle above (SHA-256
+`eadf859397893dad03839be7b2afc6890c395bd22753323ed7ece0323fccd6f3`).
+Their original report IDs are `20261021T041636Z-5f2c9cf9`,
+`20261021T041906Z-3138deea` and `20261021T042018Z-d3d62d3e` respectively.
+This export preserves results, including superseded failures; it supplies no
+consumer acceptance credit and deletes no source evidence.
+
+The final entry/Preferences/feedback caller doubles now use the same explicit
+session-only census shape instead of retained MAC-role dictionaries. The retained
+C04a handoff records their 823-case check as passed with a 600-second worker
+deadline and completed cleanup (original report `20261021T042302Z-0ba76be0`).
+That detailed report has rotated; this historical summary grants no current
+acceptance, and C04a still requires its full host validation after its prerequisites.
+Public entry,
+recipient/boot guards, unsent feedback and Preferences worker ordering assertions
+remain. Coverage generation succeeded again after the final collection edit.
+
+Coverage generation, plan validation, Markdown links and diff checks pass.
+Resource review covers all affected unit and cleanup inventories: private
+pytest files and account/PAM/systemd/transport doubles retain existing isolation;
+retired fixtures reduce ownership, and no new shared path, service, bus, display,
+cache or process lifetime is introduced. Current public UI observations and
+single-use input guards are retained independently of the engineering census.
+**Usability priority: passed; Threat scope: passed** for the partial automation
+port: no product restriction is added and no absent provider counts as denial.
+No packaged source/build dependency changes; no build or backend review applies.
+
+The maintained bundle reader verified C03's accepted result, exact 1,239-unit /
+202-UI and 639-metadata inventories/results, command-record identity and completed
+cleanup in `onpc-evidence-bundle-ffjb5p_3` (SHA-256
+`95c46e233b668fe5a5f0c844fd240e7a7d9bfb68948fe4f8a18bd01e88e8d100`).
+Its two report destinations now use the stable accepted-proof locator; their
+labels, result claims and predecessor completion remain unchanged.
+
+All helper agents are joined/stopped. Maintained test/generation children and
+owned scratch cleanup completed; no task-owned VM, installed state, temporary
+source or live process remains. Reports and historical bundles are preserved.
+No installation, staging, commit, push or other workflow launcher occurred.
+At suspension, C04a and all three prerequisites stayed unchecked; the sole pointer selected C04a1.
+Every other existing row's status, relative order, Scope and Requires is unchanged.
+
+##### C04a1 first-configuration interruption inputs
+
+Stable system case **4** retains its product-free install, two interruption
+pauses, owned passwordless retry, successful configuration and normal reboot
+history. The current source in
+[`system_first_configure.py`](../../tests/integration/system_first_configure.py)
+replaces the unused GDM directory and removed private policy-loader faults with
+exact native-command refusals through the existing identity-owned mount helper:
+
+| Pause | Current command and independent outcome |
+| --- | --- |
+| After visibility, before the first integration write | `/usr/bin/install -o root -g root -m 0644 /usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules`; exact private witness, absent target/ownership record and incomplete configuration. |
+| After distro PAM activation, before lifecycle commit/release | `/usr/bin/systemd-sysusers malcontent-timer-extension-agent.conf malcontent-timerd.conf malcontent-webd.conf`; exact private witness, real selected PAM readiness and incomplete configuration. |
+
+Neither selected native command executes. Other invocations delegate to the
+original tool. Wrapper/original bytes, mode, xattrs and pinned mount identities
+retain the shared restoration contract; an unrelated failure supplies no fault
+credit. Ubuntu's early default-profile deferral remains scoped to the first
+pause, preserving the real interval before the shared gate is active.
+
+Both ordinary roles' account positives precede kiosk negatives. The retained
+UID-bound quarantine record and native expiry reader now come from the installed
+lifecycle, avoiding the removed provisioner callback and keeping credentials out
+of recorded commands. Ubuntu still maps expiry to status 7. After Fedora PAM
+activation, GDM/systemd-user reach native expiry (13), while login/sshd receive
+the shared service-boundary denial (6). These are current callback bindings,
+not new product behavior or installed observations.
+
+Identity continuity, failed-manager recovery, final empty-token authentication,
+reboot request/clearance, selected session/PAM composition and both ordinary
+roles' real execution/scope controls remain. Removed only case-local obsolete
+directory/loader selection, unused after-success fault support and private MAC
+role witnesses. Shared removal fault tools remain consumed by removal histories;
+the frozen closure still follows actual imports and rejects missing helpers.
+
+The [installed-history owner](../../tests/integration/README.md) distinguishes
+historical accepted receipts from pending qualification of these changed inputs.
+This prerequisite grants no installed acceptance or C04a consumer completion.
+
+Host acceptance used explicit 600-second worker deadlines. The
+[verified 35-file evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-awajp7xl/evidence.zip)
+retains all selections, outputs and original failures from reports
+`20261021T043004Z-ed5f0e7b`, `20261021T043128Z-ef1ccbb8` and
+`20261021T043222Z-228ef04c` (bundle SHA-256
+`13647d9ad0d86ad3ce62a782791ba6e7541db330a343cb9bb767cff9002b81b1`).
+The initial 1,398-case first-configuration/fault/cleanup/guest-input/runner/
+admission/resource selection passed 1,395 and exposed three new host-fixture
+defects. Two rendered-postinst checks needed the real Debian frontend setting
+to retain its completion marker; the frozen import check needed the runner's
+declared asset aliases and complete fixture registry. The 741-case retry passed
+740, including both real-command pauses/retries on both distro templates and
+the complete consistency/launcher selection. The exact 13-case guest-input
+retry then passed, including immutable staging/import of case 4's real closure.
+No assertion, missing-module guard or product behavior was weakened.
+The final [313-case host consistency check](../../output/test-runs/host/reports/20261021T043447Z-6ca8632e/report.md)
+passed after queue/pointer/brief close-out. Plan validation selects C04a2;
+all 300 links in the four changed Markdown owners and the diff check pass.
+
+Resource review covers the affected unit and existing cleanup inventories:
+pytest-private files, relocated maintainer-script machines, bounded waited
+shell/Python children, process-local PAM/command doubles and forwarded scratch
+leases. Existing compatible classifications remain valid; no real mount,
+service, package manager, account, VM, bus, display or shared cache is acquired.
+The common mount tests retain foreign-state refusal, namespace/source/inode
+checks and exact restoration. **Usability priority: passed; Threat scope:
+passed** for this test-input port: no product restriction or absent-provider
+denial is introduced. Product/build inputs are unchanged, so no package build
+or mandatory core-backend review applies.
+
+Both helpers are joined/stopped. Runner-owned children and scratch lifetimes
+finished, export cleanup verified complete, and historical reports/bundles are
+preserved under maintained retention. No VM or installed state was acquired;
+no installation, staging, commit, push or workflow execution occurred. C04a2
+and C04a3 remain unfinished, and C04a retains all its acceptance obligations.
 
 ##### C02a prepared session runtime
 
@@ -2087,7 +2271,7 @@ positive controls; public E2E checks establish observable customer results.
 
 | Scenario ID | Offense scenario | Current defense and proof obligation |
 | --- | --- | --- |
-| 1 | Select the station with a normal desktop. | Routing checks repair and deny the current attempt; the final PAM boundary separately constrains actual exec. [Admission](../../tests/integration/system_kiosk_admission.py#L363), [final-exec matrix](../../tests/integration/system_kiosk_confinement.py#L1984). |
+| 1 | Select the station with a normal desktop. | Routing checks repair and deny the current attempt; the final PAM boundary separately constrains actual exec. [Admission](../../tests/integration/system_kiosk_admission.py#L363), [final-exec matrix — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
 | 2 | Select an X11 station session. | Saved and actual PAM transport must be Wayland. The account-stage test proves denial/repair/retry, not a complete X11 session. [Admission matrix](../../tests/integration/system_kiosk_admission.py#L363). |
 | 3 | Log in to a text console as the station. | Native `login` PAM denies the identity, backed by nologin; ordinary-account positive control remains. [Admission assertions](../../tests/integration/system_kiosk_admission.py#L348). |
 | 4 | Log in remotely by SSH as the station. | Installed `sshd` account gate denies it and effective SSH configuration uses PAM. This is not a complete network login proof. [SSH/admission assertions](../../tests/integration/system_kiosk_admission.py#L363). |
@@ -2099,28 +2283,28 @@ positive controls; public E2E checks establish observable customer results.
 | 10 | Launch a browser, chooser or management window from About/Help. | Information remains in-app and unfinished request state survives. [Case 192](../../tests/e2e/kiosk_about.py). |
 | 11 | Escape through Preferences or nested editors. | Exposed controls reject forbidden actions; cancelled drafts preserve the request and confined process census. [Preferences qualifier](../../tests/integration/check_e2e_kiosk_preferences_confinement.py). |
 | 12 | Escape through reporting or privacy disclosure. | Editing/navigation remain in-app; qualifier checks waiting-session confinement without submission. [Feedback qualifier](../../tests/integration/check_e2e_kiosk_feedback_confinement.py). |
-| 13 | Ask services to launch a shell, generic interpreter or alternate desktop. | Role-specific MAC restricts manager/service execution with positive native controls and fresh enforcing denials. [Execution matrix](../../tests/integration/system_kiosk_confinement.py#L1984). |
-| 14 | Copy/rename an allowed binary or symlink a writable interpreter. | Trusted private paths/inodes and transitions determine execution authority. [Writable-input assertions](../../tests/integration/system_kiosk_confinement.py#L1414). |
-| 15 | Execute via loader, open descriptor or memfd. | Actual final-exec gate denies these routes after an allowed native control. [Final-exec matrix](../../tests/integration/system_kiosk_confinement.py#L1984). |
-| 16 | Use a user unit with a privileged command prefix. | `ExecStart=+` cannot remove manager MAC or grant root. [User-unit assertions](../../tests/integration/system_kiosk_confinement.py#L1414). |
-| 17 | Select no security profile, including ignored setup errors. | Kernel boundary still denies forbidden exec. [Service-API assertions](../../tests/integration/system_kiosk_platform.py#L340). |
-| 18 | Inject writable startup scripts/configuration. | Fixed launchers clear injection; audio uses system roots and empty default Lua paths. Qualified inputs are finite. [Startup/Lua assertions](../../tests/integration/system_kiosk_platform.py#L186). |
-| 19 | Load a writable native audio plugin. | Kernel executable-mapping denial follows a genuine trusted-library positive control. [Native audio API assertions](../../tests/integration/system_kiosk_platform.py#L285). |
-| 20 | Substitute report editor web/media helpers or writable code. | Bootstrap/payload roles and pinned native paths reject tested substitutions. [Bubblewrap assertions](../../tests/integration/system_kiosk_confinement.py#L1245). |
-| 21 | Use a decoder/sandbox helper for onward exec or host mount changes. | Finite decoder route has no onward exec; namespace administration belongs only to bootstrap roles. Role policy (`tools/kiosk_confinement_policy.py`), [bubblewrap assertions](../../tests/integration/system_kiosk_confinement.py#L1245); unknown vulnerabilities are outside this proof. |
-| 22 | Turn the password helper into a privileged launcher. | Finite vendor helper transition checks credentials, label, parent and pinned executable/namespace. [Helper assertions](../../tests/integration/system_kiosk_confinement.py#L197), [public authentication](../../tests/e2e/restricted_station.py). |
+| 13 | Ask services to launch a shell, generic interpreter or alternate desktop. | Role-specific MAC restricts manager/service execution with positive native controls and fresh enforcing denials. [Execution matrix — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 14 | Copy/rename an allowed binary or symlink a writable interpreter. | Trusted private paths/inodes and transitions determine execution authority. [Writable-input assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 15 | Execute via loader, open descriptor or memfd. | Actual final-exec gate denies these routes after an allowed native control. [Final-exec matrix — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 16 | Use a user unit with a privileged command prefix. | `ExecStart=+` cannot remove manager MAC or grant root. [User-unit assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 17 | Select no security profile, including ignored setup errors. | Kernel boundary still denies forbidden exec. [Service-API assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 18 | Inject writable startup scripts/configuration. | Fixed launchers clear injection; audio uses system roots and empty default Lua paths. Qualified inputs are finite. [Startup/Lua assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 19 | Load a writable native audio plugin. | Kernel executable-mapping denial follows a genuine trusted-library positive control. [Native audio API assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 20 | Substitute report editor web/media helpers or writable code. | Bootstrap/payload roles and pinned native paths reject tested substitutions. [Bubblewrap assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 21 | Use a decoder/sandbox helper for onward exec or host mount changes. | Finite decoder route has no onward exec; namespace administration belongs only to bootstrap roles. Role policy (`tools/kiosk_confinement_policy.py`), [bubblewrap assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions); unknown vulnerabilities are outside this proof. |
+| 22 | Turn the password helper into a privileged launcher. | Finite vendor helper transition checks credentials, label, parent and pinned executable/namespace. [Helper assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions), [public authentication](../../tests/e2e/restricted_station.py). |
 | 23 | Change the station desktop or manage parent policy. | Root routing/Polkit and independent broker roles protect those operations. [Routing recovery](../../tests/integration/system_kiosk_admission.py#L363), [broker matrix](../../tests/system/test_authorization.py#L114). |
-| 24 | Use package replacement/reexec to acquire new unrestricted code. | Current private directory dentries preserve code/library inputs; manager thread boundaries remain checked. [Replacement/reexec assertions](../../tests/integration/system_kiosk_confinement.py#L1510). |
-| 25 | Retain a manager across required configuration changes. | Current exact material/receipt checks can require reboot. Availability and safe renewal replace that mechanism under the [new acceptance contract](../Kiosk-Session-Confinement-Plan.md#acceptance). [Existing configuration check](../../tests/integration/system_kiosk_confinement.py#L2015), [generation refusal helper](../../tests/integration/system_native_update.py#L743) remain current tests. |
-| 26 | Enter with missing/stale/disabled/permissive security policy. | Required loaded enforcement/attestation deny unsafe admission; restoring owned policy permits recovery. This does not prove administrator policy removal from a live session. [Policy-loss assertions](../../tests/integration/system_kiosk_confinement.py#L1710). |
+| 24 | Use package replacement/reexec to acquire new unrestricted code. | Current private directory dentries preserve code/library inputs; manager thread boundaries remain checked. [Replacement/reexec assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 25 | Retain a manager across required configuration changes. | Current exact material/receipt checks can require reboot. Availability and safe renewal replace that mechanism under the [new acceptance contract](../Kiosk-Session-Confinement-Plan.md#acceptance). [Existing configuration check — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions), [generation refusal helper — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions) remain current tests. |
+| 26 | Enter with missing/stale/disabled/permissive security policy. | Required loaded enforcement/attestation deny unsafe admission; restoring owned policy permits recovery. This does not prove administrator policy removal from a live session. [Policy-loss assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
 | 27 | Enter during interrupted configuration or before required reboot. | Account expiry remains until configuration completes; restart surface exposes no usable policy controls. [Configuration/reboot histories](../../tests/system/test_install_smoke.py#L36). |
-| 28 | Reboot after partial package unpack to adopt unconfigured files. | Successful-load digest pair must match configuration/policy. [Attestation-drift assertions](../../tests/integration/system_kiosk_confinement.py#L1659). |
-| 29 | Race login, reload or package writes. | Identity-checked locks serialize current admission/lifecycle publication. Compatibility target must preserve safety while avoiding unnecessary contention rejection. [Held-admission assertions](../../tests/integration/system_kiosk_confinement.py#L1948). |
-| 30 | Escape through background processes or login teardown. | Manager/executor/PAM helper retain current enforcing roles through credentials and teardown, including parent exit. [PAM lifecycle](../../tests/integration/system_kiosk_confinement.py#L1005), [waiting census](../../tests/integration/system_kiosk_confinement.py#L93). |
+| 28 | Reboot after partial package unpack to adopt unconfigured files. | Successful-load digest pair must match configuration/policy. [Attestation-drift assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 29 | Race login, reload or package writes. | Identity-checked locks serialize current admission/lifecycle publication. Compatibility target must preserve safety while avoiding unnecessary contention rejection. [Held-admission assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
+| 30 | Escape through background processes or login teardown. | Manager/executor/PAM helper retain current enforcing roles through credentials and teardown, including parent exit. [PAM lifecycle — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions), [waiting census — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions). |
 | 31 | Use keyring, namespace setup or cleanup callbacks before/after confinement. | Current kiosk-only guards exclude reviewed callbacks; ordinary users retain them. [Namespace case](../../tests/system/test_enforcement.py#L28), [shared PAM case](../../tests/system/test_enforcement.py#L33). |
 | 32 | Activate a desktop service around launcher restrictions. | Finite kiosk unit masks/private D-Bus definitions block reviewed Snap routes. This is not proof against every future activation service. [Scope assertions](../../tests/integration/system_kiosk_scope.py). |
 | 33 | Remove the product while kiosk execution persists. | Active state blocks current removal; durable PAM denials precede unload/erasure and account deletion precedes PAM restoration. [Removal cases](../../tests/system/test_removal.py), [ownership contract](Package-Removal.md#pam-and-kiosk-ownership). |
-| 34 | Substitute account records, aliases or cleanup inputs. | Alias ancestry and lifecycle identity/ownership/link/mount checks refuse foreign state rather than adopting/deleting it. [Alias assertions](../../tests/integration/system_kiosk_confinement.py#L1615), [removal cases](../../tests/system/test_removal.py). |
+| 34 | Substitute account records, aliases or cleanup inputs. | Alias ancestry and lifecycle identity/ownership/link/mount checks refuse foreign state rather than adopting/deleting it. [Alias assertions — retired; current disposition](Kiosk-Confinement.md#c04a-installed-engineering-dispositions), [removal cases](../../tests/system/test_removal.py). |
 
 ## Verification scope and evidence limits
 

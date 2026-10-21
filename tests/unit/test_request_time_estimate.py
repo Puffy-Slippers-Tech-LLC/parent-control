@@ -8,6 +8,7 @@ import pytest
 from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.diagnostic_events import decode
 from oh_no_parent_control_kiosk.main import RequestWindow, _time_estimate_label
+from oh_no_parent_control_kiosk.model import RequestState
 from oh_no_parent_control_kiosk.request_content import RequestContent
 from tests.support.objects import bind_methods
 from oh_no_parent_control_kiosk.agent_locale import KioskAgentLocale, agent_environment, UNIT
@@ -28,6 +29,7 @@ def estimate_window():
     )
     return bind_methods(SimpleNamespace(
         _request_content=form, _estimate_closed=False, _estimate_revision=1,
+        _request_revision=0,
         _estimate_in_flight=False, _estimate_debounce_id=0,
         _state=SimpleNamespace(in_flight=False),
         _stack=SimpleNamespace(get_visible_child_name=lambda: "request"),
@@ -423,22 +425,218 @@ def test_agent_restart_waits_for_matching_systemd_job(tmp_path, early, result):
             bus.call.assert_not_called()
 
 
-def test_kiosk_request_waits_for_agent_locale_and_stops_on_failure():
-    window = bind_methods(SimpleNamespace(
-        _pending_request=(1001, 1000, 300, False), _child_overlay=False,
+def request_window(overlay=False):
+    form = Mock()
+    form.selected.return_value = (1001, '[Child user]', 1000, 300, False)
+    form.selected_preferences.return_value = ('300', 5.0, False)
+    form.custom_unit.return_value = 'minutes'
+    return bind_methods(SimpleNamespace(
+        _preview=False, _child_overlay=overlay, _estimate_closed=False,
+        _state=RequestState(), _request_revision=0, _request_stage=None,
+        _pending_request=None, _request_content=form,
         _agent_locale=Mock(), _applied_language='zh-Hans', _desktop_language='zh_CN.UTF-8',
-        _estimate_closed=False, _bus_call=Mock(), _request_failed=Mock(), _request_done=Mock(),
-    ), RequestWindow, ('_preferences_saved', '_agent_prepared'))
-    connection = Mock()
-    window._preferences_saved(connection, object())
-    window._bus_call.assert_not_called()
+        _bus_call=Mock(), _log_duration_selection=Mock(), _set_request_controls=Mock(),
+        _show_error=Mock(), _show_result=Mock(), _show_child_success=Mock(),
+        _schedule_success_logout=Mock(), _queue_time_estimate=Mock(), _stack=Mock(),
+        _startup_clock_handler=0, _whats_new=Mock(), _session_logout=None,
+        _estimate_debounce_id=0, _estimate_refresh_id=0,
+        _cancel_success_dismiss=Mock(), _thunder=None,
+    ), RequestWindow, (
+        '_request_access', '_request_is_current', '_preferences_saved', '_agent_prepared',
+        '_request_done', '_request_failed', '_finish_request', '_on_destroy',
+    ))
+
+
+def finish_request_call(callback, *, values=(), error=None):
+    connection = SimpleNamespace(call_finish=Mock(
+        side_effect=error, return_value=SimpleNamespace(unpack=lambda: values)))
+    callback(connection, object())
+    return connection
+
+
+def prepare_request(window):
+    window._request_access()
+    saved = window._bus_call.call_args.args[3]
+    finish_request_call(saved)
+    if not window._child_overlay:
+        window._agent_locale.prepare.call_args.args[2](None)
+    return window._bus_call.call_args.args[3]
+
+
+def test_kiosk_request_waits_for_agent_locale_and_failure_is_terminal():
+    window = request_window()
+    window._request_access()
+    saved = window._bus_call.call_args.args[3]
+    finish_request_call(saved)
     language, desktop, callback = window._agent_locale.prepare.call_args.args
     assert (language, desktop) == ('zh-Hans', 'zh_CN.UTF-8')
+    assert window._bus_call.call_count == 1
     callback(RuntimeError('restart failed'))
-    window._bus_call.assert_not_called()
-    window._request_failed.assert_called_once()
+    assert not window._state.in_flight
+    window._show_error.assert_called_once()
     callback(None)
+    assert window._bus_call.call_count == 1
+    assert window._pending_request is None
+    # Retry is a new explicit request, never a revival of the failed one.
+    prepare_request(window)
+    assert window._state.in_flight
     assert window._bus_call.call_args.args[0] == 'RequestAccess'
+    calls = window._bus_call.call_count
+    callback(None)
+    callback(RuntimeError('old preparation failure'))
+    assert window._state.in_flight
+    assert window._bus_call.call_count == calls
+
+
+@pytest.mark.parametrize('overlay', (False, True))
+def test_request_snapshot_and_each_async_stage_are_single_use(overlay):
+    window = request_window(overlay)
+    window._request_access()
+    saved = window._bus_call.call_args.args[3]
+    window._request_access()
+    assert window._bus_call.call_count == 1
+    window._request_content.selected.return_value = (1002, '[Child user]', 1010, 600, True)
+    finish_request_call(saved)
+    finish_request_call(saved, error=RuntimeError('duplicate save'))
+    if not overlay:
+        language, desktop, prepared = window._agent_locale.prepare.call_args.args
+        assert (language, desktop) == ('zh-Hans', 'zh_CN.UTF-8')
+        assert window._bus_call.call_count == 1
+        prepared(None)
+        prepared(None)
+        prepared(RuntimeError('duplicate job'))
+    assert window._bus_call.call_count == 2
+    method, parameters, signature, completed, timeout = window._bus_call.call_args.args
+    assert method == ('RequestOwnAccess' if overlay else 'RequestAccess')
+    assert parameters.unpack() == ((1000, 300, False) if overlay else
+                                   (1001, 1000, 300, False))
+    assert signature == ('(ssu)' if overlay else '(ss)')
+    from gi.repository import GLib
+    assert timeout == GLib.MAXINT  # Human authentication has no frontend deadline.
+    correlation = '11111111-1111-4111-8111-111111111111'
+    values = (correlation, 'approved', 300) if overlay else (correlation, 'approved')
+    finish_request_call(completed, values=values)
+    assert not window._state.in_flight
+    assert window._pending_request is None
+    assert window._request_stage is None
+    finish_request_call(completed, error=RuntimeError('duplicate result'))
+    if overlay:
+        window._show_child_success.assert_called_once_with()
+    else:
+        window._show_result.assert_called_once()
+        window._schedule_success_logout.assert_called_once_with()
+    window._show_error.assert_not_called()
+    assert [call.args for call in window._set_request_controls.call_args_list] == [
+        (False,), (True,)]
+
+
+def test_child_language_resolved_during_preferences_save_prepares_current_locale():
+    window = request_window()
+    # A child switch can finish loading request choices before its language
+    # reply arrives. Submission must not freeze the preceding child's locale.
+    window._applied_language, window._desktop_language = 'en', ''
+    window._request_access()
+    saved = window._bus_call.call_args.args[3]
+    window._applied_language, window._desktop_language = 'de', 'de_DE.UTF-8'
+    finish_request_call(saved)
+    language, desktop, prepared = window._agent_locale.prepare.call_args.args
+    assert (language, desktop) == ('de', 'de_DE.UTF-8')
+    prepared(None)
+    assert window._bus_call.call_args.args[0] == 'RequestAccess'
+    assert window._bus_call.call_args.args[1].unpack() == (1001, 1000, 300, False)
+
+
+@pytest.mark.parametrize('overlay', (False, True))
+def test_failed_preferences_callback_cannot_restart_approval(overlay):
+    window = request_window(overlay)
+    window._request_access()
+    saved = window._bus_call.call_args.args[3]
+    finish_request_call(saved, error=RuntimeError('preferences unavailable'))
+    window._show_error.assert_called_once()
+    assert not window._state.in_flight
+    window._request_access()
+    for error in (None, RuntimeError('old preferences failure')):
+        stale = finish_request_call(saved, error=error)
+        stale.call_finish.assert_not_called()
+    assert window._bus_call.call_count == 2
+    assert window._request_stage == 'preferences'
+    assert window._state.in_flight
+    window._agent_locale.prepare.assert_not_called()
+
+
+@pytest.mark.parametrize('overlay', (False, True))
+@pytest.mark.parametrize('outcome', ('denied', 'cancelled', 'failure'))
+def test_finished_attempt_cannot_dispatch_or_finish_a_fresh_request(overlay, outcome):
+    window = request_window(overlay)
+    completed = prepare_request(window)
+    if outcome == 'failure':
+        finish_request_call(completed, error=RuntimeError('unavailable'))
+    else:
+        correlation = '11111111-1111-4111-8111-111111111111'
+        values = (correlation, outcome, 0) if overlay else (correlation, outcome)
+        finish_request_call(completed, values=values)
+        if outcome == 'cancelled':
+            window._request_content.clear_validation_error.assert_called_once_with()
+            window._request_content.show_validation_error.assert_not_called()
+            window._show_error.assert_not_called()
+    window._request_content.selected.return_value = (1002, '[Child user]', 1010, 600, True)
+    window._request_content.selected_preferences.return_value = ('600', 10.0, True)
+    window._request_access()
+    new_saved = window._bus_call.call_args.args[3]
+    controls = window._set_request_controls.call_count
+    for error in (None, RuntimeError('late old result')):
+        stale = finish_request_call(completed, values=('old', 'approved', 300), error=error)
+        stale.call_finish.assert_not_called()
+    assert window._state.in_flight
+    assert window._pending_request == (1002, 1010, 600, True)
+    assert window._request_stage == 'preferences'
+    assert window._set_request_controls.call_count == controls
+    finish_request_call(new_saved)
+    if not overlay:
+        window._agent_locale.prepare.call_args.args[2](None)
+    correlation = '22222222-2222-4222-8222-222222222222'
+    values = (correlation, 'approved', 600) if overlay else (correlation, 'approved')
+    finish_request_call(window._bus_call.call_args.args[3], values=values)
+    assert not window._state.in_flight
+    if overlay:
+        window._show_child_success.assert_called_once_with()
+    else:
+        window._schedule_success_logout.assert_called_once_with()
+
+
+@pytest.mark.parametrize('overlay,stage', ((False, 'preferences'), (True, 'preferences'),
+                                         (False, 'agent'), (False, 'approval'),
+                                         (True, 'approval')))
+@pytest.mark.parametrize('error', (None, RuntimeError('late request failure')))
+def test_destroy_discards_every_pending_request_stage(overlay, stage, error):
+    window = request_window(overlay)
+    window._request_access()
+    callback = window._bus_call.call_args.args[3]
+    if stage != 'preferences':
+        finish_request_call(callback)
+        if not overlay:
+            callback = window._agent_locale.prepare.call_args.args[2]
+            if stage == 'approval':
+                callback(None)
+        if stage == 'approval':
+            callback = window._bus_call.call_args.args[3]
+    window._on_destroy()
+    calls, preparations = window._bus_call.call_count, window._agent_locale.prepare.call_count
+    controls = window._set_request_controls.call_count
+    if stage == 'agent':
+        callback(error)
+    else:
+        stale = finish_request_call(callback, values=('old', 'approved', 300), error=error)
+        stale.call_finish.assert_not_called()
+    window._request_access()
+    assert window._bus_call.call_count == calls
+    assert window._agent_locale.prepare.call_count == preparations
+    assert window._set_request_controls.call_count == controls
+    window._show_result.assert_not_called()
+    window._show_child_success.assert_not_called()
+    window._schedule_success_logout.assert_not_called()
+    window._show_error.assert_not_called()
+    assert window._pending_request is None
 
 
 @pytest.mark.parametrize('finish', ['done', 'failed', 'close'])
@@ -492,6 +690,63 @@ def test_agent_warmup_keeps_latest_language_and_required_request_order(tmp_path)
         done.assert_called_once_with(None)
         assert bus.call.call_count == 2
         assert not agent._queue
+        agent.close()
+
+
+@pytest.mark.parametrize('during_completion', (False, True))
+def test_agent_close_is_terminal_and_discards_queued_reentrant_preparation(tmp_path, during_completion):
+    agent = KioskAgentLocale()
+    agent._locales = ('en_US.utf8',)
+    bus, done, discarded = Mock(), Mock(), Mock()
+    with (patch('oh_no_parent_control_kiosk.agent_locale.GLib.get_user_runtime_dir', return_value=str(tmp_path)),
+          patch('oh_no_parent_control_kiosk.agent_locale.Gio.bus_get_sync', return_value=bus),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.timeout_add_seconds', return_value=42),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.source_remove')):
+        agent.prepare('en', '', done)
+        late = bus.call.call_args.args[-1]
+        agent.warm('de', '')
+
+        def close_and_reenter(_error=None):
+            agent.close()
+            agent.prepare('fr', '', discarded)
+            agent.warm('zh-Hans', '')
+
+        if during_completion:
+            done.side_effect = close_and_reenter
+            agent._completed('done')
+            done.assert_called_once_with(None)
+        else:
+            close_and_reenter()
+            done.assert_not_called()
+        late(bus, object())
+        agent._completed('done')
+        agent._timed_out()
+        assert bus.call.call_count == 1
+        bus.call_finish.assert_not_called()
+        bus.signal_unsubscribe.assert_called_once()
+        assert agent._deadline == agent._subscription == 0
+        assert not agent._queue
+        discarded.assert_not_called()
+
+
+def test_previous_agent_deadline_cannot_fail_the_next_locale_job(tmp_path):
+    agent = KioskAgentLocale()
+    agent._locales = ('en_US.utf8',)
+    bus, done = Mock(), Mock()
+    with (patch('oh_no_parent_control_kiosk.agent_locale.GLib.get_user_runtime_dir', return_value=str(tmp_path)),
+          patch('oh_no_parent_control_kiosk.agent_locale.Gio.bus_get_sync', return_value=bus),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.timeout_add_seconds', side_effect=(41, 42)) as deadlines,
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.source_remove')):
+        agent.warm('en', '')
+        expired_previous_job = deadlines.call_args.args[1]
+        agent.prepare('de', '', done)
+        agent._completed('done')
+        assert bus.call.call_count == 2
+        expired_previous_job()
+        done.assert_not_called()
+        assert agent._deadline == 42
+        agent._completed('done')
+        done.assert_called_once_with(None)
         agent.close()
 
 

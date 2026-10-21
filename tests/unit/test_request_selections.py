@@ -243,6 +243,8 @@ def test_selector_persistence_failures_distinguish_stage_without_contents_or_ide
 def diagnostic_window(overlay):
     window = bind_methods(SimpleNamespace(
         _preview=False, _child_overlay=overlay, _applying_preferences=False,
+        _estimate_closed=False, _request_revision=0,
+        _applied_language='en', _desktop_language='',
         _request_content=Mock(), _state=RequestState(), _bus_call=Mock(),
         _queue_time_estimate=Mock(), _apply_mute=Mock(), _mute_surface=lambda: "kiosk",
         _show_error=Mock(), _set_request_controls=Mock(), _request_failed=Mock(),

@@ -65,6 +65,17 @@ loaded and the selected child's saved screen-time toggle is enabled. The
 broker's kiosk method has a broader contract; see
 [grant transactions](Broker.md#authorization-and-grant-transactions).
 
+Each submission snapshots the child, approver, duration and soft-app choice.
+Agent preparation uses the current resolved language after preferences save,
+preserving a child-language read that completes during that save.
+Preference-save, agent-preparation and approval callbacks
+belong to that one request and its current stage. A completed, failed or destroyed
+request cannot dispatch another approval or update a later request's result.
+Destroying the form discards its pending callbacks; this local result handling
+does not cancel a broker transaction that has already been admitted. The broker
+owns session/disconnect cancellation and effect admission. Neither frame timing
+nor time spent choosing a language or entering a password gates submission.
+
 The overlay's `com.puffyslippers.OhNoParentControl.ChildRequest` application ID
 has a matching, publicly readable desktop entry using the product launcher icon.
 The entry is hidden from the app grid and launches `oh-no-parent-control-child`;

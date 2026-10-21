@@ -981,6 +981,9 @@ class RequestWindow(Adw.ApplicationWindow):
         self._startup_clock = None
         self._startup_clock_handler = 0
         self._state = RequestState()
+        self._request_revision = 0
+        self._request_stage = None
+        self._pending_request = None
         self._estimate_revision = 0
         self._estimate_in_flight = False
         self._estimate_debounce_id = 0
@@ -1021,6 +1024,9 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _on_destroy(self, *_args):
         self._estimate_closed = True
+        self._request_revision += 1
+        self._request_stage = None
+        self._pending_request = None
         if self._startup_clock_handler:
             self._startup_clock.disconnect(self._startup_clock_handler)
             self._startup_clock_handler = 0
@@ -2027,6 +2033,8 @@ class RequestWindow(Adw.ApplicationWindow):
                                 m.YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT)
 
     def _request_access(self, *_args):
+        if self._estimate_closed:
+            return
         if self._preview and not self._interactive_preview:
             try:
                 self._request_content.selected()
@@ -2051,6 +2059,9 @@ class RequestWindow(Adw.ApplicationWindow):
             self._state.finish()
             self._request_content.show_validation_error(error.args[0])
             return
+        self._request_revision += 1
+        revision = self._request_revision
+        self._request_stage = 'preferences'
         self._set_request_controls(False)
         self._request_started_ns = time.monotonic_ns()
         self._log_duration_selection("submitted")
@@ -2071,45 +2082,64 @@ class RequestWindow(Adw.ApplicationWindow):
                     (target_uid, selected, custom, allow_soft, approver_uid,
                      self._request_content.custom_unit()),
                 ),
-                "(s)", self._preferences_saved,
+                "(s)", lambda connection, result: self._preferences_saved(
+                    connection, result, revision),
             )
         except Exception as error:
-            self._request_failed(error)
+            self._request_failed(error, revision)
 
-    def _preferences_saved(self, connection, result):
+    def _request_is_current(self, revision, stage=None):
+        # Broker authorization owns the caller/session lifetime. These guards
+        # bind only this window's callbacks to one submitted request and stage.
+        return (not self._estimate_closed and self._state.in_flight
+                and revision == self._request_revision
+                and (stage is None or stage == self._request_stage))
+
+    def _preferences_saved(self, connection, result, revision):
+        if not self._request_is_current(revision, 'preferences'):
+            return
         try:
             connection.call_finish(result)
             _log_timing('request-preferences', getattr(self, '_request_started_ns', time.monotonic_ns()))
             target_uid, approver_uid, duration_seconds, allow_soft = self._pending_request
             if self._child_overlay:
+                self._request_stage = 'approval'
                 self._bus_call(
                     "RequestOwnAccess",
                     GLib.Variant(
                         "(uub)", (approver_uid, duration_seconds, allow_soft),
                     ),
-                    "(ssu)", self._request_done, REQUEST_TIMEOUT_MS,
+                    "(ssu)", lambda connection, result: self._request_done(
+                        connection, result, revision), REQUEST_TIMEOUT_MS,
                 )
             else:
+                self._request_stage = 'agent'
                 self._agent_locale.prepare(
-                    self._applied_language, self._desktop_language, self._agent_prepared)
+                    self._applied_language, self._desktop_language,
+                    lambda error: self._agent_prepared(error, revision))
         except Exception as error:
-            self._request_failed(error)
+            self._request_failed(error, revision)
 
-    def _agent_prepared(self, error):
-        if self._estimate_closed:
+    def _agent_prepared(self, error, revision):
+        if not self._request_is_current(revision, 'agent'):
             return
         if error is not None:
-            self._request_failed(error)
+            self._request_failed(error, revision)
             return
         try:
+            self._request_stage = 'approval'
             _log_timing('request-dispatch', getattr(self, '_request_started_ns', time.monotonic_ns()))
             self._bus_call(
                 'RequestAccess', GLib.Variant('(uuub)', self._pending_request),
-                '(ss)', self._request_done, REQUEST_TIMEOUT_MS)
+                '(ss)', lambda connection, result: self._request_done(
+                    connection, result, revision), REQUEST_TIMEOUT_MS)
         except Exception as error:
-            self._request_failed(error)
+            self._request_failed(error, revision)
 
-    def _request_done(self, connection, result):
+    def _request_done(self, connection, result, revision):
+        if not self._request_is_current(revision, 'approval'):
+            return
+        self._request_stage = 'result'
         try:
             unpacked = connection.call_finish(result).unpack()
             if self._child_overlay:
@@ -2138,16 +2168,23 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._request_content.show_validation_error(m.REQUEST_DENIED)
                 self._stack.set_visible_child_name("request")
         except Exception as error:
-            self._request_failed(error)
+            self._request_failed(error, revision)
         finally:
-            self._state.finish()
-            self._set_request_controls(True)
-            self._queue_time_estimate()
+            if self._request_is_current(revision, 'result'):
+                self._finish_request()
+                self._queue_time_estimate()
 
-    def _request_failed(self, error):
-        LOG.warning("kiosk.030", error_type=error_code(error))
+    def _finish_request(self):
+        self._request_stage = None
+        self._pending_request = None
         self._state.finish()
         self._set_request_controls(True)
+
+    def _request_failed(self, error, revision):
+        if not self._request_is_current(revision):
+            return
+        LOG.warning("kiosk.030", error_type=error_code(error))
+        self._finish_request()
         self._show_error(error)
 
     def _set_request_controls(self, enabled):

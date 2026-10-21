@@ -488,6 +488,8 @@ preparation before submission. Identical successfully applied settings reuse
 the agent. Failed speculative preparation is retried on request; a required
 preparation failure or the 30-second deadline stops submission and uses the
 ordinary error path. Closing the form discards queued callbacks.
+The locale helper's close is terminal: late replies, job signals, deadlines and
+new warm/prepare calls cannot restart the agent or complete an old request.
 Attempting a different locale invalidates the prior successful cache, including
 when the restart fails or completes after the deadline.
 Service startup does not establish PolicyKit registration readiness. The broker

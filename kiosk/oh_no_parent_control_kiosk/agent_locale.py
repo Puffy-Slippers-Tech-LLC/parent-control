@@ -69,9 +69,12 @@ class KioskAgentLocale:
         self._locales = None
         self._queue = []
         self._stage = 'environment'
+        self._closed = False
 
     def prepare(self, language, desktop_language, done):
         """Complete the agent restart before dispatching an approval request."""
+        if self._closed:
+            return
         try:
             environment = self._environment(language, desktop_language)
         except Exception as error:
@@ -88,6 +91,8 @@ class KioskAgentLocale:
         retain their order and callback, including a click during warm-up.
         Failures are retried and reported by prepare(), never hidden from it.
         """
+        if self._closed:
+            return
         try:
             environment = self._environment(language, desktop_language)
         except Exception as error:
@@ -103,7 +108,7 @@ class KioskAgentLocale:
         return agent_environment(language, desktop_language, self._locales)
 
     def _advance(self):
-        while self._done is None and self._queue:
+        while not self._closed and self._done is None and self._queue:
             environment, done = self._queue.pop(0)
             if environment == self._applied:
                 if done is not None:
@@ -132,7 +137,9 @@ class KioskAgentLocale:
             self._subscription = self._connection.signal_subscribe(
                 NAME, INTERFACE, 'JobRemoved', PATH, None, Gio.DBusSignalFlags.NONE,
                 lambda *args: self._job_removed(*args) if revision == self._revision else None)
-            self._deadline = GLib.timeout_add_seconds(30, self._timed_out)
+            self._deadline = GLib.timeout_add_seconds(
+                30, lambda: self._timed_out() if revision == self._revision
+                else GLib.SOURCE_REMOVE)
 
             def restarted(connection, result):
                 if self._done is None or revision != self._revision:
@@ -164,6 +171,8 @@ class KioskAgentLocale:
             self._results[job] = result
 
     def _completed(self, result):
+        if self._closed or self._done is None:
+            return
         if result == 'done':
             self._applied = self._pending_environment
             self._finish(None)
@@ -173,12 +182,16 @@ class KioskAgentLocale:
             self._finish(RuntimeError('kiosk authentication agent restart failed'))
 
     def _timed_out(self):
+        if self._closed or self._done is None:
+            return GLib.SOURCE_REMOVE
         self._deadline = 0
         self._stage = 'timeout'
         self._finish(TimeoutError('kiosk authentication agent restart timed out'))
         return GLib.SOURCE_REMOVE
 
     def _finish(self, error):
+        if self._closed or self._done is None:
+            return
         if error is not None:
             self._record_failure(error, self._stage)
         done, self._done = self._done, None
@@ -193,6 +206,7 @@ class KioskAgentLocale:
         record_exception(error)
 
     def close(self):
+        self._closed = True
         self._done = None
         self._queue.clear()
         self._clear_sources()

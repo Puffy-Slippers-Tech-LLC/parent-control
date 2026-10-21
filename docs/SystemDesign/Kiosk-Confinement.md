@@ -479,7 +479,7 @@ Host acceptance passed on 2026-10-20: **1,040 checks passed** (937 unit and
 `test_diagnostic_privacy.py` and `test_localization.py` under `tests/unit/`, then
 `test_authorization_lifecycle.py` and `test_private_dbus_service.py` under
 `tests/component/`, with an explicit 600-second worker deadline for each category.
-The retained [host report](../../output/test-runs/host/reports/20261020T234930Z-48cb86e3/report.md)
+The retained [host report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 records the exact inputs and completed cleanup. Coverage includes all pre-write
 read gaps, rest-of-day, departure/return, display replacement and failed final
 reads, no effect/cooldown on cancellation, fresh authentication and admitted
@@ -501,7 +501,7 @@ staging, commit or push was performed.
 Close-out passed all **639 metadata checks** in the four maintained consistency
 modules and `test_execution_plan_launcher.py`, with the 600-second worker
 deadline and completed cleanup; see the retained
-[close-out report](../../output/test-runs/host/reports/20261020T235017Z-b40a7fa2/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 The plan check selects C02b with 58 remaining tasks. Only C02b1 is newly checked;
 its temporary brief is removed and every other queue row is preserved.
 
@@ -511,6 +511,87 @@ locator after the maintained bundle reader verified their exact 318/318 and
 `onpc-evidence-bundle-m0ie1_mm` (SHA-256
 `a1dc449a7ac35492be2ad5ba3a120e24a2a2bd837d60f84fa8dd546332fbb686`).
 Only destinations changed; predecessor completion and claims remain unchanged.
+
+##### C02b shared form and agent boundary
+
+The shared form retains main's direct `RequestAccess(uuub)→(ss)` and
+`RequestOwnAccess(uub)→(ssu)` calls. There is no startup/controller/visit module,
+receipt or view-registration protocol in the selected source to delete or port.
+No alternate admission path, release-wide frontend restoration or confinement
+activation change is introduced. C02 still owns the runtime/account/PAM/package
+cutover; C02e may delete only proven unconsumed feature protocols and wiring.
+
+Each submission fixes its child, approver, duration and soft-app choice. Local
+request revisions and stages bind preference-save, agent-preparation and result
+callbacks to that one submission. Terminal failure, completion or destruction
+cannot revive it, dispatch another approval or finish a fresh request. The
+broker continues to own genuine parent authentication, session/disconnect
+cancellation, effect admission and the original transaction after admission;
+discarding a window's callback does not revoke an admitted grant.
+
+`KioskAgentLocale.close()` is terminal. Queued work and late restart/job/deadline
+callbacks cannot reopen the helper; a superseded deadline cannot fail the next
+locale preparation. The existing public service/job association, finite restart
+deadline, unbounded human authentication time and shared-overlay behavior remain.
+Main's language/Preferences, presets, reminders, What's New, artwork, feedback,
+diagnostics, request choices and public logout integration are retained. Current
+C-only locale and stylesheet fallback gaps remain with C09a, and installed
+native-agent association/customer histories remain with C04 and later tasks.
+
+Independent Astra xHigh review initially found a P2 language regression: taking
+a locale snapshot at submission could retain the previous child's language when
+the new language reply arrived during preference saving. That extra snapshot
+was removed; guarded preparation retains the original current-language lookup.
+A focused delayed-language ordering regression passes. Fresh independent review
+then found no actionable issues: **Usability priority: passed; Threat scope:
+passed; ownership and lifecycle: passed**. Review supplies no acceptance credit.
+
+The resource review retains the existing compatible unit and request-UI
+classifications. Added checks use in-memory callback/transport doubles,
+pytest-private files and the existing private preview/display/bus with its
+finally-released authentication gate. They add no process, shared path/cache,
+external service, display, bus or cleanup owner; no cleanup inventory changes
+are required.
+
+Host acceptance passed with no declared targets: **350 unit and 169 UI checks
+passed** across the maintained selections and focused repair. The
+[main report](../../output/test-runs/host/reports/20261020T235942Z-e87262ed/report.md)
+records the six unit modules (`test_request_time_estimate.py`,
+`test_request_selections.py`, `test_kiosk_model.py`, `test_systemd_unit.py`,
+`test_kiosk_login.py`, `test_service_contract.py`) with a 600-second worker
+deadline, and `test_request_form_component.py` plus `test_language_settings.py`
+with an 1,800-second deadline. Its 350 unit and 165 unchanged UI cases passed.
+The two new UI loop failures expected a second refused mutation after the
+automation guard had already marked input uncertain. Cancel and duplicate-submit
+refusals now use separate fresh attempts, preserving disabled controls, exactly
+one broker request and successful completion. All four kiosk/overlay variants
+passed in the [focused repair report](../../output/test-runs/host/reports/20261021T001715Z-08b14c49/report.md),
+using the same 1,800-second deadline. Product source was unchanged by that
+test-only repair. No assertion or input-safety guard was weakened.
+
+After the final packaged edit, `make build` passed for both DEB and RPM. Outputs
+are `output/deb/oh-no-parent-control_1.4+local1~ubuntu26.04.1_amd64.deb`,
+`output/rpm/oh-no-parent-control-1.4-0.1.dev.fc44.x86_64.rpm` and
+`output/rpm/build.log`. The implementation worker and both review agents are
+finished/closed. The interrupted initial UI candidate, corrected full selection,
+focused repair and build completed their owned cleanup. No task-owned VM,
+installed state, temporary source file or live process remains; normal reports
+and package outputs are retained. No installation, staging, commit or push was
+performed. This host result grants no installed qualification.
+
+Close-out passed all **639 metadata checks** in the four maintained consistency
+modules and `test_execution_plan_launcher.py`, with the 600-second worker
+deadline and completed cleanup; see the retained
+[close-out report](../../output/test-runs/host/reports/20261021T001805Z-2b9313bc/report.md).
+The plan check selects C02c1 with 57 remaining tasks. Only C02b is newly checked;
+its temporary brief is removed and every other queue row is preserved.
+
+The C02b1 report destinations above now use the accepted-proof locator after
+the maintained bundle reader verified the original 1,040/1,040 and 639/639
+reports, exact command selections, accepted result and completed cleanup in
+`onpc-evidence-bundle-kh4nne3g` (SHA-256
+`ce79885d4398d61d6d069ba01237e77716760b30bc7e0b25cac7895763f904c9`).
+Only destinations changed; predecessor completion and claims are preserved.
 
 ##### C01 selective replacement boundary
 

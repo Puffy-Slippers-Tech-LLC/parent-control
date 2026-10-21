@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C02b — [Separate approval and features from obsolete confinement](Kiosk-Prompt-Tasks/C02b-approval.md)**.
+Next task: **C02c1 — [Prepare kiosk account provisioning](Kiosk-Prompt-Tasks/C02c1-provisioning.md)**.
 
 ## Outcome
 

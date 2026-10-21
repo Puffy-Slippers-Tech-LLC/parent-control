@@ -507,8 +507,10 @@ def test_service_failure_shows_only_redacted_public_copy(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+@pytest.mark.parametrize("blocked_control", ("kiosk-request-cancel", "kiosk-request-submit"),
+                         ids=("cancel", "submit"))
 def test_single_flight_refuses_cancel_while_authentication_is_active(
-        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay, blocked_control):
     release = tmp_path / "request-release"
     path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
                         overlay=overlay, scenario="slow-request", request_release=release)
@@ -522,14 +524,17 @@ def test_single_flight_refuses_cancel_while_authentication_is_active(
         wait_for_accessible_state(lambda: len(calls(path, method)) == 1,
                                   "one in-flight request")
         from tests.support.automation import AutomationError
+        # Each refusal has a fresh attempt: the automation safety guard
+        # deliberately prohibits another mutation after a refused input.
         with pytest.raises(AutomationError, match='application-ui:Unavailable'):
-            request_ui.activate("kiosk-request-cancel")
+            request_ui.activate(blocked_control)
         # Observe the real form after refusal, independently of the input and
         # synthetic broker log. Hidden result controls may remain inventoried.
         assert request_ui.showing("kiosk-request-window")
         assert request_ui.showing("kiosk-request-submit")
         assert not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
         assert request_ui.absent("kiosk-result-title", within="kiosk-request-window")
+        assert len(calls(path, method)) == 1
     finally:
         # Complete the synthetic authentication only after checking refusal.
         release.touch()

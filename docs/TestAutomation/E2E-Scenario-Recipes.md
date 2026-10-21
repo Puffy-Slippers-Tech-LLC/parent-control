@@ -27,6 +27,14 @@ inventory and stable IDs; pending compositions remain pending. C04 must refuse
 readiness until the missing bindings and both-target operation qualifications
 are delivered through its prerequisite route.
 
+C04j's first passing complete history on each target is also eligible for
+C05u/C05f baseline acceptance under the
+[complete baseline evidence-reuse contract](E2E-Execution-Contracts.md#complete-baseline-evidence-reuse).
+Retain every finite input, ordered assertion and cleanup result below, with
+per-target candidate applicability. C05 verifies that evidence when selected and
+executes only missing or invalidated complete histories; no row or broader E2E
+case completes automatically from this handoff.
+
 The [C04f qualification](E2E-Building-Blocks.md#c04f-fedora-qualification-and-ubuntu-renewal)
 now supplies the exact fixed entry/approval operation on both targets, including
 prompt Cancel, form Cancel/reentry, approved exit and independent Parent grant

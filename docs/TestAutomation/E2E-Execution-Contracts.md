@@ -400,6 +400,33 @@ The selected brief owns its applicability/authorization gate. Resolve it through
 supported public routes; unavailable routes remain pending. Never edit/deploy
 the portal or change expected behavior to manufacture a pass.
 
+### Complete baseline evidence reuse
+
+For the ordinary [kiosk confinement plan](../Kiosk-Session-Confinement-Plan.md),
+C04j's first passing complete baseline history on each target may supply both
+composition qualification and that target's C05 baseline acceptance. C05u/C05f
+remain separate installed acceptance gates, closed only when selected after C04.
+Do not repeat an unchanged complete history solely to change its task label.
+
+Reuse requires retained, inspectable public-action/result evidence for **every**
+assertion in the finite baseline recipe and the consuming C05 brief, with the
+exact target, candidate package/source/assets, baseline, fixture identities,
+complete caller/composition and provider bindings. Verify the command, finite
+inputs, ordered intermediate outcomes, timeout, collection and owned restoration;
+record that applicability check and the original installed result in C05's
+handoff/checks. A task summary, ready label, host pass, partial qualification or
+collection of separate operation passes cannot establish the complete history.
+
+Missing, failed, expired or invalidated evidence requires execution of the
+affected **complete** history on its target through the registered baseline
+selector. Shared changes require checking both targets and rerunning each
+invalidated history. Documentation-only edits do not by themselves invalidate
+unchanged installed evidence. Preserve original failures and valid other-target
+results. No future row is checked automatically, no installed acceptance is
+relabelled host-only, and no registered E2E case or other plan is completed by
+this reuse. Final post-protection acceptance still needs its applicable final
+candidate histories.
+
 ### Capability acceptance
 
 For a **capability**, pass every stated outcome, independent valid entry and

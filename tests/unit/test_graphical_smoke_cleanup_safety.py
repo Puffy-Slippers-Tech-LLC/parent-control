@@ -320,7 +320,8 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
     source.domain.ID.return_value = 17
     source.domain.autostart.return_value = False
     source.domain.XMLDesc.return_value = (
-        f'<domain><devices><graphics type="{graphics_type}"><listen type="none"/></graphics></devices></domain>')
+        f'<domain><description>{runner.TAG}{"a" * 32}</description>'
+        f'<devices><graphics type="{graphics_type}"><listen type="none"/></graphics></devices></domain>')
     lease = runner.Lease(source, Mock(), Mock(), directory=tmp_path, graphics_type=graphics_type)
     recover = (lease.recover_graphical_cleanup if graphics_type == 'vnc'
                else lease.recover_system_cleanup)
@@ -483,6 +484,75 @@ def test_never_started_cleanup_refuses_replaced_or_unproven_state(lease_rig, rig
     assert lease.journal.read_bytes() == saved
     assert lease.source.domain.revertToSnapshot.call_count == restored
     lease.source.domain.create.assert_not_called()
+    assert reopened.fd is None
+
+
+@pytest.mark.parametrize('mode', ['explicit', 'recorded'])
+@pytest.mark.parametrize('fault', [None, 'instance', 'record', 'sharing', 'baseline',
+                                  'ambiguous', 'null-without-authorization', 'maintenance-owner',
+                                  'recorded-instance'])
+def test_interrupted_live_snapshot_recovery_requires_instance_and_private_proof(
+        lease_rig, rig, monkeypatch, mode, fault):
+    import xml.etree.ElementTree as ET
+    import online_snapshot
+    runner = smoke.runner
+    lease, current = lease_rig
+    lease.view.graphics_type = 'vnc'
+    lease.__enter__()
+    lease.prepare()
+    saved_run = 'e' * 32
+    tree = ET.fromstring(current['xml'])
+    tree.find('description').text = runner.TAG + saved_run
+    saved_xml = ET.tostring(tree, encoding='unicode')
+    snapshot_xml = ET.Element('domainsnapshot')
+    ET.SubElement(snapshot_xml, 'state').text = 'running'
+    ET.SubElement(snapshot_xml, 'memory', snapshot='internal')
+    ET.SubElement(snapshot_xml, 'description').text = json.dumps({
+        'baseline_sha256': 'f' * 64 if fault == 'baseline' else lease.state['baseline_sha256']})
+    snapshot_xml.append(ET.fromstring(saved_xml))
+    snapshot = Mock()
+    snapshot.getName.return_value = 'onpc-v9.8.7'
+    snapshot.getXMLDesc.return_value = ET.tostring(snapshot_xml, encoding='unicode')
+    lease.source.domain.listAllSnapshots.return_value = (
+        [snapshot, snapshot] if fault == 'ambiguous' else [snapshot])
+    monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=(
+        None if fault == 'record' else {'run': saved_run})))
+    current.update(xml=saved_xml, id=72)
+    lease.source.off = False
+    if fault == 'sharing':
+        current['xml'] = saved_xml.replace('</devices>', '<channel/></devices>')
+    lease.state['domain_id'] = 72 if mode == 'recorded' else None
+    if fault == 'recorded-instance' or (fault == 'instance' and mode == 'recorded'):
+        lease.state['domain_id'] = 71
+    if fault == 'null-without-authorization':
+        lease.state['domain_id'] = None
+    lease.save('cleanup-requested')
+    if fault == 'maintenance-owner':
+        owner = rig.directory / 'vm-control.json'
+        owner.write_text(json.dumps({'run': lease.state['run']}))
+        owner.chmod(0o600)
+    journal = lease.journal.read_bytes()
+    original = lease.original_xml
+    lease.release()
+    restores = lease.source.domain.revertToSnapshot.call_count
+    definitions = lease.source.connection.defineXML.call_count
+    reopened = runner.Lease(lease.source, rig.commands, rig.inspect,
+        directory=rig.directory, anchor=rig.anchor, graphics_type='vnc')
+    kwargs = ({'recovery_instance': 71 if fault == 'instance' else 72}
+              if mode == 'explicit' and fault != 'null-without-authorization' else {})
+    if fault:
+        with pytest.raises(RuntimeError):
+            reopened.recover_graphical_cleanup(**kwargs)
+        assert lease.journal.read_bytes() == journal
+        assert lease.source.domain.revertToSnapshot.call_count == restores
+        assert lease.source.connection.defineXML.call_count == definitions
+    else:
+        reopened.recover_graphical_cleanup(**kwargs)
+        assert current == {'xml': original, 'id': -1}
+        assert json.loads(lease.journal.read_bytes())['phase'] == 'complete'
+        assert lease.source.domain.revertToSnapshot.call_count == restores + 1
+    lease.source.domain.create.assert_not_called()
+    lease.source.domain.destroyFlags.assert_not_called()
     assert reopened.fd is None
 
 

@@ -739,19 +739,23 @@ sub kiosk_language {
     $journey->consume_observation('existing-returned', $other);
     $journey->seen($_) for ('other-enabled', 'other-saved', 'policy-before', 'switch-user', 'gdm-switched');
     onpc_gdm::enter_station($journey, 'initial-');
-    $journey->seen($_) for ('initial-language', 'initial-save', 'other-first-parent', 'initial-form');
+    $journey->seen($_) for ('initial-language', 'initial-retained', 'initial-save', 'other-first-parent', 'initial-form');
     for my $prefix ('german', 'cancel-chinese', 'chinese', 'hebrew', 'english', 'final-german') {
         onpc_parent::language_selection($journey, $prefix);
         $journey->seen("$prefix-$_") for ('response', 'form', 'retained', 'close');
     }
     $journey->seen($_) for ('cancel', 'returned');
     onpc_gdm::enter_station($journey, 'renewed-');
-    $journey->seen($_) for ('reentered-form', 'reentered-open', 'reentered-close', 'final-form',
-                           'final-cancel', 'final-returned');
+    $journey->seen($_) for ('reentered-form', 'reentered-open', 'reentered-close', 'final-form');
+    onpc_parent::language_selection($journey, 'restore-english');
+    $journey->seen($_) for ('restore-english-save', 'restore-english-form', 'final-cancel', 'final-returned');
     $journey->declare_invocations($invocations);
     $journey->declare_challenges($challenges);
-    onpc_gdm::sign_in_challenge($journey, 'return-parent', 'return-greeter', 'return-focused', 'return-desktop');
-    $journey->seen('policy-after');
+    my $returned_desktop = onpc_gdm::sign_in_challenge(
+        $journey, 'return-parent', 'return-greeter', 'return-focused', 'return-desktop');
+    # Rebind the retained Parent endpoint after leaving the kiosk session.
+    onpc_parent::launch($journey, $returned_desktop, 'management', 'return-desktop');
+    $journey->seen($_) for ('policy-after', 'restore-policy');
     $journey->finish();
 }
 

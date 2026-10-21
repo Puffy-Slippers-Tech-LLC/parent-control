@@ -474,6 +474,53 @@ def test_online_restore_records_instance_without_booting(prepared_suite, monkeyp
     lease.audit()
 
 
+@pytest.mark.parametrize('fault', ['metadata', 'progress', 'interrupt', 'log'])
+def test_online_restore_persists_instance_before_fallible_post_restore_work(
+        prepared_suite, monkeypatch, fault):
+    from contextlib import contextmanager
+    import online_snapshot
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    monkeypatch.setattr(online_snapshot, 'publish', Mock())
+    lease.source.api.VIR_DOMAIN_AFFECT_LIVE = 1
+    lease.source.api.VIR_DOMAIN_AFFECT_CONFIG = 2
+    lease.source.connection.lookupByUUIDString.return_value = lease.source.domain
+    lease.source.connection.getURI.return_value = 'qemu:///system'
+    lease.source.domain.UUIDString.return_value = lease.source.uuid
+    lease.source.domain.name.return_value = system.baseline.DOMAIN
+    with lease:
+        owner.prepare_installed(directory, directory, {}, root=directory, mode='online')
+        record = {'run': lease.state['run']}
+        lease.stop()
+        lease.prepare()
+        status = lease.snapshot_status
+        if fault == 'metadata':
+            lease.source.domain.setMetadata.side_effect = RuntimeError('fixture:metadata')
+        elif fault in ('progress', 'interrupt'):
+            @contextmanager
+            def failed_status(*args):
+                yield
+                if fault == 'interrupt':
+                    raise KeyboardInterrupt('fixture:interrupt')
+                raise RuntimeError('fixture:progress')
+            monkeypatch.setattr(lease, 'snapshot_status', failed_status)
+        else:
+            log = system.log
+            def failed_log(message):
+                if message.startswith('online-snapshot:memory-restored'):
+                    raise RuntimeError('fixture:log')
+                log(message)
+            monkeypatch.setattr(system, 'log', failed_log)
+        with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else RuntimeError,
+                           match='fixture:' + fault):
+            online_snapshot.restore(lease, record)
+        state = json.loads(lease.journal.read_bytes())
+        assert state['domain_id'] == lease.view.domain_id == 72
+        assert state['phase'] == 'running'
+        assert not lease.source.off
+        monkeypatch.setattr(lease, 'snapshot_status', status)
+    lease.audit()
+
+
 @pytest.mark.parametrize('stale', [False, True])
 def test_installed_suite_installs_once_and_restores_next_case_without_extra_audits(prepared_suite, stale):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite

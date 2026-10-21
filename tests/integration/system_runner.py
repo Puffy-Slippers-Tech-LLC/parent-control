@@ -1076,14 +1076,17 @@ class Lease:
         if pending is not None:
             raise pending
 
-    def recover_graphical_cleanup(self):
+    def recover_graphical_cleanup(self, *, recovery_instance=None):
         """Resume a recorded VNC cleanup, or verify an already restored off guest.
 
         No start, preparation or new baseline is allowed. An off guest either
         matches the restored original XML or the recorded pre-start isolation.
         """
         require(self.fd is None and self.view.graphics_type == 'vnc', 'recovery:invalid-lease')
-        self._recover_recorded_cleanup()
+        require(recovery_instance is None or
+                (type(recovery_instance) is int and recovery_instance > 0),
+                'recovery:invalid-instance')
+        self._recover_recorded_cleanup(recovery_instance=recovery_instance)
 
     def recover_system_cleanup(self):
         """Resume recorded installed-system cleanup or verify its restored state."""
@@ -1091,7 +1094,7 @@ class Lease:
         self._recover_recorded_cleanup()
 
     @observed('Validating and recovering the recorded VM attempt')
-    def _recover_recorded_cleanup(self):
+    def _recover_recorded_cleanup(self, *, recovery_instance=None):
         """Reacquire ownership and verify every saved identity before mutation."""
         try:
             self.capture.directory_identity = self.capture.private_directory()
@@ -1114,10 +1117,13 @@ class Lease:
             require(isinstance(state, dict) and set(state) - {'e2e_snapshot', 'internet_isolation'} == {
                 'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
                 'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
-                state['phase'] in ('running', 'cleanup-requested', 'isolated') and
+                state['phase'] in (('start-requested', 'cleanup-requested')
+                                  if recovery_instance is not None else
+                                  ('running', 'cleanup-requested', 'isolated')) and
                 isinstance(state['run'], str) and re.fullmatch(r'[0-9a-f]{32}', state['run']) and
-                ((isolated and state['domain_id'] is None) or
-                 (not isolated and type(state['domain_id']) is int and state['domain_id'] >= 0)) and
+                ((state['domain_id'] is None) if recovery_instance is not None else
+                 ((isolated and state['domain_id'] is None) or
+                  (not isolated and type(state['domain_id']) is int and state['domain_id'] >= 0))) and
                 state['domain_uuid'] == self.source.uuid and
                 state['baseline_sha256'] == baseline.baseline_sha256(self.capture.state, self.directory),
                 'recovery:journal-identity')
@@ -1131,9 +1137,11 @@ class Lease:
                 owner = baseline.parse_json(maintenance.read_bytes())
                 require(isinstance(owner, dict) and owner.get('run') != state['run'],
                         'recovery:maintenance-owned; use tools/test-vm stop')
-            off = self.source.domain.ID() == -1
+            current_id = self.source.domain.ID()
+            off = current_id == -1
             require(not self.source.domain.autostart() and
-                    (off if isolated else (off or self.source.domain.ID() == state['domain_id'])),
+                    (current_id == recovery_instance if recovery_instance is not None else
+                     off if isolated else (off or current_id == state['domain_id'])),
                     'recovery:domain-replaced-or-off')
             active_xml = self.source.domain.XMLDesc(0)
             restored_off = (off and state['phase'] != 'isolated' and
@@ -1164,16 +1172,22 @@ class Lease:
                          graphics_type=self.view.graphics_type)
             self.state = state
             self.view.run = None if restored_off else state['run']
-            self.view.domain_id = None if off else state['domain_id']
+            self.view.domain_id = (None if off else recovery_instance
+                                   if recovery_instance is not None else state['domain_id'])
             self.snapshot_xml = self.source.baseline()
-            if (off_isolated and state['domain_id'] is None and
-                    ET.fromstring(active_xml).findtext('description') != TAG + state['run']):
+            saved_memory_identity = (recovery_instance is not None or
+                (self.view.graphics_type == 'vnc' and not off and
+                 ET.fromstring(active_xml).findtext('description') != TAG + state['run']))
+            if (saved_memory_identity or (off_isolated and state['domain_id'] is None and
+                    ET.fromstring(active_xml).findtext('description') != TAG + state['run'])):
                 # Interrupted online startup can restore the saved snapshot's
-                # tag before recording the new attempt. Only an off graphical
-                # guest with its exact private snapshot/isolation proof may be
-                # restored here. Never adopt or stop an unrecorded live instance.
+                # tag before recording the new attempt. The private snapshot
+                # and isolation proof authorize the off guest's restoration.
+                # A live guest also needs its recorded instance, or an
+                # explicitly authorized observed ID.
                 require(self.view.graphics_type == 'vnc' and
-                        state['phase'] == 'cleanup-requested', 'guard:run-identity')
+                        state['phase'] in ('running', 'start-requested', 'cleanup-requested'),
+                        'guard:run-identity')
                 from online_snapshot import recover_identity
                 self.view.run = recover_identity(self)
             if off:
@@ -1215,6 +1229,12 @@ class Lease:
                 log('recovery:restored-interrupted-off')
                 return
             self.mutated = True
+            if saved_memory_identity:
+                # Saved SSH credentials/markers may not have been rebound when
+                # startup failed. Restore the exact guarded instance directly;
+                # never send guest input or try to start it again.
+                self.state['domain_id'] = self.view.domain_id
+                self.stop_by_restore()
             # An interrupted bootstrap may leave a never-started isolated
             # guest. The held lock, null instance ID, run-tagged configuration,
             # unchanged disk identities and full snapshot proof above authorize

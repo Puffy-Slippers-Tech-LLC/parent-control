@@ -309,6 +309,8 @@ def test_replacement_or_unowned_attempt_never_receives_vm_actions(lease_rig, mut
         current['id'] += 1
     elif mutation == 'run':
         current['xml'] = current['xml'].replace(lease.state['run'], 'f' * 32)
+        # A foreign tag has no private saved-memory proof to authorize cleanup.
+        lease.source.domain.listAllSnapshots.return_value = []
     elif mutation == 'owner':
         (lease.directory / 'vm-control.json').write_text('{}')
     elif mutation == 'baseline':
@@ -1985,7 +1987,7 @@ def test_online_resume_refusal_preserves_idle_or_running_ownership(
 
 
 @pytest.mark.parametrize('fault', [None, 'instance', 'owner', 'credentials', 'sharing', 'baseline'])
-@pytest.mark.parametrize('automatic', [False, True])
+@pytest.mark.parametrize('automatic', [False, True, 'recorded'])
 def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(
         lease_rig, monkeypatch, fault, automatic):
     import online_snapshot
@@ -2005,6 +2007,8 @@ def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(
     monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=
         None if fault == 'credentials' else {'run': saved_run}))
     lease.state.update(phase='start-requested', domain_id=None, run='b' * 32)
+    if automatic == 'recorded':
+        lease.state.update(phase='cleanup-requested', domain_id=72 if fault == 'instance' else 71)
     lease.journal.write_bytes(runner.baseline.encode(lease.state))
     control.save_owner(lease)
     if fault == 'owner':
@@ -2015,7 +2019,7 @@ def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(
     calls = lease.source.domain.revertToSnapshot.call_count
     def recover():
         if automatic:
-            if fault == 'instance':
+            if fault == 'instance' and automatic != 'recorded':
                 # The observed instance changes before the exclusive lease is
                 # acquired. Automation must retain the recorded refusal.
                 first = [True]
@@ -2041,3 +2045,34 @@ def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(
         assert lease.source.domain.create.call_count == 1
     finally:
         resumed.release()
+
+
+@pytest.mark.parametrize('owner_kind', ['absent', 'stale', 'current', 'malformed'])
+def test_explicit_online_recovery_routes_without_adopting_maintenance(
+        lease_rig, monkeypatch, owner_kind):
+    lease, _ = lease_rig
+    lease.__enter__()
+    control.save_owner(lease)
+    owner_path = lease.directory / 'vm-control.json'
+    if owner_kind == 'absent':
+        owner_path.unlink()
+    elif owner_kind == 'stale':
+        owner = json.loads(owner_path.read_bytes())
+        owner['run'] = 'e' * 32
+        owner_path.write_bytes(runner.baseline.encode(owner))
+    elif owner_kind == 'malformed':
+        owner_path.write_text('{}')
+    lease.release()
+    recover = Mock()
+    monkeypatch.setattr(lease, 'recover_graphical_cleanup', recover)
+    resume = Mock(side_effect=runner.Error('fixture:maintenance-route'))
+    monkeypatch.setattr(control, 'resume', resume)
+    if owner_kind in ('absent', 'stale'):
+        control.operate(lease, 'recover-online', [71])
+        recover.assert_called_once_with(recovery_instance=71)
+        resume.assert_not_called()
+    else:
+        with pytest.raises(RuntimeError, match='maintenance-route'):
+            control.operate(lease, 'recover-online', [71])
+        recover.assert_not_called()
+        resume.assert_called_once_with(lease, stopping=False, recovery_instance=71)

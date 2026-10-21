@@ -752,6 +752,8 @@ values, and `kiosk_language_policy` compares public Parent settings, balances an
 application rows. `journey_blocks.language_selection` and
 `onpc_parent::language_selection` share chooser mechanics; `kiosk_language.PLAN`
 and `onpc_request_flow::kiosk_language` own this finite qualification.
+The [C04l renewal](#c04l-kiosk-language-and-human-pause) qualifies this same
+Jordan binding and its initial 90-second chooser pause on both baseline targets.
 The untouched read reuses `initial_kiosk_child` within the chooser's complete
 owned snapshot, preserving the fixed Chinese reader's UID/uniqueness/visibility
 guards without calling Parent-only child-control helpers. Existing
@@ -1704,7 +1706,7 @@ An expired report or different provider supplies no acceptance credit.
 | Shared overlay REQUEST02–09 / AUTH01/02 / FLOW04/05/07: `journey_blocks.overlay_entry`, `request_flow.prepared_request(surface='overlay')`, `overlay_approved_request`, `overlay_rejected_request` → `onpc_request_flow::overlay_*` | **Changed approval caller** through C02b1/b shared broker/form cancellation; kiosk MATE evidence cannot qualify Shell. Historical Shell Cancel `20261003T194901Z-f8ac692b` (Ubuntu Shell `50.1-0ubuntu1.2`), approval `20261008T051602Z-bcc96b27`, rejection `20261008T050819Z-ffdb973c` (`50.1-0ubuntu1.3`), English/US, fixed Riley/Jamie/75/soft true. Command entry and fixed-child reads remain reusable leaf contracts, not renewal of the approval caller. | Independent surface gap B1 before C04 readiness; outside C04u/f's paired kiosk operation |
 | FLOW01/02/16, FLOW03 and Allowed FLOW08: `onpc_parent::set_allowance`, `policy_edits.policy_edit` / `onpc_app_rows::edit_policy`, `app_launch.PLAN` / `onpc_app_launch::run` | **Unchanged leaf scope only.** FLOW16 zero/15-minute `20260926T210708Z-8962d2d1`, fresh 30-minute `20260926T211055Z-daafbf03`; FLOW03 currently accepts only fixture A's match/access edits. Case 80 Allowed/native-command/30-minute Jordan then unaffected Riley: Ubuntu `20261011T014639Z-c50a592c`, Fedora `20261011T014639Z-eda36595`. Reuse only verified exact policy/Allowed-use leaves; current PAM entry and different Riley policy, H/S target edits or temporary-access effects are not supplied. | B2 supplies the missing finite target/denial bindings; no rerun of unrelated Allowed route matrices |
 | TIME01–04 and TIME03 pause mechanism | **Unchanged stated leaves; missing baseline composition.** `real_interval.wait_real_interval` / `interval_action` supports at most 300 seconds, guarded sleeps at most 250 ms; exact five-second About slice `20260929T212620Z-9ce87d41` is reusable only for that scope. `natural_expiry_observation.await_natural_expiry` has Riley/native two-minute daily-only qualification on both targets; see [TIME04](#natural-enforced-lock-qualification). Neither proves grant-only expiry or an open language/authentication pause. | B2/B4 downstream time; B3 pauses |
-| LANG01: `kiosk_language.PLAN` / `KioskLanguageJourney` → `onpc_request_flow::kiosk_language` / shared `language_selection` | **Changed entry/locale caller.** `check_e2e_kiosk_language`, Ubuntu `20261004T103336Z-73d60bd2`, binds Jordan, en/de/zh-Hans/he Save, Chinese Cancel retaining German, German reentry and unchanged policy/request. Initial observation immediately saves; no human wait. This does not qualify Riley's language binding or a different native-prompt locale. | B3 finite public feature/pause slice |
+| LANG01: `kiosk_language.PLAN` / `KioskLanguageJourney` → `onpc_request_flow::kiosk_language` / shared `language_selection` | **Qualified fixed Jordan caller and chooser pause.** [C04l](#c04l-kiosk-language-and-human-pause) renewed both targets: en/de/zh-Hans/he Save, Chinese Cancel retaining German, German reentry, unchanged policy/request and guarded TIME03(90) with fresh same-chooser/session/choice proof before Save. Historical Ubuntu `20261004T103336Z-73d60bd2` retains its original immediate-Save scope. This does not qualify Riley's language binding or a different native-prompt locale. | B3 language/chooser slice closed; other feature/authentication-pause scopes remain |
 | Reminders: `kiosk_reminders.PLAN` / `KioskReminderJourney` → `onpc_kiosk_reminders::run` | **Changed complete entry/exit caller; unchanged editing leaves.** `check_e2e_kiosk_reminder_binding`, Ubuntu `20261013T193554Z-2f3ca206` / Fedora `20261013T193554Z-a3336e1b`, binds Riley's overlay-created 90-second record, kiosk edit to 75 seconds, same ID in overlay, untouched Jordan defaults and approver isolation. No natural-notification credit. | B3 renew affected caller; [local matrices](#reminder-controls-and-notification-qualification) remain host UI |
 | About / Preferences: `kiosk_about.E2E_CASES['kiosk']` → `onpc_kiosk_about::run`; `kiosk_preferences_confinement.PLAN` | **Changed kiosk caller; historical installed About qualification needs applicability review.** Tasks 185k/234 recorded installed About and case 192 passes; task 192's separate host metadata exception is unrelated to case 192. Existing About compares product/version and unchanged request, closes About and returns to GDM. Preferences engineering checks only cancel editor drafts and do not prove saved preset persistence. | C04i reuses existing installed About coverage; new general features belong to E2E 314/315 |
 | Error report: `kiosk_feedback_confinement.PLAN` → `onpc_kiosk_eligible_choices::run(exchange, 1)`, `AccessibleUI.kiosk_diagnostic_*` | **Changed engineering caller.** `check_e2e_kiosk_feedback_confinement`, Ubuntu `20261014T045241Z-59fdb539` / Fedora `20261014T045835Z-01c47c77`, includes owned broker outage/restoration, unsent draft `Installed kiosk diagnostic qualification.\n`, prepared ZIP/privacy and separate census. It cannot serve as a public baseline request journey or Parent diagnostic download. The report UI and original-cause recovery retain their later C09b/C11b/C12b obligations. | Record feature survival here; engineering renewal stays with its fault/recovery consumer, outside C04u/f |
@@ -1736,7 +1738,8 @@ the suspended C04 consumer: C04o owns B1; C04p1/C04p consume E2E 313a/313 for B2
 C04l/C04s/C04r/C04i reuse existing B3 feature checks, with only confinement waits
 in C04l/C04w; C04j owns B4's core composition. Applicable installed results remain
 required for both targets. C04o/C04p have closed the fixed B1/B2 slices;
-B3–B4 remain open. Queue insertion itself
+[C04l](#c04l-kiosk-language-and-human-pause) closed B3's Jordan language/chooser
+pause slice. Other B3 scopes and B4 remain open. Queue insertion itself
 supplies no readiness, implementation or acceptance credit; C04 must recheck exact
 evidence applicability after the qualifications finish.
 
@@ -1794,7 +1797,7 @@ exact matching evidence without closing E2E rows or duplicating feature mechanic
 | Grant-only profile | **065a** consumes 313's exact grant/readback leaves | Still owns the 120-second profile, explicit revoke-first branch and its caller-owned duration scope. A 600-second Riley/Jamie result is not those bindings. |
 | Named rules and native denial | **079b/079d** consume 313's finite shared policy/instance/command-denial work | Still own FLOW19 explicit lists/entry modes and APP02 grid/command/access branches outside 313's exact slice. No reimplementation of delivered leaves. |
 | Approval and child return | **197/197a/197k** consume shared request, grant/countdown and entry leaves | Still own parameterized FLOW20 accounts, durations, soft choices, new/open forms and fresh/retained destinations. 313 does not qualify that whole matrix. |
-| Kiosk language | Existing **300h/300j**, `check_e2e_kiosk_language` | C04l reuses Jordan's binding; only a bounded initial chooser wait checks confinement session lifetime. No new Riley language suite. |
+| Kiosk language | Existing **300h/300j**, `check_e2e_kiosk_language` | [C04l qualified both targets](#c04l-kiosk-language-and-human-pause), reusing Jordan's binding with the bounded initial chooser wait and fresh identity proof. No new Riley language suite. |
 | Request choices | Existing **012c**, `check_e2e_kiosk_valid_duration` | C04s reuses existing presets/custom Minutes/rest-of-day/soft choices. New saved-preset/Hours journey is **314**, outside baseline prerequisites. |
 | Reminders | Existing **312a/312b**, `check_e2e_kiosk_reminder_binding` | C04r renews only changed caller scope. **312** still owns its complete delete/Cancel/reboot history; **311** owns natural notification/fullscreen behavior. |
 | Kiosk information | Existing **185k/234**, `check_e2e_read_restricted_station_about`, case 192 | C04i reuses About/unchanged-return coverage. New What's New content/return journey is **315**, outside baseline prerequisites. |
@@ -2278,6 +2281,78 @@ proof forward. Final plan/inventory/coverage/composition/launcher checks passed
 **670/670** with `--timeout '600s'` in
 [report 20261021T161417Z-9e6cdd57](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 B2–B4 and other provider/choice bindings remain pending.
+
+### C04l kiosk language and human pause
+
+The exact installed command
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_kiosk_language'`
+passed all **89 stages on each target**. Each independent attempt retained its
+1800-second bound and original 90-second kiosk observation deadlines.
+
+| Target | Result / report under `output/test-runs/` | Attempt / measured pause |
+| --- | --- | --- |
+| `onpc-Ubuntu26.04` | `privileged/allocations/onpc-graphical-smoke-b4qgcoq2/result.json`; [report](../../output/test-runs/host/reports/20261021T213306Z-531dbaae/report.md) | 979.296s / 90.067674s |
+| `onpc-Fedora44` | `privileged/allocations/onpc-graphical-smoke-rj9z5pqr/result.json`; [report](../../output/test-runs/host/reports/20261021T213306Z-fa74e0b6/report.md) | 958.003s / 90.066818s |
+
+This renews the existing Jordan (`existing-fixture-child`) binding: Jamie
+approver, 1800-second preset, soft choice false, zero daily/grant/total and
+unchanged app policy. LANG01 uses the Application UI API's stable IDs and normal
+Save/Cancel handlers; shared guarded GDM operations own authentication and
+passwordless station entry. TIME03 runs after the untouched English chooser
+read. The fresh `initial-retained` read matched its opaque dialog lifetime,
+active kiosk session and complete choice/text projection before Save. Both
+runs then observed usable translated forms, the existing en/de/zh-Hans/he
+matrix, Chinese Cancel retaining German, German persistence through normal
+exit/reentry and unchanged request/policy projections. No request was submitted.
+
+Public App UI API actions restored English and disabled Jordan's controls,
+with independent readback. The outer baseline restoration owns the exact
+unset-language starting state. Collection, worker shutdown, callback closure,
+lease completion and host/source preservation passed in both results. Final
+serial `tools/cleanup-e2e --vm 'onpc-Ubuntu26.04,onpc-Fedora44'` passed, and
+independent status reads confirmed both machines off.
+
+Both verified artifact manifests bind package-source digest
+`c605f6015816741e7a6054342a4b24dbc4783e540049d5c3eb1a275cfc2e87f5`.
+The online `onpc-v1.4` snapshot inputs exactly matched their expected package,
+baseline and recipe identities. Per-target candidate/provider applicability is
+retained in each result's `provenance`, `installed_snapshot` and frozen
+`input/selected-inputs.json`:
+
+| Target | Package SHA-256 | Baseline SHA-256 / environment ID |
+| --- | --- | --- |
+| `onpc-Ubuntu26.04` | `daf2b8805916d1b0eddeb8e608fa3e6df4d475d7d88a1a5176779d52a777d194` | `ab6bbc1534a804cd4c781227fa41816aaae22c27a349c4bdb48c6cb7979e15ec`; `ubuntu26-04-d89c67129741d971c9c4fc66534dd9cc42df5115de373e07985194d1d37537ed` |
+| `onpc-Fedora44` | `29014e5a66b65705d930576501034a166aed485bdd61493220ec3fa4f53c4fdd` | `501634227038c2a2e48b833715e2fe9aaaa0048cb5896ec87c24ccf6d5611617`; `fedora44-d93ca77aa2727081b7f21a5e622f934bc099f0210d1c0e4fdd8b40998e7857a5` |
+
+Both runs used source identity
+`a0fe2f2778bfda2a2aa58217ea5f70c1256a3cface4f51be8e7a750a11d36d47`,
+inventory `756bf5176c3b9d8ff96ee382d6ee1b6327bd072960dcddc8dbedfadc3700855b`
+and worker distribution `a503ce3e922af5c729346e991eed5b7fc4035e273a14c66579e9fbf6f547958e`.
+The ten affected/shared language and recovery source hashes in both frozen
+selections were compared with the checkout and matched. Ordinary LANG01 reply
+shapes remain unchanged; only the confinement caller requests initial identity.
+Independent Sol High review found a missing retained Parent endpoint rebind;
+the worker now reuses PARENT01 and independently binds Parent before policy
+comparison/restoration. The reviewed pause, ownership and preservation checks
+had no remaining findings, and both installed runs passed that corrected route.
+
+The interrupted predecessor attempts retain zero journey steps and no acceptance
+credit. Its explicitly authorized Ubuntu instance recovery completed through
+`recover-online 69`, followed by ordinary serial cleanup. Online startup now
+persists its guarded instance before progress/logging/metadata work; subsequent
+ordinary recovery can restore that recorded instance using the private saved
+snapshot proof. The [recovery owner](../../tests/README.md#aggregate-output-retention)
+retains refusal for an unrecorded live instance unless its exact observed ID is
+explicitly authorized. Exception/cancellation, identity/proof refusal and both
+parallelism inventories passed **959 checks** in
+[the recovery report](../../output/test-runs/host/reports/20261021T213122Z-101d7cde/report.md).
+Final language/identity/preservation/composition and plan/inventory/coverage/launcher
+checks passed **1,866/1,866** with `--timeout 180s` in
+[the close-out report](../../output/test-runs/host/reports/20261021T215159Z-8b7edde0/report.md).
+Both plan `--check` routes and changed-document link checks passed.
+All helpers finished before live work. No product/backend or package-build input
+changed. Other B3 features, the authentication pause, B4 and C05 remain pending;
+this qualification closes no E2E scenario or other queue row.
 
 ### Kiosk, child overlay and the shared request form
 

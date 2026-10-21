@@ -1720,6 +1720,16 @@ the baseline snapshot and guest before completing the stale journal, without
 shutting down, reverting or redefining the VM. A running replacement instance
 still refuses; shut it down through the VM manager before retrying recovery.
 Changed guest state or configuration preserves the journal and evidence.
+Online snapshot startup records the restored instance before progress teardown,
+logging or fresh run metadata. Ordinary recovery can therefore restore that
+recorded instance even if startup failed before its saved snapshot tag was
+rebound, after verifying the private snapshot and isolation proofs. An abrupt
+interruption before the instance is recorded still refuses automatic adoption.
+For an explicitly inspected and authorized live instance in that narrow gap,
+`tools/test-vm --vm NAME recover-online ID` accepts only a matching interrupted
+online start/cleanup journal, private saved-memory proof, baseline and exact
+current instance. It restores the baseline and leaves the VM off; it supplies no
+test acceptance and does not adopt a replacement for a recorded instance.
 
 After VM recovery succeeds, unfinished retention journals and recovery markers
 are archived as `recovered-<run>.json` and `recovered-<run>.marker`. Every registered

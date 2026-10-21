@@ -4,6 +4,7 @@ from copy import deepcopy
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, parent_management, station_entry, language_selection
 from private_artifacts import require
+from real_interval import interval_action
 
 # Independent literal oracles; never infer public IDs or results from catalogues.
 CHOOSER = {
@@ -34,7 +35,8 @@ SCREENS = {
     'policy-before': 'ui:kiosk-language-policy',
     'switch-user': 'system:parent-switch-user', 'gdm-switched': 'ui:gdm-returned',
     **station_entry('initial-'),
-    'initial-language': 'ui:kiosk-language-initial', 'initial-save': 'ui:kiosk-language-save',
+    'initial-language': 'ui:kiosk-language-initial-identity',
+    'initial-retained': 'ui:kiosk-language-initial-identity', 'initial-save': 'ui:kiosk-language-save',
     'other-first-parent': 'ui:multiple-other-first-parent',
     'initial-form': 'ui:kiosk-language-form-en',
 }
@@ -53,37 +55,54 @@ SCREENS.update({
     'reentered-form': 'ui:kiosk-language-form-de',
     'reentered-open': 'ui:kiosk-language-open', 'reentered-close': 'ui:kiosk-language-cancel',
     'final-form': 'ui:kiosk-language-form-de',
+    **language_selection('restore-english', 'en', surface='kiosk'),
+    'restore-english-save': 'ui:kiosk-language-save',
+    'restore-english-form': 'ui:kiosk-language-form-en',
     'final-cancel': 'ui:kiosk-request-cancel', 'final-returned': 'ui:gdm-station-returned',
     'return-greeter': 'ui:gdm-list', 'return-focused': 'ui:gdm-focused',
     'return-qualified': 'ui:gdm-parent-recipient', 'return-rechecked': 'ui:gdm-parent-recipient-rechecked',
-    'return-desktop': 'ui:desktop', 'policy-after': 'ui:kiosk-language-policy',
+    'return-desktop': 'ui:desktop',
+    'return-parent-command': 'ui:parent-command-launch',
+    'return-parent-window': 'ui:switch-parent',
+    'policy-after': 'ui:kiosk-language-policy',
+    'restore-policy': 'ui:kiosk-language-policy-restored',
 })
 PLAN = JourneyPlan(prefix='kiosk-language', worker_mode='kiosk_language', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'step-1' for stage in SCREENS}, 'installed-greeter': 'start'},
     invocations=('return-greeter', 'return-focused', 'return-qualified', 'return-rechecked', 'return-desktop'),
     challenges={'return-parent': ('parent', 'return-qualified', 'return-rechecked')},
+    stage_actions={'initial-language': 'real-interval'},
     assertions_after={stage: stage + '-verified' for stage in SCREENS
-        if stage in ('wrong-entry', 'initial-language', 'policy-before', 'policy-after',
+        if stage in ('wrong-entry', 'initial-language', 'initial-retained', 'policy-before', 'policy-after', 'restore-policy',
                      'returned', 'final-returned', 'reentered-open') or stage.endswith('-form')
         or stage.endswith('-candidate') or stage.endswith('-retained')})
 
 
 class KioskLanguageJourney(InstalledJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+        super().__init__(context, progress, plan, actions=(
+            {'real-interval': interval_action(90)} if actions is None else actions))
         self.committed = self.candidate = 'en'
         self.language_captures = set()
         self.request_projection = self.policy_projection = None
+        self.initial_chooser = None
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
         operation = self.plan.screen_tags.get(stage, '')[3:]
+        if operation == 'kiosk-language-initial-identity':
+            operation = 'kiosk-language-initial'
         if not operation.startswith('kiosk-language-'):
             return
         require(stage not in self.language_captures, 'language:capture-replay')
         value = observed['ui']
-        if operation == 'kiosk-language-policy':
+        if operation == 'kiosk-language-policy-restored':
+            policy = deepcopy(self.policy_projection)
+            require(policy is not None, 'language:missing-policy')
+            policy['settings']['limit_enabled'] = False
+            require(value['language_policy'] == policy, 'language:policy-restoration')
+        elif operation == 'kiosk-language-policy':
             policy = value['language_policy']
             require(policy['settings'] == {'child': 'existing-fixture-child', 'limit_enabled': True,
                     'allowance': ['0 minutes']} and policy['balances'] == {
@@ -115,7 +134,15 @@ class KioskLanguageJourney(InstalledJourney):
             elif operation == 'kiosk-language-open':
                 self.candidate = self.committed
             text = CHOOSER[self.candidate]
-            require(value['language'] == {'initial': operation == 'kiosk-language-initial',
+            chooser = deepcopy(value['language'])
+            if stage in ('initial-language', 'initial-retained'):
+                require('identity' in chooser, 'language:missing-chooser-identity')
+                if stage == 'initial-language':
+                    self.initial_chooser = deepcopy(chooser)
+                require(self.initial_chooser is not None and chooser == self.initial_chooser,
+                        'language:paused-chooser-replaced')
+                chooser.pop('identity')
+            require(chooser == {'initial': operation == 'kiosk-language-initial',
                 'checked': self.candidate.lower(), 'choices': {key: texts[0] for key, texts in CHOOSER.items()},
                 'heading': text[1], 'save': text[2], 'save_label': text[2], 'save_description': text[3]},
                 'language:chooser-text-or-choice')

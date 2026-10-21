@@ -239,17 +239,19 @@ def restore(lease, record, *, maintenance=False):
     with lease.snapshot_status('Restoring', lease.installed_name):
         lease.source.domain.revertToSnapshot(snap,
             lease.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
+        # Persist the restored instance before progress teardown, logging,
+        # metadata replacement or observers can fail. Revert can leave the old
+        # handle's ID cached, so always resolve the pinned UUID again first.
+        lease.source.domain = lease.source.connection.lookupByUUIDString(lease.source.uuid)
+        from vm_control import check_identity
+        check_identity(lease.source, lease.source.uuid)
+        lease.view.run = record['run']
+        lease.view.domain_id = lease.source.domain.ID()
+        system.require(lease.view.domain_id >= 0, 'start:identity-unavailable')
+        lease.state['domain_id'] = lease.view.domain_id
+        lease.guard()
+        lease.save('running')
     system.log(f'online-snapshot:memory-restored seconds={time.monotonic() - started:.2f}')
-    # Snapshot revert can recreate QEMU without refreshing the old virDomain
-    # handle's cached ID. Resolve the pinned UUID again before recording it.
-    lease.source.domain = lease.source.connection.lookupByUUIDString(lease.source.uuid)
-    from vm_control import check_identity
-    check_identity(lease.source, lease.source.uuid)
-    lease.view.run = record['run']
-    lease.view.domain_id = lease.source.domain.ID()
-    system.require(lease.view.domain_id >= 0, 'start:identity-unavailable')
-    lease.state['domain_id'] = lease.view.domain_id
-    lease.guard()
     lease.source.domain.setMetadata(lease.source.api.VIR_DOMAIN_METADATA_DESCRIPTION,
         system.TAG + lease.state['run'], None, None,
         lease.source.api.VIR_DOMAIN_AFFECT_LIVE | lease.source.api.VIR_DOMAIN_AFFECT_CONFIG)

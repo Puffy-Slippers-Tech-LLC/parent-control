@@ -800,6 +800,9 @@ KIOSK_LANGUAGE_BINDINGS = {operation: (operation, EXISTING_CHILD)
 KIOSK_LANGUAGE_BINDINGS.update({operation.replace('kiosk-language-', 'kiosk-riley-language-', 1):
                                (operation, CHILD) for operation in KIOSK_LANGUAGE_OPERATIONS
                                if not operation.endswith('-wrong-entry')})
+# The confinement pause opts in without changing existing LANG01 reply shapes.
+KIOSK_LANGUAGE_BINDINGS['kiosk-language-initial-identity'] = (
+    'kiosk-language-initial-identity', EXISTING_CHILD)
 KIOSK_LANGUAGE_CASEY_FORMS = {}
 for operation, (binding, child) in tuple(KIOSK_LANGUAGE_BINDINGS.items()):
     if '-language-form-' in operation:
@@ -807,6 +810,7 @@ for operation, (binding, child) in tuple(KIOSK_LANGUAGE_BINDINGS.items()):
         KIOSK_LANGUAGE_CASEY_FORMS[operation + '-casey'] = child
 KIOSK_LANGUAGE_OPERATIONS = frozenset(KIOSK_LANGUAGE_BINDINGS)
 KIOSK_LANGUAGE_POLICIES = {'kiosk-language-policy': EXISTING_CHILD,
+                          'kiosk-language-policy-restored': EXISTING_CHILD,
                           'kiosk-riley-language-policy': CHILD}
 # Finite REQUEST03/04 bindings for multilingual request preservation. These
 # compose the same public form/account mechanics with caller-owned values.
@@ -3053,18 +3057,18 @@ class AccessibleUI:
     def read_parent_language(self, *, initial=False):
         return self.read_language('parent', initial=initial)
 
-    def read_kiosk_language(self, *, initial=False, child=EXISTING_CHILD):
+    def read_kiosk_language(self, *, initial=False, child=EXISTING_CHILD, identity=False):
         # The general chooser actions also serve the overlay. This installed
         # observation specifically requires the dedicated station application.
         with self.language_scope('kiosk'):
             self.application_ids = tuple(value for value in self.application_ids
                                          if value == KIOSK_APPLICATION)
-            return self.read_language('kiosk', initial=initial, child=child)
+            return self.read_language('kiosk', initial=initial, child=child, identity=identity)
 
     def read_overlay_language(self, *, initial=False):
         return self.read_language('overlay', initial=initial)
 
-    def read_language(self, surface, *, initial=False, child=EXISTING_CHILD):
+    def read_language(self, surface, *, initial=False, child=EXISTING_CHILD, identity=False):
         """Bounded owned chooser read; never complete startup or send input."""
         with self.language_scope(surface):
             namespace = 'parent' if surface == 'parent' else 'kiosk'
@@ -3113,11 +3117,22 @@ class AccessibleUI:
                     [node.get_name() for node in self.snapshot_scope(nodes, edges, save_control)
                      if node.get_role_name() == 'label' and self.showing(node)])
                 require(len(save_labels) == 1, 'ui:language-save-label')
-                return {'initial': initial, 'checked': checked.lower(), 'choices': choices,
+                result = {'initial': initial, 'checked': checked.lower(), 'choices': choices,
                         'heading': target('language-title').get_name(),
                         'save': target('language-continue').get_name(),
                         'save_label': save_labels[0],
                         'save_description': target('language-continue').get_description()}
+                if identity:
+                    require(surface == 'kiosk' and initial, 'ui:language-identity-binding')
+                    lifetime = dialog.getValue()
+                    require(type(lifetime) is str and re.fullmatch(r'[0-9a-f]{32}', lifetime),
+                            'ui:language-chooser-identity')
+                    uid = os.getuid()
+                    require(uid == os.geteuid() == pwd.getpwnam(KIOSK_USERNAME).pw_uid,
+                            'ui:language-session-account')
+                    session = session_control.entry_identity(session_control.sessions(), uid, 'same')
+                    result['identity'] = {'chooser': lifetime, 'session': session}
+                return result
             return self.wait(read, surface + '-language-chooser', prompt_in_predicate=True)
 
     def kiosk_language_form(self, language, *, overlay=False, child=EXISTING_CHILD,
@@ -3187,18 +3202,19 @@ class AccessibleUI:
             self.input_uncertain = True
             raise
 
-    def kiosk_language_policy(self, *, child=EXISTING_CHILD):
+    def kiosk_language_policy(self, *, child=EXISTING_CHILD, enabled=True):
         """Public English Parent policy; balances are independently observed."""
-        require(child in (CHILD, EXISTING_CHILD), 'ui:language-policy-child')
+        require(child in (CHILD, EXISTING_CHILD) and type(enabled) is bool,
+                'ui:language-policy-child')
         self.activate_id('parent-page-screen-limits')
-        self.parent_save_snapshot(child, True)
+        self.parent_save_snapshot(child, enabled)
         settings = self.settings(child)
         balances = self.reach_time_explanation(child)
         self.activate_id('parent-page-app-limits')
         self.id_target('parent-app-search', sensitive=True)
         rows = self.wait(lambda: {'rows': self.app_rows(child)}, 'language-policy-rows')['rows']
         self.activate_id('parent-page-screen-limits')
-        self.parent_save_snapshot(child, True)
+        self.parent_save_snapshot(child, enabled)
         return {'settings': settings, 'rows': [list(row) for row in rows],
                 'balances': {key: balances[key]['seconds'] for key in ('daily', 'one_time', 'total')}}
 
@@ -3228,8 +3244,9 @@ class AccessibleUI:
                     'ui:language-wrong-entry')
             return {'refused': True}
         # Strict application/session and fixed-child proof precedes every input.
-        if operation == surface + '-language-initial':
-            return {'language': reader(initial=True)}
+        if operation in (surface + '-language-initial', 'kiosk-language-initial-identity'):
+            return {'language': reader(initial=True, **(
+                {'identity': True} if operation == 'kiosk-language-initial-identity' else {}))}
         if operation.startswith(surface + '-language-form-'):
             language = next(value for value in PARENT_LANGUAGE_CHOICES
                             if operation.endswith('-' + value.lower()))
@@ -12854,7 +12871,13 @@ class AccessibleUI:
                     raise UiError('ui:language-refusal-accepted')
             result['refused'] = True
         elif operation in KIOSK_LANGUAGE_POLICIES:
-            result['language_policy'] = self.kiosk_language_policy(child=KIOSK_LANGUAGE_POLICIES[operation])
+            restoring = operation == 'kiosk-language-policy-restored'
+            child = KIOSK_LANGUAGE_POLICIES[operation]
+            if restoring:
+                self.activate_id('parent-page-screen-limits')
+                self.parent_save_snapshot(child, True)
+                self.set_toggle('parent-screen-limit-toggle', False, root=self.parent())
+            result['language_policy'] = self.kiosk_language_policy(child=child, enabled=not restoring)
         elif operation == 'overlay-language-policy':
             result['language_policy'] = self.kiosk_language_policy(child=CHILD)
         elif operation == 'parent-window-count':

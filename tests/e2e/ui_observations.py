@@ -382,6 +382,7 @@ RESPONSE_BYTE_LIMITS.update({operation: 32768
 OPERATION_LABELS.update({operation: 'Reading or changing the owned kiosk language through public controls'
                          for operation in accessible_ui.KIOSK_LANGUAGE_OPERATIONS})
 OPERATION_LABELS['kiosk-language-policy'] = 'Comparing Jordan policy and balances in Parent'
+OPERATION_LABELS['kiosk-language-policy-restored'] = 'Restoring and independently reading Jordan policy in Parent'
 OPERATION_LABELS['kiosk-riley-language-policy'] = 'Comparing Riley policy and balances in Parent'
 OPERATION_LABELS['kiosk-language-account-refusals'] = 'Refusing wrong-child and mismatched language input'
 OPERATION_LABELS.update({operation: 'Selecting the declared kiosk account with independent language readback'
@@ -1556,6 +1557,8 @@ class UiObservations:
                          accessible_ui.OVERLAY_LANGUAGE_OPERATIONS):
             language_operation, language_child = accessible_ui.KIOSK_LANGUAGE_BINDINGS.get(
                 operation, (operation, None))
+            if language_operation == 'kiosk-language-initial-identity':
+                language_operation = 'kiosk-language-initial'
             surface = operation.split('-', 1)[0]
             if operation.endswith('-wrong-entry'):
                 require(result == {**expected, 'refused': True}, 'ui:language-refusal')
@@ -1639,8 +1642,11 @@ class UiObservations:
                 expected['language_form'] = value
             elif language_operation not in (surface + '-language-save', surface + '-language-cancel'):
                 value = result.get('language')
+                identity_keys = {'identity'} if type(value) is dict and 'identity' in value else set()
+                require(operation != 'kiosk-language-initial-identity' or identity_keys,
+                        'ui:language-identity')
                 require(type(value) is dict and set(value) == {
-                    'initial', 'checked', 'choices', 'heading', 'save', 'save_label', 'save_description'}
+                    'initial', 'checked', 'choices', 'heading', 'save', 'save_label', 'save_description'} | identity_keys
                     and value['initial'] is (language_operation == surface + '-language-initial')
                     and value['checked'] in tuple(language.lower() for language in
                                                   accessible_ui.PARENT_LANGUAGE_CHOICES)
@@ -1649,6 +1655,15 @@ class UiObservations:
                     and all(type(text) is str and 0 < len(text) <= 512 for text in
                             (*value['choices'].values(), value['heading'], value['save'], value['save_label'],
                              value['save_description'])), 'ui:language-response')
+                if identity_keys:
+                    identity = value['identity']
+                    require(operation == 'kiosk-language-initial-identity' and type(identity) is dict
+                            and set(identity) == {'chooser', 'session'}
+                            and type(identity['chooser']) is str
+                            and re.fullmatch(r'[0-9a-f]{32}', identity['chooser'])
+                            and type(identity['session']) is str
+                            and re.fullmatch(r'[0-9a-f]{64}', identity['session']),
+                            'ui:language-identity')
                 expected['language'] = value
         if (operation in accessible_ui.INITIAL_KIOSK_OPERATIONS and operation != 'kiosk-initial-notice-return'
                 or operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS):

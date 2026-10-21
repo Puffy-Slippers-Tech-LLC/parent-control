@@ -1397,6 +1397,10 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # APIs only; graphical_smoke_cleanup_safety stays compatible in both schedulers.
 # Interrupted snapshot cleanup adds private synthetic snapshot/record proofs
 # and mocked off-domain APIs to that rig; no live VM or new resource owner.
+# Live interrupted-start recovery, explicit route selection and early identity
+# persistence reuse private rig journals and process-local libvirt/progress/log
+# doubles. Graphical-smoke, VM-control and E2E-suite remain compatible in unit
+# and cleanup inventories; no service, process, bus, display or cache is added.
 # Parent custom-save ordering tests hold callbacks in memory and use mocked
 # widgets only; they add no timers, threads, filesystem or display resources.
 # Public AT-SPI transport tests use in-memory RPC/connection doubles only;

@@ -171,6 +171,10 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Its existing compatible cleanup classification remains appropriate.
 # Interrupted snapshot cleanup reuses that rig with private synthetic snapshot
 # records and off-domain API doubles; no new resource or cleanup lifetime.
+# Live interrupted-start recovery, explicit route selection and early identity
+# persistence add only existing private rig journals and process-local libvirt,
+# progress and log doubles. Graphical-smoke, VM-control and E2E-suite modules
+# retain compatible cleanup scheduling: no live VM, process, socket or cache.
 # Sandbox address-family refusal/netlink checks use process-local socket and guest
 # doubles only. Existing private staging/drop-in fixtures and descriptor cleanup
 # are unchanged; system_probe_sandbox remains compatible with unit and cleanup.

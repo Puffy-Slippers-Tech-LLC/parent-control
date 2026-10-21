@@ -262,6 +262,13 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         run = recover_identity(lease)
         lease.view.run = run
         lease.view.domain_id = recovery_instance
+    elif stopping and current_id >= 0 and (
+            ET.fromstring(lease.source.domain.XMLDesc(0)).findtext('description') !=
+            runner.TAG + state['run']):
+        # Startup persisted this exact instance before fresh run metadata.
+        # Saved-memory proof is still mandatory; the recorded ID remains fixed.
+        from online_snapshot import recover_identity
+        lease.view.run = recover_identity(lease)
     lease.guard(off=stopping and current_id == -1)
     runner.require(lease.capture.verify_snapshot() == lease.capture.state['proof'], 'baseline:changed')
     lease.mutated = True
@@ -295,6 +302,24 @@ def operate(lease, action, keys):
 
 
 def _operate(lease, action, keys):
+    if action == 'recover-online':
+        # This is an explicit caller-observed instance, not ordinary startup
+        # recovery. Route non-maintenance test attempts to their own controller;
+        # it reacquires the shared lease and validates the journal and snapshot.
+        owner_path = lease.directory / 'vm-control.json'
+        for path in (lease.journal, owner_path):
+            if os.path.lexists(path):
+                runner.baseline.identity(path, private=True, mode=0o600)
+        attempt = runner.baseline.parse_json(lease.journal.read_bytes())
+        owner = (runner.baseline.parse_json(owner_path.read_bytes())
+                 if os.path.lexists(owner_path) else None)
+        stale_owner = (isinstance(owner, dict) and set(owner) == {
+            'run', 'domain_uuid', 'baseline_sha256', 'snapshot_sha256'} and
+            isinstance(owner['run'], str) and re.fullmatch(r'[0-9a-f]{32}', owner['run']) and
+            isinstance(attempt, dict) and owner['run'] != attempt.get('run'))
+        if owner is None or stale_owner:
+            lease.recover_graphical_cleanup(recovery_instance=keys[0])
+            return
     if action in ('start', 'reset'):
         lease.__enter__()
         # Don't shut down an existing manually started VM to claim ownership.
@@ -332,7 +357,9 @@ def _operate(lease, action, keys):
                 lease.original_xml, 'vm-control:off-configuration-changed')
             lease.save('complete')
         else:
-            if not lease.view.snapshot()[1]:
+            if lease.view.run != lease.state['run']:
+                lease.stop_by_restore()
+            elif not lease.view.snapshot()[1]:
                 from vm_probe import connect
                 connect(lease)
             lease.finish()

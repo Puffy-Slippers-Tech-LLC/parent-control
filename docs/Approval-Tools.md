@@ -546,7 +546,7 @@ replacement by name alone.
 | `tools/test-vm --vm NAME screenshot` | Capture the owned running guest through the legacy `/tmp/onpc-vm-screen-*` allocation; migration to [shared storage](Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes) remains required. This is separate from the caller-owned PNG export exception. |
 | `tools/test-vm --vm NAME stop` | Stop only that recorded maintenance instance, verify/restore the outer baseline and original domain configuration, leave it off |
 | `tools/test-vm --vm NAME reset` | Restore the accepted outer baseline while idle, leaving the VM off |
-| `tools/test-vm --vm NAME recover-online ID` | After explicit authorization of the inspected instance, recover an interrupted online start with matching maintenance, snapshot and isolation proofs; restore the baseline and leave it off |
+| `tools/test-vm --vm NAME recover-online ID` | After explicit authorization of the inspected instance, recover an interrupted online maintenance or graphical test start with matching private snapshot and isolation proofs; restore the baseline and leave it off |
 
 Every mutation shares the runner's nonblocking exclusive lock. Reopened
 maintenance operations require a matching root-private ownership record,

@@ -20,11 +20,14 @@ from tests.support.e2e_recording import session
 from ui_observations import UiObservations, OPERATION_LABELS
 
 
-def chooser_value(selected='en', initial=False):
+def chooser_value(selected='en', initial=False, identity=False):
     text = language.CHOOSER[selected]
-    return {'initial': initial, 'checked': selected.lower(),
+    result = {'initial': initial, 'checked': selected.lower(),
         'choices': {key: value[0] for key, value in language.CHOOSER.items()},
         'heading': text[1], 'save': text[2], 'save_label': text[2], 'save_description': text[3]}
+    if identity:
+        result['identity'] = {'chooser': 'a' * 32, 'session': 'b' * 64}
+    return result
 
 
 def chooser_tree(initial=False):
@@ -35,7 +38,7 @@ def chooser_tree(initial=False):
         Node('Save', identity='language-continue', description='Save your language preference.',
              children=[Node('Save', 'label')]), Node('Cancel', identity='language-cancel'),
         Node(identity='language-list', value='en', choices=language.CHOOSER)]
-    dialog = Node(identity='language-dialog', children=controls)
+    dialog = Node(identity='language-dialog', children=controls, value='a' * 32)
     window = Node(identity='kiosk-request-window', children=[dialog,
         Node(identity='kiosk-language-loading' if initial else 'kiosk-language-ready'),
         Node(public.EXISTING_CHILD, 'label', identity='kiosk-child-selected-1002')])
@@ -149,8 +152,83 @@ def test_kiosk_reader_refuses_overlay_and_wrong_entry_before_action():
     ui.open_language_preferences.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', ['', 'chooser', 'session', 'choice', 'missing'])
+def test_pause_reacquires_same_initial_chooser_before_save(fault):
+    journey = language.KioskLanguageJourney(SimpleNamespace(), Mock())
+    original = chooser_value(initial=True, identity=True)
+    journey.check_settings('initial-language', {'ui': {'language': original}})
+    retained = deepcopy(original)
+    if fault in ('chooser', 'session'):
+        retained['identity'][fault] = 'c' * (32 if fault == 'chooser' else 64)
+    if fault == 'choice': retained['checked'] = 'de'
+    if fault == 'missing': retained.pop('identity')
+    if fault:
+        with pytest.raises(EvidenceError, match='language:(paused-chooser-replaced|missing-chooser-identity)'):
+            journey.check_settings('initial-retained', {'ui': {'language': retained}})
+        assert 'initial-save' not in journey.language_captures
+    else:
+        journey.check_settings('initial-retained', {'ui': {'language': retained}})
+        original['identity']['chooser'] = 'd' * 32
+        assert journey.initial_chooser['identity']['chooser'] == 'a' * 32
+
+
+@pytest.mark.parametrize('cancel', [False, True])
+def test_initial_pause_reuses_guarded_time03_and_original_budget(monkeypatch, cancel):
+    import real_interval
+    clock = [100.0]
+    monkeypatch.setattr(real_interval.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(real_interval.time, 'sleep', lambda duration: clock.__setitem__(0, clock[0] + duration))
+    journey = language.KioskLanguageJourney(SimpleNamespace(), Mock())
+    def guard():
+        if cancel and clock[0] >= 101:
+            raise EvidenceError('cancelled')
+        return 1900
+    action = journey.actions[language.PLAN.stage_actions['initial-language']]
+    if cancel:
+        with pytest.raises(EvidenceError, match='cancelled'): action(journey, guard)
+        assert clock[0] < 190
+    else:
+        assert action(journey, guard) >= 90
+        assert clock[0] == 190
+    stages = list(language.SCREENS)
+    assert stages[stages.index('initial-language'):stages.index('initial-save') + 1] == [
+        'initial-language', 'initial-retained', 'initial-save']
+
+
+@pytest.mark.parametrize('fault', ['', 'chooser', 'session', 'extra', 'operation'])
+def test_optional_initial_identity_decoder_is_bounded(fault):
+    value = chooser_value(initial=True, identity=True)
+    operation = 'kiosk-language-initial-identity'
+    if fault == 'chooser': value['identity']['chooser'] = 'x' * 33
+    if fault == 'session': value['identity']['session'] = True
+    if fault == 'extra': value['identity']['pid'] = 100
+    if fault == 'operation':
+        operation = 'kiosk-language-read'
+        value['initial'] = False
+    payload = dict(operation=operation, outcome='passed', interface='ApplicationUI+external-provider', language=value)
+    raw = json.dumps(payload).encode() + b'\n'
+    def deliver(*args, **kwargs):
+        if kwargs.get('on_output') is not None:
+            kwargs['on_output'](raw)
+        return raw
+    transport = SimpleNamespace(call=Mock(side_effect=deliver), commands=SimpleNamespace(progress=None))
+    observer = UiObservations(transport)
+    if fault:
+        with pytest.raises(EvidenceError, match='ui:language-identity'): observer.observe(operation)
+        with pytest.raises(EvidenceError, match='previous-failure'): observer.observe('kiosk-language-save')
+        transport.call.assert_called_once()
+    else:
+        assert observer.observe(operation) == payload
+
+
 @pytest.mark.parametrize('fault', ['', 'missing', 'wrong-child', 'duplicate', 'hidden', 'stale'])
-def test_initial_operation_checks_selected_kiosk_child_without_startup_input(fault):
+@pytest.mark.parametrize('identity', [False, True])
+def test_initial_operation_checks_selected_kiosk_child_without_startup_input(monkeypatch, fault, identity):
+    monkeypatch.setattr(public.os, 'getuid', lambda: 1003)
+    monkeypatch.setattr(public.os, 'geteuid', lambda: 1003)
+    monkeypatch.setattr(public.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1003))
+    monkeypatch.setattr(public.session_control, 'sessions', Mock(return_value={'owned': 'session'}))
+    monkeypatch.setattr(public.session_control, 'entry_identity', Mock(return_value='b' * 64))
     ui, window, _dialog, controls = chooser_tree(initial=True)
     selected = window.children[-1]
     if fault == 'missing': window.children.remove(selected)
@@ -159,13 +237,21 @@ def test_initial_operation_checks_selected_kiosk_child_without_startup_input(fau
     if fault == 'hidden': selected.states.discard('showing')
     if fault == 'stale': selected.states.add('defunct')
     ui.complete_request_language_setup = Mock(side_effect=AssertionError('automatic startup'))
+    operation = 'kiosk-language-initial-identity' if identity else 'kiosk-language-initial'
     if fault:
-        with pytest.raises(public.UiError): ui.kiosk_language_operation('kiosk-language-initial')
+        with pytest.raises(public.UiError): ui.kiosk_language_operation(operation)
     else:
-        value = ui.kiosk_language_operation('kiosk-language-initial')
-        assert value == {'language': chooser_value(initial=True)}
-        language.KioskLanguageJourney(SimpleNamespace(), Mock()).check_settings(
-            'initial-language', {'ui': value})
+        value = ui.kiosk_language_operation(operation)
+        assert value == {'language': chooser_value(initial=True, identity=identity)}
+        if identity:
+            language.KioskLanguageJourney(SimpleNamespace(), Mock()).check_settings(
+                'initial-language', {'ui': value})
+        else:
+            # Exercise a real existing consumer with the actual producer shape.
+            from kiosk_language_restoration import KioskLanguageRestorationJourney
+            KioskLanguageRestorationJourney(SimpleNamespace(), Mock()).check_settings(
+                'initial-language', {'ui': value})
+            public.session_control.entry_identity.assert_not_called()
     ui.complete_request_language_setup.assert_not_called()
     for control in controls: control.action.do_action.assert_not_called()
 
@@ -239,6 +325,38 @@ def test_public_policy_reader_projects_actual_balances_and_retains_settings(faul
     ui.app_rows.assert_called_once_with(public.EXISTING_CHILD)
     assert [call.args for call in ui.activate_id.call_args_list] == [
         ('parent-page-screen-limits',), ('parent-page-app-limits',), ('parent-page-screen-limits',)]
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'save', 'changed-policy'])
+def test_public_policy_restoration_keeps_jordan_binding_and_readback(fault):
+    ui, _window, _dialog, _controls = chooser_tree()
+    ui.activate_id = Mock()
+    ui.parent = Mock(return_value=object())
+    ui.parent_save_snapshot = Mock(side_effect=public.UiError('ui:wrong-child')
+        if fault == 'wrong-child' else None)
+    ui.set_toggle = Mock(side_effect=public.UiError('ui:save') if fault == 'save' else None)
+    restored = policy_value()
+    restored['settings']['limit_enabled'] = False
+    if fault == 'changed-policy': restored['rows'][0][1] = 'blocked'
+    ui.kiosk_language_policy = Mock(return_value=restored)
+    if fault in ('wrong-child', 'save'):
+        with pytest.raises(public.UiError): ui.run('kiosk-language-policy-restored', '1.0')
+        ui.kiosk_language_policy.assert_not_called()
+        if fault == 'wrong-child': ui.set_toggle.assert_not_called()
+        return
+    value = ui.run('kiosk-language-policy-restored', '1.0')
+    ui.parent_save_snapshot.assert_called_once_with(public.EXISTING_CHILD, True)
+    ui.set_toggle.assert_called_once_with('parent-screen-limit-toggle', False, root=ui.parent.return_value)
+    ui.kiosk_language_policy.assert_called_once_with(child=public.EXISTING_CHILD, enabled=False)
+    journey = language.KioskLanguageJourney(SimpleNamespace(), Mock())
+    journey.check_settings('policy-before', {'ui': {'language_policy': policy_value()}})
+    journey.check_settings('policy-after', {'ui': {'language_policy': policy_value()}})
+    if fault:
+        with pytest.raises(EvidenceError, match='language:policy-restoration'):
+            journey.check_settings('restore-policy', {'ui': value})
+    else:
+        journey.check_settings('restore-policy', {'ui': value})
+        assert journey.policy_projection['settings']['limit_enabled'] is True
 
 
 @pytest.mark.parametrize('operation', ['kiosk-language-choose-de', 'kiosk-language-save', 'kiosk-language-cancel'])
@@ -332,15 +450,23 @@ def test_real_decoder_bounds_refusals_and_terminal_latch(operation, key, value, 
 
 
 @pytest.mark.parametrize('stage,fault', [('initial-language', ''), ('initial-language', 'meaning'),
+    ('initial-retained', ''), ('initial-retained', 'chooser'), ('initial-retained', 'session'),
+    ('initial-retained', 'missing-identity'),
     ('initial-form', ''), ('initial-form', 'visible'), ('initial-form', 'request'),
     ('policy-after', ''), ('policy-after', 'policy'), ('policy-after', 'grant'),
     ('initial-form', 'storage'), ('initial-form', 'replay')])
 def test_real_recorder_refuses_before_durable_reply_and_freezes_projection(tmp_path, stage, fault):
     journey = language.KioskLanguageJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.actions = {'real-interval': Mock(return_value=90)}
     journey.boot = 'a' * 64
     journey.steps = [{'stage': s} for s in journey.plan.stages[:journey.plan.stages.index(stage)]]
-    key = 'language' if stage == 'initial-language' else 'language_form' if stage == 'initial-form' else 'language_policy'
-    value = chooser_value(initial=True) if key == 'language' else form_value() if key == 'language_form' else policy_value()
+    key = 'language' if stage in ('initial-language', 'initial-retained') else 'language_form' if stage == 'initial-form' else 'language_policy'
+    value = chooser_value(initial=True, identity=True) if key == 'language' else form_value() if key == 'language_form' else policy_value()
+    if stage == 'initial-retained':
+        journey.initial_chooser = deepcopy(value)
+        if fault in ('chooser', 'session'):
+            value['identity'][fault] = 'c' * (32 if fault == 'chooser' else 64)
+        if fault == 'missing-identity': value.pop('identity')
     if stage == 'policy-after': journey.policy_projection = deepcopy(value)
     if fault == 'meaning': value['heading'] = 'wrong'
     if fault == 'visible': value['labels']['kiosk-request-submit'] = 'wrong'
@@ -407,6 +533,7 @@ def test_real_recorder_entry_forwards_plan_and_stops_before_reply(session, tmp_p
     tags = {'entry-start': 'system:parent-command-context', 'entry-one': 'system:parent-command-context',
             'entry-two': 'system:parent-command-context', 'chooser': 'ui:kiosk-language-initial'}
     plan = replace(language.PLAN, screen_tags=tags, invocations=(), challenges={},
+        stage_actions={},
         phases={'ready': 'setup', 'setup-detached': 'setup', 'entry-start': 'start',
                 'entry-one': 'step-1', 'entry-two': 'step-2', 'chooser': expected['step_id']},
         assertions_after={'chooser': expected['assertion_id']})

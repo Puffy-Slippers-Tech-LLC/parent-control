@@ -1071,7 +1071,7 @@ the complete reminder cases:
 | Task | Exact qualification slice |
 | --- | --- |
 | 312a (qualified) | Riley overlay reminder CRUD, main Save/Cancel and saved empty-list readback on Ubuntu 26.04 and Fedora 44 through `check_e2e_overlay_reminder_editing` |
-| 312b (qualified) | Selected-child kiosk reminder save/readback, exact saved-ID overlay continuity and account/approver isolation on Ubuntu 26.04 and Fedora 44 through `check_e2e_kiosk_reminder_binding` |
+| 312b (qualified; [C04r renewal](#c04r-shared-reminder-persistence-renewal)) | Selected-child kiosk reminder save/readback, exact saved-ID overlay continuity, account/approver isolation and public restoration on Ubuntu 26.04 and Fedora 44 through `check_e2e_kiosk_reminder_binding` |
 | 311a (qualified) | Save nondefault false, reopen, Cancel a true draft and read saved false on Ubuntu 26.04 and Fedora 44 through `check_e2e_reminder_fullscreen_preference`; no notification-delivery credit |
 | [311b](E2E-Tasks/311b-natural-reminder-observation.md) | Naturally emitted ChildUI body, canonical seconds, urgency and natural-lock removal; public-value contract gate remains explicit in the brief |
 | [311c](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | Owned banner visibility/suppression with task 129's genuine fullscreen game; independent of urgency |
@@ -1107,6 +1107,11 @@ input refusals remain shared guards. Reports `20261013T193554Z-2f3ca206` (Ubuntu
 and `20261013T193554Z-a3336e1b` (Fedora) passed infrastructure, collection, owned
 cleanup and baseline restoration. This supplies no natural-delivery, reboot or
 complete-case acceptance.
+
+[C04r](#c04r-shared-reminder-persistence-renewal) renews this complete caller on
+both rebuilt targets and adds public removal of only the created record,
+Save and independent reopened-defaults verification through the existing shared
+delete/commit/read helpers. The historical reports above retain their original scope.
 
 `ReminderFullscreenJourney` in [reminder_fullscreen.py](../../tests/e2e/reminder_fullscreen.py)
 and `onpc_request_flow::reminder_fullscreen_preference` qualify the existing
@@ -1707,7 +1712,7 @@ An expired report or different provider supplies no acceptance credit.
 | FLOW01/02/16, FLOW03 and Allowed FLOW08: `onpc_parent::set_allowance`, `policy_edits.policy_edit` / `onpc_app_rows::edit_policy`, `app_launch.PLAN` / `onpc_app_launch::run` | **Unchanged leaf scope only.** FLOW16 zero/15-minute `20260926T210708Z-8962d2d1`, fresh 30-minute `20260926T211055Z-daafbf03`; FLOW03 currently accepts only fixture A's match/access edits. Case 80 Allowed/native-command/30-minute Jordan then unaffected Riley: Ubuntu `20261011T014639Z-c50a592c`, Fedora `20261011T014639Z-eda36595`. Reuse only verified exact policy/Allowed-use leaves; current PAM entry and different Riley policy, H/S target edits or temporary-access effects are not supplied. | B2 supplies the missing finite target/denial bindings; no rerun of unrelated Allowed route matrices |
 | TIME01–04 and TIME03 pause mechanism | **Unchanged stated leaves; missing baseline composition.** `real_interval.wait_real_interval` / `interval_action` supports at most 300 seconds, guarded sleeps at most 250 ms; exact five-second About slice `20260929T212620Z-9ce87d41` is reusable only for that scope. `natural_expiry_observation.await_natural_expiry` has Riley/native two-minute daily-only qualification on both targets; see [TIME04](#natural-enforced-lock-qualification). Neither proves grant-only expiry or an open language/authentication pause. | B2/B4 downstream time; B3 pauses |
 | LANG01: `kiosk_language.PLAN` / `KioskLanguageJourney` → `onpc_request_flow::kiosk_language` / shared `language_selection` | **Qualified fixed Jordan caller and chooser pause.** [C04l](#c04l-kiosk-language-and-human-pause) renewed both targets: en/de/zh-Hans/he Save, Chinese Cancel retaining German, German reentry, unchanged policy/request and guarded TIME03(90) with fresh same-chooser/session/choice proof before Save. Historical Ubuntu `20261004T103336Z-73d60bd2` retains its original immediate-Save scope. This does not qualify Riley's language binding or a different native-prompt locale. | B3 language/chooser slice closed; other feature/authentication-pause scopes remain |
-| Reminders: `kiosk_reminders.PLAN` / `KioskReminderJourney` → `onpc_kiosk_reminders::run` | **Changed complete entry/exit caller; unchanged editing leaves.** `check_e2e_kiosk_reminder_binding`, Ubuntu `20261013T193554Z-2f3ca206` / Fedora `20261013T193554Z-a3336e1b`, binds Riley's overlay-created 90-second record, kiosk edit to 75 seconds, same ID in overlay, untouched Jordan defaults and approver isolation. No natural-notification credit. | B3 renew affected caller; [local matrices](#reminder-controls-and-notification-qualification) remain host UI |
+| Reminders: `kiosk_reminders.PLAN` / `KioskReminderJourney` → `onpc_kiosk_reminders::run` | **Qualified rebuilt caller on both targets.** [C04r](#c04r-shared-reminder-persistence-renewal) renews `check_e2e_kiosk_reminder_binding`: Riley's overlay-created 90-second record, kiosk edit to 75 seconds, same ID in overlay, untouched Jordan defaults, approver isolation and public restored-defaults readback. Historical Ubuntu `20261013T193554Z-2f3ca206` / Fedora `20261013T193554Z-a3336e1b` retain their prior scope. No natural-notification credit. | B3 reminder slice closed; [local matrices](#reminder-controls-and-notification-qualification) remain host UI |
 | About / Preferences: `kiosk_about.E2E_CASES['kiosk']` → `onpc_kiosk_about::run`; `kiosk_preferences_confinement.PLAN` | **Changed kiosk caller; historical installed About qualification needs applicability review.** Tasks 185k/234 recorded installed About and case 192 passes; task 192's separate host metadata exception is unrelated to case 192. Existing About compares product/version and unchanged request, closes About and returns to GDM. Preferences engineering checks only cancel editor drafts and do not prove saved preset persistence. | C04i reuses existing installed About coverage; new general features belong to E2E 314/315 |
 | Error report: `kiosk_feedback_confinement.PLAN` → `onpc_kiosk_eligible_choices::run(exchange, 1)`, `AccessibleUI.kiosk_diagnostic_*` | **Changed engineering caller.** `check_e2e_kiosk_feedback_confinement`, Ubuntu `20261014T045241Z-59fdb539` / Fedora `20261014T045835Z-01c47c77`, includes owned broker outage/restoration, unsent draft `Installed kiosk diagnostic qualification.\n`, prepared ZIP/privacy and separate census. It cannot serve as a public baseline request journey or Parent diagnostic download. The report UI and original-cause recovery retain their later C09b/C11b/C12b obligations. | Record feature survival here; engineering renewal stays with its fault/recovery consumer, outside C04u/f |
 | Preset edit/delete persistence, Custom Hours and What's New | **Missing general feature bindings; excluded from kiosk baseline scope.** E2E 314/315 own future installed feature journeys. Keep local value/validation/control combinations in host UI. These features are not C04/C05 readiness prerequisites. | E2E 314/315 only |
@@ -1854,7 +1859,7 @@ the corresponding delivered source SHA-256 values are:
 
 Host acceptance on the final source passed **3,060 unit checks** and **eight UI
 cases**. The verified cumulative
-[evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-fetsmj40/evidence.zip)
+[evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 retains these complete reports at their original paths below
 `/Data/Code/PST/parent-control/output/test-runs/host/reports/`:
 
@@ -1927,7 +1932,7 @@ Each independent attempt retained its original **1800-second** bound and all
 
 Reports are beneath `output/test-runs/host/reports/`; result, worker and collection
 names are beneath `output/test-runs/privileged/allocations/`. The verified
-[882-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-9w6pyh3z/evidence.zip),
+[882-file cumulative bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json),
 SHA-256 `e21cde5a8f8951b613bf951a6fe9769cab44446afdc5713cded9fd53c32ef86f`,
 retains those reports, complete collector events, worker/cleanup records, exact
 selected/artifact/fixture/transfer manifests and the denial records below.
@@ -2349,7 +2354,7 @@ parallelism inventories passed **959 checks** in
 [the recovery report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Final language/identity/preservation/composition and plan/inventory/coverage/launcher
 checks passed **1,866/1,866** with `--timeout 180s` in
-[the close-out report](../../output/test-runs/host/reports/20261021T215159Z-8b7edde0/report.md).
+[the close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Both plan `--check` routes and changed-document link checks passed.
 All helpers finished before live work. No product/backend or package-build input
 changed. Other B3 features, the authentication pause, B4 and C05 remain pending;
@@ -2405,13 +2410,87 @@ Public Cancel restored sign-in; the outer baseline restored attempt-owned policy
 and saved choices. Final serial `tools/cleanup-e2e` passed for both canonical
 targets, and independent status reads confirmed both off.
 The four-module request/composition/cleanup selection passed **1,488/1,488**
-with `--timeout 180s` in [the host report](../../output/test-runs/host/reports/20261021T215538Z-673871e6/report.md).
+with `--timeout 180s` in [the host report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 The final plan/inventory/coverage/composition selection passed **313/313** with
-the same timeout in [the close-out report](../../output/test-runs/host/reports/20261021T220948Z-6ec5ac68/report.md).
+the same timeout in [the close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Both plan `--check` routes and changed-document links passed.
 This task changed documentation only. This renews only the
 existing B3 request-choice slice; saved-preset editing, Hours, other B3 scopes,
 B4, complete E2E scenarios and C05 acceptance remain separate.
+
+### C04r shared reminder persistence renewal
+
+The existing **312b** complete caller passed on both rebuilt targets through
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_kiosk_reminder_binding'`.
+The old complete entry/exit caller was invalidated by the rebuilt session;
+unchanged editing leaves alone could not supply acceptance. Each fresh attempt
+retained its 1800-second bound and 90-second kiosk / 45-second overlay observations.
+
+| Target | Retained result | Stages / duration | Retained report |
+| --- | --- | --- | --- |
+| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-chvpyywr/result.json` | 103 / 1249.570s | [Ubuntu attempt](../../output/test-runs/host/reports/20261021T221700Z-8d633e74/report.md) |
+| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-o1fe03il/result.json` | 103 / 1322.812s | [Fedora attempt](../../output/test-runs/host/reports/20261021T221700Z-f75af3f2/report.md) |
+
+Riley's overlay created literal `Save <work> & games!` at 90 seconds. Kiosk
+independently read its saved ID, edited that same ID to 75 seconds, saved and
+reopened it; the renewed overlay independently read 75 seconds with the same ID.
+The IDs were `reminder-7cbc838ddbfd43e38d4c863b752daa87` on Ubuntu and
+`reminder-2f15e868682a42239d4d025fa140136f` on Fedora. Jordan retained the four
+original defaults, language and fullscreen preference. Jamie → Casey and child
+switches preserved Riley's reminder and both children's request choices;
+public Parent readbacks preserved policy and zero grants, allowing elapsed time.
+Sound/lightning remain disabled and mute absent; editing establishes no natural
+notification-delivery result.
+
+The caller now restores only its created record through existing
+`overlay_reminder_delete`, main Save and a fresh `overlay_reminder_open`.
+The reopened list exactly matches the original defaults, language and fullscreen
+preference before Cancel and normal overlay exit. No new reminder feature
+mechanics or product code changed. Coordinator review found the existing
+child/owner/surface, current-receipt, unique-ID and uncertain-input guards
+preserved; this finite dispatch addition does not invalidate C04o's approval scope.
+The affected test modules retain their private doubles/files and bounded waited
+Perl children, with unchanged unit/cleanup resource classifications.
+
+Both results bind source SHA-256
+`64aedbba9d4d4e99747598971c3ef96a511d3a322f4296ff4471ca4f1559fb90`,
+inventory `756bf5176c3b9d8ff96ee382d6ee1b6327bd072960dcddc8dbedfadc3700855b`
+and worker distribution `4a17ba9cfded1d3d16a5905d2d03a2a091dd23fb4486511ee84017ba2c0d2eb3`.
+The complete caller input maps agree between targets, and the six reminder
+selector/controller/facade/observer/Python/Perl hashes match the checkout.
+Per-VM source-bound inputs use package-source digest
+`c605f6015816741e7a6054342a4b24dbc4783e540049d5c3eb1a275cfc2e87f5`.
+Each result retains exact assets, fixture/environment, baseline and installed
+snapshot recipe identities; expected and actual online `onpc-v1.4` inputs match.
+Ubuntu package SHA-256 is
+`daf2b8805916d1b0eddeb8e608fa3e6df4d475d7d88a1a5176779d52a777d194`
+(content `6137e210d878d1a5d67ce7bca42a30da4eae1a8288afaef1fce96115965526cf`);
+Fedora package/content is
+`29014e5a66b65705d930576501034a166aed485bdd61493220ec3fa4f53c4fdd`.
+Preparation reused matching snapshots with `--overwrite false` and stopped both
+maintenance instances before qualification.
+
+Collection, worker shutdown, callback closure, lease completion, source/host
+preservation and baseline restoration passed on both targets. Serial final
+`tools/cleanup-e2e` passed, and independent status reads confirmed both off.
+The final reminder/composition/progress and plan/inventory/coverage selection
+passed **970/970** with `--timeout 180s`. It covers the 795 focused checks and
+313 consistency checks, with 138 shared composition checks executed once.
+Four existing kiosk/overlay reminder and dialog-lifetime UI checks also passed
+with the same timeout. The verified [13-file host/UI evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-2fczy01t/evidence.zip),
+SHA-256 `a15fdd82eb7f31b21f9b5636738e46802112c85a0dbace2549d4fe8548ab918b`,
+retains the complete host report directory
+`output/test-runs/host/reports/20261021T224436Z-96f8c07d` and UI report member
+`output/test-runs/host/exports/onpc-artifact-export-qwi7z2j3/report.md`.
+Both read-only plan checks select C04i. Five expired predecessor evidence links
+now use the stable accepted-evidence locator: the fully verified 4,534-file
+bundle `onpc-evidence-bundle-25ti11x9` retains their original report/result
+members, inputs and cleanup records. Original C04p1/C04p scope and historical
+bundle claims, and C04l/C04s's 1,866/1,488/313-check results, remain unchanged.
+Changes are test/documentation only, outside package/build inputs; no product
+build is required. This closes only B3's existing reminder slice, without E2E
+312's broader deletion/reboot history, E2E 311 delivery/fullscreen behavior,
+other B3/B4 work or complete-scenario/C05 acceptance.
 
 ### Kiosk, child overlay and the shared request form
 

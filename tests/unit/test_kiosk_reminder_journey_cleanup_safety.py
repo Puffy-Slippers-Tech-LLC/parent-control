@@ -82,6 +82,58 @@ def test_kiosk_edit_approver_child_switch_and_overlay_continuity(tmp_path, fault
         assert journey.jordan_preferences['records'] == reminders.DEFAULTS
 
 
+@pytest.mark.parametrize('fault', ['', 'custom-retained', 'default-missing', 'default-id',
+                                  'default-value', 'language', 'fullscreen', 'missing-continuity',
+                                  'missing-save', 'missing-draft'])
+def test_public_restoration_requires_original_defaults_after_same_id_continuity(tmp_path, fault):
+    journey = prepared(tmp_path)
+    edited = {**CUSTOM, 'value': 75}
+    rows = reminders.sorted_records([*reminders.DEFAULTS, edited])
+    journey.check_settings('riley-edited', {'ui': {'reminders': value(rows)}})
+    journey.check_settings('overlay-final-read', {'ui': {'reminders': value(rows)}})
+    restored = value()
+    if fault == 'custom-retained': restored['records'] = rows
+    if fault == 'default-missing': restored['records'].pop()
+    if fault == 'default-id': restored['records'][0]['id'] = 'replacement-default'
+    if fault == 'default-value': restored['records'][0]['value'] = 20
+    if fault == 'language': restored['language'] = 'de'
+    if fault == 'fullscreen': restored['show_in_fullscreen'] = False
+    if fault == 'missing-continuity': journey.captures.remove('overlay-final-read')
+
+    def restore():
+        journey.check_settings('overlay-restored-draft', {'ui': {'reminders': restored}})
+        if fault == 'missing-draft': journey.captures.remove('overlay-restored-draft')
+        if fault != 'missing-save': journey.check_settings('overlay-restored-save', {'ui': {}})
+        journey.check_settings('overlay-restored-read', {'ui': {'reminders': restored}})
+
+    if fault:
+        with pytest.raises(EvidenceError): restore()
+    else:
+        restore()
+        journey.check_settings('overlay-final-close', {'ui': {}})
+        assert journey.custom_record == edited
+        assert journey.initial_reminders == {
+            'records': reminders.DEFAULTS, 'language': 'en',
+            'show_in_fullscreen': True, 'fullscreen_enabled': True}
+
+
+@pytest.mark.parametrize('fault', ['custom-retained', 'default-changed', 'fullscreen'])
+def test_saved_restoration_is_independently_checked_after_valid_draft_and_save(tmp_path, fault):
+    journey = prepared(tmp_path)
+    rows = reminders.sorted_records([*reminders.DEFAULTS, {**CUSTOM, 'value': 75}])
+    journey.check_settings('riley-edited', {'ui': {'reminders': value(rows)}})
+    journey.check_settings('overlay-final-read', {'ui': {'reminders': value(rows)}})
+    journey.check_settings('overlay-restored-draft', {'ui': {'reminders': value()}})
+    journey.check_settings('overlay-restored-save', {'ui': {}})
+    reopened = value()
+    if fault == 'custom-retained': reopened['records'] = rows
+    if fault == 'default-changed': reopened['records'][0]['text'] = 'changed default'
+    if fault == 'fullscreen': reopened['show_in_fullscreen'] = False
+    with pytest.raises(EvidenceError):
+        journey.check_settings('overlay-restored-read', {'ui': {'reminders': reopened}})
+    assert 'overlay-restored-read' not in journey.captures
+
+
 def request(child='fixture-child', approver='fixture-parent', surface='kiosk'):
     return {'surface': surface, 'form_count': 1, 'child': child, 'approver': approver,
             'duration_seconds': 1800, 'custom_text': None, 'allow_soft': False,

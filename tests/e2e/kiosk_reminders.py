@@ -57,6 +57,9 @@ SCREENS = {
     **overlay_entry('renewed', 'command', form_operation='overlay-request-form'),
     'overlay-final-before': 'ui:overlay-language-form-en',
     'overlay-final-read': 'ui:binding-reminder-overlay-open',
+    'overlay-restored-draft': 'ui:binding-reminder-overlay-delete',
+    'overlay-restored-save': 'ui:binding-reminder-overlay-save',
+    'overlay-restored-read': 'ui:binding-reminder-overlay-open',
     'overlay-final-close': 'ui:binding-reminder-overlay-cancel',
     'overlay-final-form': 'ui:overlay-language-form-en',
     'overlay-final-exit': 'ui:overlay-qualification-cancel',
@@ -92,6 +95,7 @@ class KioskReminderJourney(InstalledJourney):
         super().__init__(context, progress, plan, actions=actions)
         self.captures = set()
         self.custom_record = self.jordan_preferences = None
+        self.initial_reminders = None
         self.policies, self.requests = {}, {}
         self.approver = 'fixture-parent'
 
@@ -155,6 +159,20 @@ class KioskReminderJourney(InstalledJourney):
                     and current['fullscreen_enabled'] is True, 'binding-reminders:preferences')
             records = current['records']
             if stage == 'overlay-defaults':
+                expected = DEFAULTS
+                self.initial_reminders = deepcopy({key: current[key] for key in (
+                    'records', 'language', 'show_in_fullscreen', 'fullscreen_enabled')})
+            elif stage in ('overlay-restored-draft', 'overlay-restored-read'):
+                require('overlay-final-read' in self.captures and self.custom_record is not None
+                        and self.custom_record['value'] == 75 and self.initial_reminders is not None,
+                        'binding-reminders:restoration-before-continuity')
+                if stage == 'overlay-restored-read':
+                    require({'overlay-restored-draft', 'overlay-restored-save'} <= self.captures,
+                            'binding-reminders:restoration-before-save')
+                preferences = {key: current[key] for key in self.initial_reminders}
+                require(preferences == self.initial_reminders
+                        and all(row['id'] != self.custom_record['id'] for row in records),
+                        'binding-reminders:restored-preferences')
                 expected = DEFAULTS
             elif stage == 'overlay-created':
                 added = [row for row in records if row['id'] not in {item['id'] for item in DEFAULTS}]

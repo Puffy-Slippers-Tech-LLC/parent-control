@@ -150,6 +150,52 @@ def test_kiosk_edit_preserves_exact_saved_id_and_literal_text():
     tree.controls['language-continue'].action.do_action.assert_called_once()
 
 
+def test_binding_restoration_delegates_only_the_edited_id_and_current_receipt():
+    tree = reminder_tree()
+    source = 'a' * 64
+    tree.ui.expected_binding_reminder_source = source
+    tree.ui.overlay_reminder_read = Mock(return_value={'records': [*DEFAULTS,
+        {'id': 'saved-row', 'value': 75, 'unit': 'second', 'text': 'Save <work> & games!'},
+        {'id': 'other-row', 'value': 90, 'unit': 'second', 'text': 'Save <work> & games!'}]})
+    restored = {'records': deepcopy(DEFAULTS), 'source': 'b' * 64}
+    tree.ui.overlay_reminder_delete = Mock(return_value=restored)
+    tree.ui.overlay_reminder_editor = Mock()
+    assert tree.ui.binding_reminder_operation('binding-reminder-overlay-delete') == {
+        'reminders': restored}
+    tree.ui.overlay_reminder_read.assert_called_once_with(
+        expected_source=source, surface='overlay', child=public.CHILD)
+    tree.ui.overlay_reminder_delete.assert_called_once_with('saved-row', expected_source=source)
+    tree.ui.overlay_reminder_editor.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'missing', 'old-value', 'escaped-text', 'ambiguous',
+                                  'stale', 'wrong-owner', 'wrong-surface', 'uncertain'])
+def test_binding_restoration_preserves_defaults_and_refuses_unbound_delete(fault):
+    row = {'id': 'saved-row', 'value': 75, 'unit': 'second', 'text': 'Save <work> & games!'}
+    if fault == 'old-value': row['value'] = 90
+    if fault == 'escaped-text': row['text'] = 'Save &lt;work&gt; &amp; games!'
+    records = [*DEFAULTS, *([] if fault == 'missing' else [row])]
+    if fault == 'ambiguous': records.append({**row, 'id': 'duplicate-row'})
+    tree = reminder_tree(records)
+    source = tree.ui.overlay_reminder_read()['source']
+    tree.ui.expected_binding_reminder_source = source
+    if fault == 'stale': tree.controls['reminder-show-in-fullscreen'].value = False
+    if fault == 'wrong-owner': tree.ui.owner_pids = lambda: {999}
+    if fault == 'wrong-surface': tree.application.identity = public.KIOSK_APPLICATION
+    if fault == 'uncertain': tree.ui.input_uncertain = True
+    if fault:
+        with pytest.raises(public.UiError):
+            tree.ui.binding_reminder_operation('binding-reminder-overlay-delete')
+        assert_no_input(tree)
+    else:
+        result = tree.ui.binding_reminder_operation('binding-reminder-overlay-delete')['reminders']
+        assert result['records'] == DEFAULTS
+        assert result['language'] == 'en'
+        assert result['show_in_fullscreen'] is result['fullscreen_enabled'] is True
+        assert result['source'] != source
+        assert tree.records == DEFAULTS
+
+
 @pytest.mark.parametrize('operation', sorted(public.BINDING_REMINDER_MUTATIONS))
 def test_selected_surface_mutations_require_receipt_before_discovery(operation):
     tree = reminder_tree()

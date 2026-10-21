@@ -767,7 +767,7 @@ CHILD_DESKTOP_OPERATIONS |= OVERLAY_REMINDER_OPERATIONS
 BINDING_REMINDER_OPERATIONS = {
     f'binding-reminder-{binding}-{action}': (surface, child, action)
     for binding, surface, child, actions in (
-        ('overlay', 'overlay', CHILD, ('open', 'create', 'save', 'cancel')),
+        ('overlay', 'overlay', CHILD, ('open', 'create', 'delete', 'save', 'cancel')),
         ('riley', 'kiosk', CHILD, ('open', 'edit', 'save', 'cancel')),
         ('jordan', 'kiosk', EXISTING_CHILD, ('open', 'cancel')))
     for action in actions
@@ -9791,6 +9791,9 @@ class AccessibleUI:
             self.overlay_reminder_commit(save=action == 'save', expected_source=source, **binding)
             return {}
         records = self.overlay_reminder_read(expected_source=source, **binding)['records']
+        if action == 'delete':
+            row = self._reminder_row(records, seconds=75, text='Save <work> & games!')
+            return {'reminders': self.overlay_reminder_delete(row['id'], expected_source=source)}
         record_id = (self._reminder_row(records, seconds=90, text='Save <work> & games!')['id']
                      if action == 'edit' else None)
         return {'reminders': self.overlay_reminder_editor(seconds=75 if action == 'edit' else 90,

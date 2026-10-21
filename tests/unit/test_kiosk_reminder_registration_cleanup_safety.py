@@ -183,3 +183,18 @@ def test_complete_worker_order_titles_and_refusal_stop(monkeypatch, refuse):
         end = next((i for i, event in enumerate(result['events'][start + 1:], start + 1)
                     if event == ['stage', 'station-returned']), len(result['events']))
         assert not any(event[0] in ('key', 'secret') for event in result['events'][start + 1:end])
+
+
+def test_restoration_stages_follow_final_continuity_and_save_before_reopen():
+    stages = list(reminders.SCREENS)
+    start = stages.index('overlay-final-read')
+    expected = [
+        ('overlay-final-read', 'ui:binding-reminder-overlay-open'),
+        ('overlay-restored-draft', 'ui:binding-reminder-overlay-delete'),
+        ('overlay-restored-save', 'ui:binding-reminder-overlay-save'),
+        ('overlay-restored-read', 'ui:binding-reminder-overlay-open'),
+        ('overlay-final-close', 'ui:binding-reminder-overlay-cancel'),
+    ]
+    assert list(reminders.SCREENS.items())[start:start + len(expected)] == expected
+    assert all(reminders.PLAN.assertions_after[stage] == stage + '-verified'
+               for stage, _operation in expected)

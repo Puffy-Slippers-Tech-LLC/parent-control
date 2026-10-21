@@ -44,7 +44,8 @@ sub run {
     onpc_gdm::sign_in_challenge($journey, 'renewed-child',
         'renewed-installed-greeter', 'renewed-child-focused', 'renewed-desktop');
     onpc_request_flow::overlay_entry($journey, 'renewed', 'command');
-    $journey->seen($_) for ('overlay-final-before', 'overlay-final-read', 'overlay-final-close',
+    $journey->seen($_) for ('overlay-final-before', 'overlay-final-read',
+        'overlay-restored-draft', 'overlay-restored-save', 'overlay-restored-read', 'overlay-final-close',
         'overlay-final-form', 'overlay-final-exit', 'overlay-final-returned',
         'final-child-logout', 'final-child-logged-out');
     $desktop = onpc_gdm::sign_in_challenge($journey, 'return-parent',

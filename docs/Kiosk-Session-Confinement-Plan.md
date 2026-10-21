@@ -1,7 +1,7 @@
 # Kiosk confinement baseline validation for v1.4
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04r — [Renew shared reminder persistence](Kiosk-Prompt-Tasks/C04r-reminders.md)**.
+Next task: **C04i — [Renew existing kiosk About coverage](Kiosk-Prompt-Tasks/C04i-information.md)**.
 
 ## Outcome
 

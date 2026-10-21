@@ -24,7 +24,8 @@ from kiosk_cancel import PLAN as CANCEL_PLAN
 from kiosk_escape import PLAN as ESCAPE_PLAN
 from kiosk_approved import PLAN as APPROVED_CASE_PLAN
 from mate_prompt import PLAN as MATE_PLAN
-from kiosk_approval import PLAN as APPROVAL_PLAN
+from kiosk_approval import (PLAN as APPROVAL_PLAN, QUALIFICATION_PLAN as APPROVAL_QUALIFICATION_PLAN,
+                            GRANT_SCREENS, KioskApprovalJourney)
 from auth_result import PLAN as AUTH_RESULT_PLAN
 from kiosk_approved_flow import PLAN as APPROVED_FLOW_PLAN, approved_request, obtain_time
 from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
@@ -1646,6 +1647,22 @@ def test_mate_qualification_refuses_conflicting_modes(conflict):
                                   mate_prompt=True, **{conflict: True})
 
 
+def approval_declarations(binding):
+    if binding != 'approval':
+        return ''
+    return ", decode_json('" + json.dumps(APPROVAL_QUALIFICATION_PLAN.invocations) + \
+        "'), decode_json('" + json.dumps(APPROVAL_QUALIFICATION_PLAN.challenges) + "')"
+
+
+def approval_worker_receipts(worker):
+    # Exercise the real named challenge helper, including its strict receipt.
+    return worker.replace('        return {observed => $stage};', r'''
+        return {observed => $stage, challenge => {id => 'return', role => 'parent',
+            surface => 'gdm', check => $1}}
+            if $stage =~ /\Areturn-recipient-(qualified|rechecked)\z/;
+        return {observed => $stage};''')
+
+
 @pytest.mark.parametrize('refusal', [None, 'approval-open', 'approval-qualified',
                                    'approval-rechecked', 'approval-success', 'new-returned'])
 @pytest.mark.parametrize('binding', ['approval', 'rejection', 'immediate', 'approved-flow'])
@@ -1657,16 +1674,18 @@ def test_approval_worker_order_and_secret_once(monkeypatch, refusal, binding):
     worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_request_flow').replace(
         'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
     worker = worker.replace("$stage eq 'station-branch'", "$stage =~ /station-branch\\z/")
-    worker = worker.replace('    });', "    }, '" + binding + "');")
+    worker = worker.replace('    });', "    }, '" + binding + "'" + approval_declarations(binding) + ");")
+    worker = approval_worker_receipts(worker)
     result = json.loads(run_perl(worker).stdout)
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    expected = list({'approval': APPROVAL_PLAN, 'rejection': REJECTION_PLAN,
+    expected = list({'approval': APPROVAL_QUALIFICATION_PLAN, 'rejection': REJECTION_PLAN,
                      'immediate': AUTH_RESULT_PLAN, 'approved-flow': APPROVED_FLOW_PLAN}[binding].screen_tags)
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     assert sum(event[0] == 'secret' for event in result['events']) == (
         1 if refusal in tuple(('rejection' if binding == 'rejection' else 'approval') + '-' + item
-                              for item in ('open', 'qualified', 'rechecked')) else 2)
+                              for item in ('open', 'qualified', 'rechecked')) else
+        3 if binding == 'approval' and refusal is None else 2)
 
 
 @pytest.mark.parametrize('changed', [{'child': 'other-child'}, {'approver': 'other-parent'},
@@ -2309,8 +2328,123 @@ def test_rejection_plan_independent_form_comparison(tmp_path, monkeypatch):
 def test_approval_qualification_uses_guarded_snapshot(tmp_path):
     from parent_setup_qualification import KioskApprovalQualification, KioskEntryQualification
     journey = KioskApprovalQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
-    assert journey.plan is APPROVAL_PLAN
+    assert journey.plan is APPROVAL_QUALIFICATION_PLAN
     assert KioskApprovalQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+
+
+def approval_grant_journey(tmp_path):
+    journey = KioskApprovalJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.balance = {
+        'daily': {'seconds': 900, 'precision_seconds': 1},
+        'one_time': {'seconds': 0, 'precision_seconds': 1},
+        'observed_monotonic_ns': 1_000_000_000}
+    choice = {'request': dict(CHOICES), 'estimate': {
+                  'kind': 'fixed', **accessible_ui.duration_projection('16m 15s')},
+              'observed_monotonic_ns': 2_000_000_000}
+    journey.requests['open-estimate'] = dict(CHOICES)
+    journey.check_settings('new-estimate', {'ui': {'valid_choice': choice}})
+    # The independent result must use the original endpoint even if a decoded
+    # request response is reused and changed by its caller.
+    choice['estimate']['seconds'] = 1
+    choice['observed_monotonic_ns'] = 999_000_000_000
+    return journey
+
+
+def approval_grant_response():
+    return {'operation': 'time-explanation-reach-read', 'outcome': 'passed',
+            'interface': 'ApplicationUI+external-provider', 'boot_sha256': 'b' * 64,
+            'time_explanation': {'child': 'fixture-child', 'expanded': True,
+                **{key: accessible_ui.duration_projection(text) for key, text in (
+                    ('daily', '15m'), ('one_time', '16m'), ('total', '16m'))},
+                'observed_monotonic_ns': 32_000_000_000}}
+
+
+@pytest.mark.parametrize('fault', [None, 'read-refused', 'wrong-child', 'missing-grant',
+                                  'zero-grant', 'wrong-grant', 'daily', 'total',
+                                  'negative-elapsed', 'stale-estimate', 'missing-estimate',
+                                  'estimate-kind', 'estimate-seconds'])
+def test_approval_independent_grant_is_checked_before_durable_reply(tmp_path, fault):
+    journey = approval_grant_journey(tmp_path)
+    stage = 'approved-balance'
+    journey.steps = [{'stage': value} for value in journey.plan.stages[
+        :journey.plan.stages.index(stage)]]
+    journey.boot = 'b' * 64
+    journey.collect_failure = Mock()
+    value = approval_grant_response()
+    balance = value['time_explanation']
+    if fault == 'wrong-child':
+        balance['child'] = 'existing-fixture-child'
+    elif fault == 'missing-grant':
+        del balance['one_time']
+    elif fault in ('zero-grant', 'wrong-grant', 'daily', 'total'):
+        key, text = {'zero-grant': ('one_time', '0m'), 'wrong-grant': ('one_time', '1m'),
+                     'daily': ('daily', '14m'), 'total': ('total', '1m')}[fault]
+        balance[key] = accessible_ui.duration_projection(text)
+    elif fault == 'negative-elapsed':
+        balance['observed_monotonic_ns'] = 1_000_000_000
+    elif fault == 'stale-estimate':
+        balance['observed_monotonic_ns'] = 603_000_000_000
+    elif fault == 'missing-estimate':
+        journey.grant_estimate = None
+    elif fault == 'estimate-kind':
+        journey.grant_estimate['estimate']['kind'] = 'midnight'
+    elif fault == 'estimate-seconds':
+        journey.grant_estimate['estimate']['seconds'] = 75
+    transport = Mock()
+    transport.call.return_value = json.dumps(value).encode()
+    if fault == 'read-refused':
+        transport.call.side_effect = EvidenceError('fixture:read-refused')
+    journey.ui = UiObservations(transport)
+    reply = tmp_path / (stage + '.reply.json')
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps(
+        {'stage': stage, 'screenshot': None}))
+    journey.progress.side_effect = lambda *args: None if not reply.exists() else pytest.fail('early reply')
+    if fault:
+        with pytest.raises(EvidenceError):
+            journey.step(Mock())
+        assert not reply.exists()
+        journey.progress.assert_not_called()
+        assert not journey.grant_observed
+        with pytest.raises(EvidenceError, match='previous-failure'):
+            journey.step(Mock())
+        assert transport.call.call_count == 1
+    else:
+        journey.step(Mock())
+        assert reply.exists() and journey.grant_observed
+        assert journey.progress.call_args.args[1]['comparison'] == {
+            'independent_grant': True, 'unchanged_daily': True,
+            'approved_estimate_with_elapsed_bounds': True}
+        with pytest.raises(EvidenceError, match='balance-replay'):
+            journey.check_settings(stage, {'ui': value})
+
+
+@pytest.mark.parametrize('refusal', [None, *GRANT_SCREENS])
+def test_approval_worker_returns_to_parent_and_stops_at_independent_read(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_request_flow').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    worker = worker.replace("$stage eq 'station-branch'", "$stage =~ /station-branch\\z/")
+    worker = worker.replace('    });', "    }, 'approval'" + approval_declarations('approval') + ");")
+    worker = approval_worker_receipts(worker)
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(APPROVAL_QUALIFICATION_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    if refusal:
+        boundary = result['events'].index(['stage', refusal])
+        assert not any(event[0] in ('key', 'secret', 'text') for event in result['events'][boundary + 1:])
+    assert sum(event[0] == 'secret' for event in result['events']) == (
+        2 if refusal in ('return-entry-guard', 'return-installed-greeter', 'return-parent-focused',
+                         'return-recipient-qualified', 'return-recipient-rechecked') else 3)
+
+
+def test_approval_grant_observation_does_not_extend_other_approval_consumers():
+    assert not set(GRANT_SCREENS) & set(APPROVAL_PLAN.screen_tags)
+    assert not set(GRANT_SCREENS) & set(AUTH_RESULT_PLAN.screen_tags)
+    assert not set(GRANT_SCREENS) & set(APPROVED_FLOW_PLAN.screen_tags)
+    assert APPROVAL_QUALIFICATION_PLAN.balance_checks['time-explanation-read'] == 900
 
 
 def test_immediate_qualification_uses_guarded_snapshot(tmp_path):

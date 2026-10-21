@@ -141,20 +141,28 @@ def properties(output, names):
 def graphical_session(account):
     """Bind the one live station session through public logind properties."""
     sessions = []
+    names = ('User', 'Type', 'Class', 'Service', 'State')
     for row in guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines():
         fields = row.split()
         if len(fields) >= 2 and fields[1] == str(account.pw_uid):
             guest.require(re.fullmatch(r'[A-Za-z0-9_-]+', fields[0]) is not None,
                           'kiosk-session:invalid-session')
-            sessions.append(fields[0])
+            value = properties(guest.run(['loginctl', 'show-session', fields[0],
+                *['--property=' + name for name in names]], timeout=15), names)
+            # Newer logind also lists the account's systemd user manager as
+            # a session. It is not a second graphical login. Ignore only that
+            # independently identified manager; other sessions still refuse.
+            if (value['User'] == str(account.pw_uid)
+                    and value['Class'] in ('manager', 'manager-early')
+                    and value['Type'] == 'unspecified' and value['Service'] == 'systemd-user'):
+                continue
+            sessions.append((fields[0], value))
     guest.require(len(sessions) == 1, 'kiosk-session:ambiguous-or-missing-session')
-    names = ('User', 'Type', 'Class', 'Service', 'State')
-    value = properties(guest.run(['loginctl', 'show-session', sessions[0],
-        '--property=' + ','.join(names)], timeout=15), names)
+    session, value = sessions[0]
     guest.require(value == {'User': str(account.pw_uid), 'Type': 'wayland',
                   'Class': 'user', 'Service': 'gdm-password', 'State': 'active'},
                   'kiosk-session:unexpected-session')
-    return sessions[0], value
+    return session, value
 
 
 def user_unit(account, unit):

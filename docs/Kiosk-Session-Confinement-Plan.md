@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04u — [Qualify baseline entry and approval on Ubuntu](Kiosk-Prompt-Tasks/C04u-baseline-operations.md)**.
+Next task: **C04f — [Qualify baseline entry and approval on Fedora](Kiosk-Prompt-Tasks/C04f-baseline-operations.md)**.
 
 ## Outcome
 

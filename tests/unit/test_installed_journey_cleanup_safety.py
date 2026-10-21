@@ -599,7 +599,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  text_qualification.PLAN, allowance_presets.PLAN,
                                  allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN,
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
-                                 kiosk_escape.PLAN, kiosk_approved.PLAN, mate_prompt.PLAN, kiosk_approval.PLAN,
+                                 kiosk_escape.PLAN, kiosk_approved.PLAN, mate_prompt.PLAN, kiosk_approval.QUALIFICATION_PLAN,
                                  kiosk_rejection.PLAN, auth_result.PLAN, kiosk_approved_flow.PLAN,
                                  restricted_station.PLAN, approval_flow.REJECTION_PLAN, approval_flow.CANCEL_PLAN,
                                  kiosk_multiple.PLAN, kiosk_multiple.CASE_PLAN,

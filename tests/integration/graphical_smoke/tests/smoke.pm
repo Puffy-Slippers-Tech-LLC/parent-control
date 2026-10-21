@@ -780,7 +780,7 @@ sub run {
     if ($ready->{kiosk_approval}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_request_flow::run(\&exchange, 'approval');
+        onpc_request_flow::run(\&exchange, 'approval', $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{mate_prompt}) {

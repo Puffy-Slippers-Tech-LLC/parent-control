@@ -442,11 +442,50 @@ def test_graphical_session_binds_one_current_wayland_station(census_model, monke
     values = {'User': '1008' if fault == 'wrong-user' else '1007',
               'Type': 'x11' if fault == 'wrong-transport' else 'wayland',
               'Class': 'user', 'Service': 'gdm-password', 'State': 'active'}
-    command = Mock(side_effect=[sessions, '\n'.join(key + '=' + value for key, value in values.items())])
+    command = Mock(side_effect=[sessions, *[
+        '\n'.join(key + '=' + value for key, value in values.items())
+        for _ in range(2 if fault == 'ambiguous' else 1)]])
     monkeypatch.setattr(helper.guest, 'run', command)
     with pytest.raises(helper.guest.GuestError, match='kiosk-session:'):
         helper.graphical_session(account)
-    assert command.call_count == (1 if fault in ('none', 'ambiguous') else 2)
+    assert command.call_count == (1 if fault == 'none' else 3 if fault == 'ambiguous' else 2)
+
+
+@pytest.mark.parametrize('manager_class', ['manager', 'manager-early'])
+@pytest.mark.parametrize('fault', [None, 'second-desktop', 'wrong-user', 'wrong-service', 'wrong-type',
+                                  'manager-only'])
+def test_graphical_session_distinguishes_manager_from_graphical_login(
+        census_model, monkeypatch, manager_class, fault):
+    helper = census_model
+    account = SimpleNamespace(pw_uid=1007)
+    graphical = {'User': '1007', 'Type': 'wayland', 'Class': 'user',
+                 'Service': 'gdm-password', 'State': 'active'}
+    manager = {**graphical, 'Type': 'unspecified', 'Class': manager_class, 'Service': 'systemd-user'}
+    if fault == 'second-desktop':
+        manager = dict(graphical)
+    elif fault in ('wrong-user', 'wrong-service', 'wrong-type'):
+        key, value = {'wrong-user': ('User', '1008'), 'wrong-service': ('Service', 'gdm-password'),
+                      'wrong-type': ('Type', 'wayland')}[fault]
+        manager[key] = value
+    records = {'m1': manager}
+    if fault != 'manager-only':
+        records['c1'] = graphical
+
+    def command(argv, **kwargs):
+        if argv[1] == 'list-sessions':
+            return '\n'.join(key + ' 1007 station' for key in records)
+        # loginctl accepts repeated property options; a comma-joined name
+        # yields no properties on the supported installed system.
+        assert argv[3:] == ['--property=' + name for name in
+                             ('User', 'Type', 'Class', 'Service', 'State')]
+        return '\n'.join(key + '=' + value for key, value in records[argv[2]].items())
+
+    monkeypatch.setattr(helper.guest, 'run', command)
+    if fault:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-session:'):
+            helper.graphical_session(account)
+    else:
+        assert helper.graphical_session(account) == ('c1', graphical)
 
 
 @pytest.mark.parametrize('rows', ['User=1007\nUser=1008', 'User=1007\nOther=value', 'invalid'])

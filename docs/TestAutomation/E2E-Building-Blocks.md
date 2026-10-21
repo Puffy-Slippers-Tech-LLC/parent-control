@@ -1730,12 +1730,13 @@ generated input or artifact cleanup was performed by this host audit.
 The map and complete-callers audit passed the maintained five-module
 plan/inventory/coverage/composition/launcher selection: **639/639 checks**, with
 600-second collection/worker deadlines, in
-[report 20261021T052803Z-5119cd1c](../../output/test-runs/host/reports/20261021T052803Z-5119cd1c/report.md).
+pre-close-out run `20261021T052803Z-5119cd1c` (that report has rotated;
+the accepted final result and cleanup remain verified below).
 Runner listing confirms cases 44–49 keep their exact executables and
 1800-second budgets; cases 34/36 and FLOW19/FLOW20 remain pending.
 No inventory/collection source changed, so coverage regeneration is unnecessary.
 After queue close-out, the same **639/639** checks passed again in
-[report 20261021T053028Z-8503050b](../../output/test-runs/host/reports/20261021T053028Z-8503050b/report.md).
+[report 20261021T053028Z-8503050b](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 The plan check selects C04u; changed-document links and the diff check pass.
 
 Two read-only operation/feature audits and the final independent Sol caller
@@ -1751,6 +1752,93 @@ cleanup finished. No task-owned VM, installed state, temporary source or live
 process remains. Reports and pre-existing `.worktrees/` are preserved. Only
 documentation changed; no package build or core-backend review applies. No
 installation, staging, commit, push or other workflow execution occurred.
+
+### C04u bounded Ubuntu qualification
+
+The registered qualification uses the existing argument-free selectors:
+`tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_kiosk_entry' integration 'check_e2e_kiosk_approval'`.
+Both bind `named_input(package_source=True)` and the exact installed snapshot
+identity; their shared qualification worker has a finite 1800-second deadline.
+These are operation checks, without complete customer-journey or Fedora credit.
+The bounded Ubuntu scope below is qualified; C04f owns Fedora qualification.
+
+Entry reuses `station_entry` / `onpc_gdm::enter_station`, independently reads
+the owned disabled-child form, then invokes its public Cancel action and reads
+usable GDM. The separate session census supplies engineering identity only.
+Approval reuses the existing fixed Riley/Jamie, custom 75-second, soft-included
+request operation, 900-second daily allowance and initial zero grant. Independent
+open/new station entries retain wrong-entry/recipient refusals, password-free
+authentication Cancel with preserved choices, form Cancel and real authentication
+with two fresh same-challenge proofs and one secret submission. Explicit approved
+result and automatic GDM return remain required.
+
+`KioskApprovalJourney` additionally returns to the retained Parent through the
+shared guarded desktop operation, reads the same child's public time explanation
+and compares the positive grant with the immutable preapproval 975-second
+estimate, elapsed time and display precision (at most 600 seconds). Daily time
+must remain 900 seconds and total time must agree with the public balances.
+The qualification does not enter a child desktop or assert app access. Existing
+customer consumers retain the same shared entry/preparation/authentication
+operations and their own independent result assertions. Unknown, replaced,
+ambiguous or stale recipients and uncertain input remain terminal refusals.
+
+Installed acceptance on **onpc-Ubuntu26.04**:
+
+- Entry passed in **84.449 seconds**, including public form, Cancel and usable
+  GDM: `output/test-runs/privileged/allocations/onpc-graphical-smoke-sjytfc45/result.json`,
+  grouped [report](../../output/test-runs/host/reports/20261021T055104Z-4ae95698/report.md).
+- After correcting the qualification's estimate-object comparison, approval
+  alone passed with
+  `tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_kiosk_approval'`
+  in **302.676 seconds** (worker **280.968 seconds**, same 1800-second deadline):
+  `output/test-runs/privileged/allocations/onpc-graphical-smoke-wvk1mtc9/result.json`,
+  [report](../../output/test-runs/host/reports/20261021T060209Z-d16a9795/report.md).
+  Genuine approval and automatic GDM return passed. The independent Parent read
+  showed daily **900**, grant/total **953** seconds against the original **975**
+  seconds, **45.821** seconds elapsed and one-second display precision.
+- Both used verified online snapshot `onpc-v1.4`, matching expected/actual
+  package content SHA-256
+  `da61305d0040adb8857c54a4827bb9e1bc3bd608f366c336d5ef322a99f3f8d4`
+  and package SHA-256
+  `2805f6e1dd157720fe4e3e341e15f70d529633bac1d1832b23089c4ed2fdfa35`.
+  Each result retains the exact baseline, recipe, source, assets and environment
+  identities. Approval used MATE `1.26.1-6`, `en_US.utf8`, `xkb/us`.
+  The later approval-only repair changes neither entry nor product bytes;
+  the unchanged passing entry result remains applicable.
+
+Host validation passed **2,721** affected entry/approval, secret, ownership,
+provenance and plan checks; the shared session-census correction passed **206**
+focused checks; the final approval/recorder correction passed **1,294** checks.
+All used `tools/run-tests unit` with `--timeout '600s'`; exact selections/results
+are retained in reports `20261021T054151Z-7b96d386`,
+`20261021T055030Z-43fe6103` and `20261021T055938Z-c87b33f6`.
+The complete report bundles, installed result files and worker shutdown records
+are preserved in the verified [evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-y_k0ym45/evidence.zip),
+SHA-256 `069b6b1b17b94e641e2629d0099dadc2ac6639521591a5d3781f2a1a2312de0e`.
+Original paths above also identify exact bundle members if their journals rotate.
+After close-out, the maintained five-module plan/inventory/coverage/composition/
+launcher selection passed **639/639** with `--timeout '600s'` in
+[report 20261021T060943Z-1b81e81b](../../output/test-runs/host/reports/20261021T060943Z-1b81e81b/report.md).
+Changed-document links and the plan check pass; the first unchecked task is C04f.
+
+The independent Sol caller review found undeclared retained-return authentication;
+the qualification now declares its invocations/challenge and passes them through
+the real worker dispatch. Regression coverage exercises the actual challenge
+helper, recipient refusals and no durable reply after a failed independent read.
+Coordinator resolution: **Usability priority: passed; Threat scope: passed**.
+Shared helpers retain public API controls, fail-closed input guards and separate
+engineering observations. The census uses standard repeated logind property
+options and distinguishes a verified user manager from a graphical login without
+distro branches. Existing unit/cleanup resource classifications remain applicable:
+private scratch, process-local doubles and bounded waited Perl children; no new
+bus, display, VM or shared resource. No product backend code changed.
+
+`make build` passed both DEB/RPM packages after excluding preserved independent
+`.worktrees/` from this checkout's source inputs. Both installed results retain
+passed collection/cleanup, stopped workers, closed callbacks, verified shutdown,
+completed leases and host/source preservation. Diagnostic maintenance was stopped;
+both helpers are joined/closed; bundle cleanup completed. No task-owned process
+or running VM remains. B1–B4, C04 readiness and C05 customer journeys remain pending.
 
 ### Kiosk, child overlay and the shared request form
 

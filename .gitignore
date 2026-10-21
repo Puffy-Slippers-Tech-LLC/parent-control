@@ -1,4 +1,6 @@
 .envrc
+# Independent development checkouts are not source inputs for this checkout.
+/.worktrees/
 # One-time diagnostic downloads from test machines; never commit their contents.
 /diagnostic-logs/
 *.zip

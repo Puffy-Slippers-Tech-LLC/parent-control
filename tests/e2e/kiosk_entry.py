@@ -16,11 +16,14 @@ PLAN = JourneyPlan(
     screen_tags={
         **station_entry(),
         'request-form': 'ui:kiosk-request-form',
+        'cancel': 'ui:kiosk-request-cancel',
+        'returned': 'ui:gdm-station-returned',
     },
     phases={
         'ready': 'setup', 'setup-detached': 'setup',
         'station-list': 'start',
         'station-focused': 'step-1', 'station-branch': 'step-2', 'request-form': 'step-2',
+        'cancel': 'step-2', 'returned': 'step-2',
     },
     advance_after={'station-list': 'step-1', 'station-focused': 'step-2'},
 )

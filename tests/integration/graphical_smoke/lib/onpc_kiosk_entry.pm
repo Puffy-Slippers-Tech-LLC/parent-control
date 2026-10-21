@@ -16,6 +16,9 @@ sub run {
 
     onpc_gdm::enter_station($journey, '');
     $journey->seen('request-form');
+    for my $stage ('cancel', 'returned') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
     $journey->finish();
 }
 

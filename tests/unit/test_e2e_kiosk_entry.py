@@ -812,6 +812,7 @@ use warnings;
 use JSON::PP;
 our @events;
 our $destination = shift // 'default-request-form';
+our $failure = shift // '';
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub current_console { 'sut' }
@@ -830,6 +831,7 @@ my $ok = eval {
     onpc_kiosk_entry::run(sub {
         my ($stage) = @_;
         push @events, ['exchange', $stage];
+        die 'injected observation failure' if $stage eq $failure;
         return {ui_focused => 1} if $stage eq 'station-list';
         return {station_destination => $destination} if $stage eq 'station-branch';
         return {observed => $stage};
@@ -845,12 +847,21 @@ def test_station_worker_uses_only_the_intended_passwordless_route():
     assert result['ok']
     exchanges = [event[1] for event in result['events'] if event[0] == 'exchange']
     assert exchanges == [
-        'station-list', 'station-focused', 'station-branch', 'request-form']
+        'station-list', 'station-focused', 'station-branch', 'request-form',
+        'cancel', 'returned']
     keys = [event[1] for event in result['events'] if event[0] == 'key']
     assert keys == ['ret']
     assert not any(event[0] == 'secret' for event in result['events'])
     assert result['events'][-3:] == [
         ['disable'], ['power', 'off'], ['stage', 'shutdown']]
+
+
+@pytest.mark.parametrize('failure', ['request-form', 'cancel', 'returned'])
+def test_station_worker_requires_public_form_exit_and_return_before_finish(failure):
+    result = json.loads(run_perl(RUN, 'default-request-form', failure).stdout)
+    assert not result['ok']
+    assert result['events'][-1] == ['exchange', failure]
+    assert not any(event[0] == 'power' for event in result['events'])
 
 
 @pytest.mark.parametrize('destination', ['greeter-controls', '', 'desktop'])

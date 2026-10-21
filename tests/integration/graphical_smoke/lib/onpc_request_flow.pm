@@ -788,14 +788,19 @@ sub daily_station_entry {
 
 sub run {
     onpc_progress::operation('Qualifying open and fresh kiosk request composition');
-    my ($exchange, $mate) = @_;
-    die 'request-flow:arguments' unless (@_ == 1 || @_ == 2 && ($mate eq 'mate' || $mate eq 'approval' || $mate eq 'rejection' || $mate eq 'immediate' || $mate eq 'approved-flow' || $mate eq 'flow-rejection' || $mate eq 'flow-cancel'))
+    my ($exchange, $mate, $declared, $challenges) = @_;
+    die 'request-flow:arguments' unless (@_ == 1 || @_ == 4 && $mate eq 'approval'
+        || @_ == 2 && ($mate eq 'mate' || $mate eq 'rejection' || $mate eq 'immediate' || $mate eq 'approved-flow' || $mate eq 'flow-rejection' || $mate eq 'flow-cancel'))
         && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(exchange => $exchange,
         prefix => $mate && $mate =~ /^flow-/ ? 'kiosk-approval-flow' :
             $mate && ($mate eq 'immediate' || $mate eq 'approved-flow') ? 'kiosk-approval' :
             $mate && $mate eq 'rejection' ? 'kiosk-rejection' :
             $mate && $mate eq 'approval' ? 'kiosk-approval' : $mate ? 'mate-prompt' : 'request-flow', review => 0);
+    if ($mate && $mate eq 'approval') {
+        $journey->declare_invocations($declared);
+        $journey->declare_challenges($challenges);
+    }
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
@@ -837,6 +842,12 @@ sub run {
     }
     for my $stage (($mate && ($mate eq 'approval' || $mate eq 'immediate') ? () : ('new-cancel')), 'new-returned') {
         $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    if ($mate && $mate eq 'approval') {
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'return');
+        $journey->consume_observation('supplied-parent-retained',
+            onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'supplied'));
+        $journey->consume_observation('approved-balance', $journey->seen('approved-balance'));
     }
     $journey->finish();
 }

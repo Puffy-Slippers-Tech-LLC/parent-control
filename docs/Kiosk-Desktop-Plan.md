@@ -1,16 +1,16 @@
 # Prevent full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **D01 — [Review full desktop entry routes](Kiosk-Prompt-Tasks/D01-desktop-review.md)**.
-Baseline plan: [Baseline validation](Kiosk-Session-Confinement-Plan.md).
-Baseline task: C05f.
+Next task: **D00 — [Audit the confinement replacement and cleanup boundary](Kiosk-Prompt-Tasks/D00-cleanup-audit.md)**.
 
 ## Outcome and scope
 
 Prevent a child from entering a full, unrestricted graphical desktop as the
 `oh-no-parent-control` kiosk account. Preserve its passwordless request-only
 session, genuine parent approval, time/app enforcement and ordinary-account
-desktop access. This is the first security priority after baseline validation.
+desktop access. Cleanup of conflicting unfinished confinement and its obsolete
+automation is the first work. Desktop prevention follows cleanup and accepted
+baseline use.
 
 Own local graphical-session selection, reachable request-session escapes that
 yield a full desktop, and one named supported remote-desktop provider. Review
@@ -26,6 +26,123 @@ mechanisms and exact applicable evidence without duplicate implementation.
 
 ## Usability and threat scope
 
+### Binding planning requirements
+
+These requirements bind this master, every brief and the
+[remaining plan](Kiosk-Session-Confinement-New-Plan.md). They replace conflicting
+unfinished confinement instructions; historical completion and evidence remain
+historical. A task cannot relax them to obtain a pass.
+
+| Requirement | Execution consequence |
+| --- | --- |
+| Usability first | Passwordless sign-in, a usable request form and the complete approval/time/app journey take priority. |
+| Unexpected machine configuration | Unrelated packages, valid service/PAM variation and optional resources cannot veto normal use. |
+| Justified protection failures | Every protective refusal needs actual child access, a deliberate breach action, a prohibited result and a working normal-use control. Essential outages need recovery; parent/admin denial remains authoritative. |
+| Reasonable-child coverage | Allocate ordinary desktop/session, terminal, TTY, SSH, remote-desktop and exposed-launch attempts to the route owners below. |
+| Bounded threat | Exclude very low-level professional/world-class attacks, arbitrary kiosk-code execution premises and unnecessary Python/native-loader hardening. |
+| Selected source | Derive only kiosk session confinement from `releases/v1.3`, pinned at `188be907c46b1cd0dabae06ac898c43e75beb05e`, then add justified protections. Never derive it by subtracting restrictions from main/v1.4 confinement. |
+| Feature preservation | Retain main's non-confinement kiosk features, authorization, time/app behavior and unrelated code. Do not restore the whole v1.3 kiosk tree. |
+| Cleanup priority | D00/D00a/D00b account for conflicting unfinished source, direct consumers and obsolete v1.4 automation before new protections. Reuse verified C01–C04 deliveries rather than repeat the cutover. |
+| Complete plan replacement | These two masters and their queues own future improvement work. Old R-series/private-runtime instructions supply no fallback requirements. Preserve their evidence and ownership records. |
+| This reconciliation | Planning and documentation only: no queue completion, product implementation, VM work or product acceptance/testing. Metadata and link checks are permitted. |
+
+### Route allocation
+
+| Result | Sole implementation and acceptance owner |
+| --- | --- |
+| Local graphical desktop selection | D01/D02, C07a, C11d/C12d |
+| Request-session actions yielding a full desktop | D01/D02, C07s, C11d/C12d |
+| One named supported remote-desktop provider | D01r/D02, C07, C11f/C12f |
+| Standalone terminal/TTY and SSH | Remaining C06a/C06, C07t/C07b, C11t/e and C12t/e |
+| Other exposed launches and child-controlled inputs | Remaining C06x/C06i/C06, C08a/C08, C11g/g1 and C12g/g1 |
+
+A shared mechanism has one editor and one implementation owner. Its consumers
+retain their own public outcomes and candidate-applicability checks.
+
+### Usability stop gate
+
+**Normal kiosk availability is the absolute highest priority.** A valid supported
+configuration must open the passwordless request session and keep core use
+working. A protection that breaks or rejects that normal session is a blocker,
+even if its negative security test passes. Unexpected configuration alone is
+never evidence of an intentional breach.
+
+After every product-changing protection or recovery slice, the queue places a
+separate installed usability gate for Ubuntu and Fedora before the next product
+slice. Each gate requires the complete core-use history in this plan's acceptance
+contract, with its affected shared-overlay/feature/pause controls, on that exact
+candidate. Follow the baseline's complete-history reuse contract: reuse exact
+applicable proof and renew invalidated histories only. A no-product-change slice
+still verifies applicability; a checkbox or entry-only check is insufficient.
+Do not postpone a normal-entry failure to the final campaign or add another
+restriction while either target is failing. A gate closes only with usable
+public results and owned restoration, never by relabeling rejection as safe.
+These gates consume the accepted baseline's registered core composition; they
+do not wait for D03 or remaining C10, which freeze the later route/fault acceptance
+maps. Missing independent core qualification becomes a bounded prerequisite at
+the selected gate. Do not invent selectors or a circular readiness dependency.
+
+Review every affected PAM/session/provisioning/frontend refusal and exception
+path, including missing/stale owned state, lock contention, optional resources,
+valid vendor variation and service readiness. Record why each can fail and its
+normal-use control. Remove or repair unjustified admission predicates at their
+owner; do not add an allowlist of familiar machines. Required-service outages
+must retain a usable bounded retry/exit path and recover when service returns,
+without fabricating a grant or weakening policy. Genuine parent/admin denial and
+reviewed deliberate breach attempts retain their intended refusals.
+
+A usability failure keeps its gate open, records expected/actual behavior and
+returns the correction to its product owner through bounded prerequisites. Renew
+affected complete histories after correction. The final acceptance tasks audit
+the final candidate and may reuse these exact histories; they do not require
+duplicate runs solely for a new task label.
+
+### Admission uses a narrow denylist
+
+**Default to passwordless kiosk-app access. Reject only a specifically recognized,
+reviewed intentional attack pattern.** This is a denylist, never a whitelist of
+recognized machine states. Unrecognized or strange files, packages, versions,
+services, PAM layouts, locale data, environment values or other configuration
+must not break or reject normal kiosk access merely because they are unfamiliar.
+An unfamiliar configuration is not out of scope merely because the product has
+not recognized it; support is not a configuration whitelist in disguise.
+Do not deny an entire session when only an exposed action needs a narrow barrier.
+
+For every protective rejection predicate, the existing design owner must record:
+
+- The exact reachable caller/action/input and the child's demonstrated control.
+- The specific deliberate breach pattern and prohibited result it enables.
+- The narrow enforcement point and reason an action-level barrier is insufficient
+  if session admission itself must refuse.
+- A recognized-attack negative, a working normal-use positive, and benign adjacent
+  or unknown configuration that must still allow passwordless app access.
+- Recovery/restoration and target applicability, without a catch-all default deny.
+
+Missing state, failed discovery, an unknown service or package, a parse exception,
+content drift and lock contention are not attack patterns by themselves. Audit
+those error/default branches explicitly. Repair owned recoverable state or keep
+the kiosk app available with bounded retry/exit; do not translate uncertainty into
+session rejection. Do not infer child control from unfamiliar content or a mode
+bit alone. Specific deliberate terminal/TTY/SSH/desktop-launch attempts can have
+reviewed route predicates; rejecting every unrecognized route is not a substitute.
+
+This default concerns access to the restricted request app. Genuine parent/admin
+authorization and required time/app enforcement still govern grants. An essential
+service outage may prevent completing a request, but must not be disguised as an
+attack or a reason to require a kiosk password, expose a desktop, fabricate approval
+or disable enforcement. Keep the app's recovery path usable. Explicit parent or
+administrator denial remains authoritative.
+
+D00 inventories each affected refusal/error branch. D02 and remaining C06 record
+an explicit **Denylist/default access: passed/failed** review alongside usability
+and threat scope. A missing attack justification or a benign unknown rejected by
+protection fails review and blocks that task. Both-target usability gates include
+the finite benign/unknown variations directly affected by their product slice;
+the final compatibility tasks retain their wider finite histories. No whole-host
+inventory or exhaustive machine matrix is required.
+
+### Inherited baseline requirements
+
 Inherit the baseline's
 [usability priority](Kiosk-Session-Confinement-Plan.md#highest-priority-product-usability),
 [reasonable-child threat scope](Kiosk-Session-Confinement-Plan.md#mandatory-threat-scope-reasonable-child-effort)
@@ -39,13 +156,19 @@ parent/admin denial, main features and safe recovery from essential outages.
 
 ## Task boundaries and size
 
-D01 first verifies accepted C05u/C05f results for both baseline targets, exact
+D00 audits the release lineage and residual cleanup map. D00a closes conflicting
+source and package consumers; D00b closes obsolete automation consumers. Empty
+residual scope needs an explicit verified disposition, not speculative changes.
+These tasks do not execute or close the baseline queue. D01 then verifies
+the D00u/f tolerant-use gates and
+accepted C05u/C05f results for both baseline targets, exact
 candidate applicability and owned cleanup. Missing evidence keeps D01 open.
 New namespaces never bypass an active owner, Git transaction, VM lease or
 overlapping uncommitted work.
 
-D01 maps finite desktop routes; D02 independently reviews the minimal design.
-C07a owns local graphical desktop barriers and desktop-enabling session escapes;
+D01 maps local routes; D01r maps one named remote provider. D02 independently
+reviews the combined minimal design. C07a owns graphical-session admission;
+C07s owns desktop-enabling actions inside the request session;
 C07 owns the named remote-desktop route. Existing effective barriers need proof,
 not duplicate code. D03 freezes exact finite selectors, inputs, qualifications,
 timeouts, normal-use controls and restoration before installed consumers.
@@ -59,6 +182,14 @@ desktop-attempt/core-use/restoration histories. Independent missing implementati
 or qualification becomes a bounded prerequisite before its selected consumer
 under [ordinary-plan execution](Execution-Plans.md#execution-and-delegation).
 Do not absorb a general feature, broker or recovery project into these tasks.
+Before closing each design review, name the affected complete functions/callers,
+test modules, finite cases and existing automation bindings in the design owner.
+Classify each route as already effective, a missing justified barrier or excluded
+with a reason. Freeze that finite slice before implementation; if it cannot fit
+one session, use the selected-consumer prerequisite route before editing product
+code. Independent provider/operation development needs its own installed brief,
+explicit targets and qualification before consumption. A host task may update
+bindings but cannot mark a new reusable capability qualified.
 
 ## Acceptance
 
@@ -125,8 +256,33 @@ rules or install the product on the development host merely to check this plan.
 Commit reviewed planning inputs before execution. Preserve all old checkpoints,
 accepted evidence, active owners and pending Git work. No checkpoint or handoff
 is copied between namespaces. A retained pre-split controller cannot silently
-adopt the changed scopes/order. Resolve any retained-state conflict through the
-[reconciliation contract](Execution-Plans.md#common-launcher-interface) before
-execution; the unchanged-tail split route does not authorize this partial-scope
-reallocation. The baseline's original split recovery remains separate and must
-retain its committed original destination inputs.
+adopt the changed scopes/order. Follow the
+[retained-run admission](#retained-run-admission) below before execution.
+The baseline's original split recovery remains separate and must retain its
+committed original destination inputs.
+
+### Retained-run admission
+
+`--check` checks current files only: it neither inspects retained-run compatibility
+nor verifies the external baseline gate. No execution is authorized by its pass
+alone. Commit reviewed planning inputs separately from unrelated work before a
+later execution session; this documentation session does not commit them.
+
+For a fresh namespace with no retained run, use the current queue normally.
+For an active owner, finish or stop it through its maintained route and let owned
+cleanup/Git transactions finish before adoption. For an inactive retained run,
+use only the [shared reconciliation contract](Execution-Plans.md#common-launcher-interface).
+Ordinary `--reconcile` preserves existing scopes and dependencies; it cannot
+adopt this task decomposition or the earlier desktop reallocation merely because
+the documents were committed. The unchanged-tail split and task-merge options
+also do not authorize these scope divisions. If no supported reconciliation
+matches the retained baseline, execution is blocked pending an explicitly
+reviewed migration through the launcher owner. Preserve the checkpoint, exact
+old/new inputs, handoffs, session counts and proof; do not edit state, invent a
+namespace or clear ownership to get past the guard. Launcher migration is
+separate work, outside this planning-only session.
+
+After admission, execute D00/D00a/D00b and tolerant-use D00u/f, then require baseline C05u/f at D01,
+finish through D04, and only then start the remaining queue. Neither launcher
+executes an external gate. Missing evidence leaves the selected row open with
+its exact owner and return condition.

@@ -2,7 +2,7 @@
 
 Acceptance: host
 
-Required tasks: C09b1.
+Required tasks: C09b1f.
 Estimate: 20–30 min.
 
 Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)

@@ -13,7 +13,8 @@ design/test owners and source routes below.
 
 Use D02's reviewed local desktop entries and actual GDM/PAM/account/session
 callers. Add only the missing narrow barrier to alternate graphical desktop
-selection and reviewed request-session actions that yield a full desktop.
+selection at the actual graphical-session admission boundary. Request-session
+actions that yield a full desktop are extracted to C07s.
 Retain passwordless request-only entry and ordinary-account desktop login.
 Standalone terminal/TTY and other shortcut results remain with C07t in the
 remaining plan; do not duplicate them here.

@@ -2,7 +2,7 @@
 
 Acceptance: host
 
-Required tasks: C09.
+Required tasks: C09f.
 Estimate: 20–30 min.
 
 Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)
@@ -16,6 +16,9 @@ existing scenario recipes, block catalogue and installed-case owners. For each
 C11/C12 family below, record candidate inputs, exact command/selector, finite
 values, expected independent public results, timeout, prerequisite qualification,
 restoration and report retention. These are future checks, not inherited passes.
+Include the intervening usability-gate receipts and identify which complete core
+histories still apply to the final candidate. C11/C12 may reuse those exact
+histories; repeat only missing or invalidated scope under the reuse contract.
 
 Families are core journey/features; separate host-variation and optional-fallback
 bindings; required-service/

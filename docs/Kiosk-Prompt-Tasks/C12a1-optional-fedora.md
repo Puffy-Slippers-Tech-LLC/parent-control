@@ -13,7 +13,7 @@ Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-e
 Use C10's exact registered optional-fallback bindings and candidate on Fedora.
 C12a supplies host-variation coverage; this slice owns only finite missing
 artwork/style/catalogue/optional-service and C/C.UTF-8-only native-language
-controls selected by C09a. Use qualified shared operations and the maintained
+controls selected by C09a/C09a1. Use qualified shared operations and the maintained
 installed runner under the VM/UI/storage owners.
 
 Each declared fixture must reach a usable form and genuine selected-parent

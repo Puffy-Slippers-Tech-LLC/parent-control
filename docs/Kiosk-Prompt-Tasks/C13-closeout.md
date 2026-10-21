@@ -2,7 +2,7 @@
 
 Acceptance: reconciliation
 
-Required tasks: C12g1.
+Required tasks: C13a.
 Estimate: 20–30 min.
 
 Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)
@@ -11,18 +11,11 @@ design/test owners and source routes below.
 
 ## Session boundary and deliverable
 
-Audit the cumulative source/test map and C10 acceptance map against the final
-candidate. Session confinement must originate in the pinned v1.3 slice plus
-explicit justified additions; current main features and unrelated product
-behavior remain. Confirm no discarded framework or dead fixture/import/selector
-survives as a hidden dependency. Explicitly account for both checked-in code
-and every relevant active change produced by the old execution plan, including
-new files later committed as the source baseline. Delete obsolete, unfinished
-or unused legacy/garbage code as needed; preserving past work is no exemption.
-Trace the removed interfaces through their affected callers, build/package
-wiring, fixtures, registrations and docs. Require no orphan briefs, inactive
-duplicate implementation or obsolete confinement instructions. This audit is
-scoped to the replacement and its consumers, not unrelated repository cleanup.
+Use C13a's final source/test disposition audit and C10's acceptance map against
+the final candidate. Source lineage, retained features and obsolete-consumer
+closure are extracted to C13a; this row owns final evidence and documentation.
+Require no orphan active brief or conflicting prospective confinement instruction.
+Retain historical source/proof context under its existing owner.
 
 Require every final family on both named platforms, including core use, finite
 defenses, compatibility/recovery/update and original-cause diagnostics. Verify

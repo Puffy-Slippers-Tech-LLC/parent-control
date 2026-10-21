@@ -18,6 +18,22 @@ retain their stable IDs under the desktop owner. No task completes through plann
 
 ## Usability and threat scope
 
+The desktop master's [binding planning requirements](Kiosk-Desktop-Plan.md#binding-planning-requirements)
+and [route allocation](Kiosk-Desktop-Plan.md#route-allocation) apply to every row
+here. Residual conflicting source and obsolete v1.4 automation cleanup is first,
+under D00/D00a/D00b; C06a verifies that handoff through D04. This queue adds only
+justified protections to the pinned v1.3 confinement slice, retaining main's
+non-confinement features. Do not recreate the old main/v1.4 subtraction approach.
+The desktop master's [usability stop gate](Kiosk-Desktop-Plan.md#usability-stop-gate)
+is binding here: each product slice is followed by separate both-target core-use
+renewals before the next product slice. A normal broken/rejected kiosk session
+blocks advancement immediately. Final acceptance may reuse exact applicable
+gate evidence; qualification and customer histories retain their own assertions.
+The master's [narrow denylist](Kiosk-Desktop-Plan.md#admission-uses-a-narrow-denylist)
+also binds this queue: unknown/strange configuration preserves passwordless app
+access. Only specifically justified deliberate breach patterns may be rejected;
+uncertainty, failed discovery or missing optional state is not such a pattern.
+
 Inherit the baseline's
 [usability priority](Kiosk-Session-Confinement-Plan.md#highest-priority-product-usability),
 [reasonable-child threat scope](Kiosk-Session-Confinement-Plan.md#mandatory-threat-scope-reasonable-child-effort)
@@ -55,12 +71,16 @@ If missing, leave C06a unchecked with the concrete baseline return condition.
 A new namespace is no authorization to bypass an active baseline owner, pending
 Git transaction, live VM lease or uncommitted overlapping source work.
 
-C06a reviews remaining SSH/terminal/TTY routes. C06 reviews other exposed actions
-and consumed inputs. C07t/C07b and C08a/C08 add only missing justified barriers,
+C06a reviews remaining SSH/terminal/TTY routes. C06x maps exposed actions and
+C06i separately maps child-controlled consumed inputs; C06 independently reviews
+the combined finite design. C07t/C07b and C08a/C08 add only missing justified barriers,
 with targeted tests and normal-use controls. Desktop barriers remain in their plan.
 C09 addresses demonstrated confinement-caused availability/recovery/lifecycle
 coupling. Existing effective barriers need verification, not duplicate code.
 General broker/feature projects are outside these rows' scope.
+C09a owns optional presentation fallback; C09a1 separately owns native-language
+fallback without changing genuine selected-parent authentication. C13a audits
+final source/test dispositions; C13 audits final evidence and documentation.
 
 New tests appropriate to planned confinement changes belong here, including
 finite public negative/positive bindings, recovery histories and candidate-specific
@@ -78,6 +98,14 @@ C10 freezes exact finite selectors, inputs, qualifications, timeouts and restora
 before final consumers; missing independent work becomes a bounded prerequisite
 under [ordinary-plan execution](Execution-Plans.md#execution-and-delegation).
 Keep complete fault/recovery/reentry histories together and preserve queue order.
+Apply the desktop master's finite design/implementation boundary: record complete
+affected functions/callers, finite test inputs, bindings and qualification gaps
+before product edits. A task with no demonstrated defect verifies the existing
+boundary; it must not invent restrictions or speculative recovery infrastructure.
+Split oversized independent work at the selected consumer before implementation.
+New reusable operations need explicitly targeted installed qualification before
+their first composition consumer; host registration is no qualification. C10
+only audits readiness and cannot absorb missing capability development.
 
 ## Acceptance
 
@@ -116,6 +144,8 @@ independent Astra xHigh review requirements remain binding. C06's independent
 protection-design review retains explicit Usability priority and Threat scope
 passed/failed findings; resolve actionable findings and revalidate material edits.
 No host/review result supplies installed acceptance.
+The C06 review also records Denylist/default access passed/failed and checks
+benign adjacent/unknown controls for every proposed protective rejection.
 
 Retain task-owned paths, exact inputs/commands, expected/actual results, blockers
 and cleanup in maintained runner records. Close only the selected row after
@@ -140,12 +170,15 @@ These are alternatives. Omitted `--vm` selects configured enabled targets;
 every installed brief still requires its named target. Attach without flags to
 retain the active task limit. The generic entry
 `tools/execute-plan --plan 'docs/Kiosk-Session-Confinement-New-Plan.md'`
-shares this owner. A clean fresh controller needs no old checkpoint migration.
+shares this owner. A namespace with no retained run needs no checkpoint migration.
 Commit reviewed planning inputs before execution. Do not copy checkpoints or
 handoffs between namespaces. Retained pre-split controllers cannot silently adopt
-the changed scopes/order; resolve any retained-state conflict under the
-[reconciliation contract](Execution-Plans.md#common-launcher-interface).
-The unchanged-tail split route does not authorize this partial-scope reallocation.
+the changed scopes/order. Apply the desktop master's
+[retained-run admission](Kiosk-Desktop-Plan.md#retained-run-admission) to this
+namespace too: current-file `--check` and ordinary `--reconcile` cannot adopt
+changed existing scopes/dependencies. If the retained baseline has no supported
+migration, keep execution blocked with its exact handoff; do not clear state or
+invent another namespace. No launcher migration is performed in this doc session.
 Baseline resumption remains separate and must preserve its original committed
 split destination inputs and retained work.
 

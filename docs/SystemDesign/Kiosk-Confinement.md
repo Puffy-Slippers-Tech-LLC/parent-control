@@ -101,7 +101,7 @@ account denials and time policy. No v1.4 callback inventory or private material
 measurement participates in the selected native module.
 
 Saved preferences and a nologin shell do not attest to GDM's next executable.
-The legacy PreSession hook was removed. Desktop D01/C07a/C07 own actual
+The legacy PreSession hook was removed. Desktop D01/D01r/C07a/C07s/C07 own actual
 desktop/session-choice and supported remote-desktop route review and prevention
 of unrestricted graphical desktop access. Residual C06a/C07t/C07b own terminal,
 TTY and SSH routes. Both retain ordinary-account controls; host composition does
@@ -155,7 +155,7 @@ This is additive work from the release, not subtraction from v1.4 confinement.
 The earlier custom Python/native-loader proposal is discarded. Trusted installed
 Python/GTK/GI code and normal lazy loading remain part of the trusted base.
 [Desktop D01/D02](../Kiosk-Desktop-Plan.md) review actual deliberate routes to an
-unrestricted graphical desktop before desktop C07a/C07 add protection.
+unrestricted graphical desktop before desktop C07a/C07s/C07 add protection.
 [Residual C06](../Kiosk-Prompt-Tasks/C06-protection-review.md) reviews other actual
 deliberate smart-child routes before C07t/C07b/C08 add protection. Every
 protection-caused failed use must meet the master's justification and usability mandates; unfamiliar

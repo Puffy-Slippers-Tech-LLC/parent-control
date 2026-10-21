@@ -2,7 +2,7 @@
 
 Acceptance: review
 
-Required tasks: Baseline (external C05u/C05f gate below).
+Required tasks: D00f (closed cleanup/tolerant-use gates; external C05u/C05f gate below).
 Estimate: 20–30 min.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract).
@@ -17,10 +17,11 @@ Finish prior owner/Git/resource transactions; do not execute baseline tasks here
 
 Inspect the rebuilt source and actual GDM/PAM/account/session callers. Map finite
 child-reachable alternate graphical-session selection, request-session actions
-that can start a full desktop, and one named supported remote-desktop provider.
+that can start a full desktop. D01r separately reviews the named remote provider.
 For each record actual child access, deliberate action, prohibited desktop result,
 smallest enforcement owner, negative, permitted kiosk/ordinary-account positive
-and restoration. Service absence is no remote denial proof.
+and restoration. Check baseline evidence after D00a/D00b: changed source needs
+renewal by the baseline owner, not a historical checkbox.
 
 Keep the map in the existing confinement design owner. Identify already effective
 barriers and precise gaps for D02, without implementation or installed claims.

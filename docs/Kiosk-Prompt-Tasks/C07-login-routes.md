@@ -2,7 +2,7 @@
 
 Acceptance: host
 
-Required tasks: C07a.
+Required tasks: C07sf.
 Estimate: 20–30 min.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract)
@@ -11,7 +11,7 @@ design/test owners and source routes below.
 
 ## Session boundary and deliverable
 
-Use the provider chosen in D01 and reviewed in D02; inspect its actual authentication/
+Use the provider chosen in D01r and reviewed in D02; inspect its actual authentication/
 session path rather than assuming SSH/GDM PAM behavior. Keep ordinary-account
 remote use working while refusing kiosk desktop access through that provider.
 Do not claim protection for providers outside the reviewed scope.

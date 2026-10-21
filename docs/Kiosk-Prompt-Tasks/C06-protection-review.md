@@ -1,8 +1,8 @@
-# C06 — Review exposed routes and minimal protection design
+# C06 — Review the minimal remaining protection design
 
 Acceptance: review
 
-Required tasks: C06a.
+Required tasks: C06i.
 Estimate: 20–30 min.
 
 Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)
@@ -11,13 +11,14 @@ design/test owners and source routes below.
 
 ## Session boundary and deliverable
 
-Inspect actual links, choosers, handlers, shortcuts, automatic exposed launches
-and consumed startup/settings inputs. Pair every proposed refusal with the
+Review C06a's login map, C06x's exposed-action map and C06i's consumed-input map
+against complete affected functions/callers and shared state. Discovery is owned
+by those prerequisites. Pair every proposed refusal with the
 child's demonstrated access/deliberate action, prohibited result and working
 normal-use control. Trust installed Python/GTK/GI/native code and lazy loading;
 exclude child-controlled inputs at their real consumer boundary.
 
-Combine this with C06a's login map in the existing design owner. Allocate exact
+Consolidate the reviewed dispositions in the existing design owner. Allocate exact
 remaining boundaries to C07t/C07b and C08a/C08. Full graphical desktop routes
 remain with the desktop plan's reviewed map. No new custom loader, global roster,
 private runtime image or continuous library audit. Essential-service faults and
@@ -29,5 +30,8 @@ desktop gap to its owner; this review covers the remaining prohibited results.
 
 Obtain independent Astra xHigh review with explicit Usability priority and
 Threat scope passed/failed findings, resolving failures before completion.
+Require Denylist/default access passed/failed too: inspect affected default/error
+branches, reject only specifically justified deliberate attack predicates and
+preserve passwordless app access for benign adjacent or unknown configuration.
 Keep future queue scopes unchanged; unforeseen work is inserted only when its
 consumer is selected. Check links/plan metadata. No implementation or live pass.

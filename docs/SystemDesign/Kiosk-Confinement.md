@@ -560,14 +560,14 @@ Fixed historical migration data does not recreate a selectable runtime protocol.
 Host acceptance passed **2,380 unit checks plus source/traceability** in the
 13-module packaging, migration/removal, kiosk feature, request/service contract,
 systemd and inventory selection, with a 600-second worker deadline and completed
-cleanup in the [focused report](../../output/test-runs/host/reports/20261021T030115Z-b6c19dca/report.md).
+cleanup in the [focused report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Independent Astra xHigh review passed **Usability priority** and **Threat scope**,
 with no backend correctness, security, concurrency or ownership finding. Its one
 P3 finding identified the unused fresh-package hook fixture; that input was
 removed while explicit historical-hook removal tests stayed intact.
 The affected configuration, removal and RPM selection then passed **566 checks**
 with the same deadline and completed cleanup in the
-[post-review report](../../output/test-runs/host/reports/20261021T030622Z-738d6a99/report.md).
+[post-review report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 This fixture-only correction changes no reviewed product code.
 
 Final `make build` passed for DEB and RPM after the final packaged edit, retaining
@@ -584,7 +584,7 @@ no installed qualification. No staging, commit or push was performed.
 
 Close-out passed **639 metadata checks** with a 600-second worker deadline and
 completed cleanup in the
-[close-out report](../../output/test-runs/host/reports/20261021T030914Z-b55d1f6f/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 C02d's three report destinations now use the stable accepted-proof locator after
 verifying its original reports, accepted result, exact initial/resume/metadata
 commands and cleanup record in `onpc-evidence-bundle-xc5eukic` (SHA-256
@@ -593,6 +593,67 @@ Only those destinations changed; earlier completion and claims are unchanged.
 The pointer selects C03a1 with 51 tasks remaining. Only C02e is newly checked
 and its temporary brief is removed; every other row, order, Scope and Requires
 field remains unchanged.
+
+##### C03a1 native runtime host-test reconciliation
+
+C03a1 started from clean HEAD
+`488bf09161c378f9642380428266c25502090af9`: no staged, unstaged or untracked
+old-plan fixture/module delta existed. The C01 native-runtime test inventory and
+C02d/C02e removals were checked against current tests, shared helpers and
+`tools/regression_unit.py`. The following dispositions close this runtime audit;
+paths without a directory prefix are under `tests/unit/`.
+
+| Items | Current disposition and surviving behavior |
+| --- | --- |
+| `test_kiosk_pin_storage.py`, `test_kiosk_required_material.py`, `test_kiosk_material_selection.py`, `test_kiosk_retained_projection.py`, `test_kiosk_initial_realization.py` | Removed by C02d; no fixture, import or registration remains. Exact material membership, copied runtime trees, cosmetic admission and generation/inode assertions have no selected runtime owner. Current feature assets remain covered by rendering and package tests. |
+| `test_kiosk_host_proof.py`, `test_kiosk_manager_admission.py`, `test_kiosk_material_authority.py`, `test_kiosk_native_realization.py`, `test_kiosk_pin_native.py`, `test_kiosk_policy_authority.py` | Removed by C02d with their private native compilers/probes and graph authority. No removed-header include or registration remains. Selected fixed feature commands retain argument and environment checks in `test_kiosk_confinement.py`. |
+| `test_kiosk_preparation_channel.py`, `test_kiosk_preparation_child.py`, `test_kiosk_preparation_entry.py`, `test_kiosk_preparation_plan.py`, `test_kiosk_preparation_service.py`, `test_kiosk_view_publication.py`, `test_kiosk_view_receipt.py` | Removed by C02d with the discarded preparation/channel/receipt/publication protocols. No caller or serializer remains; these mechanisms add no customer outcome to the rebuilt session. |
+| `test_kiosk_fresh_startup.py`, `test_kiosk_retained_record.py`, `test_kiosk_retained_startup.py` | Removed by C02d together; no generated fresh/retained fixture copies or malformed-record matrices remain. Entry composition and exit/shutdown ownership use the selected session tests below. |
+| `tests/support/kiosk_material.py`, `tests/support/kiosk_material_selection.py`, `tests/support/kiosk_material_authority.py`, `tests/support/kiosk_preparation_plan.py`, `tests/support/kiosk_fresh_startup.py` | Removed by C02d; caller searches found no remaining code consumer. No unused helper, private compiler or skipped legacy module is retained. |
+| `test_kiosk_login.py` | Retained selected session identity/composition, app shutdown ownership, vendor agent/locale interface, notification command, source closure, ordinary-user Wellbeing settings and kiosk environment restriction. The Wellbeing compiler/observer now forwards scratch leases. Native PAM fixtures remain C03a's audit. |
+| `test_kiosk_confinement.py` | Retained fixed Wellbeing/packages commands, argument refusal, environment sanitization and the finite RPM diagnostic query. Compiler/native/observer children now forward scratch leases. The selected embedded migration finalizer and `tests/support/package_scripts.py` remain with C03a; historical installed engineering-helper assertions remain with C04. Neither is a replacement runtime framework. |
+| `test_request_time_estimate.py`, `test_systemd_unit.py` | Retained logout registration/acknowledgement, single exit, bounded fallback, late-reply refusal and diagnostic privacy; selected Wellbeing activation/recovery, notification startup, crash-notifier ordering and scoped agent environment. These cover normal entry/exit integration without reinstating material admission. |
+| `test_kiosk_rendering.py` | Retained current artwork/cache, shared kiosk/overlay form, startup readiness and authorized timing observations. No removed runtime dependency remains; C03 retains the broader shared-form audit. |
+| `tools/regression_unit.py` | All 21 removed module names and their obsolete isolation rationales remain absent. The surviving modules stay explicitly compatible; resource comments now record descendant scratch-lease forwarding. No cleanup or UI inventory entry changes. |
+
+The launcher already forwards scratch leases into pytest, but the retained
+fixtures' `subprocess.run` calls closed them before starting their compiler,
+native launcher and observer descendants. The fixture-only repair passes
+`scratch_descriptors()` through those calls, preserving every assertion and
+existing deadline. Resource review covers private pytest trees, three tiny
+compiled feature binaries across the two fixtures, bounded waited children and
+process-local exec/NSS doubles. It adds no allocation, shared host path/cache,
+account, PAM file, service, socket/bus/display, VM or cleanup owner. Existing
+compatible scheduling remains appropriate. No product/build input changed;
+backend review and package builds are not required for this test-only repair.
+
+C03a receives the concrete inline PAM fixtures, package-machine/finalizer helper
+and account/package registrations already identified in the C01 consumer map.
+No `tests/support/kiosk_pam.py` exists. C04 retains the installed-helper audit;
+this host task declares no targets and grants no installed qualification.
+
+Host acceptance passed **1,656 checks** with a 600-second worker deadline in
+the exact seven-module kiosk confinement/login/rendering, request-time estimate,
+systemd, unit inventory and support-architecture selection. The
+[focused report](../../output/test-runs/host/reports/20261021T031625Z-dacb32f8/report.md)
+records passing retained assertions and compatible overlap across four branches.
+The worker is closed, all test children finished and launcher-owned scratch
+cleanup completed. No task-owned installed state, VM or live process remains.
+Normal reports are retained; no installation, staging, commit or push occurred.
+
+C02e's three report destinations now use the stable accepted-proof locator after
+verification of its exact reports, accepted result, commands and cleanup record
+in `onpc-evidence-bundle-cuhc9gcp` (SHA-256
+`2a03b1e1be0e5db2fe9af71d51723f27ead2869e0fa95ff70d94f370cb66d568`).
+Only destinations changed; predecessor completion and evidence claims remain
+unchanged.
+
+Close-out passed **639 metadata checks** with a 600-second worker deadline and
+completed cleanup in the
+[close-out report](../../output/test-runs/host/reports/20261021T031723Z-defdbd1d/report.md).
+Markdown links and the read-only plan check passed. Only C03a1 is newly checked,
+its temporary brief is removed and the pointer selects C03a with 50 tasks
+remaining. Every other row's completion, order, Scope and Requires is unchanged.
 
 ##### C02a prepared session runtime
 

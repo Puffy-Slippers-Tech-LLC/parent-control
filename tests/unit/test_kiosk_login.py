@@ -9,6 +9,7 @@ import subprocess
 import pytest
 
 from tests.support.paths import ROOT
+from tools.test_storage import scratch_descriptors
 
 
 SELECTED_RUNTIME = ROOT / 'data'
@@ -161,7 +162,8 @@ int __wrap_execv(const char *path, char *const argv[]) {
         '-DKIOSK_LAUNCH_ROLE="wellbeing"', "-Wl,--wrap=getpwnam",
         "-Wl,--wrap=execv", "-o", str(entry), str(identity),
         str(ROOT / "tools/kiosk_session.c"),
-    ], check=True, capture_output=True, text=True, timeout=30)
+    ], check=True, capture_output=True, text=True, timeout=30,
+        pass_fds=scratch_descriptors())
     return entry
 
 
@@ -175,7 +177,8 @@ def test_wellbeing_entry_preserves_ordinary_settings_environment(wellbeing_entry
     }
     environment = dict(os.environ, TEST_IDENTITY=identity, **settings)
     result = subprocess.run([str(wellbeing_entry)], env=environment,
-                            check=True, capture_output=True, text=True, timeout=5)
+                            check=True, capture_output=True, text=True, timeout=5,
+                            pass_fds=scratch_descriptors())
     command, inherited = result.stdout.split("\n\n", 1)
     assert command.splitlines() == [
         "/usr/bin/gjs", "/usr/bin/gjs", "-m",

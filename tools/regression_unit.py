@@ -888,7 +888,8 @@ from regression_ui import Bucket
 # kiosk_confinement retains finite historical migration inputs and installed
 # engineering helpers under C04 ownership. Its native feature checks compile
 # two tiny private binaries and redirect exec to a private observer; compiler
-# and probe children are bounded and waited. Process-local NSS, command, policy,
+# and probe children forward scratch leases and are bounded and waited.
+# Process-local NSS, command, policy,
 # proc/audit and descriptor doubles retain existing compatible unit scheduling.
 # Owned lifecycle probes use private sockets/pipes/pidfds and reap only recorded
 # children. No host account, PAM, service, bus, display, cache or VM is changed.
@@ -899,7 +900,8 @@ from regression_ui import Bucket
 # source-list child, the Wellbeing observer below and a bounded isolated-Python
 # startup check. No host account, settings or PAM transaction is acquired.
 # Wellbeing identity/environment cases compile a tiny private launcher with
-# linker-wrapped NSS/exec observers and run bounded waited children. They read
+# linker-wrapped NSS/exec observers and forward scratch leases to bounded waited
+# compiler/observer children. They read
 # no live account or settings backend and preserve compatible unit scheduling.
 # Prepared runtime assertions read inert source assets and own one bounded,
 # waited Make source-list child. The package_payload/rpm_packaging checks reuse

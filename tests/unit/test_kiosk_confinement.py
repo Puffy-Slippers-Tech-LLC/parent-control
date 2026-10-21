@@ -15,6 +15,7 @@ from unittest.mock import Mock
 import pytest
 
 from tests.support.paths import ROOT
+from tools.test_storage import scratch_descriptors
 
 def module(path):
     spec = importlib.util.spec_from_file_location('private_' + path.stem, path)
@@ -27,7 +28,6 @@ def module(path):
 def test_postrm_embedded_finalizer_runs_after_payload_erasure(distribution, tmp_path, monkeypatch):
     from tests.support.package_scripts import prepared_lifecycle_machine
     from tests.support.shell import relocate_system_paths
-    from tools.test_storage import scratch_descriptors
     machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
     helper = machine.migration
     helper.prepare_remove()
@@ -1597,7 +1597,8 @@ def fixed_launchers(tmp_path_factory):
         executable = directory / role
         subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
                         f'-DKIOSK_LAUNCH_ROLE="{role}"', '-o', str(executable), str(source)],
-                       check=True, capture_output=True, text=True, timeout=30)
+                       check=True, capture_output=True, text=True, timeout=30,
+                       pass_fds=scratch_descriptors())
         paths[role] = executable
     return paths
 
@@ -1605,7 +1606,8 @@ def fixed_launchers(tmp_path_factory):
 @pytest.mark.parametrize('role', ['wellbeing', 'packages'])
 def test_fixed_native_launchers_reject_arguments_and_ignore_code_configuration(fixed_launchers, role, tmp_path):
     entry = fixed_launchers[role]
-    denied = subprocess.run([str(entry), '--eval=untrusted'], capture_output=True, timeout=5)
+    denied = subprocess.run([str(entry), '--eval=untrusted'], capture_output=True, timeout=5,
+                            pass_fds=scratch_descriptors())
     assert denied.returncode == 1 and denied.stdout == b''
     environment = dict(os.environ, HOME=str(tmp_path), WAYLAND_SOCKET='13',
                        PYTHONPATH=str(tmp_path), GJS_PATH=str(tmp_path),
@@ -1616,7 +1618,8 @@ def test_fixed_native_launchers_reject_arguments_and_ignore_code_configuration(f
                        LUA_PATH_5_5=str(tmp_path), LUA_CPATH_5_5=str(tmp_path),
                        GIO_USE_VFS=str(tmp_path))
     result = subprocess.run([str(entry)], env=environment, capture_output=True,
-                            text=True, check=True, timeout=5)
+                            text=True, check=True, timeout=5,
+                            pass_fds=scratch_descriptors())
     arguments, observed = json.loads(result.stdout)
     assert observed['WAYLAND_SOCKET'] == '13'
     assert observed['GIO_USE_VFS'] == 'local'

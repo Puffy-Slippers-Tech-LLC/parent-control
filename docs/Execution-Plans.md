@@ -531,7 +531,8 @@ An already clean path whose working contents, executable mode and index match
 HEAD is also released, even when its committed contents have advanced beyond
 the captured baseline. Retained checkpoints do not lock clean files to an older
 version. Release these clean paths from inherited and suspended baselines before
-the next task edits them.
+each agent session, including the first session after restart or a reviewed replan,
+before the task can edit them.
 Uncommitted baseline contents and pre-existing staged paths remain protected.
 Content-only file fingerprints omit executable mode, so release also requires a regular
 working file with HEAD's executable mode; ambiguous deletion/type/mode changes

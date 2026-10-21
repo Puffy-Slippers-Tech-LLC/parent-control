@@ -821,6 +821,11 @@ def worker(root, run, owner, spec, state):
                 break
             if state.get('git_reconciliation'):
                 validate_pull_identity(root, state, git=git_output)
+            if spec.commit_prefix:
+                # Retained/replanned baselines can predate an external reviewed
+                # commit. Release clean paths before the agent dirties them,
+                # while their worktree, mode and index still prove ownership.
+                validate_closeout_ownership(root, [], state)
             state.setdefault('started_at', time.time())
             active_spec = capacity_session_spec(spec, state)
             if not retrying_capacity:

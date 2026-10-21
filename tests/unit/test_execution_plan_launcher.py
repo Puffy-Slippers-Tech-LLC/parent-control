@@ -1703,6 +1703,7 @@ def test_closeout_preserves_proof_after_cleanup_before_git(rig, monkeypatch, pub
 @pytest.mark.parametrize('exhausted', [False, True])
 def test_missing_publication_proof_renews_acceptance_with_original_limits_and_ownership(
         rig, monkeypatch, exhausted):
+    (rig.root / 'owned.md').write_text('original pending work\n')
     state = state_for(rig.plan, task_sessions=1, total_sessions=3,
                       session_limit=1 if exhausted else 5,
                       protected_staged=['unrelated.md'], stage_baseline={'owned.md': 'original'})
@@ -2013,6 +2014,9 @@ def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan,
     (f.root / 'task.py').write_text('pre-existing work\n')
     (f.root / 'report.md').write_text('earlier generated report\n')
     baseline = workflow.worktree_snapshot(f.root)
+    # Review can amend the captured work before committing it. A clean newer
+    # version must be released before the first resumed task edits this path.
+    (f.root / 'task.py').write_text('reviewed pre-existing work\n')
     f.git('add', '--', 'task.py')
     f.git('commit', '-qm', 'Reviewed pre-existing work')
     (f.root / 'report.md').write_text('current generated report\n')
@@ -2040,6 +2044,7 @@ def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan,
 
     def execute(root, spec, run, owner):
         state = json.loads((run / 'checkpoint.json').read_text())
+        assert 'task.py' not in state['stage_baseline']
         if state['task_id'] == '002':
             assert f.git('log', '-1', '--format=%s').stdout.strip() == 'TA: Completed task 001'
             assert f.git('rev-parse', 'HEAD').stdout == f.git('rev-parse', 'HEAD', cwd=f.remote).stdout

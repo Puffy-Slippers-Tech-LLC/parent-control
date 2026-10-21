@@ -1,5 +1,17 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+compatible_native_fixtures compiles a finite set of small native identities synchronously
+inside module-private pytest disk scratch, then renders rules in memory. It
+owns no GUI/runtime packaging, display, bus, VM, shared cache or background
+process. Compatible unit overlap is appropriate; cleanup/UI inventories gain
+no module. The existing native/baseline cleanup modules retain their private
+file/double ownership, and test_test_applications retains artifact admission.
+Scheduled-collection regressions use private checkout files and an in-process
+owned-controller double. No execution lease, cleanup, display or subprocess is
+acquired; test_test_launchers retains its compatible unit classification.
+Filter-entry read retry checks add only synthetic API nodes and process-local
+doubles in e2e_app_rows; its unit resources and UI/cleanup inventories are unchanged.
+
 unit_test_launcher's concurrent collection checks hold only a pytest-private
 checkout lock and wait for bounded launcher/pytest children with shared scratch
 descriptors. UI collection uses synthetic tests without fixtures or GUI services.
@@ -55,7 +67,7 @@ scheduling is appropriate. Cleanup and UI inventories gain no module.
 Committed-baseline close-out checks reuse pytest-private checkouts and bare
 remotes with finite, synchronously waited Git commands. They cover binary/link/
 deletion fingerprints, executable-mode ownership and two-task push/advance/restart
-behavior, including newer clean commits and refusal of staged/unstaged or
+behavior, including pre-session release of newer clean commits and refusal of staged/unstaged or
 assume-unchanged work, without an external network, model process or shared Git mutation; compatible overlap stays
 appropriate.
 Installation and reliability plan adapters share those same private fixtures
@@ -1116,6 +1128,7 @@ e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_fe
 e2e_license_viewer
 e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_native_grid_usable e2e_native_app e2e_app_activity
 e2e_baseline_app_bindings e2e_baseline_app_effects e2e_long_request_binding
+compatible_native_fixtures
 e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
 e2e_request_choices e2e_request_exit e2e_secret_variables e2e_serial_helper

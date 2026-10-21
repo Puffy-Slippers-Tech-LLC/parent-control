@@ -1,4 +1,9 @@
-"""Private plan fixtures exercise shared selection, recovery, budgets and panes."""
+"""Private plan fixtures exercise shared selection, recovery, budgets and panes.
+
+Split/revision checks reuse bounded private Git children and tmp_path lock and
+checkpoint trees. No live owner, VM, bus, display, service or shared path is used;
+the existing compatible unit resource classification remains applicable.
+"""
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -38,7 +43,8 @@ def synthetic_plan_evidence(monkeypatch):
 @pytest.fixture(params=[
     ('reliability-plan', 'docs/Reliability-Plan.md'),
     ('kiosk-prompt', 'docs/Kiosk-Session-Confinement-Plan.md'),
-], ids=['reliability-plan', 'kiosk-prompt'])
+    ('kiosk-prompt-new', 'docs/Kiosk-Session-Confinement-New-Plan.md'),
+], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-prompt-new'])
 def plan_adapter(monkeypatch, request):
     name, plan = request.param
     entry = Path(workflow.__file__).with_name(name)
@@ -2074,6 +2080,207 @@ def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan,
     assert f.git('diff', '--cached', '--name-only').stdout.splitlines() == ['shared.py']
     assert (f.root / 'unrelated.py').read_text() == 'unrelated unstaged work\n'
     assert f.git('show', 'HEAD:unrelated.py').stdout == 'initial unrelated\n'
+
+
+@pytest.fixture
+def split_scene(git_plan):
+    from test_storage import directory
+
+    scene = git_plan
+    scene.plan = prepare(scene.root, count=3)
+    queue = scene.root / scene.plan.queue
+    queue.write_text(queue.read_text().replace('](003.md) | — |', '](003.md) | 002 |'))
+    scene.git('add', '--', 'docs')
+    scene.git('commit', '-qm', 'Original three-task queue')
+    scene.base = scene.git('rev-parse', 'HEAD').stdout.strip()
+    state = state_for(scene.plan, task_sessions=2, total_sessions=7, handoff='Original retained work.')
+    consumer = state_for(scene.plan, task_sessions=3, total_sessions=6, handoff='Suspended consumer.')
+    record = workflow.task_record(scene.plan.tasks()[1])
+    consumer.update(record, task=record)
+    state['suspended_tasks'] = {'002': consumer}
+    namespace = workflow.launcher.private_directory(directory('plans', root=scene.root) / scene.plan.namespace)
+    scene.run = workflow.launcher.private_directory(namespace / ('a' * 32))
+    workflow.launcher.atomic(namespace / 'current.json', dict(run=scene.run.name))
+    rejected = response(state, status='prerequisite_required')
+    workflow.launcher.atomic(scene.run / 'agent-result.json', rejected)
+    workflow.launcher.atomic(scene.run / 'rejected-agent-result.json', rejected)
+    state['result_recovery'] = dict(reason='Structural replan needs review.',
+                                   response=str(scene.run / 'rejected-agent-result.json'))
+    workflow.launcher.atomic(scene.run / 'checkpoint.json', state)
+    workflow.launcher.atomic(scene.run / 'result.json', dict(status=1, tasks=0))
+    workflow.launcher.atomic(scene.run / 'nested.json', [])
+    (scene.run / 'nested-closed').touch()
+    original = queue.read_text().split('## Deferred future work')[0]
+    rows = original.splitlines()
+    source = [line for line in rows if not line.startswith('| [ ] | 003 |')]
+    source.insert(2, '| [ ] | pre | [Preparation](pre.md) | — | finite prerequisite |')
+    source = [line.replace('finite scope 001', 'reviewed retained scope 001') for line in source]
+    queue.write_text('\n'.join(source) + '\n')
+    (scene.root / scene.plan.path).write_text('Task queue: [Queue](queue.md).\nNext task: **pre — Preparation**.\n')
+    (scene.root / 'docs/pre.md').write_text('Acceptance: host\n')
+    target_rows = rows[:2] + [line.replace(' | 002 |', ' | Baseline |')
+                             for line in rows if line.startswith('| [ ] | 003 |')]
+    (scene.root / 'docs/new-queue.md').write_text('\n'.join(target_rows) + '\n')
+    (scene.root / 'docs/new-plan.md').write_text(
+        'Task queue: [Queue](new-queue.md).\nNext task: **003 — Third**.\n'
+        'Baseline plan: [Baseline](plan.md).\nBaseline task: 002.\n')
+    scene.git('add', '--', 'docs')
+    scene.git('commit', '-qm', 'Reviewed queue split and scope reallocation')
+    scene.spec = workflow.PlanWorkflow('fixture-plan', scene.plan.path)
+    scene.options = dict(split='docs/new-plan.md', revisions=['001'], base=scene.base)
+    return scene
+
+
+def test_reviewed_split_preserves_rejected_work_counters_and_resume(split_scene, monkeypatch):
+    scene = split_scene
+    monkeypatch.setattr(workflow, 'session_command', lambda *_: ['unused-model-command'])
+    (scene.root / 'shared.py').write_text('Unrelated staged work.\n')
+    scene.git('add', '--', 'shared.py')
+    (scene.root / 'unrelated.py').write_text('Unrelated unstaged work.\n')
+    index, worktree = scene.git('diff', '--cached').stdout, scene.git('diff').stdout
+    head = scene.git('rev-parse', 'HEAD').stdout
+    raw = (scene.run / 'checkpoint.json').read_bytes()
+    target = Plan.load(scene.root, scene.options['split'])
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name,
+                                   check=True, **scene.options)['next_task'] == 'pre'
+    assert (scene.run / 'checkpoint.json').read_bytes() == raw
+    assert not list(scene.run.glob('checkpoint-before-reconcile-*'))
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, **scene.options)['reconciled']
+    backup, = scene.run.glob('checkpoint-before-reconcile-*')
+    assert json.loads(backup.read_text())['checkpoint_utf8'].encode() == raw
+    updated = json.loads((scene.run / 'checkpoint.json').read_text())
+    assert updated['total_sessions'] == 7
+    assert updated['queue_before'] == {'pre': False, '001': False, '002': False}
+    current, suspended = (updated['suspended_tasks'][key] for key in ('001', '002'))
+    assert current['task_sessions'] == 2 and suspended['task_sessions'] == 3
+    assert current['handoff'].startswith('Original retained work.')
+    assert suspended['handoff'].startswith('Suspended consumer.')
+    assert current['prior_result_recovery']['metadata'] == json.loads(raw)['result_recovery']
+    assert json.loads(current['prior_result_recovery']['response_utf8']) == response(json.loads(raw), status='prerequisite_required')
+    assert 'result_recovery' not in current
+    assert target.state() == {'003': False}
+    resumed = workflow.initial_state(scene.plan, scene.spec, scene.run.parent)
+    assert resumed['suspended_tasks']['001']['task_sessions'] == 2
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name,
+                                   check=True, **scene.options)['resume_ready']
+    assert len(list(scene.run.glob('checkpoint-before-reconcile-*'))) == 1
+    assert 'shared.py' in updated['protected_staged']
+    assert 'unrelated.py' in updated['replan_baseline']
+    assert scene.git('diff', '--cached').stdout == index
+    assert scene.git('diff').stdout == worktree
+    assert scene.git('rev-parse', 'HEAD').stdout == head
+
+
+@pytest.mark.parametrize('boundary', ['archive', 'checkpoint'])
+def test_reviewed_split_retries_interrupted_publication(split_scene, monkeypatch, boundary):
+    scene = split_scene
+    original = workflow.launcher.atomic
+    checkpoint = scene.run / 'checkpoint.json'
+    raw = checkpoint.read_bytes()
+    failed = False
+
+    def interrupted(path, value):
+        nonlocal failed
+        selected = (path == checkpoint if boundary == 'checkpoint'
+                    else path.name.startswith('checkpoint-before-reconcile-'))
+        if selected and not failed:
+            failed = True
+            raise OSError('Private split publication interruption')
+        return original(path, value)
+
+    monkeypatch.setattr(workflow.launcher, 'atomic', interrupted)
+    with pytest.raises(OSError, match='publication interruption'):
+        workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, **scene.options)
+    assert checkpoint.read_bytes() == raw
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, **scene.options)['reconciled']
+    updated = json.loads(checkpoint.read_text())
+    preserved = updated['suspended_tasks']['001']['prior_result_recovery']
+    assert json.loads(preserved['response_utf8']) == response(json.loads(raw), status='prerequisite_required')
+    assert updated['suspended_tasks']['001']['task_sessions'] == 2
+    assert len(list(scene.run.glob('checkpoint-before-reconcile-*'))) == 1
+
+
+@pytest.mark.parametrize('defect', [
+    'base', 'missing-revision', 'extra-revision', 'source-completion',
+    'target-completion', 'target-scope', 'target-acceptance', 'target-dependency',
+    'missing-gate', 'retained-tail', 'destination-started', 'destination-active',
+    'dirty-target', 'rejected-cleanup', 'rejected-completion', 'rejected-identity',
+    'pending-git', 'in-flight', 'active-targets', 'suspended-acceptance',
+])
+def test_reviewed_split_refuses_unreviewed_or_unowned_changes(split_scene, defect):
+    from contextlib import ExitStack
+    import fcntl
+    from test_storage import directory
+
+    scene = split_scene
+    options = dict(scene.options)
+    checkpoint = scene.run / 'checkpoint.json'
+    state = json.loads(checkpoint.read_text())
+    path = scene.root / 'docs/new-queue.md'
+    if defect == 'base':
+        options['base'] = None
+    elif defect == 'missing-revision':
+        options['revisions'] = []
+    elif defect == 'extra-revision':
+        options['revisions'] = ['001', '002']
+    elif defect == 'source-completion':
+        complete(scene.plan, '001')
+    elif defect == 'target-completion':
+        path.write_text(path.read_text().replace('[ ]', '[x]'))
+        (scene.root / 'docs/new-plan.md').write_text('Task queue: [Queue](new-queue.md).\nNext task: none.\n')
+    elif defect == 'target-scope':
+        path.write_text(path.read_text().replace('finite scope 003', 'weakened scope'))
+    elif defect == 'target-acceptance':
+        (scene.root / 'docs/003.md').write_text('Acceptance: review\n')
+    elif defect == 'target-dependency':
+        path.write_text(path.read_text().replace(' | Baseline |', ' | unknown |'))
+    elif defect == 'missing-gate':
+        (scene.root / 'docs/new-plan.md').write_text('Task queue: [Queue](new-queue.md).\nNext task: **003 — Third**.\n')
+    elif defect == 'retained-tail':
+        retained = {key: value for key, value in state.items() if key != 'suspended_tasks'}
+        record = workflow.task_record(Plan.load(scene.root, options['split']).next_task())
+        retained.update(record, task=record)
+        state['suspended_tasks']['003'] = retained
+    elif defect == 'rejected-cleanup':
+        rejected = response(state, status='continue')
+        rejected['cleanup_complete'] = False
+        workflow.launcher.atomic(scene.run / 'agent-result.json', rejected)
+        workflow.launcher.atomic(scene.run / 'rejected-agent-result.json', rejected)
+    elif defect == 'rejected-completion':
+        rejected = response(state)
+        workflow.launcher.atomic(scene.run / 'agent-result.json', rejected)
+        workflow.launcher.atomic(scene.run / 'rejected-agent-result.json', rejected)
+    elif defect == 'rejected-identity':
+        workflow.launcher.atomic(scene.run / 'agent-result.json', response(state, status='continue'))
+    elif defect == 'pending-git':
+        state['commit_intent'] = {'pending': True}
+    elif defect == 'in-flight':
+        state['in_flight'] = True
+    elif defect == 'active-targets':
+        state['task']['targets'] = ['stricter-retained-target']
+    elif defect == 'suspended-acceptance':
+        state['suspended_tasks']['002']['task']['acceptance'] = 'installed'
+    elif defect == 'dirty-target':
+        path.write_text(path.read_text() + '\nUncommitted planning edit.\n')
+    workflow.launcher.atomic(checkpoint, state)
+    if defect != 'dirty-target':
+        scene.git('add', '--', 'docs')
+        scene.git('commit', '--allow-empty', '-qm', 'Fault injection in private checkout')
+    raw = checkpoint.read_bytes()
+    with ExitStack() as locks:
+        if defect.startswith('destination-'):
+            target = Plan.load(scene.root, options['split'])
+            destination = workflow.launcher.private_directory(directory('plans', root=scene.root) / target.namespace)
+            if defect == 'destination-active':
+                owner = locks.enter_context(workflow.launcher.lock(destination / 'owner'))
+                fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                child = workflow.launcher.private_directory(destination / ('b' * 32))
+                workflow.launcher.atomic(destination / 'current.json', dict(run=child.name))
+        with pytest.raises(ValueError):
+            workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, **options)
+    assert checkpoint.read_bytes() == raw
+    assert not list(scene.run.glob('checkpoint-before-reconcile-*'))
 
 
 @pytest.fixture

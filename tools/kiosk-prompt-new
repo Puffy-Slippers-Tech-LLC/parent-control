@@ -1,0 +1,16 @@
+#!/usr/bin/python3 -IB
+"""Run new kiosk confinement improvements through the shared plan driver."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from plan_launcher import PlanWorkflow, main
+
+if __name__ == '__main__':
+    sys.exit(main(PlanWorkflow(
+        name='kiosk-prompt-new',
+        plan='docs/Kiosk-Session-Confinement-New-Plan.md',
+        model='gpt-6.1-sol',
+        effort='high',
+        vm=True,
+    )))

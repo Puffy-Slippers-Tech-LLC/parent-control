@@ -41,3 +41,10 @@ Retain exact receipts and finish restoration for any new execution. Report
 installed acceptance against `onpc-Fedora44`, with both-target applicability
 findings and original complete-history/cleanup references. Close only C05f when
 selected; this reuse grants no final post-protection acceptance.
+
+This is the baseline queue's final row. Close with matching baseline product,
+automation and current documentation, exact both-target evidence applicability
+and completed owned cleanup. Hand remaining deliberate-route gaps to
+[new-plan C06a](C06a-login-review.md), which verifies these accepted receipts
+before review. New protections and their C10–C13 final acceptance do not extend
+this baseline or become a release prerequisite through that handoff.

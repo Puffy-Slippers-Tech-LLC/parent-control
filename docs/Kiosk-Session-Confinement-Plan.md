@@ -1,394 +1,225 @@
-# Usable kiosk session confinement
+# Kiosk confinement baseline validation for v1.4
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
 Next task: **C04p1 — [Verify baseline app fixture applicability](Kiosk-Prompt-Tasks/C04p1-compatible-app-fixtures.md)**.
 
 ## Outcome
 
-Keep passwordless kiosk sign-in and everyday product use working on supported
-computers. Prevent a smart technical child from using ordinary kiosk routes to
-reach a desktop, terminal, SSH, remote desktop or unrestricted application.
-Preserve genuine parent approval and time/app enforcement.
+Validate the rebuilt v1.3 confinement baseline so v1.4 can ship with solid
+passwordless kiosk entry, genuine parent approval and time/app enforcement.
+Keep main's current non-confinement features. This plan ends at C05f after the
+Ubuntu and Fedora baseline gates; new protections and compatibility improvements
+belong to the [new confinement plan](Kiosk-Session-Confinement-New-Plan.md)
+and `tools/kiosk-prompt-new`. They are not prerequisites for this baseline.
 
-This is a new execution plan. This revision changes planning and launcher-path
-metadata only, with the requested documentation commit and push. It does not
-execute the rebuild, accept active product changes or run product tests.
+Planning reconciliation grants no task completion or installed acceptance.
+The existing master path, launcher and surviving brief paths remain stable for
+retained baseline work. Completed C01–C04o rows keep their original evidence.
 
 ## Highest priority: product usability
 
 **Product usability is the highest priority. Unexpected machine configurations
 must not break passwordless sign-in, the request form or core end-to-end use.**
 
-Every failed product use caused by our protection/confinement must have a
-well-justified, concrete intentional breach effort available to a smart technical
-child who is not a professional or world-class hacker. A protection review must
-name the deliberate action, the child's actual access, the prohibited result
-and why blocking that exact route is necessary. Pair it with a working normal-use
-control. Unfamiliar files, services, package versions, permissions or configuration
-alone do not supply this justification.
+Every protection-caused failed use needs a concrete intentional breach effort
+available to a smart technical child: name their actual access, deliberate action,
+prohibited result and the matching working normal-use control. Unfamiliar files,
+services, package versions or configuration alone supply no justification.
+An unjustified protective failure is a product bug. Genuine parent denial and
+explicit administrator policy remain authoritative. Essential-service outages
+are faults to recover, with safe retry/exit and no unauthorized access.
 
-An unjustified protective failure is a product bug. Remove the unnecessary
-protection, isolate the affected optional action or recover the owned state.
-Do not rename a normal-use failure “intentional refusal” or “infrastructure.”
-Explicit administrator policy and genuine parent denial remain authoritative.
-A genuine essential-service/enforcement outage is an operational fault, not
-evidence of a breach or successful confinement; keep safe retry/exit while fixing
-it, without offering an unrestricted desktop or granting unauthorized access.
-
-Human time choosing a language, reading a dialog, deciding a request or typing
-a parent password is not machine-startup time. Trusted lazy loading and ordinary
-package/account administration must not require a private product protocol.
-Optional presentation/service failures use fallbacks and cannot veto core use.
+Human time choosing a language, reading, deciding or typing a parent password
+is not startup time. Trusted lazy loading and ordinary package/account
+administration must not require a private product protocol. Optional presentation
+or service failures cannot veto core use.
 
 ## Mandatory threat scope: reasonable child effort
 
-Include ordinary session selection, shortcuts, TTY/terminal attempts, SSH and
-remote-desktop login attempts as the kiosk account, exposed links/choosers/handlers,
-automatically exposed launch actions and simple changes to files/settings the
-child can actually control. Block the unwanted route while keeping permitted use.
+The baseline retains its existing restrictions and authorization boundaries.
+Ordinary session selection, shortcuts, TTY/terminal, SSH, remote desktop,
+exposed links/choosers/handlers and child-writable consumed inputs are the
+reasonable-child scope for the new plan's finite route review. Baseline failures
+must be diagnosed against actual public routes, without inventing new defenses
+or expanding into that future review.
 
-Very low-level attacks requiring expert exploitation are out of scope. Do not
-assume arbitrary execution as the kiosk UID, compromised trusted packages/root,
-kernel/boot/firmware exploitation or a sophisticated native-loader exploit chain.
-Custom Python runtimes, ELF rewriting, continuous library auditing, per-import
-authority protocols and private GI/graphics-driver images are not prerequisites.
-Trust supported installed Python/GTK/system code; exclude demonstrably
-child-controlled inputs at their actual selection boundary.
-
-Engineering injections may help verify a real route but do not expand this
-threat model. Do not infer child intent from machine drift. Broker validation,
-parent authentication and ordinary time/app policy retain their existing scope.
+Do not assume arbitrary kiosk-UID execution, compromised trusted packages/root,
+expert native-loader chains or kernel/boot/firmware exploitation. Trust supported
+installed Python/GTK/system code. No custom runtime, private GI/graphics image,
+continuous library audit or per-import authority protocol is a prerequisite.
+Engineering injections remain separate from customer acceptance.
 
 ## Target design
 
 ### Mandatory baseline: v1.3 kiosk session confinement only
 
-**Build from the kiosk session confinement code in `releases/v1.3`, adding
-justified protections. Do not subtract restrictions from main/v1.4 confinement.
-Do not restore all kiosk code from v1.3.**
+The selected confinement slice derives from release commit
+`188be907c46b1cd0dabae06ac898c43e75beb05e` (`releases/v1.3`).
+C01–C03 already record selective reconstruction and cleanup; do not repeat that
+cutover, switch branches or restore all v1.3 kiosk code.
 
-Use release commit `188be907c46b1cd0dabae06ac898c43e75beb05e`, available in
-the local object database. The pin, not a moving branch, is authoritative.
-No branch switch or wholesale checkout reset is needed.
-
-Main remains the source for all non-confinement, non-security kiosk features:
-shared request UI, Preferences/language, duration units/presets, notifications,
-What's New, artwork, feedback/diagnostics and other current features. Keep other
-main product code, including broker authorization/grant behavior, time/app
-enforcement, packaging improvements and test tooling.
-
-C01a/C01b/C01c/C01 map functions/configuration, active edits, callers and test
-consumers before replacement. C02a–C02 reconstruct only session confinement
-from the pin and connect it to main's feature code; C02d/C02e finish removal.
-Shared Makefile, PAM, lifecycle, frontend and broker files require selective
-hunk/function changes. Compatibility glue must not import the old confinement
-framework by default. The release's old GDM hook is historical source, not proof
-of correct routing on current GDM.
-
-Use standard session/account/service integration and the smallest effective
-route barriers. A copied v1.4 private graph, retained-view system, global inventory,
-custom loader or admission protocol is not the baseline. Preserve necessary
-authorization and owned cleanup behavior without preserving its old mechanism.
+Main owns the shared request UI, Preferences/language, duration choices,
+notifications, What's New, artwork, feedback and diagnostics, broker authorization,
+time/app enforcement, packaging and test tooling. Preserve those features and
+their useful diagnostics. Use the current
+[selected session/PAM baseline](SystemDesign/Kiosk-Confinement.md#c02-activated-session-baseline),
+not the discarded v1.4 private graph, retained-view, loader or admission framework.
+The old release GDM hook is historical source, not current routing proof.
 
 ## Task boundaries
 
-The highest-priority block is source-boundary review, session-confinement rebuild,
-host TA cleanup and installed/E2E TA cleanup. Prove ordinary public use on both
-targets before adding protections. Then review actual breach routes, add finite
-protections with matching tests, qualify compatibility and close product/TA/docs
-together. The queue is the sole task order; briefs hold finite deliverables.
+The queue is the sole order. C04p1/p check applicability of shared E2E fixture
+and core-effects work; C04l/s/r/i reuse existing language, request-choice,
+reminder and About coverage. Renew only invalidated routes. C04l/w add the
+finite confinement human-pause/session-lifetime checks. C04j supplies thin core
+orchestration, C04 audits readiness, and C05u/f accept the complete baseline.
 
-The queue separates session, feature and automation source review; runtime,
-broker, frontend, account, lifecycle and PAM preparation; activation and removal;
-each automation layer and each protection boundary. Baseline operation
-qualification precedes the complete composition; its first passing complete
-history can also supply baseline acceptance under the evidence-reuse rule below.
-Final host variation, optional fallback, exposed-action and consumed-input
-acceptance each have their own
-platform task. Aim for
-15–30 minutes for ordinary work; the queue and briefs name longer indivisible
-cutovers or installed histories explicitly. Estimates include reading, checks,
-review, cleanup and close-out; they are not timers.
+New general feature bindings belong to the E2E queue, including the already
+identified shared fixture/core-effects gaps in 313a/313. Those are the finite
+outstanding core regression prerequisite, not permission for a larger feature
+campaign. E2E 314/315's saved-preset editing, Hours and What's New journeys,
+new language/reminder matrices and other general feature expansion do not block
+this plan. Use the
+[cross-plan reuse map](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse)
+for exact ownership, delivery and blockers. Never execute another queue implicitly.
 
-C01 records source findings and sizing risks without editing future queue rows.
-If unexpected independent work remains when a consumer is selected, use the
-[prerequisite handoff](Execution-Plans.md#execution-and-delegation): insert only
-a contiguous unchecked prerequisite block immediately before that consumer,
-preserve its original Scope/acceptance and earlier dependencies, and return
-`prerequisite_required` after owned cleanup. Resume the consumer to verify its
-full deliverable. Do not resize later tasks during another task's close-out.
-Keep each fault/recovery/reentry history complete. No old completion transfers.
-
-Every product slice includes the directly affected test and registration repairs
-needed to pass its own checks. C03/C04 audit remaining automation, rather than
-licensing broken imports or known customer regressions between product tasks.
-C02a/C02b1/C02b/C02c1/C02c2/C02c prepare replacement slices while keeping the
-selected production path coherent and buildable. C02 alone switches confinement
-selectors, entry, PAM and package activation, including owned upgrade handling;
-earlier frontend/broker decoupling may land only when independently compatible.
-Prepared modules have no alternate live admission path. C02 removes temporary
-live adapters/fallbacks; C02d/C02e delete the now-unconsumed runtime/native and
-feature/protocol code. C03 cannot start until this source cleanup is complete.
-No installed baseline or new protection work precedes the cleanup block.
+Fix confinement-caused baseline defects with targeted regressions and normal-use
+controls. Independent work discovered at the selected consumer follows the
+[bounded prerequisite handoff](Execution-Plans.md#execution-and-delegation).
+Do not resize later rows or import new-plan acceptance families into this queue.
+Estimates include reading, validation, review, cleanup and close-out; longer
+indivisible installed histories retain their explicit exceptions.
 
 ## Acceptance
 
 ### Core product journey gate
 
-Use the installed product's public actions: parent configures one child's
-time/app limits; child reaches the normal request path; kiosk opens without a
-password; child/approver selection and genuine parent authentication grant the
-requested time and chosen soft-app access; the child can use it while hard
-blocks remain; expiry or revocation restores the expected limits. Cover the
-shared child-overlay request path when changed code serves both surfaces.
+Use installed public actions: Parent configures one child's time/app limits;
+kiosk opens without a password; child/approver choices and genuine parent
+authentication grant the requested time and selected soft-app access; the child
+can use it while hard blocks remain; public revocation restores restrictions.
+Cover the shared overlay where changed code serves both surfaces.
 
-Also verify denied/cancelled approval makes no grant, Cancel/exit/reentry works,
-a fresh request succeeds after switching sessions, and human pauses do not
-cause forced logout. Preserve main's kiosk feature controls. Reuse existing
-registered cases/operations; this is a finite regression slice, not all-product TA.
+Retain denial and Cancel with no grant, normal exit/reentry, session switching,
+a successful fresh request, human language/authentication pauses and the existing
+feature checks. Use the
+[finite baseline recipe](TestAutomation/E2E-Scenario-Recipes.md#c04b-baseline-public-use-slice);
+do not expand it into all-product automation.
 
-### Finite compatibility and defense checks
+### Evidence reuse and baseline limits
 
-| Family | Required public result |
-| --- | --- |
-| Ordinary use | Core journey, fresh/repeated entry and retained main kiosk features work on each final candidate. |
-| Host variation | One unrelated package/layout change and valid local PAM/service variation leave passwordless use intact. Unknown content has no admission vote. |
-| Optional failure | Missing artwork/style/catalogue or optional service, including native-language fallback, leaves core form and genuine approval usable. |
-| Recovery | A transient required-service interruption and one owned interrupted/stale state recover within finite machine-work bounds; live/foreign sessions are preserved. One unavailable child must not unnecessarily block requests for a healthy child. |
-| Lifecycle | Relevant product/dependency update and subsequent entry preserve policy, features and justified activation; routine ambient drift needs no reboot. |
-| Deliberate breach | Ordinary desktop/TTY/SSH/remote-desktop and exposed-launch/input attempts are blocked with permitted controls; genuine administrator/parent denial is honored. |
-| Diagnostics | A retained original cause remains understandable after recovery and in a real Parent diagnostic download, without PII or submission. |
+C04j's first complete history on each target may supply C05's installed evidence
+under the [complete baseline evidence-reuse contract](TestAutomation/E2E-Execution-Contracts.md#complete-baseline-evidence-reuse).
+Verify every assertion, exact candidate/caller/provider/input applicability and
+collection/restoration. Execute only missing or invalidated complete histories.
+Separate operation qualifications cannot replace the complete core history.
+Existing feature and pause checks remain separate reusable evidence; do not
+replay them solely for a different task label. C04 stays host acceptance, C05
+stays installed acceptance, and only the selected row closes.
 
-C04b maps baseline compositions without claiming qualification; C04u/C04f
-implement or renew the changed public entry/approval operation on each target.
-Additional independent operations require bounded prerequisites before their
-first consumer, rather than being hidden in one qualification task. C04 confirms
-readiness before C05u/C05f accept the complete customer journey. C10 does the same
-for final acceptance. A changed operation's old qualification is not reusable
-merely because its function name or selector is unchanged.
+Both `onpc-Ubuntu26.04` and `onpc-Fedora44` require their declared results.
+Fedora validation does not broaden release support. A denied normal entry,
+diagnostic-only form, missing proof or host pass is no installed usability pass.
+Preserve original failures, valid unchanged evidence and stable case IDs.
 
-Use the [complete baseline evidence-reuse contract](TestAutomation/E2E-Execution-Contracts.md#complete-baseline-evidence-reuse):
-C04j runs the full finite baseline on both targets once; C05u/C05f verify and
-reuse each matching complete installed history, executing only missing or
-invalidated complete histories. Preserve every public assertion, human pause,
-feature result and both-target gate. Individual operation qualifications do not
-supply a full journey. C04 remains a host readiness audit; C05 remains installed
-acceptance, and each row closes only when selected. Final acceptance after
-protection changes remains a separate candidate-specific obligation.
-
-Keep baseline work within the finite recipe and its
-[cross-plan reuse map](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
-Baseline validation primarily reuses existing coverage. Renew only invalidated
-routes. New general feature bindings and qualification belong to the E2E queue,
-including missing grant/use/revocation operations; the kiosk queue consumes their
-applicable evidence. Keep only confinement-specific composition and the original
-human-pause/session-lifetime checks here. Reuse existing language,
-request-choice, reminder and About checks separately from the complete core
-history. Do not add saved-preset editing, Hours, What's New or broader feature
-matrices as baseline prerequisites. Existing local coverage remains with its
-owner; new general-feature automation is scheduled separately in the E2E queue
-and is not an extra baseline prerequisite.
-
-Later confinement changes still require appropriate targeted automation and
-ordinary-use positive controls for the behavior they change. This baseline
-scope limit does not remove those protection, recovery or final acceptance gates.
-
-C04/C10 bind exact existing or newly registered selectors, finite inputs and
-restoration. Remote-desktop coverage names the supported provider and verifies an
-ordinary-account positive; absent service is not a passed refusal. Probes and
-fault injections supply engineering evidence separately from customer results.
-No expert attack matrix, whole-host scan or Cartesian combination campaign.
-
-Both `onpc-Ubuntu26.04` and `onpc-Fedora44` require applicable public results.
-This does not broaden platform support or claim current Fedora release readiness.
-New startup/loading changes invalidate affected earlier evidence; rerun only
-those complete histories. A denied normal entry or diagnostic-only screen is
-never a usability pass.
+New deliberate-route protection, host-variation, optional-fallback, recovery,
+update and post-change defense histories are owned by C06–C13 in the
+[new plan](Kiosk-Session-Confinement-New-Plan.md#acceptance). Existing baseline
+coverage and mandatory regression failure handling remain required. Completion
+of this plan establishes the stated baseline, not unexecuted future protections.
 
 ## Product and test automation must match
 
-C03a1–C03 remove or port v1.4 confinement-specific unit/component/UI fixtures,
-assertions and registrations. C04a–C04 do the same for system/E2E helpers, scenarios,
-selectors, qualification inputs, coverage and documentation. Retain stable
-customer case identities, required behavior, main feature coverage and historical
-evidence. Remove tests of discarded implementation details; do not weaken a
-customer outcome to accommodate broken code.
-
-Every protection addition includes its own targeted tests and normal-use control.
-C13 checks that no discarded mechanism survives as a hidden product dependency
-or mandatory TA assertion. Existing maintained resource/retention rules still
-apply; this plan authorizes no blanket deletion of artifacts or VM baselines.
-
-### Cleanup includes committed code and old-plan active changes
-
-**The relevant active confinement changes were created by the superseded
-execution plan. They are cleanup inputs, not accepted deliverables to preserve.**
-Inventory both checked-in main/v1.4 code and the old plan's staged, unstaged and
-untracked changes, including new files and generated-input definitions. A file
-being committed, locally modified, newly added or previously reviewed gives it
-no entitlement to remain. Remove obsolete, conflicting, unfinished, duplicate
-or unused code from either source as needed. Do not keep legacy or garbage code
-as disabled copies, unselected fallbacks or speculative compatibility layers.
-
-The C01 source/disposition table records provenance (release pin, committed main
-and active old-plan delta), the retained behavior, action, receiving task, callers,
-build/install/removal wiring and test consumers for each relevant interface.
-C02d/C02e and C03/C04 verify removal against both inventories. A source-baseline
-commit made for launcher ownership does not accept the old work or exempt it
-from deletion. Preserve main's non-confinement features and unrelated work;
-preserving a feature does not require keeping its obsolete confinement coupling.
-Recorded evidence/checkpoints and owned installed state follow their retention
-and migration contracts, rather than being treated as disposable source files.
-
-Cleanup is limited to this confinement replacement and its affected consumers,
-not a repository-wide refactor or cleanup. Within that scope, remove unused code,
-imports/includes, generated-input definitions, build/install/removal wiring,
-fixtures, selectors and superseded planning prose instead of leaving disabled
-copies, compatibility shims without consumers, redirects or orphan briefs.
-Keep current implementation descriptions accurate until the cutover; retire
-obsolete prospective obligations and migrate surviving requirements to their
-owning documents. Historical source decisions remain in Git, and accepted
-evidence/checkpoints retain their existing ownership and retention protections.
-The source/test disposition map and final audit must account for every removed
-interface's callers. Unrelated product code and unrelated active work remain
-preserved. This session updates the cleanup plan; future execution performs
-these product and automation removals.
+Keep the completed source/test dispositions and current implementation accurate.
+C04 audits affected remaining consumers without resurrecting removed mechanisms.
+Discarded private protocol fixtures are not customer requirements. Preserve
+main features, stable customer outcomes and evidence; no wholesale artifact or
+VM-baseline deletion is authorized. C05f's close-out records matching baseline
+product/automation/docs, both-target applicability and concrete remaining route
+gaps for the new plan, without implementing them.
 
 ## Implementation baseline
 
-The active v1.4 replacement is not accepted. Earlier source review reported optional/cosmetic
-admission coupling, a global child-roster/NSS dependency, incomplete manager/fence
-recovery and extra frontend readiness coupling. These are reasons to rebuild
-from the specified release slice, not a backlog to perfect the old mechanism.
-The unimplemented custom Python/native-loader proposal is discarded.
-
-The [C01 source boundary](SystemDesign/Kiosk-Confinement.md#c01-selective-replacement-boundary)
-supersedes the earlier frontend work report: the selected source has no visit
-validation protocol or stylesheet fallback, and no active old-plan delta supplies
-them. Current form readiness protects accounts, preferences and single-flight
-requests; paint timings do not gate approval. Preserve those real feature guards,
-pending-authentication cancellation and the direct broker request interfaces.
-The post-authentication lifetime boundary is prepared by C02b1, with caller and
-installed qualification obligations retained by C02b/C04. C-only locale and
-stylesheet limitations remain receiving-task obligations, not accepted historical fixes.
+C01–C03's source, cleanup and host evidence remain in the
+[confinement design](SystemDesign/Kiosk-Confinement.md#c01-selective-replacement-boundary).
+The rebuilt code, rather than active old-plan work, is the candidate for
+validation. Current readiness and B1–B4 live gaps remain in the
+[operation applicability map](TestAutomation/E2E-Building-Blocks.md#c04b-baseline-operation-applicability).
+C04o closed its fixed overlay operation only. Stopped app-effects attempts grant
+no approval/use/revocation acceptance; E2E 313a/313 retain their outstanding work.
 
 ## Scope reconciliation
 
-This master, its queue and C-series briefs replace the former execution plan.
-Old decisions and reports remain historical in Git/runner artifacts; they are
-not active requirements or inherited acceptance. C01/C03/C04 reconcile current
-design, reliability/proof consumers and TA against this plan. Do not preserve
-obsolete tasks, native receipts, view generations or custom loading obligations
-as hidden prerequisites. Saved controller checkpoints and artifact ownership
-remain untouched. The launcher keys saved state by master path; this sole master
-now lives at `docs/Kiosk-Session-Confinement-Plan.md`, also the wrapper's default.
-The old master and its superseded briefs are removed, with incoming links updated;
-there is no duplicate master, redirect or unused task brief.
-Do not use ordinary `--reconcile` to overwrite the old R-series checkpoint.
-For an existing old owner only, use the explicit former path
-`--plan 'docs/Kiosk-Resilience-Plan.md' --stop` through the maintained launcher.
-Owner attachment/stop resolves its path identity even without the former file.
+This baseline keeps `docs/Kiosk-Session-Confinement-Plan.md`,
+`docs/Kiosk-Prompt-Queue.md` and `tools/kiosk-prompt`.
+C06–C13 move, unchecked and with their acceptance, into
+[Kiosk-Prompt-New-Queue.md](Kiosk-Prompt-New-Queue.md).
+Their briefs retain stable paths but inherit the new master. No old completion,
+mutable VM state or task handoff transfers to the new namespace.
+C06a explicitly verifies C05f's both-target accepted baseline before proceeding.
+
+The former R-series owner remains separate. Its attachment/stop route is
+`tools/kiosk-prompt --plan 'docs/Kiosk-Resilience-Plan.md' --stop`;
+never use reconciliation to overwrite that checkpoint.
 
 ### Before execution
 
-These are launch prerequisites, not C01 deliverables or acceptance credit:
+Commit reviewed planning inputs first. Preserve unrelated changes and staging.
+Overlapping uncommitted E2E 313 work needs its owner's reviewed source baseline or
+an isolated checkout before task close-out; a planning commit cannot accept it.
+Finish any existing owner, owned cleanup and pending Git transaction through its
+maintained route. New namespaces do not bypass those gates.
 
-- Any old kiosk-plan owner must be inactive with its recorded cleanup and pending
-  Git transaction resolved through the maintained owner/recovery route. A new
-  namespace never bypasses that ownership. Old-path attachment/stop remains
-  available even though the old master file has been removed.
-- Commit the reviewed planning files before starting the controller. Resolve the
-  pre-existing product/test changes that overlap this queue into a preserved,
-  reviewed source baseline or isolated checkout before starting the controller.
-  A source-baseline commit records work in progress, not product acceptance.
-  Preserve unrelated changes and existing staging; no blanket staging, discard,
-  manual checkpoint edit or implicit adoption is allowed. The shared launcher
-  protects dirty baseline paths and otherwise cannot commit task close-out.
-- Use the checkout's existing branch/upstream and credentials for the launcher's
-  per-task pull, commit and push. Resolve missing configuration externally;
-  do not change Git configuration as a task workaround.
-
-The requested planning commit/push is allowed in this session; product-baseline
-reconciliation, owner recovery and task execution remain deferred. `--check` proves
-document structure/acceptance metadata only, not Git readiness, old-owner cleanup,
-fresh-namespace availability or installed behavior. Verify those gates when
-execution is explicitly requested; keep all tasks unchecked until then.
+For an inactive pre-split C04p checkpoint, use the explicit
+[reviewed split reconciliation](Execution-Plans.md#reviewed-plan-splits).
+The command in that contract binds the old committed queue, destination plan
+and the five previously reviewed baseline scope revisions. It preserves C04p
+and suspended C04 handoffs, counters, original rejected result and accepted
+proof. Ordinary restart cannot silently adopt this structural replan.
+Use the existing branch/upstream/credentials; do not change Git configuration.
 
 ## Task execution contract
 
-Each brief inherits this master's binding requirements. Start at
-[System design](System-Design.md) and the [test map](TestAutomation/README.md)
-for the affected owners; apply [Approval tools](Approval-Tools.md), the
-[ordinary-plan execution/close-out contract](Execution-Plans.md#execution-and-delegation)
-and [failure handling](../tests/README.md#handling-test-failures).
-Use the task's exact source routes and finite checks, not a full-repository read.
+Start at [System design](System-Design.md) and the
+[test map](TestAutomation/README.md), then the selected brief and affected owners.
+Apply [Approval tools](Approval-Tools.md), the
+[ordinary-plan contract](Execution-Plans.md#execution-and-delegation) and
+[failure handling](../tests/README.md#handling-test-failures).
+Use the lowest effective maintained checks with explicit timeouts. VM/UI/storage
+work triggers its mandate. Changed reusable installed operations and compositions
+need [live qualification](TestAutomation/E2E-Execution-Contracts.md#live-verification-contract).
 
-Use maintained runner help/inventory and the lowest effective selectors with
-explicit timeouts. UI/VM/storage work triggers its mandate. Any new or changed
-reusable installed operation or scenario composition needs the
-[shared live qualification](TestAutomation/E2E-Execution-Contracts.md#live-verification-contract)
-before its consumer; a host mapping task cannot grant that qualification.
-Keep candidate, commands, original expected/actual results and restoration in
-maintained runner records. Complete owned cleanup and required independent
-review before closing only the selected row and advancing the sole pointer.
-Host/review/reconciliation evidence cannot replace an installed result.
-Unforeseen independent work follows the selected-consumer handoff above.
+The coordinator is GPT-6.1 Sol High; applicable AGENTS.md backend model/review
+requirements remain binding. Protection/usability review must challenge
+unjustified refusals and complexity. Finish review, required checks, owned cleanup
+and launcher Git close-out before advancing only the selected row.
 
 ### Launcher handoff and validation routes
 
-Predecessor IDs refer to delivered scope in maintained owners, never a deleted
-brief or saved guest state. Each selected task records its exact owned paths,
-source/test dispositions, checks, expected/actual result, remaining blocker and
-cleanup through the ordinary launcher's structured handoff. Keep the original
-consumer's scope and acceptance when inserting prerequisites. No task silently
-closes another plan's row or modifies a future task during close-out.
+Retain exact candidate, command, finite values, expected/actual public results,
+remaining blocker and restoration in maintained records. Predecessors mean
+delivered scope, not removed briefs or saved guest state. No row closes another
+queue. Missing feature work returns to its E2E owner.
 
-Use `tools/kiosk-prompt --check` for master/queue/brief structure. Use the
-[maintained host consistency selection](TestAutomation/E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after planning or inventory edits and
-`tools/run-tests unit 'tests/unit/test_execution_plan_launcher.py'` for launcher
-path metadata. Discover product selections with `tools/run-tests --help`,
-`tools/run-tests --list` and the selected installed runner's `--list`; there is
-no invented C-series test selector. Keep finite values, qualification scope,
-command, timeout and restoration in the recipe/catalogue or system-case owner
-before its consumer starts. Product checks and `make build` apply only during
-later implementation, not as a substitute for this planning validation.
+Use both launcher `--check` routes and the
+[host consistency selection](TestAutomation/E2E-Execution-Contracts.md#completion-and-document-cleanup)
+after planning edits. Launcher changes also use
+`tools/run-tests unit 'tests/unit/test_execution_plan_launcher.py'`.
+Checks prove metadata and guarded recovery, not installed behavior.
 
 ## Execution
 
-Use [Approval tools](Approval-Tools.md), [Execution plans](Execution-Plans.md),
-the [test ownership map](TestAutomation/README.md) and
-[failure handling](../tests/README.md#handling-test-failures). The coordinator is
-GPT-6.1 Sol High; unresolved core design uses bounded Sol xHigh work under
-AGENTS.md. Obtain independent Astra xHigh review for product changes and the
-protection design, with explicit **Usability priority: passed/failed** and
-**Threat scope: passed/failed** findings and resolutions. Review must challenge
-unjustified refusals and unnecessary complexity.
-
-Read-only validation:
-
 ```sh
-tools/kiosk-prompt --plan 'docs/Kiosk-Session-Confinement-Plan.md' --check
+tools/kiosk-prompt --check
+tools/kiosk-prompt --tasks 1
+tools/kiosk-prompt --tasks 0
+tools/kiosk-prompt --stop
 ```
 
-After a later explicit execution request and the launch prerequisites above:
-
-```sh
-tools/kiosk-prompt --plan 'docs/Kiosk-Session-Confinement-Plan.md' --tasks 1
-tools/kiosk-prompt --plan 'docs/Kiosk-Session-Confinement-Plan.md' --tasks 0
-tools/kiosk-prompt --plan 'docs/Kiosk-Session-Confinement-Plan.md' --stop
-```
-
-These are alternatives: start with one task, select all remaining tasks, or stop
-at a safe boundary. To attach without changing the current task limit, use the
-same `--plan` with neither `--tasks` nor `--stop`. Omitted `--vm` uses configured
-enabled targets; installed briefs still require every named target. A narrowed
-diagnostic selection grants no other-target acceptance. No task execution,
-checkpoint rewrite or product acceptance occurs in this planning revision.
-
-During execution use the lowest effective maintained checks, `make build` after
-packaged changes, and the VM/UI/storage mandates when triggered. Never install
-the product on the development host. Ordinary product strings retain all-language
-requirements; What's New synchronization still needs explicit authorization.
-Close only with matching product/TA/docs, both-platform public evidence, justified
-remaining protective refusals and completed owned cleanup.
+These are alternatives. With no task limit or stop flag, attach to the existing
+owner without changing its limit. Omitted `--vm` selects configured enabled
+targets; installed briefs still require every declared target. Use fresh
+controllers after launcher changes. Never install the product on the development
+host. Build only after changes affecting packaged inputs; ordinary localized
+strings retain all-language requirements and What's New sync needs explicit
+authorization. This reconciliation executes no queue task.

@@ -1,0 +1,136 @@
+# New kiosk confinement improvements
+
+Task queue: [Ordered task queue](Kiosk-Prompt-New-Queue.md).
+Next task: **C06a — [Review ordinary login and remote routes](Kiosk-Prompt-Tasks/C06a-login-review.md)**.
+Baseline plan: [Baseline validation](Kiosk-Session-Confinement-Plan.md).
+Baseline task: C05f.
+
+## Outcome
+
+Improve confinement after the
+[v1.4 baseline validation](Kiosk-Session-Confinement-Plan.md) completes.
+Keep passwordless kiosk use, genuine parent approval and time/app enforcement
+working while closing justified routes available to a smart technical child.
+C06–C13 retain their stable IDs, finite deliverables and both-target acceptance.
+No task is complete at this split.
+
+## Usability and threat scope
+
+Inherit the baseline's
+[usability priority](Kiosk-Session-Confinement-Plan.md#highest-priority-product-usability),
+[reasonable-child threat scope](Kiosk-Session-Confinement-Plan.md#mandatory-threat-scope-reasonable-child-effort)
+and [selected source boundary](Kiosk-Session-Confinement-Plan.md#target-design).
+For every new refusal, name actual child access, deliberate action, prohibited
+result and a working normal-use positive. Unknown machine content alone has no
+admission vote. Trust supported installed Python/GTK/GI/native code and lazy
+loading. Do not recreate private loaders, runtime images, global inventories,
+generation receipts or arbitrary-kiosk-code execution assumptions.
+
+Human decisions and authentication pauses are not machine-startup time.
+Optional failures cannot veto core requests; essential outages require bounded
+safe retry/exit and recovery without weakened policy. Parent denial and explicit
+administrator policy remain authoritative. Main's non-confinement features remain.
+
+## Task boundaries
+
+Before closing C06a, verify baseline C05f and C05u are accepted for their declared
+targets, with retained exact-candidate public results and owned cleanup.
+If missing, leave C06a unchecked with the concrete baseline return condition.
+A new namespace is no authorization to bypass an active baseline owner, pending
+Git transaction, live VM lease or uncommitted overlapping source work.
+
+C06a/C06 review actual login, exposed-action and consumed-input routes. C07/C08
+add only missing justified barriers, with targeted tests and normal-use controls.
+C09 addresses demonstrated confinement-caused availability/recovery/lifecycle
+coupling. Existing effective barriers need verification, not duplicate code.
+General broker/feature projects are outside these rows' scope.
+
+New tests appropriate to planned confinement changes belong here, including
+finite public negative/positive bindings, recovery histories and candidate-specific
+final acceptance. Reuse shared E2E mechanics and exact qualified slices under the
+[cross-plan reuse map](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
+New general feature automation belongs to the
+[E2E queue](TestAutomation/E2E-Task-Queue.md), including policy/app effects,
+saved presets/units, language/reminder matrices and What's New. Do not duplicate
+its implementation or silently execute/close its rows.
+A feature exposed by a confinement change needs its relevant regression control,
+not an unrelated feature suite.
+
+Every product slice includes its directly affected test/registration repairs.
+C10 freezes exact finite selectors, inputs, qualifications, timeouts and restoration
+before final consumers; missing independent work becomes a bounded prerequisite
+under [ordinary-plan execution](Execution-Plans.md#execution-and-delegation).
+Keep complete fault/recovery/reentry histories together and preserve queue order.
+
+## Acceptance
+
+The baseline gate remains independent and grants no post-change defense pass.
+After changes, qualify applicable final candidate histories on both
+`onpc-Ubuntu26.04` and `onpc-Fedora44`. This does not broaden release support.
+
+| Family | Required result and owner |
+| --- | --- |
+| Core use | C11/C12: passwordless entry, genuine approval, requested time and soft-app use, continued hard blocks, denial/Cancel without grant, exit/reentry, fresh request and affected shared-overlay/feature/pause controls. |
+| Host variation and optional failures | C11a/a1 and C12a/a1: one unrelated package/layout change, valid PAM/service variation and finite presentation/native-language fallbacks preserve genuine approval. |
+| Required-service and child isolation | C11b/b1 and C12b/b1: bounded recovery, intact policy, healthy-child requests while another integration is unavailable, restored-child use, retained sanitized original cause and real Parent diagnostic download without submission. |
+| Owned state and updates | C11c/c1 and C12c/c1: complete interrupted/stale-state and relevant update/reentry histories, preserving foreign/live sessions, policy and current features. |
+| Login routes | C11d/e/f and C12d/e/f: reachable local desktop/TTY, SSH and one named supported remote-desktop route blocked, paired with usable kiosk and ordinary-account positives. Absent service or failed positive is no refusal pass. |
+| Exposed actions and inputs | C11g/g1 and C12g/g1: finite deliberate link/chooser/handler/automatic-launch and child-writable consumed-input attempts blocked, with permitted form/approval and trusted-code/lazy-loading controls. |
+| Close-out | C13: matching product/automation/docs, provenance, justified refusals, inspectable both-target evidence and completed owned restoration. |
+
+Keep customer results separate from engineering probes and fault injection.
+A diagnostic-only screen, denied normal entry, host mapping or historical proof
+cannot replace installed acceptance. Reuse only exact applicable candidate,
+caller, target, provider, input/assertion and cleanup evidence; rerun invalidated
+complete histories after shared changes. Do not claim arbitrary provider coverage,
+run expert-attack/whole-host matrices or turn every host UI value into E2E work.
+
+## Task execution contract
+
+Apply the [baseline task contract](Kiosk-Session-Confinement-Plan.md#task-execution-contract),
+[Approval tools](Approval-Tools.md), [Execution plans](Execution-Plans.md) and
+the [test map](TestAutomation/README.md). Read the selected brief and affected
+source/callers/contracts. VM/UI/storage mandates apply when triggered.
+Use maintained selectors with explicit timeouts and live qualification for new
+or changed reusable installed operations before their consumers.
+
+The coordinator is GPT-6.1 Sol High. Applicable AGENTS.md core-backend model and
+independent Astra xHigh review requirements remain binding. C06's independent
+protection-design review retains explicit Usability priority and Threat scope
+passed/failed findings; resolve actionable findings and revalidate material edits.
+No host/review result supplies installed acceptance.
+
+Retain task-owned paths, exact inputs/commands, expected/actual results, blockers
+and cleanup in maintained runner records. Close only the selected row after
+required review/checks/owned cleanup and launcher Git close-out. Keep stable case
+identities, historical failures and unrelated work. Retire obsolete source/test
+consumers within changed confinement scope; retain accepted evidence ownership.
+
+## Execution
+
+`tools/kiosk-prompt-new` is a thin ordinary-plan adapter with an independent
+namespace keyed by this master path. It shares budgets, attachment/stop, guarded
+recovery and per-task commit/push with `tools/kiosk-prompt`.
+
+```sh
+tools/kiosk-prompt-new --check
+tools/kiosk-prompt-new --tasks 1
+tools/kiosk-prompt-new --tasks 0
+tools/kiosk-prompt-new --stop
+```
+
+These are alternatives. Omitted `--vm` selects configured enabled targets;
+every installed brief still requires its named target. Attach without flags to
+retain the active task limit. The generic entry
+`tools/execute-plan --plan 'docs/Kiosk-Session-Confinement-New-Plan.md'`
+shares this owner. A clean fresh controller needs no old checkpoint migration.
+Baseline resumption uses the
+[reviewed split route](Execution-Plans.md#reviewed-plan-splits), preserving its
+own retained work; do not copy checkpoints between namespaces.
+
+New executable command grants join at the next normal
+[rules refresh](Approval-Tools.md#one-time-setup); the generic entry is available
+under the existing grant meanwhile. Never broaden command rules or install the
+product on the development host. Build after final packaged-input changes.
+All-language product-string requirements remain; What's New synchronization
+requires its separate explicit request.

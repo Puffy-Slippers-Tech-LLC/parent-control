@@ -6,7 +6,7 @@ Targets: onpc-Fedora44
 Required tasks: C12c.
 Estimate: 30–60 min; session exception: complete package/dependency update history.
 
-Apply the [master task contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract)
+Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)
 and its source, usability, threat and review requirements. Use the affected
 design/test owners and source routes below.
 

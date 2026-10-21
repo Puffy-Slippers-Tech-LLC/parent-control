@@ -6,7 +6,7 @@ Targets: onpc-Ubuntu26.04
 Required tasks: C11a.
 Estimate: 20–30 min.
 
-Apply the [master task contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract).
+Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract).
 
 ## Session boundary and deliverable
 

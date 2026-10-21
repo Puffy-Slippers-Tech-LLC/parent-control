@@ -6,7 +6,7 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Estimate: 30–60 minutes.
-Coordination: the [kiosk resilience plan](../Kiosk-Session-Confinement-Plan.md#scope-reconciliation)
+Coordination: the [new confinement plan](../Kiosk-Session-Confinement-New-Plan.md#acceptance)
 owns the distinct pre-admission failure/recovery/reboot export. Reuse canonical export mechanics
 and exact matching receipts, without replacing this row's app-crash or timer
 obligations. Neither plan closes the other's row; overlapping work is serial.

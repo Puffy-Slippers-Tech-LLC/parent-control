@@ -8,7 +8,7 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
-Coordination: the [kiosk resilience plan](../Kiosk-Session-Confinement-Plan.md#scope-reconciliation)
+Coordination: the [new confinement plan](../Kiosk-Session-Confinement-New-Plan.md#task-boundaries)
 owns the compatibility redesign and its installed qualification. Before execution,
 require C03/C04's [current test mapping](../SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions) from legacy masking assertions to the
 [compatibility boundary](../SystemDesign/Kiosk-Confinement.md#compatibility-and-recovery-boundary);

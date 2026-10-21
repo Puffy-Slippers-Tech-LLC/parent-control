@@ -1758,12 +1758,29 @@ generated input or artifact cleanup was performed by this host audit.
 
 #### Cross-plan baseline reuse
 
-This map reconciles the kiosk confinement baseline with the E2E queue under the
+Historical C04f/C04o report/export links below use the stable accepted-evidence
+locator after verification of its cumulative bundle, original accepted results,
+command logs and cleanup. The standalone C04f reports/export have rotated;
+their retained accepted result and command log preserve the exact target,
+entry/approval scope, report identities and cleanup claim. C04o's original host
+reports and its 3,190-file export are carried in the verified cumulative bundle.
+No historical result, qualification scope or completion changes through these
+destination repairs; current reuse still requires exact applicability.
+
+This map reconciles the
+[v1.4 baseline queue](../Kiosk-Prompt-Queue.md), ending at C05f, and the
+[new confinement queue](../Kiosk-Prompt-New-Queue.md), starting at C06a,
+with the E2E queue under the
 [operation-reuse contract](E2E-Execution-Contracts.md#cross-plan-operation-reuse).
 It assigns implementation ownership, not task completion. New general feature
 automation belongs to the E2E queue. Kiosk tasks validate applicability and
 confinement behavior using shared coverage; new confinement protections retain
-appropriate new tests and ordinary-use controls in their own C06–C12 tasks.
+appropriate new tests and ordinary-use controls in the new plan's C06–C12 tasks.
+That plan's protection/recovery/final-acceptance work is not a baseline prerequisite.
+E2E 313a/313 depend only on already delivered operations, never on unfinished
+kiosk validation or future improvements. Their existing retained failures and
+in-progress implementation supply no installed pass. Both kiosk plans consume
+exact matching evidence without closing E2E rows or duplicating feature mechanics.
 
 | Shared scope | Feature owner / existing coverage | Kiosk baseline use and remaining E2E work |
 | --- | --- | --- |
@@ -1950,9 +1967,9 @@ content SHA-256:
 Exact results are `result.json` in privileged allocations
 `onpc-graphical-smoke-ten6rraz` / `onpc-graphical-smoke-l4cj12aj` (Fedora) and
 `onpc-graphical-smoke-yxvuyqy2` / `onpc-graphical-smoke-xgzbjp79` (Ubuntu).
-Reports are [Fedora](../../output/test-runs/host/reports/20261021T063711Z-df20857b/report.md)
-and [Ubuntu](../../output/test-runs/host/reports/20261021T063711Z-c88cb4fb/report.md).
-The verified [evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-5u8wes6p/evidence.zip)
+Reports are [Fedora](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
+and [Ubuntu](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
+The verified [evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 retains all four results, command reports, worker shutdown records, the original
 failure and affected host checks, plus C04u's earlier proof; SHA-256
 `bd49eacc0fe795f53e3258e072e72f407a28352ee2e97ffa4d83ff92291b278c`.
@@ -2032,7 +2049,7 @@ Exact `result.json` allocations, in the table's profile order, are
 The [Ubuntu report](../../output/test-runs/host/reports/20261021T155308Z-4c44bd49/report.md)
 and [Fedora report](../../output/test-runs/host/reports/20261021T155308Z-8e33c1fe/report.md)
 retain commands and all three independent results per target.
-The verified [evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-iprtpnu5/evidence.zip)
+The verified [evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 retains all six results, collection events and worker cleanup records, both
 targets' complete frozen package/source/fixture inputs, host checks and command
 reports (3,190 files); SHA-256
@@ -2041,7 +2058,7 @@ Export verification and owned export cleanup passed.
 
 The five-module focused operation/composition/cleanup selection passed
 **2,180/2,180** checks with `--timeout '600s'` in
-[report 20261021T155103Z-c32a6cb1](../../output/test-runs/host/reports/20261021T155103Z-c32a6cb1/report.md).
+[report 20261021T155103Z-c32a6cb1](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 The read-only source audit confirmed the existing shared Python/Perl operations
 and current Application UI API route; no executable, inventory or product input
 changed. C04f's kiosk/MATE scope remains unchanged, so no renewal is needed.
@@ -2056,7 +2073,7 @@ report, 302.676-second result, inputs and cleanup; its historical claim is uncha
 Its rotated original export link likewise names the stable bundle carrying its
 proof forward. Final plan/inventory/coverage/composition/launcher checks passed
 **670/670** with `--timeout '600s'` in
-[report 20261021T161417Z-9e6cdd57](../../output/test-runs/host/reports/20261021T161417Z-9e6cdd57/report.md).
+[report 20261021T161417Z-9e6cdd57](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 B2–B4 and other provider/choice bindings remain pending.
 
 ### Kiosk, child overlay and the shared request form

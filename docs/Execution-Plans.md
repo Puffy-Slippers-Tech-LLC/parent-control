@@ -549,6 +549,44 @@ code or defaults. Stop at a session boundary and start a fresh run to load a
 changed policy. Tasks completed by an older review-only backend are not
 retroactively committed by restart; preserve their changes for explicit close-out.
 
+## Reviewed plan splits
+
+For an explicitly requested split, use `--reconcile RUN --split-plan PATH`
+with `--reconcile-base FULL_COMMIT`. The base must be an ancestor whose master,
+queue identities/completion, scopes and dependencies match the retained checkpoint.
+The destination must be a committed, inactive, unstarted ordinary plan containing
+exactly the original unchecked tail in order, with unchanged scopes, brief paths,
+acceptance kinds and targets. Tasks with retained handoffs cannot transfer.
+The source keeps its master/queue identity, surviving order/completion and
+dependencies; new source prerequisites must remain unchecked.
+
+The destination declares `Baseline plan: [Title](source-master.md).` and
+`Baseline task: FINAL_ID.` on separate lines. Its first brief must explicitly
+verify that source gate and applicable retained installed results before work.
+The split validates those declarations and replaces the tail's external
+dependency with that gate; the coordinator owns the evidence check. No task or
+acceptance is granted by the declarations alone.
+
+Previously reviewed scope reallocation in the surviving unfinished rows requires
+one explicit `--revise-task ID` per changed Scope; no other Scope may change.
+Review their receiving owners and full assertions before invoking this exception.
+Retained active/suspended metadata must still match the base acceptance/targets.
+This exception does not apply to ordinary restart, merge reconciliation or task
+close-out. The original checkpoint is archived before atomic adoption, with its
+rejected results, handoffs, counters, accepted proof and Git ownership preserved.
+The destination checkpoint is never created or copied.
+
+A rejected structural handoff can enter this route only with the exact retained
+non-completion response, owned cleanup and no agent error. The original rejection
+is retained in the archived checkpoint and suspended work; a pending completion,
+Git transaction, active owner or uncertain cleanup still refuses. `--check` first
+validates without adoption; omit it only after review and committed planning inputs.
+Retrying the identical operation verifies the retained receipt and resume guards.
+
+```sh
+tools/execute-plan --plan 'docs/Source-Plan.md' --reconcile RUN --split-plan 'docs/New-Plan.md' --reconcile-base FULL_COMMIT --revise-task ID --check
+```
+
 ## Extension boundary
 
 Use composition with small policy objects and presentation strategies. Avoid a
@@ -572,7 +610,8 @@ The current adapters use these components according to their workflow:
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |
 | `reliability-plan` | The same ordinary plan driver and shared lifecycle | [VM reliability](Reliability-Plan.md), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
-| `kiosk-prompt` | The same ordinary plan driver and shared lifecycle | [Kiosk resilience](Kiosk-Session-Confinement-Plan.md#execution), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
+| `kiosk-prompt` | The same ordinary plan driver and shared lifecycle | [Kiosk baseline validation for v1.4](Kiosk-Session-Confinement-Plan.md#execution), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
+| `kiosk-prompt-new` | The same ordinary plan driver and shared lifecycle | [New confinement improvements](Kiosk-Session-Confinement-New-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 
 Run `tools/reliability-plan --check` to validate its plan, or
 `tools/reliability-plan --tasks 0` to execute its remaining queue. It defaults to

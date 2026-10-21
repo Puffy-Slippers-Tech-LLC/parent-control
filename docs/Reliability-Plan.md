@@ -77,9 +77,11 @@ for their motivating state. Inventory work uses three functional entry/exit
 cycles; repeated retained recovery uses two cycles without synthetic load.
 Task 012 reconciles only active conditions and affected reruns.
 
-The [kiosk resilience plan](Kiosk-Session-Confinement-Plan.md#scope-reconciliation) owns
-the v1.3 session-confinement rebuild. Reliability 006a/006b cannot execute
-until its C03/C04 map legacy tests and C06 approves the relevant deliberate-child
+The [kiosk baseline plan](Kiosk-Session-Confinement-Plan.md#scope-reconciliation)
+owns the v1.3 session-confinement rebuild and validation. The
+[new confinement plan](Kiosk-Session-Confinement-New-Plan.md#task-boundaries)
+owns C06–C13 improvements. Reliability 006a/006b cannot execute
+until baseline C03/C04 map legacy tests and new-plan C06 approves the relevant deliberate-child
 protection under the new usability-first contract.
 Neither empty private views, identical retained managers nor mode-bit-only
 refusal survives as an implicit requirement. The

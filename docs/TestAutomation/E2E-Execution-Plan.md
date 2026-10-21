@@ -43,6 +43,14 @@ future acceptance obligations.
 
 ## Current scope
 
+The [kiosk baseline](../Kiosk-Session-Confinement-Plan.md) reuses existing
+coverage through C05f; the [new confinement plan](../Kiosk-Session-Confinement-New-Plan.md)
+owns later protections and their targeted negative/normal-use tests. New general
+feature automation remains in this queue. The
+[reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) assigns outstanding
+shared fixture/core-effects work to 313a/313 and optional feature expansion to
+314/315. Preserve the queue order and pointer; delivery closes no other plan's row.
+
 The [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)
 applies the required [Application UI API](Application-UI-API.md) route,
 [result-oriented mandate](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)

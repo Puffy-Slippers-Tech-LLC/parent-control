@@ -2,16 +2,23 @@
 
 Acceptance: review
 
-Required tasks: C05f.
+Required tasks: Baseline (external C05u/C05f gate below).
 Estimate: 20–30 min.
 
-Apply the [master task contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract)
+Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)
 and its source, usability, threat and review requirements. Use the affected
 design/test owners and source routes below.
 
 ## Session boundary and deliverable
 
-Start from the rebuilt source and both baseline receipts. Inspect actual
+Before route work, verify C05u and C05f are checked in the
+[baseline queue](../Kiosk-Prompt-Queue.md), with retained matching-candidate
+installed results, both targets and owned cleanup. Missing results keep C06a
+unchecked: resume after the baseline launcher accepts them. Never execute or
+close baseline rows here. Finish any prior owner/Git/resource transaction before
+starting new work. This review supplies no new-plan acceptance by inheritance.
+
+Start from the rebuilt source and both verified baseline receipts. Inspect actual
 graphical session selection, terminal/TTY paths, SSH and the finite supported
 remote-desktop provider, including whether each invokes the expected PAM stack.
 

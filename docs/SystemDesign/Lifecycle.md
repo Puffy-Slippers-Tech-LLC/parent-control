@@ -306,7 +306,7 @@ controller design. Historical candidate qualification remains historical in
 [its evidence owner](Kiosk-Confinement.md#verification-scope-and-evidence-limits);
 it is not current installed acceptance or an alternate execution plan.
 
-The [current acceptance contract](../Kiosk-Session-Confinement-Plan.md#acceptance)
+The [new confinement acceptance contract](../Kiosk-Session-Confinement-New-Plan.md#acceptance)
 requires usable passwordless entry, genuine approval, safe exit/reentry,
 owned interrupted-state recovery and preservation of live/foreign sessions.
 Unrelated package/layout changes and optional presentation/service failures

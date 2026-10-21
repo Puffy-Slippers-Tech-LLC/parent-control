@@ -10,13 +10,17 @@ restrictions belong to [Screen time](Screen-Time.md) and
 
 The selected implementation uses the release-based session, account and PAM
 baseline described in [C02 activation](#c02-activated-session-baseline).
-The [execution plan](../Kiosk-Session-Confinement-Plan.md) owns its remaining
-route defenses, compatibility work and installed acceptance. The v1.4 private-runtime
+The [baseline plan](../Kiosk-Session-Confinement-Plan.md) owns v1.4 validation
+through C05f. The [new confinement plan](../Kiosk-Session-Confinement-New-Plan.md)
+owns C06–C13 route defenses, compatibility work and post-change installed
+acceptance. General feature automation remains in the E2E queue under the
+[cross-plan reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
+The v1.4 private-runtime
 descriptions below are historical source/disposition context, not live fallbacks
 or qualification of the rebuilt baseline.
 
-The current plan rebuilds **session confinement only** from the pinned v1.3
-release, retaining main's non-confinement kiosk features. Prospective R01–R12
+The completed source tasks rebuilt **session confinement only** from the pinned
+v1.3 release, retaining main's non-confinement kiosk features. Prospective R01–R12
 mechanism instructions have been retired; current source descriptions and
 historical proof limits remain separately identified.
 Use the [current rebuild direction](#current-session-confinement-rebuild) and
@@ -2401,7 +2405,7 @@ changed inputs or a demonstrated defect follow affected validation.
 Source review and host checks cannot replace installed enforcement and usable
 public entry. Changed distro code, plugins, PAM flow, policy, native launchers
 and executable inputs require affected qualification. The new plan's
-[acceptance](../Kiosk-Session-Confinement-Plan.md#acceptance) requires both platforms and
+[acceptance](../Kiosk-Session-Confinement-New-Plan.md#acceptance) requires both platforms and
 does not transfer historical passes to the replacement design.
 
 ## C04c proof and design consumer reconciliation
@@ -2440,7 +2444,7 @@ passed**, and no remaining actionable findings. No core backend code changed.
 
 The maintained five-module plan/inventory/coverage/composition/launcher selection
 passed **639/639** with `--timeout '600s'` in
-[pre-close-out report](../../output/test-runs/host/reports/20261021T070647Z-df339e53/report.md).
+[pre-close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Changed-document links passed (19 documents, 801 links); added fragments and
 incoming references to removed headings were audited. No inventory, collection
 source or build input changed, so coverage regeneration and package builds are
@@ -2450,7 +2454,7 @@ staging, commit, push or competing workflow was used. Only C04c closes; its
 temporary brief is removed and C04 becomes the first unchecked task.
 
 After close-out and the diagnostic-format correction, the same **639/639**
-checks passed in [final report](../../output/test-runs/host/reports/20261021T071009Z-66b6f40b/report.md),
+checks passed in [final report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json),
 with the maintained runner and owned cleanup finished. The C04f final host-report
 link rotated during validation. Its destination alone now uses the stable
 accepted-proof locator: the verified 965-file bundle (SHA-256

@@ -191,7 +191,7 @@ records use the separate `kiosk.admission-directory` event. Names, paths,
 account/process/mount identities, manifest bytes and raw error text are excluded.
 Unknown fields or unreviewed formats are not diagnostics. Historical cause
 production and current parser/archive checks grant no installed recovery
-acceptance; the [current acceptance owner](../Kiosk-Session-Confinement-Plan.md#acceptance)
+acceptance; the [new confinement acceptance owner](../Kiosk-Session-Confinement-New-Plan.md#acceptance)
 requires the actual fault, original useful cause, recovery and public results.
 
 The native preparation exchange also reports a checked helper refusal at

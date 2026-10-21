@@ -6,7 +6,7 @@ Targets: onpc-Fedora44
 Required tasks: C12.
 Estimate: 20–30 min.
 
-Apply the [master task contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract)
+Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)
 and its source, usability, threat and review requirements. Use the affected
 design/test owners and source routes below.
 

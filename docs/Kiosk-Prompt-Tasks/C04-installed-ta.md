@@ -31,6 +31,11 @@ identify any missing or invalidated complete history for C05 to execute.
 
 ## Suspended readiness audit
 
+The current baseline queue ends at C05f; C06–C13 now belong to the
+[new confinement plan](../Kiosk-Session-Confinement-New-Plan.md).
+Use the current source/recipe map and scope owners below. The later historical
+audit records earlier task titles and pointers, not current scheduling authority.
+
 The current scope follows the
 [cross-plan reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse):
 E2E 313a/313 own general fixture and grant/app feature automation; C04p1/p verify
@@ -74,7 +79,7 @@ unchanged. No inventory or collection definition changed; no coverage generation
 or package build is required. No VM or installed execution was performed.
 
 Supporting host validation passed **672/672** in
-[report 20261021T072327Z-19a61589](../../output/test-runs/host/reports/20261021T072327Z-19a61589/report.md):
+report `20261021T072327Z-19a61589` (rotated; detailed report unavailable):
 the maintained plan/inventory/coverage/composition/launcher selection plus the
 affected feedback qualifier regressions, with `--timeout '600s'`. Runner listing
 retains pending IDs 34/36 and exact ready 44–49 executables/1800-second bounds;
@@ -94,7 +99,12 @@ the consumer remains unchecked until the declared prerequisites pass.
 
 Final five-module consistency/launcher validation passed **639/639** with
 `--timeout '600s'` in
-[report 20261021T072551Z-abcf75cd](../../output/test-runs/host/reports/20261021T072551Z-abcf75cd/report.md)
+report `20261021T072551Z-abcf75cd` (rotated; detailed report unavailable)
 after the reviewed metadata edits; runner cleanup finished. Final links and
 diff checks pass. Next task is C04o; no staging, commit, push or other workflow
 execution occurred.
+
+The two report identities/counts above preserve the historical handoff only.
+Neither original report is in the currently verified accepted-proof bundle.
+C04 remains unchecked; its selected readiness audit must supply current scoped
+host acceptance. This disclosure grants no missing check or completion credit.

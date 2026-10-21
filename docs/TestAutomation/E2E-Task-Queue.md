@@ -38,7 +38,10 @@ callable name supplies no broader qualification. Apply the
 and [qualification separation](E2E-Execution-Contracts.md#product-focused-journeys).
 Documentation review supplies no task completion or new live qualification.
 
-The kiosk v1.3 baseline shares this plan's operations under the
+The [kiosk v1.3 baseline for v1.4](../Kiosk-Session-Confinement-Plan.md)
+ends at C05f. Its [new confinement plan](../Kiosk-Session-Confinement-New-Plan.md)
+owns C06–C13 improvements and their targeted tests; it does not add release
+baseline prerequisites. Both share this plan's operations under the
 [cross-plan reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) and
 [operation-reuse contract](E2E-Execution-Contracts.md#cross-plan-operation-reuse).
 C04p1/C04p consume tasks 313a/313's fixture and core-effects evidence; C04j owns
@@ -47,7 +50,11 @@ here; tasks 314/315 are not kiosk baseline prerequisites. Later tasks
 065a, 079b/079d and 197/197a/197k consume applicable shared work and implement
 their remaining scope. C04l/s/r/i reuse existing feature coverage; C04w adds
 only the bounded usability pause. Existing and pending E2E scenarios keep their
-distinct acceptance. No queue row is completed by this reconciliation.
+distinct acceptance. Task 059 remains this queue's first unchecked row;
+313a/313 follow it before their later E2E consumers, with no dependency on
+unfinished kiosk C04p/C05 or new-plan tasks. C04p1/p wait for those deliveries,
+never execute this queue implicitly. Keep that one-way ownership to avoid a
+cross-plan cycle. No queue row is completed by this reconciliation.
 
 The remaining-scope review keeps enforcement, approval, recovery, retained work,
 child isolation and lifecycle results. Feedback confirmation needs one acceptance

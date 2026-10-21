@@ -6,7 +6,7 @@ Targets: onpc-Ubuntu26.04
 Required tasks: C10.
 Estimate: 30–60 min; session exception: complete final customer journey.
 
-Apply the [master task contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract)
+Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)
 and its source, usability, threat and review requirements. Use the affected
 design/test owners and source routes below.
 

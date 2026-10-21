@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Run the kiosk session confinement plan through the shared execution driver."""
+"""Run kiosk baseline validation through the shared execution driver."""
 from pathlib import Path
 import sys
 

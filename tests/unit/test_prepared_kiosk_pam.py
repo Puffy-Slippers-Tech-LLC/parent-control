@@ -248,14 +248,32 @@ def test_native_service_scope_and_ordinary_user_control(native, user, service, a
 
 
 @pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
-def test_removal_exclusion_spans_close_until_pam_end_and_releases(native, service):
+@pytest.mark.parametrize('existing', [False, True])
+def test_removal_exclusion_spans_close_until_pam_end_and_releases(native, service, existing):
+    path = native.directory / 'admission'
+    if existing:
+        path.touch(mode=0o600)
     with native.transaction(service=service) as handle:
         assert native.pam.pam_acct_mgmt(handle, 0) == native.pam.pam_open_session(handle, 0) == 0
         assert native.pam.pam_close_session(handle, 0) == 0
-        with (native.directory / 'admission').open('rb') as owner:
+        identity = path.stat()
+        leases = []
+        # Observe only this process's real held inode, before opening the
+        # lifecycle competitor. Both acquisition paths must avoid requesting
+        # SELinux write authority while retaining the removal exclusion.
+        for name in os.listdir('/proc/self/fd'):
+            try:
+                opened = os.fstat(int(name))
+            except OSError:
+                continue
+            if (opened.st_dev, opened.st_ino) == (identity.st_dev, identity.st_ino):
+                leases.append(int(name))
+        assert len(leases) == 1
+        assert fcntl.fcntl(leases[0], fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDONLY
+        with path.open('rb') as owner:
             with pytest.raises(BlockingIOError):
                 fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    with (native.directory / 'admission').open('rb') as owner:
+    with path.open('rb') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with native.transaction(service=service) as handle:
             assert native.pam.pam_acct_mgmt(handle, 0) != 0

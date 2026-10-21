@@ -369,7 +369,12 @@ and broker contracts.
 The selected account provisioner uses the package's fixed UID marker, reserved
 home and public AccountsService routing/classification properties. Native PAM
 keeps kiosk service/Wayland checks, the ordinary-user time and runtime-cap hooks,
-and a shared admission lease through `pam_end`. The distro owner verifies only
+and a read-only shared admission lease through `pam_end`. The lease excludes
+exclusive lifecycle changes without requesting write access to the lock inode;
+GDM and the user-manager executor can have different SELinux write authority.
+The [C04f qualification](../TestAutomation/E2E-Building-Blocks.md#c04f-fedora-qualification-and-ubuntu-renewal)
+proves the corrected entry/approval operation on Fedora and renews Ubuntu.
+The distro owner verifies only
 the finite product blocks, preserving vendor authentication/account authority
 and ordinary accounts. Actual GDM next-executable and remote-route defenses
 remain C06a/C07 acceptance work.
@@ -1002,7 +1007,7 @@ controls, entry/Preferences/feedback callers, resource inventories and all five
 metadata/launcher modules. The eight affected modules then passed
 **1,900/1,900 checks** after the final review fixes. Exact inventories, commands,
 results and the original regression reproducer are preserved in the
-[verified 34-file evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-urf6i6kt/evidence.zip)
+[verified 34-file evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 (SHA-256 `b50e16ad8c11debe09907f970211c38898b2483268b93be677c1c081d680d1e5`):
 reports `20261021T051417Z-f3414ba8`, `20261021T051545Z-a36d24f3` and
 `20261021T051741Z-1574028e` respectively.
@@ -1041,7 +1046,7 @@ Pre-existing `.worktrees/` and unrelated work are preserved. No installation,
 staging, commit, push or other workflow execution occurred.
 
 After close-out, the final
-[639/639 consistency and launcher checks](../../output/test-runs/host/reports/20261021T052113Z-95d28b87/report.md)
+[639/639 consistency and launcher checks](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 passed with 600-second collection/worker deadlines and completed cleanup. Plan
 validation selects C04b; Markdown links and the final diff check pass. Only C04a
 is newly checked, its temporary brief is removed, and every other row's status,
@@ -1159,7 +1164,7 @@ The changed bindings require installed qualification in their later consumer;
 host doubles, registration and read-only listing grant no installed result.
 
 Host acceptance used explicit 600-second collection/worker deadlines. The
-[verified 47-file evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-3ubk7ync/evidence.zip)
+[verified 47-file evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 retains the exact selections, outputs, failures and cleanup records from
 `20261021T044414Z-d02f5487`, `20261021T045128Z-879513eb` and
 `20261021T045257Z-9404569b` and final consistency run

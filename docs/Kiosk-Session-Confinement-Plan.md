@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04f — [Qualify baseline entry and approval on Fedora](Kiosk-Prompt-Tasks/C04f-baseline-operations.md)**.
+Next task: **C04c — [Reconcile obsolete proof and design consumers](Kiosk-Prompt-Tasks/C04c-proof-consumers.md)**.
 
 ## Outcome
 

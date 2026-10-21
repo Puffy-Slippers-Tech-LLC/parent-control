@@ -1760,7 +1760,9 @@ The registered qualification uses the existing argument-free selectors:
 Both bind `named_input(package_source=True)` and the exact installed snapshot
 identity; their shared qualification worker has a finite 1800-second deadline.
 These are operation checks, without complete customer-journey or Fedora credit.
-The bounded Ubuntu scope below is qualified; C04f owns Fedora qualification.
+The record below preserves C04u's accepted Ubuntu scope. The
+[C04f renewal](#c04f-fedora-qualification-and-ubuntu-renewal) qualifies Fedora
+and renews this scope on the corrected shared candidate.
 
 Entry reuses `station_entry` / `onpc_gdm::enter_station`, independently reads
 the owned disabled-child form, then invokes its public Cancel action and reads
@@ -1786,7 +1788,7 @@ Installed acceptance on **onpc-Ubuntu26.04**:
 
 - Entry passed in **84.449 seconds**, including public form, Cancel and usable
   GDM: `output/test-runs/privileged/allocations/onpc-graphical-smoke-sjytfc45/result.json`,
-  grouped [report](../../output/test-runs/host/reports/20261021T055104Z-4ae95698/report.md).
+  grouped [report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 - After correcting the qualification's estimate-object comparison, approval
   alone passed with
   `tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_kiosk_approval'`
@@ -1818,7 +1820,7 @@ SHA-256 `069b6b1b17b94e641e2629d0099dadc2ac6639521591a5d3781f2a1a2312de0e`.
 Original paths above also identify exact bundle members if their journals rotate.
 After close-out, the maintained five-module plan/inventory/coverage/composition/
 launcher selection passed **639/639** with `--timeout '600s'` in
-[report 20261021T060943Z-1b81e81b](../../output/test-runs/host/reports/20261021T060943Z-1b81e81b/report.md).
+[report 20261021T060943Z-1b81e81b](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Changed-document links and the plan check pass; the first unchecked task is C04f.
 
 The independent Sol caller review found undeclared retained-return authentication;
@@ -1839,6 +1841,77 @@ passed collection/cleanup, stopped workers, closed callbacks, verified shutdown,
 completed leases and host/source preservation. Diagnostic maintenance was stopped;
 both helpers are joined/closed; bundle cleanup completed. No task-owned process
 or running VM remains. B1–B4, C04 readiness and C05 customer journeys remain pending.
+
+### C04f Fedora qualification and Ubuntu renewal
+
+The same bounded entry/approval operation is qualified on **onpc-Fedora44**
+and renewed on **onpc-Ubuntu26.04** after the shared native PAM correction.
+Exact registered command:
+`tools/run-tests --vm 'onpc-Fedora44,onpc-Ubuntu26.04' integration 'check_e2e_kiosk_entry' integration 'check_e2e_kiosk_approval'`.
+Each independent worker retains its existing **1800-second** deadline.
+Preparation used `tools/prepare-appsnapshot` with both canonical targets,
+`--y --overwrite true`; each maintenance instance was stopped before acceptance.
+
+The initial Fedora entry failed after passwordless authentication: the
+`systemd-user` executor in `init_t` could not open GDM's `xdm_var_run_t` admission
+inode for writing. Its manager failed and the session returned to GDM. This is
+a post-v1.3 integration regression: the pinned v1.3 PAM source has no admission
+lease. A separate owned live reproduction confirmed the return; identical
+`init_t` probes showed `O_RDONLY` plus `LOCK_SH` succeeds while `O_RDWR` fails.
+The native module now uses read-only descriptors for both creation and reuse.
+Owner/mode/inode/no-link checks, removal exclusion and the `pam_end` lifetime
+remain intact. No SELinux policy or ordinary authentication was changed.
+
+Both targets passed first station entry, usable disabled-child form, public
+Cancel and GDM return. Approval passed independent open/new entries, wrong-entry
+and recipient refusals, password-free prompt Cancel with unchanged choices,
+form Cancel/reentry, Riley/Jamie/custom **75 seconds**/soft included, two fresh
+same-challenge proofs, one genuine password submission, explicit success and
+automatic GDM return. The independent Parent read compared the same child's
+grant with the immutable **975-second** estimate and retained daily **900**:
+
+| Target | Entry / approval duration | Independent grant and total | Estimate-to-read elapsed | MATE provider |
+| --- | --- | --- | --- | --- |
+| onpc-Fedora44 | 110.413s / 390.855s | 959s | 51.612s | `0:1.28.1-8.fc44` |
+| onpc-Ubuntu26.04 | 103.516s / 379.050s | 966s | 49.909s | `1.26.1-6` |
+
+Both provider bindings use `en_US.utf8`, `xkb/us` and one-second balance precision.
+Both entry/approval pairs matched their expected online `onpc-v1.4` snapshot
+inputs, recipe and baseline. Shared frozen source SHA-256:
+`e270390213c51fd51db26dfceeb641593210cbcbd750702e46842c39e26372f7`.
+Fedora package/content SHA-256:
+`29014e5a66b65705d930576501034a166aed485bdd61493220ec3fa4f53c4fdd`.
+Ubuntu package SHA-256:
+`2a14dc258cdeeba65b3bfbd9e89c9e02ccd61138f4018a75c3a1b76a1441581b`;
+content SHA-256:
+`6137e210d878d1a5d67ce7bca42a30da4eae1a8288afaef1fce96115965526cf`.
+
+Exact results are `result.json` in privileged allocations
+`onpc-graphical-smoke-ten6rraz` / `onpc-graphical-smoke-l4cj12aj` (Fedora) and
+`onpc-graphical-smoke-yxvuyqy2` / `onpc-graphical-smoke-xgzbjp79` (Ubuntu).
+Reports are [Fedora](../../output/test-runs/host/reports/20261021T063711Z-df20857b/report.md)
+and [Ubuntu](../../output/test-runs/host/reports/20261021T063711Z-c88cb4fb/report.md).
+The verified [evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-5u8wes6p/evidence.zip)
+retains all four results, command reports, worker shutdown records, the original
+failure and affected host checks, plus C04u's earlier proof; SHA-256
+`bd49eacc0fe795f53e3258e072e72f407a28352ee2e97ffa4d83ff92291b278c`.
+
+The six-module native/PAM/login/lifecycle selection passed **502/502** with
+`--timeout '600s'` in report `20261021T062713Z-7ff04225`. `make build` passed
+both DEB/RPM packages after the final product edit. Independent **Astra xHigh**
+review found no actionable issues: **Usability priority: passed; Threat scope:
+passed; ownership/lifecycle: passed**. The expanded existing regression observes
+only process-local descriptors/private scratch; its resource classification
+remains applicable. Both helpers are joined/closed. Final five-module
+plan/inventory/coverage/composition/launcher validation passed **639/639** with
+`--timeout '600s'` in
+[report 20261021T064958Z-27058426](../../output/test-runs/host/reports/20261021T064958Z-27058426/report.md).
+
+All four installed attempts passed collection and cleanup, verified worker
+shutdown/callback closure, complete leases and host/source preservation. Both
+VMs are off; diagnostic maintenance and bundle cleanup completed. This renews
+only the stated operation, not C05's complete customer journey, B1–B4 readiness,
+other locales/providers or Fedora release qualification.
 
 ### Kiosk, child overlay and the shared request form
 
@@ -2295,6 +2368,10 @@ target and input guards. Interactive mute and complete cases remain separate;
 case 60 has [complete-case acceptance](#request-forms-and-remembered-choices).
 
 #### Kiosk approval qualification
+
+The [C04f current-candidate qualification](#c04f-fedora-qualification-and-ubuntu-renewal)
+owns the rebuilt baseline's both-target fixed operation and independent grant
+read. The following record describes the earlier qualification and leaf contract.
 
 `kiosk_approval.PLAN` / `KioskApprovalJourney` and
 `onpc_request_flow::run(exchange, 'approval')` passed

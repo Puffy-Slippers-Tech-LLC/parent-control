@@ -85,14 +85,16 @@ admission(pam_handle_t *pamh)
     fd = malloc(sizeof(*fd));
     if (fd == NULL)
         return PAM_BUF_ERR;
-    *fd = open(KIOSK_ADMISSION_LOCK, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW |
+    *fd = open(KIOSK_ADMISSION_LOCK, O_RDONLY | O_CREAT | O_EXCL | O_NOFOLLOW |
                O_CLOEXEC | O_NONBLOCK, 0600);
     if (*fd >= 0)
         created = 1;
     else if (errno == EEXIST)
-        *fd = open(KIOSK_ADMISSION_LOCK, O_RDWR | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK);
+        *fd = open(KIOSK_ADMISSION_LOCK, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK);
     /* Initialize only a proven new owned inode. Never change umask, repair an
-     * existing lock or unlink it; the lifecycle uses the same named inode. */
+     * existing lock or unlink it; the lifecycle uses the same named inode.
+     * A shared flock needs no write access: GDM and the user-manager executor
+     * can have different SELinux write authority over this shared inode. */
     if (*fd < 0 || (created &&
         (fstat(*fd, &opened) != 0 || lstat(KIOSK_ADMISSION_LOCK, &named) != 0 ||
          !S_ISREG(opened.st_mode) || opened.st_uid != KIOSK_ADMISSION_LOCK_OWNER ||

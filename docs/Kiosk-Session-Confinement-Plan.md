@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04p — [Qualify baseline time and app effects](Kiosk-Prompt-Tasks/C04p-app-effects.md)**.
+Next task: **C04p1 — [Verify baseline app fixture applicability](Kiosk-Prompt-Tasks/C04p1-compatible-app-fixtures.md)**.
 
 ## Outcome
 
@@ -176,11 +176,22 @@ supply a full journey. C04 remains a host readiness audit; C05 remains installed
 acceptance, and each row closes only when selected. Final acceptance after
 protection changes remains a separate candidate-specific obligation.
 
-Keep baseline work within the finite recipe. Use prerequisite operations without
-repeating their harness safety matrices in the complete journey; local feature
-value combinations remain host UI coverage. A new prerequisite must identify a
-concrete missing operation or invalidated binding needed by that recipe, rather
-than expand baseline acceptance into general feature automation.
+Keep baseline work within the finite recipe and its
+[cross-plan reuse map](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
+Baseline validation primarily reuses existing coverage. Renew only invalidated
+routes. New general feature bindings and qualification belong to the E2E queue,
+including missing grant/use/revocation operations; the kiosk queue consumes their
+applicable evidence. Keep only confinement-specific composition and the original
+human-pause/session-lifetime checks here. Reuse existing language,
+request-choice, reminder and About checks separately from the complete core
+history. Do not add saved-preset editing, Hours, What's New or broader feature
+matrices as baseline prerequisites. Existing local coverage remains with its
+owner; new general-feature automation is scheduled separately in the E2E queue
+and is not an extra baseline prerequisite.
+
+Later confinement changes still require appropriate targeted automation and
+ordinary-use positive controls for the behavior they change. This baseline
+scope limit does not remove those protection, recovery or final acceptance gates.
 
 C04/C10 bind exact existing or newly registered selectors, finite inputs and
 restoration. Remote-desktop coverage names the supported provider and verifies an

@@ -30,7 +30,7 @@ are delivered through its prerequisite route.
 C04j's first passing complete history on each target is also eligible for
 C05u/C05f baseline acceptance under the
 [complete baseline evidence-reuse contract](E2E-Execution-Contracts.md#complete-baseline-evidence-reuse).
-Retain every finite input, ordered assertion and cleanup result below, with
+Retain every finite input, ordered core assertion and cleanup result below, with
 per-target candidate applicability. C05 verifies that evidence when selected and
 executes only missing or invalidated complete histories; no row or broader E2E
 case completes automatically from this handoff.
@@ -43,6 +43,15 @@ downstream journey below, wrong-password effects, overlay or human pauses.
 B1–B4 remain C04 readiness gaps. Removed private receipts, view generations and
 all-process censuses are not recipe prerequisites; engineering session identity
 observations cannot replace any public result.
+
+General feature automation belongs to the E2E queue under the
+[cross-plan reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse).
+The complete confinement baseline history covers core request/grant/use/revoke,
+negative effects and repeated entry. Language, request-choice, reminder and About
+regressions reuse existing qualification separately; do not replay their feature
+matrices inside that history. Human pauses check that confinement does not force
+logout or lose a live request. Saved-preset editing, Hours and What's New are
+separate E2E tasks 314/315, not baseline gates.
 
 ### Baseline inputs and public results
 
@@ -58,14 +67,15 @@ balances, choices and app effects independently through public interfaces.
 | Slice / inputs, in order | Existing selector/caller and required result | Binding state / gap |
 | --- | --- | --- |
 | Parent setup: enable Riley; zero daily allowance, zero grant | FLOW16's zero binding uses `onpc_parent::set_allowance`; PARENT09 must read daily/grant/total = 0/0/0. Retained case 49 instead prepares daily 900 and cannot stand for this zero-daily baseline. | Reuse exact unchanged setup leaves after evidence verification; current entry and combined history need qualification. |
-| App rules: native A Allowed, H hard (`permanent`), S soft (`conditional`) | FIX06's A/H/S are `Exact Fixture.AppImage`, `Path With Spaces.AppImage`, `Lunar Client-3.7.17.AppImage`; use their declared desktop IDs and precise A/H / shipped S pattern. FLOW03 currently binds only A. Read all three saved rows; later launch by native command only. | Missing H/S policy/denial and collision-free public fixture-instance bindings: B2. No extra Snap/Flatpak/grid matrix. |
+| App rules: native A Allowed, H hard (`permanent`), S soft (`conditional`) | Reuse 313a/313's exact compatible A/H/S profile, declared desktop IDs and precise A/H / version-pattern S. Read all three saved rows; later launch by native command only. Preserve A Allowed and H's whitespace-path denial. | B2 waits for E2E 313a/313's finite fixture/feature delivery; no new policy/fixture implementation under the kiosk queue. No Snap/Flatpak/grid matrix. |
 | Passwordless kiosk entry; select Riley/Jamie | REQUEST01 → REQUEST03/04 / FLOW04. Observe one owned usable form, exact eligible UID sets, selected child/parent and enabled Request. No kiosk password, diagnostic-only page or census substitute. | Changed; C04u/f fixed shared entry/approval qualification. |
-| Initial language: unset preference, 90 real seconds in its owned chooser, then English Save | LANG01 initial observation → guarded TIME03 wait → fresh same chooser/session/choice observation → Save → usable form. Later Preferences selects German, Cancel of Chinese retains German, then English Save before the English authentication binding. Child policy and request choices stay unchanged. | Existing `kiosk_language.PLAN` uses Jordan and immediately saves initial language; Riley plus pause is missing B3. Do not reuse its child identity or native-prompt locale implicitly. |
-| Duration/app choices: 5-minute preset, Rest of day, Custom `1.25` Minutes (75 seconds); soft true then false then true | REQUEST04/05/06/08 independent public duration/custom/unit/soft readback. Fixed estimate at zero daily/grant is 75 seconds before authentication; rest-of-day shows midnight. New/open FLOW04 reproduces remembered 75-second/soft-included choices after Cancel/reentry. | Existing valid-choice leaves cover these values with daily 900, not zero; C04u/f renew fixed request values, B3 renews remaining feature scope. |
-| Representative saved preset/unit: add 10 minutes, save/reopen; select then delete it; Custom `0.1` Hours; restore `1.25` Minutes | Preferences editor Save changes draft; main Save persists. Reopen reads 600-second preset; deletion preserves selected duration as Custom; Hours reads 360 seconds. Restore shipped preset set and final 75-second request publicly. No exhaustive validation or widget choreography. | Missing public saved-result composition B3; cancel-only Preferences engineering census is insufficient. |
-| Reminder/retained feature controls | Reuse `kiosk_reminders.PLAN`'s one stored record: 90 seconds, literal `Save <work> & games!`, edit same ID to 75 seconds, Save/reopen and shared-overlay readback; unchanged Jordan defaults and approver switch do not mix children. About reads current product/version, closes to unchanged request; What's New reads current packaged latest-release content and closes normally. Sound/lightning remain disabled with no mute control. | Changed reminder/About complete callers; What's New missing B3. Local translation/preset/reminder value matrices remain host UI. Natural notification delivery is not claimed by editing. |
+| Existing language coverage and confinement pause | Reuse `kiosk_language.PLAN`'s Jordan binding and existing Save/Cancel/persistence outcomes. Add only a guarded 90-second initial chooser wait and fresh same-session observation to prove no confinement logout; preserve choices and policy. The core Riley/Jamie request uses its existing English binding. | C04l renews the affected existing caller and checks session lifetime, without a new Riley language matrix or new general language qualifier. This separate feature evidence need not be replayed in the core history. |
+| Core request choices | Reuse the existing fixed Riley/Jamie/Custom Minutes/soft-included binding and independent estimate/remembered-choice comparisons after ordinary Cancel/reentry. Use only explicitly qualified durations, including 313's 600-second downstream binding. | Keep the single core request; the existing preset/rest-of-day/soft-choice feature history is separate below, not a new zero-daily feature matrix. |
+| Existing request choices, independently of the core history | Reuse `kiosk_valid_duration.PLAN`: 5-minute preset, Rest of day, Custom `1.25` Minutes and soft true/false, independent estimates, no authentication and normal Cancel/GDM return. | C04s consumes existing 012c coverage, renewing only invalidated scope. New saved-preset editing and Hours belong to E2E 314 and do not block the baseline. |
+| Existing reminder and About checks, independently of the core history | Reuse `kiosk_reminders.PLAN`'s exact saved-record/other-child-isolation checks and `restricted_station_about.PLAN`'s installed product/version, external-action absence and unchanged-request return. Sound/lightning stay disabled and mute absent. | C04r/C04i renew affected callers using existing selectors. No new reminder feature matrix, notification-delivery claim or What's New check; E2E 312/311/315 retain those distinct scopes. |
 | Wrong parent password, then independent password-free Cancel, before any approval | FLOW07(rejection) → observe explicit Request denied, preserved choices, Parent grant = 0 and saved H/S restrictions; normal exit/reentry. FLOW07(cancel) → no error, same choices, grant = 0 and same restrictions. At zero time require the qualified child entry denial rather than inspecting an unavailable desktop. | Changed fixed rejection/Cancel leaves; missing combined no-grant/restriction case B4 (E2E-013 cases 34/36 stay pending). Timeout or prompt disappearance is not denial. |
-| Fresh correct request, 45 real seconds deciding at the parent prompt, then authenticate once | FLOW04 → REQUEST09/AUTH01 → TIME03 → fresh same-challenge recipient checks → AUTH02 → explicit REQUEST11 success → automatic REQUEST12/GDM. English MATE context must identify Riley/Jamie/75 seconds/soft included. No password enters product UI. | C04u/f own fixed entry/approval and an independent grant result; pause endpoint B3. Old proof freshness cannot span the wait. |
+| Confinement authentication pause, separately from the core history | C04w reuses the fixed Riley/Jamie/English/75-second/soft-included request: FLOW04 → REQUEST09/AUTH01 → TIME03(45 seconds) → fresh same-challenge recipient checks → AUTH02 → explicit success/automatic GDM → independent grant read. | B3 session-lifetime check only; no new approval arithmetic matrix. Old proof freshness cannot span the wait. Reuse this evidence separately without replay inside C04j. |
+| Fresh correct core request | Reuse qualified FLOW04/AUTH01/02/REQUEST11/12 with the exact approved downstream duration, fresh recipient proofs, explicit success and automatic GDM return. | C04p/313 supply the finite operation; C04j owns ordered confinement entry/reentry. No secret enters product UI. |
 | Downstream child time and app use | Fresh FLOW15(Riley) → TIME01/02 reflects grant-only 75 seconds less real elapsed time; FLOW08(command,S) proves real usable Submit/result, H command is denied, A is usable. Saved rules stay unchanged. | FLOW08 Allowed A and TIME01 are leaves, not this temporary policy result; missing B2/B4. No hidden grant, clock manipulation or root-only probe. |
 | Shared overlay on the usable Riley desktop | REQUEST02 fixed-child entry → FLOW04 with Jamie/75/soft true → Shell genuine approval and explicit child-owned success/desktop return. Preserve the same activity and inspect current time, S usable/H denied. Separate wrong-password/Cancel observations retain no additional grant before a fresh correct request. | Shared form/broker changes require B1 renewal on both targets; MATE proof never qualifies Shell. B4 owns the ordered customer effects. |
 | Restore limits, switch and make a fresh request | Public Parent revoke/Confirm → grant 0, original H/S blocks and S no longer usable; observe expected time restriction. Switch to GDM, fresh passwordless kiosk entry, remembered choices and a new correct approval with distinct challenge; child reentry is usable again. Also cover ordinary form Cancel/close and automatic/immediate approved exits through their existing operation bindings. | Missing finite repeated-request/negative/effect composition B4. Case 49's 975-second countdown after a single approval and cases 50–52's desktop/terminal restriction attempts do not prove it. |
@@ -77,6 +87,25 @@ expiry. Existing E2E-015 cases 44–49, E2E-013 34/36 and E2E-049's full ordered
 three-approval histories retain their original assertions. This finite baseline
 does not complete those broader histories, require real-game/fullscreen matrices,
 or close another plan's task.
+
+E2E task 313 owns the existing bounded `check_e2e_baseline_app_effects` qualifier;
+C04p consumes its evidence. It binds an explicit
+longer request for the downstream native history: Custom `10` Minutes, 600
+seconds, Riley/Jamie and soft inclusion. The shared preparation and MATE
+recipient checks require that exact request and the complete ten-minute message;
+the 75-second binding remains separate. This history needs child admission,
+simultaneous A-primary/S-secondary Submit/results, H execution denial and a
+retained Parent return while the grant is still positive. It independently
+reads the grant-only countdown before and after app use (60-second precision,
+at most 180 seconds after the estimate), then Parent's positive grant with
+elapsed bounds before revoke/Confirm. After zero grant and unchanged saved
+rules, it activates the same locked Riley session, reads the native time
+restriction and requires an attributed permission error for S's command.
+The restriction is not treated as a usable desktop or a missing-window denial.
+It restores H/S to Allowed and disables Riley's controls through Parent before
+the envelope restores the owned baseline. Qualification is pending until E2E
+313a's compatible fixture delivery and both target histories pass; this is no
+repeated-baseline or natural-expiry claim.
 
 ### Commands, bounds and restoration
 
@@ -95,8 +124,9 @@ implicit `C04` or `C05` selector. Each installed command must select its declare
 canonical VM through the maintained runner and pass the VM/input preflight.
 
 Current case workers have 1800-second deadlines; keep that finite bound for each
-independent baseline history when composing it, including the declared 90/45-second
-human pauses. Machine observations retain their 90-second kiosk / 45-second other
+independent core baseline history. Separate confinement pause checks retain their
+declared 90/45-second human waits and own 1800-second attempt bounds; do not replay
+them inside the core history. Machine observations retain their 90-second kiosk / 45-second other
 deadlines and original attempt deadline. Human waits are explicit guarded stages,
 not extended startup timers. Take new balance/estimate reads around pauses and
 fresh recipient proofs after them: existing estimate comparisons allow 600 seconds,
@@ -1529,6 +1559,11 @@ grant-dominant: six independent journeys. Daily use continues on the desktop
 but pauses while the child is away at the station; grant time elapses on either
 surface. Removed cases 226 and 229 must not be reused. Every retained journey
 keeps the real 45-second prompt interval and the immediate second addition.
+
+Reuse the same TIME03 and fresh-recipient mechanics as C04w under the
+[cross-plan map](E2E-Building-Blocks.md#cross-plan-baseline-reuse). Its fixed
+confinement lifetime check supplies neither these balance/arithmetic assertions
+nor the six complete scenario passes; add no second wait framework.
 
 1. FLOW13 with the delayed-approval table below → P → PARENT09(capture D,G) → G.
    Overlay C → REQUEST02; station REQUEST01. FLOW04(entry=open,custom=0.5,

@@ -17,12 +17,19 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
+Inspect [313's shared delivery](../E2E-Building-Blocks.md#cross-plan-baseline-reuse)
+first and reuse applicable request/grant/countdown and fresh-child leaves.
+Its fixed Riley/Jamie/600-second/soft-included history does not qualify this
+task's new/open form and account/soft-choice arguments. Implement only missing
+bindings and retain the declared representative qualification below.
+
 Compose kiosk FLOW04/FLOW05 with explicit fresh FLOW15 and countdown comparison. Accept GDM or an independently open station form; no implicit policy setup.
 
 Reuse `request_flow.prepared_request`, `kiosk_approved_flow.approved_request`,
 `journey_blocks.desktop_entry(entry='fresh')` and
 `KioskRequestJourney.check_countdown`. Current approval leaves are the fixed
-75-second/soft-included Riley/Jamie binding; explicitly implement the shared
+75-second/soft-included Riley/Jamie binding plus 313's finite 600-second work;
+explicitly implement the remaining shared
 FLOW20 caller-owned child, eligible-parent, duration and soft-choice arguments.
 Bound them to Jordan/Riley, Jamie/Casey (the recipe's Sam), soft excluded/included
 and the consuming recipes' finite 30/60/75/120/150/180/900-second requests.

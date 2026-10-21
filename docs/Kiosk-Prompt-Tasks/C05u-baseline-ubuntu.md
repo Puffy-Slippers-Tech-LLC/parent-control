@@ -15,7 +15,10 @@ design/test owners and source routes below.
 Use C04's exact registered baseline slice on the rebuilt candidate before any
 new protection additions. Require the master's complete core product journey,
 preserved feature checks, denial/cancel with no grant, exit/reentry and fresh request after
-session switching. Include human language-dialog and parent-password pauses.
+session switching. Reuse separate existing feature checks and the language-dialog
+pause and parent-password pause evidence.
+Follow the [reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse):
+new saved-preset/Hours and What's New journeys are E2E work, not baseline gates.
 
 First apply the
 [complete baseline evidence-reuse contract](../TestAutomation/E2E-Execution-Contracts.md#complete-baseline-evidence-reuse)

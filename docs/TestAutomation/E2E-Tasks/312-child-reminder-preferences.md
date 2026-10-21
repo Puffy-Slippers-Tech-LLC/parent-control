@@ -36,6 +36,11 @@ those bindings; add their explicit prerequisite slice before this consumer.
 
 ## One saved-reminder journey
 
+Apply the [cross-plan reuse map](../E2E-Building-Blocks.md#cross-plan-baseline-reuse):
+C04r renews the existing kiosk caller only. Consume its applicable renewed
+evidence and the same shared reminder operations without another feature
+implementation; retain this case's missing bindings and complete reboot history.
+
 Finite history: begin with both children's four untouched backend defaults and
 record Jordan's reminder list and language. In Riley's overlay, create a
 75-second reminder with literal text `Save <work>!`, edit its text to

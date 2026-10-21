@@ -38,6 +38,17 @@ callable name supplies no broader qualification. Apply the
 and [qualification separation](E2E-Execution-Contracts.md#product-focused-journeys).
 Documentation review supplies no task completion or new live qualification.
 
+The kiosk v1.3 baseline shares this plan's operations under the
+[cross-plan reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) and
+[operation-reuse contract](E2E-Execution-Contracts.md#cross-plan-operation-reuse).
+C04p1/C04p consume tasks 313a/313's fixture and core-effects evidence; C04j owns
+only the confinement baseline composition. New general feature automation stays
+here; tasks 314/315 are not kiosk baseline prerequisites. Later tasks
+065a, 079b/079d and 197/197a/197k consume applicable shared work and implement
+their remaining scope. C04l/s/r/i reuse existing feature coverage; C04w adds
+only the bounded usability pause. Existing and pending E2E scenarios keep their
+distinct acceptance. No queue row is completed by this reconciliation.
+
 The remaining-scope review keeps enforcement, approval, recovery, retained work,
 child isolation and lifecycle results. Feedback confirmation needs one acceptance
 read and manual dismissal, without a fixed inspection delay. Language journeys
@@ -401,6 +412,8 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 052a | Measure final-second countdown ticks | 052d | TIME02 minute/final-second progression passed on Ubuntu 26.04 and Fedora 44: public two-minute daily-only preparation, fresh child entry, `00:01` → `57` → `53` → `50`, immutable controller read brackets, original 90-second transition/15-second exact-progression bounds and two-second tolerance. Both reports also retain the unchanged exact minute qualification in separate clean attempts. [Qualified scope and retained reports](E2E-Building-Blocks.md#final-second-countdown-progression-qualification). Scoped host safety/composition/resource/source and close-out checks passed; all four attempts passed collection, worker/callback shutdown, owned cleanup, baseline restoration, finalization and host/source preservation. Both VMs verified off. No clock/usage manipulation or complete-scenario credit. | 20–30 |
 | [x] | 062 | Use an app until a natural enforced lock | 052a, 047 | TIME04 Riley/native two-minute daily-only natural lock and same-lock harmless input passed on Ubuntu 26.04 / Fedora 44 in `20261013T211559Z-9707db41` / `20261013T211559Z-1783060f`; affected case 6, scoped host/source checks, collection, owned cleanup and preservation passed. [Exact binding and retained reports](E2E-Building-Blocks.md#natural-enforced-lock-qualification). Other app/game/fullscreen bindings and complete scenarios remain separate | 20–30 |
 | [ ] | 059 | [E2E-011: daily-only](E2E-Tasks/059-case-27.md) | 052a, 043c, 062 | Cases 27 | 35–55 (exception) |
+| [ ] | 313a | [Prepare compatible shared native app fixtures](E2E-Tasks/313a-compatible-native-fixtures.md) | 079, 035p | Finite representable A/H/S fixture profile and exact shared bindings; host qualification only, first consumer is 313 | 20–30 |
+| [ ] | 313 | [Qualify shared native grant, use and revocation effects](E2E-Tasks/313-native-grant-effects.md) | 313a, 180, 079, 047, 050, 052, 043c, 044b | Finite shared A/H/S policy, distinct native instances, genuine grant-only approval, use/denial and revocation effects; first consumer is kiosk baseline C04p; broader FLOW13/19/20 remain pending | 30–60 (exception) |
 | [ ] | 181m | [Operate the countdown context menu](E2E-Tasks/181m-operate-the-countdown-context-menu.md) | 052 | UI28 and PANEL01/02 | 20–30 |
 | [ ] | 064 | [E2E-008: fresh-login](E2E-Tasks/064-case-22.md) | 062, 043a, 050, 181m | Cases 22; animation enabled during existing natural exhaustion | 40–60 (exception) |
 | [ ] | 052b | [Verify countdown availability in UI tests](E2E-Tasks/052b-countdown-absence.md) | 052 | UI obligation; countdown availability on desktop, locked and greeter states | 20–30 |
@@ -670,6 +683,16 @@ acceptance. Completed task 305a retains only the
 [finite unrelated package operation and independent system result](E2E-Building-Blocks.md#genuine-unrelated-package-reboot-request),
 not the removed complete history. Shared modal and marker-edge matrices remain
 with their unit/host UI owners.
+
+## Additional general feature automation
+
+These additions were removed from kiosk baseline prerequisites. They retain
+their feature outcomes in this E2E queue and supply no confinement acceptance.
+
+| Done | ID | Task | Requires tasks | Delivered scope | Minutes |
+| --- | --- | --- | --- | --- | --- |
+| [ ] | 314 | [Saved request presets and units persist](E2E-Tasks/314-request-presets.md) | 012c, 014 | Planned scenario; saved preset addition/deletion, Custom Hours and restored choices; case and executable unassigned; not a kiosk baseline prerequisite | 20–30 |
+| [ ] | 315 | [Read kiosk What's New and return to the request](E2E-Tasks/315-kiosk-whats-new.md) | 185k, 014 | Planned scenario; installed latest-release content and unchanged request return; case and executable unassigned; not a kiosk baseline prerequisite | 20–30 |
 
 ## Deferred future work
 

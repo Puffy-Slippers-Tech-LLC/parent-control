@@ -26,6 +26,11 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
+Apply the [cross-plan reuse map](../E2E-Building-Blocks.md#cross-plan-baseline-reuse):
+313's fixed core history and 197a's shared delivery supply applicable leaves,
+not this task's retained-child destination qualification. Extend that destination
+only; do not repeat general fixture, policy or fresh-child implementation work.
+
 Extend 197a's kiosk FLOW04/FLOW05 composition with explicit retained-child FLOW15 entry and TIME01/UI12 comparison. Receive GDM or an independently open station form as declared. Reuse the shared FLOW20 argument/result contract and unchanged fresh-child bindings; do not depend on overlay qualification, open a session implicitly or alter daily/app policy.
 
 ## Live VM acceptance

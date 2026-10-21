@@ -17,11 +17,17 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
+Inspect [313's shared policy delivery](../E2E-Building-Blocks.md#cross-plan-baseline-reuse)
+first. Reuse its finite A/H/S drafts, saved-row comparisons and applicable
+qualification; implement only FLOW19's remaining explicit list/entry composition.
+Do not create another H/S editor, fixture profile or grant/app effects qualifier.
+
 Compose explicit FLOW01 entry, PARENT04(App Limits), one FLOW03 per named app/rule and DESK03. Supply the finite app list and current session/window ledger. Do not add allowance edits, approvals or app launches.
 
 Reuse `policy_edits.policy_edit` / `onpc_app_rows::edit_policy` and
-`onpc_parent::open_for_child`. Their current policy binding is Jordan's native
-fixture A, not an arbitrary A/H/S set: extend the finite named-app arguments and
+`onpc_parent::open_for_child`. Their pre-313 policy binding was Jordan's native
+fixture A; 313's finite Riley A/H/S slice is not an arbitrary named set. Extend
+only remaining finite named-app arguments and
 independent saved-row comparisons needed by case 13 before qualifying FLOW19.
 Retain fresh/same/retained Parent entry as explicit caller arguments; consume
 044b's unchanged retained-window operation without replaying its child/session

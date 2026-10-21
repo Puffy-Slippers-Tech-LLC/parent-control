@@ -1704,9 +1704,10 @@ An expired report or different provider supplies no acceptance credit.
 | TIME01–04 and TIME03 pause mechanism | **Unchanged stated leaves; missing baseline composition.** `real_interval.wait_real_interval` / `interval_action` supports at most 300 seconds, guarded sleeps at most 250 ms; exact five-second About slice `20260929T212620Z-9ce87d41` is reusable only for that scope. `natural_expiry_observation.await_natural_expiry` has Riley/native two-minute daily-only qualification on both targets; see [TIME04](#natural-enforced-lock-qualification). Neither proves grant-only expiry or an open language/authentication pause. | B2/B4 downstream time; B3 pauses |
 | LANG01: `kiosk_language.PLAN` / `KioskLanguageJourney` → `onpc_request_flow::kiosk_language` / shared `language_selection` | **Changed entry/locale caller.** `check_e2e_kiosk_language`, Ubuntu `20261004T103336Z-73d60bd2`, binds Jordan, en/de/zh-Hans/he Save, Chinese Cancel retaining German, German reentry and unchanged policy/request. Initial observation immediately saves; no human wait. This does not qualify Riley's language binding or a different native-prompt locale. | B3 finite public feature/pause slice |
 | Reminders: `kiosk_reminders.PLAN` / `KioskReminderJourney` → `onpc_kiosk_reminders::run` | **Changed complete entry/exit caller; unchanged editing leaves.** `check_e2e_kiosk_reminder_binding`, Ubuntu `20261013T193554Z-2f3ca206` / Fedora `20261013T193554Z-a3336e1b`, binds Riley's overlay-created 90-second record, kiosk edit to 75 seconds, same ID in overlay, untouched Jordan defaults and approver isolation. No natural-notification credit. | B3 renew affected caller; [local matrices](#reminder-controls-and-notification-qualification) remain host UI |
-| About / Preferences: `kiosk_about.E2E_CASES['kiosk']` → `onpc_kiosk_about::run`; `kiosk_preferences_confinement.PLAN` | **Changed kiosk caller, missing installed About qualification.** Case 192 is the historical host-only exception, not an installed pass. It compares current product/version and unchanged 75-second request, closes About and returns to GDM. Preferences engineering checks only cancel editor drafts and read session-only census; they do not prove saved presets/reminders. | B3 public feature qualification; no blanket engineering substitute |
+| About / Preferences: `kiosk_about.E2E_CASES['kiosk']` → `onpc_kiosk_about::run`; `kiosk_preferences_confinement.PLAN` | **Changed kiosk caller; historical installed About qualification needs applicability review.** Tasks 185k/234 recorded installed About and case 192 passes; task 192's separate host metadata exception is unrelated to case 192. Existing About compares product/version and unchanged request, closes About and returns to GDM. Preferences engineering checks only cancel editor drafts and do not prove saved preset persistence. | C04i reuses existing installed About coverage; new general features belong to E2E 314/315 |
 | Error report: `kiosk_feedback_confinement.PLAN` → `onpc_kiosk_eligible_choices::run(exchange, 1)`, `AccessibleUI.kiosk_diagnostic_*` | **Changed engineering caller.** `check_e2e_kiosk_feedback_confinement`, Ubuntu `20261014T045241Z-59fdb539` / Fedora `20261014T045835Z-01c47c77`, includes owned broker outage/restoration, unsent draft `Installed kiosk diagnostic qualification.\n`, prepared ZIP/privacy and separate census. It cannot serve as a public baseline request journey or Parent diagnostic download. The report UI and original-cause recovery retain their later C09b/C11b/C12b obligations. | Record feature survival here; engineering renewal stays with its fault/recovery consumer, outside C04u/f |
-| Preset edit/delete persistence, Custom Hours, What's New and complete baseline history | **Missing installed binding.** No registered baseline selector or complete public operation caller covers these together with genuine approval/downstream use. Keep local value/validation/control combinations in host UI; do not invent a C-series selector or turn an absent operation into ready status. | B3/B4; C04 must refuse readiness |
+| Preset edit/delete persistence, Custom Hours and What's New | **Missing general feature bindings; excluded from kiosk baseline scope.** E2E 314/315 own future installed feature journeys. Keep local value/validation/control combinations in host UI. These features are not C04/C05 readiness prerequisites. | E2E 314/315 only |
+| Complete confinement baseline history | **Missing finite core composition.** Reuse existing operations and separate existing feature evidence; no new general feature matrix belongs in the baseline. | B4 / C04j |
 
 #### Baseline qualification gaps and first consumers
 
@@ -1723,16 +1724,16 @@ for bounded implementation and required both-target live qualification.
 | Gap | Finite return condition before C04 can declare C05 runnable |
 | --- | --- |
 | B1 — shared overlay | **Closed for the fixed operation by [C04o](#c04o-shared-overlay-renewal).** Both targets passed Riley/Jamie/75-second/soft-included command entry, Shell approval, wrong-password and password-free Cancel, preserved choices and original-activity return through the same shared request operations. Negative grant/app effects remain B4. |
-| B2 — policy and downstream effects | Extend actual shared policy operations beyond fixture A to declared H/S identities and public denial observations. Qualify S usable/H denied after genuine inclusion, S denied after revocation, and correct-child time/expiry results. Native fixtures have distinct executable bytes but share primary GUI IDs; establish collision-free public instance binding before simultaneous A/S use. FLOW08 Allowed use is not denial, and TIME04 daily-only is not grant-only expiry. |
-| B3 — features and human waits | Register finite language, preset/unit, reminder and in-app information bindings from the recipe. Add guarded 90-second unset-language and 45-second authentication pauses; read preserved choices/destination independently afterward and acquire new secret-recipient proofs after the wait. No startup deadline includes human time. Existing five-second About qualification alone does not qualify these waits. |
+| B2 — policy and downstream effects | E2E 313a/313 own compatible fixture preparation and shared finite policy/grant/use/revocation qualification. C04p1/C04p verify and reuse their exact evidence; they do not implement general feature coverage. Retained attempts stopped before approval because S's wildcard directory was unrepresentable with Allowed A. No installed effects passed. Daily-only expiry is not grant-only expiry; the baseline selects revocation. |
+| B3 — retained features and confinement waits | Reuse existing language (300h), request choices (012c), reminders (312b) and About (185k) coverage; renew only invalidated caller scope. Keep only the bounded 90-second existing-language-chooser and 45-second authentication session-lifetime checks as confinement deltas. Freshly observe choices/session and reacquire recipient proofs after waits. No new saved-preset, Hours, What's New or language/reminder matrix blocks the baseline. |
 | B4 — baseline composition | Register a finite public composition covering zero-daily grant/use/restriction, separate denial and Cancel with no grant, exit/reentry and a fresh successful request after session switching; include B1 where shared code changed. FLOW19/FLOW20 and cases 34/36 remain pending; cases 47–52 cover only parts. Fixed single-use approval challenge names cannot be replayed for repeated requests. Preserve every existing stable case assertion; no forced fitting into an unrelated scenario or new ready selector without implementation. |
 
 C04's source/listing audit identified these gaps. The
 [ordered queue](../Kiosk-Prompt-Queue.md) now places bounded prerequisites before
-the suspended C04 consumer: C04o owns B1, C04p owns B2, C04l/C04s/C04r/C04i/C04w
-own the independent B3 language, preset, reminder, information and authentication
-pause operations, and C04j owns B4 composition. All require both-target installed
-qualification. C04o has closed B1 only; B2–B4 remain open. Queue insertion itself
+the suspended C04 consumer: C04o owns B1; C04p1/C04p consume E2E 313a/313 for B2;
+C04l/C04s/C04r/C04i reuse existing B3 feature checks, with only confinement waits
+in C04l/C04w; C04j owns B4's core composition. Applicable installed results remain
+required for both targets. C04o has closed B1 only; B2–B4 remain open. Queue insertion itself
 supplies no readiness, implementation or acceptance credit; C04 must recheck exact
 evidence applicability after the qualifications finish.
 
@@ -1754,6 +1755,34 @@ Every future live attempt must retain exact package/source/inventory/assets and
 provider inputs, public assertions, original failure, collection, worker/callback
 shutdown, lease completion and owned baseline restoration. No VM, installation,
 generated input or artifact cleanup was performed by this host audit.
+
+#### Cross-plan baseline reuse
+
+This map reconciles the kiosk confinement baseline with the E2E queue under the
+[operation-reuse contract](E2E-Execution-Contracts.md#cross-plan-operation-reuse).
+It assigns implementation ownership, not task completion. New general feature
+automation belongs to the E2E queue. Kiosk tasks validate applicability and
+confinement behavior using shared coverage; new confinement protections retain
+appropriate new tests and ordinary-use controls in their own C06–C12 tasks.
+
+| Shared scope | Feature owner / existing coverage | Kiosk baseline use and remaining E2E work |
+| --- | --- | --- |
+| Compatible native fixtures | **313a**, reusing 035p and 035b's safe-directory direction | C04p1 checks exact applicability. Existing shared-directory failures are retained, not passed; no feature fixture project runs under C04p1. |
+| Finite A/H/S grant/use/revocation | **313**, existing in-progress `baseline_app_effects` / `check_e2e_baseline_app_effects` | C04p reuses matching both-target histories, rerunning only invalidated scope. Shared code has finite H/S, distinct A/S, denial and 600-second request work; fixture compatibility and installed qualification remain pending. |
+| Grant-only profile | **065a** consumes 313's exact grant/readback leaves | Still owns the 120-second profile, explicit revoke-first branch and its caller-owned duration scope. A 600-second Riley/Jamie result is not those bindings. |
+| Named rules and native denial | **079b/079d** consume 313's finite shared policy/instance/command-denial work | Still own FLOW19 explicit lists/entry modes and APP02 grid/command/access branches outside 313's exact slice. No reimplementation of delivered leaves. |
+| Approval and child return | **197/197a/197k** consume shared request, grant/countdown and entry leaves | Still own parameterized FLOW20 accounts, durations, soft choices, new/open forms and fresh/retained destinations. 313 does not qualify that whole matrix. |
+| Kiosk language | Existing **300h/300j**, `check_e2e_kiosk_language` | C04l reuses Jordan's binding; only a bounded initial chooser wait checks confinement session lifetime. No new Riley language suite. |
+| Request choices | Existing **012c**, `check_e2e_kiosk_valid_duration` | C04s reuses existing presets/custom Minutes/rest-of-day/soft choices. New saved-preset/Hours journey is **314**, outside baseline prerequisites. |
+| Reminders | Existing **312a/312b**, `check_e2e_kiosk_reminder_binding` | C04r renews only changed caller scope. **312** still owns its complete delete/Cancel/reboot history; **311** owns natural notification/fullscreen behavior. |
+| Kiosk information | Existing **185k/234**, `check_e2e_read_restricted_station_about`, case 192 | C04i reuses About/unchanged-return coverage. New What's New content/return journey is **315**, outside baseline prerequisites. |
+| Authentication pause | Shared approval/recipient operations and TIME03 | C04w adds only the 45-second confinement lifetime check on the existing fixed MATE request. E2E-048 retains six complete arithmetic/second-request scenarios and uses the same wait/recipient mechanics; no second pause framework. |
+| Failure recovery and repeated access | Shared rejected/cancelled/approved requests and public effect comparisons | C04j makes a thin confinement core composition. **088/089**, E2E-048 and E2E-049 keep their own finite complete histories; no case is closed by a baseline pass. |
+| Baseline acceptance | C04j's complete core history plus applicable existing feature checks | C04 audits readiness; C05u/f reuse matching evidence. Feature matrices are not replayed in that core history, and unchanged complete histories are not rerun for new task labels. |
+
+At delivery, update exact callables, inputs, target/provider/candidate applicability,
+retained outcomes and the affected unfinished briefs. Until then, planned scope
+remains pending. This reconciliation changes no executable inventory or readiness.
 
 #### C04b host acceptance
 

@@ -22,22 +22,32 @@ C05u/C05f still verify their full matching-candidate acceptance and every origin
 assertion when selected; an unchanged complete pass needs no duplicate execution.
 
 Inspect the delivered catalogue evidence and complete callable/worker/recorder
-routes for all prerequisites. Compose only finite values/order/assertions in a
+routes for all prerequisites. Compose only finite core values/order/assertions in a
 new shared `tests/e2e/baseline_journey.py` (planned, unimplemented); mechanics stay
 with existing shared operations. Planned selector `check_e2e_baseline_journey`
 must be registered and listed before invocation. Preserve all stable case IDs,
 pending FLOW19/FLOW20 and broader cases 34/36/44–49; no relabelled partial pass.
 
-Cover zero-daily Parent time/app setup; passwordless usable kiosk entry; all
-recipe features and 90/45-second pauses; wrong password and separate Cancel
+Cover zero-daily Parent time/app setup; passwordless usable kiosk entry;
+wrong password and separate Cancel
 with explicit preserved form, zero grant and unchanged restrictions; fresh
 genuine approval, grant-only usable child time, S/A use with H denied; shared
 overlay approval/rejection/Cancel and original activity; public revoke/Confirm
 restoring limits; normal exit/reentry, session switching and a distinct successful
-fresh request. Negative effects and repeated-request result bindings absent from
-earlier qualifiers belong here, using shared comparisons. Each challenge is
+fresh request. Negative effects and repeated-request ordering use existing shared
+comparisons. New general feature mechanics belong to the E2E queue under the
+[reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse),
+not this confinement composition. Each challenge is
 fresh and single-use. No reset between effects within a history. Keep downstream
 work within observed positive time; use only explicitly qualified durations.
+
+Carry forward C04l/s/r/i's applicable existing feature evidence, C04l's separate
+90-second chooser/session check and C04w's 45-second authentication lifetime
+check. Do not repeat language Save/Cancel,
+request-choice, reminder or About histories in this core composition. Saved
+preset editing, Hours, What's New and new language variants are not baseline
+assertions. Do not replay the separate pause qualifiers in the core history
+solely to satisfy another task label; they add no arithmetic matrix.
 
 Before live execution run composition preflight, actual worker order/refusals,
 decoder and independent public effect comparisons with finite host timeouts.

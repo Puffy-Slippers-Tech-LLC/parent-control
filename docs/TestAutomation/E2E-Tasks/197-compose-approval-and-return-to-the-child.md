@@ -17,11 +17,18 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
+Inspect [313's shared delivery](../E2E-Building-Blocks.md#cross-plan-baseline-reuse)
+and reuse applicable request, grant/countdown and entry leaves. Its fixed kiosk
+Riley/Jamie/600-second/soft-included history does not qualify this parameterized
+overlay composition. Implement only missing arguments/results, without a second
+shared authentication or countdown implementation.
+
 Compose the overlay branches of FLOW04 and FLOW05, then TIME01/UI12 on the same child desktop. Accept explicit new/open form entry and earlier public balance observations. No hidden allowance, policy preparation or desktop transition. Keep the kiosk branch pending.
 
 Reuse `request_flow.prepared_request`, `overlay_approved_request` and
 `KioskRequestJourney.check_countdown`. The existing request leaves accept only
-Riley/Jamie/75 seconds/soft included; implement and qualify FLOW20's explicit
+Riley/Jamie/75 seconds/soft included on overlay, with separate finite 600-second
+kiosk work in 313; implement and qualify the remaining FLOW20 explicit
 child, eligible-parent, duration and soft-choice arguments, with public balance
 arithmetic, before advertising that scope. Immediate exit,
 rejection and Cancel qualifications are not prerequisites of automatic approval.

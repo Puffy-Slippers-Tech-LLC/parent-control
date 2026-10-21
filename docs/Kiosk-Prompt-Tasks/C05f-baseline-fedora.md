@@ -18,6 +18,12 @@ features, human pauses, genuine grant/time/app results, denial/cancel and
 exit/reentry as C05u. Do not disable ordinary-user authentication or privilege
 transitions to pass.
 
+Reuse separate existing feature checks and language-dialog pause evidence under
+the [reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
+No new saved-preset/Hours, What's New or general language/reminder suite belongs
+to this confinement acceptance; retain the complete core history and applicable
+separate confinement-pause evidence.
+
 First apply the
 [complete baseline evidence-reuse contract](../TestAutomation/E2E-Execution-Contracts.md#complete-baseline-evidence-reuse)
 to C04j's retained Fedora history and C04's handoff. Verify every original

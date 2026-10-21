@@ -400,6 +400,26 @@ The selected brief owns its applicability/authorization gate. Resolve it through
 supported public routes; unavailable routes remain pending. Never edit/deploy
 the portal or change expected behavior to manufacture a pass.
 
+### Cross-plan operation reuse
+
+The kiosk baseline and this E2E plan share operation implementations and scoped
+qualification. The [baseline reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse)
+owns their finite overlap and remaining work. Before implementing an unfinished
+consumer, inspect the current shared callables and retained qualification there.
+General feature implementation stays in its E2E owner; a kiosk consumer records
+the missing feature slice and waits for that delivery. E2E consumers implement
+only missing arguments, results or destinations. Do not recreate an
+operation or rerun an unchanged qualification because another queue delivered it.
+If shared feature work is missing, the selected E2E task may implement its bounded
+slice without waiting for a future task label; a kiosk task does not absorb it.
+Update the map and affected unfinished briefs when delivery changes remaining work.
+
+Qualification reuse requires exact candidate, caller, target, provider, input,
+assertion and cleanup applicability under the existing evidence contract. It
+supplies no mutable VM state and closes no other queue row automatically.
+Distinct complete E2E scenarios retain their own ordered outcomes and acceptance;
+a capability or a different baseline composition cannot relabel them as passed.
+
 ### Complete baseline evidence reuse
 
 For the ordinary [kiosk confinement plan](../Kiosk-Session-Confinement-Plan.md),
@@ -409,13 +429,16 @@ remain separate installed acceptance gates, closed only when selected after C04.
 Do not repeat an unchanged complete history solely to change its task label.
 
 Reuse requires retained, inspectable public-action/result evidence for **every**
-assertion in the finite baseline recipe and the consuming C05 brief, with the
+core-history assertion in the finite baseline recipe and the consuming C05 brief,
+plus the recipe's separately reusable existing feature and confinement-pause
+checks, with the
 exact target, candidate package/source/assets, baseline, fixture identities,
 complete caller/composition and provider bindings. Verify the command, finite
 inputs, ordered intermediate outcomes, timeout, collection and owned restoration;
 record that applicability check and the original installed result in C05's
-handoff/checks. A task summary, ready label, host pass, partial qualification or
-collection of separate operation passes cannot establish the complete history.
+handoff/checks. Existing feature and separate pause checks need not be repeated inside the core
+history. A task summary, ready label, host pass, partial qualification or
+collection of separate operation passes cannot establish the complete core history.
 
 Missing, failed, expired or invalidated evidence requires execution of the
 affected **complete** history on its target through the registered baseline

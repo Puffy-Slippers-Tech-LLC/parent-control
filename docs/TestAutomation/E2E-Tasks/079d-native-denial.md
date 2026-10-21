@@ -17,6 +17,12 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
+Reuse [313's exact shared scope](../E2E-Building-Blocks.md#cross-plan-baseline-reuse)
+for finite H/S command denial and distinct A-primary/S-secondary instances.
+Inspect current code and qualified inputs before extending it; do not recreate
+those bindings or rerun its complete grant/use/revocation qualification. This
+task retains grid hiding and access/target branches outside that finite history.
+
 Bind usable, hidden-grid and explicit command-denial observations under publicly saved Allowed/Hard/Soft choices. A hidden grid result requires its separately declared command-denial witness.
 
 Reuse `AccessibleUI.native_launch_command(blocked=True)` and the existing
@@ -26,13 +32,13 @@ it does not qualify native-grid hiding, arbitrary targets or both rule choices.
 Add the missing finite APP02/FLOW08 denial declaration/worker and grid projection,
 preserving one launch per declared route and independent result readback.
 
-The current command/snapshot adapter is restricted to native A/`primary`.
-Extend it with finite declared role/instance arguments for the A/H/S/N outcomes
+The pre-313 command/snapshot adapter was restricted to native A/`primary`.
+Reuse 313's delivered role/instance arguments and extend only remaining A/H/S/N outcomes
 consumers need, including separately identified Allowed and blocked activities.
 Use the existing fixture's primary/secondary public-ID scheme and fixed launch
 options when simultaneous windows are required; duplicate IDs or a different
 window cannot be accepted as the declared target. This is missing implementation,
-not scope supplied by the existing A-only qualifier.
+not scope supplied by the earlier A-only qualifier or unqualified shared code.
 
 ## Live VM acceptance
 

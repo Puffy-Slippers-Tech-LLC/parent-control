@@ -31,6 +31,19 @@ identify any missing or invalidated complete history for C05 to execute.
 
 ## Suspended readiness audit
 
+The current scope follows the
+[cross-plan reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse):
+E2E 313a/313 own general fixture and grant/app feature automation; C04p1/p verify
+and consume it. C04l/s/r/i reuse existing feature coverage; only confinement
+human-pause/session checks and core orchestration stay here. E2E 314/315 own new
+saved-preset/Hours and What's New journeys and do not block C04. Verify the core
+history and separate feature evidence under the revised recipe. No task status
+or installed acceptance changes through this reconciliation.
+
+The following records the earlier readiness audit and its historical source
+state and validation, before this scope reconciliation; it is not a requirement
+to recreate the superseded feature expansion.
+
 The current [applicability map](../TestAutomation/E2E-Building-Blocks.md#c04b-baseline-operation-applicability)
 and [finite recipe](../TestAutomation/E2E-Scenario-Recipes.md#c04b-baseline-public-use-slice)
 still have B1–B4 gaps. Source inspection confirms `policy_edits.policy_edit`

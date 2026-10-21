@@ -288,6 +288,11 @@ def main(argv=None, *, category='unit'):
         argv = list(sys.argv[1:] if argv is None else argv)
         # Validate before creating ownership files or running prerequisites.
         pytest_command(root, argv[1:] if argv[:1] == ['--unattended'] else argv, category)
+        # Collection is inspection, including through the direct UI wrapper.
+        # It must remain available while another launcher owns execution.
+        if '--collect-only' in argv:
+            options = argv[1:] if argv[:1] == ['--unattended'] else argv
+            return run_host(root, category, options)
         inherited = test_activity.descriptors() or test_activity.VARIABLE in os.environ
         if category == 'unit' and not inherited and not any(
                 flag in argv for flag in ('--help', '-h', '--collect-only')):

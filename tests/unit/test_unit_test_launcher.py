@@ -188,6 +188,45 @@ def test_owned_unit_worker_does_not_reattach(checkout, monkeypatch):
     execute.assert_called_once_with(checkout, 'unit', ['tests/unit/test_graphical_lease.py'])
 
 
+@pytest.mark.parametrize('entry', [
+    ['run-unit-tests'], ['run-tests', 'unit'],
+    ['run-ui-tests'], ['run-tests', 'ui'],
+])
+def test_collection_succeeds_while_another_host_run_owns_checkout(checkout, entry):
+    import test_activity
+    from test_storage import scratch_descriptors
+
+    category = 'ui' if 'ui' in entry or entry == ['run-ui-tests'] else 'unit'
+    if category == 'ui':
+        shutil.copy2(LAUNCHER.with_name('run-ui-tests'), checkout / 'tools/run-ui-tests')
+        python = checkout / '.venv/onpc-ui-tests/bin/python'
+        python.parent.mkdir(parents=True)
+        python.symlink_to('/usr/bin/python3')
+    tests = checkout / 'tests' / category
+    tests.mkdir(exist_ok=True)
+    (tests / 'test_collection.py').write_text(
+        'import pytest\n'
+        '@pytest.fixture(autouse=True)\n'
+        'def never_run(): raise AssertionError("collection ran a fixture")\n'
+        'def test_selected(): raise AssertionError("collection ran a test")\n'
+        '@pytest.mark.live_e2e\n'
+        'def test_live(): raise AssertionError("collection ran a live test")\n')
+    environment = runner['test_environment'](checkout)
+    environment['PYTEST_DISABLE_PLUGIN_AUTOLOAD'] = '1'
+    with test_activity.activity(checkout, host_only=True):
+        test_activity.record_cleanup('a' * 64)
+        result = subprocess.run(
+            [str(checkout / 'tools' / entry[0]), *entry[1:],
+             f'tests/{category}/test_collection.py', '--collect-only', '-q'],
+            cwd=checkout, env=environment, pass_fds=scratch_descriptors(),
+            capture_output=True, text=True, timeout=20, check=False)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert 'test_collection.py::test_selected' in result.stdout
+        assert ('test_collection.py::test_live' in result.stdout) == (category == 'unit')
+        # Inspection must not disturb the execution owner's lock or cleanup record.
+        assert test_activity.cleanup_verified(checkout)
+
+
 def test_detached_direct_unit_request_keeps_serial_flag_in_shared_report(monkeypatch):
     import regression
     import regression_process

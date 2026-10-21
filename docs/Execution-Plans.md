@@ -152,6 +152,9 @@ explicit paths and disjoint write ownership. Keep one editor for shared state.
 The coordinator owns task selection, resource/VM ownership, acceptance and
 close-out; join and close workers before handoff or releasing resources. A
 subagent's report is evidence to assess, not automatic acceptance.
+Generated coverage-summary maintenance uses `tools/generate_test_coverage.sh`;
+its collection follows the [runner inspection contract](../tests/README.md#aggregate-execution-and-reconnection),
+which remains available while tests are running.
 
 Launcher coordinators are ephemeral and have no stored conversation rollout to
 fork. On every `spawn_agent` call, explicitly set `fork_turns="none"`; omitting it

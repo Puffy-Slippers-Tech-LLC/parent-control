@@ -1,5 +1,11 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+unit_test_launcher's concurrent collection checks hold only a pytest-private
+checkout lock and wait for bounded launcher/pytest children with shared scratch
+descriptors. UI collection uses synthetic tests without fixtures or GUI services.
+No shared execution state, display, bus, network or new cleanup owner is added;
+the existing compatible unit classification remains appropriate.
+
 Repair Git close-out extends fix_tests and fix_tests_cleanup_safety with tiny
 pytest-private checkouts and bare remotes, finite waited Git children and
 process-local failure doubles. No external network, shared Git state, VM,

@@ -702,6 +702,8 @@ def test_noninstalled_acceptance_keeps_declared_target_scope(rig, kind):
     (rig.root / 'docs/001.md').write_text(f'Acceptance: {kind}\nTargets: target-one, target-two\n')
     state = state_for(rig.plan)
     prompt = workflow.session_prompt(rig.plan, rig.spec, state)
+    # The queue name need not follow the master or launcher name.
+    assert f'ordered queue\n{rig.plan.queue}, and the selected brief' in prompt
     assert 'empty only when the\nbrief declares no Targets' in prompt
     assert 'empty for host/review' not in prompt
     result = response(state)

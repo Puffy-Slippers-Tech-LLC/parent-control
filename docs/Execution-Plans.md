@@ -126,7 +126,11 @@ until the fresh controller applies the request and live acceptance passes.
 ## Execution and delegation
 
 Read repository instructions, the master, the selected brief and only applicable
-owning contracts/source. Preserve pre-existing changes and valid evidence. Execute
+owning contracts/source. The shared coordinator prompt supplies the validated
+checkout-relative master, queue and selected brief paths. Use those exact paths;
+resolve other document links relative to their containing document rather than
+guessing filenames from titles or launcher names. Preserve pre-existing changes
+and valid evidence. Execute
 the first unchecked task through implementation, required acceptance, owned cleanup
 and close-out. A blocker keeps its row unchecked and its pointer unchanged. Record
 the concrete blocker and return condition; do not silently skip it. Propose a

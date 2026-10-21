@@ -120,8 +120,11 @@ def session_command(root, spec, run=None):
 
 def session_prompt(plan, spec, state):
     return f"""Implement only task {state['task_id']}: {state['task']['title']}.
-Read AGENTS.md, docs/Execution-Plans.md, {plan.path}, and the selected brief
+Read AGENTS.md, docs/Execution-Plans.md, master {plan.path}, ordered queue
+{plan.queue}, and the selected brief
 {state['task']['brief']}; follow only applicable owning contracts and source.
+Use these exact checkout-relative paths. Resolve other document links relative
+to their containing document; do not infer filenames from titles or launcher names.
 Your coordinator model is {spec.model} {spec.effort}; there is no automatic
 escalation. By default, use GPT-6.1 Sol subagents of appropriate effort as needed;
 routine read-only monitoring uses plan_monitor (Low), routine

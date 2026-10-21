@@ -205,6 +205,7 @@ def test_selected_pam_entry_ignores_python_startup_environment(tmp_path):
                        PAM_USER="ordinary-private-account", PAM_SERVICE="sshd")
     result = subprocess.run(
         [str(entry)],
-        cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=5)
+        cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=5,
+        pass_fds=scratch_descriptors())
     assert result.returncode == 0
     assert not marker.exists()

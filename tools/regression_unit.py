@@ -896,9 +896,10 @@ from regression_ui import Bucket
 # The selected embedded finalizer reuses prepared_lifecycle_machine and shared
 # path relocation in its private tree, models absent NSS identities and forwards
 # scratch leases to its bounded waited interpreter. Existing isolation holds.
-# kiosk_login retains source-only selected-runtime checks, one bounded Make
+# kiosk_login retains selected-runtime source checks, one bounded Make
 # source-list child, the Wellbeing observer below and a bounded isolated-Python
-# startup check. No host account, settings or PAM transaction is acquired.
+# startup check. Compiler and startup children forward scratch leases.
+# No host account, settings or PAM transaction is acquired.
 # Wellbeing identity/environment cases compile a tiny private launcher with
 # linker-wrapped NSS/exec observers and forward scratch leases to bounded waited
 # compiler/observer children. They read
@@ -906,13 +907,15 @@ from regression_ui import Bucket
 # Prepared runtime assertions read inert source assets and own one bounded,
 # waited Make source-list child. The package_payload/rpm_packaging checks reuse
 # their existing private staged payloads, without new builders or cleanup owners.
-# Prepared provisioning checks load only the unselected source and use private
+# Selected provisioning checks load the current source and use private
 # account/config/marker trees plus process-local NSS, busctl and ownership doubles.
 # Atomic-write faults retain their private prior file and remove their own temp;
 # no host account, shadow/cache, daemon, bus, shared path or cleanup owner changes.
 # provision and kiosk_login retain their existing compatible classifications.
-# prepared_kiosk_pam compiles a small private PAM module and uses only private
-# PAM stacks, lock/marker files and process-local account/authselect/bus doubles.
+# prepared_kiosk_pam and pam_runtime_cap compile small private PAM modules;
+# compiler children forward scratch leases and are bounded and waited. They use
+# only private PAM stacks, lock/marker files and process-local
+# account/authselect/bus doubles.
 # Native helpers and compiler children are bounded and waited; no host PAM,
 # account, service, bus, display or shared cache is changed. Distro transaction
 # and rollback fixtures keep their owned files under tmp_path. Compatible unit
@@ -923,7 +926,7 @@ from regression_ui import Bucket
 # only tmp_path. One bounded source-list child is waited; no host PAM, shadow,
 # AccountsService cache/service, bus, display or shared process is touched.
 # package_configuration remains compatible; cleanup/UI inventories do not change.
-# Its C02c readiness composition additionally compiles the prepared native PAM
+# Its readiness composition additionally compiles the selected native PAM
 # module in each private fixture (30-second deadline), forwards scratch leases,
 # and waits. Real migration/readiness functions share only that fixture's PAM
 # and payload files; ownership and OS policy remain process-local doubles.
@@ -933,6 +936,13 @@ from regression_ui import Bucket
 # Popen child, then waits. Only that child's /proc maps are read. Synthetic root
 # credentials/audit/MAC inputs stay private; no real host PAM or shared resource.
 # No real session, system bus, display, root lock, shared cache or service mutates.
+# Package-machine shells and nested broker/trust doubles now forward scratch
+# leases, as do package input/archive, payload/native/import, RPM staging and
+# activation LMDB children. The notification-import grandchild receives only
+# numeric inherited descriptors; production imports remain isolated. All reuse
+# existing private trees and waited children, with unchanged deadlines and
+# assertions; no new allocation, service, cache or cleanup/UI owner is added.
+# The package input/payload/activation/configuration/RPM compatible buckets hold.
 # Admission/removal regressions use real advisory locks only on pytest-private
 # files. Native PAM leases cover root-executor/session teardown intervals and
 # the existing owned worker-abort case observes the inherited helper lease.

@@ -640,6 +640,7 @@ install() {
             env={**os.environ, "AUDIT_ROOT": str(self.root),
                  "PATH": str(self.root / "test-bin") + os.pathsep + os.environ["PATH"],
                  **env}, timeout=10,
+            pass_fds=scratch_descriptors(),
         )
 
     @property
@@ -901,6 +902,7 @@ esac
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT if combine_output else subprocess.PIPE,
             text=True, timeout=10,
+            pass_fds=scratch_descriptors(),
         )
         if result.returncode != 0:
             assert "PASS:" not in result.stdout

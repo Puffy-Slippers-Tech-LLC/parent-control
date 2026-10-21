@@ -14,6 +14,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from tools.test_storage import scratch_descriptors
+
 _activation = runpy.run_path(str(Path(__file__).resolve().parents[2] / "debian/package_activation.py"))
 activation_for = _activation["activation_for"]
 changed_impacts = _activation["changed_impacts"]
@@ -224,7 +226,8 @@ def test_snapshot_survives_overlapping_queued_refreshes(tmp_path, monkeypatch, m
                             str(database), json.dumps(after),
                             'trust.slot_1' if published else 'trust.db',
                             'generation=2\nname=trust.slot_1\n' if published else ''], check=True, timeout=15,
-                           cwd=Path(__file__).resolve().parents[2], capture_output=True)
+                           cwd=Path(__file__).resolve().parents[2], capture_output=True,
+                           pass_fds=scratch_descriptors())
 
     def overlap(*args):
         publish_refresh()
@@ -371,7 +374,8 @@ def test_live_writer_survives_reader_after_unrelated_lock_descriptor_close(tmp_p
                         'record=tuple(json.loads(sys.argv[3])); '
                         'assert helper["read_child_trust"]({record}, Path(sys.argv[2])) == {record}',
                         str(Path(_activation['__file__'])), str(database), json.dumps(record)],
-                       check=True, timeout=15, capture_output=True)
+                       check=True, timeout=15, capture_output=True,
+                       pass_fds=scratch_descriptors())
 
     # The second refresh must still acquire the shared writer mutex. LMDB
     # 0.9.31 returns EINVAL here if the first reader destroyed that mutex.
@@ -604,7 +608,8 @@ def test_make_generates_activation_manifest_from_relocated_debian_helper(tmp_pat
     broker.parent.mkdir(parents=True)
     broker.write_text('staged broker fixture')
     subprocess.run(['make', '--no-print-directory', '_generate-package-activation-manifest',
-                    f'DESTDIR={tmp_path}'], cwd=root, check=True, capture_output=True, text=True)
+                    f'DESTDIR={tmp_path}'], cwd=root, check=True, capture_output=True, text=True,
+                   pass_fds=scratch_descriptors())
     manifest = json.loads((tmp_path / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
     assert manifest['files'] == [{
         'path': 'usr/libexec/oh-no-parent-control-broker',

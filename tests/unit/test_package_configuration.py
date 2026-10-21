@@ -23,6 +23,7 @@ from tests.support.package_scripts import (
     selected_pam_transactions, use_real_account_lifecycle, use_real_state_migration,
 )
 from tests.support.shell import relocate_system_paths
+from tools.test_storage import scratch_descriptors
 
 
 @pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
@@ -1067,7 +1068,8 @@ def test_selected_lifecycle_embedded_finalizer_is_payload_independent():
         assert 'ONPC_CONFINEMENT_FINISH_REMOVE' in selected
         assert 'def capture_policy():' in selected
     result = subprocess.run(['make', '--no-print-directory', 'package-source-files'],
-                            cwd=ROOT, capture_output=True, text=True, timeout=30, check=True)
+                            cwd=ROOT, capture_output=True, text=True, timeout=30, check=True,
+                            pass_fds=scratch_descriptors())
     assert 'packaging/lifecycle_migration.py' in result.stdout.splitlines()
     assert 'packaging/kiosk_confinement.py' not in result.stdout.splitlines()
 
@@ -1076,7 +1078,6 @@ def test_selected_lifecycle_embedded_finalizer_is_payload_independent():
 def test_prepared_lifecycle_embedded_post_erase_executes_and_retries(tmp_path, monkeypatch, backend):
     import os
     import shlex
-    from tools.test_storage import scratch_descriptors
     machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
     migration = machine.migration
     # The distribution's fixed relabel tool survives product payload erasure.
@@ -2005,6 +2006,7 @@ def test_debhelper_automatic_activation_is_disabled():
     result = subprocess.run(
         ["make", "-n", "-f", "debian/rules", "override_dh_installsystemd"],
         cwd=ROOT, capture_output=True, text=True, timeout=10,
+        pass_fds=scratch_descriptors(),
     )
     assert result.returncode == 0, result.stderr
     assert "dh_installsystemd --no-start --no-stop-on-upgrade" in result.stdout
@@ -2181,7 +2183,8 @@ def test_dbus_startup_exclusion_survives_until_trust_is_ready(package_machine):
 import pathlib, subprocess, sys
 if sys.argv[1] == 'wait-child-trust':
     assert pathlib.Path({str(state / 'migration-in-progress')!r}).is_file()
-    result = subprocess.run([{sys.executable!r}, {str(launcher)!r}], capture_output=True)
+    result = subprocess.run([{sys.executable!r}, {str(launcher)!r}], capture_output=True,
+                            pass_fds={scratch_descriptors()!r})
     assert result.returncode != 0
     assert b'saved-data migration is incomplete' in result.stderr
 elif sys.argv[1] == 'prepare-child-trust-backend':
@@ -2192,7 +2195,8 @@ else:
     helper.chmod(0o755)
     result = run()
     assert result.returncode == 0, result.stderr
-    assert subprocess.run([sys.executable, str(launcher)], capture_output=True).returncode == 0
+    assert subprocess.run([sys.executable, str(launcher)], capture_output=True,
+                          pass_fds=scratch_descriptors()).returncode == 0
 
 
 @pytest.mark.parametrize('active', [False, True])
@@ -2267,7 +2271,8 @@ def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(packa
         '    if args.command == "wait-child-trust":\n'
         '        import os\n'
         '        if args.refresh:\n'
-        '            subprocess.run([os.environ["AUDIT_ROOT"] + "/usr/sbin/fapolicyd-cli", "--update"], check=True)\n'
+        '            subprocess.run([os.environ["AUDIT_ROOT"] + "/usr/sbin/fapolicyd-cli", "--update"], check=True, '
+        f'pass_fds={scratch_descriptors()!r})\n'
         '        raise SystemExit(int(os.environ.get("TRUST_READY_STATUS", "0")))')
     helper.write_text(f'#!{sys.executable}\n' + source.split('\n', 1)[1])
     helper.chmod(0o755)
@@ -2285,7 +2290,8 @@ def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(packa
         assert result.returncode == 0, result.stderr
         assert 'PASS:' in result.stdout
         assert guard.exists() == active
-        blocked = subprocess.run([sys.executable, str(launcher)], capture_output=True)
+        blocked = subprocess.run([sys.executable, str(launcher)], capture_output=True,
+                                 pass_fds=scratch_descriptors())
         if active:
             assert blocked.returncode == 0, blocked.stderr
             assert blocked.stdout.strip() == b'diagnostics-only'
@@ -2302,11 +2308,13 @@ def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(packa
     if active:
         guard.unlink()
     boot.write_text('22222222-2222-2222-2222-222222222222\n')
-    assert subprocess.run([sys.executable, str(launcher)], capture_output=True).returncode == 0
+    assert subprocess.run([sys.executable, str(launcher)], capture_output=True,
+                          pass_fds=scratch_descriptors()).returncode == 0
     # Expiring the guard is insufficient if live exact trust is still missing.
     import os
     blocked = subprocess.run([sys.executable, str(launcher)], capture_output=True,
-                             env={**os.environ, 'TRUST_READY_STATUS': '7'})
+                             env={**os.environ, 'TRUST_READY_STATUS': '7'},
+                             pass_fds=scratch_descriptors())
     assert blocked.returncode != 0
     assert b'child trust database is not ready' in blocked.stderr
     result = run(IMPACTS='')
@@ -2316,7 +2324,8 @@ def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(packa
     # An unrelated OS update must not put this broker into diagnostics-only mode.
     (root / 'run/reboot-required').write_text('System restart required\n')
     (root / 'run/reboot-required.pkgs').write_text('linux-image-generic\nlibc6\n')
-    allowed = subprocess.run([sys.executable, str(launcher)], capture_output=True)
+    allowed = subprocess.run([sys.executable, str(launcher)], capture_output=True,
+                             pass_fds=scratch_descriptors())
     assert allowed.returncode == 0, allowed.stderr
     assert allowed.stdout.strip() == b'policy-ready'
 
@@ -2377,7 +2386,6 @@ def _prepared_pam_migration_runtime(root, monkeypatch, distribution, migration, 
     """Real prepared verifier over private native payload/shared PAM output."""
     import importlib.util
     from types import SimpleNamespace
-    from tools.test_storage import scratch_descriptors
 
     prepared = ROOT
     source = prepared / 'packaging/distro_pam.py'

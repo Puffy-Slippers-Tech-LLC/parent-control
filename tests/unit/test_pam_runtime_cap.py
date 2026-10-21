@@ -6,6 +6,7 @@ import subprocess
 import pytest
 
 from tests.support.paths import ROOT
+from tools.test_storage import scratch_descriptors
 
 
 @pytest.fixture(scope="module")
@@ -19,6 +20,7 @@ def pam_modules(tmp_path_factory):
             ["cc", "-shared", "-fPIC", "-Wall", "-Wextra", "-Werror",
              "-o", str(output), str(ROOT / source), "-lpam"],
             check=True, capture_output=True, text=True, timeout=30,
+            pass_fds=scratch_descriptors(),
         )
         modules.append(output)
     return modules

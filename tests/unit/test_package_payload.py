@@ -16,6 +16,7 @@ from types import ModuleType
 import pytest
 
 from tests.support.paths import ROOT
+from tools.test_storage import scratch_descriptors
 
 
 @pytest.fixture(scope="module")
@@ -25,6 +26,7 @@ def production_payload(tmp_path_factory):
         ["make", "--no-print-directory", "_install-product-files",
          f"DESTDIR={destination}"],
         cwd=ROOT, capture_output=True, text=True,
+        pass_fds=scratch_descriptors(),
     )
     assert result.returncode == 0, result.stdout + result.stderr
     return destination
@@ -213,7 +215,7 @@ def test_native_probe_payload_and_activation_are_complete(production_payload):
         # The actual production build must refuse an invocation without its
         # private protocol. No runtime path is relocated or accessed here.
         result = subprocess.run([str(binary)], capture_output=True, text=True,
-                                timeout=5, env={})
+                                timeout=5, env={}, pass_fds=scratch_descriptors())
         assert result.returncode == 70
         assert result.stdout == ""
         assert result.stderr == f"execution-probe: {kind}-refused\n"
@@ -291,13 +293,15 @@ def test_final_package_hook_refreshes_stripped_binary_digests(production_payload
     binary.parent.mkdir(parents=True)
     shutil.copyfile(production_payload / path, binary)
     before = hashlib.sha256(binary.read_bytes()).hexdigest()
-    subprocess.run(["strip", str(binary)], check=True, capture_output=True)
+    subprocess.run(["strip", str(binary)], check=True, capture_output=True,
+                   pass_fds=scratch_descriptors())
     after = hashlib.sha256(binary.read_bytes()).hexdigest()
     assert after != before
     result = subprocess.run(
         ["make", "--no-print-directory", "-f", "debian/rules",
          "execute_before_dh_md5sums", f"PACKAGE_STAGING_ROOT={tmp_path}"],
         cwd=ROOT, capture_output=True, text=True, timeout=10,
+        pass_fds=scratch_descriptors(),
     )
     assert result.returncode == 0, result.stdout + result.stderr
     manifest = json.loads((tmp_path / (
@@ -306,7 +310,8 @@ def test_final_package_hook_refreshes_stripped_binary_digests(production_payload
         "path": path, "sha256": after, "activation": "process-restart",
     }]
     sequence = subprocess.run(["dh", "binary", "--no-act"], cwd=ROOT,
-                              capture_output=True, text=True, timeout=10)
+                              capture_output=True, text=True, timeout=10,
+                              pass_fds=scratch_descriptors())
     assert sequence.returncode == 0, sequence.stdout + sequence.stderr
     commands = [line.strip() for line in sequence.stdout.splitlines()]
     assert commands.index("dh_strip -a") < commands.index(
@@ -326,6 +331,7 @@ import subprocess
 import sys
 
 root = Path(sys.argv[1]) / 'usr/lib/oh-no-parent-control'
+scratch_fds = tuple(map(int, sys.argv[2:]))
 sys.path[:0] = [str(root), *(str(root / name) for name in ('broker', 'parent', 'kiosk'))]
 # The service has its own process and imports chrome through the kiosk namespace.
 # Mixing that with the request launcher's shorter package name registers GTK
@@ -353,6 +359,7 @@ for name in ('common.oh_no_parent_control_ui', 'oh_no_parent_control',
             result = subprocess.run(
                 [sys.executable, '-I', '-B', '-c', notification_script, str(root)],
                 capture_output=True, text=True,
+                pass_fds=scratch_fds,
             )
             assert result.returncode == 0, result.stdout + result.stderr
             notification_checked = True
@@ -386,8 +393,10 @@ print('All production modules imported without development files')
     environment.pop("DISPLAY", None)
     environment.pop("WAYLAND_DISPLAY", None)
     result = subprocess.run(
-        [sys.executable, "-I", "-B", "-c", script, str(production_payload)],
+        [sys.executable, "-I", "-B", "-c", script, str(production_payload),
+         *map(str, scratch_descriptors())],
         cwd=tmp_path, env=environment, capture_output=True, text=True,
+        pass_fds=scratch_descriptors(),
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "All production modules imported" in result.stdout

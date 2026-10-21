@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C03a — [Reconcile native and package host tests](Kiosk-Prompt-Tasks/C03a-native-tests.md)**.
+Next task: **C03b — [Reconcile approval and broker host tests](Kiosk-Prompt-Tasks/C03b-approval-tests.md)**.
 
 ## Outcome
 

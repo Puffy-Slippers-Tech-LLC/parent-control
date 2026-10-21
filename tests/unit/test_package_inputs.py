@@ -10,6 +10,7 @@ import pytest
 from tools import package_inputs
 from tools.publishing import source
 from tests.support.paths import ROOT
+from tools.test_storage import scratch_descriptors
 
 
 def test_real_source_and_binary_archives_exclude_internal_files(tmp_path):
@@ -37,7 +38,8 @@ def test_real_source_and_binary_archives_exclude_internal_files(tmp_path):
         with log.open('a') as stream:
             result = subprocess.run(
                 args, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT,
-                timeout=timeout, env=os.environ | {'DEB_BUILD_OPTIONS': 'parallel=2'})
+                timeout=timeout, env=os.environ | {'DEB_BUILD_OPTIONS': 'parallel=2'},
+                pass_fds=scratch_descriptors())
         assert result.returncode == 0, log.read_text()
 
     source.build_archive(checkout, command, tmp_path / 'source-build.log')
@@ -52,7 +54,8 @@ def test_real_source_and_binary_archives_exclude_internal_files(tmp_path):
     command('dpkg-buildpackage', '--build=binary', '--no-sign',
             cwd=checkout, log=tmp_path / 'binary-build.log')
     binary, = tmp_path.glob('oh-no-parent-control_*_*.deb')
-    payload = subprocess.check_output(['dpkg-deb', '--fsys-tarfile', str(binary)])
+    payload = subprocess.check_output(['dpkg-deb', '--fsys-tarfile', str(binary)],
+                                      pass_fds=scratch_descriptors())
     with tarfile.open(fileobj=io.BytesIO(payload)) as contents:
         for entry in contents:
             path = Path(entry.name)
@@ -103,7 +106,8 @@ def test_product_only_source_can_check_and_stage_the_complete_payload(tmp_path):
         ['/usr/bin/python3', '-B', 'debian/check_package.py'],
         ['make', '--no-print-directory', '_install-product-files', f'DESTDIR={tmp_path / "payload"}'],
     ):
-        result = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True)
+        result = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True,
+                                pass_fds=scratch_descriptors())
         assert result.returncode == 0, result.stdout + result.stderr
     staged_history = tmp_path / 'payload/usr/share/oh-no-parent-control/VersionHistory.md'
     assert staged_history.read_bytes() == (tmp_path / history).read_bytes()

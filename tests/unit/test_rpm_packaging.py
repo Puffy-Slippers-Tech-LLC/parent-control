@@ -15,6 +15,7 @@ from tests.support.paths import ROOT
 from tests.support.package_scripts import Machine, machine, package_machine, rpm_script_source
 from tests.support.shell import relocate_system_paths
 from tools import build_rpm, package_inputs, rpm_builder
+from tools.test_storage import scratch_descriptors
 
 
 @pytest.fixture(scope='module')
@@ -24,7 +25,8 @@ def fedora_payload(tmp_path_factory):
         'make', '--no-print-directory', '_install-product-files',
         f'DESTDIR={destination}', 'PACKAGE_DISTRIBUTION=fedora',
         'PAM_MODULE_DIR=/usr/lib64/security',
-    ], cwd=ROOT, capture_output=True, text=True, timeout=120)
+    ], cwd=ROOT, capture_output=True, text=True, timeout=120,
+       pass_fds=scratch_descriptors())
     assert result.returncode == 0, result.stdout + result.stderr
     return destination
 
@@ -311,12 +313,14 @@ def test_rpm_scriptlets_are_standalone_and_upgrade_removal_is_inert(tmp_path):
     renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
     renderer['rpm_scripts'](ROOT, tmp_path)
     for script in tmp_path.iterdir():
-        result = subprocess.run(['/bin/sh', '-n', str(script)], capture_output=True, text=True, timeout=10)
+        result = subprocess.run(['/bin/sh', '-n', str(script)], capture_output=True, text=True, timeout=10,
+                                pass_fds=scratch_descriptors())
         assert result.returncode == 0, (script.name, result.stderr)
         assert '#ONPC-LIFECYCLE' not in script.read_text()
     for name in ('rpm-preun', 'rpm-postun'):
         result = subprocess.run(['/bin/sh', str(tmp_path / name), '1'],
-                                capture_output=True, text=True, timeout=10, env={})
+                                capture_output=True, text=True, timeout=10, env={},
+                                pass_fds=scratch_descriptors())
         assert result.returncode == 0
         assert result.stdout == result.stderr == ''
 
@@ -333,7 +337,7 @@ def test_rpm_native_macro_expansion_preserves_runtime_package_queries(tmp_path):
         result = subprocess.run([
             'rpm', '--define', 'name oh-no-parent-control',
             '--define', 'NAME oh-no-parent-control', '--eval', expression,
-        ], capture_output=True, text=True, timeout=10)
+        ], capture_output=True, text=True, timeout=10, pass_fds=scratch_descriptors())
         assert result.returncode == 0, result.stderr
         assert result.stdout.rstrip('\n') == rpm_script_source(path).rstrip('\n'), path.name
         if path.name in ('rpm-pretrans', 'rpm-pre', 'rpm-postun'):
@@ -636,7 +640,8 @@ def test_debian_wrapper_inlining_preserves_debhelper_boundary(tmp_path):
     assert script.index('echo debhelper-boundary') < script.index('oh-no-parent-control-package-notice --configured')
     assert '#ONPC-LIFECYCLE' not in script
     for phase in renderer['PHASES']:
-        assert subprocess.run(['/bin/sh', '-n', str(staging / phase)], timeout=10).returncode == 0
+        assert subprocess.run(['/bin/sh', '-n', str(staging / phase)], timeout=10,
+                              pass_fds=scratch_descriptors()).returncode == 0
 
 
 def test_spec_hashes_final_payload_and_copr_does_not_publish():
@@ -686,7 +691,7 @@ assert (top / 'SPECS/oh-no-parent-control.spec').is_file()
         ['make', '-f', '.copr/Makefile', 'srpm', f'outdir={output}',
          'spec=rpm/oh-no-parent-control.spec.in'], cwd=checkout,
         env=os.environ | {'PATH': f'{commands}:/usr/bin:/bin'},
-        capture_output=True, text=True, timeout=60)
+        capture_output=True, text=True, timeout=60, pass_fds=scratch_descriptors())
     if prerequisite_status:
         assert result.returncode != 0
         assert not output.exists()

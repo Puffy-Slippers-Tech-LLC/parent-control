@@ -635,7 +635,7 @@ this host task declares no targets and grants no installed qualification.
 Host acceptance passed **1,656 checks** with a 600-second worker deadline in
 the exact seven-module kiosk confinement/login/rendering, request-time estimate,
 systemd, unit inventory and support-architecture selection. The
-[focused report](../../output/test-runs/host/reports/20261021T031625Z-dacb32f8/report.md)
+[focused report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 records passing retained assertions and compatible overlap across four branches.
 The worker is closed, all test children finished and launcher-owned scratch
 cleanup completed. No task-owned installed state, VM or live process remains.
@@ -650,10 +650,89 @@ unchanged.
 
 Close-out passed **639 metadata checks** with a 600-second worker deadline and
 completed cleanup in the
-[close-out report](../../output/test-runs/host/reports/20261021T031723Z-defdbd1d/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Markdown links and the read-only plan check passed. Only C03a1 is newly checked,
 its temporary brief is removed and the pointer selects C03a with 50 tasks
 remaining. Every other row's completion, order, Scope and Requires is unchanged.
+
+##### C03a native and package host-test reconciliation
+
+C03a started from clean HEAD
+`4b1c9cda5c1290eb7bf75eaf8947034253dad23f`: no staged, unstaged or
+untracked old-plan test/fixture delta existed. The C01 package/PAM consumer map
+and C03a1 runtime dispositions were checked against current source, inline
+fixtures, shared package machines and unit registrations. Paths without a
+directory prefix below are under `tests/unit/`.
+
+| Items | Disposition and surviving behavior |
+| --- | --- |
+| `test_fedora_pam.py` | Retain vendor policy and authselect profile/features restoration, genuine passwordless denial, collision/ownership refusal and interrupted retry. |
+| `test_prepared_kiosk_pam.py` | Retain the selected native/distro owners' service/Wayland routing, ordinary authentication and vendor denial, role independence, account/session binding, admission lease identity/lifetime, runtime caps, readiness and rollback. Its historical filename is not an alternate product path. |
+| `test_pam_runtime_cap.py`, `tests/support/pam_runtime_fixture.c` | Retain real libpam transactions with private stacks: graphical runtime-cap removal, non-GDM preservation, account denial and packaged skip rules. The C fixture has two live consumers, here and in `test_prepared_kiosk_pam.py`; both compilers remain necessary. Runtime-cap compiler children now forward scratch leases. |
+| `test_kiosk_login.py` | Retain selected session composition, app shutdown ownership, vendor agent/locale, notifications, source closure, ordinary Wellbeing settings and kiosk environment restriction. The isolated login-check startup child now forwards its scratch lease. |
+| `test_session_limit_check.py`, `test_system_pam_variants.py` | Retain ordinary time enforcement and the narrowly scoped administrative bridge; private PAM-variation ownership/restoration, mandatory rules, pending-update retry and independent policy checks. Installed-helper qualification remains C04's scope. |
+| `test_package_configuration.py`, `tests/support/package_scripts.py` | Retain selected lifecycle/PAM composition, first-account expiry quarantine, genuine administrator expiry, post-unpack ordinary authentication and kiosk refusal, complete retry/rollback, live-worker preservation, captured-policy ownership and post-erasure finalization. Historical v1.4 PAM/config/policy records are finite migration inputs, not a live confinement implementation. Package-machine shells and nested broker/trust children now forward scratch leases. |
+| `test_package_removal.py`, `test_provision.py` | Retain distro erase/abort-remove parity, PAM and account ownership, complete restoration and repeated removal/purge; selected provisioning preserves UID/home/admin-group checks, public AccountsService routing, unrelated metadata and optional-artwork behavior. |
+| `test_package_inputs.py`, `test_package_payload.py`, `test_rpm_packaging.py` | Retain immutable source closure, current feature payload, absence of retired runtime assets, native helper/environment checks, Debian/RPM composition and rendered scriptlet/rollback parity. Stage/archive/native/import children now forward scratch leases, including the isolated notification-import grandchild. |
+| `test_package_activation.py` | Retain current activation, backend/trust and manifest behavior. Three old preparation-support names occur only in synthetic previous-version manifests to verify removal keeps the recorded activation impact; they do not demand those files in the current payload. LMDB and manifest-generation children now forward scratch leases. |
+| `test_kiosk_confinement.py` | Retain the selected standalone embedded migration finalizer and fixed Wellbeing/packages native feature commands. Shared package fixtures remain consumed here and by configuration/removal/RPM tests. Installed engineering helpers retain their separate C04 audit. |
+| `tools/regression_unit.py` | Retain explicit compatible registrations for every surviving module; no removed native module or absent PAM helper is registered. Isolation comments now describe selected owners and descendant lease forwarding. No cleanup or UI registration changes. |
+
+`tests/support/kiosk_pam.py` does not exist. Its brief reference resolves to the
+inline native fixtures above and `tests/support/package_scripts.py`, as already
+mapped by C01c/C03a1; no compatibility helper is introduced. No customer assertion
+is weakened, skipped or removed. This host task declares no targets and supplies
+no installed entry, approval or lifecycle qualification. Shared installed helpers
+and public journeys remain with C04 and its following tasks.
+
+The repairs only forward `scratch_descriptors()` through existing subprocess
+layers, including numeric descriptor arguments across isolated imports that
+must not load checkout support code. All assertions, inputs and existing
+deadlines remain unchanged. No dead compiler, import, fixture or registration
+was found after mapping its consumers. Historical hook/PAM/policy inputs remain
+necessary to test migration and removal; absent-payload and previous-manifest
+assertions do not require a discarded runtime in the current package.
+
+Parallelism/storage review covers private pytest trees, small native builds,
+staged source/payload archives, real libpam against private configurations,
+private LMDB writer/readers and waited shell/interpreter descendants. Existing
+launcher worker deadlines also bound calls without their own timeout. No new
+allocation, process lifetime, host account/PAM/service, bus/display, network,
+shared cache or cleanup owner is introduced. Every surviving module retains its
+compatible unit classification; cleanup/UI inventories gain no owner. Product
+and build inputs are unchanged, so no package build or independent backend
+review is required for these fixture-only changes.
+
+Host acceptance passed **2,473 checks** in the exact sixteen-module Fedora/native
+PAM, login, runtime-cap, session-limit, PAM-variation, configuration/removal,
+provisioning, package input/payload/activation/RPM, confinement, unit-inventory
+and support-architecture selection, with a 600-second worker deadline. The
+[focused report](../../output/test-runs/host/reports/20261021T032330Z-69e68dad/report.md)
+and its inventories/progress record all selected cases passing, with compatible
+overlap across four branches. Ordinary-role authentication, genuine denial,
+ownership, rollback and selected entry/exit assertions remain intact. Usability
+priority and threat scope pass this test reconciliation: it introduces no
+product refusal or new protection requirement.
+
+Both implementation workers are closed. Test children finished, the maintained
+runner returned success after owned scratch cleanup, and no task-owned installed
+state, VM or live process remains. Normal reports are retained. No installation,
+staging, commit or push occurred.
+
+The link check found that C03a1's focused report had rotated. The maintained
+bundle reader verified both exact original reports, the accepted result,
+command record and completed cleanup in `onpc-evidence-bundle-goeda64r`
+(SHA-256 `4bc7f3561ba9e0df363b43ee879265256c38a1fc8c57e9da6119fb1a48177913`).
+Its two report destinations now use the stable accepted-proof locator, retaining
+the original labels and claims; predecessor status and acceptance are unchanged.
+
+Close-out passed **639 metadata checks** in the maintained consistency selection
+and `test_execution_plan_launcher.py`, with a 600-second worker deadline and
+completed cleanup; see the
+[close-out report](../../output/test-runs/host/reports/20261021T032651Z-21ef168d/report.md).
+Only C03a is newly checked, its temporary brief is removed and the pointer selects
+C03b with 49 tasks remaining. Every other row's completion, relative order,
+Scope and Requires is unchanged.
 
 ##### C02a prepared session runtime
 

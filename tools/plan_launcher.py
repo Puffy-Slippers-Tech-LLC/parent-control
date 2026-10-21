@@ -6,7 +6,7 @@ shared. E2E and repair keep their specialized state machines on these primitives
 """
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import fcntl
 import hashlib
 import json
@@ -30,7 +30,8 @@ from launcher_git import (GitReconciliationRequired, finish_commit, git_output,
                           validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_progress
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
-from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
+from launcher_runtime import (AgentCapacityUnavailable, SessionResultRejected, TaskBudget, add_options, capacity_retry,
+                              capacity_session_recovery, read_session_result,
                               retain_result_rejection, result_recovery_instructions, result_rejection, task_limit,
                               validate_session_result, warn_remaining)
 
@@ -45,6 +46,18 @@ class PlanWorkflow:
     push: bool = True
     vm: bool = False
     max_sessions: int = 5
+
+
+CAPACITY_RETRY_DELAYS = (5, 10, 20, 40, 80)
+
+
+def capacity_session_spec(spec, state):
+    """A capacity fallback never mutates the workflow's configured model/effort."""
+    recovery = state.get('capacity_recovery', {})
+    if (capacity_retry(state) and recovery.get('failures') == len(CAPACITY_RETRY_DELAYS) + 1
+            and spec.model == 'gpt-6.1-sol'):
+        return replace(spec, model='gpt-6-astra')
+    return spec
 
 
 def task_record(task):
@@ -85,13 +98,20 @@ def validate_result_payload(state, result):
             raise ValueError('completion requires passing scoped acceptance evidence and owned cleanup')
 
 
+def prerequisite_handoff(plan, state, result):
+    """Recognize a safe insertion without requiring a corrective status-only turn."""
+    return (result['status'] == 'prerequisite_required'
+            or result['status'] == 'continue' and result['cleanup_complete']
+            and plan.prerequisite_repair(state) is not None)
+
+
 def validate_result(plan, state, result):
     if Plan.load(plan.root, plan.path).queue != plan.queue:
         raise ValueError('master plan queue changed since its checkpoint; reconcile the retained handoff')
     validate_result_payload(state, result)
     validate_task_metadata(plan, state)
     complete = result['status'] == 'task_complete'
-    if result['status'] == 'prerequisite_required':
+    if prerequisite_handoff(plan, state, result):
         if state.get('git_reconciliation'):
             raise ValueError('Git reconciliation must finish the retained task before selecting prerequisites')
         if not result['cleanup_complete'] or plan.prerequisite_repair(state) is None:
@@ -125,8 +145,10 @@ Read AGENTS.md, docs/Execution-Plans.md, master {plan.path}, ordered queue
 {state['task']['brief']}; follow only applicable owning contracts and source.
 Use these exact checkout-relative paths. Resolve other document links relative
 to their containing document; do not infer filenames from titles or launcher names.
-Your coordinator model is {spec.model} {spec.effort}; there is no automatic
-escalation. By default, use GPT-6.1 Sol subagents of appropriate effort as needed;
+Your coordinator model for this session is {spec.model} {spec.effort}.
+Capacity fallback applies only to this session and preserves reasoning effort;
+the next session uses the workflow's configured model again. There is no
+automatic escalation for task difficulty. By default, use GPT-6.1 Sol subagents of appropriate effort as needed;
 routine read-only monitoring uses plan_monitor (Low), routine
 coverage refreshes and bounded implementation use plan_worker (Medium).
 For product backend code involving core functionalities, follow AGENTS.md's
@@ -168,6 +190,10 @@ brief declares no Targets), actual
 passed/failed/not_run result and exact retained evidence or review findings.
 Never report task_complete unless every required check passed and cleanup ended.
 Previous handoff/recovery: {state.get('handoff', 'No prior session.')}
+{('The preceding turn ended because the provider was at capacity. Reconcile partial '
+  'work and retained command/test results after owned cleanup, then continue this '
+  'same task and session. No acceptance or extra task-session allowance was granted. Failure: '
+  + state['capacity_recovery']['message']) if state.get('capacity_recovery') else ''}
 Developer answer: {json.dumps(state.get('answer'))}
 Original consolidated obligations: {json.dumps(state.get('consolidation_obligations', {}).get(state['task_id'], []))}
 For a consolidated task, every original scope and per-target acceptance assertion
@@ -205,7 +231,7 @@ def validate_task_metadata(plan, state):
     """A fresh session must not silently reuse weaker saved acceptance targets."""
     brief = Path(state['task']['brief'])
     if not brief.exists() and (state.get('in_flight') or state.get('pending_completion')
-                               or state.get('git_reconciliation')):
+                               or state.get('git_reconciliation') or capacity_session_recovery(state)):
         return  # Recovery may restore a brief removed during partial close-out.
     brief = local_file(plan.root, str(brief.relative_to(plan.root)))
     current = task_record(Task(state['task_id'], False, state['title'], brief, ()))
@@ -264,6 +290,8 @@ def initial_state(plan, spec, directory):
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
+        if capacity_session_recovery(state):
+            state['capacity_recovery']['restart'] = True
         state = plan_evidence_recovery.recover_evidence(
             plan, state, previous,
             verify_proof=lambda correction, request: plan_evidence_recovery.verify_proof(
@@ -305,7 +333,8 @@ def initial_state(plan, spec, directory):
                 except ValueError:
                     if plan.prerequisite_repair(state) is None:
                         raise
-                    state = defer_to_prerequisite(plan, state)
+                    if not capacity_session_recovery(state):
+                        state = defer_to_prerequisite(plan, state)
             if state.get('in_flight') and not state.get('pending_completion'):
                 result_path = previous / 'agent-result.json'
                 if result_path.is_file():
@@ -599,7 +628,11 @@ def execute(root, spec, run, owner):
         raise launcher.Stopped()
     if status:
         if error_path.exists():
-            raise ValueError(json.loads(error_path.read_text())['message'])
+            error = json.loads(error_path.read_text())
+            if (status == 75 and error.get('context') == 'turn failed'
+                    and error.get('codex_error_info') == 'serverOverloaded'):
+                raise AgentCapacityUnavailable(error['message'])
+            raise ValueError(error['message'])
         raise ValueError(f'agent session exited {status}; inspect retained output and handoff')
     return read_session_result(run)
 
@@ -660,6 +693,12 @@ def worker(root, run, owner, spec, state):
             if response_validator_sources() != validator_sources:
                 status, reason = 1, reload_reason
                 break
+            recovery = state.get('capacity_recovery')
+            if capacity_retry(state):
+                delay = recovery['retry_after'] - time.time()
+                if delay > 0:
+                    time.sleep(min(1, delay))
+                    continue
             admitted = False
             if state['phase'] == 'complete':
                 if state.get('queue_before'):
@@ -720,17 +759,21 @@ def worker(root, run, owner, spec, state):
                 if evidence_recovery_pending(plan, state):
                     status, reason = 1, evidence_recovery_reason
                     break
-            if not admitted and not budget.admit():
+            retrying_capacity = capacity_retry(state)
+            if not admitted and not retrying_capacity and not budget.admit():
                 reason = 'task limit reached'
                 break
-            if state['task_sessions'] >= state['session_limit']:
+            if not retrying_capacity and state['task_sessions'] >= state['session_limit']:
                 status, reason = 1, 'task session limit reached; resume with a fresh run'
                 break
             if state.get('git_reconciliation'):
                 validate_pull_identity(root, state, git=git_output)
             state.setdefault('started_at', time.time())
-            state['task_sessions'] += 1
-            state['total_sessions'] += 1
+            active_spec = capacity_session_spec(spec, state)
+            if not retrying_capacity:
+                state.pop('capacity_recovery', None)
+                state['task_sessions'] += 1
+                state['total_sessions'] += 1
             plan_evidence.capture(plan, run, state)
             # Clear the preceding response before publishing a new in-flight turn,
             # so restart recovery cannot adopt a stale response for this task.
@@ -743,21 +786,43 @@ def worker(root, run, owner, spec, state):
             remaining = sum(not done for done in state['queue_before'].values())
             budget.update(lambda value: value.update(remaining=remaining + value['completed']))
             launcher.atomic(run / 'checkpoint.json', state)
-            (run / 'prompt.txt').write_text(session_prompt(plan, spec, state)
+            (run / 'prompt.txt').write_text(session_prompt(plan, active_spec, state)
                                            + task_info_instructions(run, state['task_id']))
             launcher.atomic(run / 'nested.json', [])
             (run / 'nested-closed').unlink(missing_ok=True)
             publish_progress(run, state['task_id'], [f"Task {state['task_id']}: {state['title']}",
-                f"Session [{state['task_sessions']}]: {spec.model} {spec.effort}"])
+                f"Session [{state['task_sessions']}]: {active_spec.model} {active_spec.effort}"])
             try:
-                result = execute(root, spec, run, owner)
+                result = execute(root, active_spec, run, owner)
                 validate_session_result(result, lambda result: validate_result(plan, state, result))
+            except AgentCapacityUnavailable as error:
+                launcher.finish_nested(root, run)
+                failures = state.get('capacity_recovery', {}).get('failures', 0) + 1
+                fallback = failures == len(CAPACITY_RETRY_DELAYS) + 1 and spec.model == 'gpt-6.1-sol'
+                exhausted = failures > len(CAPACITY_RETRY_DELAYS) and not fallback
+                delay = CAPACITY_RETRY_DELAYS[failures - 1] if failures <= len(CAPACITY_RETRY_DELAYS) else 0
+                state.update(phase='recover', in_flight=False, capacity_recovery={
+                    'message': str(error), 'retry_after': time.time() + delay,
+                    'session': state['total_sessions'], 'failures': failures, 'exhausted': exhausted})
+                launcher.atomic(run / 'checkpoint.json', state)
+                if exhausted:
+                    status, reason = 1, f'model capacity recovery exhausted: {error}'
+                    break
+                if fallback:
+                    print(f'{spec.name}: model still at capacity; using gpt-6-astra '
+                          f'{spec.effort} for this session only.', flush=True)
+                else:
+                    print(f'{spec.name}: model at capacity; retrying this session after '
+                          f'{delay} seconds.', flush=True)
+                continue
             except SessionResultRejected as error:
                 launcher.finish_nested(root, run)
+                state.pop('capacity_recovery', None)
                 state.update(phase='recover', in_flight=False, plan_queue=plan.queue)
                 retain_result_rejection(run, error, label=spec.name, checkpoint=state)
                 continue
             state.pop('result_recovery', None)
+            state.pop('capacity_recovery', None)
             state.update(summary=result['summary'], handoff=result['handoff'], in_flight=False)
             if result['status'] == 'task_complete' and state.get('git_reconciliation'):
                 # The coordinator has reconciled and renewed acceptance. The
@@ -774,7 +839,7 @@ def worker(root, run, owner, spec, state):
                         replaces=[state['task_id']])
             elif result['status'] == 'blocked':
                 state.update(phase='blocked', blocker=result['blocker'], blocker_id=uuid.uuid4().hex)
-            elif result['status'] == 'prerequisite_required':
+            elif prerequisite_handoff(plan, state, result):
                 consumer, title = state['task_id'], state['title']
                 state = defer_to_prerequisite(plan, state)
                 publish_progress(run, consumer, [f'Task {consumer}: {title} — suspended for prerequisite'])
@@ -891,7 +956,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             if validation_error is not None:
                 if (not initial.get('in_flight') and not initial.get('pending_completion')
                         and not initial.get('git_reconciliation') and not initial.get('pull_intent')
-                        and not initial.get('result_recovery') and not initial.get('evidence_renewal')):
+                        and not initial.get('result_recovery') and not initial.get('evidence_renewal')
+                        and not capacity_session_recovery(initial)):
                     raise validation_error
                 remaining = sum(not done for done in initial['queue_before'].values())
                 initial['handoff'] = (initial.get('handoff', '') + '\nReconcile interrupted close-out: ' + str(validation_error))
@@ -946,6 +1012,10 @@ if __name__ == '__main__':
         initial = json.loads(plan_evidence_recovery._read(run / 'checkpoint.json'))
         sys.exit(worker(root, run, owner, spec, initial))
     if mode == '--supervise':
-        sys.exit(launcher.supervise(root, run, owner, 'agent', session_command(root, spec, run),
-                                   nested=True, interactive=True, hide_task_completion=True))
+        try:
+            status = launcher.supervise(root, run, owner, 'agent', session_command(root, spec, run),
+                                       nested=True, interactive=True, hide_task_completion=True)
+        except AgentCapacityUnavailable:
+            status = 75  # Only after supervisor process and nested cleanup succeeded.
+        sys.exit(status)
     raise SystemExit('private execution-plan worker entry point')

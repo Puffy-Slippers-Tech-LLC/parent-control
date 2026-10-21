@@ -17,6 +17,7 @@ import uuid
 
 import detached_launcher as launcher
 from execution_plan import closeout_structure, evidence_references, local_file
+from launcher_runtime import capacity_session_recovery
 
 
 PROTECTED_FIELDS = (
@@ -79,7 +80,7 @@ def request_from_brief(plan, state):
     if not task:
         return None
     brief = Path(task.get('brief', ''))
-    if not brief.exists() and (state.get('phase') == 'complete' or any(state.get(key) for key in (
+    if not brief.exists() and (capacity_session_recovery(state) or state.get('phase') == 'complete' or any(state.get(key) for key in (
             'in_flight', 'pending_completion', 'git_reconciliation', 'result_recovery', 'evidence_renewal'))):
         return None  # Ordinary interrupted completion owns a removed brief.
     try:

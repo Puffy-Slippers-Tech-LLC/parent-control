@@ -14,6 +14,7 @@ import tomllib
 import detached_launcher as launcher
 from launcher_render import clean
 from launcher_progress import read_progress
+from launcher_runtime import AgentCapacityUnavailable
 
 MAX_INPUT = 64 * 1024
 MAX_QUEUE = 256 * 1024
@@ -322,11 +323,14 @@ class AppSession:
         message = f"Codex {context}{f' ({code})' if code else ''}: {detail}"
         self.final = None
         self.completed = False
-        launcher.atomic(self.run / 'agent-error.json', {'message': message})
+        launcher.atomic(self.run / 'agent-error.json', {
+            'message': message, 'context': context, 'codex_error_info': code})
         update_task_info(self.run, self.task, {'last_error':
             'OpenAI stopped this session under its cybersecurity safeguards.'
             if code == 'cyberPolicy' else clean(message)})
         self.publish('finished')
+        if context == 'turn failed' and code == 'serverOverloaded':
+            raise AgentCapacityUnavailable(message)
         raise ValueError(message)
 
     def event(self, packet):

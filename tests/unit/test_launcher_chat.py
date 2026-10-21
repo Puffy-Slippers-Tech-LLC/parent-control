@@ -222,7 +222,7 @@ def test_non_race_steering_error_refuses_without_replaying(conversation):
     assert 'Invalid request' in json.loads((session.run / 'agent-error.json').read_text())['message']
 
 
-@pytest.mark.parametrize('code', ['cyberPolicy', 'internalServerError', None])
+@pytest.mark.parametrize('code', ['cyberPolicy', 'internalServerError', 'serverOverloaded', None])
 def test_failed_turn_retains_provider_reason_without_acceptance_or_retry(conversation, code):
     session, _, _ = conversation
     ready(session)
@@ -232,6 +232,9 @@ def test_failed_turn_retains_provider_reason_without_acceptance_or_retry(convers
         notify(session, 'turn/completed', turn={'id': 'turn', 'status': 'failed', 'error': error})
     retained = json.loads((session.run / 'agent-error.json').read_text())
     assert retained['message'] == str(failure.value)
+    assert retained['codex_error_info'] == code and retained['context'] == 'turn failed'
+    from launcher_runtime import AgentCapacityUnavailable
+    assert isinstance(failure.value, AgentCapacityUnavailable) == (code == 'serverOverloaded')
     if code:
         assert code in retained['message']
     assert read_state(session.run)['status'] == 'finished'

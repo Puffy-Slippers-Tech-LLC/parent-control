@@ -143,7 +143,13 @@ its previous dependencies; this insertion is the sole exception to preserving
 that field during ordinary close-out.
 The structured `prerequisite_required` handoff suspends the consumer and resumes
 its retained work after those prerequisites pass, including across restarts.
-It grants no completion credit. Other structural edits or changed acceptance
+The controller also recognizes the same valid insertion in a `continue` response
+after owned cleanup and advances automatically, without spending a corrective
+session solely to change the response status. It preserves the consumer's exact
+handoff, acceptance, session counts and protected work; suspension earns no task
+completion or extra allowance. Invalid insertions return to the original
+coordinator under the existing response-recovery contract.
+Other structural edits or changed acceptance
 declarations refuse with the retained handoff for reconciliation; they are never
 silently adopted as a weaker task.
 
@@ -282,7 +288,27 @@ An unapplied request prepared during a session also stops the controller at that
 boundary, even when no source file changed. Matching an applied request's identity
 only avoids an unnecessary restart; startup still owns its full proof and
 checkpoint verification.
-Provider refusals, failed agent processes, missing grants, ownership/cleanup
+An explicit `serverOverloaded` failed turn in an ordinary plan returns to the
+same task and logical coordinator session after supervisor and nested cleanup.
+Retry the configured model after delays of 5, 10, 20, 40 and 80 seconds. If all
+five retries fail with that same capacity code, a GPT-6.1 Sol session gets one
+final attempt on `gpt-6-astra` at the **exact same reasoning effort**. The model
+override applies only to that session; the next session, including a continuation,
+answered blocker or rejected response, starts with the workflow's configured
+model again. No fallback is inferred for other configured models. Exhausting
+the retry sequence or the single Astra attempt stops with a retained handoff.
+Capacity attempts share one task-session slot and have their own finite counter;
+they do not exhaust or renew the task's normal session allowance. Each attempt
+reconciles partial work and retained results against the original queue,
+suspended consumers, targets and protected work, and grants no completion.
+The checkpoint retains failure details for recovery of partial task edits.
+Every launcher restart starts a new session on the configured default model
+and effort, with a fresh capacity retry sequence; it never resumes an old
+fallback model or waits for the previous controller's retry deadline.
+Stop, cancellation and controller-source changes remain effective during the
+delay. The exact structured provider code and successful supervisor cleanup
+are required; message text or an unexplained process exit cannot trigger retry.
+Provider refusals, other failed agent processes, missing grants, ownership/cleanup
 failures and Git close-out failures retain their explicit stop/recovery policies;
 they are never converted into automatic response retries.
 If a completed structured response survived before its acceptance checkpoint,

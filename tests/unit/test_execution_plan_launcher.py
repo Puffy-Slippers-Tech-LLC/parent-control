@@ -628,6 +628,281 @@ def test_failed_agent_preserves_current_reason_and_unfinished_task(rig, monkeypa
     assert launches == [True] and rig.cleanups == [rig.run]
 
 
+@pytest.mark.parametrize('status, context, code, retries', [
+    (75, 'turn failed', 'serverOverloaded', True),
+    (1, 'turn failed', 'serverOverloaded', False),  # Failed supervisor cleanup.
+    (75, 'turn/start', 'serverOverloaded', False),
+    (75, 'turn failed', 'cyberPolicy', False),
+    (75, 'turn failed', None, False),
+])
+def test_capacity_retry_requires_exact_provider_failure_and_clean_supervisor_exit(
+        rig, monkeypatch, status, context, code, retries):
+    class Supervisor:
+        def __enter__(self):
+            workflow.launcher.atomic(rig.run / 'agent-error.json', {
+                'message': 'Model at capacity', 'context': context, 'codex_error_info': code})
+            return self
+
+        def wait(self):
+            return status
+
+        def __exit__(self, *_):
+            pass
+
+    monkeypatch.setattr(workflow.subprocess, 'Popen', lambda *_args, **_kwargs: Supervisor())
+    monkeypatch.setattr(workflow.launcher, 'compact_log', lambda *_args, **_kwargs: None)
+    with pytest.raises(ValueError) as failure:
+        execute_session(rig.root, rig.spec, rig.run, -1)
+    assert isinstance(failure.value, workflow.AgentCapacityUnavailable) == retries
+
+
+@pytest.mark.parametrize('outcome', [
+    'complete', 'exhausted', 'stop', 'delay-stop', 'cancel', 'cleanup', 'source-change',
+])
+def test_capacity_recovery_preserves_prerequisite_and_suspended_consumer(rig, monkeypatch, outcome):
+    original = state_for(rig.plan, task_sessions=2, handoff='Retained consumer work.')
+    insert_unlinked_prerequisite(rig.plan, '001')
+    queue = rig.root / rig.plan.queue
+    queue.write_text(queue.read_text().replace('| — | finite scope 001', '| pre | finite scope 001'))
+    deferred = workflow.defer_to_prerequisite(rig.plan, original)
+    calls, sleeps, models = [], [], []
+    now = [1000.0]
+    monkeypatch.setattr(workflow.time, 'time', lambda: now[0])
+    def sleep(delay):
+        sleeps.append(delay)
+        now[0] += delay
+        if outcome == 'delay-stop':
+            (rig.run / 'stop').touch()
+    monkeypatch.setattr(workflow.time, 'sleep', sleep)
+    sources = workflow.response_validator_sources()
+    monkeypatch.setattr(workflow, 'response_validator_sources',
+                        lambda: {} if calls and outcome == 'source-change' else sources)
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        calls.append(state)
+        models.append((spec.model, spec.effort))
+        assert state['task_id'] == 'pre'
+        assert state['suspended_tasks']['001'] == deferred['suspended_tasks']['001']
+        assert state['queue_before'] == deferred['queue_before']
+        if len(calls) == 1 or outcome == 'exhausted':
+            if outcome in ('stop', 'cancel'):
+                (run / outcome).touch()
+            if outcome == 'cleanup':
+                cleanup = workflow.launcher.finish_nested
+                def failed_cleanup(*_):
+                    monkeypatch.setattr(workflow.launcher, 'finish_nested', cleanup)
+                    raise ValueError('owned cleanup failed')
+                monkeypatch.setattr(workflow.launcher, 'finish_nested', failed_cleanup)
+            raise workflow.AgentCapacityUnavailable('Model at capacity')
+        assert 'Reconcile partial work' in (run / 'prompt.txt').read_text()
+        assert TaskBudget(run).read()['completed'] == 0
+        complete(rig.plan, 'pre')
+        return response(state)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    expected = 130 if outcome == 'cancel' else 0 if outcome in ('complete', 'stop', 'delay-stop') else 1
+    assert rig.worker(deferred) == expected
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert saved['suspended_tasks']['001'] == deferred['suspended_tasks']['001']
+    assert rig.plan.state()['001'] is False
+    assert saved['task_sessions'] == 1
+    assert TaskBudget(rig.run).read()['completed'] == (1 if outcome == 'complete' else 0)
+    assert not saved.get('result_recovery')
+    if outcome == 'complete':
+        assert sleeps and sum(sleeps) == 5
+        assert 'capacity_recovery' not in saved
+    elif outcome == 'exhausted':
+        assert 'capacity recovery exhausted' in saved['reason']
+        assert models == [('gpt-6.1-sol', rig.spec.effort)] * 6 + [('gpt-6-astra', rig.spec.effort)]
+        assert sum(sleeps) == 155
+    elif outcome == 'delay-stop':
+        assert sleeps == [1] and len(calls) == 1
+    else:
+        assert not sleeps and len(calls) == 1
+    if outcome in ('stop', 'delay-stop'):
+        monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+        resumed = workflow.initial_state(rig.plan, rig.spec, rig.run.parent)
+        assert resumed['capacity_recovery'] == dict(saved['capacity_recovery'], restart=True)
+        assert not workflow.capacity_retry(resumed)
+        assert resumed['suspended_tasks']['001']['handoff'] == original['handoff']
+        assert resumed['suspended_tasks']['001']['task_sessions'] == original['task_sessions']
+
+
+def test_automatic_prerequisite_reconciliation_requires_completed_cleanup(rig):
+    state = state_for(rig.plan)
+    insert_unlinked_prerequisite(rig.plan, '001')
+    queue = rig.root / rig.plan.queue
+    queue.write_text(queue.read_text().replace('| — | finite scope 001', '| pre | finite scope 001'))
+    result = response(state, 'continue')
+    result['cleanup_complete'] = False
+    with pytest.raises(ValueError, match='only the selected task'):
+        workflow.validate_result(rig.plan, state, result)
+    assert rig.plan.prerequisite_repair(state).id == 'pre'
+    assert not workflow.prerequisite_handoff(rig.plan, state, result)
+
+
+@pytest.mark.parametrize('handoff', ['continue', 'blocked', 'rejected'])
+def test_capacity_backoff_falls_back_once_then_restores_sol_for_same_task(rig, monkeypatch, handoff):
+    attempts, clock, waits = [], [1000.0], []
+    def sleep(delay):
+        clock[0] += delay
+        waits.append(delay)
+    monkeypatch.setattr(workflow, 'time', SimpleNamespace(time=lambda: clock[0], sleep=sleep))
+    monkeypatch.setattr(workflow, 'wait_for_answer', lambda *_args, **_kwargs: {'answer': 'Continue'})
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        attempts.append((spec.model, spec.effort, state['task_sessions'], clock[0]))
+        assert f'coordinator model for this session is {spec.model} {spec.effort}' in (run / 'prompt.txt').read_text()
+        if len(attempts) <= 6:
+            raise workflow.AgentCapacityUnavailable('Model at capacity')
+        if len(attempts) == 7:
+            result = response(state, 'task_complete' if handoff == 'rejected' else handoff)
+            if handoff == 'blocked':
+                result['blocker'] = dict(explanation='A developer decision is required.',
+                    question='Continue with the retained scope?', options=['Continue.', 'Stop.'])
+            return result
+        assert 'capacity_recovery' not in state
+        complete(rig.plan, state['task_id'])
+        return response(state)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    assert rig.worker() == 0
+    assert [model for model, *_ in attempts] == ['gpt-6.1-sol'] * 6 + ['gpt-6-astra', 'gpt-6.1-sol']
+    assert [effort for _, effort, *_ in attempts] == [rig.spec.effort] * 8
+    assert [session for _, _, session, _ in attempts] == [1] * 7 + [2]
+    assert [attempts[i + 1][3] - attempts[i][3] for i in range(5)] == [5, 10, 20, 40, 80]
+    assert sum(waits) == 155 and len(attempts) == 8
+    assert TaskBudget(rig.run).read()['completed'] == 1
+    assert rig.spec.model == 'gpt-6.1-sol'
+
+
+@pytest.mark.parametrize('effort', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
+def test_capacity_fallback_command_keeps_exact_effort_without_changing_defaults(rig, monkeypatch, effort):
+    monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/private/codex')
+    spec = replace(rig.spec, effort=effort)
+    state = state_for(rig.plan, total_sessions=1, capacity_recovery=dict(session=1, failures=6))
+    active = workflow.capacity_session_spec(spec, state)
+    command = workflow.session_command(rig.root, active, rig.run)
+    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
+    assert command[command.index('--model') + 1] == 'gpt-6-astra'
+    assert config['model_reasoning_effort'] == effort
+    assert spec.model == 'gpt-6.1-sol' and spec.effort == effort
+    state['total_sessions'] += 1
+    assert workflow.capacity_session_spec(spec, state) == spec
+
+
+def test_already_configured_astra_has_finite_capacity_retries_without_model_switch(rig, monkeypatch):
+    clock, attempts = [1000.0], []
+    def sleep(delay):
+        clock[0] += delay
+    monkeypatch.setattr(workflow, 'time', SimpleNamespace(time=lambda: clock[0], sleep=sleep))
+    def execute(root, spec, run, owner):
+        attempts.append(spec.model)
+        raise workflow.AgentCapacityUnavailable('Model at capacity')
+    monkeypatch.setattr(workflow, 'execute', execute)
+    owner = os.open(rig.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert workflow.worker(rig.root, rig.run, owner, replace(rig.spec, model='gpt-6-astra'),
+                           dict(phase='complete', task_sessions=0, total_sessions=0)) == 1
+    assert attempts == ['gpt-6-astra'] * 6
+    assert TaskBudget(rig.run).read()['completed'] == 0
+    assert json.loads((rig.run / 'checkpoint.json').read_text())['capacity_recovery']['exhausted']
+
+
+@pytest.mark.parametrize('checked', [False, True])
+@pytest.mark.parametrize('exhausted', [False, True])
+def test_capacity_restart_restores_removed_brief_on_default_model_with_fresh_retries(
+        rig, monkeypatch, checked, exhausted):
+    previous = rig.root / 'previous'
+    previous.mkdir()
+    state = state_for(rig.plan, phase='recover', task_sessions=1, total_sessions=1,
+        capacity_recovery=dict(session=1, failures=7 if exhausted else 6,
+            retry_after=9000, message='Model at capacity', exhausted=exhausted))
+    workflow.launcher.atomic(previous / 'checkpoint.json', state)
+    original_checkpoint = (previous / 'checkpoint.json').read_bytes()
+    if checked:
+        complete(rig.plan, '001')
+    brief = rig.root / 'docs/001.md'
+    original_brief = brief.read_text()
+    brief.unlink()
+    original_source = workflow.__file__
+    monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    monkeypatch.setattr(workflow, 'session_command', lambda *_args: [])
+    def select(root, name, command, **options):
+        command(rig.run, -1)
+        options['on_start'](rig.run)
+        return rig.run, True
+    monkeypatch.setattr(workflow.launcher, 'select', select)
+    monkeypatch.setattr(workflow.launcher, 'follow', lambda *_args, **_kwargs: 0)
+    assert workflow.main(rig.spec, []) == 0
+    monkeypatch.setattr(workflow, '__file__', original_source)
+    resumed = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert resumed['task'] == state['task'] and not workflow.capacity_retry(resumed)
+    clock, attempts = [1000.0], []
+    def sleep(delay):
+        clock[0] += delay
+    monkeypatch.setattr(workflow, 'time', SimpleNamespace(time=lambda: clock[0], sleep=sleep))
+    def execute(root, spec, run, owner):
+        current = json.loads((run / 'checkpoint.json').read_text())
+        attempts.append((spec.model, spec.effort, current['task_sessions']))
+        assert current['task'] == state['task']
+        assert current['task_id'] == '001'
+        brief.write_text(original_brief)
+        if len(attempts) == 1:
+            assert 'capacity_recovery' not in current
+            raise workflow.AgentCapacityUnavailable('Model at capacity')
+        complete(rig.plan, '001')
+        return response(current)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    assert rig.worker(resumed) == 0
+    assert attempts == [('gpt-6.1-sol', rig.spec.effort, 2)] * 2
+    assert clock[0] == 1005
+    assert (previous / 'checkpoint.json').read_bytes() == original_checkpoint
+    assert TaskBudget(rig.run).read()['completed'] == 1
+
+
+@pytest.mark.parametrize('damage', ['foreign-session', 'unrelated-completion'])
+def test_capacity_restart_keeps_identity_and_unrelated_queue_guards(rig, monkeypatch, damage):
+    state = state_for(rig.plan, phase='recover', task_sessions=1, total_sessions=1,
+        capacity_recovery=dict(session=2 if damage == 'foreign-session' else 1,
+            failures=6, retry_after=1000, exhausted=False))
+    workflow.launcher.atomic(rig.run / 'checkpoint.json', state)
+    if damage == 'foreign-session':
+        (rig.root / 'docs/001.md').unlink()
+    else:
+        queue = rig.root / rig.plan.queue
+        queue.write_text(queue.read_text().replace('| [ ] | 002 |', '| [x] | 002 |'))
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    with pytest.raises(ValueError):
+        workflow.initial_state(rig.plan, rig.spec, rig.run.parent)
+
+
+def test_capacity_restart_reconciles_partial_insertion_before_suspending_consumer(rig, monkeypatch):
+    state = state_for(rig.plan, phase='recover', task_sessions=1, total_sessions=1,
+        capacity_recovery=dict(session=1, failures=6, retry_after=9000, exhausted=False))
+    insert_unlinked_prerequisite(rig.plan, '001')
+    queue = rig.root / rig.plan.queue
+    queue.write_text(queue.read_text().replace('| — | finite scope 001', '| pre | finite scope 001'))
+    workflow.launcher.atomic(rig.run / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    resumed = workflow.initial_state(rig.plan, rig.spec, rig.run.parent)
+    assert resumed['task_id'] == '001' and not resumed.get('suspended_tasks')
+    assert resumed['queue_before'] == state['queue_before']
+    calls = []
+    def execute(root, spec, run, owner):
+        current = json.loads((run / 'checkpoint.json').read_text())
+        calls.append((current['task_id'], spec.model, current['task_sessions']))
+        if current['task_id'] == '001':
+            assert 'capacity_recovery' not in current
+            return response(current, 'prerequisite_required')
+        complete(rig.plan, 'pre')
+        return response(current)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    assert rig.worker(resumed) == 0
+    assert calls == [('001', 'gpt-6.1-sol', 2), ('pre', 'gpt-6.1-sol', 1)]
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert saved['suspended_tasks']['001']['task_sessions'] == 2
+    assert not saved['suspended_tasks']['001'].get('capacity_recovery')
+
+
 @pytest.mark.parametrize('defect, message', [
     ('duplicate', 'duplicate task IDs'), ('pointer', 'pointer must name'),
     ('later-dependency', 'unknown or later task'), ('unknown-dependency', 'unknown or later task'),
@@ -3131,7 +3406,9 @@ def test_task_limit_retains_last_accepted_summary_and_handoff(rig):
     assert 'task limit reached' in handoff
 
 
-def test_prerequisite_suspension_resumes_original_consumer_across_task_limited_runs(rig, monkeypatch):
+@pytest.mark.parametrize('handoff_status', ['prerequisite_required', 'continue'])
+def test_prerequisite_suspension_resumes_original_consumer_across_task_limited_runs(
+        rig, monkeypatch, handoff_status):
     consumer_handoff = 'Consumer dependency discovered; preserve its partial implementation.'
     original_baseline = {'preexisting.txt': 'original private work'}
     (rig.root / 'preexisting.txt').write_text('original private work')
@@ -3148,7 +3425,7 @@ def test_prerequisite_suspension_resumes_original_consumer_across_task_limited_r
             queue.write_text(text.replace('| — | finite scope 001', '| pre | finite scope 001'))
             (root / 'docs/pre.md').write_text('Acceptance: host\n')
             (root / rig.plan.path).write_text('Task queue: [Queue](queue.md).\nNext task: **pre — Preparation**.\n')
-            result = response(state, 'prerequisite_required')
+            result = response(state, handoff_status)
             result.update(handoff=consumer_handoff, checks=[], stage_paths=[])
             return result
         if state['task_id'] == 'pre':

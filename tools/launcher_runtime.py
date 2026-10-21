@@ -15,6 +15,24 @@ class TaskLimitReached(Exception):
     """A bounded run finished its authorized work without a failure."""
 
 
+class AgentCapacityUnavailable(ValueError):
+    """The provider explicitly failed a turn because its model is at capacity."""
+
+
+def capacity_session_recovery(state):
+    """Recognize a capacity-failed session that may have partial close-out edits."""
+    recovery = state.get('capacity_recovery')
+    return (isinstance(recovery, dict) and type(recovery.get('session')) is int
+            and recovery['session'] == state.get('total_sessions')
+            and not state.get('in_flight'))
+
+
+def capacity_retry(state):
+    """Retry within this controller; every fresh controller starts on its default."""
+    return (capacity_session_recovery(state) and not state['capacity_recovery'].get('exhausted')
+            and not state['capacity_recovery'].get('restart'))
+
+
 class SessionResultRejected(ValueError):
     """A successful agent turn needs correction before the workflow can advance."""
 

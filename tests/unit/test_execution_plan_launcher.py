@@ -45,7 +45,8 @@ def synthetic_plan_evidence(monkeypatch):
     ('kiosk-prompt', 'docs/Kiosk-Session-Confinement-Plan.md'),
     ('kiosk-desktop', 'docs/Kiosk-Desktop-Plan.md'),
     ('kiosk-prompt-new', 'docs/Kiosk-Session-Confinement-New-Plan.md'),
-], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-desktop', 'kiosk-prompt-new'])
+    ('fixture', 'docs/TestAutomation/Fixture-Execution-Plan.md'),
+], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-desktop', 'kiosk-prompt-new', 'fixture'])
 def plan_adapter(monkeypatch, request):
     name, plan = request.param
     entry = Path(workflow.__file__).with_name(name)

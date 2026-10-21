@@ -1,0 +1,16 @@
+#!/usr/bin/python3 -IB
+"""Run host-owned fixture migration through the shared execution-plan driver."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from plan_launcher import PlanWorkflow, main
+
+if __name__ == '__main__':
+    sys.exit(main(PlanWorkflow(
+        name='fixture',
+        plan='docs/TestAutomation/Fixture-Execution-Plan.md',
+        model='gpt-6.1-sol',
+        effort='high',
+        vm=True,
+    )))

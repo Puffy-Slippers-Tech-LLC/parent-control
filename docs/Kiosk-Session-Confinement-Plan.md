@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C02d — [Remove obsolete native and runtime code](Kiosk-Prompt-Tasks/C02d-runtime-cleanup.md)**.
+Next task: **C02e — [Remove obsolete feature protocols and wiring](Kiosk-Prompt-Tasks/C02e-protocol-cleanup.md)**.
 
 ## Outcome
 

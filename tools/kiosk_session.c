@@ -5,13 +5,10 @@
 #include <unistd.h>
 #include <pwd.h>
 
-/* A fixed command boundary: neither arguments nor startup environment can
- * select another session, a login shell, an interpreter or a user plugin. */
-#ifndef GNOME_SESSION_PATH
-#define GNOME_SESSION_PATH "/usr/bin/gnome-session"
-#endif
+/* Fixed feature commands: neither arguments nor kiosk startup environment can
+ * select another command, interpreter or user plugin. */
 #ifndef KIOSK_LAUNCH_ROLE
-#define KIOSK_LAUNCH_ROLE "session"
+#error "KIOSK_LAUNCH_ROLE must select a feature command"
 #endif
 
 int
@@ -23,26 +20,13 @@ main(int argc, char **argv)
         "DISPLAY", "WAYLAND_DISPLAY", "WAYLAND_SOCKET", "XAUTHORITY", "XDG_RUNTIME_DIR",
         "DBUS_SESSION_BUS_ADDRESS", "XDG_SESSION_ID", "XDG_SEAT", "XDG_VTNR",
         "NOTIFY_SOCKET", "LISTEN_FDS", "LISTEN_PID", "LISTEN_FDNAMES",
-        "INVOCATION_ID", "JOURNAL_STREAM", "SERVICE_RESULT",
+        "INVOCATION_ID", "JOURNAL_STREAM",
         "XDG_SESSION_TYPE", "XDG_SESSION_CLASS", "XDG_SESSION_DESKTOP", "XDG_CURRENT_DESKTOP",
         NULL
     };
     char *values[sizeof(names) / sizeof(names[0])] = {0};
-    char *const session[] = {
-        (char *) GNOME_SESSION_PATH, (char *) "--no-reexec",
-        (char *) "--session=oh-no-parent-control", NULL
-    };
-    char *const app[] = {"/usr/bin/python3", "-I", "/usr/bin/oh-no-parent-control", NULL};
-    char *const notifications[] = {"/usr/bin/python3", "-I",
-        "/usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/notifications.py", NULL};
-    char *const notification_client[] = {"/usr/bin/python3", "-I", "/usr/bin/gnome-service-client",
-        "--tag=gnome-kiosk-notification", "/usr/libexec/oh-no-parent-control-kiosk-notifications", NULL};
     char *const wellbeing[] = {"/usr/bin/gjs", "-m",
         "/usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/wellbeingService.js", NULL};
-    char *const cleanup[] = {"/usr/bin/systemctl", "--user", "unset-environment",
-        "GNOME_SETUP_DISPLAY", "WAYLAND_DISPLAY", "DISPLAY", "XAUTHORITY", NULL};
-    char *const audio[] = {"/usr/bin/wireplumber", NULL};
-    char *const dbus[] = {"/usr/bin/dbus-broker-launch", "--scope", "user", NULL};
     char *const packages[] = {"/usr/bin/rpm",
         "--rcfile", "/usr/lib/rpm/rpmrc:/etc/rpmrc",
         "--macros", "/usr/lib/rpm/macros:/usr/lib/rpm/macros.d/macros.*:/etc/rpm/macros.*:/etc/rpm/macros",
@@ -56,30 +40,13 @@ main(int argc, char **argv)
     (void) argv;
     if (argc != 1)
         goto failed;
-    if (strcmp(KIOSK_LAUNCH_ROLE, "session") == 0)
-        arguments = session;
-    else if (strcmp(KIOSK_LAUNCH_ROLE, "app") == 0)
-        arguments = app;
-    else if (strcmp(KIOSK_LAUNCH_ROLE, "notifications") == 0)
-        arguments = notifications;
-    else if (strcmp(KIOSK_LAUNCH_ROLE, "notification-client") == 0)
-        arguments = notification_client;
-    else if (strcmp(KIOSK_LAUNCH_ROLE, "wellbeing") == 0)
+    if (strcmp(KIOSK_LAUNCH_ROLE, "wellbeing") == 0)
         arguments = wellbeing;
-    else if (strcmp(KIOSK_LAUNCH_ROLE, "cleanup") == 0)
-        arguments = cleanup;
     else if (strcmp(KIOSK_LAUNCH_ROLE, "packages") == 0)
         arguments = packages;
-    else if (strcmp(KIOSK_LAUNCH_ROLE, "dbus") == 0)
-        /* The transition into this native wrapper enables AT_SECURE. After
-         * clearing startup configuration, same-domain exec lets sd-bus read
-         * XDG_RUNTIME_DIR without granting SELinux noatsecure to any route. */
-        arguments = dbus;
-    else if (strcmp(KIOSK_LAUNCH_ROLE, "audio") == 0)
-        arguments = audio;
     else
         goto failed;
-    if (arguments == audio || arguments == wellbeing) {
+    if (arguments == wellbeing) {
         struct passwd *account = getpwnam("oh-no-parent-control");
         /* Shared user units and D-Bus activation must keep the ordinary
          * user's settings backend and configuration environment. Only the
@@ -110,25 +77,8 @@ main(int argc, char **argv)
         setenv("XDG_CONFIG_DIRS", "/etc/xdg", 1) != 0 ||
         setenv("XDG_DATA_DIRS", "/usr/local/share:/usr/share", 1) != 0)
         goto failed;
-    if (arguments == session && (
-        setenv("XDG_SESSION_TYPE", "wayland", 1) != 0 ||
-        setenv("XDG_SESSION_CLASS", "user", 1) != 0 ||
-        setenv("XDG_SESSION_DESKTOP", "oh-no-parent-control", 1) != 0 ||
-        setenv("XDG_CURRENT_DESKTOP", "GNOME-Kiosk:GNOME", 1) != 0))
-        goto failed;
-    if (arguments == audio && (
-        setenv("WIREPLUMBER_CONFIG_DIR", "/etc/wireplumber:/usr/share/wireplumber", 1) != 0 ||
-        setenv("WIREPLUMBER_DATA_DIR", "/usr/share/wireplumber", 1) != 0 ||
-        /* WirePlumber adds its trusted Lua searcher without removing Lua's
-         * defaults. Empty paths disable the default cwd/native searches;
-         * unset paths would restore them. clearenv removed versioned overrides. */
-        setenv("LUA_PATH", "", 1) != 0 || setenv("LUA_CPATH", "", 1) != 0))
-        goto failed;
     if (arguments == packages && setenv("HOME", "/", 1) != 0)
         goto failed;
-    if (arguments == cleanup && getenv("SERVICE_RESULT") != NULL &&
-        strcmp(getenv("SERVICE_RESULT"), "exec-condition") == 0)
-        return EXIT_SUCCESS;
     execv(arguments[0], arguments);
 failed:
     for (i = 0; names[i] != NULL; i++)

@@ -351,14 +351,6 @@ Trust-dump diagnostic regressions in system_enforcement, system_guest and
 system_runner_cleanup_safety use bounded in-memory databases, pytest-private
 logs and process/pidfd doubles. No real child, guest, shared path or cache is
 added; existing compatible unit and cleanup classifications remain valid.
-Native material-authority and preparation-child controls compile tiny private
-fixtures, decode bounded in-memory records and use anonymous sockets with
-atomically identified, bounded, reaped children. Descriptor closure, exact
-lock/lease inodes and deadline cancellation are observed independently. Native
-copy controls add private scratch inodes/xattr doubles and identity-owned
-cleanup; original-slot controls use private clone projections. No shared path,
-service, bus, display, network, VM or extra cleanup/UI inventory owner is added;
-these modules qualify for compatible unit scheduling.
 Caller result transport in kiosk_confinement uses private nonblocking pipes,
 closed on success and refusal, with mocked runcon and pytest-private PAM inputs.
 Bootstrap logger controls use managed short-runtime Unix sockets and close only
@@ -893,89 +885,19 @@ from regression_ui import Bucket
 # pytest files. They introduce no display, bus, VM, socket or shared cache owner.
 # DESK07 recipient proofs retain those doubles, waited Perl probes and private
 # recorder files; no live session, display, socket or shared resource is added.
-# kiosk_confinement uses tiny private policy/PAM/ELF-shaped trees and process-local
-# identity, command and account doubles. Its bounded waited AppArmor compiler
-# uses -Q -T, neither loads kernel policy nor writes shared caches. No host PAM,
-# service, VM, session bus, display or cleanup owner; compatible unit scheduling.
-# Native launcher checks compile nine tiny private binaries and redirect their
-# final exec to a private observer, with bounded waited children and no daemon.
-# The bubblewrap observer inherits one caller-owned private file descriptor;
-# source/destination inventory checks use only private ELF-shaped files.
-# Bubblewrap role-proof checks use credential, namespace, label and exec doubles;
-# no host UID, namespace, MAC policy, VM or extra cleanup owner is changed.
-# Manager/service denial proofs use private ELF/proc/audit records and command
-# doubles; they add no live unit, namespace, audit setting or shared resource.
-# Preserved password-helper metadata/census checks use private ELF/proc trees
-# and xattr/pidfd doubles. One additional bounded native identity fixture uses
-# private compilation/output; it changes no mounts, labels, PAM or host policy.
-# Staging-detach checks compile one small private native binding fixture and
-# synchronously wait for its bounded children. Mount/namespace calls are doubles;
-# manifests and outputs stay in pytest-private trees. Existing compatible unit
-# admission still applies; there is no cleanup/UI inventory or shared resource.
-# Post-layout publication and descriptor-drift cases reuse those two fixtures.
-# Native descriptor walks operate on pytest-private files; root ownership,
-# mount identities, namespaces, tmpfs and SELinux labels are process-local
-# doubles. Real unlink/rename/type/mode changes affect only fixture children.
-# Every compiler/probe child has an explicit deadline and is synchronously
-# reaped; invocation trees and manifests have no shared cache or persistent
-# owner. The module remains compatible in the unit inventory; cleanup/UI
-# inventories and live host resources are unchanged.
-# Generic sibling cases add private FIFOs/symlinks and restore deliberately
-# read-only fixture modes on every outcome. They open no FIFO, mount or bus;
-# ownership, metadata-race and directory observations remain process-local.
-# Classification/required-closure cases reuse those private trees and actual
-# manager/gate publication, with deterministic lstat/readlink/enumeration faults.
-# Selected-alias metadata and disappearance/reappearance affect only fixture
-# children; broken diagnostic pipes are private and closed on every outcome.
-# Healthy directory-alias publication also reuses the existing bounded native
-# consumer (5-second probe, 30-second module compiler deadline), synchronously
-# reaped with descriptor-balance assertions. No ambient special file is opened,
-# and no new socket, cache, external service, cleanup/UI inventory entry or
-# shared owner is added.
-# Native cause diagnostics reuse the bounded binding fixture and its private
-# manifests, descriptor/mount-identity witnesses and process-local syslog/kernel
-# doubles. Logger failure and errno bounds add no persistent output or live
-# namespace, mount, PAM, bus, socket or cache owner. Compiler/probe deadlines and
-# synchronous child reaping remain unchanged; unit overlap stays compatible,
-# with no cleanup or UI inventory changes.
-# Preparation diagnostic shutdown checks own private broken pipes and bounded,
-# waited Python children with bytecode writes disabled. Preparation is a local
-# double; no host account, PAM, mount, policy or shared cache is accessed.
-# Payload-refusal format checks reuse the existing private files and process-local
-# command doubles, with no additional subprocess or resource ownership.
-# Lua cwd-canary checks use the installed native Lua library in two bounded,
-# waited Python children with a private cwd and module. The control permits its
-# private module; the captured kiosk environment must reject it. No PipeWire,
-# WirePlumber session, host Lua configuration, bus or shared cache is touched.
-# Reproducibility checks run two bounded private policy generators with distinct
-# hash seeds. The pidfd-failure check owns, kills and reaps one fork child and
-# closes its private pipe; it never discovers or signals another process.
-# Census lifecycle checks use private proc-shaped files and process-local pidfd,
-# identity and clock-free snapshots; they inspect no live process or VM state.
-# PAM lifecycle observers own bounded fork children, pipes and pidfds; their
-# process-local subreaper setting is restored after every outcome. Only those
-# recorded children are signalled and reaped; real PAM callbacks use doubles,
-# with no installed policy, service or account mutation. Compatible scheduling.
-# Snap activation precedence and the ordinary-user control use one private
-# dbus-daemon per variant, a short_runtime socket, private service/config/marker
-# files and bounded waited dbus-send clients. Each direct daemon is terminated
-# and reaped in finally. No host bus, systemd manager or shared cache is touched;
-# compatible unit scheduling.
-# kiosk_login compiles one private PAM module and runs bounded, reaped helper
-# children with pytest-owned configuration/lock/status files. Its abort check
-# signals and joins only its own multiprocessing worker; the bounded helper
-# exits itself and its inherited lock is observed released before fixture reuse.
-# libpam loads only that private stack; AccountsService, NSS and syslog use
-# process-local doubles. The interpreter-isolation probe executes the fixed
-# helper as an ordinary account with a private cwd/PYTHONPATH and waited child.
-# Manager credential checks reuse that compiled module and private confdir,
-# loading only inert vendor permit/deny callbacks to verify kiosk exclusion and
-# unchanged ordinary fallback. No host PAM files or live credentials are changed.
-# Its native-boundary callback observer compiles one further small private
-# executable (30-second deadline) and waits for each 5-second probe. Lock, PAM,
-# namespace, mount, environment, MAC and logging calls are process-local doubles;
-# the real production callback supplies ordering and return values. No new live
-# resource or cleanup/UI classification is needed; compatible overlap remains.
+# kiosk_confinement retains private legacy-package/PAM fixtures and installed
+# engineering helpers under C02e/C04 ownership. Its native feature checks compile
+# two tiny private binaries and redirect exec to a private observer; compiler
+# and probe children are bounded and waited. Process-local NSS, command, policy,
+# proc/audit and descriptor doubles retain existing compatible unit scheduling.
+# Owned lifecycle probes use private sockets/pipes/pidfds and reap only recorded
+# children. No host account, PAM, service, bus, display, cache or VM is changed.
+# The selected embedded finalizer reuses prepared_lifecycle_machine and shared
+# path relocation in its private tree, models absent NSS identities and forwards
+# scratch leases to its bounded waited interpreter. Existing isolation holds.
+# kiosk_login retains source-only selected-runtime checks, one bounded Make
+# source-list child, the Wellbeing observer below and a bounded isolated-Python
+# startup check. No host account, settings or PAM transaction is acquired.
 # Wellbeing identity/environment cases compile a tiny private launcher with
 # linker-wrapped NSS/exec observers and run bounded waited children. They read
 # no live account or settings backend and preserve compatible unit scheduling.
@@ -1103,111 +1025,8 @@ from regression_ui import Bucket
 # file and in-process pipe/clock doubles; the compatible classification holds.
 # The native setup-barrier checks stat tiny unopened pytest-private FIFOs;
 # they acquire no worker or live pipe reader and retain compatible isolation.
-# Immutable-view primitives use pytest-private copy/receipt trees and owned FDs.
-# Native probes compile in private scratch and run as bounded, waited children
-# in their own user/mount namespaces with private propagation. Native clone
-# workers use anonymous descriptor sockets and are bounded and reaped. They acquire no
-# host mount, service, bus, display, VM, network or shared cache; compatible unit
-# overlap is safe. Material selection adds only tiny pytest-private file/FD
-# trees and process-local metadata/label doubles; it uses no process, shared
-# cache, socket, bus, display or service. Its legacy-manager control briefly pins
-# its own test process with a closed pidfd; it never signals or spawns a manager.
-# None participates in cleanup/UI inventories.
-# Retained projection uses only pytest-private files, symlinks and borrowed
-# descriptors. Its 512-source control observes constant descriptor use without
-# changing process limits. It adds no subprocess, live mount/bus, shared cache
-# or cleanup/UI owner; the existing compatible unit resource class applies.
-# Manager admission owns private compiled fixtures, typed bus/proc doubles and
-# bounded waited probes. Its reexec witness owns one pipe-barrier child and
-# pidfd, and signals only that recorded child. Host proofs use private descriptor
-# trees and bounded compiled probes with preloaded read-only hashing libraries.
-# Neither module opens a live bus, service, display, network or shared cache, or
-# changes a host namespace/mount. No cleanup/UI inventory owner is introduced.
-# Initial realization planning uses pytest-private files, descriptor copies and
-# process-local metadata doubles under the existing runtime-copy cleanup owner.
-# Receipt checks compile bounded private native probes and hash finite in-memory
-# records. Preparation channels use private anonymous descriptor sockets and
-# owned CLOEXEC descriptors; any native probes are bounded, waited children.
-# No shared path, cache, bus, display, service, VM or new cleanup/UI owner is
-# acquired. These three modules permit compatible unit overlap. Pin transaction
-# expiry controls use a local clock double with the existing private mounts and
-# unchanged owned-child/namespace cleanup; policy controls only inspect strings.
-# The preparation service/entry own private descriptor trees and anonymous
-# records. The service's alarm and import aliases are process-local and restored;
-# entry controls launch no child. No host lock, bus, mount or service is touched,
-# and neither module belongs to cleanup/UI inventories. Compatible overlap uses
-# the same bounded disk/CPU class as the initial-copy and channel fixtures.
-# Native plan/policy/publication controls use pytest-private real inode trees,
-# bounded waited compilers/probes and process-local enforcement/clock/syscall
-# doubles. Publication probes enter their own user namespace without mounts.
-# Native realization additionally owns private user/mount namespaces, nested
-# tmpfs mounts and anonymous descriptors, all detached/closed before probe exit.
-# They add no host policy, live bus/service/display, VM, shared cache or new
-# cleanup/UI owner. Their bounded CPU/disk use permits compatible unit overlap.
-# Fresh startup uses pytest-private source/copy trees, bounded waited native
-# compilers and one identity-owned preparation child in private user/mount
-# namespaces. Its recursive mounts and descriptors die with each waited probe;
-# policy/PAM observations are local doubles. It opens no live bus, display,
-# service, VM or shared cache and adds no cleanup/UI inventory owner.
-# Retained-record checks use private source/copy trees, sealed records and a
-# bounded waited native probe in its own user namespace. Retained startup adds
-# a waited private manager and gate with private mount namespaces and barrier
-# pipes. The system bus, PAM identity and enforcing MAC are fixture boundaries;
-# no live host service, UI, VM, shared cache or cleanup inventory is used.
-# Composed failure witnesses add only independently opened fixture lock files,
-# identity-recorded publication faults and one pipe-held, joined manager thread.
-# All lock contention, record replacements and recursive-clone faults remain
-# inside those private trees/namespaces; no host policy or shared lock is used.
-# Manager lifetime composition adds original proc/task snapshots, per-field
-# credential/namespace doubles and removal of that same joined private thread.
-# Reexec/exit use the existing owned manager and barriers, including after setup
-# closure; no additional process, shared service/cache or cleanup/UI owner is
-# acquired. The compatible unit classification and bounded resource class hold.
-# Writer/source composition adds phase-local probes of independently reopened
-# private lock files, original-root/alias proof descriptors and finite host-file
-# mutations in those same trees. Sequential retained admission adds one waited
-# child with its own mount namespace; the parent alone owns and retires the
-# original manager. No shared lock, service, cache, UI or cleanup owner is added;
-# the existing bounded probe/compile resource class and compatible overlap hold.
-# Receipt/publication composition keeps mutations and independent provenance
-# snapshots in these same private trees. Failure cuts use process-local syscall
-# doubles; real recursive mounts, descriptor censuses and child-reap checks use
-# the existing bounded native probe owner. Failed/interrupted future exec uses
-# that same parent-death-protected manager child and pidfd-bounded reap, not a new
-# process owner. No shared path/cache/service or new cleanup/UI inventory owner
-# is introduced; compatible unit overlap still holds.
-# Measurement-refusal controls reuse these same private trees, anonymous
-# channels, process-local alarms and bounded/reaped native children. No shared
-# service, cache, display, persistent fixture or cleanup owner is added; the
-# existing probe/compile admission and compatible classifications remain valid.
-# Material-refusal witnesses reuse that same owned manager/helper lifetime and
-# private namespace, including an intentional private source-mount detach.
-# Journal observers use only private records and clock/transport doubles; no
-# live journal, process, service or new cleanup/UI inventory resource is used.
-# Native private-creation controls extend kiosk_confinement, pin_native,
-# view_publication, fresh/retained_startup and login using their existing private
-# compiler/probe children and namespace or metadata doubles. Restrictive umasks
-# are confined to owned probes (or restored in finally for the real PAM fixture).
-# Nonzero group/SGID controls are bounded metadata doubles, not subordinate-ID
-# mappings. No shared path/cache, service, bus/display or new cleanup/UI owner is
-# added; the existing compatible unit classifications remain appropriate.
-# Python private-creation controls use the same private trees and owned probe
-# lifetimes. Ownership/credential doubles preserve inherited group differences;
-# cumulative native/helper probes retain real modes and caller umasks in private
-# namespaces. Pre-PAM ordering controls use private pipes and credential doubles,
-# without changing this process's credentials. Python entry controls use real
-# anonymous channels and finally-restored process-local umasks, with named-lock
-# metadata doubles. No cleanup or UI inventory entry
-# or shared resource is added; the existing scheduling admission still applies.
 REVIEWED = frozenset("""
 plan_evidence plan_evidence_recovery
-kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
-kiosk_manager_admission kiosk_host_proof
-kiosk_initial_realization kiosk_view_receipt kiosk_preparation_channel
-kiosk_material_authority kiosk_preparation_child
-kiosk_preparation_service kiosk_preparation_entry
-kiosk_preparation_plan kiosk_native_realization kiosk_policy_authority kiosk_view_publication
-kiosk_fresh_startup kiosk_retained_record kiosk_retained_startup
 native_history_routes native_update_runner system_native_update
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures

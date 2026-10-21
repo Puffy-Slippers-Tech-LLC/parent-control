@@ -12,8 +12,8 @@ Implementation: [service.py](../../broker/oh_no_parent_control/service.py), [Mak
 The selected kiosk session/PAM cutover uses the
 [owned lifecycle migration](#prepared-owned-lifecycle-migration). Earlier private
 runtime, material and admission descriptions in this module are historical
-v1.4 source context. They are disconnected from the selected baseline; C02d/C02e
-remove their remaining source and C04c reconciles their proof consumers.
+v1.4 source context. C02d removed the disconnected native/runtime source;
+C02e owns remaining package source and C04c reconciles the proof consumers.
 
 Checkout installation through `make install` gives APT five retries per failed
 transient download, covering both package indexes and dependency archives. APT
@@ -408,7 +408,7 @@ SELinux label after loading policy, before releasing the barrier.
 The native module applies the boundary in the PAM caller itself, including the
 parent executor which starts the kiosk's systemd user manager. It clears ambient
 capabilities granted by earlier PAM modules before entering the profile. A bounded root
-[preparation helper](../../tools/kiosk_confinement.py) verifies enforcing policy,
+preparation helper (`tools/kiosk_confinement.py`) verifies enforcing policy,
 the package-created account identity and a finite native executable inventory.
 It makes independent root-owned copies, never hardlinks or relabels shared OS
 executables. Distribution aliases, their original ancestors and every symlink
@@ -476,7 +476,7 @@ the immediate PAM domain above; GDM uses a verified pending SELinux execution
 context whose entrypoint check applies to the actual next executable. Missing policy, permissive profiles or
 domains, unsafe storage and failed setup deny admission.
 
-The [generated policy](../../tools/kiosk_confinement_policy.py) permits specific
+The generated policy (`tools/kiosk_confinement_policy.py`) permits specific
 transitions for the session, user manager, request app, notifications, audio,
 wellbeing, authentication and sandboxed WebKit processes. Generic interpreters
 are reachable only through [native fixed-argument launchers](../../tools/kiosk_session.c)
@@ -529,7 +529,7 @@ and injected-bundle directories. Runtime/home binds include their roots and
 contents; timezone, font, native GStreamer helper and DMA-buffer device binds
 remain bounded. Bubblewrap's temporary metadata bind targets only
 `.flatpak-info`, never an executable pathname. Both native bootstraps enter through a fixed
-[launcher](../../tools/kiosk_bwrap.c) which prepends a read-only `/usr/bin` bind,
+launcher (`tools/kiosk_bwrap.c`) which prepends a read-only `/usr/bin` bind,
 then forwards the original arguments and descriptors to independently pinned
 distribution bubblewrap. Admission swaps those two executables only in the
 private tree; source and destination identities both enter its generation.
@@ -580,11 +580,11 @@ from usable public entry on both platforms.
 
 ### Retained material activation and recovery
 
-The production [fresh transaction](../../tools/kiosk_fresh_startup.h) runs in
+The production fresh transaction (`tools/kiosk_fresh_startup.h`) runs in
 the `systemd-user` PAM executor; the
-[retained transaction](../../tools/kiosk_retained_startup.h) runs in GDM's PAM
+retained transaction (`tools/kiosk_retained_startup.h`) runs in GDM's PAM
 caller. They now separate required material from a realized ambient layout.
-The [preparation service](../../tools/kiosk_preparation_service.py) measures
+The preparation service (`tools/kiosk_preparation_service.py`) measures
 current account, attestation and material; native independently verifies the
 measurement and realized mounts. This code is implemented. Host composition and
 older bootstrap evidence do not establish final installed entry qualification

@@ -139,6 +139,32 @@ def test_first_configuration_frozen_closure_imports_without_retired_helpers(tmp_
     assert result.returncode == 0, result.stderr
 
 
+def test_pam_variation_histories_freeze_and_import_current_helpers(tmp_path):
+    import system_runner as runner
+    from tests.support.vm_runner import INVENTORIES
+
+    selection = runner.resolve_selection('package', runner.PAM_CASE, inventories={
+        **INVENTORIES,
+        'package': (*INVENTORIES['package'], *(history.case_id for history in runner.PAM_HISTORIES)),
+    })
+    runner.stage_selected_inputs(selection, tmp_path)
+    frozen = Bundle.from_staged(ROOT, tmp_path)
+    helpers = ('system_pam_variants.py', 'system_first_configure.py',
+               'system_removal.py', 'system_removal_faults.py',
+               'system_kiosk_admission.py', 'system_kiosk_confinement.py')
+    for name in helpers:
+        assert frozen.files[name] == (ROOT / 'tests/integration' / name).read_bytes()
+    assert not {'system_kiosk_platform.py', 'system_native_update.py',
+                'system_kiosk_required_history.py', 'system_kiosk_ambient_history.py'} & frozen.files.keys()
+    result = subprocess.run([sys.executable, '-I', '-B', '-c',
+        'import sys; sys.path.insert(0, sys.argv[1]); import system_pam_variants as variants; '
+        'assert all(callable(getattr(variants, name)) for name in '
+        '("exercise", "verify_reboot", "remove", "verify_removed_reboot"))',
+        str(tmp_path)], capture_output=True, timeout=10,
+        pass_fds=scratch_descriptors())
+    assert result.returncode == 0, result.stderr
+
+
 def test_native_preflight_freezes_without_copying_distribution_rpm_bindings(tmp_path):
     frozen = Bundle(ROOT, [('tests/integration/native_transaction.py', 'native_transaction.py')])
     assert set(frozen.files) == {'native_transaction.py'}

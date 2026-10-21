@@ -131,7 +131,7 @@ lifecycle phases. VM watch recordings use these IDs under the
 `package` → `test_pam_environment_installation_variants` selects four independent
 baseline histories (IDs 283–286): plain, distro profile, administrator override
 and pending vendor replacement. Each keeps initial installation, reboot, saved
-policy/reconfiguration (including refusal and repaired-input retry), another
+policy/reconfiguration, administrator-denial and restored-input retry, another
 reboot with native enforcement, removal and the removal reboot together. The
 controller collects each phase before reboot and restores only after the whole
 history. Ubuntu's plain input disables only the optional LXC profile through
@@ -140,7 +140,16 @@ input uses `authselect` to select the shipped SSSD profile while preserving
 baseline features and required modules, then restores the original selection
 and native rules after removal.
 The administrator case records its original local `systemd-user` bytes for exact
-removal restoration. These are engineering histories, not customer UI journeys.
+removal restoration. Its temporary `gdm-password` authentication and account
+denials remain authoritative; restoring the unchanged owned file permits a fresh
+empty-token authentication/account call. The pending-vendor case preserves the
+unused vendor candidate and the effective service files across successful
+reconfiguration, then retries after removing only its own unchanged candidate.
+Unselected valid vendor text does not veto configuration. Current finite distro
+PAM readiness replaces private attestation, and removal uses the shared current
+lifecycle restoration checks. These ported inputs still need installed
+qualification; host composition and historical receipts do not qualify them.
+These are engineering histories, not customer UI journeys.
 
 ```sh
 tools/run-tests system --vm NAME --area package --test test_pam_environment_installation_variants

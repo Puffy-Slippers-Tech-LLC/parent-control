@@ -146,7 +146,9 @@ def test_worker_refuses_unsupported_arguments(worker, service, role, callback):
 @pytest.mark.parametrize('entry,args', [
     ('pam_callback', ('gdm-password', 'kiosk', 'account')),
     ('pam_account', ('gdm-password', 'kiosk')),
+    ('probe', ('gdm-password', 'kiosk', 0, 'fixture', Mock())),
     ('durable_probe', ('gdm-password', 'kiosk', 'session', 7, 'fixture', Mock())),
+    ('empty_authentication_probe', (0, 'fixture', Mock())),
 ])
 def test_guest_guard_precedes_native_or_command_operations(monkeypatch, entry, args):
     monkeypatch.setattr(admission.guest, 'guard',
@@ -169,6 +171,15 @@ def controller(monkeypatch):
     run = Mock()
     monkeypatch.setattr(admission.guest.commands, 'run', run)
     return run
+
+
+@pytest.mark.parametrize('service,role,expected', [
+    ('unregistered', 'ordinary', 0), ('sshd', 'root', 0), ('sshd', 'kiosk', True),
+])
+def test_account_probe_refuses_invalid_arguments_before_command(controller, service, role, expected):
+    with pytest.raises(admission.guest.GuestError, match='arguments'):
+        admission.probe(service, role, expected, 'fixture', Mock())
+    controller.assert_not_called()
 
 
 @pytest.mark.parametrize('service', admission.DURABLE_SERVICES)
@@ -236,3 +247,71 @@ def test_rpm_worker_refuses_wrong_native_caller_context(worker, monkeypatch):
     with pytest.raises(admission.guest.GuestError, match='caller-context'):
         admission.pam_callback('gdm-password', 'kiosk', 'session', durable=True)
     worker.load.assert_not_called()
+
+
+@pytest.mark.parametrize('authenticated,accounted', [(0, 0), (0, 6), (7, None)])
+def test_empty_token_worker_preserves_authentication_and_account_denial(
+        worker, authenticated, accounted):
+    worker.pam.pam_authenticate.return_value = authenticated
+    worker.pam.pam_acct_mgmt.return_value = accounted
+    result = admission.pam_callback('gdm-password', 'kiosk', 'authentication-account', durable=True)
+    assert result == {'authenticate': authenticated, 'account': accounted, 'end': 0}
+    handle = worker.pam.pam_start.call_args.args[3]._obj
+    worker.pam.pam_authenticate.assert_called_once_with(handle, 0)
+    if authenticated == 0:
+        worker.pam.pam_acct_mgmt.assert_called_once_with(handle, 0)
+    else:
+        worker.pam.pam_acct_mgmt.assert_not_called()
+    worker.pam.pam_open_session.assert_not_called()
+    worker.pam.pam_end.assert_called_once_with(handle, authenticated or accounted)
+
+
+@pytest.mark.parametrize('package', ['deb', 'rpm'])
+@pytest.mark.parametrize('authenticated,accounted', [(0, 0), (0, 6), (7, None)])
+def test_empty_token_probe_observes_exact_native_authority(
+        controller, monkeypatch, package, authenticated, accounted):
+    monkeypatch.setattr(admission.guest, 'package_path', lambda: Path('package.' + package))
+    entered = Mock()
+
+    @contextmanager
+    def caller(directory, service):
+        entered(directory, service)
+        yield ['native-caller', '-B']
+
+    monkeypatch.setattr(confinement, 'pam_caller_command', caller)
+    result = {'authenticate': authenticated, 'account': accounted, 'end': 0}
+    controller.return_value = json.dumps(result).encode()
+    record = Mock()
+    admission.empty_authentication_probe(accounted, 'authority', record,
+                                         expected_authenticate=authenticated)
+    prefix = ['native-caller', '-B'] if package == 'rpm' else ['/usr/bin/python3', '-B']
+    controller.assert_called_once_with([
+        *prefix, str(Path(admission.__file__).resolve()), 'pam-authentication-account'],
+        timeout=45, merge_stderr=False)
+    if package == 'rpm':
+        entered.assert_called_once_with(admission.guest.PAYLOAD, 'gdm-password')
+    else:
+        entered.assert_not_called()
+    record.assert_called_once_with('onpc.kiosk.admission.authority', json.dumps(result, sort_keys=True))
+
+
+@pytest.mark.parametrize('result', [
+    {'authenticate': 0, 'account': 0, 'end': 0},
+    {'authenticate': 7, 'account': 6, 'end': 0},
+    {'authenticate': 7, 'account': None, 'end': 4},
+    {'authenticate': True, 'account': None, 'end': 0},
+    {'authenticate': 7, 'account': None, 'end': False},
+])
+def test_empty_token_probe_never_accepts_wrong_authority_or_teardown(controller, result):
+    controller.return_value = json.dumps(result)
+    with pytest.raises(admission.guest.GuestError, match='(unexpected-status|worker-result)'):
+        admission.empty_authentication_probe(None, 'denied', Mock(), expected_authenticate=7)
+
+
+@pytest.mark.parametrize('authenticated,accounted', [(True, None), (0, None), (7, 0), (0, False)])
+def test_empty_token_probe_rejects_invalid_expectations_before_command(
+        controller, authenticated, accounted):
+    with pytest.raises(admission.guest.GuestError, match='arguments'):
+        admission.empty_authentication_probe(accounted, 'invalid', Mock(),
+                                             expected_authenticate=authenticated)
+    controller.assert_not_called()

@@ -829,6 +829,12 @@ from regression_ui import Bucket
 # MAC-unload history adds no resource. Removal/fault/identity/ownership, guest
 # input and runner classifications remain compatible; no host service, package,
 # account, mount, VM, bus, display, shared cache or external service is acquired.
+# C04a3 PAM variation and authentication/account-authority checks use private
+# pytest files, pinned fixture inodes and process-local PAM/command doubles.
+# Both distro callers and restoration conflicts remain simulated; no native
+# host PAM, package, account, service, bus, display, cache or child is acquired.
+# system_pam_variants and system_kiosk_admission remain compatible unit work;
+# cleanup and UI inventories gain no resource owner.
 # Mapped-module identity regressions use private map_files-shaped symlinks and
 # stat/permission doubles; locked SELinux relabel tests use command doubles and
 # existing private advisory locks, with no host /proc scan or MAC mutation.

@@ -335,6 +335,20 @@ def test_ordinary_authentication_time_status_and_vendor_denial(native, service, 
     assert all(call[0] == ['--authenticate'] for call in native.calls())
 
 
+@pytest.mark.parametrize('kind', ['auth', 'account'])
+def test_administrator_denial_prefix_keeps_native_status_and_ordinary_positive(native, kind):
+    # Use real existing identities with private PAM configuration only. The
+    # installed history substitutes its reserved kiosk name for this root input.
+    prefix = (f'{kind} [success=1 default=ignore] pam_succeed_if.so quiet user != root\n'
+              f'{kind} requisite pam_deny.so\n')
+    stack = prefix + f'{kind} required pam_permit.so\n'
+    operation = native.pam.pam_authenticate if kind == 'auth' else native.pam.pam_acct_mgmt
+    with native.transaction(user='root', stack=stack) as handle:
+        assert operation(handle, 0) == 7  # pam_deny's PAM_AUTH_ERR, including account.
+    with native.transaction(user='nobody', stack=stack) as handle:
+        assert operation(handle, 0) == 0
+
+
 @pytest.fixture
 def ubuntu(tmp_path, monkeypatch):
     spec = importlib.util.spec_from_file_location('prepared_distro', DISTRO_PAM)

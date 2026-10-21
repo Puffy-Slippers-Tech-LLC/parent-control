@@ -9,16 +9,15 @@ import json
 import os
 from pathlib import Path
 import pwd
-import runpy
 
 import system_guest as guest
 from system_assertions import accepted, call
 from system_enforcement import DESKTOP_ID, TARGET, observe_launch, provision_native
-from system_first_configure import (COMPLETE, boot, ordinary_controls,
-                                    retry_configuration, verify_visibility)
+from system_first_configure import boot, ordinary_controls, verify_visibility
 from system_kiosk_accounts import fingerprint, ordinary_state, owned_bytes, verify_ordinary
-from system_kiosk_admission import verify_gates
-from system_kiosk_confinement import verify_execution_boundary
+from system_kiosk_admission import (PAM_AUTH_ERR, empty_authentication_probe,
+                                    verify_gates)
+from system_kiosk_confinement import verify_session_composition
 import system_removal as removal
 from system_removal_faults import identity, parents
 
@@ -29,7 +28,8 @@ VENDOR = Path('/usr/lib/pam.d')
 STATE = Path('/var/lib/oh-no-parent-control')
 CGFS = ['session', 'optional', 'pam_cgfs.so', '-c', 'freezer,memory,name=systemd']
 STACKS = ('common-session', 'common-session-noninteractive')
-COMMENT = b'\n# onpc PAM environment administrator override\n'
+COMMENT = (b'\n# onpc PAM environment administrator override\n'
+           b'session optional pam_permit.so\n')
 CONFIGURED = b'PASS: Oh No! Parent Control package configuration completed successfully.'
 
 
@@ -236,59 +236,82 @@ def seed_policy(state):
 
 
 def pending_retry(state, record):
+    """A pending vendor proposal is opaque input, not an admission failure."""
     target = PAM / ('gdm-password.rpmnew' if fedora() else 'gdm-password.dpkg-dist')
-    contents = bytes.fromhex(state['gdm_original']) + b'\n# onpc pending vendor PAM update\n'
+    contents = (bytes.fromhex(state['gdm_original']) +
+                b'\n# onpc pending vendor PAM update\nsession optional pam_permit.so\n')
+    # gdm-password is a declared local baseline input. systemd-user can instead
+    # come directly from the vendor directory: local absence is routing state,
+    # and publishing an override must not silently change that selection.
+    protected = {PAM / 'gdm-password': identity(PAM / 'gdm-password')}
+    for path in (PAM / 'systemd-user', VENDOR / 'systemd-user'):
+        protected[path] = identity(path) if os.path.lexists(path) else None
+    require(any(protected[path] is not None for path in
+                (PAM / 'systemd-user', VENDOR / 'systemd-user')), 'missing-systemd-user-service')
+    restoration = STATE / ('fedora-authselect.json' if fedora() else 'malcontent-pam-before-install')
+    baseline = fingerprint(restoration)
     owned = create_owned(target, contents)
     inode = identity(target)[:2]
-    protected = {str(path): fingerprint(path) for path in (
-        PAM / 'gdm-password', PAM / 'systemd-user', STATE / 'kiosk-confinement.json')}
-    before_policy = state['policy']
     try:
-        try:
-            guest.install_package()
-        except guest.CommandError:
-            pass
-        record('onpc.pam-variants.conflict.transaction-status', guest.commands.last_returncode)
-        output = configuration_output()
-        require(b'reason=pending-distribution-pam-update' in output,
-                'pending-vendor-reason-not-observed')
-        require(b'PASS: Oh No! Parent Control package configuration completed successfully.'
-                not in output, 'conflict-reported-success')
-        require(fingerprint(target) == owned, 'pending-vendor-overwritten')
-        require(all(fingerprint(Path(path)) == expected for path, expected in protected.items()),
+        guest.install_package()
+        # Capture the receipt before any subsequent native command advances the
+        # diagnostic sequence. RPM status alone cannot prove post-script success.
+        require(CONFIGURED in configuration_output(), 'pending-vendor-configuration-incomplete')
+        require(fingerprint(target) == owned and identity(target)[:2] == inode,
+                'pending-vendor-overwritten')
+        require(all((identity(path) if os.path.lexists(path) else None) == expected
+                    for path, expected in protected.items()),
                 'pending-vendor-changed-owned-pam')
-        require(not COMPLETE.exists(), 'conflict-marked-complete')
+        require(fingerprint(restoration) == baseline, 'pending-vendor-changed-restoration-record')
         for name in ('migration-in-progress', 'package-activation-pending',
                      'kiosk-configuration-account.json'):
-            identity(STATE / name)
-        require(guest.run(['systemctl', 'show', '--property=ActiveState', '--value', guest.BROKER])
-                in ('inactive', 'failed'), 'conflict-activated-broker')
-        quarantine = json.loads(identity(STATE / 'kiosk-configuration-account.json')[-1])
-        account = pwd.getpwnam(removal.PRODUCT)
-        provision = runpy.run_path('/usr/libexec/oh-no-parent-control-provision')
-        require(quarantine.get('uid') == account.pw_uid and
-                quarantine.get('phase') == 'quarantined' and
-                provision['kiosk_account_expiry'](account) == 1,
-                'conflict-released-kiosk-quarantine')
-        guest.verify_package_payload()
-        require(policy_state(state['accounts']) == before_policy, 'conflict-erased-policy')
-        # Normal service activation must also respect the durable migration gate.
-        guest.commands.run(['systemctl', 'start', guest.BROKER], check=False,
-                           timeout=120, merge_stderr=True)
-        # A failed systemd condition is a successful job with no process;
-        # command status alone cannot establish activation refusal.
-        require(guest.run(['systemctl', 'show', '--property=ConditionResult', '--value',
-                           guest.BROKER]) == 'no' and
-                guest.run(['systemctl', 'show', '--property=MainPID', '--value',
-                           guest.BROKER]) == '0', 'conflict-released-activation-exclusion')
-        require((STATE / 'migration-in-progress').exists(), 'conflict-lost-exclusion')
-        ordinary_controls(record, 'pending-vendor-refused')
-        record('onpc.pam-variants.conflict.refused',
-               'pending-candidate-preserved; owned-PAM-preserved; saved-policy-preserved; excluded')
+            require(not os.path.lexists(STATE / name), 'pending-vendor-retained-barrier')
+        guest.installed(reboot_required=guest.reboot_requested())
+        removal.verify_loaded_confinement()
+        verify_policy(state, record, 'pending-vendor')
+        ordinary_controls(record, 'pending-vendor-configured')
+        empty_authentication_probe(0, 'pam-variant.pending-vendor.empty-authentication', record)
+        record('onpc.pam-variants.pending-vendor.preserved',
+               'native-configuration-completed; candidate-and-services-unchanged; restoration-and-policy-preserved')
     finally:
         unlink_owned(target, owned, inode=inode)
-    retry_configuration()
-    record('onpc.pam-variants.conflict.resolved', 'only-owned-pending-candidate-removed; normal-retry')
+    # This successful transaction leaves no half-configured DEB to configure.
+    # Repeat the ordinary public install route after removing only our proposal.
+    guest.install_package()
+    record('onpc.pam-variants.pending-vendor.retry', 'only-owned-pending-candidate-removed; normal-reinstall')
+
+
+def verify_administrator_denials(record):
+    """Real vendor-stack denials remain authoritative for passwordless kiosk use."""
+    path = PAM / 'gdm-password'
+    original = identity(path)
+    info = path.lstat()
+    ordinary_controls(record, 'administrator-denial-before')
+    empty_authentication_probe(0, 'pam-variant.administrator-before', record)
+    # pam_deny returns PAM_AUTH_ERR for both authentication and account calls.
+    for kind, authentication, account in (('auth', PAM_AUTH_ERR, None),
+                                         ('account', 0, PAM_AUTH_ERR)):
+        # Only this reserved identity is denied; ordinary callers execute the
+        # original vendor authentication/account stack without a skip or permit.
+        prefix = (f'{kind} [success=1 default=ignore] pam_succeed_if.so quiet user != {removal.PRODUCT}\n'
+                  f'{kind} requisite pam_deny.so\n').encode()
+        edited = prefix + original[-1]
+        require(identity(path) == original, 'administrator-policy-identity-changed')
+        removal.write_hook(path, info, original[-1], edited)
+        try:
+            require(identity(path) == original[:-1] + (edited,), 'administrator-policy-not-published')
+            empty_authentication_probe(account, 'pam-variant.administrator-' + kind, record,
+                                       expected_authenticate=authentication)
+            ordinary_controls(record, 'administrator-' + kind + '-denied')
+        finally:
+            require(identity(path) == original[:-1] + (edited,),
+                    'administrator-policy-identity-changed')
+            removal.write_hook(path, info, edited, original[-1])
+        require(identity(path) == original, 'administrator-policy-not-restored')
+        empty_authentication_probe(0, 'pam-variant.administrator-' + kind + '-retry', record)
+    ordinary_controls(record, 'administrator-denial-restored')
+    record('onpc.pam-variants.administrator-denials',
+           'native-auth-and-account-denied; ordinary-users-allowed; exact-identity-restored; empty-token-retry')
 
 
 def exercise(record, variant):
@@ -318,7 +341,10 @@ def verify_reboot(record, variant):
     verify_ordinary(state['ordinary'])
     ordinary_controls(record, 'pam-variant-first-reboot')
     effective_stack(record, 'first-reboot', state)
-    verify_execution_boundary(record)
+    verify_session_composition(record)
+    empty_authentication_probe(0, 'pam-variant.first-reboot.empty-authentication', record)
+    if variant == 'administrator-override':
+        verify_administrator_denials(record)
     seed_policy(state)
     save(state)
     if variant == 'pending-vendor':
@@ -353,7 +379,8 @@ def remove(record, variant):
     verify_ordinary(state['ordinary'])
     ordinary_controls(record, 'pam-variant-configured-reboot')
     effective_stack(record, 'configured-reboot', state)
-    verify_execution_boundary(record)
+    verify_session_composition(record)
+    empty_authentication_probe(0, 'pam-variant.configured-reboot.empty-authentication', record)
     observe_launch(state['accounts']['child'], False)
     observe_launch(state['accounts']['other'], True)
     accounts = state['accounts']

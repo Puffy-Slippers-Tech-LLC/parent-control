@@ -919,9 +919,10 @@ C04a1–C04a3 immediately before this consumer:
   filesystem-refusal histories to current lifecycle records and native package
   actions. Fresh quarantine and retained legacy migration remain distinct;
   changed installed histories still require qualification.
-- Cases 283–286: PAM `pending_retry` still expects removed strict vendor-text
-  refusal, fresh legacy records and obsolete activation exclusions. Preserve
-  vendor/admin authority and the full install/reconfigure/reboot/remove history.
+- Cases 283–286: the [C04a3 port](#c04a3-pam-variation-histories) replaces strict
+  vendor-text refusal and fresh legacy-record assumptions with current distro
+  restoration authority, genuine administrator denial and usable retry. The full
+  install/reconfigure/reboot/remove history still needs installed qualification.
 
 C04a keeps its original scope and host acceptance and receives **no acceptance
 credit** from this suspension. Only its Requires chain gains the three explicit
@@ -1153,6 +1154,77 @@ cleanup in the retained 690-file plan bundle (SHA-256
 `8885d3728fe8aeaeb69becc04cc4450c356f06811b2678eb9f61d1c52eed9ff1`).
 Only that link's destination changed; its claims and predecessor completion
 remain unchanged.
+
+##### C04a3 PAM variation histories
+
+Stable cases **283–286** keep their four complete, independent baseline
+histories in [`system_pam_variants.py`](../../tests/integration/system_pam_variants.py):
+installation, first reboot/reconfiguration, configured reboot/removal and removed
+reboot/restoration. Their IDs, selectors, runner order and prerequisite closure
+are unchanged. These are installed engineering histories; this host port grants
+no installed or public graphical-entry qualification and no C04a acceptance.
+
+| Displaced assertion/input | Current binding and preserved outcome |
+| --- | --- |
+| Plain and distro-profile layouts | Ubuntu removes only the optional CGFS profile, preserving every other rule, then restores it. Fedora retains its native plain stack or selects shipped SSSD with original features/required modules, restoring its original selection and rules after removal. |
+| Comment-only administrator override | A local `systemd-user` override adds a valid optional vendor callback. Its exact bytes, owner, mode and xattrs survive removal, while the vendor source remains unchanged. |
+| Private attestation/confinement witness | Shared selected native/distro PAM readiness and finite session composition. No private policy generation, callback inventory or MAC-role census is required. |
+| Pending vendor text must refuse configuration | An unused `.dpkg-dist`/`.rpmnew` proposal with a valid unfamiliar callback permits receipt-confirmed configuration. The exact proposal inode/metadata/bytes, effective service identities, local/vendor selection and current distro restoration record remain intact. Local `systemd-user` absence is explicitly preserved. |
+| Fresh legacy record and quarantine/activation exclusions | The original Malcontent selection or Fedora authselect record remains authoritative. Successful configuration clears its transaction barriers; ordinary accounts and legitimate empty-token authentication/account admission remain usable. |
+| Half-configured retry after deleting proposal | Remove only the unchanged, identity-pinned proposal and repeat the normal public installation route. The successful transaction is not misclassified as a half-configured DEB. |
+| Genuine administrator denial and retry | Kiosk-only `gdm-password` prefixes exercise actual PAM authentication and account denials independently, with ordinary-account positives. The shared editor restores only the same unchanged inode/metadata/bytes; a fresh empty-token call succeeds after restoration. |
+
+All four variants retain saved preferences, limits, app policy and zero temporary
+grants across reconfiguration/reboot, real child denial and ordinary-account
+execution positives, distinct boot guards, normal removal/reboot notices and
+the current shared lifecycle's independent original-service restoration checks.
+The empty-token engineering probe now accepts an explicit authentication-denial
+expectation, preserving its typed response and successful handle-teardown checks;
+its existing account-only callers retain their defaults. A failed probe restores
+only its unchanged mutation; edited/replaced files and foreign xattrs survive a
+refusal. Frozen guest payloads still follow actual imports and verify exact
+current helper bytes and isolated importability, without removed runtime modules.
+
+Host acceptance passed **3,822/3,822 checks** with explicit 600-second collection
+and worker deadlines; the [retained report](../../output/test-runs/host/reports/20261021T050755Z-2213e2ca/report.md)
+includes exact inventories, command selections and all four passing buckets.
+It covers PAM variants, native/distro PAM, first-configuration/removal/fault
+helpers, guest/frozen inputs, runner/cleanup/snapshots, package configuration,
+host resource classifications and all five composition/metadata/launcher modules.
+The read-only installed list retains four cases and 16 phase executions;
+listing is not installed acceptance. Coverage generation and Markdown links pass.
+
+Independent Sol High test review found one native-status mismatch: Linux-PAM's
+[`pam_deny`](https://raw.githubusercontent.com/linux-pam/linux-pam/master/modules/pam_deny/pam_deny.c)
+returns `PAM_AUTH_ERR` for account calls as well as authentication. The history
+and its double now expect that result; two new real-libpam tests independently
+verify both callbacks and their ordinary-account positives using private PAM
+configuration. Those checks pass in the retained report. Coordinator review
+also removed the obsolete assumption that pending-vendor hosts have a local
+`systemd-user`; both local and vendor-only layouts now pass on both distro doubles.
+No other actionable independent-review finding remains.
+
+Resource review covers private pytest files, identity/xattr conflicts,
+process-local PAM/account/command doubles, frozen payloads and the existing
+bounded waited native compiler/helper children. The unit classifications remain
+compatible; cleanup and UI inventories gain no resource owner. No host account,
+PAM file, service, mount, bus, display, package database or VM is changed.
+**Usability priority: passed; Threat scope: passed.** Product and build inputs
+are unchanged, so no package build or mandatory core-backend review applies.
+
+Both helpers are joined/stopped and have relinquished their files. Test and
+coverage children finished with their owned scratch lifetimes; no task-owned
+process, VM, installed state or temporary source remains. Normal reports are
+preserved. No installation, staging, commit, push or other workflow execution
+occurred. C04a retains its full audit and host acceptance, and changed reusable
+operations still require their separately scheduled installed qualification.
+
+After queue/pointer/brief close-out, the final
+[313/313 host consistency check](../../output/test-runs/host/reports/20261021T051058Z-77badc02/report.md)
+passed with a 600-second collection/worker deadline and completed cleanup.
+The plan check selects C04a; all 304 links in the five changed Markdown owners
+and the final diff check pass. Only C04a3 is newly checked, its temporary brief
+is removed, and every other row's completion, order, Scope and Requires is preserved.
 
 ##### C02a prepared session runtime
 

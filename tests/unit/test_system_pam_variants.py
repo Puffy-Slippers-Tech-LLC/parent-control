@@ -1,6 +1,5 @@
 """PAM history guards with private files and command doubles; no native actions."""
 
-import json
 import os
 from pathlib import Path
 import stat
@@ -59,7 +58,6 @@ def private(tmp_path, monkeypatch):
     monkeypatch.setattr(variants, 'PAM', tmp_path / 'pam')
     monkeypatch.setattr(variants, 'VENDOR', tmp_path / 'vendor')
     monkeypatch.setattr(variants, 'STATE', tmp_path / 'state')
-    monkeypatch.setattr(variants, 'COMPLETE', tmp_path / 'complete')
     return tmp_path
 
 
@@ -210,7 +208,6 @@ def test_configuration_receipt_uses_exact_transaction_output_not_volatile_notice
         error.write_bytes(b'>>> ' + variants.CONFIGURED + b'\n')
         error.chmod(0o600)
     assert (variants.CONFIGURED in variants.configuration_output()) == (stream != 'absent')
-    assert not variants.COMPLETE.exists()
 
 
 @pytest.mark.parametrize('fault', ['none', 'unsupported-feature', 'lost-mandatory'])
@@ -257,70 +254,221 @@ def test_fedora_sssd_input_uses_native_selection_and_preserves_required_modules(
         assert all((private / 'pam' / name).read_bytes() == before for name in names)
 
 
-@pytest.mark.parametrize('failure', ['none', 'missing-reason', 'broker-started', 'policy-changed',
-                                     'candidate-edited'])
-def test_pending_vendor_requires_specific_refusal_preservation_then_normal_retry(
-        private, monkeypatch, failure):
-    for name in ('gdm-password', 'systemd-user'):
-        (private / 'pam' / name).write_bytes(b'owned installed PAM\n')
-    (private / 'state/kiosk-confinement.json').write_text('{"owned": true}')
-    for name in ('migration-in-progress', 'package-activation-pending'):
-        (private / 'state' / name).write_bytes(b'')
-    (private / 'state/kiosk-configuration-account.json').write_text(
-        json.dumps({'uid': 1234, 'phase': 'quarantined'}))
+@pytest.mark.parametrize('fedora', [False, True])
+@pytest.mark.parametrize('layout', ['local', 'vendor-only'])
+@pytest.mark.parametrize('failure', ['none', 'missing-receipt', 'package-failed', 'policy-changed',
+                                     'candidate-edited', 'candidate-replaced', 'service-edited',
+                                     'service-replaced', 'vendor-edited', 'routing-changed',
+                                     'record-edited', 'barrier-retained'])
+def test_pending_vendor_configures_preserving_candidate_services_and_restoration(
+        private, monkeypatch, fedora, layout, failure):
+    monkeypatch.setattr(variants, 'fedora', lambda: fedora)
+    (private / 'pam/gdm-password').write_bytes(b'owned installed PAM\n')
+    local = private / 'pam/systemd-user'
+    vendor = private / 'vendor/systemd-user'
+    vendor.write_bytes(b'unchanged native vendor PAM\n')
+    if layout == 'local':
+        local.write_bytes(b'owned installed PAM\n')
+    restoration = private / 'state' / ('fedora-authselect.json' if fedora else
+                                      'malcontent-pam-before-install')
+    restoration.write_bytes(b'{"phase":"installed","original":["sssd"]}' if fedora else b'enabled\n')
+    restoration.chmod(0o600)
+    candidate = private / 'pam' / ('gdm-password.rpmnew' if fedora else 'gdm-password.dpkg-dist')
     diagnostic = private / 'diagnostics/command-0001.txt'
     state = {'gdm_original': b'original distro stack\n'.hex(),
              'policy': {'child': 'original-policy'}, 'accounts': {'child': 1001}}
-    commands = SimpleNamespace(directory=diagnostic.parent, sequence=1, last_returncode=1,
-                               run=Mock(return_value=b''))
+    commands = SimpleNamespace(directory=diagnostic.parent, sequence=1)
     monkeypatch.setattr(variants.guest, 'commands', commands)
-    monkeypatch.setattr(variants.guest, 'verify_package_payload', Mock())
+    monkeypatch.setattr(variants.guest, 'reboot_requested', lambda: False)
+    installed = Mock()
+    monkeypatch.setattr(variants.guest, 'installed', installed)
+    ready = Mock()
+    monkeypatch.setattr(variants.removal, 'verify_loaded_confinement', ready)
     monkeypatch.setattr(variants, 'ordinary_controls', Mock())
-    monkeypatch.setattr(variants.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1234))
-    monkeypatch.setattr(variants.runpy, 'run_path', lambda _: {'kiosk_account_expiry': lambda _: 1})
-    monkeypatch.setattr(variants, 'policy_state', lambda _: {
-        'child': 'changed-policy' if failure == 'policy-changed' else 'original-policy'})
+    monkeypatch.setattr(variants, 'empty_authentication_probe', Mock())
+    checked_policy = Mock(side_effect=variants.guest.GuestError('saved-policy-changed')
+                          if failure == 'policy-changed' else None)
+    monkeypatch.setattr(variants, 'verify_policy', checked_policy)
+    monkeypatch.setattr(variants.guest, 'run', Mock())
+
+    def replace(path):
+        temporary = path.with_name('foreign-replacement')
+        temporary.write_bytes(path.read_bytes())
+        temporary.chmod(stat.S_IMODE(path.stat().st_mode))
+        temporary.replace(path)
 
     def install():
-        diagnostic.write_bytes(b'unrelated failure' if failure == 'missing-reason' else
-                               b'kiosk confinement failed reason=pending-distribution-pam-update\n')
+        if install_mock.call_count == 2:
+            assert not candidate.exists()
+            return
+        assert candidate.exists()
+        assert candidate.read_bytes().startswith(bytes.fromhex(state['gdm_original']))
+        diagnostic.write_bytes(b'unrelated output' if failure == 'missing-receipt' else
+                               variants.CONFIGURED)
         diagnostic.chmod(0o600)
         if failure == 'candidate-edited':
-            (private / 'pam/gdm-password.dpkg-dist').write_bytes(b'foreign pending edit')
-        raise variants.guest.CommandError('native-package-failed')
+            candidate.write_bytes(b'foreign pending edit')
+        elif failure == 'candidate-replaced':
+            replace(candidate)
+        elif failure == 'service-edited':
+            (private / 'pam/gdm-password').write_bytes(b'foreign service edit')
+        elif failure == 'service-replaced':
+            replace(private / 'pam/gdm-password')
+        elif failure == 'vendor-edited':
+            vendor.write_bytes(b'foreign vendor edit')
+        elif failure == 'routing-changed':
+            if layout == 'local':
+                local.unlink()
+            else:
+                local.write_bytes(b'foreign local override')
+        elif failure == 'record-edited':
+            restoration.write_bytes(b'foreign restoration edit')
+        elif failure == 'barrier-retained':
+            (private / 'state/kiosk-configuration-account.json').write_bytes(b'{}')
+        elif failure == 'package-failed':
+            raise variants.guest.CommandError('native-package-failed')
 
-    def run(argv):
-        if '--property=ActiveState' in argv:
-            return 'active' if failure == 'broker-started' else 'inactive'
-        if '--property=ConditionResult' in argv:
-            return 'no'
-        if '--property=MainPID' in argv:
-            return '0'
-        raise AssertionError(argv)
-
-    monkeypatch.setattr(variants.guest, 'install_package', install)
-    monkeypatch.setattr(variants.guest, 'run', run)
-    retry = Mock()
-    monkeypatch.setattr(variants, 'retry_configuration', retry)
-    before = {name: (private / 'pam' / name).read_bytes()
-              for name in ('gdm-password', 'systemd-user')}
+    install_mock = Mock(side_effect=install)
+    monkeypatch.setattr(variants.guest, 'install_package', install_mock)
     record = Mock()
     if failure == 'none':
         variants.pending_retry(state, record)
-        retry.assert_called_once_with()
-        assert any(key == 'onpc.pam-variants.conflict.refused' for key, _ in
+        assert install_mock.call_count == 2
+        installed.assert_called_once_with(reboot_required=False)
+        ready.assert_called_once_with()
+        checked_policy.assert_called_once_with(state, record, 'pending-vendor')
+        assert any(key == 'onpc.pam-variants.pending-vendor.preserved' for key, _ in
                    (call.args for call in record.call_args_list))
     else:
-        with pytest.raises(variants.guest.GuestError):
+        with pytest.raises((variants.guest.GuestError, variants.guest.CommandError)):
             variants.pending_retry(state, record)
-        retry.assert_not_called()
+        assert install_mock.call_count == 1
     assert state['policy'] == {'child': 'original-policy'}
-    assert before == {name: (private / 'pam' / name).read_bytes() for name in before}
-    candidate = private / 'pam/gdm-password.dpkg-dist'
     if failure == 'candidate-edited':
         assert candidate.read_bytes() == b'foreign pending edit'
+    elif failure == 'candidate-replaced':
+        assert candidate.exists()
     else:
         assert not candidate.exists()
+    if failure == 'routing-changed':
+        if layout == 'local':
+            assert not os.path.lexists(local)
+        else:
+            assert local.read_bytes() == b'foreign local override'
+    elif layout == 'local':
+        assert local.read_bytes() == b'owned installed PAM\n'
+    else:
+        assert not os.path.lexists(local)
+    assert vendor.read_bytes() == (b'foreign vendor edit' if failure == 'vendor-edited' else
+                                   b'unchanged native vendor PAM\n')
+    if failure == 'service-edited':
+        assert (private / 'pam/gdm-password').read_bytes() == b'foreign service edit'
+    else:
+        assert (private / 'pam/gdm-password').read_bytes() == b'owned installed PAM\n'
+    if failure == 'record-edited':
+        assert restoration.read_bytes() == b'foreign restoration edit'
+
+
+@pytest.mark.parametrize('failure', ['none', 'probe-failed', 'bytes', 'mode', 'inode', 'xattrs'])
+def test_administrator_auth_and_account_authority_with_identity_safe_restoration(
+        private, monkeypatch, failure):
+    target = private / 'pam/gdm-password'
+    original = b'auth include native-auth\naccount include native-account\n'
+    target.write_bytes(original)
+    initial = variants.identity(target)
+    controls = Mock()
+    monkeypatch.setattr(variants, 'ordinary_controls', controls)
+    writes = []
+
+    def write(path, info, expected, contents):
+        # Retain real bytes/inodes under tmp_path; shared editor's root-owner
+        # enforcement has its own tests. Check its exact scenario operands here.
+        assert path == target
+        assert (info.st_dev, info.st_ino) == initial[:2]
+        assert variants.identity(path)[:2] == initial[:2]
+        assert path.read_bytes() == expected
+        writes.append((expected, contents))
+        path.write_bytes(contents)
+
+    monkeypatch.setattr(variants.removal, 'write_hook', write)
+
+    def probe(expected_account, stage, record, *, expected_authenticate=0):
+        if stage.endswith('administrator-auth'):
+            assert expected_account is None and expected_authenticate == variants.PAM_AUTH_ERR
+            assert target.read_bytes().startswith(
+                b'auth [success=1 default=ignore] pam_succeed_if.so quiet user != oh-no-parent-control\n'
+                b'auth requisite pam_deny.so\n')
+            if failure == 'probe-failed':
+                raise variants.guest.GuestError('native-probe-failed')
+            if failure == 'bytes':
+                target.write_bytes(b'foreign administrator edit')
+            elif failure == 'mode':
+                target.chmod(0o600)
+            elif failure == 'inode':
+                replacement = target.with_name('replacement')
+                replacement.write_bytes(target.read_bytes())
+                replacement.chmod(0o644)
+                replacement.replace(target)
+            elif failure == 'xattrs':
+                os.setxattr(target, 'user.onpc-test', b'foreign')
+        elif stage.endswith('administrator-account'):
+            assert expected_account == 7 and expected_authenticate == 0
+            assert target.read_bytes().startswith(
+                b'account [success=1 default=ignore] pam_succeed_if.so quiet user != oh-no-parent-control\n'
+                b'account requisite pam_deny.so\n')
+        else:
+            assert expected_account == expected_authenticate == 0
+            assert variants.identity(target) == initial
+
+    native = Mock(side_effect=probe)
+    monkeypatch.setattr(variants, 'empty_authentication_probe', native)
+    if failure == 'none':
+        variants.verify_administrator_denials(Mock())
+        assert len(writes) == 4 and native.call_count == 5
+        assert controls.call_count == 4
+        assert variants.identity(target) == initial
+    elif failure == 'probe-failed':
+        with pytest.raises(variants.guest.GuestError, match='native-probe-failed'):
+            variants.verify_administrator_denials(Mock())
+        assert len(writes) == 2 and variants.identity(target) == initial
+    else:
+        with pytest.raises(variants.guest.GuestError, match='administrator-policy-identity-changed'):
+            variants.verify_administrator_denials(Mock())
+        assert len(writes) == 1
+        assert variants.identity(target) != initial
+
+
+@pytest.mark.parametrize('variant', variants.VARIANTS)
+def test_first_reboot_retains_passwordless_use_policy_and_current_composition(monkeypatch, variant):
+    state = {'boot': 'old-boot', 'ordinary': 'ordinary-snapshot'}
+    monkeypatch.setattr(variants, 'load', lambda value: state if value == variant else None)
+    monkeypatch.setattr(variants, 'boot', lambda: 'new-boot')
+    for name in ('guard', 'installed'):
+        monkeypatch.setattr(variants.guest, name, Mock())
+    monkeypatch.setattr(variants.guest, 'reboot_cleared', lambda: True)
+    monkeypatch.setattr(variants.guest, 'reboot_requested', lambda: False)
+    monkeypatch.setattr(variants.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(variants, 'configuration_output', lambda: variants.CONFIGURED)
+    doubles = {}
+    for name in ('verify_ordinary', 'ordinary_controls', 'effective_stack',
+                 'verify_session_composition', 'empty_authentication_probe',
+                 'verify_administrator_denials', 'seed_policy', 'save',
+                 'pending_retry', 'verify_policy', 'verify_visibility'):
+        doubles[name] = Mock()
+        monkeypatch.setattr(variants, name, doubles[name])
+    install = Mock()
+    monkeypatch.setattr(variants.guest, 'install_package', install)
+    record = Mock()
+    variants.verify_reboot(record, variant)
+    doubles['verify_session_composition'].assert_called_once_with(record)
+    doubles['empty_authentication_probe'].assert_called_once_with(
+        0, 'pam-variant.first-reboot.empty-authentication', record)
+    assert doubles['verify_administrator_denials'].call_count == (variant == 'administrator-override')
+    assert doubles['pending_retry'].call_count == (variant == 'pending-vendor')
+    assert install.call_count == (variant != 'pending-vendor')
+    doubles['seed_policy'].assert_called_once_with(state)
+    doubles['verify_policy'].assert_called_once_with(state, record, 'configured')
+    assert state['configured_boot'] == 'new-boot'
 
 
 @pytest.mark.parametrize('entry,boot_field', [
@@ -333,7 +481,7 @@ def test_each_reboot_boundary_refuses_same_boot_before_product_actions(monkeypat
     installed, removed, execute = Mock(), Mock(), Mock()
     monkeypatch.setattr(variants.guest, 'installed', installed)
     monkeypatch.setattr(variants.removal, 'verify_removed', removed)
-    monkeypatch.setattr(variants, 'verify_execution_boundary', execute)
+    monkeypatch.setattr(variants, 'verify_session_composition', execute)
     with pytest.raises(variants.guest.GuestError, match='reboot-not-observed'):
         getattr(variants, entry)(Mock(), 'plain')
     installed.assert_not_called()

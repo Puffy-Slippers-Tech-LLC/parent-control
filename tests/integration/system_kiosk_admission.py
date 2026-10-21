@@ -258,13 +258,15 @@ def held_account(record):
 
 
 def probe(service, role, expected, stage, record):
+    guest.guard()
+    guest.require(service in SERVICES and role in USERS and type(expected) is int,
+                  'kiosk-admission:arguments')
     with ExitStack() as resources:
         caller = ['/usr/bin/python3', '-B']
         if service == 'gdm-password' and role == 'kiosk' and guest.package_path().suffix == '.rpm':
             from system_kiosk_confinement import pam_caller_command
-            # The native GDM callback creates its leased runtime inode in
-            # xdm_t. An unconfined engineering caller would create the wrong
-            # SELinux object type before a later real session could use it.
+            # Match the distribution caller for the shared admission lock;
+            # this is engineering setup, not a private-runtime MAC assertion.
             caller = resources.enter_context(pam_caller_command(guest.PAYLOAD, service))
         raw = guest.commands.run([
             *caller, str(Path(__file__).resolve()), 'pam-account', service, role],
@@ -283,7 +285,11 @@ def probe(service, role, expected, stage, record):
 
 
 def durable_probe(service, role, callback, expected, stage, record):
-    """Observe retained distribution-module barriers after payload erasure."""
+    """Observe the lifecycle's distribution-only barriers after payload erasure.
+
+    Session probes deliberately call only open_session: they test the durable
+    refusal, not successful GDM account/session composition or public entry.
+    """
     guest.guard()
     guest.require(service in DURABLE_SERVICES and role in USERS and
                   callback in ('account', 'session') and type(expected) is int,
@@ -313,9 +319,14 @@ def durable_probe(service, role, callback, expected, stage, record):
                             'end': 0}, 'kiosk-admission:unexpected-status:' + stage)
 
 
-def empty_authentication_probe(expected_account, stage, record):
-    """An actually authenticated empty-token caller must still pass account admission."""
+def empty_authentication_probe(expected_account, stage, record, *, expected_authenticate=0):
+    """Observe empty-token authentication and its subsequent account authority."""
     guest.guard()
+    guest.require(type(expected_authenticate) is int and expected_authenticate >= 0 and
+                  ((expected_authenticate == 0 and type(expected_account) is int and
+                    expected_account >= 0) or
+                   (expected_authenticate != 0 and expected_account is None)),
+                  'kiosk-admission:arguments')
     with ExitStack() as resources:
         caller = ['/usr/bin/python3', '-B']
         if guest.package_path().suffix == '.rpm':
@@ -333,7 +344,8 @@ def empty_authentication_probe(expected_account, stage, record):
                   (result['account'] is None or type(result['account']) is int),
                   'kiosk-admission:worker-result')
     record('onpc.kiosk.admission.' + stage, json.dumps(result, sort_keys=True))
-    guest.require(result == {'authenticate': 0, 'account': expected_account, 'end': 0},
+    guest.require(result == {'authenticate': expected_authenticate,
+                            'account': expected_account, 'end': 0},
                   'kiosk-admission:unexpected-status:' + stage)
 
 

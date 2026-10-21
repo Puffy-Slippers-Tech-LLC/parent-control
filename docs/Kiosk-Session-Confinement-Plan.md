@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04 — [Reconcile proof consumers and baseline readiness](Kiosk-Prompt-Tasks/C04-installed-ta.md)**.
+Next task: **C04p — [Qualify baseline time and app effects](Kiosk-Prompt-Tasks/C04p-app-effects.md)**.
 
 ## Outcome
 
@@ -101,8 +101,10 @@ together. The queue is the sole task order; briefs hold finite deliverables.
 The queue separates session, feature and automation source review; runtime,
 broker, frontend, account, lifecycle and PAM preparation; activation and removal;
 each automation layer and each protection boundary. Baseline operation
-qualification precedes its customer journeys. Final host variation, optional
-fallback, exposed-action and consumed-input acceptance each have their own
+qualification precedes the complete composition; its first passing complete
+history can also supply baseline acceptance under the evidence-reuse rule below.
+Final host variation, optional fallback, exposed-action and consumed-input
+acceptance each have their own
 platform task. Aim for
 15–30 minutes for ordinary work; the queue and briefs name longer indivisible
 cutovers or installed histories explicitly. Estimates include reading, checks,
@@ -161,9 +163,24 @@ C04b maps baseline compositions without claiming qualification; C04u/C04f
 implement or renew the changed public entry/approval operation on each target.
 Additional independent operations require bounded prerequisites before their
 first consumer, rather than being hidden in one qualification task. C04 confirms
-readiness before C05u/C05f run the complete customer journey. C10 does the same
+readiness before C05u/C05f accept the complete customer journey. C10 does the same
 for final acceptance. A changed operation's old qualification is not reusable
 merely because its function name or selector is unchanged.
+
+Use the [complete baseline evidence-reuse contract](TestAutomation/E2E-Execution-Contracts.md#complete-baseline-evidence-reuse):
+C04j runs the full finite baseline on both targets once; C05u/C05f verify and
+reuse each matching complete installed history, executing only missing or
+invalidated complete histories. Preserve every public assertion, human pause,
+feature result and both-target gate. Individual operation qualifications do not
+supply a full journey. C04 remains a host readiness audit; C05 remains installed
+acceptance, and each row closes only when selected. Final acceptance after
+protection changes remains a separate candidate-specific obligation.
+
+Keep baseline work within the finite recipe. Use prerequisite operations without
+repeating their harness safety matrices in the complete journey; local feature
+value combinations remain host UI coverage. A new prerequisite must identify a
+concrete missing operation or invalidated binding needed by that recipe, rather
+than expand baseline acceptance into general feature automation.
 
 C04/C10 bind exact existing or newly registered selectors, finite inputs and
 restoration. Remote-desktop coverage names the supported provider and verifies an

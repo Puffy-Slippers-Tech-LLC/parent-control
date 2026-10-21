@@ -1670,16 +1670,18 @@ Existing inventory IDs, executables and historical results remain unchanged.
 In particular, a retained `ready` label below is not qualification of a changed
 complete caller on the rebuilt candidate.
 
-Current disposition after C04f: the fixed passwordless entry and
+Current disposition after C04o: the fixed passwordless entry and
 Riley/Jamie/75-second/soft-included MATE approval operation, prompt Cancel,
 form Cancel/reentry, approved exit and independent Parent grant read have
 matching both-target qualification in the
 [C04f record](#c04f-fedora-qualification-and-ubuntu-renewal).
 The table below retains C04b's input audit and original evidence boundaries;
 its C04u/f receiving instructions are fulfilled only for that exact slice.
-Wrong-password rejection, negative grant/app effects, overlay, human pauses,
-other features and complete repeated journeys remain B1–B4. C04c reconciles
-these consumers without changing readiness, inventory or acceptance.
+The fixed Shell overlay approval, wrong-password rejection, password-free Cancel,
+preserved choices and original-activity return now have matching both-target
+qualification in the [C04o record](#c04o-shared-overlay-renewal).
+Negative grant/app effects, human pauses, other features and complete repeated
+journeys remain B2–B4. C04c's historical reconciliation supplied no acceptance.
 
 Classification: **unchanged** identifies only the stated reusable leaf and exact
 historical scope; **changed** requires renewed installed qualification;
@@ -1720,10 +1722,27 @@ for bounded implementation and required both-target live qualification.
 
 | Gap | Finite return condition before C04 can declare C05 runnable |
 | --- | --- |
-| B1 — shared overlay | Renew fixed Riley/Jamie/75-second/soft-included command entry, Shell approval, wrong-password and password-free Cancel, preserved choices and original-desktop return on both targets. Reuse shared request operations; no second approval implementation. |
+| B1 — shared overlay | **Closed for the fixed operation by [C04o](#c04o-shared-overlay-renewal).** Both targets passed Riley/Jamie/75-second/soft-included command entry, Shell approval, wrong-password and password-free Cancel, preserved choices and original-activity return through the same shared request operations. Negative grant/app effects remain B4. |
 | B2 — policy and downstream effects | Extend actual shared policy operations beyond fixture A to declared H/S identities and public denial observations. Qualify S usable/H denied after genuine inclusion, S denied after revocation, and correct-child time/expiry results. Native fixtures have distinct executable bytes but share primary GUI IDs; establish collision-free public instance binding before simultaneous A/S use. FLOW08 Allowed use is not denial, and TIME04 daily-only is not grant-only expiry. |
 | B3 — features and human waits | Register finite language, preset/unit, reminder and in-app information bindings from the recipe. Add guarded 90-second unset-language and 45-second authentication pauses; read preserved choices/destination independently afterward and acquire new secret-recipient proofs after the wait. No startup deadline includes human time. Existing five-second About qualification alone does not qualify these waits. |
 | B4 — baseline composition | Register a finite public composition covering zero-daily grant/use/restriction, separate denial and Cancel with no grant, exit/reentry and a fresh successful request after session switching; include B1 where shared code changed. FLOW19/FLOW20 and cases 34/36 remain pending; cases 47–52 cover only parts. Fixed single-use approval challenge names cannot be replayed for repeated requests. Preserve every existing stable case assertion; no forced fitting into an unrelated scenario or new ready selector without implementation. |
+
+C04's source/listing audit identified these gaps. The
+[ordered queue](../Kiosk-Prompt-Queue.md) now places bounded prerequisites before
+the suspended C04 consumer: C04o owns B1, C04p owns B2, C04l/C04s/C04r/C04i/C04w
+own the independent B3 language, preset, reminder, information and authentication
+pause operations, and C04j owns B4 composition. All require both-target installed
+qualification. C04o has closed B1 only; B2–B4 remain open. Queue insertion itself
+supplies no readiness, implementation or acceptance credit; C04 must recheck exact
+evidence applicability after the qualifications finish.
+
+Once delivered, C04j's complete per-target baseline histories may also supply
+C05u/C05f installed evidence under the
+[complete baseline evidence-reuse contract](E2E-Execution-Contracts.md#complete-baseline-evidence-reuse).
+Record every recipe assertion, full caller/candidate applicability and retained
+collection/restoration proof. Operation slices remain insufficient; C04 is still
+a host readiness audit, and C05 closes only after its own complete-evidence
+review or execution of each missing/invalidated complete target history.
 
 Current bound cases 47–52 use `record_installed_journey(..., timeout=1800)`.
 `AccessibleUI` operation deadlines are 90 seconds in kiosk and 45 otherwise;
@@ -1805,7 +1824,7 @@ Installed acceptance on **onpc-Ubuntu26.04**:
   `tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_kiosk_approval'`
   in **302.676 seconds** (worker **280.968 seconds**, same 1800-second deadline):
   `output/test-runs/privileged/allocations/onpc-graphical-smoke-wvk1mtc9/result.json`,
-  [report](../../output/test-runs/host/reports/20261021T060209Z-d16a9795/report.md).
+  [report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
   Genuine approval and automatic GDM return passed. The independent Parent read
   showed daily **900**, grant/total **953** seconds against the original **975**
   seconds, **45.821** seconds elapsed and one-second display precision.
@@ -1826,8 +1845,10 @@ All used `tools/run-tests unit` with `--timeout '600s'`; exact selections/result
 are retained in reports `20261021T054151Z-7b96d386`,
 `20261021T055030Z-43fe6103` and `20261021T055938Z-c87b33f6`.
 The complete report bundles, installed result files and worker shutdown records
-are preserved in the verified [evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-y_k0ym45/evidence.zip),
-SHA-256 `069b6b1b17b94e641e2629d0099dadc2ac6639521591a5d3781f2a1a2312de0e`.
+are preserved in the verified [evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
+The original export SHA-256 was
+`069b6b1b17b94e641e2629d0099dadc2ac6639521591a5d3781f2a1a2312de0e`;
+its proof is carried forward in the stable plan bundle after export rotation.
 Original paths above also identify exact bundle members if their journals rotate.
 After close-out, the maintained five-module plan/inventory/coverage/composition/
 launcher selection passed **639/639** with `--timeout '600s'` in
@@ -1923,6 +1944,91 @@ shutdown/callback closure, complete leases and host/source preservation. Both
 VMs are off; diagnostic maintenance and bundle cleanup completed. This renews
 only the stated operation, not C05's complete customer journey, B1–B4 readiness,
 other locales/providers or Fedora release qualification.
+
+### C04o shared-overlay renewal
+
+The fixed shared-overlay operation is renewed on **onpc-Ubuntu26.04** and
+**onpc-Fedora44**. Exact command:
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_overlay_approval'`.
+The selector runs three independent attempts, each with its existing
+**1800-second** deadline and **45-second** overlay observation bound:
+
+| Target | Fresh immediate approval | Rejection, then automatic approval | Password-free Cancel, then immediate approval | Shell provider |
+| --- | --- | --- | --- | --- |
+| onpc-Ubuntu26.04 | 319.596s | 376.897s | 356.134s | `50.1-0ubuntu1.4` |
+| onpc-Fedora44 | 326.815s | 395.910s | 379.225s | `0:50.6-1.fc44` |
+
+Both bindings use `en_US.UTF-8`, `xkb/us`, Riley/Jamie, custom **75 seconds**,
+soft apps included and a publicly saved **900-second** daily allowance.
+Command entry fixes the child identity and refuses wrong accounts/surfaces.
+Shell authentication retains two fresh same-challenge recipient proofs and one
+sealed submission. Wrong-password denial is explicit before safe Cancel;
+independent password-free Cancel consumes no credential. Both preserve the
+usable no-error form and immutable choices before a new approval challenge.
+Every approval independently observes **Time granted**, the declared
+automatic/immediate exit and the same usable original native-app window, draft
+and activity. Negative grant/app effects remain C04j; this is no complete-case
+or C05 acceptance.
+
+The selector declares `named_input(fixture_source=True)`. Automatic preparation
+verified each VM's declared package format against its baseline: Ubuntu
+DEB/amd64 and Fedora RPM/x86_64. Preparation used
+`tools/prepare-appsnapshot --vm NAME --y --overwrite false` separately for both
+targets, followed by each maintenance instance's normal `stop` before acceptance.
+All six attempts retain source SHA-256
+`ad3921a75c9ccbaaa32124ec3046e96f6ed78f7b2dc7331f0a8edb3d8ea49cb9`
+and inventory SHA-256
+`756bf5176c3b9d8ff96ee382d6ee1b6327bd072960dcddc8dbedfadc3700855b`.
+Per-target package/assets identities remain identical across the three attempts:
+
+- Ubuntu selected archive SHA-256:
+  `daf2b8805916d1b0eddeb8e608fa3e6df4d475d7d88a1a5176779d52a777d194`;
+  assets: `e7e687de4e700e03b8d4fe0eb7dd160b95cb6574e33d0f2313c4cdcd78a9d595`.
+  The existing snapshot retains archive
+  `2a14dc258cdeeba65b3bfbd9e89c9e02ccd61138f4018a75c3a1b76a1441581b`;
+  both archives have the same installed-content SHA-256
+  `6137e210d878d1a5d67ce7bca42a30da4eae1a8288afaef1fce96115965526cf`.
+  The maintained `app_snapshot.mismatch` schema-2 comparison accepts that exact
+  installed equivalence, with matching baseline and installation recipe.
+- Fedora selected/snapshot package and content SHA-256:
+  `29014e5a66b65705d930576501034a166aed485bdd61493220ec3fa4f53c4fdd`;
+  assets: `af751441a713c4475e2df054a43c324ae9cd85353b5f5dac42dd619fcb41823c`.
+
+Exact `result.json` allocations, in the table's profile order, are
+`onpc-graphical-smoke-rdx3124r`, `onpc-graphical-smoke-ubosn7x3`,
+`onpc-graphical-smoke-i3z7vf0o` (Ubuntu), and
+`onpc-graphical-smoke-i9yt5xne`, `onpc-graphical-smoke-ouhph6y6`,
+`onpc-graphical-smoke-w4pj3000` (Fedora), beneath
+`output/test-runs/privileged/allocations/`.
+The [Ubuntu report](../../output/test-runs/host/reports/20261021T155308Z-4c44bd49/report.md)
+and [Fedora report](../../output/test-runs/host/reports/20261021T155308Z-8e33c1fe/report.md)
+retain commands and all three independent results per target.
+The verified [evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-iprtpnu5/evidence.zip)
+retains all six results, collection events and worker cleanup records, both
+targets' complete frozen package/source/fixture inputs, host checks and command
+reports (3,190 files); SHA-256
+`5b6221ad362bddb5557493fe5e87c535b73a1d16b1dd9fbebe4a0ff95090529d`.
+Export verification and owned export cleanup passed.
+
+The five-module focused operation/composition/cleanup selection passed
+**2,180/2,180** checks with `--timeout '600s'` in
+[report 20261021T155103Z-c32a6cb1](../../output/test-runs/host/reports/20261021T155103Z-c32a6cb1/report.md).
+The read-only source audit confirmed the existing shared Python/Perl operations
+and current Application UI API route; no executable, inventory or product input
+changed. C04f's kiosk/MATE scope remains unchanged, so no renewal is needed.
+No package build or core-backend review applies. The helper is joined/closed.
+
+All six results passed collection, worker shutdown, callback closure, lease
+completion, baseline restoration and host/source preservation. Final serial
+`tools/cleanup-e2e --vm 'onpc-Ubuntu26.04,onpc-Fedora44'` passed; both VMs are off.
+An expired C04u report link now names the existing stable accepted-evidence
+locator after full bundle verification and inspection of the exact original
+report, 302.676-second result, inputs and cleanup; its historical claim is unchanged.
+Its rotated original export link likewise names the stable bundle carrying its
+proof forward. Final plan/inventory/coverage/composition/launcher checks passed
+**670/670** with `--timeout '600s'` in
+[report 20261021T161417Z-9e6cdd57](../../output/test-runs/host/reports/20261021T161417Z-9e6cdd57/report.md).
+B2–B4 and other provider/choice bindings remain pending.
 
 ### Kiosk, child overlay and the shared request form
 
@@ -3600,9 +3706,12 @@ collection, broker restoration, owned cleanup and baseline restoration. Both
 require editable text/document readback, prepared diagnostics, confined Privacy
 and hidden/absent kiosk download and attachment controls.
 Ordinary Parent ZIP export remains the separate FEED08 binding.
-The strict census requires actual manager, app, service,
-Wellbeing, PipeWire, notification, notification-client and WebKit threads;
-each observed thread must retain its enforcing role and private generation.
+Those October results describe the former candidate. The current engineering
+caller records `system_kiosk_confinement.census()`'s session/compositor/app
+identity observation, with `confinement_qualified: false`; optional service
+availability has no admission vote. It asserts no private generation or thread
+role. Actual public error-report/recovery results still require matching
+qualification at their fault/recovery consumer, separately from baseline use.
 
 The separate engineering selector `check_e2e_kiosk_notification_wellbeing`
 composes the same installed eligible-account entry with the public reminder

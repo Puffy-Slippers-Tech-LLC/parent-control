@@ -53,19 +53,35 @@ class TestApplicationFixtures(unittest.TestCase):
             output = Path(temporary) / "payload"
             fixtures.build(output)
             fixtures.verify(output)
-            from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id, desktop_entry, activity_sources
+            from tests.fixtures.native_assets import (ASSETS, PREFIX, desktop_id, desktop_entry,
+                activity_sources, sources, source_destinations, legacy_executable_paths, version_pattern)
             binaries = [output / ('image-root' + PREFIX) / asset[1] for asset in ASSETS]
             import hashlib
             self.assertEqual(len({hashlib.sha256(path.read_bytes()).hexdigest() for path in binaries}), 4)
             for asset in ASSETS:
                 self.assertEqual((output / 'native-launchers' / desktop_id(asset[0])).read_text(),
                                  desktop_entry(asset))
+            manifest = json.loads((output / 'SHA256SUMS.json').read_text())['files']
+            for source in sources():
+                relative = source.removeprefix('fixtures/')
+                self.assertEqual(manifest[relative], hashlib.sha256((output / relative).read_bytes()).hexdigest())
+            versioned = output / ('image-root' + PREFIX) / 'Versioned'
+            self.assertEqual({path.name for path in versioned.iterdir()}, {
+                'Lunar Client-3.7.17.AppImage', 'onpc-test-gui.py', 'gtk_automation.py'})
+            legacy, = legacy_executable_paths()
+            self.assertEqual((output / ('image-root' + legacy)).read_bytes(), binaries[2].read_bytes())
+            self.assertEqual((versioned / 'onpc-test-gui.py').read_bytes(), fixtures.GUI_SOURCE.read_bytes())
+            self.assertEqual((versioned / 'gtk_automation.py').read_bytes(), fixtures.GTK_AUTOMATION_SOURCE.read_bytes())
+            for source, (destination, mode) in source_destinations('/home/fixture').items():
+                if source.startswith('fixtures/image-root'):
+                    self.assertEqual((output / ('image-root' + destination)).stat().st_mode & 0o777, mode)
             flatpak_environment = fixtures._flatpak_environment(output)
             for variable in ("HOME", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"):
                 self.assertTrue(Path(flatpak_environment[variable]).is_relative_to(output))
             self.assertNotEqual(flatpak_environment["HOME"], os.environ.get("HOME"))
             targets = (output / "fixture-targets.json").read_text(encoding="utf-8")
             self.assertIn("Lunar Client-*.AppImage", targets)
+            self.assertEqual(json.loads(targets)['native']['version_pattern'], version_pattern())
             self.assertTrue((output / "onpc-test-application.flatpak").is_file())
             self.assertGreater((output / "onpc-test-application.flatpak").stat().st_size, 0)
             self.assertTrue((output / "flatpak-repository").is_dir())

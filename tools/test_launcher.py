@@ -292,6 +292,11 @@ def main(argv=None, *, category='unit'):
         # It must remain available while another launcher owns execution.
         if '--collect-only' in argv:
             options = argv[1:] if argv[:1] == ['--unattended'] else argv
+            if argv[:1] == ['--unattended']:
+                # Scheduled collection needs the same inventory event protocol
+                # as execution, without acquiring an execution/cleanup owner.
+                from regression_process import host_run
+                return host_run(root, category, options)
             return run_host(root, category, options)
         inherited = test_activity.descriptors() or test_activity.VARIABLE in os.environ
         if category == 'unit' and not inherited and not any(

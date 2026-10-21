@@ -28,7 +28,8 @@ from typing import Mapping
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tests.fixtures.native_assets import ASSETS as NATIVE_ASSETS, TRUSTED_NATIVE, desktop_id, desktop_entry
+from tests.fixtures.native_assets import (ASSETS as NATIVE_ASSETS, TRUSTED_NATIVE,
+    LEGACY_S, desktop_id, desktop_entry, executable_path, version_pattern)
 SOURCE = Path(__file__).with_name("onpc_test_application.c")
 GUI_SOURCE = Path(__file__).with_name("gui_application.py")
 GTK_AUTOMATION_SOURCE = ROOT / "common/oh_no_parent_control_ui/gtk_automation.py"
@@ -106,6 +107,8 @@ def _copy_gui_runtime(destination: Path) -> None:
     """Copy the complete standalone GTK fixture runtime into one payload."""
     shutil.copyfile(GUI_SOURCE, destination / "onpc-test-gui.py")
     shutil.copyfile(GTK_AUTOMATION_SOURCE, destination / "gtk_automation.py")
+    for filename in ("onpc-test-gui.py", "gtk_automation.py"):
+        (destination / filename).chmod(0o644)
 
 
 def _write_manifest(output: Path) -> None:
@@ -190,9 +193,13 @@ def _build_native_layout(output: Path, native: Path) -> None:
     applications = image / INSTALL_PREFIX / "Applications"
     applications.mkdir(parents=True, exist_ok=True)
     _copy_gui_runtime(applications)
+    (applications / 'Versioned').mkdir()
+    (applications / 'Versioned').chmod(0o755)
+    _copy_gui_runtime(applications / 'Versioned')
     identities = {asset[1]: asset[0] for asset in NATIVE_ASSETS}
+    identities[LEGACY_S] = 'S'
     identities[NATIVE_NAMES[3]] = 'S-update'
-    for name in NATIVE_NAMES:
+    for name in dict.fromkeys((*NATIVE_NAMES, *(asset[1] for asset in NATIVE_ASSETS))):
         target = applications / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(_compile_native(output, identity=identities[name]), target)
@@ -200,7 +207,7 @@ def _build_native_layout(output: Path, native: Path) -> None:
     for asset in NATIVE_ASSETS:
         _write_text(output / 'native-launchers' / desktop_id(asset[0]), desktop_entry(asset))
     exact = INSTALL_PREFIX / "Applications" / NATIVE_NAMES[0]
-    versioned = INSTALL_PREFIX / "Applications" / NATIVE_NAMES[2]
+    versioned = Path(executable_path('S').lstrip('/'))
     _write_text(
         image / "usr/share/applications/com.puffyslippers.ONPCTest.System.desktop",
         _desktop_entry("ONPC System Test Application", exact),
@@ -216,7 +223,7 @@ def _build_native_layout(output: Path, native: Path) -> None:
                 "native": {
                     "exact": f"/{exact.as_posix()}",
                     "spaces": f"/{(INSTALL_PREFIX / 'Applications' / NATIVE_NAMES[1]).as_posix()}",
-                    "version_pattern": f"/{(INSTALL_PREFIX / 'Applications' / 'Lunar Client-*.AppImage').as_posix()}",
+                    "version_pattern": version_pattern(),
                     "nonmatching": f"/{(INSTALL_PREFIX / 'Applications' / NATIVE_NAMES[-1]).as_posix()}",
                 },
                 "flatpak": {"app_id": APP_ID, "branch": BRANCH},

@@ -1,7 +1,7 @@
 # Kiosk confinement baseline validation for v1.4
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04p1 — [Verify baseline app fixture applicability](Kiosk-Prompt-Tasks/C04p1-compatible-app-fixtures.md)**.
+Next task: **C04p — [Validate baseline time and app effects using E2E coverage](Kiosk-Prompt-Tasks/C04p-app-effects.md)**.
 
 ## Outcome
 

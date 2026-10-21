@@ -60,3 +60,10 @@ expiry substitution. Retain exact candidate/fixtures/providers, public outcomes,
 collection and owned restoration. No installed pass exists yet. Update only the
 qualified finite scope and later briefs' remaining work; close no kiosk row,
 broader FLOW13/19/20 capability or complete E2E scenario automatically.
+
+The compatible fixture implementation and host checks are now delivered in the
+[C04p1 handoff](../E2E-Building-Blocks.md#c04p1-compatible-fixture-applicability).
+Use its full Versioned S target/wildcard and current fixture-source-keyed inputs.
+Older ten/seven-file receipts do not verify the expanded twelve/nine-file
+native/Riley profile; verify maintained baseline preparation before installed
+attempts. Both-target installed grant/use/revocation acceptance is still pending.

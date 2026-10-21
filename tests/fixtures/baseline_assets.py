@@ -3,10 +3,12 @@ from pathlib import Path
 
 try:
     from native_assets import (ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,
-                               ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id)
+                               ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
+                               legacy_executable_paths)
 except ImportError:
     from tests.fixtures.native_assets import (ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE,
-        ACTIVITY_PREFIX, ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id)
+        ACTIVITY_PREFIX, ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id,
+        legacy_executable_paths)
 
 MECHANICAL = '/opt/onpc-baseline-assets/onpc-test-application'
 NATIVE = {
@@ -29,8 +31,11 @@ def native_files(accounts):
     files = {MECHANICAL: ('mechanical', 0o755, 'system')}
     for role, filename, *rest in ASSETS:
         files[PREFIX + '/' + filename] = (role, 0o755, 'other')
-    for filename in GUI_FILES:
-        files[PREFIX + '/' + filename] = (filename, 0o644, 'other')
+    for path in legacy_executable_paths():
+        files[path] = ('S', 0o755, 'other')
+    for directory in ('', 'Versioned/'):
+        for filename in GUI_FILES:
+            files[PREFIX + '/' + directory + filename] = (filename, 0o644, 'other')
     files[ACTIVITY_EXECUTABLE] = ('trusted-activity', 0o755, 'system')
     for filename in GUI_FILES:
         files[ACTIVITY_PREFIX + '/' + filename] = (filename, 0o644, 'system')

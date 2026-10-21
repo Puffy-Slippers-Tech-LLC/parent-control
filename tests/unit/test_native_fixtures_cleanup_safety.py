@@ -19,7 +19,8 @@ import native_fixtures_guest as guest
 
 from native_fixture_qualification import NativeFixtureJourney, PLAN
 from private_artifacts import EvidenceError
-from tests.fixtures.native_assets import ASSETS, desktop_entry, desktop_id, sources
+from tests.fixtures.native_assets import (ASSETS, desktop_entry, desktop_id, sources,
+    executable_sources, gui_sources, launcher_sources)
 from ui_observations import AppRowsObservation
 
 
@@ -64,7 +65,7 @@ def test_readback_nonstandard_home_and_preserved_unrelated_files(payload):
     before = unrelated.stat()
     first = guest.execute('read', expected)
     assert guest.execute('read', expected) == first
-    assert len(first['files']) == 10
+    assert len(first['files']) == 12
     assert unrelated.read_bytes() == b'preserve' and unrelated.stat() == before
     for source, (path, mode) in guest.destinations(child).items():
         assert path.stat().st_uid == child.pw_uid and path.stat().st_gid == child.pw_gid
@@ -74,8 +75,11 @@ def test_readback_nonstandard_home_and_preserved_unrelated_files(payload):
 
 
 @pytest.mark.parametrize('fault', ['digest', 'missing', 'bytes', 'mode', 'hardlink',
-                                  'symlink', 'parent-link', 'parent-mode', 'launcher'])
-def test_baseline_readback_refuses_without_repairing(payload, fault):
+                                  'symlink', 'parent-link', 'parent-mode', 'launcher',
+                                  'versioned-extra', 'versioned-directory', 'versioned-mode',
+                                  'versioned-link', 'versioned-gui-digest', 'source-key',
+                                  'versioned-owner', 'versioned-group'])
+def test_baseline_readback_refuses_without_repairing(payload, monkeypatch, fault):
     child, expected = payload
     target = next(iter(guest.destinations(child).values()))[0]
     if fault == 'digest': expected[sources()[0]] = '0' * 64
@@ -93,6 +97,28 @@ def test_baseline_readback_refuses_without_repairing(payload, fault):
     if fault == 'launcher':
         launcher = Path(child.pw_dir) / '.local/share/applications' / desktop_id('A')
         launcher.write_bytes(b'wrong launcher')
+        expected[launcher_sources()[0]] = hashlib.sha256(launcher.read_bytes()).hexdigest()
+    versioned = Path(guest.PREFIX) / 'Versioned'
+    if fault == 'versioned-extra': (versioned / 'Allowed Nonmatch.AppImage').write_bytes(b'foreign')
+    if fault == 'versioned-directory': (versioned / 'foreign').mkdir()
+    if fault == 'versioned-mode': versioned.chmod(0o700)
+    if fault == 'versioned-link':
+        versioned.rename(versioned.with_name('preserved-versioned'))
+        versioned.symlink_to(versioned.with_name('preserved-versioned'))
+    if fault == 'versioned-gui-digest': expected[gui_sources()[2]] = expected[gui_sources()[0]]
+    if fault == 'source-key':
+        expected[executable_sources()[2].replace('/Versioned/', '/')] = expected.pop(executable_sources()[2])
+    if fault in ('versioned-owner', 'versioned-group'):
+        versioned_inode = versioned.stat().st_ino
+        actual = guest.os.fstat
+        def fstat(fd):
+            info = actual(fd)
+            if info.st_ino == versioned_inode:
+                values = {name: getattr(info, name) for name in dir(info) if name.startswith('st_')}
+                values['st_uid' if fault == 'versioned-owner' else 'st_gid'] += 1
+                return SimpleNamespace(**values)
+            return info
+        monkeypatch.setattr(guest.os, 'fstat', fstat)
     before = {path: path.lstat() for path, _ in guest.destinations(child).values()
               if path.exists() or path.is_symlink()}
     with pytest.raises((ValueError, OSError)):
@@ -314,7 +340,7 @@ def test_riley_controller_reads_its_finite_profile_twice(monkeypatch):
         return_value=(json.dumps(value, sort_keys=True) + '\n').encode()))
     verified = SimpleNamespace(recheck=Mock(), asset_files=expected)
     fixture = controller.NativeFixtures(transport, verified, profile='riley-grid')
-    assert fixture.verify() == {'verified': 1, 'verified_files': 7, 'independent_readback': True}
+    assert fixture.verify() == {'verified': 1, 'verified_files': 9, 'independent_readback': True}
     assert transport.call.call_count == 2
     for call in transport.call.call_args_list:
         assert call.args[0][4] == 'riley-grid'

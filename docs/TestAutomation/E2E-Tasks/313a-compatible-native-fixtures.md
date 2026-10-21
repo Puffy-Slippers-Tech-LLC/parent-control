@@ -56,3 +56,15 @@ Publish exact fixture applicability in the
 [reuse map](../E2E-Building-Blocks.md#cross-plan-baseline-reuse). Close only 313a;
 313 still needs both-target installed grant/use/revocation results, and kiosk
 C04p1 independently checks the handoff. No complete scenario is supplied here.
+
+## Delivered host handoff
+
+The developer explicitly authorized this contained preparation during C04p1.
+The [reuse map](../E2E-Building-Blocks.md#c04p1-compatible-fixture-applicability)
+records the exact Versioned S target/wildcard, unchanged A/H/N, twelve/nine-file
+native/Riley inventories, source-key provenance, 3,060 passing unit checks and
+all eight passing UI cases across their retained reports. It also records
+resolved independent review, owned cleanup and invalidated older scope.
+This task's E2E queue row remains unchecked under that session's instruction to
+close only C04p1. Reuse the matching host handoff at owning-workflow close-out;
+do not repeat unchanged preparation or claim installed acceptance.

@@ -356,7 +356,7 @@ def verify_foreign_trust(g, *, inactive=False):
             candidates.append(path)
     targets = set(assets.trusted_file_modes()) | {
         assets.NATIVE[key][0] for key in ('command', 'whitespace')} | {
-        assets.PREFIX + '/' + asset[1] for asset in assets.ASSETS}
+        assets.PREFIX + '/' + asset[1] for asset in assets.ASSETS} | set(assets.legacy_executable_paths())
     for path in candidates:
         if not g.exists(path) and not g.is_symlink(path):
             continue

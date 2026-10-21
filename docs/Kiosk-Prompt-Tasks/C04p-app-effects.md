@@ -52,7 +52,7 @@ exception candidates restored the directory guard. No policy or files changed.
 All six inspected native/GUI files matched the guest receipt and frozen input
 hashes; the installed compiler matched current source. This is the documented
 [rule-isolation limitation](../SystemDesign/Applications.md#live-filter-and-execution-rules),
-not evidence of a new confinement defect. The current shared directory contains
+not evidence of a new confinement defect. The shared directory at failure contained
 Allowed space-bearing ELF A; H is blocked and S matches, so neither supplies
 that conflicting nonmatch.
 
@@ -69,16 +69,24 @@ or development-host product installation occurred. Plan/launcher consistency
 passed 670 checks in `20261021T171132Z-c42e34f9`; structure, links and diff checks
 passed. Only test/tooling/documentation changed, so no product build was required.
 
-The verified cumulative [evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-dpr498bp/evidence.zip)
-retains 126 files, including both original failures, latest per-target results,
-current host reports, diagnostic prefix and fixture-input manifests. Its SHA-256
-is `4967eb4584cf98073da50a1c52e99b9c272a273afa1336eeca8cc34e795e72da`.
-The latest results retain `lease_phase=complete`, source/host preservation and
+The verified cumulative [evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-esrj2v4_/evidence.zip)
+retains all 126 original files, including both original failures, per-target
+results, host reports, diagnostic prefix and fixture-input manifests, plus
+38 C04p1 host evidence files. Its SHA-256 is
+`42ad61f5eadef328f1769f5565201476a3a30a9e89858a309e2513e2252a67d2`.
+The original per-target results retain `lease_phase=complete`, source/host preservation and
 cleanup passed; product and collection are not-run. Preserve those original
 outcomes when resuming. The live read-only causal probe and source review supply
 diagnosis only, not installed acceptance.
 
 The retained test/tooling implementation is preserved as a reviewed,
-host-checked source baseline for E2E 313a/313. This preserves unfinished work;
-it closes neither E2E task nor C04p1/C04p. The fixture blocker and required
-both-target installed history above remain unchanged.
+host-checked source baseline for E2E 313a/313. C04p1 subsequently delivered and
+checked the [compatible host fixture handoff](../TestAutomation/E2E-Building-Blocks.md#c04p1-compatible-fixture-applicability)
+under explicit bounded developer authorization. Active S now uses
+`/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage`
+and the same directory's `Lunar Client-*.AppImage` wildcard; A/H/N stay unchanged.
+Earlier S paths, source keys and ten/seven-file native/Riley receipts cannot
+qualify the expanded twelve/nine-file profile. Preparation and fixture-source
+selection must match that handoff. This closes no E2E row or C04p; E2E 313's
+complete both-target installed history and this consumer's applicability check
+remain required. The original stopped attempts above supply no installed pass.

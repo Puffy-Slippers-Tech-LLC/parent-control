@@ -5,6 +5,7 @@ children only. No live VM, display, bus, service or shared mutable cache.
 """
 from copy import deepcopy
 import json
+import runpy
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
@@ -177,6 +178,22 @@ def test_registration_and_required_public_operations():
     for stage, tag in effects.PLAN.screen_tags.items():
         if tag.startswith('ui:'):
             assert tag[3:] in accessible_ui.OPERATIONS and tag[3:] in OPERATION_LABELS, stage
+
+
+def test_qualifier_selects_package_and_fixture_source_identity(monkeypatch):
+    from tools import test_storage
+    assets = object()
+    named = Mock(return_value=assets)
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(test_storage, 'named_input', named)
+    monkeypatch.setattr(smoke, 'main', execute)
+    with pytest.raises(SystemExit) as stopped:
+        runpy.run_path(str(ROOT / 'tests/integration/check_e2e_baseline_app_effects.py'),
+                       run_name='__main__')
+    assert stopped.value.code == 0
+    named.assert_called_once_with(package_source=True, fixture_source=True)
+    execute.assert_called_once_with(assets=assets, provision_credentials=True,
+                                    baseline_app_effects=True)
 
 
 @pytest.mark.parametrize('fault', ['', 'setup-detached'])

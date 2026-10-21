@@ -13,7 +13,8 @@ from ui_observations import AppRowsObservation
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tests.fixtures.native_assets import ASSETS, desktop_id, sources, riley_grid_sources, activity_sources
+from tests.fixtures.native_assets import (ASSETS, desktop_id, sources, riley_grid_sources,
+                                         activity_sources, executable_sources)
 
 
 def guest_source():
@@ -55,7 +56,7 @@ class NativeFixtures:
         expected = ({name: self.verified.asset_files[name] for name in names}
                     if self.profile != 'chinese' else {})
         if self.profile not in ('chinese', 'activity'):
-            require(len({expected[name] for name in sources()[:4]}) == 4, 'native:identical-roles')
+            require(len({expected[name] for name in executable_sources()}) == 4, 'native:identical-roles')
         raw = self.transport.call(['/usr/bin/python3', '-I', '-', action, self.profile,
                                    json.dumps(expected, sort_keys=True)],
                                   input=guest_source(), timeout=90)

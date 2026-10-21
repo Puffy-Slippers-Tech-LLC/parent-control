@@ -151,6 +151,94 @@ def test_first_repeat_owned_update_and_preserved_unrelated_state(prepared):
     assert guest.read_file(fixture.assets.PREFIX + '/PrismLauncher.AppImage') == payload['N']
 
 
+def legacy_native_baseline(guest, payload, monkeypatch):
+    """Prepare the prior recorded layout using its finite declaration."""
+    current = fixture.assets.files
+    def old_files(accounts):
+        files = {path: spec for path, spec in current(accounts).items() if '/Versioned/' not in path}
+        for path in files:
+            if path.endswith('/' + fixture.assets.desktop_id('S')):
+                source, mode, role = files[path]
+                files[path] = (source.replace(b'/Versioned/', b'/'), mode, role)
+        return files
+    with monkeypatch.context() as previous:
+        previous.setattr(fixture.assets, 'files', old_files)
+        fixture.reconcile(guest, payload)
+
+
+@pytest.mark.parametrize('boundary', [None, 'write', 'rename', 'record'])
+def test_safe_versioned_upgrade_is_additive_and_resumes_owned_placement(prepared, monkeypatch, boundary):
+    guest, payload = prepared
+    legacy_native_baseline(guest, payload, monkeypatch)
+    original = copy.deepcopy(guest.nodes)
+    target = fixture.assets.PREFIX + '/Versioned/Lunar Client-3.7.17.AppImage'
+    temporary = target + '.onpc-baseline-new'
+    actual_write, actual_move = guest.write, guest.mv
+    failed = False
+    def write(path, data):
+        nonlocal failed
+        actual_write(path, data)
+        if not failed and boundary == 'write' and path == temporary:
+            failed = True
+            raise OSError('interrupted versioned placement')
+    def move(source, destination):
+        nonlocal failed
+        if not failed and boundary == 'rename' and source == temporary:
+            failed = True
+            raise OSError('interrupted versioned rename')
+        actual_move(source, destination)
+        if not failed and boundary == 'record' and source == temporary:
+            failed = True
+            raise OSError('interrupted versioned record')
+    monkeypatch.setattr(guest, 'write', write)
+    monkeypatch.setattr(guest, 'mv', move)
+    if boundary:
+        with pytest.raises(OSError, match='interrupted versioned'): fixture.reconcile(guest, payload)
+    fixture.reconcile(guest, payload)
+    fixture.verify(guest)
+    for path, node in original.items():
+        if (path in (fixture.RECORD, fixture.TRUST_RECORD)
+                or path.endswith('/' + fixture.assets.desktop_id('S'))):
+            continue
+        assert guest.nodes[path] == node
+    assert guest.read_file(target) == payload['S']
+    for name in fixture.assets.GUI_FILES:
+        assert guest.read_file(fixture.assets.PREFIX + '/Versioned/' + name) == payload[name]
+    legacy, = fixture.assets.legacy_executable_paths()
+    assert guest.nodes[legacy] == original[legacy]
+    assert not any(path.endswith('.onpc-baseline-new') for path in guest.nodes)
+    complete = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    fixture.reconcile(guest, payload)
+    assert guest.nodes == complete and not guest.writes
+
+
+@pytest.mark.parametrize('fault', ['collision', 'link', 'hardlink', 'owner', 'mode', 'bytes', 'staging'])
+def test_safe_versioned_inputs_refuse_foreign_or_stale_state_without_writes(prepared, monkeypatch, fault):
+    guest, payload = prepared
+    target = fixture.assets.PREFIX + '/Versioned/Lunar Client-3.7.17.AppImage'
+    if fault == 'collision':
+        legacy_native_baseline(guest, payload, monkeypatch)
+        owner = fixture.accounts(guest)['other']
+        fixture.directory(guest, str(PurePosixPath(target).parent), owner.pw_uid, owner.pw_gid, create=True)
+        guest.write(target, payload['S'])
+        guest.chown(owner.pw_uid, owner.pw_gid, target)
+        guest.chmod(0o755, target)
+    else:
+        fixture.reconcile(guest, payload)
+        if fault == 'link': guest.links[target] = '/foreign'
+        if fault == 'hardlink': guest.nodes[target][0]['st_nlink'] = 2
+        if fault == 'owner': guest.chown(999, 999, target)
+        if fault == 'mode': guest.chmod(0o777, target)
+        if fault == 'bytes': guest.write(target, b'foreign')
+        if fault == 'staging': guest.write(target + '.onpc-baseline-new', b'foreign')
+    before = copy.deepcopy(guest.nodes)
+    links = dict(guest.links)
+    guest.writes.clear()
+    with pytest.raises(ValueError): fixture.reconcile(guest, payload)
+    assert guest.nodes == before and guest.links == links and not guest.writes
+
+
 @pytest.mark.parametrize('fault', ['missing', 'empty', 'aliased-trusted', 'aliased-untrusted'])
 def test_trusted_payload_substitution_is_refused_before_any_write(prepared, fault):
     guest, payload = prepared
@@ -1110,7 +1198,7 @@ def test_double_interruption_preserves_published_identity_across_retry_intent(pr
 
 @pytest.mark.parametrize('placement', ['default', 'fragment', 'nested'])
 @pytest.mark.parametrize('existing', [False, True])
-@pytest.mark.parametrize('variant', ['trusted-hard', 'command', 'whitespace'])
+@pytest.mark.parametrize('variant', ['trusted-hard', 'command', 'whitespace', 'active-s', 'legacy-s'])
 def test_foreign_exact_target_trust_is_refused_and_preserved_before_any_write(prepared, placement, existing, variant):
     guest, payload = prepared
     if existing:
@@ -1122,7 +1210,9 @@ def test_foreign_exact_target_trust_is_refused_and_preserved_before_any_write(pr
     else:
         guest.mkdir('/etc/fapolicyd/trust.d/administrator')
         path = '/etc/fapolicyd/trust.d/administrator/nested.trust'
-    inventory = fixture.assets.TRUSTED_NATIVE | fixture.assets.NATIVE
+    inventory = fixture.assets.TRUSTED_NATIVE | fixture.assets.NATIVE | {
+        'active-s': (fixture.assets.PREFIX + '/Versioned/Lunar Client-3.7.17.AppImage', ''),
+        'legacy-s': (fixture.assets.legacy_executable_paths()[0], '')}
     target = inventory[variant][0]
     guest.write(path, f'{target} 123 {"a" * 64}\n'.encode())
     before = copy.deepcopy(guest.nodes)

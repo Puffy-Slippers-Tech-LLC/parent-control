@@ -44,7 +44,7 @@ print encode_json({ok=>$ok,events=>\@events});
     ('match-hard-precise', 'parent-match-rule-entry',
      '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage'),
     ('match-soft-wildcard', 'parent-match-rule-entry',
-     '/opt/onpc-test-fixtures/Applications/Lunar Client-*.AppImage')])
+     '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage')])
 def test_baseline_text_bindings_execute_real_shared_worker_and_each_refusal(binding, control, value):
     assert ui_module.TEXT_VALUES[binding] == (control, value)
     expected = ['field-focus', 'field-selected', 'field-read']
@@ -64,6 +64,13 @@ def test_baseline_text_worker_refuses_unregistered_values_before_observation(bin
     assert binding not in ui_module.TEXT_VALUES
     assert json.loads(run_perl(BASELINE_TEXT_WORKER, binding, '').stdout) == {
         'ok': 0, 'events': []}
+
+
+def test_soft_match_oracle_uses_only_the_isolated_active_directory():
+    pattern = '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage'
+    assert MATCH_RULES[-1] == pattern
+    assert ui_module.TEXT_VALUES['match-soft-wildcard'][1] == pattern
+    assert '/opt/onpc-test-fixtures/Applications/Lunar Client-*.AppImage' not in MATCH_RULES
 
 
 def catalogue_ui(binding, selected_child):
@@ -254,16 +261,17 @@ def launch_ui(monkeypatch):
     return ui
 
 
-@pytest.mark.parametrize('role,instance,filename', [
-    ('A', 'primary', 'Exact Fixture.AppImage'), ('S', 'secondary', 'Lunar Client-3.7.17.AppImage')])
-def test_native_launch_role_binds_executable_instance_and_single_use(monkeypatch, role, instance, filename):
+@pytest.mark.parametrize('role,instance,executable', [
+    ('A', 'primary', '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'),
+    ('S', 'secondary', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage')])
+def test_native_launch_role_binds_executable_instance_and_single_use(monkeypatch, role, instance, executable):
     ui = launch_ui(monkeypatch)
     submit = Mock()
     monkeypatch.setattr(ui_module.subprocess, 'run', submit)
     ui.native_launch_command(instance, child=ui_module.CHILD, role=role)
     assert submit.call_count == 1
     assert submit.call_args.args[0][-3:] == [
-        '/opt/onpc-test-fixtures/Applications/' + filename, '--instance', instance]
+        executable, '--instance', instance]
     assert all(call.args == (instance,) for call in ui.native_app_closed.call_args_list)
     with pytest.raises(UiError, match='uncertain-input'):
         ui.native_launch_command(instance, child=ui_module.CHILD, role=role)
@@ -307,7 +315,7 @@ def test_soft_denial_needs_attributed_permission_and_stable_public_boundary(monk
                 role='S', blocked=True, locked=locked)
     assert submit.call_count == 1
     assert journal.call_args.kwargs == {'executable':
-        '/opt/onpc-test-fixtures/Applications/Lunar Client-3.7.17.AppImage'}
+        '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage'}
     assert '--wait' in submit.call_args.args[0] and '--pipe' in submit.call_args.args[0]
     if locked:
         ui.desktop_result.assert_not_called()
@@ -319,7 +327,7 @@ def test_soft_denial_needs_attributed_permission_and_stable_public_boundary(monk
     assert ui.input_uncertain
 
 
-@pytest.mark.parametrize('role,wrong', [('A', False), ('S', False), ('S', True)])
+@pytest.mark.parametrize('role,wrong', [('A', False), ('S', False), ('S', True), ('S', 'legacy')])
 def test_instance_owner_requires_declared_native_parent_and_uid(tmp_path, monkeypatch, role, wrong):
     ui = ui_for(Node())
     process = tmp_path / '100'
@@ -331,8 +339,10 @@ def test_instance_owner_requires_declared_native_parent_and_uid(tmp_path, monkey
     (owner / 'stat').write_text('200 (native) S 1 ' + '0 ' * 17 + '11')
     instance = 'secondary' if role == 'S' else 'primary'
     expected = '/opt/onpc-test-fixtures/Applications/' + {
-        'A': 'Exact Fixture.AppImage', 'S': 'Lunar Client-3.7.17.AppImage'}[role]
-    (owner / 'exe').symlink_to('/private/foreign' if wrong else expected)
+        'A': 'Exact Fixture.AppImage', 'S': 'Versioned/Lunar Client-3.7.17.AppImage'}[role]
+    executable = ('/opt/onpc-test-fixtures/Applications/Lunar Client-3.7.17.AppImage'
+                  if wrong == 'legacy' else '/private/foreign' if wrong else expected)
+    (owner / 'exe').symlink_to(executable)
     (owner / 'cmdline').write_bytes(b'\0'.join([
         expected.encode(), b'--instance', instance.encode(), b'']))
     monkeypatch.setattr(ui_module, 'Path', lambda value: tmp_path / value.removeprefix('/proc/'))
@@ -341,6 +351,21 @@ def test_instance_owner_requires_declared_native_parent_and_uid(tmp_path, monkey
             ui.native_app_owner(Node(), role, instance)
     else:
         ui.native_app_owner(Node(), role, instance)
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_soft_journal_diagnostic_accepts_only_the_active_full_path(monkeypatch, legacy):
+    unit = 'onpc-test-native-' + 'a' * 32 + '.service'
+    executable = '/opt/onpc-test-fixtures/Applications/' + (
+        '' if legacy else 'Versioned/') + 'Lunar Client-3.7.17.AppImage'
+    entry = {'USER_UNIT': unit, 'EXECUTABLE': executable, 'ERRNO': '13',
+        'MESSAGE': unit + ': Failed at step EXEC spawning ' + executable + ': Permission denied'}
+    reader = Mock(return_value=SimpleNamespace(stdout=json.dumps(entry).encode(), stderr=b''))
+    monkeypatch.setattr(ui_module.subprocess, 'run', reader)
+    assert ui_module.native_execution_journal_diagnostic(unit, executable=executable) == {
+        'status': 'unavailable' if legacy else 'read', 'entries': 0 if legacy else 1,
+        'exec_errors': [] if legacy else ['permission-denied']}
+    assert reader.call_count == int(not legacy)
 
 
 @pytest.mark.parametrize('role,name,instance', [

@@ -1402,7 +1402,8 @@ print encode_json(\@events);
                                             if boundary else expected + ['power'])
 
 
-def test_filter_leaves_use_canonical_values_and_final_state():
+@pytest.mark.parametrize('stale_entry', [False, True])
+def test_filter_leaves_use_canonical_values_and_final_state(stale_entry):
     ui, page, *_ = app_ui()
     root = ui.find_id('parent-window')
     root.states.add('active')
@@ -1415,6 +1416,17 @@ def test_filter_leaves_use_canonical_values_and_final_state():
     root.children.append(selector)
     ui._invoke_target = Mock()
     ui.activate_id = Mock()
+    if stale_entry:
+        ui.timeout = 1
+        recipient = ui.text_recipient
+        attempts = []
+        def read(*args, **kwargs):
+            attempts.append(1)
+            if len(attempts) == 1:
+                selector.setValue.assert_not_called()
+                raise accessible_ui.UiError('ui:incomplete-tree')
+            return recipient(*args, **kwargs)
+        ui.text_recipient = read
     assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'open') == {'ready': 'match-rule'}
     ui.activate_id.assert_not_called()
     assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'pattern') == {
@@ -1430,6 +1442,20 @@ def test_filter_leaves_use_canonical_values_and_final_state():
     with pytest.raises(accessible_ui.UiError):
         ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'pattern')
     selector.setValue.assert_called_once()
+
+
+def test_filter_read_retry_never_replays_a_failed_mutation():
+    ui, *_ = app_ui()
+    selector = Mock()
+    selector.getValue.return_value = []
+    ui.text_recipient = Mock(return_value=Node())
+    ui.id_target = Mock(return_value=selector)
+    ui.handle_system_prompt = Mock()
+    ui.set_value = Mock(side_effect=accessible_ui.UiError('ui:incomplete-tree'))
+    with pytest.raises(accessible_ui.UiError, match='incomplete-tree'):
+        ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 1, 'pattern')
+    ui.text_recipient.assert_called_once_with('parent-app-search', child=accessible_ui.CHILD)
+    ui.set_value.assert_called_once_with('parent-filter-match-rule', ['pattern'])
 
 
 def test_filter_composite_is_independently_reusable_and_refusal_stops_later_input():

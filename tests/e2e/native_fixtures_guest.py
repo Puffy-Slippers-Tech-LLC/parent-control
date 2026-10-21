@@ -14,10 +14,12 @@ from types import SimpleNamespace
 from guest_files import identity, read_regular, require
 if __name__ == '__main__':
     from native_assets import (ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources,
-                              riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources)
+        riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources,
+        executable_sources, runtime_sources, source_destinations, legacy_executable_paths)
 else:
     from tests.fixtures.native_assets import (ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id,
-        sources, riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources)
+        sources, riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources,
+        executable_sources, runtime_sources, source_destinations, legacy_executable_paths)
 import session_control
 
 LIMIT = 2 * 1024 * 1024
@@ -58,10 +60,22 @@ def directory(path, child):
 
 
 def destinations(child):
-    launchers = Path(child.pw_dir) / '.local/share/applications'
-    return {source: (Path(PREFIX) / Path(source).name, 0o755 if Path(source).name
-                    not in GUI_FILES else 0o644) for source in sources()[:6]} | {
-        source: (launchers / Path(source).name, 0o644) for source in sources()[6:]}
+    return {source: (Path(path), mode) for source, (path, mode) in
+            source_destinations(child.pw_dir, prefix=PREFIX).items()}
+
+
+@contextmanager
+def versioned_directory(child):
+    """The safe pattern directory contains exactly S and its adjacent runtime."""
+    path = Path(PREFIX) / 'Versioned'
+    expected = {target.name for source, (target, mode) in destinations(child).items()
+                if target.parent == path}
+    with directory(path, child) as (fd, guard):
+        info = os.fstat(fd)
+        require(info.st_uid == child.pw_uid and info.st_gid == child.pw_gid
+                and stat.S_IMODE(info.st_mode) == 0o755 and set(os.listdir(fd)) == expected)
+        yield fd, guard, expected
+        require(set(os.listdir(fd)) == expected)
 
 
 def authority():
@@ -79,14 +93,18 @@ def readback(child, expected):
     require(type(expected) is dict and set(expected) == set(sources())
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
-            and len({expected[source] for source in sources()[:4]}) == 4)
+            and len({expected[source] for source in executable_sources()}) == 4)
     result = {}
-    for source, (target, mode) in destinations(child).items():
-        with directory(target.parent, child) as (fd, guard):
-            data, info = read_regular(fd, target.name, owner=child.pw_uid, mode=mode, limit=LIMIT)
-            require(info.st_gid == child.pw_gid and hashlib.sha256(data).hexdigest() == expected[source])
-            guard()
-        result[source] = {'identity': identity(info), 'sha256': expected[source], 'mode': mode}
+    with versioned_directory(child):
+        for source, (target, mode) in destinations(child).items():
+            with directory(target.parent, child) as (fd, guard):
+                data, info = read_regular(fd, target.name, owner=child.pw_uid, mode=mode, limit=LIMIT)
+                require(info.st_gid == child.pw_gid and hashlib.sha256(data).hexdigest() == expected[source])
+                if source not in runtime_sources():
+                    asset, = (asset for asset in ASSETS if desktop_id(asset[0]) == target.name)
+                    require(data == desktop_entry(asset).encode())
+                guard()
+            result[source] = {'identity': identity(info), 'sha256': expected[source], 'mode': mode}
     return {'files': result, 'launchers': [desktop_id(asset[0]) for asset in ASSETS]}
 
 
@@ -95,24 +113,25 @@ def riley_readback(shared_owner, expected):
     require(type(expected) is dict and set(expected) == set(riley_grid_sources())
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
-            and len({expected[source] for source in sources()[:4]}) == 4)
+            and len({expected[source] for source in executable_sources()}) == 4)
     riley = pwd.getpwnam(session_control.ACCOUNTS['child'])
     require(riley.pw_uid >= 1000 and riley.pw_uid != shared_owner.pw_uid)
     targets = {source: (path, mode, shared_owner)
                for source, (path, mode) in destinations(shared_owner).items()
-               if source in sources()[:6]}
+               if source in runtime_sources()}
     launcher = riley_grid_sources()[-1]
     targets[launcher] = (Path(riley.pw_dir) / '.local/share/applications' / desktop_id('A'),
                          0o644, riley)
     result = {}
-    for source, (target, mode, owner) in targets.items():
-        with directory(target.parent, owner) as (fd, guard):
-            data, info = read_regular(fd, target.name, owner=owner.pw_uid, mode=mode, limit=LIMIT)
-            require(info.st_gid == owner.pw_gid and hashlib.sha256(data).hexdigest() == expected[source])
-            if source == launcher:
-                require(data == desktop_entry(ASSETS[0]).encode())
-            guard()
-        result[source] = {'identity': identity(info), 'sha256': expected[source], 'mode': mode}
+    with versioned_directory(shared_owner):
+        for source, (target, mode, owner) in targets.items():
+            with directory(target.parent, owner) as (fd, guard):
+                data, info = read_regular(fd, target.name, owner=owner.pw_uid, mode=mode, limit=LIMIT)
+                require(info.st_gid == owner.pw_gid and hashlib.sha256(data).hexdigest() == expected[source])
+                if source == launcher:
+                    require(data == desktop_entry(ASSETS[0]).encode())
+                guard()
+            result[source] = {'identity': identity(info), 'sha256': expected[source], 'mode': mode}
     return {'files': result, 'launchers': [desktop_id('A')]}
 
 
@@ -170,6 +189,7 @@ def activity_readback(expected):
                               capture_output=True, check=True, timeout=30).stdout
     require(len(database) <= 33554432)
     from_paths = [PREFIX + '/' + asset[1] for asset in ASSETS]
+    from_paths.extend(legacy_executable_paths(prefix=PREFIX))
     from_paths.extend(('/opt/onpc-test-fixtures-command/native-fixture',
                        '/opt/onpc-test-fixtures-whitespace/native fixture'))
     rows = {path: [] for path in (*record['files'], *from_paths)}

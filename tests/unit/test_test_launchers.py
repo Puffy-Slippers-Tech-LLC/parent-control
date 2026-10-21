@@ -1048,6 +1048,35 @@ def test_collect_only_never_starts_cleanup(checkout, monkeypatch, category):
     execute.assert_called_once()
 
 
+@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
+def test_scheduled_collection_keeps_inventory_protocol_without_execution_ownership(
+        checkout, monkeypatch, category):
+    from contextlib import contextmanager
+    import regression_process
+    import test_activity
+    @contextmanager
+    def installed(controller, *, pipe=True):
+        assert pipe is True
+        yield controller
+    monkeypatch.setattr(regression_process.Control, 'installed', installed)
+    python = checkout / '.venv/onpc-ui-tests/bin/python'
+    python.parent.mkdir(parents=True)
+    python.symlink_to('/usr/bin/python3')
+    monkeypatch.setattr(host, '__file__', str(checkout / 'tools/test_launcher.py'))
+    monkeypatch.setattr(host, 'prerequisites', Mock(side_effect=AssertionError('collection cleanup')))
+    monkeypatch.setattr(test_activity, 'activity', Mock(side_effect=AssertionError('execution owner')))
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    assert host.main(['--unattended', '--collect-only', '--timeout', '180s',
+                      f'tests/{category}/test_future.py'], category=category) == 0
+    command = execute.call_args.args[0]
+    env = execute.call_args.kwargs['env']
+    assert env['ONPC_REGRESSION_EVENTS'] == env['ONPC_REGRESSION_INVENTORY'] == '1'
+    assert '--collect-only' in command and command[-1] == f'tests/{category}/test_future.py'
+    assert execute.call_args.kwargs['timeout'] == 180
+    execute.assert_called_once()
+
+
 @pytest.mark.parametrize('category,argv', [
     ('check', ['-f', '/tmp/evil']), ('check', ['SHELL=/tmp/evil']),
     ('all', ['--component=unit']), ('fast', ['--component=$(touch /tmp/no)']),

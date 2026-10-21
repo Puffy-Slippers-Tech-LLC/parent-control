@@ -327,7 +327,7 @@ TEXT_VALUES = {
     'catalogue-hard': ('parent-app-search', 'com.puffyslippers.ONPCTest.H.desktop'),
     'catalogue-soft': ('parent-app-search', 'com.puffyslippers.ONPCTest.S.desktop'),
     'match-hard-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage'),
-    'match-soft-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Lunar Client-*.AppImage'),
+    'match-soft-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage'),
     'catalogue-absent': ('parent-app-search', 'ONPC Absent Catalogue Fixture 077b'),
     'catalogue-clear': ('parent-app-search', ''),
     **{f'body-ascii-{units}': ('feedback-editor-input', 'x' * units)
@@ -588,7 +588,7 @@ MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
                '/opt/onpc-test-fixtures/Applications/*.AppImage',
                '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage',
-               '/opt/onpc-test-fixtures/Applications/Lunar Client-*.AppImage')
+               '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage')
 BASELINE_POLICY_DRAFTS = {'match-hard-precise': MATCH_APPS['H'],
                           'match-soft-wildcard': MATCH_APPS['S']}
 BASELINE_MATCH_OPERATIONS = {f'match-{name}-{action}': (MATCH_APPS[role], action)
@@ -7267,7 +7267,9 @@ class AccessibleUI:
                 and 0 <= mask < (1 << len(FILTER_OPTIONS[kind]))
                 and action in ('open', *FILTER_OPTIONS[kind]),
                 'ui:filter-binding')
-        self.text_recipient('parent-app-search', child=child)
+        # Debounced catalogue updates can invalidate a paginated snapshot.
+        # Reacquire only this read; the filter mutation below remains single-use.
+        self.focus_text('parent-app-search', child=child)
         identity = f'parent-filter-{kind}'
         selector = self.id_target(identity, sensitive=True)
         if action == 'open':
@@ -11783,7 +11785,7 @@ class AccessibleUI:
         executable = ('/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
             '/opt/onpc-test-fixtures/Applications/' + {
                 'A': 'Exact Fixture.AppImage', 'H': 'Path With Spaces.AppImage',
-                'S': 'Lunar Client-3.7.17.AppImage'}[role or 'A'])
+                'S': 'Versioned/Lunar Client-3.7.17.AppImage'}[role or 'A'])
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
             *(['--wait', '--pipe'] if blocked else []),
@@ -11926,7 +11928,7 @@ class AccessibleUI:
         owner = Path('/proc/' + fields[1])
         owner_stat = (owner / 'stat').read_text()
         expected = '/opt/onpc-test-fixtures/Applications/' + {
-            'A': 'Exact Fixture.AppImage', 'S': 'Lunar Client-3.7.17.AppImage'}[role]
+            'A': 'Exact Fixture.AppImage', 'S': 'Versioned/Lunar Client-3.7.17.AppImage'}[role]
         require(process.stat().st_uid == owner.stat().st_uid == os.getuid()
                 and str((owner / 'exe').readlink()) == expected
                 and (owner / 'cmdline').read_bytes().split(b'\0') ==
@@ -13546,7 +13548,7 @@ def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixt
     if executable not in (
             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
             '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage',
-            '/opt/onpc-test-fixtures/Applications/Lunar Client-3.7.17.AppImage'):
+            '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage'):
         return diagnostic
     if type(unit) is not str or re.fullmatch(r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None:
         return diagnostic

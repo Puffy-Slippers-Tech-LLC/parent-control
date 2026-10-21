@@ -30,10 +30,10 @@ class ScriptedParentBroker:
         self._mode = os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO", "normal")
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
         if self._mode in ('catalogue', 'rejected-rule'):
-            from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id
+            from tests.fixtures.native_assets import ASSETS, desktop_id, executable_path
             self._preferences[1002]['apps'] = {
                 desktop_id(role): {'state': {'H': 'permanent', 'S': 'conditional'}.get(role, 'allowed'),
-                    'targets': [PREFIX + '/' + filename],
+                    'targets': [executable_path(role)],
                     'patterns': [], 'user_saved_match_rule': False}
                 for role, filename, _name, _description, _match in ASSETS}
         if self._mode == "custom-limit":
@@ -126,10 +126,10 @@ class ScriptedParentBroker:
         if self._mode == "loading":
             self._wait_for_loading_release()
         if self._mode in ('catalogue', 'rejected-rule'):
-            from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id
+            from tests.fixtures.native_assets import ASSETS, desktop_id, executable_path, version_pattern
             return [{'id': desktop_id(role), 'name': name, 'description': description,
-                     'icon': 'applications-system', 'targets': [PREFIX + '/' + filename],
-                     'suggested_patterns': [PREFIX + '/Lunar Client-*.AppImage']
+                     'icon': 'applications-system', 'targets': [executable_path(role)],
+                     'suggested_patterns': [version_pattern()]
                         if match == 'pattern' else []}
                     for role, filename, name, description, match in ASSETS]
         return copy.deepcopy(PREVIEW_APPS)

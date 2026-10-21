@@ -1786,8 +1786,8 @@ exact matching evidence without closing E2E rows or duplicating feature mechanic
 
 | Shared scope | Feature owner / existing coverage | Kiosk baseline use and remaining E2E work |
 | --- | --- | --- |
-| Compatible native fixtures | **313a**, reusing 035p and 035b's safe-directory direction | C04p1 checks exact applicability. Existing shared-directory failures are retained, not passed; no feature fixture project runs under C04p1. |
-| Finite A/H/S grant/use/revocation | **313**, existing in-progress `baseline_app_effects` / `check_e2e_baseline_app_effects` | C04p reuses matching both-target histories, rerunning only invalidated scope. Shared code has finite H/S, distinct A/S, denial and 600-second request work; fixture compatibility and installed qualification remain pending. |
+| Compatible native fixtures | **313a**, reusing 035p and 035b's safe-directory direction | The bounded fixture work was explicitly authorized during C04p1; [exact handoff](#c04p1-compatible-fixture-applicability). C04p1 checks its host applicability only; the E2E row stays unchecked. Existing shared-directory failures supply no installed pass. |
+| Finite A/H/S grant/use/revocation | **313**, existing in-progress `baseline_app_effects` / `check_e2e_baseline_app_effects` | C04p reuses matching both-target histories, rerunning only invalidated scope. Shared code has finite H/S, distinct A/S, denial and 600-second request work; compatible host fixture handoff is delivered, installed qualification remains pending. |
 | Grant-only profile | **065a** consumes 313's exact grant/readback leaves | Still owns the 120-second profile, explicit revoke-first branch and its caller-owned duration scope. A 600-second Riley/Jamie result is not those bindings. |
 | Named rules and native denial | **079b/079d** consume 313's finite shared policy/instance/command-denial work | Still own FLOW19 explicit lists/entry modes and APP02 grid/command/access branches outside 313's exact slice. No reimplementation of delivered leaves. |
 | Approval and child return | **197/197a/197k** consume shared request, grant/countdown and entry leaves | Still own parameterized FLOW20 accounts, durations, soft choices, new/open forms and fresh/retained destinations. 313 does not qualify that whole matrix. |
@@ -1802,6 +1802,99 @@ exact matching evidence without closing E2E rows or duplicating feature mechanic
 At delivery, update exact callables, inputs, target/provider/candidate applicability,
 retained outcomes and the affected unfinished briefs. Until then, planned scope
 remains pending. This reconciliation changes no executable inventory or readiness.
+
+#### C04p1 compatible fixture applicability
+
+The developer explicitly authorized the contained 313a fixture preparation during
+C04p1. Its shared implementation stays in the E2E owners; no other workflow was
+launched and no E2E row closes here. Preparation leaves every launcher Allowed;
+the finite consumer policy/instance bindings are:
+
+- Allowed A: `/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage`,
+  precise, primary instance.
+- Permanent H: `/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage`,
+  precise, distinct executable bytes.
+- Conditional S:
+  `/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage`,
+  wildcard `/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-*.AppImage`,
+  secondary instance.
+
+`native_assets`/the builder, baseline inventory, guarded verifier, Parent preview,
+`accessible_ui` policy/launch/owner/denial bindings and `onpc_text` agree on those
+full targets. The public oracle keeps desktop IDs and access/match outcomes;
+A/H/N paths and unrelated controls stay unchanged. The original S payload stays
+as an owned untrusted compatibility file. No journey moves fixtures or changes
+A to blocked, S to precise, or the renderer's warnings/refusals.
+
+The native source declaration has 12 exact keys (four executable, four adjacent
+GUI, four launcher); Riley verifies nine, retaining Jordan's runtime ownership
+and Riley's own A launcher. `check_e2e_baseline_app_effects` selects
+`named_input(package_source=True, fixture_source=True)`. Builder/native/C/GUI
+source changes therefore select a fresh input without overwriting old bundles.
+Native inventory source SHA-256 is
+`942f4d07f18f3879ff3be392be914a0351f2fe81dfcb9aa2a5976abcbcba31b0`;
+the corresponding delivered source SHA-256 values are:
+
+| Source | SHA-256 |
+| --- | --- |
+| `tests/fixtures/build_test_applications.py` | `9441c578240a81eaa692ec53192def7eddbd7de0f5c9541c60afa03a27cdcf8d` |
+| `tests/fixtures/baseline_assets.py` | `c05b6d9bd593624948dbed8dc371c09393eb22f0abb917efd03cc2485c951c62` |
+| `tests/e2e/native_fixtures.py` | `9035c06631c15f52a6fc1e70c72cd43434a47c2338123d91d42dce281430df29` |
+| `tests/e2e/native_fixtures_guest.py` | `fd872e33536d36a0101ee123bf858528c797455a03f18f4ca5acc215b5f4928f` |
+| `tests/e2e/accessible_ui.py` | `8c31d3f303b2b4bd5aed84e5abc809c3e29739dced385006ec7447cba850c95f` |
+| `tests/integration/check_e2e_baseline_app_effects.py` | `58b9a9bc2ba9aec028d5d181ed5814f8860418c381d5282d24776576d864c5bc` |
+| `tools/test_launcher.py` | `c4eceb32c3bbf3089f8060ce8ce4dfa9b253cc0d3b7e60c8157182caa7cd94f0` |
+
+Host acceptance on the final source passed **3,060 unit checks** and **eight UI
+cases**. The verified cumulative
+[evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-esrj2v4_/evidence.zip)
+retains these complete reports at their original paths below
+`/Data/Code/PST/parent-control/output/test-runs/host/reports/`:
+
+- `20261021T182528Z-8bb9c18d/report.md`: 3,060 unit checks and seven UI cases
+  passed with 300/180-second category bounds, including the formerly failing
+  policy composition.
+- `20261021T181812Z-e4ccd574/report.md`: the remaining exact UI case,
+  `test_rejected_parent_rule_report_review_and_confirmed_policy[match-wildcard]`,
+  passed independently with the same 180-second limit.
+- `20261021T182125Z-6037ba90/report.md`: 313 plan, inventory, coverage and
+  composition consistency checks passed with a 180-second bound.
+
+The bundle contains 164 files, preserving all 126 original C04p evidence files;
+SHA-256 is `42ad61f5eadef328f1769f5565201476a3a30a9e89858a309e2513e2252a67d2`.
+The earlier eight-case UI group reached its 180-second deadline; that incomplete
+group supplies no complete-selection pass. Its expired report was renewed by
+the complete selections above, with no assertion omitted or deadline widened.
+The maintained runner joined all workers and finished owned cleanup; verified
+bundle publication also reports cleanup complete.
+
+The real compiled payload/renderer checks retain zero omitted groups, concrete
+H denial and S's directory guard in both early-rule modes, with A absent from
+denials and no hash allowances. The separate legacy unsafe layout still refuses.
+Other checks cover deterministic builder/manifests, source selection, exact
+readback, modes/ownership, foreign/stale refusal, additive legacy upgrade and
+interrupted retry, distinct instances, declaration/worker/decoder and cleanup.
+
+Two bounded harness defects were repaired without product changes: scheduled
+UI collection now emits its inventory records, and filter entry reuses the
+existing bounded recipient-read helper before its single mutation. Independent
+Sol review found no remaining source issues; its test-only stdin-listener finding
+was resolved with an in-process controller context double. Final regressions
+cover that boundary and refusal/no-mutation-replay. All helpers finished.
+No VM was started/refreshed and no development-host product was installed.
+These test/tool/documentation inputs are outside `PACKAGE_SOURCE_FILES` and
+product build-tool dependencies, so no product build is required.
+
+All earlier S target/launcher/source-key evidence is invalid for this new active
+path. Earlier native/Riley FIX06 receipts verified ten/seven files; they do not
+qualify the expanded twelve/nine-file inventory. Unchanged A/H/N names alone
+supply no pass: reuse still requires matching bytes, caller, route, instance and
+provider. The two original stopped C04p histories and their bundle remain retained
+in the [consumer](../Kiosk-Prompt-Tasks/C04p-app-effects.md#retained-work-and-return-condition).
+This host profile applies to the shared Ubuntu/Fedora declaration, without
+establishing prepared guest state or either target's installed result. 313 and
+C04p still require their uninterrupted both-target grant/use/revocation and
+restoration histories. 035b still owns its additional copy/update/nonmatch history.
 
 #### C04b host acceptance
 
@@ -4522,13 +4615,13 @@ FIX06's finite native declaration is [native_assets.py](../../tests/fixtures/nat
 A/H/S/N are later policy roles; preparation leaves every launcher Allowed.
 The shared [builder](../../tests/fixtures/build_test_applications.py) compiles
 distinct executable contents for enforcement while preserving the GUI's native kind.
-The four executables share adjacent `onpc-test-gui.py` and `gtk_automation.py`.
-Their GUI currently defaults every native role to the same primary application
-and control IDs. Concurrent A/S work therefore needs a finite role-scoped public
-projection or declared collision-free instance binding before enforcement cases;
-distinct executable bytes alone do not identify their public windows. APP04's
-current reader is primary-only and needs its named instance extension before
-secondary-window consumers. Snap/Flatpak builders likewise have one package/app
+The active S executable has its own adjacent `onpc-test-gui.py` and
+`gtk_automation.py` in `Applications/Versioned`; A/H/N retain the runtime in
+`Applications`. `native_launch_command` and the public activity reader bind
+A to primary and S to secondary for the finite 313 history, with independent
+owner/result checks. These bindings remain pending installed qualification;
+distinct executable bytes alone do not identify their public windows.
+Snap/Flatpak builders likewise have one package/app
 identity each; tasks 109p/116p must supply their declared A/H/S profiles.
 
 Riley's same-target grid launcher is part of the existing both-child baseline
@@ -4536,17 +4629,18 @@ inventory and is qualified below through the read-only `riley-grid` profile.
 Two distinct launchers sharing one target are the separate planned
 [229a native profile](E2E-Tasks/229a-shared-target-launchers.md) for case 187;
 the four baseline executables below do not supply that alias.
-The narrow version-pattern case 189 also needs 035b's finite safe-directory
-profile: space-bearing ELF nonmatches in the existing directory can reject the
-save under the [application matching contract](../SystemDesign/Applications.md).
-Preserve the separate unsafe-pattern rejection result rather than interpreting
-that rejection as successful pattern preparation.
+The narrow version-pattern case 189 still needs 035b's finite copy/update profile.
+313a's isolated current S directory does not supply its next-version/new-nonmatch
+history. Space-bearing ELF nonmatches in the legacy directory still reject an
+unsafe wildcard under the
+[application matching contract](../SystemDesign/Applications.md).
+Preserve that separate rejection result.
 
 | Role | Desktop ID suffix (`com.puffyslippers.ONPCTest.`) | Executable below `/opt/onpc-test-fixtures/Applications` | Visible name | Description | Default match |
 | --- | --- | --- | --- | --- | --- |
 | A | `A.desktop` | `Exact Fixture.AppImage` | ONPC Allowed Fixture | Exact native catalogue fixture | precise |
 | H | `H.desktop` | `Path With Spaces.AppImage` | ONPC Hard Fixture | Whitespace native catalogue fixture | precise |
-| S | `S.desktop` | `Lunar Client-3.7.17.AppImage` | ONPC Soft Fixture | Versioned native catalogue fixture | pattern (`Lunar Client-*.AppImage`) |
+| S | `S.desktop` | `Versioned/Lunar Client-3.7.17.AppImage` | ONPC Soft Fixture | Versioned native catalogue fixture | pattern (`Versioned/Lunar Client-*.AppImage`) |
 | N | `N.desktop` | `PrismLauncher.AppImage` | ONPC Nonmatching Fixture | Unrelated native catalogue fixture | precise |
 
 `tools/prepare-vm` installs this finite declaration through
@@ -4559,6 +4653,24 @@ GUI/desktop files `0644`, owned by Jordan (`accounts['other']` in baseline
 preparation; `session_control.ACCOUNTS['standard']` in guarded readback). Baseline
 inspection verifies bytes, modes, owners and launchers before snapshot capture;
 fixture sources participate in its preparation digest.
+
+The original `Applications/Lunar Client-3.7.17.AppImage` stays in the generated
+payload and owned baseline inventory as an untrusted compatibility control,
+with the same S bytes. Its launcher is replaced through the existing owned
+reconciliation; no file is moved during a journey. `executable_sources`,
+`gui_sources`, `launcher_sources` and `source_destinations` declare 12 active
+source keys, including both adjacent GUI copies. The Riley read-only profile
+uses eight runtime files and its own A launcher. Before either native readback,
+the pinned Versioned directory must be Jordan-owned `0755` and contain exactly
+S and the two declared GUI files; extra files, stale keys, changed bytes/modes,
+links and foreign ownership refuse without repair. Active and legacy S remain
+excluded from file-trust admission.
+
+The historical native/Riley qualifications below bind the earlier ten/seven-file
+inventory. Their A command/grid outcomes do not establish installed verification
+of the expanded twelve/nine-file profile. Its host applicability is recorded
+[with C04p1](#c04p1-compatible-fixture-applicability); 313 retains the required
+installed verification and core-effects history after maintained preparation.
 
 Supporting screen-time and retained-work command activity uses the separate
 root-owned `/opt/onpc-test-fixtures-activity/native-fixture` and its private

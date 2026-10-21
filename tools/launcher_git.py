@@ -157,36 +157,67 @@ def session_changes(root, before):
             if before.get(name) != fingerprint]
 
 
-def committed_fingerprint(root, path):
-    """Match worktree_snapshot's representation against the current commit.
+def committed_fingerprints(root, paths):
+    """Read a baseline's committed bytes with two Git processes, regardless of size.
 
     Read blobs as bytes, including binary files and symlink targets. A retained
     dirty baseline may have been committed by another workflow since capture.
+    Tree names are NUL-delimited; only object IDs enter the cat-file protocol.
     """
-    entry = subprocess.run(['git', '--literal-pathspecs', 'ls-tree', '-z', 'HEAD', '--', path],
-                           cwd=root, env=launcher.environment(), capture_output=True, check=True).stdout
-    if not entry:
-        return 'deleted'
-    metadata, name = entry.rstrip(b'\0').split(b'\t', 1)
-    mode, kind, identity = metadata.split()
-    if name != os.fsencode(path) or kind != b'blob' or mode not in (b'100644', b'100755', b'120000'):
-        return None
-    content = subprocess.run(['git', 'cat-file', 'blob', identity.decode('ascii')],
-                             cwd=root, env=launcher.environment(), capture_output=True, check=True).stdout
-    if mode == b'120000':
-        return 'link:' + os.fsdecode(content)
-    # Existing checkpoints fingerprint file bytes without executable mode. A
-    # chmod-only dirty baseline can therefore hash exactly like HEAD. Release
-    # these legacy fingerprints only while the working file still proves the
-    # committed mode; deletion/type replacement cannot provide that proof.
-    try:
-        current = (root / path).lstat()
-    except FileNotFoundError:
-        return None
-    if (not stat.S_ISREG(current.st_mode)
-            or bool(current.st_mode & stat.S_IXUSR) != (mode == b'100755')):
-        return None
-    return 'file:' + hashlib.sha256(content).hexdigest()
+    result = dict.fromkeys(paths, 'deleted')
+    if not result:
+        return result
+    tree = subprocess.run(['git', 'ls-tree', '-rtz', 'HEAD'], cwd=root,
+                          env=launcher.environment(), capture_output=True, check=True).stdout
+    entries = {}
+    for entry in tree.split(b'\0'):
+        if not entry:
+            continue
+        metadata, name = entry.split(b'\t', 1)
+        path = os.fsdecode(name)
+        if path not in result:
+            continue
+        mode, kind, identity = metadata.split()
+        if kind != b'blob' or mode not in (b'100644', b'100755', b'120000'):
+            result[path] = None
+            continue
+        # Legacy checkpoints omit executable mode. Require the current file to
+        # prove that mode, even when core.filemode or assume-unchanged hides it.
+        if mode != b'120000':
+            try:
+                current = (root / path).lstat()
+            except FileNotFoundError:
+                current = None
+            if (current is None or not stat.S_ISREG(current.st_mode)
+                    or bool(current.st_mode & stat.S_IXUSR) != (mode == b'100755')):
+                result[path] = None
+                continue
+        entries[path] = mode, identity
+    identities = list(dict.fromkeys(identity for _, identity in entries.values()))
+    contents = {}
+    if identities:
+        data = subprocess.run(['git', 'cat-file', '--batch'], cwd=root,
+                              env=launcher.environment(), input=b'\n'.join(identities) + b'\n',
+                              capture_output=True, check=True).stdout
+        offset = 0
+        for identity in identities:
+            end = data.index(b'\n', offset)
+            found, kind, size = data[offset:end].split()
+            size = int(size)
+            offset = end + 1
+            content = data[offset:offset + size]
+            if (found != identity or kind != b'blob' or len(content) != size
+                    or data[offset + size:offset + size + 1] != b'\n'):
+                raise ValueError('invalid committed blob response')
+            contents[identity] = content
+            offset += size + 1
+        if offset != len(data):
+            raise ValueError('unexpected committed blob response')
+    for path, (mode, identity) in entries.items():
+        content = contents[identity]
+        result[path] = ('link:' + os.fsdecode(content) if mode == b'120000'
+                        else 'file:' + hashlib.sha256(content).hexdigest())
+    return result
 
 
 def validate_closeout_ownership(root, paths, state):
@@ -196,13 +227,16 @@ def validate_closeout_ownership(root, paths, state):
     overlap = set(paths) & protected
     released = {}
     clean_paths = set()
+    committed_paths = committed_fingerprints(root, set(baseline) - protected)
+    indexed = (set(filter(None, git_output(root, 'diff', '--cached', '--no-renames', '--name-only', '-z',
+                                          'HEAD').stdout.split('\0')))
+               if committed_paths else set())
     for path in baseline:
         if path not in protected:
-            committed = committed_fingerprint(root, path)
+            committed = committed_paths[path]
             clean = (committed is not None
                      and worktree_fingerprint(root / path) == committed
-                     and git_output(root, '--literal-pathspecs', 'diff', '--cached', '--quiet',
-                                    'HEAD', '--', path, check=False).returncode == 0)
+                     and path not in indexed)
             if clean:
                 clean_paths.add(path)
             if clean or (path in paths and committed == baseline[path]):

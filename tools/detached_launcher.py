@@ -550,7 +550,7 @@ def _audit_start(store, directory, pending):
 
 
 def select(root, name, command, *, stop=False, stop_marker='cancel',
-           on_attach=None, on_start=None, namespace=None, resumable_start=False):
+           on_attach=None, on_start=None, on_prepare=None, namespace=None, resumable_start=False):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
@@ -587,6 +587,8 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
                 return run, False  # Never spawn a possibly already published worker twice.
         else:
             run = directory / uuid.uuid4().hex
+        if on_prepare is not None:
+            on_prepare(run)
         # Validate and resolve prerequisites before allocating a new run.
         argv = command(run, owner)
         private_directory(run)
@@ -714,10 +716,12 @@ def finish_nested(root, run):
     return active
 
 
-def follow(run, stream=None, *, label='launcher', view=None):
+def follow(run, stream=None, *, label='launcher', view=None, display=None):
     from launcher_view import view_for
     stream = stream or sys.stdout
     view = view or view_for(label)
+    if display is not None:
+        return follow_output(run, stream, display, label=label, view=view)
     display = view.display(stream, run)
     with display:
         return follow_output(run, stream, display, label=label, view=view)

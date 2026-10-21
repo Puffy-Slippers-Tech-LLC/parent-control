@@ -1040,22 +1040,39 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             if initial_info:
                 launcher.atomic(selected / 'task-info.json', initial_info)
             save_binding(selected, binding)
-        run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
-                                       on_attach=attach, on_start=start, namespace=plan_namespace(path),
-                                       resumable_start=True)
-        if run is None:
-            print(f'{spec.name}: no active launcher.')
-            return 0
-        if interrupted:
-            cancel()
-        print(f"{spec.name}: {'started' if started else 'attached to'} {run.name}; log: {run / 'output'}", flush=True)
-        print('Closing the terminal detaches. --stop waits for a session boundary. Chat Ctrl+C interrupts; again while waiting exits.', flush=True)
         from launcher_view import WorkflowView, plan_progress, plan_totals
         def progress(run, steps, child_steps):
             return plan_progress(run, steps, child_steps,
                                  remaining=lambda: plan_totals(root, path)[1])
-        return launcher.follow(run, label=spec.name, view=WorkflowView(
-            'chat', True, progress, lambda: plan_totals(root, path)))
+        view = WorkflowView('chat', True, progress, lambda: plan_totals(root, path))
+        with ExitStack() as observer:
+            display = None
+            def prepare(selected):
+                nonlocal display
+                # Recovery can verify a large cumulative archive. Paint before
+                # that work, keeping signal-based Ctrl+C until chat can poll.
+                display = observer.enter_context(WorkflowView().display(sys.stdout, selected))
+                display.update([{'key': 'startup', 'lines': [
+                    f'{spec.name}: validating saved plan and evidence…']}], [])
+            run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
+                                           on_attach=attach, on_start=start, on_prepare=prepare,
+                                           namespace=plan_namespace(path), resumable_start=True)
+            if run is None:
+                print(f'{spec.name}: no active launcher.')
+                return 0
+            if interrupted:
+                cancel()
+            message = (f"{spec.name}: {'started' if started else 'attached to'} {run.name}; log: {run / 'output'}\n"
+                       'Closing the terminal detaches. --stop waits for a session boundary. '
+                       'Chat Ctrl+C interrupts; again while waiting exits.\n')
+            if display is not None:
+                display.attach(run, input_mode=view.input_mode)
+                display.totals = view.totals
+                display.write(message, saved=False)
+            else:
+                print(message, end='', flush=True)
+            return launcher.follow(run, label=spec.name, view=view, **(
+                {'display': display} if display is not None else {}))
     except BrokenPipeError:
         return 0
     except (OSError, ValueError, KeyError, ImportError, subprocess.SubprocessError) as error:

@@ -133,6 +133,10 @@ class TaskDisplay(LauncherDisplay):
 
     def __enter__(self):
         super().__enter__()
+        self.enable_chat_input()
+        return self
+
+    def enable_chat_input(self):
         try:
             if self.input_fd is not None and self.input_mode == 'chat':
                 # Deliver Ctrl+C to the conversation instead of the observer's
@@ -150,7 +154,18 @@ class TaskDisplay(LauncherDisplay):
         except BaseException:
             self.__exit__(*sys.exc_info())
             raise
-        return self
+
+    def attach(self, run, *, input_mode):
+        """Keep the startup screen while adopting the published backend identity."""
+        self.run = run
+        self.log_path = run / 'output'
+        self.owner_clock = owner_clock(run)
+        self.input_mode = input_mode
+        self.focus = 'chat' if input_mode == 'chat' else 'bottom'
+        self.steps = []
+        self.step_history.clear()
+        self.enable_chat_input()
+        self.set_mouse_mode()
 
     def submit(self, text):
         if self.question is not None:

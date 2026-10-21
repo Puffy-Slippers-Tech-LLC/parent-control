@@ -223,6 +223,9 @@ Repair sessions and retries do not complete additional tasks. Its existing
 
 Plan launchers and `write-e2e` stop between sessions with `--stop`.
 `fix-tests` and `run-tests` retain their cooperative cancellation semantics.
+Fresh ordinary-plan observers paint their startup panel before validating saved
+plan evidence, then reuse that screen when the backend starts. Ctrl+C retains
+signal-based cancellation during preflight; chat input starts after publication.
 Closing an observer terminal detaches. Repeating the command reconnects to
 the same owner and retained checkpoint; model defaults do not change an active
 run. Attachment and `--stop` use the master's stable checkout-relative path and

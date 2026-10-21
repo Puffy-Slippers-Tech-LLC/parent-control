@@ -1185,6 +1185,50 @@ def test_recovery_refuses_unrelated_queue_changes(rig):
         rig.plan.validate_recovery(state)
 
 
+@pytest.mark.parametrize('failed', [False, True], ids=['follow', 'preflight-error'])
+def test_plan_paints_before_recovery_and_restores_or_reuses_screen(rig, monkeypatch, failed):
+    stream = Terminal(100, 30)
+    displays = []
+    monkeypatch.setattr(sys, 'stdout', stream)
+    monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
+    monkeypatch.setattr(workflow, 'session_command', lambda *_: [])
+
+    def display(view, stream, run):
+        panel = TaskDisplay(stream, run=run, input_mode=view.input_mode,
+                            totals=view.totals, terminal_size=lambda: stream.size)
+        displays.append(panel)
+        return panel
+
+    monkeypatch.setattr(WorkflowView, 'display', display)
+
+    def select(root, name, command, **options):
+        options['on_prepare'](rig.run)
+        assert 'validating saved plan and evidence' in stream.getvalue()
+        assert stream.normal_screen is not None
+        assert displays[0].input_mode == 'none'  # Ctrl+C still signals during recovery.
+        if failed:
+            raise ValueError('retained proof refused')
+        command(rig.run, -1)
+        options['on_start'](rig.run)
+        workflow.launcher.atomic(rig.run.parent / 'current.json',
+                                 dict(run=rig.run.name, started_monotonic=1000.0))
+        return rig.run, True
+
+    def follow(run, *, label, view, display):
+        assert display is displays[0] and display.input_mode == 'chat'
+        assert display.focus == 'chat'
+        assert display.owner_clock['started_monotonic'] == 1000.0
+        assert not display.steps and not display.step_history
+        assert stream.getvalue().count('\033[?1049h') == 1
+        return 0
+
+    monkeypatch.setattr(workflow.launcher, 'select', select)
+    monkeypatch.setattr(workflow.launcher, 'follow', follow)
+    assert workflow.main(rig.spec, []) == (2 if failed else 0)
+    assert stream.normal_screen is None and stream.cursor_visible
+    assert stream.getvalue().count('\033[?1049l') == 1
+
+
 def test_public_entry_allows_checkpoint_recovery_before_strict_brief_validation(rig, monkeypatch):
     previous = rig.root / 'previous'
     previous.mkdir()
@@ -1867,7 +1911,8 @@ def test_closeout_refuses_preexisting_claimed_changes(rig, monkeypatch, protecte
     state[protected] = {'docs/plan.md': 'original'} if protected == 'stage_baseline' else ['docs/plan.md']
     state['pending_completion'] = response(state)
     complete(rig.plan, '001')
-    monkeypatch.setattr(launcher_git, 'committed_fingerprint', lambda *_: 'different committed content')
+    monkeypatch.setattr(launcher_git, 'committed_fingerprints', lambda root, paths:
+                        dict.fromkeys(paths, 'different committed content'))
     monkeypatch.setattr(workflow, 'stage_task', lambda *_args, **_kwargs: pytest.fail('must not stage protected work'))
     monkeypatch.setattr(workflow, 'pull_before_commit', lambda *_args, **_kwargs: pytest.fail('must not pull over protected work'))
     with pytest.raises(ValueError, match='overlaps pre-existing work'):
@@ -2006,6 +2051,49 @@ def test_closeout_releases_clean_committed_file_without_baseline_version_lock(gi
         with pytest.raises(ValueError, match='overlaps pre-existing work: task.py'):
             launcher_git.validate_closeout_ownership(f.root, ['task.py'], state)
         assert state['stage_baseline'] == baseline
+
+
+def test_baseline_release_batches_git_reads_for_large_literal_path_sets(git_plan, monkeypatch):
+    f = git_plan
+    names = [f'bulk-{number}.py' for number in range(128)] + ['literal\tname\n.py', ':(glob)*.py']
+    for name in names:
+        (f.root / name).write_bytes(b'\xff\x00reviewed bytes\n')
+    baseline = workflow.worktree_snapshot(f.root)
+    f.git('--literal-pathspecs', 'add', '--', *names)
+    f.git('commit', '-qm', 'Reviewed bulk baseline')
+    pending = names[-1]
+    (f.root / pending).write_text('pending unrelated work\n')
+    state = dict(stage_baseline=baseline.copy(), protected_staged=[],
+                 suspended_tasks={'002': dict(stage_baseline=baseline.copy())})
+    execute = subprocess.run
+    calls = []
+
+    def counted(command, **kwargs):
+        calls.append(command)
+        return execute(command, **kwargs)
+
+    monkeypatch.setattr(launcher_git.subprocess, 'run', counted)
+    launcher_git.validate_closeout_ownership(f.root, [], state)
+    assert len(calls) == 3  # Tree, batched blob bytes, and the complete index diff.
+    assert calls[1] == ['git', 'cat-file', '--batch']
+    assert state['stage_baseline'] == {pending: baseline[pending]}
+    assert state['suspended_tasks']['002']['stage_baseline'] == state['stage_baseline']
+    assert (f.root / pending).read_text() == 'pending unrelated work\n'
+
+
+def test_baseline_file_replaced_by_committed_directory_stays_protected(git_plan):
+    f = git_plan
+    path = f.root / 'task.py'
+    path.write_text('pending original work\n')
+    baseline = workflow.worktree_snapshot(f.root)
+    path.unlink()
+    path.mkdir()
+    (path / 'child').write_text('replacement\n')
+    f.git('add', '--', 'task.py')
+    f.git('commit', '-qm', 'Directory replacement')
+    state = dict(stage_baseline=baseline.copy(), protected_staged=[])
+    launcher_git.validate_closeout_ownership(f.root, [], state)
+    assert state['stage_baseline'] == baseline
 
 
 @pytest.mark.parametrize('pending', [False, True], ids=['inherited-baseline', 'accepted-restart'])
@@ -3212,19 +3300,23 @@ def test_backend_clock_is_published_before_spawn_preserved_on_attach_and_reset_o
         publications.append(json.loads((directory('fix-tests', root=tmp_path) / 'current.json').read_text()))
 
     monkeypatch.setattr(launcher.subprocess, 'Popen', spawn)
-    command = lambda run, owner: ['private-worker-double']
-    run, started = launcher.select(tmp_path, 'fix-tests', command)
+    preparations = []
+    def command(run, owner):
+        assert preparations[-1] == run
+        return ['private-worker-double']
+    run, started = launcher.select(tmp_path, 'fix-tests', command, on_prepare=preparations.append)
     assert started
     assert publications == [dict(run=run.name, started_at=publications[0]['started_at'],
                                  started_monotonic=1000.0)]
     record = (run.parent / 'current.json').read_bytes()
     active[0] = True
     clock[0] += 720
-    assert launcher.select(tmp_path, 'fix-tests', command) == (run, False)
+    assert launcher.select(tmp_path, 'fix-tests', command, on_prepare=preparations.append) == (run, False)
+    assert preparations == [run]
     assert (run.parent / 'current.json').read_bytes() == record
     assert len(publications) == 1
     active[0] = False
-    next_run, started = launcher.select(tmp_path, 'fix-tests', command)
+    next_run, started = launcher.select(tmp_path, 'fix-tests', command, on_prepare=preparations.append)
     assert started and next_run != run
     assert publications[-1]['started_monotonic'] == 1720.0
 

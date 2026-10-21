@@ -70,6 +70,10 @@ deletion fingerprints, executable-mode ownership and two-task push/advance/resta
 behavior, including pre-session release of newer clean commits and refusal of staged/unstaged or
 assume-unchanged work, without an external network, model process or shared Git mutation; compatible overlap stays
 appropriate.
+Startup display checks reuse the in-memory terminal and process-local preflight
+doubles. Bulk baseline checks add 130 tiny private files and three synchronously
+waited Git reads, with no new shared resource or cleanup/UI inventory owner;
+the existing compatible unit classification remains appropriate.
 Installation and reliability plan adapters share those same private fixtures
 for default-plan validation, owner attachment, stop and task-limit checks;
 neither adapter test selects a real VM or starts an agent or Git operation.

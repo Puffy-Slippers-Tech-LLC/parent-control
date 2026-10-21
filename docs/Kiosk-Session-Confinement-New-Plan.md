@@ -1,18 +1,20 @@
-# New kiosk confinement improvements
+# Remaining kiosk confinement improvements
 
 Task queue: [Ordered task queue](Kiosk-Prompt-New-Queue.md).
-Next task: **C06a — [Review ordinary login and remote routes](Kiosk-Prompt-Tasks/C06a-login-review.md)**.
-Baseline plan: [Baseline validation](Kiosk-Session-Confinement-Plan.md).
-Baseline task: C05f.
+Next task: **C06a — [Review remaining login routes](Kiosk-Prompt-Tasks/C06a-login-review.md)**.
+Baseline plan: [Full desktop prevention](Kiosk-Desktop-Plan.md).
+Baseline task: D04.
 
 ## Outcome
 
 Improve confinement after the
-[v1.4 baseline validation](Kiosk-Session-Confinement-Plan.md) completes.
+[v1.4 baseline validation](Kiosk-Session-Confinement-Plan.md) and
+[full desktop prevention](Kiosk-Desktop-Plan.md) complete.
 Keep passwordless kiosk use, genuine parent approval and time/app enforcement
 working while closing justified routes available to a smart technical child.
-C06–C13 retain their stable IDs, finite deliverables and both-target acceptance.
-No task is complete at this split.
+Own standalone terminal/TTY and SSH access, other exposed actions/consumed inputs,
+compatibility/recovery/lifecycle work and its final acceptance. Desktop tasks
+retain their stable IDs under the desktop owner. No task completes through planning.
 
 ## Usability and threat scope
 
@@ -31,16 +33,31 @@ Optional failures cannot veto core requests; essential outages require bounded
 safe retry/exit and recovery without weakened policy. Parent denial and explicit
 administrator policy remain authoritative. Main's non-confinement features remain.
 
+## Confinement priority
+
+Full kiosk desktop prevention is the first security priority and belongs only to
+[the desktop plan](Kiosk-Desktop-Plan.md), run by `tools/kiosk-desktop`.
+That owner includes local graphical-session selection, request-session escapes
+yielding a full desktop and the named supported remote-desktop provider.
+C06a verifies its accepted D04 gate before this plan proceeds. Each launcher
+owns its queue, briefs and acceptance; neither implicitly closes the other.
+
+If later work exposes a full-desktop route or invalidates desktop evidence,
+record the affected route/candidate and return condition under the desktop owner.
+Renew the affected desktop history there before claiming combined final readiness.
+Reuse shared mechanisms and matching evidence without duplicating implementation.
+
 ## Task boundaries
 
-Before closing C06a, verify baseline C05f and C05u are accepted for their declared
-targets, with retained exact-candidate public results and owned cleanup.
+Before closing C06a, verify desktop D04 and baseline C05f/C05u are accepted for
+their declared targets, with retained candidate-applicable public results and owned cleanup.
 If missing, leave C06a unchecked with the concrete baseline return condition.
 A new namespace is no authorization to bypass an active baseline owner, pending
 Git transaction, live VM lease or uncommitted overlapping source work.
 
-C06a/C06 review actual login, exposed-action and consumed-input routes. C07/C08
-add only missing justified barriers, with targeted tests and normal-use controls.
+C06a reviews remaining SSH/terminal/TTY routes. C06 reviews other exposed actions
+and consumed inputs. C07t/C07b and C08a/C08 add only missing justified barriers,
+with targeted tests and normal-use controls. Desktop barriers remain in their plan.
 C09 addresses demonstrated confinement-caused availability/recovery/lifecycle
 coupling. Existing effective barriers need verification, not duplicate code.
 General broker/feature projects are outside these rows' scope.
@@ -74,9 +91,9 @@ After changes, qualify applicable final candidate histories on both
 | Host variation and optional failures | C11a/a1 and C12a/a1: one unrelated package/layout change, valid PAM/service variation and finite presentation/native-language fallbacks preserve genuine approval. |
 | Required-service and child isolation | C11b/b1 and C12b/b1: bounded recovery, intact policy, healthy-child requests while another integration is unavailable, restored-child use, retained sanitized original cause and real Parent diagnostic download without submission. |
 | Owned state and updates | C11c/c1 and C12c/c1: complete interrupted/stale-state and relevant update/reentry histories, preserving foreign/live sessions, policy and current features. |
-| Login routes | C11d/e/f and C12d/e/f: reachable local desktop/TTY, SSH and one named supported remote-desktop route blocked, paired with usable kiosk and ordinary-account positives. Absent service or failed positive is no refusal pass. |
+| Remaining login routes | C11t/e and C12t/e: standalone terminal/TTY and SSH access blocked, paired with usable kiosk and ordinary-account positives. Absent service or failed positive is no refusal pass. Full graphical desktop results remain with the desktop plan. |
 | Exposed actions and inputs | C11g/g1 and C12g/g1: finite deliberate link/chooser/handler/automatic-launch and child-writable consumed-input attempts blocked, with permitted form/approval and trusted-code/lazy-loading controls. |
-| Close-out | C13: matching product/automation/docs, provenance, justified refusals, inspectable both-target evidence and completed owned restoration. |
+| Close-out | C13: matching product/automation/docs, provenance, justified refusals, inspectable both-target evidence and owned restoration; verify separately accepted desktop results still apply and require renewal there if invalidated. |
 
 Keep customer results separate from engineering probes and fault injection.
 A diagnostic-only screen, denied normal entry, host mapping or historical proof
@@ -124,9 +141,13 @@ every installed brief still requires its named target. Attach without flags to
 retain the active task limit. The generic entry
 `tools/execute-plan --plan 'docs/Kiosk-Session-Confinement-New-Plan.md'`
 shares this owner. A clean fresh controller needs no old checkpoint migration.
-Baseline resumption uses the
-[reviewed split route](Execution-Plans.md#reviewed-plan-splits), preserving its
-own retained work; do not copy checkpoints between namespaces.
+Commit reviewed planning inputs before execution. Do not copy checkpoints or
+handoffs between namespaces. Retained pre-split controllers cannot silently adopt
+the changed scopes/order; resolve any retained-state conflict under the
+[reconciliation contract](Execution-Plans.md#common-launcher-interface).
+The unchanged-tail split route does not authorize this partial-scope reallocation.
+Baseline resumption remains separate and must preserve its original committed
+split destination inputs and retained work.
 
 New executable command grants join at the next normal
 [rules refresh](Approval-Tools.md#one-time-setup); the generic entry is available

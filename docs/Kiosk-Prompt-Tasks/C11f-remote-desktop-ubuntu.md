@@ -3,20 +3,20 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04
 
-Required tasks: C11e.
+Required tasks: C11d.
 Estimate: 20–30 min.
 
-Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)
+Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract)
 and its source, usability, threat and review requirements. Use the affected
 design/test owners and source routes below.
 
 ## Session boundary and deliverable
 
-Use C10's exact registered remote-desktop map for Ubuntu; verify the candidate and
+Use D03's exact registered remote-desktop map for Ubuntu; verify the candidate and
 required operation qualifications before invoking the maintained installed runner.
 No selector is implied merely by this task ID.
 
-Use the exact supported provider and qualified route from C10. Demonstrate
+Use the exact supported provider and qualified route from D03. Demonstrate
 an ordinary-account remote session working, the deliberate kiosk-account desktop
 attempt being blocked, and normal kiosk entry still working. Service absence or
 provider failure is not a passed refusal. Report the provider scope without

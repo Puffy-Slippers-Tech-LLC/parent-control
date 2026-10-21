@@ -20,9 +20,15 @@ restoration and report retention. These are future checks, not inherited passes.
 Families are core journey/features; separate host-variation and optional-fallback
 bindings; required-service/
 healthy-child recovery with Parent diagnostic download; owned-state/update
-lifecycle; local desktop/TTY; SSH; supported remote desktop; separate exposed-action
+lifecycle; standalone terminal/TTY; SSH; separate remaining exposed-action
 and consumed-input bindings. Each fault/recovery/reentry history stays complete. Use one
-named remote provider and an ordinary-account positive; absent service is no pass.
+ordinary-account positive for each remaining route; absent SSH service is no pass.
+
+Verify separately accepted desktop D04 results still match the candidate under
+the master's [confinement priority](../Kiosk-Session-Confinement-New-Plan.md#confinement-priority).
+C11t/C12t retain the standalone terminal/TTY assertions split from C11d/C12d.
+Desktop/local/remote acceptance stays with its owner; missing or invalidated
+desktop evidence requires a concrete renewal there before combined readiness.
 
 This is a composition/readiness audit, not a broad implementation task.
 Missing implementation or provider qualification requires an explicit bounded

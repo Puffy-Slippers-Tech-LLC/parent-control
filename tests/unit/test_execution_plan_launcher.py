@@ -43,8 +43,9 @@ def synthetic_plan_evidence(monkeypatch):
 @pytest.fixture(params=[
     ('reliability-plan', 'docs/Reliability-Plan.md'),
     ('kiosk-prompt', 'docs/Kiosk-Session-Confinement-Plan.md'),
+    ('kiosk-desktop', 'docs/Kiosk-Desktop-Plan.md'),
     ('kiosk-prompt-new', 'docs/Kiosk-Session-Confinement-New-Plan.md'),
-], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-prompt-new'])
+], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-desktop', 'kiosk-prompt-new'])
 def plan_adapter(monkeypatch, request):
     name, plan = request.param
     entry = Path(workflow.__file__).with_name(name)

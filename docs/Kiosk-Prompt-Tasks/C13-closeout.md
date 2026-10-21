@@ -31,6 +31,11 @@ rows. If later repairs invalidated an earlier result, insert a bounded renewal
 prerequisite with the original installed target(s); reconciliation evidence
 cannot replace the missing live pass.
 
+Verify separately accepted desktop D04 evidence remains applicable to the final
+candidate. Desktop implementation and local/remote desktop acceptance remain
+with that plan. Any invalidated desktop history must be renewed under its owner
+before combined final readiness; this row grants no substitute desktop pass.
+
 Match actual product, host/system/E2E automation, inventory/coverage, design,
 reliability and proof documentation. Keep historical results historical and
 every remaining protective refusal tied to a justified deliberate-child route.

@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Run new kiosk confinement improvements through the shared plan driver."""
+"""Run remaining kiosk improvements through the shared plan driver."""
 from pathlib import Path
 import sys
 

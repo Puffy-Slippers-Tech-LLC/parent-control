@@ -34,7 +34,8 @@ Separate prerequisite passes cannot replace the ordered complete journey.
 Require public observations of the request form, genuine authentication and
 downstream time/app results in the complete history; engineering probes or a
 diagnostic-only screen do not pass. Record
-ordinary-child route gaps for C06a/C06 without claiming final confinement.
+desktop gaps for D01/D02 and other ordinary-child route gaps for C06a/C06,
+without claiming final confinement.
 Repair bounded causes under review/build gates and rerun affected full histories.
 Retain exact candidate/selectors/results and complete owned restoration for any
 new execution. Report installed acceptance against `onpc-Ubuntu26.04`, citing the

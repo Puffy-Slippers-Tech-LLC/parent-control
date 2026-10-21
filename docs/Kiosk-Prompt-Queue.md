@@ -2,8 +2,9 @@
 
 The [baseline master](Kiosk-Session-Confinement-Plan.md) owns the v1.3-derived
 confinement validation for v1.4. This queue ends at C05f. Completed evidence and
-stable IDs remain unchanged. C06–C13 are scheduled only in the
-[new confinement queue](Kiosk-Prompt-New-Queue.md).
+stable IDs remain unchanged. Unrestricted graphical desktop prevention is
+scheduled in the [desktop queue](Kiosk-Desktop-Queue.md); the remaining C06–C13
+work is scheduled in the [remaining confinement queue](Kiosk-Prompt-New-Queue.md).
 
 C04p1/p consume shared E2E 313a/313 fixture/core-effects evidence. C04l/s/r/i
 reuse existing feature coverage, renewing only invalidated scope; C04l/w retain
@@ -60,5 +61,6 @@ verify exact applicability and run only missing or invalidated complete historie
 Feature checks remain separate reusable evidence. No planning edit closes a row.
 
 C05f closes the both-target baseline handoff and records concrete remaining
-confinement gaps for C06a in the new plan. New protection, compatibility and
+desktop gaps for D01 and other confinement gaps for C06a in their respective
+plans. New protection, compatibility and
 post-change acceptance work does not extend this baseline queue.

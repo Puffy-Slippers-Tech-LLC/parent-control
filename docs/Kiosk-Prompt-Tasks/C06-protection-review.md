@@ -18,9 +18,14 @@ normal-use control. Trust installed Python/GTK/GI/native code and lazy loading;
 exclude child-controlled inputs at their real consumer boundary.
 
 Combine this with C06a's login map in the existing design owner. Allocate exact
-boundaries to C07a/C07b/C07 and C08a/C08. No new custom loader, global roster,
+remaining boundaries to C07t/C07b and C08a/C08. Full graphical desktop routes
+remain with the desktop plan's reviewed map. No new custom loader, global roster,
 private runtime image or continuous library audit. Essential-service faults and
 genuine parent/admin denial are separate from deliberate breaches.
+
+Apply the master's [confinement priority](../Kiosk-Session-Confinement-New-Plan.md#confinement-priority):
+verify separately accepted desktop evidence remains applicable. Return any
+desktop gap to its owner; this review covers the remaining prohibited results.
 
 Obtain independent Astra xHigh review with explicit Usability priority and
 Threat scope passed/failed findings, resolving failures before completion.

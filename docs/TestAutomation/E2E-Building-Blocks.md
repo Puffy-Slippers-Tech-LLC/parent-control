@@ -1769,17 +1769,19 @@ destination repairs; current reuse still requires exact applicability.
 
 This map reconciles the
 [v1.4 baseline queue](../Kiosk-Prompt-Queue.md), ending at C05f, and the
-[new confinement queue](../Kiosk-Prompt-New-Queue.md), starting at C06a,
+[desktop queue](../Kiosk-Desktop-Queue.md), starting at D01, and
+[remaining confinement queue](../Kiosk-Prompt-New-Queue.md), starting at C06a
+after accepted desktop D04,
 with the E2E queue under the
 [operation-reuse contract](E2E-Execution-Contracts.md#cross-plan-operation-reuse).
 It assigns implementation ownership, not task completion. New general feature
 automation belongs to the E2E queue. Kiosk tasks validate applicability and
 confinement behavior using shared coverage; new confinement protections retain
-appropriate new tests and ordinary-use controls in the new plan's C06–C12 tasks.
-That plan's protection/recovery/final-acceptance work is not a baseline prerequisite.
+appropriate new tests and ordinary-use controls under the two improvement owners.
+Their protection/recovery/final-acceptance work is not a baseline prerequisite.
 E2E 313a/313 depend only on already delivered operations, never on unfinished
 kiosk validation or future improvements. Their existing retained failures and
-in-progress implementation supply no installed pass. Both kiosk plans consume
+in-progress implementation supply no installed pass. All three kiosk plans consume
 exact matching evidence without closing E2E rows or duplicating feature mechanics.
 
 | Shared scope | Feature owner / existing coverage | Kiosk baseline use and remaining E2E work |

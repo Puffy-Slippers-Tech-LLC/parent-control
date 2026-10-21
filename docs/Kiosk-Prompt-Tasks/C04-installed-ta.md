@@ -31,8 +31,9 @@ identify any missing or invalidated complete history for C05 to execute.
 
 ## Suspended readiness audit
 
-The current baseline queue ends at C05f; C06–C13 now belong to the
-[new confinement plan](../Kiosk-Session-Confinement-New-Plan.md).
+The current baseline queue ends at C05f. Full graphical desktop prevention belongs
+to the [desktop plan](../Kiosk-Desktop-Plan.md); other C06–C13 work belongs to the
+[remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md).
 Use the current source/recipe map and scope owners below. The later historical
 audit records earlier task titles and pointers, not current scheduling authority.
 

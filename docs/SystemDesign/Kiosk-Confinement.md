@@ -11,9 +11,11 @@ restrictions belong to [Screen time](Screen-Time.md) and
 The selected implementation uses the release-based session, account and PAM
 baseline described in [C02 activation](#c02-activated-session-baseline).
 The [baseline plan](../Kiosk-Session-Confinement-Plan.md) owns v1.4 validation
-through C05f. The [new confinement plan](../Kiosk-Session-Confinement-New-Plan.md)
-owns C06–C13 route defenses, compatibility work and post-change installed
-acceptance. General feature automation remains in the E2E queue under the
+through C05f. The [desktop plan](../Kiosk-Desktop-Plan.md) owns prevention of
+unrestricted graphical desktop access as the kiosk account. The
+[remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md) owns other
+route defenses, compatibility work and post-change installed acceptance after
+the desktop gate. General feature automation remains in the E2E queue under the
 [cross-plan reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
 The v1.4 private-runtime
 descriptions below are historical source/disposition context, not live fallbacks
@@ -99,9 +101,11 @@ account denials and time policy. No v1.4 callback inventory or private material
 measurement participates in the selected native module.
 
 Saved preferences and a nologin shell do not attest to GDM's next executable.
-The legacy PreSession hook was removed. C06a retains the actual desktop/session
-choice, TTY, SSH and remote-desktop route review, with ordinary-account controls;
-host composition does not close those defenses or prove passwordless entry.
+The legacy PreSession hook was removed. Desktop D01/C07a/C07 own actual
+desktop/session-choice and supported remote-desktop route review and prevention
+of unrestricted graphical desktop access. Residual C06a/C07t/C07b own terminal,
+TTY and SSH routes. Both retain ordinary-account controls; host composition does
+not close those defenses or prove passwordless entry.
 
 ## Native execution and executable identity
 
@@ -150,9 +154,11 @@ This is additive work from the release, not subtraction from v1.4 confinement.
 
 The earlier custom Python/native-loader proposal is discarded. Trusted installed
 Python/GTK/GI code and normal lazy loading remain part of the trusted base.
-[C06](../Kiosk-Prompt-Tasks/C06-protection-review.md) reviews actual deliberate
-smart-child routes before C07/C08 add protection. Every protection-caused failed
-use must meet the master's justification and usability mandates; unfamiliar
+[Desktop D01/D02](../Kiosk-Desktop-Plan.md) review actual deliberate routes to an
+unrestricted graphical desktop before desktop C07a/C07 add protection.
+[Residual C06](../Kiosk-Prompt-Tasks/C06-protection-review.md) reviews other actual
+deliberate smart-child routes before C07t/C07b/C08 add protection. Every
+protection-caused failed use must meet the master's justification and usability mandates; unfamiliar
 machine configuration alone cannot justify a veto.
 
 C03/C04 realign host and installed/E2E automation with the rebuilt source,
@@ -184,8 +190,9 @@ The [C04f qualification](../TestAutomation/E2E-Building-Blocks.md#c04f-fedora-qu
 proves the corrected entry/approval operation on Fedora and renews Ubuntu.
 The distro owner verifies only
 the finite product blocks, preserving vendor authentication/account authority
-and ordinary accounts. Actual GDM next-executable and remote-route defenses
-remain C06a/C07 acceptance work.
+and ordinary accounts. Actual GDM next-executable and unrestricted graphical
+remote-desktop defenses remain desktop-plan acceptance work; terminal/TTY and
+SSH defenses remain residual-plan acceptance work.
 
 The [lifecycle owner](Lifecycle.md#prepared-owned-lifecycle-migration) now owns
 the selected migration and post-erase finalizer. Package activation disconnects
@@ -703,7 +710,7 @@ remain reserved; a removed implementation never makes its ID reusable.
 | --- | --- |
 | 267, `system_kiosk_confinement.verify_session_composition` | Runnable engineering composition read: selected account/routing, finite distro PAM verification and shipped GNOME Kiosk session/app definitions. The old name remains the stable case selector. This grants no execution-fence proof. Deliberate reachable routes require the C06–C08 protections and C10 final binding review. |
 | Entry, installation activation, Preferences and feedback census callers | The shared `census()` observes the live logind Wayland session and required compositor/app identities. Its result explicitly says `session-identity-only` and `confinement_qualified: false`. Optional telemetry has a three-second command budget and reports unavailable on timeout; it has no startup vote. This replaces the all-process/private namespace/generation/MAC-role census; public form/editor observations remain independent. C04b maps the exact changed compositions; C04u/C04f renew entry/approval qualification. |
-| 268, admission | Runnable installed account-only PAM/routing checks retain ordinary-account positives, deliberate alternate session/transport refusal, retry and exact restoration. Empty-token authentication remains in case 4 and PAM histories 283–286. Fedora's engineering caller fixture and root-held PAM-handle cleanup remain. These account probes do not prove authentication, graphical sign-in, session callbacks or an enabled SSH/remote-desktop route. C06a/C07 and later public acceptance own those results. |
+| 268, admission | Runnable installed account-only PAM/routing checks retain ordinary-account positives, deliberate alternate session/transport refusal, retry and exact restoration. Empty-token authentication remains in case 4 and PAM histories 283–286. Fedora's engineering caller fixture and root-held PAM-handle cleanup remain. These account probes do not prove authentication, graphical sign-in, session callbacks or an enabled SSH/remote-desktop route. Desktop D01/C07a/C07 and residual C06a/C07t/C07b retain their respective public acceptance obligations. |
 | 271, ordinary integration scope | Runnable ordinary administrator/standard-user controls retain vendor execution, selected distro PAM readiness and invocation-owned manager cleanup. Private executable-generation, namespace and ambient-mask equality assertions are removed. Vendor/admin-denial histories and ordinary graphical login remain separate installed checks. |
 | 269 | Pending reachable startup/audio input checks with ordinary-use controls under C08 and final C10 mapping. Removed the unconsumed platform library/MAC/loading audit and its host doubles; continuous distro library auditing is outside the threat model. |
 | 270, 292 | Retired private namespace-callback and native bootstrap/loader matrices. Shared PAM/ordinary-role behavior survives in 268/271 and lifecycle histories; no private namespace/loader mechanism is required. |
@@ -2271,12 +2278,12 @@ mechanism remains a mandatory assertion.
 
 | Scenario ID | Retained outcome and current owner |
 | --- | --- |
-| 1–2 | Dedicated Wayland routing and repair/deny/retry remain in native PAM and `system_kiosk_admission.py`. Actual GDM next-executable/session-choice proof remains C06a/C07a; saved routing alone does not supply it. |
-| 3–4 | Kiosk TTY/SSH account denial and ordinary-account positives remain. PAM assertions are engineering evidence; C06a/C07a/C07b and their final platform histories own actual login-route qualification. |
-| 5–7 | Public cases 50–52 retain usable restricted form after shortcut/terminal attempts, genuine password denial and Cancel. Existing registrations do not qualify the changed candidate; C06/C07 review the finite reachable routes. |
+| 1–2 | Dedicated Wayland routing and repair/deny/retry remain in native PAM and `system_kiosk_admission.py`. Actual GDM next-executable/session-choice proof belongs to desktop D01/D02/C07a and C11d/C12d; saved routing alone does not supply it. |
+| 3–4 | Kiosk TTY/SSH account denial and ordinary-account positives remain. PAM assertions are engineering evidence; residual C06a/C07t/C07b and C11t/e–C12t/e own actual login-route qualification. |
+| 5–7 | Public cases 50–52 retain usable restricted form after shortcut/terminal attempts, genuine password denial and Cancel. Existing registrations do not qualify the changed candidate; residual C06/C07t/C08 review other finite reachable routes, while desktop-enabling actions belong to D01/D02/C07a. |
 | 8–9 | Cases 47–49 and 50 retain Cancel/close, approved exit to sign-in and selected-child-only grants. C04u/f qualify only the bounded operation recorded in the catalogue; complete journey and negative-effect gaps remain B1–B4. |
 | 10–12 | About, Preferences and reporting retain in-app navigation, drafts, no forbidden handlers/choosers and no unsolicited submission. Preferences/feedback census now proves session identity only, not all-process confinement. C08a and recovery/fallback consumers own their exact additional proof. |
-| 13–17 | Generic shell/interpreter, copied binary, loader, privileged unit-prefix and service-API injections belonged to the retired native execution matrices. They supply no current role-policy or arbitrary-code-containment obligation. C06 reviews only actually reachable child actions before C07/C08 implement justified barriers. |
+| 13–17 | Generic shell/interpreter, copied binary, loader, privileged unit-prefix and service-API injections belonged to the retired native execution matrices. They supply no current role-policy or arbitrary-code-containment obligation. Residual C06 reviews only actually reachable non-desktop child actions before C07t/C07b/C08 implement justified barriers; desktop-enabling steps stay with D01/D02/C07a. |
 | 18–21 | Child-controlled consumed startup/plugin/helper inputs and exposed launches retain a finite route-review obligation under C06/C08. Private WebKit/Glycin/audio namespace, loader and mapping assertions are retired; supported vendor code remains trusted. |
 | 22 | Genuine selected-parent authentication and the vendor privileged helper remain under Broker and Localization. Private helper pin/namespace/role assertions are retired; public approval must still work. |
 | 23 | Root-owned account routing and role-checked broker/Polkit methods retain unauthorized-management denial and normal authorized controls. |
@@ -2404,9 +2411,11 @@ changed inputs or a demonstrated defect follow affected validation.
 
 Source review and host checks cannot replace installed enforcement and usable
 public entry. Changed distro code, plugins, PAM flow, policy, native launchers
-and executable inputs require affected qualification. The new plan's
-[acceptance](../Kiosk-Session-Confinement-New-Plan.md#acceptance) requires both platforms and
-does not transfer historical passes to the replacement design.
+and executable inputs require affected qualification. The
+[desktop acceptance](../Kiosk-Desktop-Plan.md#acceptance) and
+[remaining confinement acceptance](../Kiosk-Session-Confinement-New-Plan.md#acceptance)
+require both platforms and do not transfer historical passes to the replacement
+design.
 
 ## C04c proof and design consumer reconciliation
 

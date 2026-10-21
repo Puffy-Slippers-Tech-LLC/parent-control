@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Fedora44
 
-Required tasks: C12f.
+Required tasks: C12e.
 Estimate: 20–30 min.
 
 Apply the [master task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract)

@@ -9,8 +9,10 @@ Validate the rebuilt v1.3 confinement baseline so v1.4 can ship with solid
 passwordless kiosk entry, genuine parent approval and time/app enforcement.
 Keep main's current non-confinement features. This plan ends at C05f after the
 Ubuntu and Fedora baseline gates; new protections and compatibility improvements
-belong to the [new confinement plan](Kiosk-Session-Confinement-New-Plan.md)
-and `tools/kiosk-prompt-new`. They are not prerequisites for this baseline.
+belong to the [graphical desktop prevention plan](Kiosk-Desktop-Plan.md)
+and `tools/kiosk-desktop`, followed by the
+[remaining confinement plan](Kiosk-Session-Confinement-New-Plan.md) and
+`tools/kiosk-prompt-new`. They are not prerequisites for this baseline.
 
 Planning reconciliation grants no task completion or installed acceptance.
 The existing master path, launcher and surviving brief paths remain stable for
@@ -39,9 +41,9 @@ or service failures cannot veto core use.
 The baseline retains its existing restrictions and authorization boundaries.
 Ordinary session selection, shortcuts, TTY/terminal, SSH, remote desktop,
 exposed links/choosers/handlers and child-writable consumed inputs are the
-reasonable-child scope for the new plan's finite route review. Baseline failures
-must be diagnosed against actual public routes, without inventing new defenses
-or expanding into that future review.
+reasonable-child scope for the two improvement plans' finite route reviews.
+Baseline failures must be diagnosed against actual public routes, without
+inventing new defenses or expanding into those future reviews.
 
 Do not assume arbitrary kiosk-UID execution, compromised trusted packages/root,
 expert native-loader chains or kernel/boot/firmware exploitation. Trust supported
@@ -122,10 +124,12 @@ Fedora validation does not broaden release support. A denied normal entry,
 diagnostic-only form, missing proof or host pass is no installed usability pass.
 Preserve original failures, valid unchanged evidence and stable case IDs.
 
-New deliberate-route protection, host-variation, optional-fallback, recovery,
-update and post-change defense histories are owned by C06–C13 in the
-[new plan](Kiosk-Session-Confinement-New-Plan.md#acceptance). Existing baseline
-coverage and mandatory regression failure handling remain required. Completion
+New unrestricted graphical desktop prevention and its installed histories belong
+to the [desktop plan](Kiosk-Desktop-Plan.md#acceptance). Other deliberate-route
+protection, host-variation, optional-fallback, recovery, update and post-change
+defense histories belong to the
+[remaining confinement plan](Kiosk-Session-Confinement-New-Plan.md#acceptance).
+Existing baseline coverage and mandatory regression failure handling remain required. Completion
 of this plan establishes the stated baseline, not unexecuted future protections.
 
 ## Product and test automation must match
@@ -136,7 +140,7 @@ Discarded private protocol fixtures are not customer requirements. Preserve
 main features, stable customer outcomes and evidence; no wholesale artifact or
 VM-baseline deletion is authorized. C05f's close-out records matching baseline
 product/automation/docs, both-target applicability and concrete remaining route
-gaps for the new plan, without implementing them.
+gaps for both improvement plans, without implementing them.
 
 ## Implementation baseline
 
@@ -152,11 +156,13 @@ no approval/use/revocation acceptance; E2E 313a/313 retain their outstanding wor
 
 This baseline keeps `docs/Kiosk-Session-Confinement-Plan.md`,
 `docs/Kiosk-Prompt-Queue.md` and `tools/kiosk-prompt`.
-C06–C13 move, unchecked and with their acceptance, into
-[Kiosk-Prompt-New-Queue.md](Kiosk-Prompt-New-Queue.md).
-Their briefs retain stable paths but inherit the new master. No old completion,
-mutable VM state or task handoff transfers to the new namespace.
-C06a explicitly verifies C05f's both-target accepted baseline before proceeding.
+Unrestricted graphical desktop prevention is scheduled, unchecked, in
+[Kiosk-Desktop-Queue.md](Kiosk-Desktop-Queue.md). The remaining C06–C13 work is
+scheduled, unchecked, in [Kiosk-Prompt-New-Queue.md](Kiosk-Prompt-New-Queue.md).
+Existing briefs retain stable paths under their respective masters. No old
+completion, mutable VM state or task handoff transfers to either new namespace.
+Desktop D01 explicitly verifies C05f's both-target accepted baseline; residual
+C06a verifies accepted desktop D04 before further implementation.
 
 The former R-series owner remains separate. Its attachment/stop route is
 `tools/kiosk-prompt --plan 'docs/Kiosk-Resilience-Plan.md' --stop`;
@@ -170,12 +176,13 @@ an isolated checkout before task close-out; a planning commit cannot accept it.
 Finish any existing owner, owned cleanup and pending Git transaction through its
 maintained route. New namespaces do not bypass those gates.
 
-For an inactive pre-split C04p checkpoint, use the explicit
-[reviewed split reconciliation](Execution-Plans.md#reviewed-plan-splits).
-The command in that contract binds the old committed queue, destination plan
-and the five previously reviewed baseline scope revisions. It preserves C04p
-and suspended C04 handoffs, counters, original rejected result and accepted
-proof. Ordinary restart cannot silently adopt this structural replan.
+If the original baseline/improvements split is still pending for an inactive
+C04p checkpoint, its [reviewed split reconciliation](Execution-Plans.md#reviewed-plan-splits)
+requires the original committed destination tail and five reviewed baseline scope
+revisions. The later desktop reallocation is not an unchanged-tail destination;
+do not pass it to that recovery command. Preserve C04p and suspended C04 handoffs,
+counters, original rejected result and accepted proof. Already reconciled baseline
+work retains its owner; no second baseline reconciliation is required by this split.
 Use the existing branch/upstream/credentials; do not change Git configuration.
 
 ## Task execution contract

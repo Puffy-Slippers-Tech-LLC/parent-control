@@ -35,7 +35,8 @@ qualifications or an Ubuntu result cannot supply Fedora's ordered history.
 
 Shared repairs need independent review/build and reruns of invalidated complete
 Ubuntu histories before this gate closes. Preserve valid unchanged results;
-report both-target candidate applicability and ordinary route gaps for C06a/C06.
+report both-target candidate applicability, desktop gaps for D01/D02 and other
+ordinary route gaps for C06a/C06.
 This is baseline usability, not final defense or Fedora release qualification.
 Retain exact receipts and finish restoration for any new execution. Report
 installed acceptance against `onpc-Fedora44`, with both-target applicability
@@ -44,7 +45,9 @@ selected; this reuse grants no final post-protection acceptance.
 
 This is the baseline queue's final row. Close with matching baseline product,
 automation and current documentation, exact both-target evidence applicability
-and completed owned cleanup. Hand remaining deliberate-route gaps to
-[new-plan C06a](C06a-login-review.md), which verifies these accepted receipts
-before review. New protections and their C10–C13 final acceptance do not extend
+and completed owned cleanup. Hand desktop gaps to
+[desktop D01](D01-desktop-review.md) and other deliberate-route gaps to
+[remaining-plan C06a](C06a-login-review.md). Both verify applicable accepted
+receipts before review; C06a additionally requires accepted desktop D04.
+New protections and their separately owned final acceptance do not extend
 this baseline or become a release prerequisite through that handoff.

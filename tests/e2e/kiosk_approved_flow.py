@@ -8,10 +8,19 @@ from request_flow import CHOICES, RequestFlowJourney, prepared_request
 def approved_request(*, child, approver, duration_seconds, allow_soft, exit):
     """FLOW05 from the independently prepared form; one invocation per attempt."""
     require(dict(child=child, approver=approver, duration_seconds=duration_seconds,
-                 allow_soft=allow_soft) == CHOICES
+                 allow_soft=allow_soft) == {**CHOICES, 'duration_seconds': duration_seconds}
+            and duration_seconds in (75, 600)
             and type(duration_seconds) is int and allow_soft is True,
             'approved-flow:choices')
     require(exit in ('automatic', 'immediate'), 'approved-flow:exit')
+    if duration_seconds == 600:
+        require(exit == 'automatic', 'approved-flow:long-exit')
+        return {
+            **{'approval-' + suffix: 'ui:kiosk-long-mate-' + operation
+               for suffix, operation in (('open', 'open'), ('qualified', 'qualified'),
+                                         ('rechecked', 'rechecked'), ('success', 'submit-success'))},
+            'new-returned': 'ui:gdm-station-returned',
+        }
     return {
         'approval-open': 'ui:kiosk-mate-open',
         'approval-qualified': 'ui:kiosk-mate-qualified',

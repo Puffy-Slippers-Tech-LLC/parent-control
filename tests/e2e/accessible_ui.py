@@ -192,6 +192,16 @@ CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wro
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'activity-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed',
     'search-ready', 'search-focused', 'search-entered', 'grid', 'grid-refusals'))
+BASELINE_NATIVE_BINDINGS = {
+    'overlay-native-' + role + '-' + action: (asset, action)
+    for role, asset, actions in (
+        ('allowed', 'A', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed')),
+        ('soft', 'S', ('desktop', 'command-launch', 'opened', 'submit', 'submitted', 'close', 'closed', 'command-blocked')),
+        ('hard', 'H', ('command-blocked',)))
+    for action in actions
+}
+BASELINE_NATIVE_BINDINGS['overlay-native-soft-locked-command-blocked'] = ('S', 'locked-command-blocked')
+OVERLAY_NATIVE_OPERATIONS |= frozenset(BASELINE_NATIVE_BINDINGS)
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
     'overlay-website-read', 'overlay-privacy-read', 'overlay-support-read',
@@ -314,6 +324,10 @@ TEXT_VALUES = {
     'catalogue-name': ('parent-app-search', 'ONPC Allowed Fixture'),
     'catalogue-description': ('parent-app-search', 'Exact native catalogue fixture'),
     'catalogue-identifier': ('parent-app-search', 'com.puffyslippers.ONPCTest.A.desktop'),
+    'catalogue-hard': ('parent-app-search', 'com.puffyslippers.ONPCTest.H.desktop'),
+    'catalogue-soft': ('parent-app-search', 'com.puffyslippers.ONPCTest.S.desktop'),
+    'match-hard-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage'),
+    'match-soft-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Lunar Client-*.AppImage'),
     'catalogue-absent': ('parent-app-search', 'ONPC Absent Catalogue Fixture 077b'),
     'catalogue-clear': ('parent-app-search', ''),
     **{f'body-ascii-{units}': ('feedback-editor-input', 'x' * units)
@@ -553,6 +567,7 @@ CATALOGUE_ROW_OPERATIONS = {
     'catalogue-clear-rows': 'catalogue-clear',
     'catalogue-description-rows': 'catalogue-description',
     'catalogue-identifier-rows': 'catalogue-identifier',
+    'catalogue-hard-rows': 'catalogue-hard', 'catalogue-soft-rows': 'catalogue-soft',
 }
 APP_ROW_OPERATIONS |= frozenset(CATALOGUE_ROW_OPERATIONS)
 FILTER_OPTIONS = {'match-rule': ('pattern', 'precise'),
@@ -565,16 +580,27 @@ FILTER_OPERATIONS = {
 OPERATIONS |= frozenset(FILTER_OPERATIONS)
 OPERATIONS |= APP_ROW_OPERATIONS
 MATCH_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.A.desktop').hexdigest()[:16]
+MATCH_APPS = {role: 'parent-app-' + hashlib.sha256(
+    ('com.puffyslippers.ONPCTest.' + role + '.desktop').encode()).hexdigest()[:16]
+    for role in ('A', 'H', 'S')}
 MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.desktop').hexdigest()[:16]
 MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
-               '/opt/onpc-test-fixtures/Applications/*.AppImage')
+               '/opt/onpc-test-fixtures/Applications/*.AppImage',
+               '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage',
+               '/opt/onpc-test-fixtures/Applications/Lunar Client-*.AppImage')
+BASELINE_POLICY_DRAFTS = {'match-hard-precise': MATCH_APPS['H'],
+                          'match-soft-wildcard': MATCH_APPS['S']}
+BASELINE_MATCH_OPERATIONS = {f'match-{name}-{action}': (MATCH_APPS[role], action)
+    for name, role in (('hard', 'H'), ('soft', 'S'))
+    for action in ('open', 'read', 'row', 'save', 'cancel', 'reset')}
 MATCH_OPERATIONS = frozenset('match-' + action for action in
     ('open', 'read', 'row', 'save', 'cancel', 'reset', 'rejected', 'wrong-app', 'ambiguous'))
 MATCH_INVALID = {key: ('A match rule is required' if key in ('empty', 'whitespace') else
                       "A precise match must be this app's execution path")
                  for key in ('empty', 'whitespace', 'basename', 'absolute')}
 MATCH_OPERATIONS |= frozenset('match-invalid-' + key for key in MATCH_INVALID)
+MATCH_OPERATIONS |= frozenset(BASELINE_MATCH_OPERATIONS)
 OPERATIONS |= MATCH_OPERATIONS
 PARENT_REPORT_OPERATIONS = frozenset({'parent-report-refused', 'parent-report-read',
                                       'parent-report-actions'})
@@ -585,6 +611,10 @@ TEXT_VALUES['body-rule-error'] = ('feedback-editor-input',
 ACCESS_CHOICES = ('allowed', 'permanent', 'conditional')
 ACCESS_OPERATIONS = frozenset('access-' + action for action in
     (*ACCESS_CHOICES, 'row', 'screen', 'wrong-row', 'disabled'))
+BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], action)
+    for name, role in (('hard', 'H'), ('soft', 'S'))
+    for action in (*ACCESS_CHOICES, 'row')}
+ACCESS_OPERATIONS |= frozenset(BASELINE_ACCESS_OPERATIONS)
 OPERATIONS |= ACCESS_OPERATIONS
 LEGEND_HEADINGS = ('App Access (What happens)', 'Match Rule (How apps are matched)')
 LEGEND_RULES = (
@@ -625,6 +655,7 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
         'named-custom-wrong-child-refused', 'parent-trace-wrong-surface-refused',
     }
 NAMED_CUSTOM_CHILDREN = {'child': CHILD, 'existing': EXISTING_CHILD}
+NAMED_CUSTOM_OPERATIONS |= frozenset(CATALOGUE_ROW_OPERATIONS)
 NAMED_TIME_OPERATIONS = frozenset({
     'time-explanation-setup-thirty-read', 'time-explanation-read',
     'time-explanation-config-wrong-child', 'time-explanation-config-wrong-state',
@@ -833,6 +864,9 @@ KIOSK_VALID_REQUESTS.update({f'kiosk-flow-{field}-select': (75, '1.25', True)
                              for field in ('child', 'approver')})
 KIOSK_VALID_REQUESTS['kiosk-restored-accounts-select'] = (75, '1.25', True)
 KIOSK_VALID_REQUESTS['kiosk-diagnostic-retry-estimate'] = (75, '1.25', True)
+KIOSK_VALID_REQUESTS.update({f'kiosk-long-request-{choice}-{action}': (600, '10', soft)
+    for choice, soft in (('duration', False), ('soft', True))
+    for action in ('select', 'read')})
 KIOSK_VALID_OPERATIONS = frozenset(KIOSK_VALID_REQUESTS) | {'kiosk-valid-custom-open'}
 CHINESE_VALID_BINDINGS = {
     'chinese-' + suffix: 'kiosk-valid-' + suffix for suffix in
@@ -879,6 +913,11 @@ MATE_REJECTION_ORDER = ('kiosk-mate-rejection-open', 'kiosk-mate-rejection-quali
                         'kiosk-mate-rejection-rechecked', 'kiosk-mate-submit-rejection')
 MATE_APPROVAL_OPERATIONS |= frozenset(MATE_REJECTION_ORDER)
 MATE_APPROVAL_OPERATIONS |= frozenset({'kiosk-mate-submit-immediate'})
+LONG_MATE_ORDER = tuple('kiosk-long-mate-' + suffix for suffix in
+                       ('open', 'qualified', 'rechecked', 'submit-success'))
+LONG_MATE_REQUEST = dict(child='fixture-child', approver='fixture-parent',
+                         duration_seconds=600, allow_soft=True)
+MATE_APPROVAL_OPERATIONS |= frozenset(LONG_MATE_ORDER)
 CHINESE_MATE_ORDER = tuple('chinese-mate-' + suffix for suffix in
                            ('open', 'qualified', 'rechecked', 'submit-success'))
 MATE_APPROVAL_OPERATIONS |= frozenset(CHINESE_MATE_ORDER)
@@ -4685,7 +4724,7 @@ class AccessibleUI:
             self.kiosk_valid_target(identity, child=child,
                                     overlay=getattr(self, 'text_overlay', False))
         if identity == 'parent-match-rule-entry':
-            self.match_entry(child, MATCH_APP, editor=True)
+            self.match_entry(child, getattr(self, 'text_match_app', MATCH_APP), editor=True)
         return node
 
     def focus_text(self, identity, *, child=CHILD):
@@ -4723,6 +4762,7 @@ class AccessibleUI:
             return None
         require(operation in TEXT_OPERATIONS, 'ui:text-operation')
         binding, action = TEXT_OPERATIONS[operation]
+        self.text_match_app = BASELINE_POLICY_DRAFTS.get(binding, MATCH_APP)
         if binding in ('chinese-kiosk-fraction', 'jordan-kiosk-fraction'):
             child = EXISTING_CHILD
         identity, value = TEXT_VALUES[binding]
@@ -6901,7 +6941,7 @@ class AccessibleUI:
 
     def match_entry(self, child, app, *, editor=False, access=None):
         """Fresh complete child/page/app and transient-owner proof before input."""
-        require(child in CHILD_IDENTITIES and app in (MATCH_APP, MATCH_OTHER_APP), 'ui:match-binding')
+        require(child in CHILD_IDENTITIES and app in (*MATCH_APPS.values(), MATCH_OTHER_APP), 'ui:match-binding')
         require(access is None or (access in ACCESS_CHOICES and not editor), 'ui:access-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
         observation = self.read_snapshot()
@@ -6971,7 +7011,7 @@ class AccessibleUI:
 
     def read_app_access(self, child, app):
         """PARENT12 independent read; caller owns the expected saved choice."""
-        require(app in (MATCH_APP, MATCH_OTHER_APP), 'ui:access-binding')
+        require(app in (*MATCH_APPS.values(), MATCH_OTHER_APP), 'ui:access-binding')
         def read():
             rows = self.app_rows(child)
             values = [access for identity, access, _ in rows if identity == app]
@@ -6981,7 +7021,8 @@ class AccessibleUI:
 
     def access_operation(self, operation, *, child=EXISTING_CHILD):
         require(operation in ACCESS_OPERATIONS, 'ui:access-operation')
-        action = operation.removeprefix('access-')
+        app, action = BASELINE_ACCESS_OPERATIONS.get(operation,
+            (MATCH_APP, operation.removeprefix('access-')))
         if action == 'screen':
             self.parent_page(child, 'Screen Limits')
             return {'page': 'screen'}
@@ -6995,8 +7036,8 @@ class AccessibleUI:
                 return {'refusal': action}
             raise UiError('ui:access-wrong-accepted')
         if action == 'row':
-            return self.read_app_access(child, MATCH_APP)
-        return self.choose_app_access(child, MATCH_APP, MATCH_APP + '-access-' + action)
+            return self.read_app_access(child, app)
+        return self.choose_app_access(child, app, app + '-access-' + action)
 
     def read_match_rule(self, child, app, *, editor=False):
         """Exact finite public value; no backend reads or arbitrary text exports."""
@@ -7093,7 +7134,8 @@ class AccessibleUI:
 
     def match_operation(self, operation, *, child=EXISTING_CHILD):
         require(operation in MATCH_OPERATIONS, 'ui:match-operation')
-        action = operation.removeprefix('match-')
+        app, action = BASELINE_MATCH_OPERATIONS.get(operation,
+            (MATCH_APP, operation.removeprefix('match-')))
         if action in ('wrong-app', 'ambiguous'):
             try:
                 if action == 'wrong-app':
@@ -7106,12 +7148,12 @@ class AccessibleUI:
                 return {'refusal': action}
             raise UiError('ui:match-wrong-accepted')
         if action == 'open':
-            return self.open_match_rule(child, MATCH_APP)
+            return self.open_match_rule(child, app)
         if action.startswith('invalid-'):
             return self.respond_match_rule(child, MATCH_APP, action.removeprefix('invalid-'))
         if action in ('save', 'cancel', 'reset', 'rejected'):
-            return self.respond_match_rule(child, MATCH_APP, action)
-        return self.read_match_rule(child, MATCH_APP, editor=action == 'read')
+            return self.respond_match_rule(child, app, action)
+        return self.read_match_rule(child, app, editor=action == 'read')
 
     def legend_entry(self, child):
         """One complete fresh Parent/child/page proof before legend input or read."""
@@ -7239,7 +7281,7 @@ class AccessibleUI:
         self.wait(lambda: (action in self.get_value(identity)) == desired, 'filter-value')
         return {'state': desired, 'activated': (action in before) != desired}
 
-    def app_row_operation(self, operation):
+    def app_row_operation(self, operation, *, child=EXISTING_CHILD):
         require(operation in APP_ROW_OPERATIONS, 'ui:app-row-operation')
         if operation in ('catalogue-filter-wrong-child', 'catalogue-filter-wrong-page'):
             wrong_child = operation.endswith('wrong-child')
@@ -7256,23 +7298,23 @@ class AccessibleUI:
                 raise UiError('ui:filter-wrong-accepted')
             return {'refusal': 'wrong-child' if wrong_child else 'wrong-page'}
         if operation in CATALOGUE_ROW_OPERATIONS:
+            require(child in NAMED_CUSTOM_CHILDREN.values(), 'ui:custom-child-binding')
             binding = CATALOGUE_ROW_OPERATIONS[operation]
             if operation.endswith('reopened'):
-                self.parent_page(EXISTING_CHILD, 'Screen Limits')
-                self.parent_page(EXISTING_CHILD, 'App Limits')
-            self.read_synthetic_text(binding, child=EXISTING_CHILD)
+                self.parent_page(child, 'Screen Limits')
+                self.parent_page(child, 'App Limits')
+            self.read_synthetic_text(binding, child=child)
             expected = (() if binding == 'catalogue-absent' else
-                        ('parent-app-' + hashlib.sha256(
-                            b'com.puffyslippers.ONPCTest.A.desktop').hexdigest()[:16],))
+                        (MATCH_APPS[{'catalogue-hard': 'H', 'catalogue-soft': 'S'}.get(binding, 'A')],))
             def ready():
                 try:
                     if binding == 'catalogue-clear':
-                        rows = self.app_rows(EXISTING_CHILD)
+                        rows = self.app_rows(child)
                         fixtures = {'parent-app-' + hashlib.sha256(
                             ('com.puffyslippers.ONPCTest.' + role + '.desktop').encode()
                             ).hexdigest()[:16] for role in ('A', 'H', 'S', 'N')}
                         return {'rows': rows} if fixtures <= {row[0] for row in rows} else None
-                    return {'rows': self.app_rows(EXISTING_CHILD, expected_ids=expected)}
+                    return {'rows': self.app_rows(child, expected_ids=expected)}
                 except UiError as error:
                     if str(error) == 'ui:app-row-set':
                         return None  # SearchEntry's public debounce may still be pending.
@@ -10068,8 +10110,14 @@ class AccessibleUI:
                 duration_seconds=seconds, custom_text=custom)
             self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
                 duration_seconds=seconds, custom_text=custom)
+        elif operation == 'kiosk-long-request-duration-select':
+            self._invoke_target(self.kiosk_valid_target('kiosk-duration-custom'))
+            self.invalidate_observation()
+            self.wait(lambda: self.kiosk_valid_target('kiosk-custom-duration', awaiting_custom=True),
+                      'kiosk-custom-open')
+            self.set_text('kiosk-custom-duration', custom)
         elif operation in ('kiosk-flow-child-select', 'kiosk-flow-approver-select'):
-            field = operation.split('-')[2]
+            field = operation.split('-')[-2]
             self.select_kiosk_account(
                 field, CHILD if field == 'child' else PARENT,
                 expected=(CHILD, EXISTING_CHILD) if field == 'child' else (PARENT, OTHER_PARENT),
@@ -10077,7 +10125,8 @@ class AccessibleUI:
         elif operation.endswith('-select'):
             identity = ('kiosk-soft-apps-toggle' if action in (
                 'kiosk-valid-soft-select', 'kiosk-valid-excluded-select',
-                'kiosk-valid-fraction-soft-select', 'kiosk-valid-fraction-excluded-select')
+                'kiosk-valid-fraction-soft-select', 'kiosk-valid-fraction-excluded-select',
+                'kiosk-long-request-soft-select')
                 else f'kiosk-duration-{seconds}')
             target = self.kiosk_valid_target(identity, child=child, overlay=overlay)
             if identity == 'kiosk-soft-apps-toggle':
@@ -10203,7 +10252,7 @@ class AccessibleUI:
         return pid
 
     def mate_prompt(self, pid, *, observation=None, challenge=None, filled=False,
-                    binding=None, language='en'):
+                    binding=None, language='en', request=None):
         """MATE-only semantic adapter; never reads password contents or types.
 
         Native PAM recipient label and displayed policy message are public
@@ -10213,6 +10262,10 @@ class AccessibleUI:
         require(binding is None or binding in MULTIPLE_MATE_BINDINGS, 'ui:mate-binding')
         require(language in ('en', 'zh-Hans') and (language == 'en' or binding is None),
                 'ui:mate-language-binding')
+        require(request is None or (binding is None and language == 'en'
+                and type(request) is dict and request == LONG_MATE_REQUEST
+                and type(request.get('duration_seconds')) is int
+                and request.get('allow_soft') is True), 'ui:mate-request-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
         if observation is None:
             self.invalidate_observation()
@@ -10254,7 +10307,9 @@ class AccessibleUI:
                 'ui:mate-recipient-context-missing')
         # The native catalogues keep the complete request in one multiline
         # label. Check every sentence, including the explicit soft-app choice.
-        message = (f'Grant {child} access?\nRequested time: 30 minutes.' if binding else
+        message = (f'Grant {CHILD} access?\nRequested time: 10 minutes.\n'
+                   'Allow soft blocked apps for this grant.' if request is not None else
+                   f'Grant {child} access?\nRequested time: 30 minutes.' if binding else
                    f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
                    'Allow soft blocked apps for this grant.')
         require(labels.count(texts['message'] if texts else message) == 1, 'ui:mate-request-context-missing')
@@ -10286,7 +10341,7 @@ class AccessibleUI:
                    Path('/proc/' + str(pid) + '/stat').read_text().rsplit(')', 1)[1].split()[19]]
         return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
-    def wait_mate_prompt(self, *, binding=None, language='en'):
+    def wait_mate_prompt(self, *, binding=None, language='en', request=None):
         """Bind a new challenge after Request's locale-driven agent restart.
 
         While no prompt is visible the service may have no MainPID. Once it
@@ -10310,6 +10365,7 @@ class AccessibleUI:
             require(pending_pid is None or pending_pid == pid, 'ui:mate-owner')
             try:
                 challenge = self.mate_prompt(pid, observation=observation, binding=binding,
+                                             **({'request': request} if request is not None else {}),
                                              **({'language': language} if language != 'en' else {}))
             except UiError as error:
                 if str(error) != 'ui:mate-field-state':
@@ -10404,16 +10460,20 @@ class AccessibleUI:
     def kiosk_mate_approval(self, operation):
         require(not self.input_uncertain, 'ui:uncertain-input')
         chinese = operation in CHINESE_MATE_ORDER
+        long_request = operation in LONG_MATE_ORDER
         language = 'zh-Hans' if chinese else 'en'
-        action = operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else operation
-        options = {'language': language} if chinese else {}
+        action = (operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else
+                  operation.replace('kiosk-long-mate-', 'kiosk-mate-', 1) if long_request else operation)
+        options = ({'language': language} if chinese else
+                   {'request': dict(LONG_MATE_REQUEST)} if long_request else {})
         pid = self.mate_agent_pid()
         opening = action in ('kiosk-mate-open', 'kiosk-mate-rejection-open')
         submitting = action in ('kiosk-mate-submit-success', 'kiosk-mate-submit-rejection',
                                    'kiosk-mate-submit-immediate')
         try:
             if opening:
-                self.kiosk_valid_choice('chinese-fraction-soft-read' if chinese else 'kiosk-valid-fraction-soft-read')
+                self.kiosk_valid_choice('chinese-fraction-soft-read' if chinese else
+                    'kiosk-long-request-soft-read' if long_request else 'kiosk-valid-fraction-soft-read')
                 require(self.mate_prompt(pid, **options) is None, 'ui:mate-already-open')
                 self._invoke_target(self.kiosk_valid_target('kiosk-request-submit',
                     **({'child': EXISTING_CHILD} if chinese else {})))
@@ -10442,7 +10502,8 @@ class AccessibleUI:
                     result = self.kiosk_mate_rejected(pid, challenge)
                     self.input_uncertain = True
                     return result
-                result = self.kiosk_approval_success(immediate=operation == 'kiosk-mate-submit-immediate', **options)
+                result = self.kiosk_approval_success(immediate=operation == 'kiosk-mate-submit-immediate',
+                    **({'language': language} if chinese else {}))
                 self.input_uncertain = True  # This one submission is consumed even on success.
                 return result
             if chinese:
@@ -10458,7 +10519,8 @@ class AccessibleUI:
                         'agent_id': self.mate_agent_identity(pid),
                         'child': 'existing-fixture-child', 'approver': 'fixture-parent',
                         'duration_seconds': 75, 'allow_soft': True, 'rejected_proofs': rejected}
-            return {'challenge_id': identity}
+            return {'challenge_id': identity,
+                    **({'request': dict(LONG_MATE_REQUEST)} if long_request else {})}
         except BaseException:
             self.input_uncertain = True
             raise
@@ -11663,25 +11725,38 @@ class AccessibleUI:
         self.input_uncertain = False
 
     def native_launch_command(self, instance='primary', *, child=EXISTING_CHILD, blocked=False,
-                              fixture='policy'):
+                              fixture='policy', role=None, locked=False):
         """APP01: one fixed native command in Jordan's active desktop session.
 
         FIX06 verifies the baseline inputs before this operation. Submission is
         never window acceptance; APP02 independently reads the public result.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(instance == 'primary', 'ui:native-binding')
+        require(role is None or role in ('A', 'H', 'S') and child == CHILD
+                and fixture == 'policy' and (role != 'H' or blocked), 'ui:native-binding')
+        require(instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
+        require(type(locked) is bool and (not locked or role == 'S' and blocked),
+                'ui:native-binding')
         require(type(blocked) is bool, 'ui:native-binding')
         require(fixture in ('policy', 'activity') and (not blocked or fixture == 'policy'),
                 'ui:native-binding')
         require(child in (PARENT, CHILD, EXISTING_CHILD) and
                 (child != PARENT or not blocked), 'ui:native-child-binding')
+        locked_session = None
         def ready():
+            nonlocal locked_session
             require_active_launch_session()
             if child == CHILD:
                 self.require_child_overlay_session()
+            if locked:
+                self.lock_role = 'child'
+                session = self.require_lock_session(os.getuid())
+                require(locked_session is None or session == locked_session, 'ui:lock-session-changed')
+                locked_session = session
+                return self.shell_lock_snapshot(os.getuid(), 'restriction') is not None
             self.desktop_result(child, 'success')
-            require(self.native_app_closed(), 'ui:native-window-exists')
+            require(self.native_app_closed(instance) if role is not None else self.native_app_closed(),
+                    'ui:native-window-exists')
             self.handle_system_prompt()
             return True
 
@@ -11705,13 +11780,17 @@ class AccessibleUI:
         unit = ('onpc-test-native-' + os.urandom(16).hex() + '.service'
                 if blocked or child == CHILD else None)
         self.input_uncertain = True
+        executable = ('/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
+            '/opt/onpc-test-fixtures/Applications/' + {
+                'A': 'Exact Fixture.AppImage', 'H': 'Path With Spaces.AppImage',
+                'S': 'Lunar Client-3.7.17.AppImage'}[role or 'A'])
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
             *(['--wait', '--pipe'] if blocked else []),
             *(['--unit=' + unit] if unit is not None else []),
             '--service-type=exec',
-            ('/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
-             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'),
+            executable,
+            *(['--instance', instance] if role is not None else []),
         ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
         if not blocked and unit is not None and self.timing is not None:
             # The next read runs in a separate observer process. Retain this
@@ -11727,7 +11806,8 @@ class AccessibleUI:
                 # The executor can fail before the service owns its piped
                 # stderr. Require the same permission error from this launch's
                 # attributed EXEC record; status 203 alone proves no denial.
-                journal = native_execution_journal_diagnostic(unit)
+                journal = (native_execution_journal_diagnostic(unit, executable=executable)
+                           if role is not None else native_execution_journal_diagnostic(unit))
                 denied = (result.returncode == 203 and bounded
                           and journal['status'] == 'read'
                           and journal['exec_errors'] in (
@@ -11750,9 +11830,16 @@ class AccessibleUI:
                 raise error
             stable = time.monotonic()
             def absent():
-                require(self.native_app_closed(), 'ui:native-blocked-window')
+                if locked:
+                    require(ready(), 'ui:native-blocked-restriction')
+                else:
+                    require(self.native_app_closed(instance) if role is not None
+                            else self.native_app_closed(), 'ui:native-blocked-window')
                 return time.monotonic() - stable >= 2
-            self.wait(absent, 'native-blocked-absence')
+            if locked:
+                self.wait(absent, 'native-blocked-restriction', prompt_in_predicate=True)
+            else:
+                self.wait(absent, 'native-blocked-absence')
             if self.timing is not None:
                 self.timing({'event': 'ui-native-execution-denial',
                              'source': 'journal' if journal is not None else 'stderr',
@@ -11760,10 +11847,15 @@ class AccessibleUI:
                                        'permission-denied' if b'Permission denied' in result.stderr
                                        else 'operation-not-permitted')})
 
-    def native_app_snapshot(self, submitted, *, pending=False, with_window=False):
+    def native_app_snapshot(self, submitted, *, pending=False, with_window=False,
+                            instance='primary', role=None):
         """APP02/03: public owned window and finite independent activity projection."""
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
-        scope = 'onpc-fixture-native-primary'
+        require(role is None and instance == 'primary' or role in ('A', 'S')
+                and instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
+        if role is not None:
+            self.require_child_overlay_session()
+        scope = 'onpc-fixture-native-' + instance
         observation = None
         diagnostic = getattr(self, 'native_open_diagnostic', None)
         if diagnostic is not None:
@@ -11773,7 +11865,7 @@ class AccessibleUI:
             # never names, draft values or a second diagnostic tree traversal.
             diagnostic['complete_reads'] = min(10000, diagnostic['complete_reads'] + 1)
             diagnostic['owner_count'] = sum(
-                identities[node] == 'com.puffyslippers.ONPCFixture.native.primary'
+                identities[node] == 'com.puffyslippers.ONPCFixture.native.' + instance
                 for node in nodes)
             diagnostic['ids'] = {control: sum(identities[node] == identity for node in nodes)
                 for control, identity in [('window', scope), *[
@@ -11791,13 +11883,16 @@ class AccessibleUI:
             diagnostic['active_window'] = True
         require(root is not None and self.surface_available(root),
                 'ui:native-entry')
+        if role is not None:
+            self.native_app_owner(root, role, instance)
         try:
             from fixture_ui import FixtureUI
         except ModuleNotFoundError as error:
             if error.name != 'fixture_ui':
                 raise
             from tests.e2e.fixture_ui import FixtureUI
-        fixture = FixtureUI(self, 'native', require=require)
+        fixture = (FixtureUI(self, 'native', instance, require=require) if role is not None
+                   else FixtureUI(self, 'native', require=require))
         require(fixture.text('status') == 'Ready', 'ui:native-status')
         value = fixture.snapshot()
         expected = {'draft': 'ONPC fixture draft', 'submitted': submitted,
@@ -11814,27 +11909,78 @@ class AccessibleUI:
             require(type(pid) is int and pid > 0 and type(bus) is str
                     and bus.startswith(':') and type(path) is str and path.startswith('/'),
                     'ui:native-endpoint')
-            return {'binding': 'native-primary', 'pid': pid,
+            return {'binding': 'native-' + instance, 'pid': pid,
                     'endpoint': [bus, path], 'state': value}
         return value
 
-    def native_app_submit(self, instance='primary', *, submitted='No submitted draft'):
+    def native_app_owner(self, root, role, instance):
+        """Bind the GUI child to its live native policy executable and account."""
+        require(role in ('A', 'S') and instance == ('secondary' if role == 'S' else 'primary'),
+                'ui:native-binding')
+        pid = root.get_process_id()
+        require(type(pid) is int and pid > 0, 'ui:native-owner')
+        process = Path('/proc/' + str(pid))
+        stat = (process / 'stat').read_text()
+        fields = stat.rsplit(')', 1)[1].split()
+        require(len(fields) > 19 and fields[0] != 'Z', 'ui:native-owner')
+        owner = Path('/proc/' + fields[1])
+        owner_stat = (owner / 'stat').read_text()
+        expected = '/opt/onpc-test-fixtures/Applications/' + {
+            'A': 'Exact Fixture.AppImage', 'S': 'Lunar Client-3.7.17.AppImage'}[role]
+        require(process.stat().st_uid == owner.stat().st_uid == os.getuid()
+                and str((owner / 'exe').readlink()) == expected
+                and (owner / 'cmdline').read_bytes().split(b'\0') ==
+                    [expected.encode(), b'--instance', instance.encode(), b''], 'ui:native-owner')
+        fresh = (process / 'stat').read_text().rsplit(')', 1)[1].split()
+        owner_fields = owner_stat.rsplit(')', 1)[1].split()
+        fresh_owner = (owner / 'stat').read_text().rsplit(')', 1)[1].split()
+        require(fresh[0] != 'Z' and fresh[1] == fields[1] and fresh[19] == fields[19]
+                and fresh_owner[0] != 'Z' and fresh_owner[19] == owner_fields[19],
+                'ui:native-owner-changed')
+
+    def native_app_submit(self, instance='primary', *, submitted='No submitted draft', role=None):
         """One normal public action; no replay after uncertain delivery."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(instance == 'primary', 'ui:native-binding')
+        require(role is None and instance == 'primary' or role in ('A', 'S')
+                and instance == ('secondary' if role == 'S' else 'primary'), 'ui:native-binding')
+        if role is not None:
+            self.require_child_overlay_session()
         # A provider can exit after desktop enumeration but before GetItems.
         # Reacquire the whole read-only preflight within the normal deadline;
         # a complete wrong activity/owner still refuses, and input stays outside.
-        self.wait(lambda: self.native_app_snapshot(submitted), 'native-submit-ready',
+        self.wait(lambda: self.native_app_snapshot(submitted, instance=instance, role=role)
+                  if role is not None else self.native_app_snapshot(submitted), 'native-submit-ready',
                   prompt_in_predicate=True)
-        self.activate_id('onpc-fixture-native-primary-submit')
+        self.activate_id('onpc-fixture-native-' + instance + '-submit')
 
-    def native_app_closed(self):
+    def native_app_closed(self, instance='primary'):
         """Complete owned absence with the independently recognized Shell desktop."""
+        require(instance in ('primary', 'secondary'), 'ui:native-binding')
         self.standard_shell_desktop(no_prompt=True)
-        node = self.snapshot_owned_target('onpc-fixture-native-primary', showing=False,
+        node = self.snapshot_owned_target('onpc-fixture-native-' + instance, showing=False,
                                           check_prompt=True)
         return node is None or not self.showing(node)
+
+    def baseline_native_operation(self, operation):
+        """Finite A/S instance binding; legacy native operations keep their scope."""
+        require(operation in BASELINE_NATIVE_BINDINGS, 'ui:native-operation')
+        role, action = BASELINE_NATIVE_BINDINGS[operation]
+        instance = 'secondary' if role == 'S' else 'primary'
+        if action in ('desktop', 'closed'):
+            self.wait(lambda: self.native_app_closed(instance), 'native-closed')
+            return None
+        if action in ('command-launch', 'command-blocked', 'locked-command-blocked'):
+            return self.native_launch_command(instance, child=CHILD, role=role,
+                blocked=action != 'command-launch', locked=action == 'locked-command-blocked')
+        if action == 'submit':
+            return self.native_app_submit(instance, role=role)
+        if action in ('opened', 'submitted'):
+            return self.wait(lambda: self.native_app_snapshot(
+                'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
+                pending=True, instance=instance, role=role), 'native-' + action)
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        self.native_app_snapshot('ONPC fixture draft', instance=instance, role=role)
+        self.activate_id('onpc-fixture-native-' + instance + '-close')
 
     def native_app_operation(self, operation, *, child=EXISTING_CHILD):
         require(operation in NATIVE_APP_OPERATIONS, 'ui:native-operation')
@@ -12368,7 +12514,9 @@ class AccessibleUI:
                             'nodes_read': 0, 'reader_ms': 0.0, 'input_ms': []}
         try:
             with self.observation():
-                return self._run(operation, version, child=NAMED_CUSTOM_CHILDREN[child] if child else CHILD)
+                selected_child = (NAMED_CUSTOM_CHILDREN[child] if child else
+                    EXISTING_CHILD if operation in CATALOGUE_ROW_OPERATIONS else CHILD)
+                return self._run(operation, version, child=selected_child)
         finally:
             if self._timing is not None:
                 timing, self._timing = self._timing, None
@@ -12406,9 +12554,10 @@ class AccessibleUI:
             overlay_native = operation in OVERLAY_NATIVE_OPERATIONS
             if overlay_native:
                 self.require_child_overlay_session()
-            value = self.native_app_operation(operation.removeprefix('overlay-').removeprefix('parent-'),
+            value = (self.baseline_native_operation(operation) if operation in BASELINE_NATIVE_BINDINGS else
+                     self.native_app_operation(operation.removeprefix('overlay-').removeprefix('parent-'),
                                              child=CHILD if overlay_native else
-                                             PARENT if operation in PARENT_NATIVE_OPERATIONS else EXISTING_CHILD)
+                                             PARENT if operation in PARENT_NATIVE_OPERATIONS else EXISTING_CHILD))
             if value is not None:
                 result['activity'] = value
             if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):
@@ -12787,7 +12936,9 @@ class AccessibleUI:
             kind, mask, action = FILTER_OPERATIONS[operation]
             result['filter'] = self.catalogue_filter(child, kind, mask, action)
         elif operation in APP_ROW_OPERATIONS:
-            result['apps'] = self.app_row_operation(operation)
+            result['apps'] = (self.app_row_operation(operation, child=child)
+                if operation in CATALOGUE_ROW_OPERATIONS
+                else self.app_row_operation(operation))
         elif operation in LEGEND_OPERATIONS:
             result['legend'] = self.policy_legend_operation(operation)
         elif operation in MATCH_OPERATIONS:
@@ -13384,7 +13535,7 @@ def require_active_launch_session():
     require(len(active) == 1, 'ui:launch-session')
 
 
-def native_execution_journal_diagnostic(unit):
+def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'):
     """Read this failed launch's OS error without exporting journal contents.
 
     systemd's executor logs exec failures to the journal, not the service's
@@ -13392,6 +13543,11 @@ def native_execution_journal_diagnostic(unit):
     step before returning a closed errno label. Missing evidence proves nothing.
     """
     diagnostic = {'status': 'unavailable', 'entries': 0, 'exec_errors': []}
+    if executable not in (
+            '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+            '/opt/onpc-test-fixtures/Applications/Path With Spaces.AppImage',
+            '/opt/onpc-test-fixtures/Applications/Lunar Client-3.7.17.AppImage'):
+        return diagnostic
     if type(unit) is not str or re.fullmatch(r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None:
         return diagnostic
     try:
@@ -13410,15 +13566,13 @@ def native_execution_journal_diagnostic(unit):
         errors = []
         for entry in entries:
             if (unit not in (entry.get('USER_UNIT'), entry.get('_SYSTEMD_USER_UNIT'))
-                    or entry.get('EXECUTABLE') !=
-                    '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'):
+                    or entry.get('EXECUTABLE') != executable):
                 continue
             message = entry.get('MESSAGE')
             # LOG_EXEC_MESSAGE prefixes the unit name. Match the exact launch
             # and step as well as the structured fields; no arbitrary text or
             # another unit's permission error can stand in for this failure.
-            prefix = (unit + ': Failed at step EXEC spawning '
-                      '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage: ')
+            prefix = unit + ': Failed at step EXEC spawning ' + executable + ': '
             if type(message) is str and message.startswith(prefix):
                 value = entry.get('ERRNO')
                 errors.append(NATIVE_EXECUTION_ERRNOS.get(value, 'other')
@@ -13997,8 +14151,8 @@ def adapter_failure_diagnostic(error):
                 and parts[2] in (
                     'parent-child-selector', 'parent-app-limits-page',
                     'parent-app-search', 'parent-app-rows',
-                    'parent-match-rule-entry', MATCH_APP, MATCH_OTHER_APP,
-                    *(app + suffix for app in (MATCH_APP, MATCH_OTHER_APP)
+                    'parent-match-rule-entry', *MATCH_APPS.values(), MATCH_OTHER_APP,
+                    *(app + suffix for app in (*MATCH_APPS.values(), MATCH_OTHER_APP)
                       for suffix in ('-match-rule', *('-access-' + choice
                                                    for choice in ACCESS_CHOICES))))
                 and parts[3] in ('missing', 'outside-scope', 'hidden', 'defunct')):

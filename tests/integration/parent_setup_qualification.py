@@ -305,6 +305,16 @@ class KioskApprovalQualification(KioskEntryQualification):
         return KioskApprovalJourney(context, progress)
 
 
+class BaselineAppEffectsQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from baseline_app_effects import BaselineAppEffectsJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return BaselineAppEffectsJourney(context, progress)
+
+
 class ChineseNativeAuthQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

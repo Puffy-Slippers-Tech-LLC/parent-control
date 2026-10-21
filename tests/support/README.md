@@ -491,6 +491,13 @@ after a product restart.
 
 ## Extend without hiding the scenario
 
+Graphical qualification workers must load their helper modules with compile-time
+`use`, alongside the existing imports in `smoke.pm`. The loader's temporary Perl
+library path is gone when `run` executes, so a runtime `require` can pass direct
+module probes and still fail in the installed dispatcher. Exercise the actual
+dispatch after removing that temporary path, as in the baseline app-effects
+regressions, before starting installed qualification.
+
 Revocation warning/Cancel uses `AccessibleUI.open_revoke_warning`,
 `revoke_warning` and `cancel_revoke` in both the host preview and installed
 qualification. Separate GTK dialog surfaces use the shared transient-owner

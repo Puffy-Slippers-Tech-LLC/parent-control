@@ -113,14 +113,17 @@ sub enter_kiosk_mate_password {
     my $ok = eval {
         my $reject = @_ == 2 && defined($wrong) && $wrong eq 'wrong';
         my $chinese = @_ == 2 && defined($wrong) && $wrong =~ /\Achinese-(?:first|second)\z/;
+        my $long_request = @_ == 2 && defined($wrong) && $wrong eq 'long-request';
         my $binding = $chinese ? substr($wrong, 8) . '-approval' : $reject ? 'rejection' : 'approval';
-        my $id = 'kiosk-mate-' . ($chinese ? $wrong : $binding);
-        die 'secret:challenge' unless (@_ == 1 || $reject || $chinese) && ref($journey) eq 'onpc_journey'
-            && ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
+        my $id = 'kiosk-mate-' . ($chinese || $long_request ? $wrong : $binding);
+        die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request)
+            && ref($journey) eq 'onpc_journey'
+            && ($long_request ? ($journey->{prefix} // '') eq 'baseline-app-effects' :
+                ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
                 || ($journey->{prefix} // '') eq 'kiosk-approval-flow'
                 || (!$reject && (($journey->{prefix} // '') eq 'package-removal'
                     || ($journey->{prefix} // '') eq 'revoke-cancel'
-                    || ($journey->{prefix} // '') eq 'revocation')))
+                    || ($journey->{prefix} // '') eq 'revocation'))))
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = 1;

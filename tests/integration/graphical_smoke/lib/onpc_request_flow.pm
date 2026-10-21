@@ -421,7 +421,8 @@ sub prepare {
         && ($entry eq 'open' || $entry eq 'new')
         && ($initial eq 'default' || $initial eq 'selected')
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
-        && $seconds eq '75' && $soft eq '1';
+        && ($seconds eq '75' || $seconds eq '600' && $initial eq 'default' && !defined($invalid))
+        && $soft eq '1';
     if ($invalid && $invalid eq 'overlay') {
         overlay_entry($journey, "$prefix-entry", 'command') if $entry eq 'new';
         for my $suffix ('form', 'approver', 'selections', 'duration') {
@@ -439,6 +440,13 @@ sub prepare {
     for my $suffix ('form', 'child', 'approver', 'selections') {
         my $stage = "$prefix-$suffix";
         $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    if ($seconds eq '600') {
+        for my $suffix ('duration', 'duration-read', 'apps', 'estimate') {
+            my $stage = "$prefix-$suffix";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+        return;
     }
     if ($invalid) {
         $journey->consume_observation('invalid-custom-open', $journey->seen('invalid-custom-open'));
@@ -504,9 +512,14 @@ sub approve {
     my ($journey, $child, $approver, $seconds, $soft, $exit) = @_;
     die 'approved-flow:binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
-        && $seconds eq '75' && $soft eq '1' && ($exit eq 'automatic' || $exit eq 'immediate');
+        && ($seconds eq '75' || $seconds eq '600' && $exit eq 'automatic')
+        && $soft eq '1' && ($exit eq 'automatic' || $exit eq 'immediate');
     $journey->consume_observation('approval-open', $journey->seen('approval-open'));
-    onpc_password::enter_kiosk_mate_password($journey);
+    if ($seconds eq '600') {
+        onpc_password::enter_kiosk_mate_password($journey, 'long-request');
+    } else {
+        onpc_password::enter_kiosk_mate_password($journey);
+    }
     $journey->consume_observation('approval-success', $journey->seen('approval-success'));
     $journey->consume_observation('new-returned', $journey->seen('new-returned'));
 }
@@ -749,7 +762,8 @@ sub obtain_time {
     die 'approved-flow:binding' unless @_ == 7 && ref($journey) eq 'onpc_journey'
         && ($initial eq 'default' || $initial eq 'selected')
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
-        && $seconds eq '75' && $soft eq '1' && $exit eq 'automatic';
+        && ($seconds eq '75' || $seconds eq '600' && $initial eq 'default')
+        && $soft eq '1' && $exit eq 'automatic';
     prepare($journey, 'new', 'new', $initial, $child, $approver, $seconds, $soft);
     approve($journey, $child, $approver, $seconds, $soft, $exit);
 }

@@ -1,5 +1,5 @@
 """Shared immutable public match-rule comparisons; callers own order and entry."""
-from accessible_ui import MATCH_APP, MATCH_RULES
+from accessible_ui import MATCH_APP, MATCH_APPS, MATCH_RULES, BASELINE_POLICY_DRAFTS
 from installed_journey import InstalledJourney
 from private_artifacts import require
 from feedback_composition import text_fragment
@@ -14,7 +14,7 @@ def match_edit(draft, prefix, *, editor, row):
     """
     require(draft in ('match-precise', 'match-precise-basename', 'match-wildcard',
                      'match-wildcard-basename', 'match-wildcard-appimages',
-                     'match-rejected-directory'), 'match:edit-binding')
+                     'match-rejected-directory', *BASELINE_POLICY_DRAFTS), 'match:edit-binding')
     require(type(editor) is tuple and len(editor) == 2
             and all(type(stage) is str and re.fullmatch(r'[a-z][a-z0-9-]*', stage)
                     for stage in (prefix, *editor)), 'match:edit-stages')
@@ -24,11 +24,13 @@ def match_edit(draft, prefix, *, editor, row):
     stages = (*editor, *text_fragment(draft, prefix + '-draft'), prefix + '-save',
               *((row,) if row is not None else ()))
     require(len(stages) == len(set(stages)), 'match:edit-stages')
+    operation = 'ui:match-' + {'match-hard-precise': 'hard-',
+                              'match-soft-wildcard': 'soft-'}.get(draft, '')
     return {
-        editor[0]: 'ui:match-open', editor[1]: 'ui:match-read',
+        editor[0]: operation + 'open', editor[1]: operation + 'read',
         **text_fragment(draft, prefix + '-draft'),
-        prefix + '-save': 'ui:match-rejected' if row is None else 'ui:match-save',
-        **({row: 'ui:match-row'} if row is not None else {}),
+        prefix + '-save': 'ui:match-rejected' if row is None else operation + 'save',
+        **({row: operation + 'row'} if row is not None else {}),
     }
 
 
@@ -38,7 +40,9 @@ class MatchRuleJourney(InstalledJourney):
         stages = list(plan.screen_tags)
         self.match_checks = dict(plan.match_checks)
         for stage, expected in self.match_checks.items():
-            require(stage in stages and (expected in MATCH_RULES or
+            require(stage in stages and (type(expected) is tuple and len(expected) == 2
+                    and expected[0] in MATCH_APPS.values() and expected[1] in MATCH_RULES or
+                    expected in MATCH_RULES or
                     expected in stages and stages.index(expected) < stages.index(stage)),
                     'match:comparison-plan')
         self.match_values = {}
@@ -50,12 +54,16 @@ class MatchRuleJourney(InstalledJourney):
         require(stage not in self.match_values, 'match:comparison-replay')
         value = observed.get('ui', {}).get('match')
         require(type(value) is dict and set(value) == {'app', 'rule'}
-                and value['app'] == MATCH_APP and value['rule'] in MATCH_RULES,
+                and value['app'] in MATCH_APPS.values() and value['rule'] in MATCH_RULES,
                 'match:observation')
         expected = self.match_checks[stage]
-        if expected not in MATCH_RULES:
+        if type(expected) is tuple:
+            pass
+        elif expected not in MATCH_RULES:
             require(expected in self.match_values, 'match:missing-capture')
-            expected = self.match_values[expected][1]
-        require(value['rule'] == expected, 'match:exact-rule')
+            expected = self.match_values[expected]
+        else:
+            expected = (MATCH_APP, expected)
+        require((value['app'], value['rule']) == expected, 'match:exact-rule')
         self.match_values[stage] = (value['app'], value['rule'])
         observed['comparison'] = {'exact_match_rule': True}

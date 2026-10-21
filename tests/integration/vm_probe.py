@@ -362,6 +362,26 @@ def reproduce_kiosk_approval(lease):
                             'approval-qualified', 'kiosk-approval', native_log=True)
 
 
+def reproduce_baseline_app_effects(lease):
+    """Retain Parent after saved S access, before the final match read.
+
+    The shared maintenance envelope stops its worker and closes callbacks;
+    the owner can inspect the live scene with exec, then finish with stop.
+    This diagnostic prefix supplies no qualification or acceptance result.
+    """
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from baseline_app_effects import BaselineAppEffectsJourney, PLAN
+    from tools.test_storage import named_input
+    assets = named_input(vm_source=True, package_source=True)
+    if not assets.is_dir():
+        print('baseline-app-effects-diagnosis: prepare fixture inputs with '
+              'tools/run-tests artifacts prepare --for-vm --vm NAME --output ' + str(assets),
+              flush=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, BaselineAppEffectsJourney, PLAN,
+                            'soft-final-match', 'baseline-app-effects', assets=assets)
+
+
 def probe_kiosk_prompt_latency(lease, samples=10, cold=False):
     """Measure entry, first native prompt and exit in fresh station sessions.
 

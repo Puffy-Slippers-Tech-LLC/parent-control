@@ -10,6 +10,7 @@ from installed_journey import InstalledJourney
 from journey_checks import check_balances
 from private_artifacts import require
 from ui_observations import RequestObservation
+from access_choices import AccessChoiceJourney
 
 
 class KioskRequestJourney(InstalledJourney):
@@ -107,6 +108,80 @@ class KioskRequestJourney(InstalledJourney):
                     'request-transfer:changed-child-choices')
             observed.setdefault('comparison', {})['shared_child_choices_local_approver'] = True
         self.transfer_requests[stage] = request
+
+
+class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
+    """Public grant-only balances and immutable saved app-policy endpoints.
+
+    Callers declare the finite policy oracle, approval capture and zero/positive
+    read endpoints. This shares policy/choice/countdown checks without acquiring
+    fixtures or supplying any part of a qualification's worker sequence.
+    """
+
+    def __init__(self, context, progress, plan, *, settings, app_rules,
+                 approval_stage, policy_reads, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        stages = list(plan.screen_tags)
+        require(approval_stage in stages and type(policy_reads) is dict
+                and bool(policy_reads) and type(app_rules) is dict and bool(app_rules),
+                'grant-effects:comparison-plan')
+        require(all(stage in stages and plan.screen_tags[stage] in (
+                    'ui:revoke-saved-balances', 'ui:revoke-cleared-balances')
+                    and type(binding) is tuple and len(binding) == 2
+                    and binding[1] in ('zero', 'positive')
+                    and (binding[0] is None or binding[0] in policy_reads
+                         and stages.index(binding[0]) < stages.index(stage))
+                    for stage, binding in policy_reads.items()),
+                'grant-effects:comparison-plan')
+        self.effects_settings = deepcopy(settings)
+        self.effects_rules = deepcopy(app_rules)
+        self.effects_approval_stage = approval_stage
+        self.effects_reads = dict(policy_reads)
+        self.effects_seen = {}
+        self.effects_estimate = None
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage == self.effects_approval_stage:
+            require(self.effects_estimate is None, 'grant-effects:estimate-replay')
+            self.effects_estimate = deepcopy(observed['ui']['valid_choice'])
+        if stage not in self.effects_reads:
+            return
+        require(stage not in self.effects_seen, 'grant-effects:read-replay')
+        before, mode = self.effects_reads[stage]
+        value = observed['ui']['revoke_cancel']
+        require(value['settings'] == self.effects_settings, 'grant-effects:settings')
+        rows = {row[0]: row[1] for row in value['apps']}
+        rules = dict(value['rules'])
+        require(all(rows.get(app) == access and rules.get(app) == rule
+                    for app, (access, rule) in self.effects_rules.items()),
+                'grant-effects:saved-rules')
+        if before is not None:
+            require(before in self.effects_seen, 'grant-effects:missing-policy')
+            earlier = self.effects_seen[before]
+            require(all(value[key] == earlier[key] for key in ('settings', 'apps', 'rules')),
+                    'grant-effects:changed-policy')
+        balances = value['balances']
+        require(balances['child'] == self.effects_settings['child'], 'grant-effects:wrong-child')
+        daily, grant, total = (balances[key]['seconds'] for key in ('daily', 'one_time', 'total'))
+        require(daily == 0 and total == grant and
+                (grant > 0 if mode == 'positive' else grant == 0),
+                'grant-effects:grant-only-balance')
+        if mode == 'positive':
+            require(self.effects_estimate is not None, 'grant-effects:missing-approval')
+            estimate = self.effects_estimate
+            require(estimate['estimate']['kind'] == 'fixed', 'grant-effects:fixed-estimate')
+            elapsed = (balances['observed_monotonic_ns'] - estimate['observed_monotonic_ns']) / 1e9
+            precision = balances['one_time']['precision_seconds']
+            expected = estimate['estimate']['seconds']
+            require(0 <= elapsed <= 600 and expected - elapsed - precision <= grant
+                    <= expected + precision, 'grant-effects:elapsed-grant')
+        observed.setdefault('comparison', {}).update(
+            grant_only_balance=True, saved_app_rules=True,
+            **({'unchanged_saved_policy': True} if before is not None else {}),
+            **({'positive_grant_with_elapsed_bounds': True} if mode == 'positive' else
+               {'zero_grant': True}))
+        self.effects_seen[stage] = deepcopy(value)
 
 
 class RevocationJourney(KioskRequestJourney):

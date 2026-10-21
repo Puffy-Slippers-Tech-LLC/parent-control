@@ -1,4 +1,4 @@
-"""Engineering-only installed kiosk error reporting and MAC qualification."""
+"""Engineering-only kiosk error reporting with session identity observations."""
 from dataclasses import replace
 import json
 

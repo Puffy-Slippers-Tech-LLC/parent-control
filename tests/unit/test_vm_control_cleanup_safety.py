@@ -380,6 +380,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
     for action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                    'reproduce-kiosk-preferences',
+                   'reproduce-baseline-app-effects',
                    'reproduce-lock-denial', 'reproduce-retained-entry',
                    'reproduce-retained-app-visits',
                    'reproduce-revoke-cancel', 'probe-revoke-balances',
@@ -685,6 +686,59 @@ def test_kiosk_approval_reproduction_stops_before_qualification_and_secret_input
     assert prefix[-1] == 'approval-open'
     assert PLAN.screen_tags['approval-open'] == 'ui:kiosk-mate-open'
     assert not {'approval-rechecked', 'approval-success'} & set(prefix)
+
+
+def test_baseline_app_effects_dispatch_resumes_owned_lease_and_releases_controller(
+        monkeypatch, tmp_path):
+    import vm_probe
+    import tools.test_storage as storage
+    api, source, lease, commands = Mock(), Mock(), Mock(), Mock()
+    monkeypatch.setattr(control.importlib, 'import_module', lambda name: api)
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.os, 'getegid', lambda: 0)
+    monkeypatch.setattr(control.os, 'umask', Mock())
+    monkeypatch.setattr(control.threading, 'Thread', Mock())
+    monkeypatch.setattr(control.runner.baseline, 'LibvirtSource', lambda value: source)
+    monkeypatch.setattr(control.runner, 'Commands', lambda: commands)
+    monkeypatch.setattr(control.runner, 'Lease', lambda *args, **kwargs: lease)
+    monkeypatch.setattr(storage, 'scratch_directory', lambda: tmp_path)
+    monkeypatch.setattr(control.tempfile, 'mkdtemp', lambda **kwargs: str(tmp_path))
+    identity, resume, reproduce = Mock(), Mock(), Mock()
+    monkeypatch.setattr(control, 'check_identity', identity)
+    monkeypatch.setattr(control, 'resume', resume)
+    monkeypatch.setattr(vm_probe, 'reproduce_baseline_app_effects', reproduce)
+    assert control.main([*VM_ARGS, '--expected-uuid', UUID,
+                         'reproduce-baseline-app-effects']) == 0
+    identity.assert_called_once_with(source, UUID)
+    resume.assert_called_once_with(lease)
+    reproduce.assert_called_once_with(lease)
+    lease.release.assert_called_once_with()
+    source.close.assert_called_once_with()
+
+
+def test_baseline_app_effects_reproduction_stops_after_saved_soft_access(monkeypatch):
+    import vm_probe
+    import tools.test_storage as storage
+    from baseline_app_effects import BaselineAppEffectsJourney, PLAN
+    assets = Mock()
+    monkeypatch.setattr(storage, 'named_input', Mock(return_value=assets))
+    reproduce = Mock()
+    monkeypatch.setattr(vm_probe, 'reproduce_denial', reproduce)
+    lease = object()
+    vm_probe.reproduce_baseline_app_effects(lease)
+    reproduce.assert_called_once_with(lease, BaselineAppEffectsJourney, PLAN,
+                                     'soft-final-match', 'baseline-app-effects', assets=assets)
+    storage.named_input.assert_called_once_with(vm_source=True, package_source=True)
+    prefix = PLAN.stages[:PLAN.stages.index('soft-final-match')]
+    assert prefix[-1] == 'soft-access'
+    assert PLAN.screen_tags['soft-access'] == 'ui:access-soft-row'
+    assert not {'soft-final-match', 'saved-policy', 'switch-user', 'new-estimate',
+                'revoke-confirm', 'restore-saved'} & set(prefix)
+    assets.is_dir.return_value = False
+    reproduce.reset_mock()
+    with pytest.raises(runner.Error, match='diagnosis:fixture-inputs-required'):
+        vm_probe.reproduce_baseline_app_effects(lease)
+    reproduce.assert_not_called()
 
 
 def test_retained_unlock_reproduction_preserves_exact_history_before_desktop_read(monkeypatch):
@@ -1141,6 +1195,98 @@ def test_preferences_boundary_diagnostic_runs_once_without_acceptance_and_requir
     assert retained == ({'outcome': 'refused', 'error_type': 'RuntimeError'} if refused else result)
 
 
+@pytest.mark.parametrize('worker_stopped,callback_closed', [
+    (True, True), (False, True), (True, False)])
+def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cleanup(
+        tmp_path, monkeypatch, worker_stopped, callback_closed):
+    from contextlib import nullcontext
+    import vm_probe
+    import baseline_app_effects
+    import fixture_credentials
+    import e2e_worker
+    import qualification_storage
+    import provenance
+    import native_fixtures
+    import tools.test_storage as storage
+    plan = baseline_app_effects.PLAN
+    boundary = 'soft-final-match'
+    prefix = plan.stages[:plan.stages.index(boundary)]
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock())
+    assets = Mock()
+    monkeypatch.setattr(storage, 'named_input', Mock(return_value=assets))
+    source = object()
+    artifact_source = Mock(return_value=source)
+    monkeypatch.setattr(vm_probe.system, 'artifact_source', artifact_source)
+    stage_assets = Mock(side_effect=lambda source, staged, commands: staged.mkdir())
+    monkeypatch.setattr(vm_probe.system, 'stage_assets', stage_assets)
+    preflight = Mock()
+    monkeypatch.setattr(provenance, 'preflight_source', preflight)
+    names = native_fixtures.sources()
+    verified = SimpleNamespace(
+        source_files={'tests/e2e/baseline_app_effects.py': 'a' * 64},
+        asset_files={name: f'{index:064x}' for index, name in enumerate(names)},
+        recheck=Mock())
+    capture_inputs = Mock(return_value=verified)
+    monkeypatch.setattr(provenance, 'VerifiedInputs', capture_inputs)
+    receipt = {'files': {name: verified.asset_files[name] for name in names},
+               'launchers': [native_fixtures.desktop_id(asset[0])
+                             for asset in native_fixtures.ASSETS]}
+    transport = SimpleNamespace(config={'run': 'owned-attempt'}, guard=Mock(), call=Mock(
+        side_effect=[(json.dumps(value, sort_keys=True) + '\n').encode()
+                     for value in ({'wrong_entry_refused': True}, receipt, receipt)]))
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
+    journeys = []
+    class Journey(baseline_app_effects.BaselineAppEffectsJourney):
+        def __init__(self, context, progress, *, plan):
+            super().__init__(context, progress, plan=plan)
+            self.transport = transport
+            self.steps = [{'stage': stage} for stage in prefix]
+            journeys.append(self)
+        def step(self, guard):
+            pytest.fail('the pending match read must remain available for owned probes')
+    monkeypatch.setattr(baseline_app_effects, 'BaselineAppEffectsJourney', Journey)
+    def run(directory, lease, ledger, **kwargs):
+        assert kwargs['maintenance'] is True
+        assert kwargs['timeout'] == 900
+        assert kwargs['expected_inputs'] == verified.source_files
+        capture_inputs.assert_called_once_with(lease=lease, assets=directory / 'input')
+        stage_assets.assert_called_once_with(source, directory / 'input', lease.commands)
+        artifact_source.assert_called_once_with(assets)
+        preflight.assert_called_once_with(directory / 'input')
+        journey = journeys[0]
+        assert journey.context.verified is verified
+        # Keep the real fixture action/controller/command chain. Only the guest
+        # transport and provenance hashing are doubles in this private unit test.
+        fixture_guard = Mock()
+        assert journey.actions[plan.stage_actions['installed-greeter']](
+            journey, fixture_guard) == {'wrong_entry_refused': True}
+        assert journey.actions[plan.stage_actions['desktop']](journey, fixture_guard) == {
+            'verified': len(native_fixtures.ASSETS), 'verified_files': len(names),
+            'independent_readback': True}
+        assert verified.recheck.call_count == 6
+        assert [call.args[0][3] for call in transport.call.call_args_list] == ['refuse', 'read', 'read']
+        (directory / (boundary + '.request.json')).write_text(json.dumps(
+            {'stage': boundary, 'screenshot': None}))
+        guard = Mock()
+        assert kwargs['guarded_observe'](guard) is True
+        guard.assert_called_once_with()
+        kwargs['validate']()
+        assert not (directory / (boundary + '.reply.json')).exists()
+        assert not (directory / 'boundary-observation.json').exists()
+        return {'worker_stopped': worker_stopped, 'callback_closed': callback_closed}
+    monkeypatch.setattr(e2e_worker, 'run_distribution', run)
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
+    if worker_stopped and callback_closed:
+        vm_probe.reproduce_baseline_app_effects(lease)
+        lease.guard.assert_called_once_with()
+    else:
+        with pytest.raises(runner.Error, match='diagnosis:cleanup-incomplete'):
+            vm_probe.reproduce_baseline_app_effects(lease)
+        lease.guard.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'uri', 'uuid', 'name'])
 def test_snapshot_inventory_uses_only_pinned_read_only_connection(monkeypatch, capsys, fault):
     api = Mock()
@@ -1186,7 +1332,7 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
 @pytest.mark.parametrize('scene', ['lock', 'retained-entry', 'transfer-refusal', 'remembered-return',
                                   'riley-native-grid', 'retained-app-visits', 'revoke-cancel',
                                   'countdown-minutes', 'countdown-resume', 'kiosk-entry', 'kiosk-approval',
-                                  'kiosk-preferences'])
+                                  'kiosk-preferences', 'baseline-app-effects'])
 def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, scene):
     from vm_probe import validate_boundary
     from desktop_session import CHILD_DENIAL_PLAN, CHILD_UNLOCK_PLAN
@@ -1200,6 +1346,7 @@ def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, sc
     from kiosk_entry import PLAN as KIOSK_PLAN
     from kiosk_approved_flow import PLAN as KIOSK_APPROVAL_PLAN
     from kiosk_preferences_confinement import PLAN as KIOSK_PREFERENCES_PLAN
+    from baseline_app_effects import PLAN as BASELINE_APP_EFFECTS_PLAN
     plan, boundary, previous = {
         'lock': (CHILD_DENIAL_PLAN, 'time-denied', 'reveal-ready'),
         'retained-entry': (PLAN, 'riley-restricted-curtain', 'riley-restricted-entry-guard'),
@@ -1214,6 +1361,7 @@ def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, sc
         'kiosk-entry': (KIOSK_PLAN, 'request-form', 'station-branch'),
         'kiosk-approval': (KIOSK_APPROVAL_PLAN, 'approval-qualified', 'approval-open'),
         'kiosk-preferences': (KIOSK_PREFERENCES_PLAN, 'preferences-confined', 'open-estimate'),
+        'baseline-app-effects': (BASELINE_APP_EFFECTS_PLAN, 'soft-final-match', 'soft-access'),
     }[scene]
     stages = list(plan.stages)
     prefix = stages[:stages.index(boundary)]

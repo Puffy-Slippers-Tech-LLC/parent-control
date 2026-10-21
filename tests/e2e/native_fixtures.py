@@ -144,6 +144,7 @@ CATALOGUE_QUERIES = {
     'catalogue-name': ASSETS[0][2],
     'catalogue-description': ASSETS[0][3],
     'catalogue-identifier': desktop_id('A'),
+    'catalogue-hard': desktop_id('H'), 'catalogue-soft': desktop_id('S'),
     'catalogue-absent': 'ONPC Absent Catalogue Fixture 077b',
     'catalogue-clear': '',
 }
@@ -154,7 +155,8 @@ def search_rows(binding):
             'catalogue:binding')
     return (() if binding == 'catalogue-absent' else
             tuple(row for row in expected_rows() if row[0] == 'parent-app-' +
-                  hashlib.sha256(desktop_id('A').encode()).hexdigest()[:16]))
+                  hashlib.sha256(desktop_id({'catalogue-hard': 'H',
+                      'catalogue-soft': 'S'}.get(binding, 'A')).encode()).hexdigest()[:16]))
 
 
 def catalogue_rows(binding, rows, *, match_mask=3, access_mask=7):

@@ -1,5 +1,5 @@
 """Public access-choice qualification and reusable exact row comparisons."""
-from accessible_ui import ACCESS_CHOICES, MATCH_APP
+from accessible_ui import ACCESS_CHOICES, MATCH_APP, MATCH_APPS
 from installed_journey import JourneyPlan
 from match_rules import MatchRuleJourney
 from journey_blocks import fresh_desktop, parent_management
@@ -11,7 +11,9 @@ class AccessChoiceJourney(MatchRuleJourney):
     def __init__(self, context, progress, plan, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)
         self.access_checks = dict(plan.access_checks)
-        require(all(stage in plan.screen_tags and choice in ACCESS_CHOICES
+        require(all(stage in plan.screen_tags and (choice in ACCESS_CHOICES or
+                    type(choice) is tuple and len(choice) == 2
+                    and choice[0] in MATCH_APPS.values() and choice[1] in ACCESS_CHOICES)
                     for stage, choice in self.access_checks.items()), 'access:comparison-plan')
         self.access_seen = set()
 
@@ -20,8 +22,10 @@ class AccessChoiceJourney(MatchRuleJourney):
         if stage not in self.access_checks:
             return
         require(stage not in self.access_seen, 'access:comparison-replay')
+        expected = self.access_checks[stage]
+        app, choice = expected if type(expected) is tuple else (MATCH_APP, expected)
         require(observed.get('ui', {}).get('access') == {
-            'app': MATCH_APP, 'choice': self.access_checks[stage]}, 'access:exact-choice')
+            'app': app, 'choice': choice}, 'access:exact-choice')
         self.access_seen.add(stage)
         observed['comparison'] = {'exact_access_choice': True}
 

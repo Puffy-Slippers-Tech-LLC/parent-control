@@ -1115,6 +1115,7 @@ e2e_installation_observations e2e_inventory e2e_keyring_fixture_cleanup_safety
 e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_feedback_confinement e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
 e2e_license_viewer
 e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_native_grid_usable e2e_native_app e2e_app_activity
+e2e_baseline_app_bindings e2e_baseline_app_effects e2e_long_request_binding
 e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
 e2e_request_choices e2e_request_exit e2e_secret_variables e2e_serial_helper
@@ -1157,6 +1158,13 @@ ui_cleanup_safety ui_watch ui_watch_cleanup_safety uninstall unit_test_launcher 
 vm_backup_cleanup_safety vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
 write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 """.split())
+
+# C04p's three e2e_baseline_app*/e2e_long_request_binding modules use private
+# pytest records, in-process public API doubles and bounded, waited Perl children
+# with captured pipes; no VM/display/bus/shared cache or new cleanup owner.
+# Baseline app-effects diagnostics in vm_control_cleanup_safety likewise use
+# private request/evidence files and mocked workers, credentials and leases;
+# compatible unit and cleanup scheduling remain appropriate.
 
 # VM archive/restore safety uses only pytest-private sparse files, locks and
 # libvirt/launcher doubles, plus tiny QCOW2 images and finite, waited qemu-img

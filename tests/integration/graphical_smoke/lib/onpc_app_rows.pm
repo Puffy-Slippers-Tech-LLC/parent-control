@@ -11,6 +11,8 @@ use onpc_text ();
 use onpc_feedback_privacy ();
 
 my $policy_app = 'parent-app-' . substr(sha256_hex('com.puffyslippers.ONPCTest.A.desktop'), 0, 16);
+my %policy_apps = map { $_ => 'parent-app-' . substr(sha256_hex(
+    'com.puffyslippers.ONPCTest.' . $_ . '.desktop'), 0, 16) } qw(A H S);
 
 sub run {
     onpc_progress::operation('Qualifying complete App Limits row observations');
@@ -67,7 +69,7 @@ sub search {
     onpc_progress::operation('Replacing a declared search query and independently reading catalogue rows');
     my ($journey, $binding, $stage) = @_;
     die 'catalogue:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && $binding =~ /\Acatalogue-(?:name|description|identifier|absent|clear)\z/
+        && $binding =~ /\Acatalogue-(?:name|description|identifier|hard|soft|absent|clear)\z/
         && $stage =~ /\A[a-z][a-z0-9-]*\z/;
     onpc_text::replace_text($journey, $binding);
     return $journey->consume_observation($stage, $journey->seen($stage));
@@ -187,7 +189,7 @@ sub match_edit {
     onpc_progress::operation('Editing the declared match draft and independently observing Save');
     my ($journey, $draft, $prefix, $open, $read, $row) = @_;
     die 'match:edit-binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
-        && defined($draft) && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages|rejected-directory)\z/;
+        && defined($draft) && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages|rejected-directory|hard-precise|soft-wildcard)\z/;
     die 'match:edit-stages' unless !grep { !defined($_) || !/\A[a-z][a-z0-9-]*\z/ }
         ($prefix, $open, $read);
     die 'match:edit-result' unless $draft eq 'match-rejected-directory'
@@ -313,8 +315,9 @@ sub edit_policy {
     onpc_progress::operation('Editing one declared app match and access rule through Parent');
     my ($journey, $app, $draft, $access, $prefix, $filters) = @_;
     die 'policy:binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
-        && $app eq $policy_app
-        && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages)\z/
+        && (($app eq $policy_app && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages)\z/)
+            || ($app eq $policy_apps{H} && $draft eq 'match-hard-precise')
+            || ($app eq $policy_apps{S} && $draft eq 'match-soft-wildcard'))
         && $access =~ /\A(?:allowed|permanent|conditional)\z/
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ref($filters) eq 'ARRAY' && @$filters <= 2;
     my %used;
@@ -324,7 +327,9 @@ sub edit_policy {
             && $filter->[1] =~ /\A[0-7]\z/
             && ($filter->[0] ne 'match-rule' || $filter->[1] < 4);
     }
-    onpc_text::replace_text($journey, 'catalogue-identifier', "$prefix-search");
+    my $query = $app eq $policy_apps{H} ? 'catalogue-hard'
+              : $app eq $policy_apps{S} ? 'catalogue-soft' : 'catalogue-identifier';
+    onpc_text::replace_text($journey, $query, "$prefix-search");
     filter($journey, $_->[0], $_->[1], "$prefix-$_->[0]") for @$filters;
     $journey->consume_observation("$prefix-found", $journey->seen("$prefix-found"));
     match_edit($journey, $draft, $prefix, "$prefix-open", "$prefix-old", "$prefix-match");
@@ -410,11 +415,12 @@ sub native_use_app {
 # FLOW08: explicitly qualified native usable routes, no denial fallback.
 sub native_usable_app {
     onpc_progress::operation('Launching and using the declared native app route');
-    my ($journey, $route, $desktop, $child) = @_;
+    my ($journey, $route, $desktop, $child, $role) = @_;
     $child //= 'other-child';
-    die 'native:usable-binding' unless (@_ == 3 || @_ == 4) && ref($journey) eq 'onpc_journey'
+    die 'native:usable-binding' unless (@_ == 3 || @_ == 4 || @_ == 5) && ref($journey) eq 'onpc_journey'
         && defined($route) && ($route eq 'command' || $route eq 'grid')
-        && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command');
+        && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
+        && (!defined($role) || $role =~ /\A(?:A|S)\z/ && $child eq 'child' && $route eq 'command');
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
                                    : native_open_grid($journey, $desktop);
     return native_use_app($journey, $opened);

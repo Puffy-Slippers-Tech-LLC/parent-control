@@ -140,6 +140,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Kiosk approval boundary/dispatch checks reuse those private files and in-memory
 # plans. Retained-form probes add only in-memory UI/lease doubles and private
 # result files, with no live VM or new cleanup owner; compatible classification holds.
+# Baseline app-effects boundary/dispatch checks reuse private request/evidence
+# files and mocked workers, credentials and leases; compatible scheduling holds.
 # The failed-form public estimate refresh adds only a finite mocked UI leaf to
 # that same probe; it adds no host resource or process lifetime.
 # Native evidence capture uses in-memory journal/transport doubles and private

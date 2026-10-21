@@ -143,11 +143,13 @@ def overlay_license_read(prefix='', *, links='license'):
         ('form-returned', 'overlay-valid-fraction-soft-read'))}
 
 
-def native_usable_app(route, *, child='other-child'):
+def native_usable_app(route, *, child='other-child', role=None):
     """FLOW08 finite native usable scope; caller owns stages and later activity."""
     require(route in ('command', 'grid'), 'journey:native-route')
     require(child in ('parent', 'child', 'other-child') and
             (child != 'parent' or route == 'command'), 'journey:native-child-binding')
+    require(role is None or role in ('A', 'S') and child == 'child' and route == 'command',
+            'journey:native-role-binding')
     stages = {
         'desktop': 'ui:native-desktop',
         **({'command': 'ui:native-command-launch'} if route == 'command' else {
@@ -160,6 +162,8 @@ def native_usable_app(route, *, child='other-child'):
         'submitted': 'ui:native-submitted',
     }
     operation = {'child': 'overlay-native-', 'parent': 'parent-native-', 'other-child': 'native-'}[child]
+    if role is not None:
+        operation += {'A': 'allowed-', 'S': 'soft-'}[role]
     return {stage: tag.replace('ui:native-', 'ui:' + operation)
             for stage, tag in stages.items()}
 

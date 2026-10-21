@@ -134,7 +134,8 @@ class JourneyPlan:
                     and type(binding) is tuple and len(binding) == 4
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
                     and self.screen_tags[binding[0]] in (
-                        'ui:kiosk-valid-fraction-soft-read', 'ui:overlay-valid-fraction-soft-read')
+                        'ui:kiosk-valid-fraction-soft-read', 'ui:overlay-valid-fraction-soft-read',
+                        'ui:kiosk-long-request-soft-read')
                     and (type(binding[1]) is int and 0 < binding[1] < 86400
                          or binding[1] == 'estimate'
                          and self.screen_tags[binding[0]] == 'ui:overlay-valid-fraction-soft-read')

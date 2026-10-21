@@ -77,3 +77,8 @@ The latest results retain `lease_phase=complete`, source/host preservation and
 cleanup passed; product and collection are not-run. Preserve those original
 outcomes when resuming. The live read-only causal probe and source review supply
 diagnosis only, not installed acceptance.
+
+The retained test/tooling implementation is preserved as a reviewed,
+host-checked source baseline for E2E 313a/313. This preserves unfinished work;
+it closes neither E2E task nor C04p1/C04p. The fixture blocker and required
+both-target installed history above remain unchanged.

@@ -341,6 +341,8 @@ OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret 
                          for operation in accessible_ui.TEXT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking native app launch and ordinary draft submission: ' + operation
                          for operation in accessible_ui.NATIVE_APP_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Checking declared baseline native access and usable results'
+                         for operation in accessible_ui.BASELINE_NATIVE_BINDINGS})
 OPERATION_LABELS.update({operation: 'Using and independently reading the Parent native activity'
                          for operation in accessible_ui.PARENT_NATIVE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Setting and reading doubled synthetic editor text'
@@ -564,6 +566,8 @@ class RequestObservation:
                 and (type(observation.duration_seconds) is int or (
                     invalid is not None and observation.duration_seconds is None))
                 and (observation.custom_text is None or observation.custom_text == '1.25'
+                     or operation in accessible_ui.KIOSK_VALID_REQUESTS
+                     and operation.startswith('kiosk-long-request-') and observation.custom_text == '10'
                      or operation in accessible_ui.TRANSFER_REQUESTS and observation.custom_text == '2.5'
                      or invalid is not None and observation.custom_text ==
                      accessible_ui.KIOSK_INVALID_VALUES[invalid[0]])
@@ -1137,8 +1141,11 @@ class UiObservations:
                     if index == 0:
                         self.mate_rejection = operation == accessible_ui.MATE_REJECTION_ORDER[0]
                         self.mate_chinese = operation == accessible_ui.CHINESE_MATE_ORDER[0]
+                        self.mate_long_request = operation == accessible_ui.LONG_MATE_ORDER[0]
                     if getattr(self, 'mate_chinese', False):
                         order = accessible_ui.CHINESE_MATE_ORDER
+                    if getattr(self, 'mate_long_request', False):
+                        order = accessible_ui.LONG_MATE_ORDER
                     if self.mate_rejection:
                         order = accessible_ui.MATE_REJECTION_ORDER
                     elif operation == 'kiosk-mate-submit-immediate':
@@ -1293,7 +1300,7 @@ class UiObservations:
                     re.fullmatch(r'[0-9a-f]{64}', self.boot_guard)), 'ui:boot-binding')
             binding = [self.boot_guard]
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
-                'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open'):
+                'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open', 'kiosk-long-mate-open'):
             binding = [self.boot_guard or '', self.mate_approval_identity]
         if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in (
                 'overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0]):
@@ -1673,6 +1680,12 @@ class UiObservations:
             expected['activity'] = {'draft': 'ONPC fixture draft',
                 'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
+        if operation in accessible_ui.BASELINE_NATIVE_BINDINGS:
+            _role, action = accessible_ui.BASELINE_NATIVE_BINDINGS[operation]
+            if action in ('opened', 'submitted'):
+                expected['activity'] = {'draft': 'ONPC fixture draft',
+                    'submitted': 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
+                    'score': 'Moves: 0; token: 0'}
         if operation in ('native-activity', 'overlay-native-activity', 'parent-native-activity'):
             require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
             AppActivityObservation.from_value(result['activity'])
@@ -1839,17 +1852,25 @@ class UiObservations:
             if operation == 'kiosk-mate-submit-rejection':
                 require(value == {'rejected': True, 'cancelled': True, 'no_error': True}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
-            elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate', 'chinese-mate-submit-success'):
+            elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate',
+                               'chinese-mate-submit-success', 'kiosk-long-mate-submit-success'):
                 require(value == {'approved': True, 'form_success': True,
                                   **({'immediate_exit': True} if operation.endswith('immediate') else {})}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
             else:
                 chinese = operation in accessible_ui.CHINESE_MATE_ORDER
+                long_request = operation in accessible_ui.LONG_MATE_ORDER
                 fields = {'challenge_id'} | ({'provider', 'texts', 'child', 'approver', 'agent_id',
-                    'duration_seconds', 'allow_soft', 'rejected_proofs'} if chinese else set())
+                    'duration_seconds', 'allow_soft', 'rejected_proofs'} if chinese else set()) | (
+                    {'request'} if long_request else set())
                 require(type(value) is dict and set(value) == fields and
                         type(value['challenge_id']) is str and
                         re.fullmatch(r'[0-9a-f]{64}', value['challenge_id']), 'ui:mate-identity')
+                if long_request:
+                    request = value['request']
+                    require(type(request) is dict and request == accessible_ui.LONG_MATE_REQUEST
+                            and type(request.get('duration_seconds')) is int
+                            and request.get('allow_soft') is True, 'ui:mate-request-binding')
                 if chinese:
                     accessible_ui.validate_shell_metadata(value['provider'])
                     require(value['provider']['locale'] in ('zh_CN.UTF-8', 'zh_CN.utf8', 'zh_CN')
@@ -1860,7 +1881,8 @@ class UiObservations:
                             and value['allow_soft'] is True and value['rejected_proofs'] == (
                                 list(accessible_ui.CHINESE_MATE_REFUSALS) if operation == 'chinese-mate-open' else []),
                             'ui:mate-native-response')
-                if operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open'):
+                if operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open',
+                                 'kiosk-long-mate-open'):
                     require(value['challenge_id'] not in self.challenges, 'ui:challenge-replay')
                     self.challenges.add(value['challenge_id'])
                     self.mate_approval_identity = value['challenge_id']
@@ -2065,7 +2087,8 @@ class UiObservations:
             expected['legend'] = result['legend']
         if operation in accessible_ui.MATCH_OPERATIONS:
             value = result.get('match')
-            action = operation.removeprefix('match-')
+            app, action = accessible_ui.BASELINE_MATCH_OPERATIONS.get(operation,
+                (accessible_ui.MATCH_APP, operation.removeprefix('match-')))
             if action in ('save', 'cancel', 'reset', 'rejected'):
                 require(value == {'closed': action}, 'ui:match-response')
             elif action.startswith('invalid-'):
@@ -2076,7 +2099,7 @@ class UiObservations:
                 require(value == {'refusal': action}, 'ui:match-response')
             else:
                 require(type(value) is dict and set(value) == {'app', 'rule'}
-                        and value['app'] == accessible_ui.MATCH_APP
+                        and value['app'] == app
                         and value['rule'] in accessible_ui.MATCH_RULES, 'ui:match-response')
             require(set(result) == {*expected, 'match'}, 'ui:match-response')
             expected['match'] = value
@@ -2094,7 +2117,8 @@ class UiObservations:
                 expected['feedback'] = result['feedback']
         if operation in accessible_ui.ACCESS_OPERATIONS:
             value = result.get('access')
-            action = operation.removeprefix('access-')
+            app, action = accessible_ui.BASELINE_ACCESS_OPERATIONS.get(operation,
+                (accessible_ui.MATCH_APP, operation.removeprefix('access-')))
             if action in accessible_ui.ACCESS_CHOICES:
                 require(value == {'chosen': action}, 'ui:access-response')
             elif action == 'screen':
@@ -2103,7 +2127,7 @@ class UiObservations:
                 require(value == {'refusal': action}, 'ui:access-response')
             else:
                 require(type(value) is dict and set(value) == {'app', 'choice'}
-                        and value['app'] == accessible_ui.MATCH_APP
+                        and value['app'] == app
                         and value['choice'] in accessible_ui.ACCESS_CHOICES, 'ui:access-response')
             require(set(result) == {*expected, 'access'}, 'ui:access-response')
             expected['access'] = value

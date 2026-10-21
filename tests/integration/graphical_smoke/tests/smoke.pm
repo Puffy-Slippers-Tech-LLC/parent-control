@@ -51,6 +51,7 @@ use onpc_app_restart ();
 use onpc_zero_total ();
 use onpc_app_rows ();
 use onpc_app_launch ();
+use onpc_baseline_app_effects ();
 use onpc_feedback_read ();
 use onpc_feedback_privacy ();
 use onpc_feedback_states ();
@@ -781,6 +782,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_flow::run(\&exchange, 'approval', $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{baseline_app_effects}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_baseline_app_effects::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{mate_prompt}) {

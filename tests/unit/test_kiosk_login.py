@@ -116,9 +116,15 @@ def test_prepared_runtime_has_no_production_package_source_selection():
     selected = set(result.stdout.splitlines())
     prepared = {path.relative_to(ROOT).as_posix()
                 for path in PREPARED_RUNTIME.rglob('*') if path.is_file()}
-    prepared_account = 'data/kiosk-runtime-unselected/provision.py'
-    assert prepared_account in prepared
-    assert len(prepared - {prepared_account}) == 6
+    assert {
+        'data/kiosk-runtime-unselected/provision.py',
+        'data/kiosk-runtime-unselected/lifecycle_migration.py',
+        'data/kiosk-runtime-unselected/pam_oh_no_parent_control.c',
+        'data/kiosk-runtime-unselected/login_check.py',
+        'data/kiosk-runtime-unselected/distro_pam.py',
+        'data/kiosk-runtime-unselected/pam-configs/oh-no-parent-control-kiosk-only',
+        'data/kiosk-runtime-unselected/pam-configs/oh-no-parent-control-session-limits',
+    } <= prepared
     assert prepared.isdisjoint(selected)
     assert not any(path.startswith('data/kiosk-runtime-unselected/') for path in selected)
     assert {

@@ -1,0 +1,9 @@
+Name: Oh No Parent Control kiosk-only account
+Default: yes
+Priority: 1000
+Account-Type: Additional
+Account:
+ required pam_oh_no_parent_control.so kiosk
+Session-Type: Additional
+Session:
+ required pam_oh_no_parent_control.so kiosk

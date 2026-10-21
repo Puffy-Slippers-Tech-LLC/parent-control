@@ -23,9 +23,16 @@ def pam_machine(tmp_path, monkeypatch):
     helper.STATE.parent.mkdir(parents=True)
     helper.STACK.parent.mkdir(parents=True)
     helper.PAM_DIR.mkdir(parents=True)
-    helper.STACK.write_text('account required pam_oh_no_parent_control.so kiosk\n'
-                            'session required pam_oh_no_parent_control.so kiosk\n'
-                            'auth required pam_oh_no_parent_control.so\n')
+    source = ROOT / 'packaging/stage_distribution.py'
+    stage_spec = importlib.util.spec_from_file_location('fixture_pam_stage', source)
+    stage = importlib.util.module_from_spec(stage_spec)
+    exec(compile(source.read_bytes(), str(source), 'exec'), stage.__dict__)
+    profiles = tmp_path / 'data/pam-configs'
+    profiles.mkdir(parents=True)
+    for name in ('oh-no-parent-control-kiosk-only', 'oh-no-parent-control-session-limits'):
+        (profiles / name).write_bytes(
+            (ROOT / 'data/kiosk-runtime-unselected/pam-configs' / name).read_bytes())
+    helper.STACK.write_text(stage.pam_stack(tmp_path))
     original = 'auth sufficient pam_unix.so nullok\naccount required pam_unix.so\n'
     for name in helper.PAM_FILES:
         (helper.PAM_DIR / name).write_text(original)
@@ -185,3 +192,81 @@ def test_dangling_ownership_record_is_rejected(pam_machine):
     with pytest.raises(ValueError, match='substituted path'):
         helper.configure('install')
     assert not any(cmd[0] in ('create-profile', 'select') for cmd in commands)
+
+
+@pytest.fixture
+def prepared_fedora(pam_machine, monkeypatch):
+    """Compose the prepared caller with the retained authselect owner itself."""
+    authselect, current, commands = pam_machine
+    source = ROOT / 'data/kiosk-runtime-unselected/distro_pam.py'
+    spec = importlib.util.spec_from_file_location('prepared_fedora_distro', source)
+    prepared = importlib.util.module_from_spec(spec)
+    exec(compile(source.read_bytes(), str(source), 'exec'), prepared.__dict__)
+    monkeypatch.setattr(prepared, 'PAM', authselect.PAM_DIR)
+
+    def run(arguments, *, input=None):
+        assert arguments[0] == str(prepared.FEDORA_HELPER)
+        assert arguments[1] in ('install', 'remove')
+        assert input is None
+        authselect.configure(arguments[1])
+
+    monkeypatch.setattr(prepared, 'run', run)
+    return prepared, authselect, current, commands
+
+
+def test_prepared_fedora_transaction_preserves_profile_features_and_rolls_back(prepared_fedora):
+    prepared, authselect, current, _commands = prepared_fedora
+    original = current.copy()
+    prepared.configure('fedora', 'install')
+    assert current == [authselect.PROFILE, *original[1:]]
+    prepared.configure('fedora', 'restore')
+    prepared.configure('fedora', 'remove')
+    assert current == original
+    assert not authselect.PROFILE_DIR.exists()
+    prepared.configure('fedora', 'remove')
+    prepared.configure('fedora', 'install')
+    assert current == [authselect.PROFILE, *original[1:]]
+
+
+def test_prepared_fedora_respects_explicit_passwordless_denial(prepared_fedora):
+    prepared, authselect, current, commands = prepared_fedora
+    current.append('without-nullok')
+    with pytest.raises(ValueError, match='disallows the passwordless kiosk'):
+        prepared.configure('fedora', 'install')
+    assert not authselect.STATE.exists()
+    assert not any(command[0] in ('create-profile', 'select') for command in commands)
+
+
+def test_prepared_fedora_owned_profile_edit_is_preserved_for_restore_and_remove(prepared_fedora):
+    prepared, authselect, current, _commands = prepared_fedora
+    prepared.configure('fedora', 'install')
+    profile = authselect.PROFILE_DIR / 'system-auth'
+    profile.write_text('administrator replacement\n')
+    selected = current.copy()
+    for action in ('restore', 'remove'):
+        with pytest.raises(ValueError, match='profile changed'):
+            prepared.configure('fedora', action)
+        assert profile.read_text() == 'administrator replacement\n'
+        assert current == selected
+
+
+def test_prepared_fedora_interrupted_select_keeps_original_for_exact_retry(prepared_fedora, monkeypatch):
+    prepared, authselect, current, _commands = prepared_fedora
+    import subprocess
+    original, real_run = current.copy(), authselect.run
+
+    def fail_select(*arguments, capture=False):
+        if arguments[0] == 'select':
+            raise subprocess.CalledProcessError(1, ['authselect', *arguments])
+        return real_run(*arguments, capture=capture)
+
+    monkeypatch.setattr(authselect, 'run', fail_select)
+    with pytest.raises(subprocess.CalledProcessError):
+        prepared.configure('fedora', 'install')
+    assert current == original
+    assert json.loads(authselect.STATE.read_text())['original'] == original
+    assert json.loads(authselect.STATE.read_text())['phase'] == 'prepared'
+    monkeypatch.setattr(authselect, 'run', real_run)
+    prepared.configure('fedora', 'install')
+    prepared.configure('fedora', 'remove')
+    assert current == original

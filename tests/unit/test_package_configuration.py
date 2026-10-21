@@ -2052,3 +2052,178 @@ def test_child_trust_configuration_preserves_modified_or_substituted_paths(packa
         target.parent.symlink_to(sentinel.parent)
     assert run().returncode != 0
     assert sentinel.read_text() == 'keep administrator content\n'
+
+
+def _prepared_pam_migration_runtime(root, monkeypatch, distribution, migration, *, formatting=None):
+    """Real prepared verifier over private native payload/shared PAM output."""
+    import importlib.util
+    from types import SimpleNamespace
+    from tools.test_storage import scratch_descriptors
+
+    prepared = ROOT / 'data/kiosk-runtime-unselected'
+    source = prepared / 'distro_pam.py'
+    spec = importlib.util.spec_from_file_location('prepared_pam_migration_distro', source)
+    helper = importlib.util.module_from_spec(spec)
+    exec(compile(source.read_bytes(), str(source), 'exec'), helper.__dict__)
+    monkeypatch.setattr(helper, 'PAM', migration.PAM)
+    payload = root / 'prepared-runtime'
+    payload.mkdir()
+    module = payload / 'pam_oh_no_parent_control.so'
+    subprocess.run(['cc', '-shared', '-fPIC', '-Wall', '-Wextra', '-Werror',
+                    '-o', str(module), str(prepared / 'pam_oh_no_parent_control.c'), '-lpam'],
+                   check=True, capture_output=True, text=True, timeout=30, pass_fds=scratch_descriptors())
+    module.chmod(0o644)
+    login = payload / 'login-check'
+    login.write_bytes((prepared / 'login_check.py').read_bytes())
+    login.chmod(0o755)
+    time_check = payload / 'time-check'
+    time_check.write_bytes((ROOT / 'tools/session_limit_check.py').read_bytes())
+    time_check.chmod(0o755)
+    monkeypatch.setattr(helper, 'MODULES', {distribution: module})
+    monkeypatch.setattr(helper, 'LOGIN_CHECK', login)
+    monkeypatch.setattr(helper, 'TIME_CHECK', time_check)
+    original_stat = Path.stat
+
+    def payload_stat(path, **options):
+        info = original_stat(path, **options)
+        # Only root ownership is doubled, only for these three installed files.
+        if path in (module, login, time_check):
+            return SimpleNamespace(st_mode=info.st_mode, st_uid=0)
+        return info
+
+    monkeypatch.setattr(helper.Path, 'stat', payload_stat)
+    profile_root = root / 'prepared-profile-source'
+    profiles = profile_root / 'data/pam-configs'
+    profiles.mkdir(parents=True)
+    for name in ('oh-no-parent-control-kiosk-only', 'oh-no-parent-control-session-limits'):
+        (profiles / name).write_bytes((prepared / 'pam-configs' / name).read_bytes())
+    stage_source = ROOT / 'packaging/stage_distribution.py'
+    stage = {'__name__': 'prepared_migration_pam_stage'}
+    exec(compile(stage_source.read_bytes(), str(stage_source), 'exec'), stage)
+    stack = stage['pam_stack'](profile_root)
+    vendor = '# native vendor callbacks remain\naccount required pam_unix.so\n'
+    for name in helper.FILES[distribution]:
+        if distribution == 'fedora':
+            entries = stack
+        else:
+            kind = {'common-auth': 'auth', 'common-account': 'account',
+                    'common-session': 'session', 'common-session-noninteractive': 'session'}.get(name)
+            entries = ''.join(line.replace('ingroup wheel', 'ingroup sudo') + '\n'
+                              for line in stack.splitlines() if kind and line.startswith(kind + ' '))
+        contents = entries + vendor
+        if formatting:
+            formatted = []
+            for row in contents.splitlines():
+                if row and not row.startswith('#'):
+                    if formatting in ('continuation', 'both'):
+                        kind, _separator, rest = row.partition(' ')
+                        row = kind + ' \\\n\t' + rest.replace(' pam_', ' \\\n  pam_', 1)
+                    if formatting in ('inline-comment', 'both'):
+                        row += ' # local formatting'
+                formatted.append(row)
+            contents = '\n'.join(formatted) + '\n'
+        (migration.PAM / name).write_text(contents)
+    return helper
+
+
+@pytest.mark.parametrize('distribution,backend', [('ubuntu', 'apparmor'), ('fedora', 'selinux')])
+@pytest.mark.parametrize('fault', [None, 'shared-pam', 'required-helper', 'missing-malcontent',
+                                   'missing-cap', 'missing-bridge', 'missing-auth-admin-skip',
+                                   'missing-account-kiosk-skip', 'reordered-account-skips', 'reordered-cap'])
+def test_prepared_pam_migration_real_readiness_composes_and_retries(
+        tmp_path, monkeypatch, distribution, backend, fault):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    saved = migration.state()
+    migration.prepare()
+    migration.restore_original_pam()
+    originals = {name: (migration.PAM / name).read_bytes() if (migration.PAM / name).exists() else None
+                 for name in migration.SERVICES}
+    helper = _prepared_pam_migration_runtime(tmp_path, monkeypatch, distribution, migration)
+    runtime_ready = lambda: helper.runtime_ready(distribution)
+    if fault:
+        kind = 'auth' if fault == 'missing-auth-admin-skip' else 'account'
+        path = helper.LOGIN_CHECK if fault == 'required-helper' else migration.PAM / (
+            f'common-{kind}' if distribution == 'ubuntu' else 'password-auth')
+        before = path.read_bytes()
+        if fault in ('shared-pam', 'required-helper'):
+            path.unlink()
+        else:
+            rows = before.decode().splitlines()
+            expected = helper.time_policy(distribution)[kind]
+            if fault.startswith('missing-'):
+                index = {'missing-malcontent': 4, 'missing-cap': 5, 'missing-bridge': 3,
+                         'missing-auth-admin-skip': 1, 'missing-account-kiosk-skip': 1}[fault]
+                rows.remove(expected[index])
+            else:
+                left, right = (0, 1) if fault == 'reordered-account-skips' else (4, 5)
+                first, second = rows.index(expected[left]), rows.index(expected[right])
+                rows[first], rows[second] = rows[second], rows[first]
+            path.write_text('\n'.join(rows) + '\n')
+        state = migration.STATE.read_bytes()
+        with pytest.raises((OSError, ValueError)):
+            migration.commit_migration(runtime_ready)
+        assert migration.STATE.read_bytes() == state and migration.DISABLED.exists()
+        assert machine.expires == 1 and migration.expiry_record(1006)['phase'] == 'quarantined'
+        path.write_bytes(before)
+        path.chmod(0o755 if fault == 'required-helper' else 0o644)
+    migration.commit_migration(runtime_ready)
+    migration.release_account()
+    assert machine.expires is None
+    assert not migration.STATE.exists() and not migration.DISABLED.exists() and not migration.EXPIRY.exists()
+    assert migration.OWNERSHIP.read_text() == '1006\n'
+    migration.verify_pam(saved, originals=True)
+    assert originals == {name: (migration.PAM / name).read_bytes() if (migration.PAM / name).exists() else None
+                         for name in migration.SERVICES}
+
+
+@pytest.mark.parametrize('distribution,backend', [('ubuntu', 'apparmor'), ('fedora', 'selinux')])
+@pytest.mark.parametrize('fault', ['required-helper', 'missing-malcontent', 'reordered-cap'])
+def test_prepared_pam_migration_failed_real_readiness_preserves_legacy_rollback(
+        tmp_path, monkeypatch, distribution, backend, fault):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    saved = migration.state()
+    migration.prepare()
+    migration.restore_original_pam()
+    helper = _prepared_pam_migration_runtime(tmp_path, monkeypatch, distribution, migration)
+    if fault == 'required-helper':
+        helper.LOGIN_CHECK.unlink()
+    else:
+        path = migration.PAM / ('common-account' if distribution == 'ubuntu' else 'system-auth')
+        rows = path.read_text().splitlines()
+        expected = helper.time_policy(distribution)['account']
+        if fault == 'missing-malcontent':
+            rows.remove(expected[4])
+        else:
+            first, second = rows.index(expected[4]), rows.index(expected[5])
+            rows[first], rows[second] = rows[second], rows[first]
+        path.write_text('\n'.join(rows) + '\n')
+    with pytest.raises((OSError, ValueError)):
+        migration.commit_migration(lambda: helper.runtime_ready(distribution))
+    migration.rollback()
+    assert machine.loaded and machine.expires is None
+    assert migration.state() == saved
+    assert not migration.DISABLED.exists() and not migration.EXPIRY.exists()
+    assert all((migration.PAM / name).read_text() == record['after'] for name, record in saved['pam'].items())
+
+
+@pytest.mark.parametrize('distribution,backend', [('ubuntu', 'apparmor'), ('fedora', 'selinux')])
+@pytest.mark.parametrize('formatting', ['continuation', 'inline-comment', 'both'])
+def test_prepared_pam_migration_accepts_equivalent_logical_lines(
+        tmp_path, monkeypatch, distribution, backend, formatting):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    migration.prepare()
+    migration.restore_original_pam()
+    helper = _prepared_pam_migration_runtime(tmp_path, monkeypatch, distribution, migration, formatting=formatting)
+    originals = {name: (migration.PAM / name).read_bytes() if (migration.PAM / name).exists() else None
+                 for name in migration.SERVICES}
+    shared = {name: (migration.PAM / name).read_bytes() for name in helper.FILES[distribution]}
+    migration.commit_migration(lambda: helper.runtime_ready(distribution))
+    migration.release_account()
+    assert machine.expires is None
+    assert not migration.STATE.exists() and not migration.DISABLED.exists() and not migration.EXPIRY.exists()
+    assert originals == {name: (migration.PAM / name).read_bytes() if (migration.PAM / name).exists() else None
+                         for name in migration.SERVICES}
+    assert shared == {name: (migration.PAM / name).read_bytes() for name in helper.FILES[distribution]}

@@ -743,7 +743,7 @@ and waits. No shared account, service, bus, display, host PAM/cache or additiona
 cleanup/UI inventory is changed. The rationale lives in `regression_unit.py`.
 
 Host acceptance passed with no declared targets: **1,559 checks passed** in the
-[final host report](../../output/test-runs/host/reports/20261021T010719Z-53899b68/report.md),
+[final host report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json),
 using the maintained unit selection and a 600-second worker deadline. The
 selection covers package configuration/removal, provisioning, activation,
 package inputs, both prepared-payload exclusions, RPM composition, support
@@ -774,10 +774,131 @@ Labels and historical claims are unchanged; this grants no new acceptance.
 Close-out passed all **639 metadata checks**, including the four maintained
 consistency modules and `test_execution_plan_launcher.py`, with the 600-second
 worker deadline and completed cleanup; see the
-[close-out report](../../output/test-runs/host/reports/20261021T011022Z-2e00b610/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Only C02c2 is newly checked, its temporary brief is removed, and the plan selects
 C02c with 55 tasks remaining. All other queue status, order, scope and
 prerequisites are preserved.
+
+##### C02c prepared native and distro PAM integration
+
+The prepared native module, `login_check.py`, `distro_pam.py` and two
+`pam-configs` profiles live under `data/kiosk-runtime-unselected/`. They have
+no production caller and remain outside package source, payload and activation
+selection. C02 alone replaces the selected native module, helper and package
+PAM transaction. The current selected path remains intact.
+
+The native module reconstructs the pinned release's ordinary-user time-check
+and graphical runtime-cap behavior, retaining main's separate session-limit
+helper and administrative user-bus exception. Kiosk account/session dispatch
+uses the release service boundary (`gdm-password` and `systemd-user`) with main's
+public saved-session/Wayland checks. Other users bypass kiosk routing without
+querying another account. Vendor authentication, account denials and credential
+callbacks retain their ordering and authority; no password exemption or
+manager-credential projection is added.
+
+A small shared flock on the existing admission inode lasts until `pam_end`,
+including root executor teardown and a bounded routing helper's lifetime. It
+preserves C02c2's removal/migration exclusion without importing old confinement
+headers, MAC policy, private generations, callback inventories or admission
+protocols. The helper uses a fixed environment and public AccountsService
+properties. A repaired default still refuses that attempt; required-service
+failure remains an operational failure. Optional assets and unrelated native
+modules have no admission vote.
+
+The distro transaction retains Ubuntu's public `pam-auth-update` route, original
+Malcontent selection and local-edit handling, and the maintained Fedora
+authselect owner's original profile/features, owned-file checks and restoration.
+It never forces local PAM replacement. Configuration readiness checks the finite
+product-owned authentication/account blocks, including their skip targets,
+administrative bridge, Malcontent and following runtime-cap hook. Their numeric
+skip rules require the relevant same-type entries to stay together and ordered;
+one bounded logical-line reader handles PAM continuations and comments for
+every check. Unrelated vendor content outside those blocks remains opaque. Shared
+time/account skip rules remain unchanged; Fedora composition substitutes `wheel`
+for `sudo`. Removal verifies
+that effective shared stacks no longer reference product PAM payload before
+allowing payload deletion.
+
+C02 must install the prepared native/helper/account/session payload, restore
+the old owned `gdm-password`/`systemd-user` originals under quarantine, and
+activate the shared distro profiles before passing
+`lambda: distro_pam.runtime_ready(distribution)` to
+`commit_migration`. The callback reads effective shared PAM output and required
+installed native/helper availability, returns `None` on success, and mutates
+neither PAM nor account state. The lifecycle independently rechecks its original
+PAM and quarantine before retiring old records and releasing the account.
+Rollback keeps that quarantine while restoring the former integration through
+the retained lifecycle owner. C02d/C02e then remove unconsumed legacy native,
+helper, hook and package wiring; this preparation deletes no installed state.
+
+**C06a route handoff:** saved AccountsService defaults and PAM's actual Wayland
+transport do not prove GDM's selected next executable. The historical PreSession
+hook is unused here and is not current-GDM proof. Actual desktop/session-choice,
+TTY, SSH and supported remote-desktop histories, with ordinary-account controls,
+remain unclosed under their existing queue scope. Shared profile composition and
+host PAM fixtures provide no installed passwordless-entry, authentication or
+route-confinement acceptance.
+
+Independent Astra xHigh review resolved a P1 readiness gap by requiring complete
+ordinary-user time-policy blocks before migration can retire recovery records,
+and a P2 usability gap by using the same PAM logical-line normalization for
+direct rules, owned blocks and removal references. Fresh review found no
+actionable issues: **Usability priority: passed; Threat scope: passed;
+ownership/lifecycle and unselected boundary: passed**. The review grants no host
+or installed acceptance credit.
+
+Host acceptance has no declared targets. The final prepared PAM, Fedora
+transaction and real migration-readiness selection passed **187 checks** with
+a 180-second worker deadline; see the
+[focused report](../../output/test-runs/host/reports/20261021T013514Z-f3c1132e/report.md).
+It includes 139 native/routing/distro cases, 32 migration composition cases and
+16 Fedora owner/facade cases. Missing or reordered required rules retain
+quarantine/recovery records; restored rules permit retry, and legacy rollback
+still works. Both distros accept equivalent continued/commented rules without
+accepting wrong module prefixes or commented-out policy.
+
+The final affected regression selection passed **676 checks** with a 600-second
+worker deadline; see the
+[regression report](../../output/test-runs/host/reports/20261021T014023Z-d121f1bc/report.md).
+It covers selected native/login behavior, graphical runtime caps, shared time
+checks, package configuration/removal, unit scheduling and both prepared-payload
+exclusions. Tests compile the prepared native code and exercise private PAM
+configurations; production selection remains unchanged. Host doubles do not
+qualify installed entry, parent authentication, real distro policy or updates.
+
+The parallelism review classifies `prepared_kiosk_pam` as compatible unit work.
+It owns private PAM configurations, native modules, admission files and bounded,
+waited compiler/helper children; account, bus and command doubles are process
+local. The existing Fedora and package-configuration fixtures supply private
+authselect and migration/rollback composition, with scratch leases forwarded to
+native compilation. No shared account, PAM, service, bus, display, cache or VM is
+changed. Cleanup and UI inventories gain no resource owner. The classification
+and rationale are recorded in `tools/regression_unit.py`.
+
+Final `make build` passed for both DEB and RPM after the final source edits.
+Retained outputs are
+`output/deb/oh-no-parent-control_1.4+local1~ubuntu26.04.1_amd64.deb`,
+`output/rpm/oh-no-parent-control-1.4-0.1.dev.fc44.x86_64.rpm` and
+`output/rpm/build.log`. These packages retain the selected production path;
+the prepared PAM assets remain excluded. Implementation and review agents are
+finished/closed, and test/build cleanup completed. No task-owned process, VM,
+installed state or temporary source artifact remains. Normal reports and package
+outputs are retained. No installation, staging, commit or push was performed.
+
+Two C02c2 report destinations alone now use the accepted-proof locator. The
+maintained bundle reader verified their exact original members, accepted result,
+command record and completed cleanup in `onpc-evidence-bundle-q3vjgtzo` (SHA-256
+`0c8fe82a5ac00a610267a3ca2b5fb973a0a3f9c1bdaa858282d0646a34d99d53`).
+Their 1,559 and 639 passing checks remain historical claims, with no new
+acceptance or predecessor completion change.
+
+Close-out passed **639 metadata checks** in the maintained consistency modules
+and `test_execution_plan_launcher.py`, with a 600-second worker deadline and
+completed cleanup; see the
+[close-out report](../../output/test-runs/host/reports/20261021T014246Z-06713092/report.md).
+Only C02c is newly checked, its temporary brief is removed, and the master
+selects C02 with 54 tasks remaining. Every other row's status, relative order,
+scope and dependencies are preserved.
 
 ##### C01 selective replacement boundary
 

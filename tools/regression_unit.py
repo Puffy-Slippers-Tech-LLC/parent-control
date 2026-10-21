@@ -987,12 +987,22 @@ from regression_ui import Bucket
 # Atomic-write faults retain their private prior file and remove their own temp;
 # no host account, shadow/cache, daemon, bus, shared path or cleanup owner changes.
 # provision and kiosk_login retain their existing compatible classifications.
+# prepared_kiosk_pam compiles a small private PAM module and uses only private
+# PAM stacks, lock/marker files and process-local account/authselect/bus doubles.
+# Native helpers and compiler children are bounded and waited; no host PAM,
+# account, service, bus, display or shared cache is changed. Distro transaction
+# and rollback fixtures keep their owned files under tmp_path. Compatible unit
+# scheduling applies; cleanup and UI inventories gain no ownership mechanism.
 # Prepared lifecycle composition reuses package_configuration's private package
 # tree and real legacy state producer. Its NSS/home-owner/native-policy doubles
 # are process local; advisory leases, cache xattrs and faulted durable writes use
 # only tmp_path. One bounded source-list child is waited; no host PAM, shadow,
 # AccountsService cache/service, bus, display or shared process is touched.
 # package_configuration remains compatible; cleanup/UI inventories do not change.
+# Its C02c readiness composition additionally compiles the prepared native PAM
+# module in each private fixture (30-second deadline), forwards scratch leases,
+# and waits. Real migration/readiness functions share only that fixture's PAM
+# and payload files; ownership and OS policy remain process-local doubles.
 # The post-erase ordinary-worker control additionally owns one fixed Python
 # child mapping inert tmp_path bytes. Readiness and pipe-driven exit are bounded;
 # scratch leases are inherited and timeout cleanup signals only its unreaped
@@ -1281,7 +1291,7 @@ parent_about_cleanup_safety parent_about_worker parent_access_worker parent_clie
 parent_discovery_worker parent_grid_pixels parent_main parent_native_surface parent_needles
 parent_setup_cleanup_safety ppa_build preferences prepare_baseline
 prepare_baseline_cleanup_safety prepare_baseline_tool prepare_vm prepare_vm_contract
-preview_screen privileged_test_runner probe_bus_client_cleanup_safety
+preview_screen prepared_kiosk_pam privileged_test_runner probe_bus_client_cleanup_safety
 probe_channel_cleanup_safety probe_generation_cleanup_safety product_free_entry_cleanup_safety provision publish
 publish_source_integrity publishing_tests public_atspi qualification_storage_cleanup_safety read_only_launcher regression regression_cleanup
 regression_cleanup_safety regression_inputs regression_resources regression_schedule

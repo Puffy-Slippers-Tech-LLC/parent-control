@@ -2094,9 +2094,11 @@ section has a bold branch heading. Sections appear and disappear as runners
 start and finish; when every runner is idle, the last finished terminal remains.
 Click a terminal heading to open its branch tab. An individual branch tab shows
 only its own terminal. Finished tabs retain their output and remain selectable.
-Related Git worktrees are discovered automatically; launch `tools/watch` from an
-unrelated checkout to add it to the same window. Branch names update after Git
-branch switches; checkout paths identify separate tabs even when labels match.
+Related Git worktrees on named branches are discovered automatically; detached
+snapshots appear only when `tools/watch` is launched from that checkout. Launch
+`tools/watch` from an unrelated checkout to add it to the same window. Branch
+names update after Git branch switches; checkout paths identify separate tabs
+even when labels match.
 The footer's right-aligned resource line refreshes every second with host CPU,
 memory and disk activity percentages. Fixed-width percentage fields keep labels
 and separators stationary as values change; labels are bold and values use normal

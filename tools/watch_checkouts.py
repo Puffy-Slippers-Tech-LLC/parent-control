@@ -25,7 +25,7 @@ def checkout(path):
 
 
 def worktrees(root):
-    """Read Git metadata only; never import or execute another checkout's code."""
+    """Discover branches and the requested root using Git metadata only."""
     result = subprocess.run(['git', '-C', str(root), 'worktree', 'list', '--porcelain', '-z'],
                             capture_output=True, timeout=2, check=True)
     records = {}
@@ -38,6 +38,10 @@ def worktrees(root):
         except (OSError, ValueError):
             continue
         branch = fields.get('branch', '').removeprefix('refs/heads/')
+        # Detached diagnostic/build snapshots are not independent branch tabs.
+        # Still observe one when the user explicitly launches watch from it.
+        if not branch and path != root:
+            continue
         records[path] = branch or 'detached ' + fields.get('HEAD', '')[:8]
     return records
 

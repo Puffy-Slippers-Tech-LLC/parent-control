@@ -230,7 +230,19 @@ def test_checkout_discovery_reads_branches_spaces_and_detached_worktrees(tmp_pat
     (other / 'tools').mkdir()
     (other / 'tools/watch').touch()
     assert worktrees(root) == {root: 'main', other: 'worktree'}
+    snapshots = [tmp_path / f'detached snapshot {index}' for index in range(4)]
+    for snapshot in snapshots:
+        git('worktree', 'add', '--detach', str(snapshot))
+        (snapshot / 'tools').mkdir()
+        (snapshot / 'tools/watch').touch()
+    # Diagnostic snapshots at the same commit must not crowd the footer.
+    assert worktrees(root) == {root: 'main', other: 'worktree'}
+    assert worktrees(snapshots[0]) == {
+        root: 'main', other: 'worktree',
+        snapshots[0]: 'detached ' + git('rev-parse', '--short=8', 'HEAD').stdout.decode().strip(),
+    }
     git('-C', str(other), 'checkout', '--detach')
+    assert worktrees(root) == {root: 'main'}
     discovered = worktrees(other)
     assert discovered[root] == 'main' and discovered[other].startswith('detached ')
     link = tmp_path / 'alias'

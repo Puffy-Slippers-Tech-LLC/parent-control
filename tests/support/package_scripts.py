@@ -5,18 +5,163 @@ Their differing command models stay explicit; they share path relocation.
 """
 
 import os
+import json
+from contextlib import contextmanager
 import re
 import runpy
+import select
 import shlex
 from pathlib import Path
+from types import SimpleNamespace
 import subprocess
 import sys
 
 import pytest
 from tests.support.paths import ROOT
+from tests.support.modules import load_module
 from tests.support.shell import relocate_system_paths
+from tools.test_storage import scratch_descriptors
 
 REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
+
+
+@contextmanager
+def mapped_pam_worker(root):
+    """Own one ordinary child retaining a private native-module mapping.
+
+    The fixed child maps inert bytes and exits on its parent's pipe input.
+    Kernel maps are read only through this recorded Popen identity. No native
+    module is loaded, host PAM touched or outside process scanned/signalled.
+    """
+    library = root / 'pam_oh_no_parent_control.so'
+    library.write_bytes(b'private inert mapping\n' + b'\0' * 4096)
+    source = ("import mmap, sys\n"
+              "with open(sys.argv[1], 'rb') as stream:\n"
+              "    mapping = mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ)\n"
+              "    print('ready', flush=True)\n"
+              "    sys.stdin.buffer.read(1)\n")
+    child = subprocess.Popen([sys.executable, '-IB', '-c', source, str(library)],
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             pass_fds=scratch_descriptors())
+    try:
+        assert select.select([child.stdout], [], [], 5)[0], 'owned mapped worker did not become ready'
+        assert child.stdout.readline() == b'ready\n'
+        yield SimpleNamespace(child=child, library=library, proc=Path('/proc') / str(child.pid))
+    finally:
+        try:
+            child.communicate(input=b'x', timeout=5)
+        except subprocess.TimeoutExpired:
+            # The direct child is unreaped, so only its recorded identity can
+            # be signalled. The child launches no descendants.
+            child.kill()
+            child.communicate(timeout=5)
+
+
+def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, installed=True):
+    """Real old-state producer plus prepared migration, private native/NSS doubles.
+
+    All paths, descriptor locks, cache xattrs and durable writes remain real in
+    this caller-owned tree. No host process/service/account or shared bus is used.
+    """
+    def load(relative, name):
+        with monkeypatch.context() as context:
+            context.setattr(sys, 'dont_write_bytecode', True)
+            return load_module(name, ROOT / relative)
+
+    migration = load('data/kiosk-runtime-unselected/lifecycle_migration.py', 'prepared_lifecycle')
+    legacy = load('packaging/kiosk_confinement.py', 'legacy_lifecycle')
+    root.chmod(0o700)
+    for name in ('var/lib/oh-no-parent-control', 'var/lib/AccountsService/users', 'run',
+                 'etc/pam.d', 'usr/lib/pam.d', 'usr/share/oh-no-parent-control/confinement', 'proc'):
+        (root / name).mkdir(parents=True, exist_ok=True)
+        (root / name).chmod(0o700)
+    for name in ('STATE_DIRECTORY', 'STATE', 'OWNERSHIP', 'EXPIRY', 'DISABLED', 'PAYLOAD',
+                 'PAM', 'PROCESSES', 'BOOT', 'PROFILES', 'CACHE'):
+        monkeypatch.setattr(migration, name, root / getattr(migration, name).relative_to('/'))
+    monkeypatch.setattr(migration, 'LOCKS', tuple(root / path.relative_to('/') for path in migration.LOCKS))
+    monkeypatch.setattr(migration, 'ROOT', root)
+    monkeypatch.setattr(migration, 'OWNER', os.getuid())
+    monkeypatch.setattr(migration, 'GROUP', os.getgid())
+    migration.BOOT.parent.mkdir(parents=True)
+    migration.BOOT.write_text('11111111-1111-1111-1111-111111111111\n')
+    migration.PROFILES.parent.mkdir(parents=True)
+    migration.PROFILES.write_text('')
+    user = SimpleNamespace(pw_name=migration.USER, pw_uid=1006, pw_gid=1006,
+                           pw_dir='/home/oh-no-parent-control')
+    machine = SimpleNamespace(migration=migration, legacy=legacy, root=root,
+                              user=user, expires=None, loaded=False, commands=[], home_uid=1006)
+    home = root / 'home/oh-no-parent-control'
+    home.mkdir(parents=True)
+    original_lstat = Path.lstat
+    def lstat(path):
+        info = original_lstat(path)
+        if path == home:
+            return SimpleNamespace(st_uid=machine.home_uid, st_mode=info.st_mode)
+        return info
+    monkeypatch.setattr(migration.Path, 'lstat', lstat)
+    monkeypatch.setattr(migration.grp, 'getgrall', lambda: [])
+
+    def getpwnam(name):
+        if machine.user is not None and name == migration.USER:
+            return machine.user
+        raise KeyError(name)
+
+    def getpwuid(identity):
+        if machine.user is not None and machine.user.pw_uid == identity:
+            return machine.user
+        raise KeyError(identity)
+
+    monkeypatch.setattr(migration.pwd, 'getpwnam', getpwnam)
+    monkeypatch.setattr(migration.pwd, 'getpwuid', getpwuid)
+
+    def run(arguments):
+        machine.commands.append(arguments)
+        output = ''
+        if arguments[:2] == ['getent', 'shadow']:
+            output = migration.USER + ':!::::::' + ('' if machine.expires is None else str(machine.expires)) + ':\n'
+        elif arguments[:2] == ['usermod', '--expiredate']:
+            machine.expires = None if arguments[2] == '-1' else int(arguments[2])
+        elif arguments[0] == 'systemctl':
+            output = 'ActiveState=activating\nSubState=start-pre\nMainPID=0\n'
+        elif arguments[:2] == ['/usr/sbin/semodule', '-l']:
+            output = 'onpc-kiosk\n' if machine.loaded else ''
+        elif arguments[:2] in (['/usr/sbin/semodule', '-r'], ['/usr/sbin/apparmor_parser', '-R']):
+            machine.loaded = False
+            migration.PROFILES.write_text('')
+        elif arguments[:2] in (['/usr/sbin/semodule', '-i'], ['/usr/sbin/apparmor_parser', '-r']):
+            machine.loaded = True
+            migration.PROFILES.write_text('onpc-kiosk-manager (enforce)\n')
+        return SimpleNamespace(stdout=output)
+
+    monkeypatch.setattr(migration, 'run', run)
+    mapping = dict(PAYLOAD=migration.PAYLOAD, STATE=migration.STATE, ADMISSION_LOCK=migration.LOCKS[0],
+                   ADMISSION_DISABLED=migration.DISABLED, LEGACY_LOGIN_LOCK=migration.LOCKS[1],
+                   PREPARATION_LOCK=migration.LOCKS[2], PROCESSES=migration.PROCESSES,
+                   PREVIOUS_ACTIVATION=migration.STATE_DIRECTORY / 'previous-package-activation.json',
+                   PAM_LOCAL=migration.PAM, PAM_VENDOR=root / 'usr/lib/pam.d',
+                   _CONFINEMENT_FILESYSTEM_ROOT=root, _CONFINEMENT_OWNER_UID=os.getuid())
+    for key, value in mapping.items():
+        monkeypatch.setattr(legacy, key, value)
+    monkeypatch.setattr(legacy, 'run', run)
+    monkeypatch.setattr(legacy, 'Path', lambda path: migration.PROFILES
+                        if str(path) == '/sys/kernel/security/apparmor/profiles' else Path(path))
+    monkeypatch.setattr(legacy, 'boot_id', lambda: migration.BOOT.read_text().strip())
+    migration.OWNERSHIP.write_text('1006\n')
+    migration.OWNERSHIP.chmod(0o600)
+    (migration.PAYLOAD / 'config.json').write_text(json.dumps({'backend': backend}) + '\n')
+    (migration.PAYLOAD / ('onpc-kiosk.cil' if backend == 'selinux' else 'onpc-kiosk.apparmor')).write_text('# owned policy\n')
+    (migration.PAM / 'gdm-password').write_text('session required pam_unix.so\n')
+    (root / 'usr/lib/pam.d/systemd-user').write_text('session required pam_systemd.so\n')
+    for path in root.rglob('*'):
+        if not path.is_symlink():
+            path.chmod(path.stat().st_mode & ~0o022)
+    if installed:
+        legacy.install()
+    for path in root.rglob('*'):
+        if not path.is_symlink():
+            path.chmod(path.stat().st_mode & ~0o022)
+    machine.commands.clear()
+    return machine
 
 
 def script_source(phase, distribution='ubuntu'):

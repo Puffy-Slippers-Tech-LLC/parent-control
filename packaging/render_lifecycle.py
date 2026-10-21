@@ -57,6 +57,20 @@ def embedded_confinement_finish_remove(root: Path) -> str:
             "\ntry:\n    finish_remove()\nexcept Exception:\n    print('oh-no-parent-control: confinement cleanup failed; preserving admission barrier', file=sys.stderr)\n    sys.exit(1)\nONPC_CONFINEMENT_FINISH_REMOVE")
 
 
+def embedded_prepared_confinement_finish_remove(root: Path) -> str:
+    """C02's explicit unselected finalizer; production fragments stay unchanged.
+
+    C02 must include this source in PACKAGE_SOURCE_FILES and switch the single
+    finalizer slot together with account-marker deletion ordering. Until then
+    this function is used only by host composition tests, never either package.
+    """
+    source = (root / 'data/kiosk-runtime-unselected/lifecycle_migration.py').read_text()
+    return ("/usr/bin/python3 -I - <<'ONPC_PREPARED_CONFINEMENT_FINISH_REMOVE'\n" + source +
+            "\nimport sys\ntry:\n    finish_remove()\nexcept Exception:\n"
+            "    print('oh-no-parent-control: legacy cleanup failed; preserving recovery state', file=sys.stderr)\n"
+            "    sys.exit(1)\nONPC_PREPARED_CONFINEMENT_FINISH_REMOVE")
+
+
 def embedded_fedora_policy(root: Path, action: str) -> str:
     """Scriptlets must survive an absent or already erased product payload."""
     source = (root / 'packaging/fedora_execution_policy.py').read_text()

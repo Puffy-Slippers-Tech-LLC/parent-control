@@ -1211,6 +1211,89 @@ leave normal startup available. Requests expire with `/run` at reboot; no new
 persistent state or marker is introduced. The launcher's early child-trust gate
 still verifies import safety independently of the frontend reboot guard.
 
+### Prepared owned lifecycle migration
+
+The unselected [migration module](../../data/kiosk-runtime-unselected/lifecycle_migration.py)
+prepares C02's replacement of the old confinement lifecycle. It has no production
+caller or CLI and is excluded from package source and installed payload selection.
+The selected provisioner, lifecycle templates, integration helper, finalizer and
+activation classifier continue using their existing path until C02. The explicit
+prepared finalizer in [the renderer](../../packaging/render_lifecycle.py) is also
+unselected. Host composition is not installed update/removal qualification.
+
+The migration consumes only the package's numeric kiosk UID marker, UID-bound
+configuration-expiry record, schema-1 confinement record and known removal
+marker. It accepts recorded original, generated, previous-publication and removal
+PAM states; unrelated edits remain untouched and stop the transaction. It reuses
+the existing admission/routing/preparation lock identities and expiry record,
+rather than introducing another persistent transaction format. Live admissions,
+kiosk processes and retained legacy executors prevent retirement without being
+signalled. Runtime locks and private executable generations remain until reboot;
+this module never sweeps or recursively deletes them.
+
+C02 must compose these operations at its atomic runtime/PAM cutover:
+
+1. Preserve the package-created UID marker and validate the non-administrative
+   reserved account and owned home. Retain the exact old attested configuration
+   and MAC policy bytes across unpack until rollback is no longer needed; a new
+   file at the old pathname is not a substitute. Missing or changed rollback
+   inputs preserve the recovery records and require recovery before proceeding.
+2. Call `prepare()` before retiring old integration. It checks owned PAM and live
+   legacy state, preserves the original native expiry, expires the kiosk account,
+   records removal intent, publishes vendor-module-only kiosk denials and unloads
+   the old policy. For owned SELinux state, the pinned admission-lock inode
+   receives its current policy label before preflight can refuse, including
+   recreation and interrupted-relabel retries. Policy unload resets that same
+   inode to its stock label. Pre-lease state
+   records its first migration boot and must
+   complete a reboot before retirement; retry does not reset that boot identity.
+3. Recover retained visibility using `visibility()` at AccountsService's verified
+   start-pre boundary. It recovers only the fixed visibility slot or committed
+   xattr using the recorded UID, inode, content and metadata digests, then changes
+   only the retained `[User] SystemAccount` boolean. Comments, unknown fields,
+   groups, custom icons and unrelated xattrs survive. Package/version identity
+   supplies no admission vote. Ordinary accounts and their cache are untouched.
+4. Call `restore_original_pam()` under native expiry quarantine. Keep the old
+   record and removal marker for rollback. Install the replacement account/PAM
+   integration and call `commit_migration(real_verifier)` with C02c's real,
+   side-effect-free native/distro readiness verifier. It must return `None` only
+   after successful verification or raise; a boolean is not a readiness witness.
+   The migration rechecks quarantine, saved state and original PAM around that
+   call before retiring the old records. Only then call `release_account()`;
+   its `releasing` phase makes interrupted expiry restoration retryable without
+   overwriting unrelated native expiry policy.
+5. Before commit, abort/retry uses `rollback()`: reload the retained old policy
+   before restoring its recorded PAM gates and original expiry. On SELinux,
+   restore the admission-lock and republished PAM labels before clearing the
+   removal marker or reopening the account. A relabel or other failure keeps
+   the records needed to retry. C02 must wire this into configure/abort-remove
+   and the RPM failure callback without retaining a second live runtime path.
+
+Removal uses the same prepared denial transaction, followed by verified owned
+account/home deletion and `finish_remove()` after payload erasure. Keep the
+numeric UID marker until the finalizer succeeds. The finalizer checks absence
+of both the reserved name and any reassignment of that UID, restores only owned
+original PAM, and retires confinement/removal/expiry records without importing
+an erased helper or consuming erased policy files. Its post-erase check retains
+kiosk identity, audit/executor and held-lease protection; an unrelated ordinary
+PAM worker retaining an erased module is not a reason to refuse finalization.
+Purge remains ordered after
+successful integration/account cleanup; preferences, logs, Fedora authselect
+ownership and all unrelated removal behavior retain their existing owners in
+[Package removal](Package-Removal.md).
+
+C02 must add the prepared module to the explicit package input/install map,
+switch the renderer's one finalizer slot, preserve the UID marker through that
+slot, and replace the selected provisioner/start-pre caller together with PAM
+activation. The existing manifest comparison already includes removed members
+from the old manifest and preserves their declared activation impact; do not
+drop removed confinement entries before comparing. C02d/C02e can then remove
+unconsumed old provisioning/quarantine/cache adapters, integration/loader and
+embedded finalizer source, native/runtime code, generated confinement inputs,
+and their build/install/remove wiring. Source deletion grants no installed-state
+or test-artifact cleanup authority. Installed update/reentry acceptance remains
+with C11c1/C12c1.
+
 ## Installed layout
 
 The optional Wellbeing banner service is packaged as

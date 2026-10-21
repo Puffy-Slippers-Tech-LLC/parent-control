@@ -987,6 +987,17 @@ from regression_ui import Bucket
 # Atomic-write faults retain their private prior file and remove their own temp;
 # no host account, shadow/cache, daemon, bus, shared path or cleanup owner changes.
 # provision and kiosk_login retain their existing compatible classifications.
+# Prepared lifecycle composition reuses package_configuration's private package
+# tree and real legacy state producer. Its NSS/home-owner/native-policy doubles
+# are process local; advisory leases, cache xattrs and faulted durable writes use
+# only tmp_path. One bounded source-list child is waited; no host PAM, shadow,
+# AccountsService cache/service, bus, display or shared process is touched.
+# package_configuration remains compatible; cleanup/UI inventories do not change.
+# The post-erase ordinary-worker control additionally owns one fixed Python
+# child mapping inert tmp_path bytes. Readiness and pipe-driven exit are bounded;
+# scratch leases are inherited and timeout cleanup signals only its unreaped
+# Popen child, then waits. Only that child's /proc maps are read. Synthetic root
+# credentials/audit/MAC inputs stay private; no real host PAM or shared resource.
 # No real session, system bus, display, root lock, shared cache or service mutates.
 # Admission/removal regressions use real advisory locks only on pytest-private
 # files. Native PAM leases cover root-executor/session teardown intervals and

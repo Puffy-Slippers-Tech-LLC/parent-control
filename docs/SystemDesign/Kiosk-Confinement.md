@@ -582,7 +582,7 @@ performed. This host result grants no installed qualification.
 Close-out passed all **639 metadata checks** in the four maintained consistency
 modules and `test_execution_plan_launcher.py`, with the 600-second worker
 deadline and completed cleanup; see the retained
-[close-out report](../../output/test-runs/host/reports/20261021T001805Z-2b9313bc/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 The plan check selects C02c1 with 57 remaining tasks. Only C02b is newly checked;
 its temporary brief is removed and every other queue row is preserved.
 
@@ -656,7 +656,7 @@ precondition is acceptable only after C02c2 completes its declared migration.
 Review supplies no host or installed acceptance credit.
 
 Host acceptance passed with no declared targets: **694 checks passed** in the
-[focused report](../../output/test-runs/host/reports/20261021T002506Z-6250c0fa/report.md),
+[focused report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json),
 using `tools/run-tests unit` with a 600-second worker deadline. The selection
 includes `test_provision.py`, `test_package_configuration.py`,
 `test_package_removal.py`, `test_system_first_configure.py`,
@@ -691,7 +691,7 @@ installation, staging, commit or push was performed.
 Close-out passed all **639 metadata checks** in the four maintained consistency
 modules and `test_execution_plan_launcher.py`, with a 600-second worker deadline
 and completed cleanup; see the
-[close-out report](../../output/test-runs/host/reports/20261021T003125Z-8759f281/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 The plan check selects C02c2 with 56 remaining tasks. Only C02c1 is newly checked;
 its temporary brief is removed and every other queue row is preserved.
 
@@ -704,6 +704,80 @@ The original 350 unit/165 unchanged UI passes and four passing repaired UI cases
 unchanged historical claims; this repair grants no new acceptance.
 Final Markdown validation checked 262 links with none missing; the plan check
 and `git diff --check` also passed. No product input changed after review or build.
+
+##### C02c2 prepared owned lifecycle migration
+
+The unselected
+[migration module](../../data/kiosk-runtime-unselected/lifecycle_migration.py)
+prepares finite legacy-state retirement without importing the old integration or
+provisioner. The [lifecycle owner](Lifecycle.md#prepared-owned-lifecycle-migration)
+records its exact prepare/original-PAM/readiness/commit/release, rollback,
+visibility and post-erase composition, C02 activation/removal obligations and
+C02d/C02e residual source deletions. The explicit prepared renderer entry is
+unselected; package inputs, production lifecycle selection and activation
+classification remain unchanged. The existing manifest comparison retains
+removed members' activation impacts.
+
+Known UID, expiry, confinement/PAM and visibility slot/xattr records retain
+their original ownership and retry identities. Live kiosk admissions/executors,
+foreign state, ordinary accounts, preferences and unrelated removal behavior
+are preserved. No runtime-lock/private-generation sweep or new persistent
+transaction format is introduced. Actual C02c readiness and atomic C02 selection
+remain required; installed update/reentry acceptance remains C11c1/C12c1.
+
+Independent Astra xHigh review resolved two P1 findings and one P2 finding:
+rollback now restores SELinux policy and admission/PAM labels under quarantine
+before reopening; post-erase finalization preserves unrelated ordinary PAM
+workers retaining erased mappings while keeping kiosk/lease checks; and the
+shared barrier restores the pinned admission inode's current SELinux label
+before preflight refusal, including failed-relabel retries. Fresh review of the
+final revisions found no actionable issues: **Usability priority: passed;
+Threat scope: passed; ownership/lifecycle and unselected boundary: passed**.
+Review supplies no host or installed acceptance credit.
+
+Parallelism review retains the compatible `package_configuration` classification.
+Fixtures use private pytest trees, process-local NSS/policy doubles, real private
+locks/xattrs and bounded, explicitly owned child processes. Scratch leases reach
+the embedded finalizer and mapping child; cleanup signals only the owned child
+and waits. No shared account, service, bus, display, host PAM/cache or additional
+cleanup/UI inventory is changed. The rationale lives in `regression_unit.py`.
+
+Host acceptance passed with no declared targets: **1,559 checks passed** in the
+[final host report](../../output/test-runs/host/reports/20261021T010719Z-53899b68/report.md),
+using the maintained unit selection and a 600-second worker deadline. The
+selection covers package configuration/removal, provisioning, activation,
+package inputs, both prepared-payload exclusions, RPM composition, support
+architecture and unit inventory. Its 71 new migration cases include fresh,
+configured, previous-publication, removing, pre-lease/reboot, interrupted/retry,
+rollback, failed readiness, owned/foreign visibility, live kiosk negatives and
+executed post-erase histories. Real bounded mapping children verify preservation
+of ordinary workers across payload erasure. Native/service doubles supply no
+installed SELinux, PAM, entry or update acceptance.
+
+Final `make build` passed for both DEB and RPM after the last packaged edit.
+Retained outputs are
+`output/deb/oh-no-parent-control_1.4+local1~ubuntu26.04.1_amd64.deb`,
+`output/rpm/oh-no-parent-control-1.4-0.1.dev.fc44.x86_64.rpm` and
+`output/rpm/build.log`. Implementation and review agents are finished/closed;
+host-runner, mapping-child and build cleanup completed. No task-owned VM,
+installed state, temporary source artifact or live process remains. Normal
+reports and package outputs are retained. No installation, staging, commit or
+push was performed.
+
+Three rotated C02b/C02c1 report destinations alone now use the accepted-proof
+locator. The maintained bundle reader verified the original 639, 694 and 639
+passing reports, exact command selections, accepted results and cleanup in
+`onpc-evidence-bundle-ojo_nad1` (SHA-256
+`7d49c9ea057908b70c9e56751297779a12c53f1204d830dd0e529bb4f5fa807b`).
+Labels and historical claims are unchanged; this grants no new acceptance.
+
+Close-out passed all **639 metadata checks**, including the four maintained
+consistency modules and `test_execution_plan_launcher.py`, with the 600-second
+worker deadline and completed cleanup; see the
+[close-out report](../../output/test-runs/host/reports/20261021T011022Z-2e00b610/report.md).
+Only C02c2 is newly checked, its temporary brief is removed, and the plan selects
+C02c with 55 tasks remaining. All other queue status, order, scope and
+prerequisites are preserved.
 
 ##### C01 selective replacement boundary
 

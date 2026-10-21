@@ -19,9 +19,750 @@ REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***
 
 
 from tests.support.package_scripts import (
-    package_machine, rpm_script_source, use_real_kiosk_confinement, use_real_state_migration,
+    mapped_pam_worker, package_machine, prepared_lifecycle_machine, rpm_script_source,
+    use_real_kiosk_confinement, use_real_state_migration,
 )
 from tests.support.shell import relocate_system_paths
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('installed', [False, True])
+def test_prepared_lifecycle_composes_fresh_and_owned_upgrade(tmp_path, monkeypatch, backend, installed):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend, installed=installed)
+    migration = machine.migration
+    saved = migration.state()
+    preferences = migration.STATE_DIRECTORY / 'preferences'
+    preferences.mkdir()
+    retained = preferences / '1001.json'
+    retained.write_text('{"language":"fr","daily_time_limit_minutes":75}\n')
+    unrelated = tmp_path / 'ordinary-user-metadata'
+    unrelated.write_text('retain ordinary policy\n')
+    runtime = tmp_path / 'run/oh-no-parent-control-confinement/generation-foreign'
+    runtime.mkdir(parents=True)
+    inode = runtime.stat().st_ino
+    migration.prepare()
+    assert machine.expires == 1
+    if saved:
+        assert not machine.loaded
+        assert all((migration.PAM / name).read_text() == migration.DENIAL + migration.original(record)
+                   for name, record in saved['pam'].items())
+    migration.restore_original_pam()
+
+    def replacement_ready():
+        assert machine.expires == 1
+        # A concrete side-effect-free fixture readiness readback; C02 must
+        # supply the actual native/distro verifier before selecting this source.
+        assert (migration.PAM / 'gdm-password').read_text() == 'session required pam_unix.so\n'
+        assert not (migration.PAM / 'systemd-user').exists()
+
+    migration.commit_migration(replacement_ready)
+    migration.release_account()
+    migration.release_account()
+    assert machine.expires is None
+    assert not any(path.exists() for path in (migration.STATE, migration.DISABLED, migration.EXPIRY))
+    assert migration.OWNERSHIP.read_text() == '1006\n'
+    assert retained.read_text() == '{"language":"fr","daily_time_limit_minutes":75}\n'
+    assert unrelated.read_text() == 'retain ordinary policy\n'
+    assert runtime.stat().st_ino == inode
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('boundary', ['denial', 'unload', 'restore', 'commit', 'expiry'])
+def test_prepared_lifecycle_interrupted_steps_retry_without_losing_originals(
+        tmp_path, monkeypatch, backend, boundary):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    saved = migration.state()
+    machine.expires = 19000
+    function = {'denial': 'write', 'unload': 'policy', 'restore': 'erase',
+                'commit': 'erase', 'expiry': 'erase'}[boundary]
+    original = getattr(migration, function)
+    failed = False
+
+    def interrupt(*args, **kwargs):
+        nonlocal failed
+        selected = ((boundary == 'denial' and args[0] == migration.PAM / 'systemd-user') or
+                    (boundary == 'unload' and kwargs.get('load') is False) or
+                    (boundary == 'restore' and args[0] == migration.PAM / 'systemd-user') or
+                    (boundary == 'commit' and args[0] == migration.STATE) or
+                    (boundary == 'expiry' and args[0] == migration.EXPIRY))
+        if selected and not failed:
+            failed = True
+            raise OSError('owned interruption')
+        return original(*args, **kwargs)
+
+    def verify():
+        assert machine.expires == 1
+        migration.verify_pam(saved, originals=True)
+
+    monkeypatch.setattr(migration, function, interrupt)
+    with pytest.raises(OSError, match='owned interruption'):
+        migration.prepare()
+        migration.restore_original_pam()
+        migration.commit_migration(verify)
+        migration.release_account()
+    assert failed
+    # The release interruption has already restored the original native policy;
+    # its releasing record permits a retry without another quarantine cycle.
+    if boundary == 'expiry':
+        assert machine.expires == 19000
+        assert migration.expiry_record(1006)['phase'] == 'releasing'
+        migration.release_account()
+    else:
+        assert machine.expires == 1
+        migration.prepare()
+        migration.restore_original_pam()
+        migration.commit_migration(verify)
+        migration.release_account()
+    assert machine.expires == 19000
+    assert not migration.STATE.exists() and not migration.EXPIRY.exists()
+    migration.verify_pam(saved, originals=True)
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('partial', [False, True])
+def test_prepared_lifecycle_abort_restores_policy_before_account_release(tmp_path, monkeypatch, backend, partial):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    saved = migration.state()
+    migration.prepare()
+    if partial:
+        migration.restore_original_pam()
+    machine.commands.clear()
+    migration.rollback()
+    assert machine.loaded and machine.expires is None
+    assert not migration.DISABLED.exists() and not migration.EXPIRY.exists()
+    assert not migration.state().get('removing')
+    for name, record in saved['pam'].items():
+        assert (migration.PAM / name).read_text() == record['after']
+    load_index = next(i for i, command in enumerate(machine.commands) if command[0].endswith(('semodule', 'apparmor_parser')))
+    release_index = next(i for i, command in enumerate(machine.commands) if command[:2] == ['usermod', '--expiredate'])
+    assert load_index < release_index
+
+
+@pytest.mark.parametrize('failure', [None, 'admission-label', 'pam-labels'])
+def test_prepared_lifecycle_selinux_rollback_restores_labels_under_quarantine(
+        tmp_path, monkeypatch, failure):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, 'selinux')
+    migration = machine.migration
+    saved = migration.state()
+    machine.expires = 19000
+    migration.prepare()
+    migration.restore_original_pam()
+    run = migration.run
+    write = migration.write
+    erase = migration.erase
+    events = []
+    failed = False
+    lock_command = ['/usr/sbin/restorecon', str(migration.LOCKS[0])]
+    pam_command = ['/usr/sbin/restorecon', str(migration.PAM / 'gdm-password'),
+                   str(migration.PAM / 'systemd-user')]
+
+    def observed_run(arguments):
+        nonlocal failed
+        events.append(('run', arguments))
+        if arguments[0] == '/usr/sbin/restorecon':
+            if arguments == lock_command and not machine.loaded:
+                # The common barrier reasserts the current (now stock) label
+                # before rollback loads the old policy and restores its type.
+                assert machine.expires == 1
+                return run(arguments)
+            assert machine.loaded and machine.expires == 1
+            assert migration.state()['removing'] and migration.DISABLED.exists()
+            if arguments == lock_command:
+                migration.verify_pam(saved)
+                point = 'admission-label'
+            else:
+                assert arguments == pam_command
+                assert all((migration.PAM / name).read_text() == record['after']
+                           for name, record in saved['pam'].items())
+                point = 'pam-labels'
+            if point == failure and not failed:
+                failed = True
+                raise OSError('owned SELinux label interruption')
+        return run(arguments)
+
+    def observed_write(path, contents, mode=0o600):
+        if path.parent == migration.PAM:
+            events.append(('pam', path))
+        return write(path, contents, mode)
+
+    def observed_erase(path):
+        if path == migration.DISABLED:
+            events.append(('release-marker', path))
+        return erase(path)
+
+    monkeypatch.setattr(migration, 'run', observed_run)
+    monkeypatch.setattr(migration, 'write', observed_write)
+    monkeypatch.setattr(migration, 'erase', observed_erase)
+    if failure:
+        with pytest.raises(OSError, match='SELinux label interruption'):
+            migration.rollback()
+        assert machine.expires == 1 and migration.expiry_record(1006)['phase'] == 'quarantined'
+        assert migration.state()['removing'] and migration.DISABLED.exists()
+        # At the PAM-label failure the gates have already been republished;
+        # the retry must accept that exact owned generation and relabel again.
+        events.clear()
+    migration.rollback()
+    load = next(i for i, event in enumerate(events) if event[0] == 'run' and event[1][:2] == ['/usr/sbin/semodule', '-i'])
+    lock_label = next(i for i, event in enumerate(events) if i > load and event == ('run', lock_command))
+    pam_writes = [i for i, event in enumerate(events) if event[0] == 'pam']
+    pam_labels = events.index(('run', pam_command))
+    marker_release = next(i for i, event in enumerate(events) if event[0] == 'release-marker')
+    expiry_release = next(i for i, event in enumerate(events) if event[0] == 'run' and event[1][:2] == ['usermod', '--expiredate'])
+    assert load < lock_label < min(pam_writes) <= max(pam_writes) < pam_labels < marker_release < expiry_release
+    assert machine.expires == 19000 and not migration.EXPIRY.exists()
+    assert not migration.DISABLED.exists() and not migration.state().get('removing')
+
+
+@pytest.mark.parametrize('entrypoint,refusal', [
+    ('prepare', 'pam'), ('prepare', 'policy'), ('prepare', 'idle'),
+    ('rollback', 'pam'), ('rollback', 'idle'),
+])
+def test_prepared_lifecycle_selinux_absent_lease_label_survives_preflight_refusal(
+        tmp_path, monkeypatch, entrypoint, refusal):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, 'selinux')
+    migration = machine.migration
+    migration.LOCKS[0].unlink()
+    original_pam = {name: (migration.PAM / name).read_bytes() for name in migration.SERVICES}
+    config = migration.PAYLOAD / 'config.json'
+    original_config = config.read_bytes()
+    if refusal == 'pam':
+        (migration.PAM / 'gdm-password').write_text('administrator policy\n')
+    elif refusal == 'policy':
+        config.write_text('{"backend":"selinux","changed":true}\n')
+    else:
+        thread = migration.PROCESSES / '42/task/42'
+        (thread / 'attr').mkdir(parents=True)
+        (thread / 'status').write_text('Uid:\t1006\t1006\t1006\t1006\n')
+        (thread / 'loginuid').write_text('1001\n')
+        (thread / 'maps').write_text('')
+        for attribute in ('current', 'exec'):
+            (thread / 'attr' / attribute).write_text('unconfined\n')
+    before_state = migration.STATE.read_bytes()
+    before_pam = {name: (migration.PAM / name).read_bytes() for name in migration.SERVICES}
+    before_config = config.read_bytes()
+    events = []
+    identities = []
+    native_run = migration.run
+    label_command = ['/usr/sbin/restorecon', str(migration.LOCKS[0])]
+
+    def observed_run(arguments):
+        if arguments == label_command:
+            assert machine.loaded and machine.expires is None
+            info = migration.LOCKS[0].stat()
+            identities.append((info.st_dev, info.st_ino))
+            events.append('label')
+        return native_run(arguments)
+
+    def observe(name):
+        function = getattr(migration, name)
+        def checked(*args, **kwargs):
+            events.append(name)
+            return function(*args, **kwargs)
+        monkeypatch.setattr(migration, name, checked)
+
+    monkeypatch.setattr(migration, 'run', observed_run)
+    for function in ('verify_pam', 'policy_material', 'idle'):
+        observe(function)
+    with pytest.raises(ValueError, match={'pam': 'modified-legacy-pam',
+                                         'policy': 'changed-legacy-policy-payload',
+                                         'idle': 'kiosk-processes-active'}[refusal]):
+        getattr(migration, entrypoint)()
+    failed_at = {'pam': 'verify_pam', 'policy': 'policy_material', 'idle': 'idle'}[refusal]
+    assert events.index('label') < events.index(failed_at)
+    retained = migration.LOCKS[0].stat()
+    assert identities == [(retained.st_dev, retained.st_ino)]
+    assert machine.loaded and machine.expires is None
+    assert migration.STATE.read_bytes() == before_state
+    assert {name: (migration.PAM / name).read_bytes() for name in migration.SERVICES} == before_pam
+    assert config.read_bytes() == before_config
+    assert not migration.EXPIRY.exists() and not migration.DISABLED.exists()
+    for name, contents in original_pam.items():
+        (migration.PAM / name).write_bytes(contents)
+    config.write_bytes(original_config)
+    if refusal == 'idle':
+        (thread / 'status').write_text('Uid:\t1001\t1001\t1001\t1001\n')
+    migration.prepare()
+    assert identities == [(retained.st_dev, retained.st_ino)] * 2
+    assert not machine.loaded and machine.expires == 1
+    assert ['/usr/sbin/restorecon', '-F', str(migration.LOCKS[0])] in machine.commands
+    monkeypatch.setattr(migration, 'run', native_run)
+    machine.user = None
+    for path in migration.PAYLOAD.iterdir():
+        path.unlink()
+    migration.finish_remove()
+    final = migration.LOCKS[0].stat()
+    assert (final.st_dev, final.st_ino) == (retained.st_dev, retained.st_ino)
+    assert not migration.STATE.exists() and not migration.EXPIRY.exists()
+
+
+def test_prepared_lifecycle_selinux_failed_initial_lease_label_retries_same_inode(tmp_path, monkeypatch):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, 'selinux')
+    migration = machine.migration
+    migration.LOCKS[0].unlink()
+    before_state = migration.STATE.read_bytes()
+    before_pam = {name: (migration.PAM / name).read_bytes() for name in migration.SERVICES}
+    identities = []
+    native_run = migration.run
+    label_command = ['/usr/sbin/restorecon', str(migration.LOCKS[0])]
+    def interrupted_label(arguments):
+        if arguments == label_command:
+            info = migration.LOCKS[0].stat()
+            identities.append((info.st_dev, info.st_ino))
+            if len(identities) == 1:
+                raise OSError('initial lease label unavailable')
+        return native_run(arguments)
+    monkeypatch.setattr(migration, 'run', interrupted_label)
+    with pytest.raises(OSError, match='initial lease label unavailable'):
+        migration.prepare()
+    assert machine.loaded and machine.expires is None
+    assert migration.STATE.read_bytes() == before_state
+    assert {name: (migration.PAM / name).read_bytes() for name in migration.SERVICES} == before_pam
+    assert not migration.EXPIRY.exists() and not migration.DISABLED.exists()
+    migration.prepare()
+    assert len(identities) == 2 and identities[0] == identities[1]
+    assert not machine.loaded and machine.expires == 1
+    machine.user = None
+    for path in migration.PAYLOAD.iterdir():
+        path.unlink()
+    migration.finish_remove()
+    assert identities[-1] == identities[0]
+    assert not migration.STATE.exists() and not migration.DISABLED.exists()
+
+
+def test_prepared_lifecycle_invalid_state_does_not_create_admission_inode(tmp_path, monkeypatch):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, 'selinux')
+    migration = machine.migration
+    migration.LOCKS[0].unlink()
+    record = migration.state()
+    record['schema'] = 2
+    migration.save(migration.STATE, record)
+    with pytest.raises(ValueError, match='invalid-legacy-confinement-record'):
+        migration.prepare()
+    assert not migration.LOCKS[0].exists()
+    assert machine.loaded and machine.expires is None
+
+
+def test_prepared_lifecycle_failed_readiness_and_misuse_retain_recovery(tmp_path, monkeypatch):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
+    migration = machine.migration
+    migration.prepare()
+    migration.restore_original_pam()
+    before = migration.STATE.read_bytes()
+    with pytest.raises(TypeError, match='verifier-required'):
+        migration.commit_migration(True)
+    with pytest.raises(ValueError, match='return-none'):
+        migration.commit_migration(lambda: True)
+    def failed_verifier():
+        raise OSError('native PAM readiness unavailable')
+    with pytest.raises(OSError, match='readiness unavailable'):
+        migration.commit_migration(failed_verifier)
+    assert machine.expires == 1 and migration.STATE.read_bytes() == before
+    migration.rollback()
+    assert machine.loaded and machine.expires is None
+
+
+@pytest.mark.parametrize('change', ['pam', 'expiry', 'state'])
+def test_prepared_lifecycle_readiness_cannot_retire_changed_inputs(tmp_path, monkeypatch, change):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
+    migration = machine.migration
+    migration.prepare()
+    migration.restore_original_pam()
+    def changed_verifier():
+        if change == 'pam':
+            (migration.PAM / 'gdm-password').write_text('administrator edit\n')
+        elif change == 'expiry':
+            machine.expires = 20000
+        else:
+            record = migration.state()
+            record['kiosk_uid'] = 1007
+            migration.save(migration.STATE, record)
+    with pytest.raises(ValueError):
+        migration.commit_migration(changed_verifier)
+    assert migration.STATE.exists() and migration.DISABLED.exists()
+
+
+@pytest.mark.parametrize('condition', ['lease', 'kiosk-process', 'foreign-state', 'prelease'])
+def test_prepared_lifecycle_preserves_live_and_foreign_state(tmp_path, monkeypatch, condition):
+    import fcntl
+    import os
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
+    migration = machine.migration
+    original = {name: (migration.PAM / name).read_bytes() for name in migration.SERVICES}
+    held = None
+    if condition == 'lease':
+        held = os.open(migration.LOCKS[0], os.O_RDWR)
+        fcntl.flock(held, fcntl.LOCK_SH)
+    elif condition == 'kiosk-process':
+        thread = migration.PROCESSES / '123/task/123'
+        thread.mkdir(parents=True)
+        (thread / 'status').write_text('Uid:\t1006\t1006\t1006\t1006\n')
+    elif condition == 'foreign-state':
+        (migration.PAM / 'gdm-password').write_text('administrator policy\n')
+        original['gdm-password'] = b'administrator policy\n'
+    else:
+        saved = migration.state()
+        saved.pop('admission_protocol')
+        migration.save(migration.STATE, saved)
+    try:
+        with pytest.raises((ValueError, BlockingIOError)):
+            migration.prepare()
+        assert machine.expires is None and machine.loaded
+        assert {name: (migration.PAM / name).read_bytes() for name in migration.SERVICES} == original
+    finally:
+        if held is not None:
+            os.close(held)
+    if condition == 'prelease':
+        migration.BOOT.write_text('22222222-2222-2222-2222-222222222222\n')
+        migration.prepare()
+        assert machine.expires == 1
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_prepared_lifecycle_partial_pam_publication_and_removing_retry(tmp_path, monkeypatch, backend):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    saved = migration.state()
+    previous = dict(saved['pam']['gdm-password'])
+    previous['after'] = '# older owned generation\n' + previous['after']
+    saved['previous_pam'] = {'gdm-password': previous}
+    (migration.PAM / 'gdm-password').write_text(previous['after'])
+    (migration.PAM / 'systemd-user').unlink()
+    migration.save(migration.STATE, saved)
+    migration.prepare()
+    migration.prepare()
+    migration.restore_original_pam()
+    migration.rollback()
+    assert machine.loaded and machine.expires is None
+    assert migration.state().get('previous_pam') is None
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_prepared_lifecycle_post_erase_retries_without_any_payload(tmp_path, monkeypatch, backend):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    saved = migration.state()
+    migration.prepare()
+    for path in migration.PAYLOAD.iterdir():
+        path.unlink()
+    machine.user = None
+    original_erase = migration.erase
+    failed = False
+    def interrupt(path):
+        nonlocal failed
+        if path == migration.PAM / 'systemd-user' and not failed:
+            failed = True
+            raise OSError('post-erase interruption')
+        original_erase(path)
+    monkeypatch.setattr(migration, 'erase', interrupt)
+    with pytest.raises(OSError, match='post-erase interruption'):
+        migration.finish_remove()
+    assert migration.STATE.exists() and migration.DISABLED.exists()
+    migration.finish_remove()
+    migration.finish_remove()
+    migration.verify_pam(saved, originals=True)
+    assert not migration.STATE.exists() and not migration.EXPIRY.exists()
+    assert migration.OWNERSHIP.exists()
+
+
+def test_prepared_lifecycle_post_erase_preserves_reassigned_uid(tmp_path, monkeypatch):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
+    migration = machine.migration
+    migration.prepare()
+    machine.user = None
+    monkeypatch.setattr(migration.pwd, 'getpwuid', lambda identity: object())
+    with pytest.raises(ValueError, match='reassigned-kiosk-uid'):
+        migration.finish_remove()
+    assert migration.STATE.exists() and migration.DISABLED.exists()
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_prepared_lifecycle_post_erase_preserves_real_ordinary_mapped_worker(tmp_path, monkeypatch, backend):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    saved = migration.state()
+    migration.prepare()
+    thread = migration.PROCESSES / '42/task/42'
+    (thread / 'attr').mkdir(parents=True)
+    # Root credentials and ordinary audit/MAC identity are explicit fixture
+    # inputs. The retained mapping itself comes from a real owned Linux child.
+    (thread / 'status').write_text('Uid:\t0\t0\t0\t0\n')
+    (thread / 'loginuid').write_text('1001\n')
+    for attribute in ('current', 'exec'):
+        (thread / 'attr' / attribute).write_text('unconfined\n')
+    with mapped_pam_worker(tmp_path) as worker:
+        (thread / 'maps').symlink_to(worker.proc / 'maps')
+        assert str(worker.library) in (worker.proc / 'maps').read_text()
+        worker.library.unlink()
+        assert str(worker.library) + ' (deleted)' in (worker.proc / 'maps').read_text()
+        for path in migration.PAYLOAD.iterdir():
+            path.unlink()
+        machine.user = None
+        migration.finish_remove()
+        assert worker.child.poll() is None
+        assert str(worker.library) + ' (deleted)' in (worker.proc / 'maps').read_text()
+    assert worker.child.returncode == 0
+    migration.verify_pam(saved, originals=True)
+    assert not migration.STATE.exists() and not migration.DISABLED.exists() and not migration.EXPIRY.exists()
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('active', ['uid', 'audit', 'mac-current', 'mac-exec', 'lease'])
+def test_prepared_lifecycle_post_erase_still_preserves_kiosk_executors(tmp_path, monkeypatch, backend, active):
+    import fcntl
+    import os
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    migration.prepare()
+    for path in migration.PAYLOAD.iterdir():
+        path.unlink()
+    machine.user = None
+    before = migration.STATE.read_bytes()
+    thread = migration.PROCESSES / '42/task/42'
+    (thread / 'attr').mkdir(parents=True)
+    (thread / 'status').write_text('Uid:\t0\t0\t0\t0\n')
+    (thread / 'loginuid').write_text('1001\n')
+    (thread / 'maps').write_text('')
+    for attribute in ('current', 'exec'):
+        (thread / 'attr' / attribute).write_text('unconfined\n')
+    held = None
+    if active == 'uid':
+        (thread / 'status').write_text('Uid:\t0\t1006\t0\t0\n')
+    elif active == 'audit':
+        (thread / 'loginuid').write_text('1006\n')
+    elif active.startswith('mac-'):
+        label = ('onpc-kiosk-manager (enforce)\n' if backend == 'apparmor' else
+                 'system_u:system_r:onpc_kiosk_manager_t:s0\n')
+        (thread / 'attr' / active.removeprefix('mac-')).write_text(label)
+    else:
+        held = os.open(migration.LOCKS[0], os.O_RDWR)
+        fcntl.flock(held, fcntl.LOCK_SH)
+    try:
+        with pytest.raises(BlockingIOError if active == 'lease' else ValueError,
+                           match=None if active == 'lease' else 'kiosk-(?:processes|executors)-active'):
+            migration.finish_remove()
+        assert migration.STATE.read_bytes() == before
+        assert migration.DISABLED.exists() and migration.EXPIRY.exists()
+    finally:
+        if held is not None:
+            os.close(held)
+    (thread / 'status').write_text('Uid:\t0\t0\t0\t0\n')
+    (thread / 'loginuid').write_text('1001\n')
+    for attribute in ('current', 'exec'):
+        (thread / 'attr' / attribute).write_text('unconfined\n')
+    migration.finish_remove()
+    assert not migration.STATE.exists() and not migration.DISABLED.exists()
+
+
+@pytest.mark.parametrize('changed', ['home', 'admin', 'orphan-marker', 'policy'])
+def test_prepared_lifecycle_preserves_changed_owned_inputs(tmp_path, monkeypatch, changed):
+    from types import SimpleNamespace
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
+    migration = machine.migration
+    if changed == 'home':
+        machine.home_uid = 1007
+    elif changed == 'admin':
+        monkeypatch.setattr(migration.grp, 'getgrall', lambda: [
+            SimpleNamespace(gr_name='wheel', gr_gid=10, gr_mem=[migration.USER])])
+    elif changed == 'orphan-marker':
+        migration.STATE.unlink()
+        migration.write(migration.DISABLED, b'removing\n')
+    else:
+        migration.prepare()
+        (migration.PAYLOAD / 'config.json').write_text('{"backend":"apparmor","changed":true}\n')
+    with pytest.raises(ValueError):
+        if changed in ('orphan-marker', 'policy'):
+            migration.rollback()
+        else:
+            migration.prepare()
+    assert machine.expires == (1 if changed == 'policy' else None)
+    if changed == 'policy':
+        assert migration.STATE.exists() and migration.DISABLED.exists() and not machine.loaded
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_prepared_lifecycle_requires_retained_rollback_bytes_before_mutation(tmp_path, monkeypatch, backend):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    (migration.PAYLOAD / 'config.json').write_text('{"backend":"' + backend + '","changed":true}\n')
+    before = migration.STATE.read_bytes()
+    with pytest.raises(ValueError, match='changed-legacy-policy-payload'):
+        migration.prepare()
+    assert machine.loaded and machine.expires is None
+    assert migration.STATE.read_bytes() == before and not migration.DISABLED.exists()
+    assert not migration.EXPIRY.exists()
+
+
+@pytest.mark.parametrize('variant', ['hidden', 'missing-key', 'visible'])
+def test_prepared_lifecycle_visibility_preserves_metadata_without_version_vote(tmp_path, monkeypatch, variant):
+    import os
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, installed=False)
+    migration = machine.migration
+    source = (b'# retained comments\n[User]\nIcon=/custom/icon.png\n'
+              b'X-Unknown=value\n' +
+              (b'SystemAccount=true\n' if variant == 'hidden' else
+               b'SystemAccount=false\n' if variant == 'visible' else b'') +
+              b'[Other]\nPreserve=true\n')
+    cached = migration.CACHE / migration.USER
+    cached.write_bytes(source)
+    cached.chmod(0o600)
+    os.setxattr(cached, 'user.retained', b'preserved')
+    ordinary = migration.CACHE / 'ordinary-user'
+    ordinary.write_bytes(b'[User]\nSystemAccount=true\n')
+    migration.visibility()
+    migration.visibility()
+    expected = (source.replace(b'SystemAccount=true', b'SystemAccount=false') if variant == 'hidden' else
+                source.replace(b'[Other]', b'SystemAccount=false\n[Other]') if variant == 'missing-key' else source)
+    assert cached.read_bytes() == expected
+    assert os.getxattr(cached, 'user.retained') == b'preserved'
+    assert migration.ATTRIBUTE not in os.listxattr(cached)
+    assert ordinary.read_bytes() == b'[User]\nSystemAccount=true\n'
+    assert not (migration.CACHE / migration.SLOT).exists()
+    assert not any('--version' in command or command[0] == 'rpm' for command in machine.commands)
+
+
+@pytest.mark.parametrize('boundary', ['slot', 'committed'])
+def test_prepared_lifecycle_visibility_recovers_exact_old_transaction(tmp_path, monkeypatch, boundary):
+    import os
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, installed=False)
+    migration = machine.migration
+    cached = migration.CACHE / migration.USER
+    cached.write_bytes(b'# retained\n[User]\nSystemAccount=true\nIcon=/custom\n')
+    cached.chmod(0o600)
+    original_replace = migration.os.replace
+    original_remove = migration.os.removexattr
+    failed = False
+    def replace(*args, **kwargs):
+        nonlocal failed
+        if args[0] == migration.SLOT and boundary == 'slot' and not failed:
+            failed = True
+            raise OSError('visibility interruption')
+        return original_replace(*args, **kwargs)
+    def remove(*args, **kwargs):
+        nonlocal failed
+        if args[1] == migration.ATTRIBUTE and boundary == 'committed' and not failed:
+            failed = True
+            raise OSError('visibility interruption')
+        return original_remove(*args, **kwargs)
+    monkeypatch.setattr(migration.os, 'replace', replace)
+    monkeypatch.setattr(migration.os, 'removexattr', remove)
+    with pytest.raises(OSError, match='visibility interruption'):
+        migration.visibility()
+    assert failed
+    assert ((migration.CACHE / migration.SLOT).exists() if boundary == 'slot' else
+            migration.ATTRIBUTE in os.listxattr(cached))
+    migration.visibility()
+    migration.visibility()
+    assert cached.read_bytes() == b'# retained\n[User]\nSystemAccount=false\nIcon=/custom\n'
+    assert not (migration.CACHE / migration.SLOT).exists()
+    assert migration.ATTRIBUTE not in os.listxattr(cached)
+
+
+@pytest.mark.parametrize('foreign', ['slot', 'committed', 'live-daemon'])
+def test_prepared_lifecycle_visibility_preserves_foreign_or_live_cache(tmp_path, monkeypatch, foreign):
+    import os
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, installed=False)
+    migration = machine.migration
+    cached = migration.CACHE / migration.USER
+    cached.write_bytes(b'[User]\nSystemAccount=true\n')
+    cached.chmod(0o600)
+    if foreign == 'slot':
+        (migration.CACHE / migration.SLOT).write_bytes(b'foreign slot\n')
+    elif foreign == 'committed':
+        os.setxattr(cached, migration.ATTRIBUTE, b'{"foreign":true}')
+    else:
+        run = migration.run
+        def live(arguments):
+            if arguments[0] == 'systemctl':
+                return type('Result', (), {'stdout': 'ActiveState=active\nSubState=running\nMainPID=123\n'})()
+            return run(arguments)
+        monkeypatch.setattr(migration, 'run', live)
+    with pytest.raises(ValueError):
+        migration.visibility()
+    assert cached.read_bytes() == b'[User]\nSystemAccount=true\n'
+    if foreign == 'slot':
+        assert (migration.CACHE / migration.SLOT).read_bytes() == b'foreign slot\n'
+
+
+def test_prepared_lifecycle_embedded_finalizer_is_unselected_and_payload_independent():
+    renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
+    source = renderer['embedded_prepared_confinement_finish_remove'](ROOT)
+    assert 'def finish_remove():' in source and 'legacy cleanup failed' in source
+    for distribution in ('ubuntu', 'fedora'):
+        selected = renderer['render'](ROOT, distribution, 'postrm')
+        assert 'ONPC_PREPARED_CONFINEMENT_FINISH_REMOVE' not in selected
+    result = subprocess.run(['make', '--no-print-directory', 'package-source-files'],
+                            cwd=ROOT, capture_output=True, text=True, timeout=30, check=True)
+    assert 'data/kiosk-runtime-unselected/lifecycle_migration.py' not in result.stdout.splitlines()
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_prepared_lifecycle_embedded_post_erase_executes_and_retries(tmp_path, monkeypatch, backend):
+    import os
+    import shlex
+    from tools.test_storage import scratch_descriptors
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    # The distribution's fixed relabel tool survives product payload erasure.
+    # Its private double accepts only the one source-defined admission pathname.
+    relabel = tmp_path / 'usr/sbin/restorecon'
+    relabel.parent.mkdir(parents=True)
+    relabel.write_text('#!/bin/sh\nset -eu\n[ "$#" -eq 1 ]\n[ "$1" = ' +
+                       shlex.quote(str(migration.LOCKS[0])) + ' ]\n')
+    relabel.chmod(0o755)
+    saved = migration.state()
+    migration.prepare()
+    for payload in migration.PAYLOAD.iterdir():
+        payload.unlink()
+    # Model verified account removal in the child without querying host NSS.
+    renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
+    header, body = renderer['embedded_prepared_confinement_finish_remove'](ROOT).split('\n', 1)
+    body = relocate_system_paths(body, tmp_path, prefixes=('/etc/', '/var/', '/run/', '/home/', '/usr/', '/sys/', '/proc/'))
+    body = body.replace("ROOT = Path('/')", 'ROOT = Path(' + repr(str(tmp_path)) + ')')
+    body = body.replace("Path('/run')", 'Path(' + repr(str(tmp_path / 'run')) + ')')
+    body = body.replace("Path('/proc')", 'Path(' + repr(str(tmp_path / 'proc')) + ')')
+    body = body.replace('OWNER = 0', 'OWNER = ' + str(os.getuid()))
+    body = body.replace('GROUP = 0', 'GROUP = ' + str(os.getgid()))
+    body = body.replace('pwd.getpwnam(USER)', '(_ for _ in ()).throw(KeyError(USER))')
+    body = body.replace('pwd.getpwuid(identity)', '(_ for _ in ()).throw(KeyError(identity))')
+    failure = tmp_path / 'owned-post-erase-interruption'
+    failure.touch()
+    fault = ('\n_original_erase = erase\n'
+             'def erase(path):\n'
+             f'    failure = Path({str(failure)!r})\n'
+             "    if path == PAM / 'systemd-user' and failure.exists():\n"
+             '        failure.unlink()\n'
+             "        raise OSError('owned post-erase interruption')\n"
+             '    return _original_erase(path)\n')
+    assert body.count('\nimport sys\ntry:\n') == 1
+    body = body.replace('\nimport sys\ntry:\n', fault + '\nimport sys\ntry:\n')
+    script = header + '\n' + body
+    def run_finalizer():
+        return subprocess.run(['/bin/sh'], input=script, capture_output=True, text=True,
+                              timeout=30, pass_fds=scratch_descriptors())
+    first = run_finalizer()
+    assert first.returncode == 1 and 'preserving recovery state' in first.stderr
+    assert migration.STATE.exists() and migration.DISABLED.exists()
+    second = run_finalizer()
+    assert second.returncode == 0, second.stderr
+    assert run_finalizer().returncode == 0
+    migration.verify_pam(saved, originals=True)
+    assert not migration.STATE.exists() and not migration.EXPIRY.exists()
+
+
+def test_prepared_lifecycle_removed_manifest_members_keep_existing_activation(tmp_path):
+    module = runpy.run_path(str(ROOT / 'packaging/package_activation.py'))
+    paths = ['usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+             'usr/share/oh-no-parent-control/confinement/config.json',
+             'usr/lib/systemd/system/oh-no-parent-control-kiosk-confinement.service',
+             'usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf']
+    old = tmp_path / 'previous.json'
+    new = tmp_path / 'candidate.json'
+    old.write_text(json.dumps({'version': 1, 'files': [dict(path=path, sha256='a' * 64,
+                   activation=module['activation_for'](path)) for path in paths]}))
+    new.write_text('{"version":1,"files":[]}')
+    assert module['changed_impacts'](old, new) == ['reboot']
 
 
 @pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])

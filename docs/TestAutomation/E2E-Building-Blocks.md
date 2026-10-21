@@ -1739,8 +1739,9 @@ C04l/C04s/C04r/C04i reuse existing B3 feature checks, with only confinement wait
 in C04l/C04w; C04j owns B4's core composition. Applicable installed results remain
 required for both targets. C04o/C04p have closed the fixed B1/B2 slices;
 [C04l](#c04l-kiosk-language-and-human-pause) closed B3's Jordan language/chooser
-pause slice. Other B3 scopes and B4 remain open. Queue insertion itself
-supplies no readiness, implementation or acceptance credit; C04 must recheck exact
+pause slice, and [C04s](#c04s-existing-request-choice-renewal) renewed its existing
+request choices and remembered reentry. Other B3 scopes and B4 remain open.
+Queue insertion itself supplies no readiness, implementation or acceptance credit; C04 must recheck exact
 evidence applicability after the qualifications finish.
 
 Once delivered, C04j's complete per-target baseline histories may also supply
@@ -1798,7 +1799,7 @@ exact matching evidence without closing E2E rows or duplicating feature mechanic
 | Named rules and native denial | **079b/079d** consume 313's finite shared policy/instance/command-denial work | Still own FLOW19 explicit lists/entry modes and APP02 grid/command/access branches outside 313's exact slice. No reimplementation of delivered leaves. |
 | Approval and child return | **197/197a/197k** consume shared request, grant/countdown and entry leaves | Still own parameterized FLOW20 accounts, durations, soft choices, new/open forms and fresh/retained destinations. 313 does not qualify that whole matrix. |
 | Kiosk language | Existing **300h/300j**, `check_e2e_kiosk_language` | [C04l qualified both targets](#c04l-kiosk-language-and-human-pause), reusing Jordan's binding with the bounded initial chooser wait and fresh identity proof. No new Riley language suite. |
-| Request choices | Existing **012c**, `check_e2e_kiosk_valid_duration` | C04s reuses existing presets/custom Minutes/rest-of-day/soft choices. New saved-preset/Hours journey is **314**, outside baseline prerequisites. |
+| Request choices | Existing **012c**, `check_e2e_kiosk_valid_duration`; **014**, `check_e2e_request_flow` | [C04s renewed both targets](#c04s-existing-request-choice-renewal): existing presets/custom Minutes/rest-of-day/soft choices, independent estimates, Cancel/GDM and remembered reentry. New saved-preset/Hours journey is **314**, outside baseline prerequisites. |
 | Reminders | Existing **312a/312b**, `check_e2e_kiosk_reminder_binding` | C04r renews only changed caller scope. **312** still owns its complete delete/Cancel/reboot history; **311** owns natural notification/fullscreen behavior. |
 | Kiosk information | Existing **185k/234**, `check_e2e_read_restricted_station_about`, case 192 | C04i reuses About/unchanged-return coverage. New What's New content/return journey is **315**, outside baseline prerequisites. |
 | Authentication pause | Shared approval/recipient operations and TIME03 | C04w adds only the 45-second confinement lifetime check on the existing fixed MATE request. E2E-048 retains six complete arithmetic/second-request scenarios and uses the same wait/recipient mechanics; no second pause framework. |
@@ -2345,7 +2346,7 @@ snapshot proof. The [recovery owner](../../tests/README.md#aggregate-output-rete
 retains refusal for an unrecorded live instance unless its exact observed ID is
 explicitly authorized. Exception/cancellation, identity/proof refusal and both
 parallelism inventories passed **959 checks** in
-[the recovery report](../../output/test-runs/host/reports/20261021T213122Z-101d7cde/report.md).
+[the recovery report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Final language/identity/preservation/composition and plan/inventory/coverage/launcher
 checks passed **1,866/1,866** with `--timeout 180s` in
 [the close-out report](../../output/test-runs/host/reports/20261021T215159Z-8b7edde0/report.md).
@@ -2353,6 +2354,64 @@ Both plan `--check` routes and changed-document link checks passed.
 All helpers finished before live work. No product/backend or package-build input
 changed. Other B3 features, the authentication pause, B4 and C05 remain pending;
 this qualification closes no E2E scenario or other queue row.
+
+### C04s existing request-choice renewal
+
+The unchanged shared **012c** and **014** operations passed on both targets:
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_kiosk_valid_duration' integration 'check_e2e_request_flow'`.
+Each independent attempt retained its 1800-second bound and 90-second kiosk
+observation deadlines. The rebuilt kiosk invalidated the old complete caller;
+the older C04f summary does not replace its rotated detailed reentry proof.
+Renewal therefore uses the existing qualifiers, with no new feature binding.
+
+| Target | Valid choices: result / duration | Remembered reentry: result / duration | Retained report |
+| --- | --- | --- | --- |
+| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-wb0rin6f/result.json`; 44 stages / 262.663s | `output/test-runs/privileged/allocations/onpc-graphical-smoke-knv_w5_c/result.json`; 53 stages / 328.941s | [Both attempts](../../output/test-runs/host/reports/20261021T215633Z-9b213821/report.md) |
+| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-7z8dkxi8/result.json`; 44 stages / 289.655s | `output/test-runs/privileged/allocations/onpc-graphical-smoke-4dwpwrvb/result.json`; 53 stages / 353.953s | [Both attempts](../../output/test-runs/host/reports/20261021T215633Z-14eaad00/report.md) |
+
+Public Parent preparation read Riley's daily/grant/total as **900/0/900**.
+`kiosk_valid_duration.PLAN` / `onpc_kiosk_valid_duration::run` independently
+read the 300-second preset with a **1200-second** estimate, exact Custom
+`1.25` Minutes/75 seconds with a **975-second** estimate, the Rest-of-day
+midnight footer, and soft apps included then excluded. Both fixed estimates
+passed the original independent balance/elapsed/precision bounds.
+`request_flow.prepared_request` / `onpc_request_flow::prepare` then used
+Riley/Jamie/75 seconds/soft included, open/default followed by new/selected.
+Both estimates were 975 seconds and the immutable reproduced-choice comparison
+passed after ordinary Cancel/reentry. All three public Cancel/GDM returns per
+target passed; no request was submitted and no authentication or access result
+is claimed. Disabled-child `request_choices` and Parent `allowance_presets`
+remain distinct operations.
+
+All four results bind source SHA-256
+`ce864f89d771745e4ff0fe7259efb1e241c7087db4f0d00402a886d40de5c83d`,
+inventory `756bf5176c3b9d8ff96ee382d6ee1b6327bd072960dcddc8dbedfadc3700855b`
+and worker distribution `a503ce3e922af5c729346e991eed5b7fc4035e273a14c66579e9fbf6f547958e`.
+The ten request-choice/controller/worker source hashes matched the checkout and
+both valid-choice frozen `input/selected-inputs.json` selections. Each result's
+`provenance` and `installed_snapshot` retain exact fixture/environment, baseline,
+package and recipe identities; expected and actual online `onpc-v1.4` inputs
+matched. Ubuntu package SHA-256 is
+`daf2b8805916d1b0eddeb8e608fa3e6df4d475d7d88a1a5176779d52a777d194`
+(content `6137e210d878d1a5d67ce7bca42a30da4eae1a8288afaef1fce96115965526cf`);
+Fedora package/content is
+`29014e5a66b65705d930576501034a166aed485bdd61493220ec3fa4f53c4fdd`.
+Preparation reused matching snapshots with `--overwrite false` and stopped both
+maintenance instances before qualification.
+
+Collection, worker shutdown, callback closure, lease completion, host/source
+preservation and owned baseline restoration passed for all four attempts.
+Public Cancel restored sign-in; the outer baseline restored attempt-owned policy
+and saved choices. Final serial `tools/cleanup-e2e` passed for both canonical
+targets, and independent status reads confirmed both off.
+The four-module request/composition/cleanup selection passed **1,488/1,488**
+with `--timeout 180s` in [the host report](../../output/test-runs/host/reports/20261021T215538Z-673871e6/report.md).
+The final plan/inventory/coverage/composition selection passed **313/313** with
+the same timeout in [the close-out report](../../output/test-runs/host/reports/20261021T220948Z-6ec5ac68/report.md).
+Both plan `--check` routes and changed-document links passed.
+This task changed documentation only. This renews only the
+existing B3 request-choice slice; saved-preset editing, Hours, other B3 scopes,
+B4, complete E2E scenarios and C05 acceptance remain separate.
 
 ### Kiosk, child overlay and the shared request form
 
@@ -2921,6 +2980,10 @@ No complete-scenario credit. Immediate approved exit, overlay outcomes and
 broader request bindings remain pending.
 
 #### Valid kiosk choice qualification
+
+The unchanged finite operation has current both-target evidence in
+[C04s](#c04s-existing-request-choice-renewal); the original qualification below
+retains its historical scope.
 
 `kiosk_valid_duration.PLAN` / `KioskValidDurationJourney` and
 `onpc_kiosk_valid_duration::run` qualified the enabled kiosk's 5-minute preset,
@@ -4361,6 +4424,10 @@ Python state, recorder fixtures and bounded owned Perl doubles, with no shared
 paths, caches, buses, displays or heavy fixture construction.
 
 #### Prepared request qualification
+
+The exact open/default and new/remembered binding was renewed on both targets
+by [C04s](#c04s-existing-request-choice-renewal), including independent estimates,
+reproduced choices and both Cancel/GDM returns, without submission.
 
 `request_flow.daily_station_entry()` and
 `onpc_request_flow::daily_station_entry(journey)` share the preparation used by

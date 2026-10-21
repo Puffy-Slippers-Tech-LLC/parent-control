@@ -61,7 +61,7 @@ rebuilt-candidate pass. C04f qualifies only its exact fixed kiosk operation;
 daily 900 plus request 75 is not the zero-daily downstream journey.
 
 The inserted prerequisites own overlay renewal (C04o), time/app effects (C04p),
-language/pause (C04l), saved presets/units (C04s), shared reminders (C04r), in-app
+language/pause (C04l), existing request choices (C04s), shared reminders (C04r), in-app
 information (C04i), authentication pause (C04w), and composition (C04j).
 They preserve every original C04/C05 obligation. Individual operation passes do
 not establish C05's complete journey; C04j's complete histories are eligible for

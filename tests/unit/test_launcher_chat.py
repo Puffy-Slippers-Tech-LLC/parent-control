@@ -519,6 +519,7 @@ def display_fixture(tmp_path, width=120, height=36, input_mode='chat'):
     display.chat_state = {'session': 1, 'task_session': 1, 'task_id': '001', 'status': 'running'}
     display.task_info = {'task_id': '001', 'explanation': 'Checks the child countdown.'}
     display.update([{'key': 'counter', 'pinned': True, 'lines': ['Tasks: 1/3']},
+                    {'key': 'heading', 'pinned': True, 'lines': ['Controller journey']},
                     {'key': '1', 'lines': ['Task 001: Countdown', 'Session [1]: Writing code']}], [])
     return display, terminal
 
@@ -546,6 +547,48 @@ def test_completed_overview_normalizes_legacy_rows_without_changing_owner_record
     before = terminal.getvalue()
     display.update(steps, [])
     assert terminal.getvalue() == before
+
+
+@pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
+def test_overview_scrolls_all_rows_with_five_row_limit_and_follows_bottom(tmp_path, input_mode):
+    display, terminal = display_fixture(tmp_path, height=60, input_mode=input_mode)
+    steps = [{'key': 'counter', 'pinned': True, 'lines': ['\033[32mTasks: 8/0/8\033[0m']},
+             {'key': 'heading', 'pinned': True, 'lines': ['Controller journey ' * 8]}]
+    steps += [{'key': f'complete-{index}', 'replaces': [str(index)],
+               'lines': [f'Task {index}: Finished work {index} (12m)']}
+              for index in range(1, 9)]
+    display.update(steps, [])
+
+    def overview():
+        return '\n'.join(row[:display.divider_column - 1].plain
+                         for row in display.previous[:display.top_height])
+
+    assert display.top_height == 5
+    assert 'Finished work 4' in overview() and 'Finished work 8' in overview()
+    assert 'Finished work 3' not in overview()
+    assert 'Tasks:' not in overview()
+    display.mouse(64, 2, 1, False)
+    assert display.offsets['top'] == 3
+    assert 'Finished work 1' in overview() and 'Finished work 8' not in overview()
+    for _ in range(3):
+        display.mouse(64, 2, 1, False)
+    assert overview().startswith('Controller journey')  # Wrapped header scrolls too.
+    assert 'Finished work 1' in overview()
+    # Focus the overview, then return to the newest rows through Page Down.
+    display.mouse(0, 2, 1, False)
+    display.mouse(0, 2, 1, True)
+    for _ in range(3):
+        display.handle_input(b'\x1b[6~')
+    assert display.offsets['top'] == 0
+    display.update([*steps, {'key': 'complete-9', 'replaces': ['9'],
+                            'lines': ['Task 9: Newest completion (1m)']}], [])
+    assert 'Newest completion' in overview()
+    assert 'Finished work 4' not in overview()
+    for width, height in ((40, 60), (120, 8), (120, 3), (120, 60)):
+        terminal.resize(width, height)
+        display.draw()
+        assert display.top_height <= 5
+    assert 'Newest completion' in overview()
 
 
 @pytest.mark.parametrize('status,color', zip(TASK_STATUSES, ('#0098ff', '#0098ff', 'yellow', 'green')))
@@ -927,7 +970,7 @@ def test_top_panel_copy_cannot_escape_to_other_panels(tmp_path, side):
     display.handle_input(f'\033[<0;{end_column};36m'.encode())
     copied = copied_text(terminal)
     assert len(copied) == 1
-    assert copied[0].startswith('Tasks: 1/3' if side == 'left' else 'Total Tasks: 1/2/3')
+    assert copied[0].startswith('Controller journey' if side == 'left' else 'Total Tasks: 1/2/3')
     assert '│' not in copied[0]
     assert 'Task 001' not in copied[0]
     assert ('Total Tasks:' if side == 'left' else 'Tasks: 1/3') not in copied[0]
@@ -1118,7 +1161,7 @@ def test_split_drag_resize_and_task_summary_location(tmp_path):
     display.write('Output belongs on the left.\n')
     assert display.divider_column == round((terminal.size.columns - 2) * .75) + 1
     lines = terminal.visible().splitlines()
-    assert lines[0].split('│')[0].strip() == 'Tasks: 1/3'
+    assert lines[0].split('│')[0].strip() == 'Controller journey'
     assert 'Task 001:' not in lines[0]
     assert lines[display.top_height + 1].split('│')[0].strip() == 'Output belongs on the left.'
     assert 'Task 001:' in lines[display.top_height + 1].split('│')[1]
@@ -1473,66 +1516,81 @@ def test_descriptive_pane_scrolls_independently_and_reconnects(tmp_path, input_m
 
 
 @pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
-def test_task_scrollbar_drag_track_and_bottom_button_preserve_fixed_panes(tmp_path, input_mode):
+@pytest.mark.parametrize('pane', ['top', 'bottom'])
+def test_task_scrollbar_drag_track_and_bottom_button_preserve_fixed_panes(tmp_path, input_mode, pane):
     display, terminal = display_fixture(tmp_path, input_mode=input_mode)
+    display.update([*display.steps, *[
+        {'key': f'complete-{index}', 'replaces': [f'done-{index}'],
+         'lines': [f'Task {index}: Finished work {index} (1m)']}
+        for index in range(1000)]], [])
     display.write(''.join(f'output {index}\n' for index in range(1000)))
     if input_mode == 'chat':
         display.handle_input(b'keep my draft')
-    display.offsets['bottom'] = 400
+    display.offsets[pane] = 400
     display.draw()
     before = terminal.visible().splitlines()
-    first, start, thumb, travel, limit = display.scrollbar
+    prefix = 'top_' if pane == 'top' else ''
+    first, start, thumb, travel, limit = getattr(display, prefix + 'scrollbar')
     column = display.divider_column - 1
     assert before[first - 1 + start][column - 1] == '█'
-    assert display.bottom_button == (column, first + display.output_height - 1)
+    height = display.top_height if pane == 'top' else display.output_height
+    assert getattr(display, prefix + 'bottom_button') == (column, first + height - 1)
     display.handle_input(f'\033[<0;{column};{first + start}M'.encode())
-    assert display.scrollbar_grab == 0
-    assert display.offsets['bottom'] == 400
+    assert getattr(display, prefix + 'scrollbar_grab') == 0
+    assert display.offsets[pane] == 400
     # Continue a thumb drag even after the pointer leaves its column/track.
     display.handle_input(b'\033[<32;2;1M')
-    assert display.offsets['bottom'] == limit
+    assert display.offsets[pane] == limit
     after = terminal.visible().splitlines()
-    assert 'output 0' in terminal.visible()
-    assert before[:display.top_height + 1] == after[:display.top_height + 1]
+    assert ('Finished work 0' if pane == 'top' else 'output 0') in terminal.visible()
+    fixed = slice(display.top_height + 1, None) if pane == 'top' else slice(None, display.top_height + 1)
+    assert before[fixed] == after[fixed]
     assert [row[display.divider_column:] for row in before] == [
         row[display.divider_column:] for row in after]
     if input_mode == 'chat':
         assert display.editor.text == 'keep my draft'
         assert before[display.chat_top - 1:] == after[display.chat_top - 1:]
     display.handle_input(b'\033[<0;2;1m')
-    assert display.scrollbar_grab is None
+    assert getattr(display, prefix + 'scrollbar_grab') is None
     display.handle_input(f'\033[<32;{column};{first + travel}M'.encode())
-    assert display.offsets['bottom'] == limit
+    assert display.offsets[pane] == limit
     # Track clicks and the pinned bottom button are separate targets.
     display.handle_input(f'\033[<0;{column};{first + travel}M'.encode())
-    assert display.offsets['bottom'] == 0
+    assert display.offsets[pane] == 0
     display.handle_input(f'\033[<64;2;{first}M'.encode())
-    assert display.offsets['bottom'] == 3
-    column, row = display.bottom_button
+    assert display.offsets[pane] == 3
+    column, row = getattr(display, prefix + 'bottom_button')
     display.handle_input(f'\033[<0;{column};{row}M'.encode())
-    assert display.offsets['bottom'] == 0
+    assert display.offsets[pane] == 0
     assert not terminal.scrollback
 
 
-def test_task_scrollbar_restores_native_selection_and_reflows_on_resize(tmp_path):
+@pytest.mark.parametrize('pane', ['top', 'bottom'])
+def test_task_scrollbar_restores_native_selection_and_reflows_on_resize(tmp_path, pane):
     display, terminal = display_fixture(tmp_path)
+    display.update([*display.steps, *[
+        {'key': f'complete-{index}', 'replaces': [f'done-{index}'],
+         'lines': [f'Task {index}: Finished work {index} (1m)']}
+        for index in range(100)]], [])
     display.write(''.join(f'output {index}\n' for index in range(100)))
-    first, start, *_ = display.scrollbar
+    prefix = 'top_' if pane == 'top' else ''
+    first, start, *_ = getattr(display, prefix + 'scrollbar')
     column = display.divider_column - 1
     display.handle_input(f'\033[<0;{column};{first + start}M'.encode())
-    assert display.scrollbar_grab == 0
+    assert getattr(display, prefix + 'scrollbar_grab') == 0
     display.handle_input(b'\x1bOQ')
     assert not display.mouse_capture
-    assert display.scrollbar_grab is None and display.scrollbar is None
-    assert display.bottom_button is None
+    assert getattr(display, prefix + 'scrollbar_grab') is None
+    assert getattr(display, prefix + 'scrollbar') is None
+    assert getattr(display, prefix + 'bottom_button') is None
     display.handle_input(f'\033[<32;{column};{first}M'.encode())
-    assert display.offsets['bottom'] == 0
+    assert display.offsets[pane] == 0
     display.handle_input(b'\x1bOQ')
-    assert display.mouse_capture and display.scrollbar
+    assert display.mouse_capture and getattr(display, prefix + 'scrollbar')
     terminal.resize(80, 20)
     display.draw()
     assert display.divider_column - 1 != column
-    column, row = display.bottom_button
+    column, row = getattr(display, prefix + 'bottom_button')
     assert row < display.chat_top <= terminal.size.lines
     assert terminal.visible().splitlines()[row - 1][column - 1] == '↓'
     assert not terminal.scrollback

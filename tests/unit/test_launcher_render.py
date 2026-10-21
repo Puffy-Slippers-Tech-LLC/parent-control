@@ -835,7 +835,7 @@ def test_task_overview_is_last_output_including_hidden_summaries(tmp_path, monke
     steps[-1]['lines'] = ['Task 8: Finished work 8 — complete']
     display.update(steps, ['nested test details'])
     display.write('final agent reply without newline')
-    display.offsets['top'] = 3
+    display.offsets['top'] = 1
     display.draw()
     if interactive:
         assert 'Finished work 1' not in stream.visible()

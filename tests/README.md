@@ -1101,21 +1101,15 @@ composer owns Cancel/Escape/Ctrl+C; the output pane has no termination shortcut.
 Pending blocker questions appear above the composer: send a suggested number
 or type your own instructions. Multiple observers share the existing first-answer
 rule. Mouse wheels scroll the panel under the pointer by default.
-`write-e2e` pins `Tasks: x/y/z` above this history: x is tasks completed in this
-launcher runtime, y is unfinished tasks and z is this runtime's task maximum,
-refreshed when another invocation adjusts `--tasks`.
-The counter stays pinned during pane scrolling.
+The top-left overview follows the shared
+[five-row scrolling contract](../docs/Execution-Plans.md#common-launcher-interface)
+and omits the run's `Tasks:` count. The top-right plan totals remain visible.
 Category and session transitions update immediately. Routine overall counts refresh at most
 once every five seconds, while detailed test progress and agent output continue
 in the lower pane. Child output cannot move the cursor into the upper pane.
 
-Ordinary VT terminals have no independent pane scrollback, so the upper pane
-keeps the latest two major steps, with the newest always visible. Consecutive
-steps share an identical leading heading once, retaining their distinct session
-lines; hiding the older step restores the newest step's full heading. Header text
-wraps to the observer's current width; older steps yield space first when the
-terminal shrinks. A terminal too small for even the newest step plus an output
-row clips the header until enlarged. Pipes and dumb
+Overview text wraps to the observer's current width and scrolls within the
+five-row limit, starting at the newest rows. Pipes and dumb
 terminals accumulate plain output. Reconnection restores the latest controller
 steps separately from the output tail. The live panes retain a bounded transcript;
 dashboard redraws and arriving output never enter the shell's scrollback while

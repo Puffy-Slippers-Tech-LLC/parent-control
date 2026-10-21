@@ -305,11 +305,15 @@ rechecking prior evidence and owned cleanup.
 All launchers use the same terminal layout: tasks overview at top left, plan
 totals at top right, execution details and optional input at bottom left, current
 task summary and status/issues at bottom right. Task entries in the
-overview and task summary use bold task labels, such as `Task 4-5c:`; the
-top-left counter also uses bold `Tasks:` with normal-weight numeric counts.
-Its `Tasks: x/y/z` counts use the same colors as the top-right totals:
-completed (`x`) in green, unfinished (`y`) in explicit grey (`#808080`),
-and total (`z`) in the normal text color.
+overview and task summary use bold task labels, such as `Task 4-5c:`.
+The top-left overview is at most five terminal rows high, including wrapped
+lines, and shrinks further in short terminals. All overview content scrolls
+together with the mouse wheel; click it to direct Page Up/Page Down there.
+It reuses the bottom-left panel's scrollbar rendering and controls: a dim track
+and draggable thumb, track clicks, and a pinned **↓** button to return to the
+newest rows. Both panels hide these controls during native terminal selection.
+It starts at the bottom and follows the newest rows until scrolled upward;
+returning to the bottom resumes following. It has no `Tasks:` summary count.
 Completed task entries in the top-left overview start with a green `✓`
 checkmark and use green text.
 The title is followed by one space and the task's elapsed duration in parentheses,
@@ -387,7 +391,8 @@ agent session starts an empty history. Sessions predating this feature leave
 the pane empty; never infer prose by filtering rendered command output.
 Plan/E2E sessions offer conversation input; repair offers input
 for developer decisions; `run-tests` has no agent sessions or composer.
-The top-left `Tasks: x/y/z` counts completed, unfinished and total tasks
+The retained run counter `Tasks: x/y/z`, included in plain output and the exit
+recap, counts completed, unfinished and total tasks
 in this run against the run's task limit; an active task remains unfinished
 until completion. Unfinished is the total minus completed, with a minimum of zero.
 For zero or negative `--tasks`, z is the number completed
@@ -417,11 +422,11 @@ divider resizes both frames together; their dividers stay aligned during draggin
 and terminal resizing. The top-right `Total Tasks: x/y/z` shows completed
 tasks in green, unfinished tasks in explicit grey (`#808080`) and the total in
 the normal text color.
-Both counters use the shared count styling function, overriding retained ANSI
+Displayed counters use the shared count styling function, overriding retained ANSI
 colors so completed and unfinished counts stay distinct.
 These counts cover the plan's entire active queue, excluding deferred future
 work, regardless of `--tasks`. Completed is the accepted completion count from
-the top-left counter plus tasks completed before this run; both counters use
+the retained run counter plus tasks completed before this run; both counters use
 the same budget snapshot. A queue checkbox edited during a session or pending
 Git close-out grants no completion credit in either counter. The total refreshes
 as the active queue changes, and unfinished is total minus accepted completions.

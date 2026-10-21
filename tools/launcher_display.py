@@ -110,6 +110,9 @@ class TaskDisplay(LauncherDisplay):
         self.description_height = 0
         self.description_scrollbar = None
         self.description_grab = None
+        self.top_scrollbar = None
+        self.top_scrollbar_grab = None
+        self.top_bottom_button = None
         self.chat_state = {}
         self.task_info = {}
         self.status_clock = None
@@ -296,6 +299,7 @@ class TaskDisplay(LauncherDisplay):
         super().set_mouse_mode()
         self.selection = None
         self.scrollbar_grab = None
+        self.top_scrollbar_grab = None
         self.description_grab = None
         if not self.mouse_capture:
             self.dragging = None
@@ -390,8 +394,9 @@ class TaskDisplay(LauncherDisplay):
                     self.mouse_capture = not self.mouse_capture
                     self.set_mouse_mode()
                 else:
-                    pane = 'description' if self.focus == 'description' else 'bottom'
-                    height = self.description_height if pane == 'description' else self.output_height
+                    pane = self.focus if self.focus in ('top', 'description') else 'bottom'
+                    height = {'top': self.top_height, 'description': self.description_height,
+                              'bottom': self.output_height}[pane]
                     self.offsets[pane] = max(0, self.offsets[pane] +
                         (max(1, height) if key == navigation[0] else -max(1, height)))
                 continue
@@ -434,6 +439,7 @@ class TaskDisplay(LauncherDisplay):
         if released:
             self.dragging = None
             self.scrollbar_grab = None
+            self.top_scrollbar_grab = None
             self.description_grab = None
         shape = ''
         if over or self.dragging:
@@ -450,11 +456,12 @@ class TaskDisplay(LauncherDisplay):
             self.selection = None
             self.dragging = None
             self.scrollbar_grab = None
+            self.top_scrollbar_grab = None
             self.description_grab = None
-            if self.bottom_button == (column, row):
-                self.offsets['bottom'] = 0
-                self.focus = 'bottom'
-                self.draw()
+        for pane, scrollbar, bottom_button, grab_name in (
+                ('top', self.top_scrollbar, self.top_bottom_button, 'top_scrollbar_grab'),
+                ('bottom', self.scrollbar, self.bottom_button, 'scrollbar_grab')):
+            if self.scrollbar_mouse(pane, scrollbar, bottom_button, grab_name, base, column, row):
                 return
         if base == 32 and self.description_grab is not None and self.description_scrollbar:
             first, start, thumb, travel, limit = self.description_scrollbar
@@ -476,24 +483,7 @@ class TaskDisplay(LauncherDisplay):
                     (thumb + travel - 1 - position) / max(1, thumb + travel - 1))
             self.draw()
             return
-        if base == 32 and self.scrollbar_grab is not None and self.scrollbar:
-            first, start, thumb, travel, limit = self.scrollbar
-            position = min(travel, max(0, row - first - self.scrollbar_grab))
-            if travel:
-                self.offsets['bottom'] = round(limit * (travel - position) / travel)
-                self.draw()
-        elif (base == 0 and self.scrollbar and column == self.divider_column - 1
-              and self.scrollbar[0] <= row < self.scrollbar[0] + self.scrollbar[2] + self.scrollbar[3]):
-            first, start, thumb, travel, limit = self.scrollbar
-            position = row - first
-            self.focus = 'bottom'
-            if start <= position < start + thumb:
-                self.scrollbar_grab = position - start
-            else:
-                self.offsets['bottom'] = round(limit *
-                    (thumb + travel - 1 - position) / max(1, thumb + travel - 1))
-                self.draw()
-        elif base == 0 and over:
+        if base == 0 and over:
             self.dragging = over
             self.draw()
         elif base == 32 and self.dragging and self.size:
@@ -527,6 +517,63 @@ class TaskDisplay(LauncherDisplay):
             delta = 3 if base == 64 else -3
             self.offsets[pane] = max(0, self.offsets[pane] + (-delta if pane in ('summary', 'info') else delta))
             self.draw()
+
+    def scrollbar_controls(self, pane, width, height, first):
+        """Shared left-panel geometry, with a pinned return-to-bottom button."""
+        bottom_button = ((width, first + height - 1)
+                         if self.mouse_capture and height > 0 and width > 1 else None)
+        track_height = height - bool(bottom_button)
+        total = len(self.row_cache[pane][1])
+        scrollbar = None
+        if self.mouse_capture and width > 1 and track_height > 0 and total > height:
+            thumb = max(1, min(track_height, round(track_height * height / total)))
+            travel = track_height - thumb
+            limit = total - height
+            start = round(travel * (limit - self.offsets[pane]) / limit)
+            scrollbar = (first, start, thumb, travel, limit)
+        return scrollbar, bottom_button
+
+    @staticmethod
+    def scrollbar_row(row, width, screen_row, scrollbar, bottom_button):
+        """Paint either left panel's scrollbar and button with identical styling."""
+        row = row.copy()
+        marker, style = '', 'dim'
+        if scrollbar and scrollbar[0] <= screen_row < scrollbar[0] + scrollbar[2] + scrollbar[3]:
+            first, start, thumb, _, _ = scrollbar
+            marker = '█' if start <= screen_row - first < start + thumb else '░'
+        if bottom_button and screen_row == bottom_button[1]:
+            marker, style = '↓', 'bold reverse'
+        content_width = width - bool(marker)
+        row.truncate(content_width, overflow='crop')
+        row.pad_right(max(0, content_width - row.cell_len))
+        if marker:
+            row += Text(marker, style=style)
+        return row
+
+    def scrollbar_mouse(self, pane, scrollbar, bottom_button, grab_name, base, column, row):
+        """Handle button clicks, track clicks and captured thumb drags for either pane."""
+        if base == 0 and bottom_button == (column, row):
+            self.offsets[pane] = 0
+            self.focus = pane
+        elif base == 32 and getattr(self, grab_name) is not None and scrollbar:
+            first, _, _, travel, limit = scrollbar
+            position = min(travel, max(0, row - first - getattr(self, grab_name)))
+            if travel:
+                self.offsets[pane] = round(limit * (travel - position) / travel)
+        elif (base == 0 and scrollbar and column == self.divider_column - 1
+              and scrollbar[0] <= row < scrollbar[0] + scrollbar[2] + scrollbar[3]):
+            first, start, thumb, travel, limit = scrollbar
+            position = row - first
+            self.focus = pane
+            if start <= position < start + thumb:
+                setattr(self, grab_name, position - start)
+            else:
+                self.offsets[pane] = round(limit *
+                    (thumb + travel - 1 - position) / max(1, thumb + travel - 1))
+        else:
+            return False
+        self.draw()
+        return True
 
     def draw(self):
         if not self.tty:
@@ -593,14 +640,20 @@ class TaskDisplay(LauncherDisplay):
         totals = Text(f'Total Tasks: {completed}/{unfinished}/{total}')
         style_task_counts(totals)
         totals.append('\nTotal Duration: ' + total_duration)
-        total_rows = totals.wrap(self.console, right_width, overflow='fold')[:max(0, height - 4)]
+        top_capacity = min(5, max(0, height - 4))
+        total_rows = totals.wrap(self.console, right_width, overflow='fold')[:top_capacity]
         pinned, history = self.overview()
-        top = self.wrapped(pinned, left_width, task_labels=True)[:max(0, height - 3)]
-        room = min(max(0, height // 4 - len(top)), max(0, height - len(top) - 4))
-        top += self.scroll_rows('top', history, left_width, room)
+        # Keep runtime counters in retained output/exit recaps, outside the live
+        # overview. All remaining rows share its bottom-following viewport.
+        overview = [line for line in pinned + history
+                    if not re.match(r'^Tasks: ', clean(line))]
+        top = self.scroll_rows('top', overview, self.output_width(), top_capacity)
         top += [Text('')] * max(0, len(total_rows) - len(top))
+        self.top_scrollbar, self.top_bottom_button = self.scrollbar_controls(
+            'top', left_width, len(top), 1)
         for index, row in enumerate(top):
-            row.pad_right(max(0, left_width - row.cell_len))
+            row = self.scrollbar_row(row, left_width, index + 1,
+                                     self.top_scrollbar, self.top_bottom_button)
             top[index] = row + Text('│', style='#0098ff' if self.dragging else 'dim')
             if index < len(total_rows):
                 top[index] += total_rows[index]
@@ -729,17 +782,8 @@ class TaskDisplay(LauncherDisplay):
         self.chat_bounds = ((3 if boxed else 1, left_width - 2 if boxed else left_width,
                              self.chat_top + 1, min(height, self.chat_top + len(editor_rows)))
                             if self.input_mode == 'chat' and editor_rows and width >= 3 else None)
-        self.bottom_button = ((left_width, self.chat_top - 1)
-                              if self.mouse_capture and self.output_height > 0 and left_width > 1 else None)
-        self.scrollbar = None
-        track_height = self.output_height - bool(self.bottom_button)
-        total = len(self.row_cache['bottom'][1])
-        if self.mouse_capture and left_width > 1 and track_height > 0 and total > self.output_height:
-            thumb = max(1, min(track_height, round(track_height * self.output_height / total)))
-            travel = track_height - thumb
-            limit = total - self.output_height
-            start = round(travel * (limit - self.offsets['bottom']) / limit)
-            self.scrollbar = (len(top) + 2, start, thumb, travel, limit)
+        self.scrollbar, self.bottom_button = self.scrollbar_controls(
+            'bottom', left_width, self.output_height, len(top) + 2)
         divider = Text('─' * width, style='dim')
         if self.input_fd is not None:
             key = 'F2' if self.input_mode == 'chat' else 'F2/m'
@@ -750,29 +794,21 @@ class TaskDisplay(LauncherDisplay):
             divider.append('─' * max(0, width - divider.cell_len))
         rows = top + [divider]
         for index in range(available):
-            row = left[index].copy()
-            if self.scrollbar and index < track_height:
-                _, start, thumb, _, _ = self.scrollbar
-                row.truncate(left_width - 1, overflow='crop')
-                row.pad_right(max(0, left_width - 1 - row.cell_len))
-                row += Text('█' if start <= index < start + thumb else '░', style='dim')
-            if self.bottom_button and index == self.output_height - 1:
-                row.truncate(left_width - 1, overflow='crop')
-                row.pad_right(max(0, left_width - 1 - row.cell_len))
-                row += Text('↓', style='bold reverse')
-            row.truncate(left_width, overflow='crop')
-            row.pad_right(max(0, left_width - row.cell_len))
+            row = self.scrollbar_row(left[index], left_width, len(top) + 2 + index,
+                                     self.scrollbar, self.bottom_button)
             rows.append(row + Text('│', style='#0098ff' if self.dragging else 'dim') + right[index])
         if width < 3:
             # Preserve terminal ownership without emitting over-wide rows.
             rows = [Text('')] * height
             self.bottom_button = None
             self.scrollbar = None
+            self.top_bottom_button = None
+            self.top_scrollbar = None
             self.description_scrollbar = None
         for row in rows:
             row.truncate(width, overflow='crop')
         self.selection_panels = [
-            (1, left_width, 1, self.top_height),
+            (1, self.output_width(), 1, self.top_height),
             (left_width + 2, width, 1, self.top_height),
             (1, self.output_width(), self.top_height + 2,
              self.top_height + 1 + self.output_height),

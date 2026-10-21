@@ -1713,7 +1713,7 @@ An expired report or different provider supplies no acceptance credit.
 | TIME01–04 and TIME03 pause mechanism | **Unchanged stated leaves; missing baseline composition.** `real_interval.wait_real_interval` / `interval_action` supports at most 300 seconds, guarded sleeps at most 250 ms; exact five-second About slice `20260929T212620Z-9ce87d41` is reusable only for that scope. `natural_expiry_observation.await_natural_expiry` has Riley/native two-minute daily-only qualification on both targets; see [TIME04](#natural-enforced-lock-qualification). Neither proves grant-only expiry or an open language/authentication pause. | B2/B4 downstream time; B3 pauses |
 | LANG01: `kiosk_language.PLAN` / `KioskLanguageJourney` → `onpc_request_flow::kiosk_language` / shared `language_selection` | **Qualified fixed Jordan caller and chooser pause.** [C04l](#c04l-kiosk-language-and-human-pause) renewed both targets: en/de/zh-Hans/he Save, Chinese Cancel retaining German, German reentry, unchanged policy/request and guarded TIME03(90) with fresh same-chooser/session/choice proof before Save. Historical Ubuntu `20261004T103336Z-73d60bd2` retains its original immediate-Save scope. This does not qualify Riley's language binding or a different native-prompt locale. | B3 language/chooser slice closed; other feature/authentication-pause scopes remain |
 | Reminders: `kiosk_reminders.PLAN` / `KioskReminderJourney` → `onpc_kiosk_reminders::run` | **Qualified rebuilt caller on both targets.** [C04r](#c04r-shared-reminder-persistence-renewal) renews `check_e2e_kiosk_reminder_binding`: Riley's overlay-created 90-second record, kiosk edit to 75 seconds, same ID in overlay, untouched Jordan defaults, approver isolation and public restored-defaults readback. Historical Ubuntu `20261013T193554Z-2f3ca206` / Fedora `20261013T193554Z-a3336e1b` retain their prior scope. No natural-notification credit. | B3 reminder slice closed; [local matrices](#reminder-controls-and-notification-qualification) remain host UI |
-| About / Preferences: `kiosk_about.E2E_CASES['kiosk']` → `onpc_kiosk_about::run`; `kiosk_preferences_confinement.PLAN` | **Changed kiosk caller; historical installed About qualification needs applicability review.** Tasks 185k/234 recorded installed About and case 192 passes; task 192's separate host metadata exception is unrelated to case 192. Existing About compares product/version and unchanged request, closes About and returns to GDM. Preferences engineering checks only cancel editor drafts and do not prove saved preset persistence. | C04i reuses existing installed About coverage; new general features belong to E2E 314/315 |
+| About / Preferences: `kiosk_about.E2E_CASES['kiosk']` → `onpc_kiosk_about::run`; `kiosk_preferences_confinement.PLAN` | **About operation renewed on both rebuilt targets.** [C04i](#c04i-existing-kiosk-about-renewal) qualifies `restricted_station_about.PLAN` / `check_e2e_read_restricted_station_about`: installed product/version/legal information, external-action absence, unchanged usable request and Cancel/GDM return. Historical tasks 185k/234 and case 192 retain their original scope; task 192's host metadata exception is unrelated. Preferences engineering checks only cancel editor drafts and do not prove saved preset persistence. | B3 About slice closed; new general features belong to E2E 314/315; no renewed complete-case credit |
 | Error report: `kiosk_feedback_confinement.PLAN` → `onpc_kiosk_eligible_choices::run(exchange, 1)`, `AccessibleUI.kiosk_diagnostic_*` | **Changed engineering caller.** `check_e2e_kiosk_feedback_confinement`, Ubuntu `20261014T045241Z-59fdb539` / Fedora `20261014T045835Z-01c47c77`, includes owned broker outage/restoration, unsent draft `Installed kiosk diagnostic qualification.\n`, prepared ZIP/privacy and separate census. It cannot serve as a public baseline request journey or Parent diagnostic download. The report UI and original-cause recovery retain their later C09b/C11b/C12b obligations. | Record feature survival here; engineering renewal stays with its fault/recovery consumer, outside C04u/f |
 | Preset edit/delete persistence, Custom Hours and What's New | **Missing general feature bindings; excluded from kiosk baseline scope.** E2E 314/315 own future installed feature journeys. Keep local value/validation/control combinations in host UI. These features are not C04/C05 readiness prerequisites. | E2E 314/315 only |
 | Complete confinement baseline history | **Missing finite core composition.** Reuse existing operations and separate existing feature evidence; no new general feature matrix belongs in the baseline. | B4 / C04j |
@@ -1745,7 +1745,9 @@ in C04l/C04w; C04j owns B4's core composition. Applicable installed results rema
 required for both targets. C04o/C04p have closed the fixed B1/B2 slices;
 [C04l](#c04l-kiosk-language-and-human-pause) closed B3's Jordan language/chooser
 pause slice, and [C04s](#c04s-existing-request-choice-renewal) renewed its existing
-request choices and remembered reentry. Other B3 scopes and B4 remain open.
+request choices and remembered reentry. [C04r](#c04r-shared-reminder-persistence-renewal)
+and [C04i](#c04i-existing-kiosk-about-renewal) renewed reminders and About.
+B3's authentication pause and B4 remain open.
 Queue insertion itself supplies no readiness, implementation or acceptance credit; C04 must recheck exact
 evidence applicability after the qualifications finish.
 
@@ -1806,7 +1808,7 @@ exact matching evidence without closing E2E rows or duplicating feature mechanic
 | Kiosk language | Existing **300h/300j**, `check_e2e_kiosk_language` | [C04l qualified both targets](#c04l-kiosk-language-and-human-pause), reusing Jordan's binding with the bounded initial chooser wait and fresh identity proof. No new Riley language suite. |
 | Request choices | Existing **012c**, `check_e2e_kiosk_valid_duration`; **014**, `check_e2e_request_flow` | [C04s renewed both targets](#c04s-existing-request-choice-renewal): existing presets/custom Minutes/rest-of-day/soft choices, independent estimates, Cancel/GDM and remembered reentry. New saved-preset/Hours journey is **314**, outside baseline prerequisites. |
 | Reminders | Existing **312a/312b**, `check_e2e_kiosk_reminder_binding` | C04r renews only changed caller scope. **312** still owns its complete delete/Cancel/reboot history; **311** owns natural notification/fullscreen behavior. |
-| Kiosk information | Existing **185k/234**, `check_e2e_read_restricted_station_about`, case 192 | C04i reuses About/unchanged-return coverage. New What's New content/return journey is **315**, outside baseline prerequisites. |
+| Kiosk information | Existing **185k/234**, `check_e2e_read_restricted_station_about`, case 192 | [C04i renewed both targets](#c04i-existing-kiosk-about-renewal): installed information, external-action absence and unchanged usable request after ordinary About close. No renewed case 192 credit. New What's New content/return journey is **315**, outside baseline prerequisites. |
 | Authentication pause | Shared approval/recipient operations and TIME03 | C04w adds only the 45-second confinement lifetime check on the existing fixed MATE request. E2E-048 retains six complete arithmetic/second-request scenarios and uses the same wait/recipient mechanics; no second pause framework. |
 | Failure recovery and repeated access | Shared rejected/cancelled/approved requests and public effect comparisons | C04j makes a thin confinement core composition. **088/089**, E2E-048 and E2E-049 keep their own finite complete histories; no case is closed by a baseline pass. |
 | Baseline acceptance | C04j's complete core history plus applicable existing feature checks | C04 audits readiness; C05u/f reuse matching evidence. Feature matrices are not replayed in that core history, and unchanged complete histories are not rerun for new task labels. |
@@ -2297,8 +2299,8 @@ passed all **89 stages on each target**. Each independent attempt retained its
 
 | Target | Result / report under `output/test-runs/` | Attempt / measured pause |
 | --- | --- | --- |
-| `onpc-Ubuntu26.04` | `privileged/allocations/onpc-graphical-smoke-b4qgcoq2/result.json`; [report](../../output/test-runs/host/reports/20261021T213306Z-531dbaae/report.md) | 979.296s / 90.067674s |
-| `onpc-Fedora44` | `privileged/allocations/onpc-graphical-smoke-rj9z5pqr/result.json`; [report](../../output/test-runs/host/reports/20261021T213306Z-fa74e0b6/report.md) | 958.003s / 90.066818s |
+| `onpc-Ubuntu26.04` | `privileged/allocations/onpc-graphical-smoke-b4qgcoq2/result.json`; [report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) | 979.296s / 90.067674s |
+| `onpc-Fedora44` | `privileged/allocations/onpc-graphical-smoke-rj9z5pqr/result.json`; [report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) | 958.003s / 90.066818s |
 
 This renews the existing Jordan (`existing-fixture-child`) binding: Jamie
 approver, 1800-second preset, soft choice false, zero daily/grant/total and
@@ -2491,6 +2493,66 @@ Changes are test/documentation only, outside package/build inputs; no product
 build is required. This closes only B3's existing reminder slice, without E2E
 312's broader deletion/reboot history, E2E 311 delivery/fullscreen behavior,
 other B3/B4 work or complete-scenario/C05 acceptance.
+
+### C04i existing kiosk About renewal
+
+The rebuilt session invalidated the old complete entry/exit caller; tasks
+185k/234's Ubuntu-only evidence could not supply current both-target acceptance.
+The unchanged `restricted_station_about.PLAN` / `RestrictedStationAboutJourney`
+and `onpc_restricted_station_about::run` passed through
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_read_restricted_station_about'`.
+Each attempt retained its 1800-second bound and 90-second kiosk observations.
+
+| Target | Retained result | Stages / duration | Retained report |
+| --- | --- | --- | --- |
+| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-adkqdu2j/result.json` | 41 / 270.349s | [Ubuntu attempt](../../output/test-runs/host/reports/20261021T224921Z-a4f3e123/report.md) |
+| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-ksn6ufa2/result.json` | 41 / 291.048s | [Fedora attempt](../../output/test-runs/host/reports/20261021T224921Z-5684bf17/report.md) |
+
+Both histories refused Parent as a kiosk About entry, saved Riley's 15-minute
+allowance and independently read daily/grant/total 900/0/900. Passwordless kiosk
+entry selected Riley/Jamie, Custom `1.25` Minutes (75 seconds) and soft apps
+included, with a 975-second estimate. The owned About exposed product/version
+1.4, website/privacy/support/license/legal information and copyright as plain
+information, with external actions absent from the complete public inventory.
+Ordinary About close returned to one usable request with the captured choices,
+enabled Request/Cancel and the same estimate; `unchanged_form` passed before
+normal Cancel and independent GDM return. No request authentication or grant occurred.
+
+Both results bind source SHA-256
+`3de32eb9fdaaeacd4a2864d587dab33f3a0bcf27d8effdcf42ca8e6087f715a0`,
+inventory `756bf5176c3b9d8ff96ee382d6ee1b6327bd072960dcddc8dbedfadc3700855b`
+and worker distribution `4a17ba9cfded1d3d16a5905d2d03a2a091dd23fb4486511ee84017ba2c0d2eb3`.
+Their complete caller input maps agree; the About selector, plans, facade,
+observer, request comparisons and Perl worker/close hashes match the checkout.
+Per-VM source-bound inputs use package-source digest
+`c605f6015816741e7a6054342a4b24dbc4783e540049d5c3eb1a275cfc2e87f5`.
+Expected and actual online `onpc-v1.4` snapshot identities agree on each target.
+Ubuntu package SHA-256 is
+`daf2b8805916d1b0eddeb8e608fa3e6df4d475d7d88a1a5176779d52a777d194`
+(content `6137e210d878d1a5d67ce7bca42a30da4eae1a8288afaef1fce96115965526cf`);
+Fedora package/content is
+`29014e5a66b65705d930576501034a166aed485bdd61493220ec3fa4f53c4fdd`.
+Matching snapshots were reused with `--overwrite false`; both preparation
+instances stopped before qualification. Final documentation edits change no
+candidate package, caller, provider, input or assertion.
+
+Collection, worker shutdown, callback closure, completed lease, source/host
+preservation and owned baseline restoration passed on both targets. Serial
+final `tools/cleanup-e2e` passed and independent status reads confirmed both off.
+The focused information/return and installed-journey safety selection passed
+**1,294/1,294** with `--timeout 180s` in the
+[host report](../../output/test-runs/host/reports/20261021T224812Z-742a1203/report.md).
+No executable or package input changed; no product build or backend review is
+required. This closes only B3's existing About operation, without renewed case
+192, What's New, other B3/B4 or C05 acceptance.
+
+The final consistency selection passed **313/313** with `--timeout 180s` in
+[the close-out report](../../output/test-runs/host/reports/20261021T225544Z-10c3434d/report.md).
+Both read-only plan checks select C04w. Two rotated C04l report links now resolve
+to its stable accepted-evidence locator: the verified 4,572-file bundle
+`onpc-evidence-bundle-0u6mgx1y` retains its accepted result and exact per-target
+results, inputs and cleanup. The original report files are absent; no original
+result, scope, timing or completion claim changed.
 
 ### Kiosk, child overlay and the shared request form
 
@@ -6017,7 +6079,9 @@ run `20260926T202755Z-941af41f`. Independent station entry, wrong Parent entry
 refusal, offered information, external-action absence, preserved 75-second
 custom request/soft-app choices, normal Cancel/GDM return, private collection,
 owned cleanup and baseline restoration passed. This is capability acceptance.
-Adapter, worker, return-comparison and controller regressions are maintained in
+The [C04i renewal](#c04i-existing-kiosk-about-renewal) supplies this same operation
+on both rebuilt targets. Adapter, worker, return-comparison and controller
+regressions are maintained in
 `test_e2e_kiosk_valid_duration.py` and `test_installed_journey_cleanup_safety.py`.
 
 Complete E2E-042 case 192 composes `kiosk_about.PLAN` / `onpc_kiosk_about::run`

@@ -130,9 +130,9 @@ class Store:
 
     @contextmanager
     def inspection(self, *, include_committed=False):
-        """Pin a finished owner for read-only inspection without rotating it."""
-        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
-            with self.locked(fd, 'writer.lock', publication=include_committed):
+        """Share finished-owner reads while excluding mutation and rotation."""
+        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False, shared=True):
+            with self.locked(fd, 'writer.lock', publication=include_committed, shared=True):
                 state = self.read(fd)
                 finished_owner(fd, state)
                 if include_committed:
@@ -311,13 +311,14 @@ class Store:
             os.close(fd)
 
     @contextmanager
-    def locked(self, fd, name, *, blocking=True, transfer=False, publication=False):
+    def locked(self, fd, name, *, blocking=True, transfer=False, publication=False, shared=False):
         lock = os.open(name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
                        0o600, dir_fd=fd)
         try:
             private(os.fstat(lock), regular=True)
             try:
-                fcntl.flock(lock, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+                mode = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
+                fcntl.flock(lock, mode | (0 if blocking else fcntl.LOCK_NB))
             except BlockingIOError as error:
                 raise ValueError('retention: another owner is active') from error
             _locks.add(lock)

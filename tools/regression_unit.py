@@ -1461,6 +1461,8 @@ def buckets(nodeids):
 # ZIP files, descriptors and synchronous metadata/failure doubles. They start no
 # subprocess, VM, network, display or service and mutate no shared cache/path;
 # evidence_bundle and test_retention remain compatible with reviewed unit work.
+# Overlapping bundle/retention readers use independent descriptors on those same
+# private locks, with synchronous reentry and no threads or shared resources.
 # Accepted-plan publication and historical-reference recovery use bounded private
 # ZIP/Markdown/checkpoint trees and process-local interruption/identity doubles.
 # Every descriptor closes in its owner; there is no live launcher, VM, network,

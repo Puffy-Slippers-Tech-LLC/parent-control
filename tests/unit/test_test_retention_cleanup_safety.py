@@ -57,6 +57,33 @@ def publication_allocation(transaction, tmp_path):
     return path
 
 
+@pytest.mark.parametrize('include_committed', [False, True])
+def test_inspections_overlap_but_exclude_writers_until_last_reader_exits(
+        tmp_path, include_committed):
+    store, originals = export_fixture(tmp_path)
+    journal = (store.path / 'current.json').read_bytes()
+    peer = retention.Store(store.path)
+    with store.inspection(include_committed=include_committed) as first:
+        with peer.inspection(include_committed=include_committed) as second:
+            assert first == second
+            # Independent descriptors exercise the same flock conflicts as
+            # separate artifact-reader processes, without timing or sleeps.
+            for name in ('owner.lock', 'writer.lock'):
+                with store.opened() as fd, pytest.raises(ValueError, match='another owner'):
+                    with peer.locked(fd, name, blocking=False):
+                        pytest.fail('writer admitted during overlapping inspection')
+        with pytest.raises(ValueError, match='another owner'):
+            with peer.publication(projected_bytes=0):
+                pytest.fail('publication admitted before the last reader exited')
+        assert all(path.exists() for path in originals)
+        assert (store.path / 'current.json').read_bytes() == journal
+    with peer.publication(projected_bytes=16384) as transaction:
+        published = publication_allocation(transaction, tmp_path)
+        transaction.commit()
+    assert not originals[0].exists()
+    assert published.exists() and all(path.exists() for path in originals[1:])
+
+
 def test_publication_failure_preserves_three_exports_then_commit_rotates(tmp_path):
     store, originals = export_fixture(tmp_path)
     original = (store.path / 'current.json').read_bytes()

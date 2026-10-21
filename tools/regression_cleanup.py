@@ -27,6 +27,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # journals, files, local locks and synchronous interruption/metadata doubles. All
 # descriptors close in their fixture; no process, VM, service, cache or shared
 # path is added, so its existing compatible cleanup classification remains valid.
+# Overlapping inspection probes retain only fixture-private lock descriptors;
+# synchronous reentry adds no process or shared resource in either inventory.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch; test_test_retention_cleanup_safety remains compatible in both inventories.
 # Batch-input transfer coverage adds paired private journals/local locks and

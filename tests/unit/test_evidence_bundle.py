@@ -130,6 +130,24 @@ def evidence(tmp_path, monkeypatch):
                            allocate=allocate, select=select, publish=publish, inspect=inspect)
 
 
+def test_bundle_reads_overlap_without_rejecting_another_reader(evidence, monkeypatch):
+    source = evidence.allocate({'report.md': b'passed\n', 'cleanup.json': b'{"complete":true}'})
+    output = evidence.publish([source])['path']
+    inspect_record = bundle.inspect_record
+    nested = []
+
+    def overlapping_read(record, uid, **options):
+        # The outer inspection already holds the journal locks. Reenter through
+        # the public reader with independent descriptors before it releases them.
+        monkeypatch.setattr(bundle, 'inspect_record', inspect_record)
+        nested.append(evidence.inspect(output, member=str(source / 'cleanup.json')))
+        return inspect_record(record, uid, **options)
+
+    monkeypatch.setattr(bundle, 'inspect_record', overlapping_read)
+    assert evidence.inspect(output, member=str(source / 'report.md')) == b'passed\n'
+    assert nested == [b'{"complete":true}']
+
+
 def test_multiple_allocations_preserve_exact_bytes_manifest_and_sources(evidence):
     first = evidence.allocate({'results.json': b'{"passed":true}\n',
                                'nested/junit.xml': b'<testsuite/>\x00\xff'})

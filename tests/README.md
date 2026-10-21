@@ -1580,7 +1580,10 @@ of authorized historical disclosures. This does not change ordinary session or
 export limits, adopt foreign evidence, or excuse missing detailed proof.
 
 Multi-file evidence uses `Store.inspection()` and `Store.publication()` in the
-same export journal, with the same three-run/4-GiB limits. Publication registers
+same export journal, with the same three-run/4-GiB limits. Read-only inspections
+share ownership and journal locks, allowing concurrent bundle reads while
+excluding writers, publication and cleanup until the last reader exits.
+Publication registers
 one empty staging allocation before writing, measures existing plus projected
 output before allocation, and checks actual simultaneous usage before commit.
 It leaves the previous journal and every existing export unchanged on precommit

@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C03b — [Reconcile approval and broker host tests](Kiosk-Prompt-Tasks/C03b-approval-tests.md)**.
+Next task: **C03 — [Finish shared-form and host automation alignment](Kiosk-Prompt-Tasks/C03-host-ta.md)**.
 
 ## Outcome
 

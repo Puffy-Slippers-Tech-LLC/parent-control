@@ -707,7 +707,7 @@ Host acceptance passed **2,473 checks** in the exact sixteen-module Fedora/nativ
 PAM, login, runtime-cap, session-limit, PAM-variation, configuration/removal,
 provisioning, package input/payload/activation/RPM, confinement, unit-inventory
 and support-architecture selection, with a 600-second worker deadline. The
-[focused report](../../output/test-runs/host/reports/20261021T032330Z-69e68dad/report.md)
+[focused report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 and its inventories/progress record all selected cases passing, with compatible
 overlap across four branches. Ordinary-role authentication, genuine denial,
 ownership, rollback and selected entry/exit assertions remain intact. Usability
@@ -729,10 +729,76 @@ the original labels and claims; predecessor status and acceptance are unchanged.
 Close-out passed **639 metadata checks** in the maintained consistency selection
 and `test_execution_plan_launcher.py`, with a 600-second worker deadline and
 completed cleanup; see the
-[close-out report](../../output/test-runs/host/reports/20261021T032651Z-21ef168d/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Only C03a is newly checked, its temporary brief is removed and the pointer selects
 C03b with 49 tasks remaining. Every other row's completion, relative order,
 Scope and Requires is unchanged.
+
+##### C03b approval and broker host-test reconciliation
+
+C03b started from clean HEAD
+`95ca30710300616920eee1e9511005143c2cd151`: no staged, unstaged or
+untracked old-plan test/fixture delta existed. The C01 approval consumer map and
+C02b1/C02b caller chain were audited against the current authorizer, broker,
+service dispatch and shared request orchestration. Paths without a directory
+prefix below are under `tests/unit/`.
+
+| Items | Disposition and surviving behavior |
+| --- | --- |
+| `test_core.py` | Retain wrong-role/target and selected-approver checks, genuine approval, denied/cancelled attempts without cooldown, account/preference revalidation, grant arithmetic, policy transactions and rollback. Both request surfaces cover departure during usage, preflight and every reversible snapshot, fresh authentication, no pre-admission writes/termination, and once-only admitted completion. |
+| `test_broker_properties.py`, `test_broker_state_machine.py` | Retain independent grant arithmetic, policy normalization and two-child grant/policy isolation. The state machine uses the shared scoped approval double; it requires no discarded receipt. |
+| `test_service_contract.py`, `tests/component/test_private_dbus_service.py` | Retain authenticated bus identity, caller-derived child target, direct public signatures, safe worker error translation, transport cancellation and disconnect liveness. Transport cancellation and broker no-grant assertions remain distinct layers. |
+| `tests/component/test_authorization_lifecycle.py` | Retain real Gio/GLib lifecycle handling with private logind/Polkit doubles, selected identity/action, lock/session/disconnect cancellation, late-result refusal, bounded kiosk agent startup, final effect admission and post-admission completion/rollback. Extend final-session and sessionless positive/disconnect checks to both kiosk and child callers. Authentication outcome checks now assert unchanged policy after refusal, fresh genuine approval without cooldown, distinct checks and exactly one grant. |
+| `test_request_time_estimate.py`, `test_request_selections.py`, `test_kiosk_model.py` | Retain frozen submission inputs, single-flight requests, single-use async stages, silent cancellation, late/stale result rejection and destruction guards for kiosk and overlay. Agent locale/readiness remains a real feature dependency; C-only fallback work stays with its declared receiving task. |
+| `tests/component/test_broker_startup.py`, `test_systemd_unit.py`, the two authorization/startup-log cases in `test_parent_main.py` | Retain broker publication/readiness, optional failure diagnostics, role-checked startup and agent/service composition. No private-view receipt or discarded confinement readiness is required. |
+| `tests/support/broker.py`, `tests/support/dbus.py` | Retain the single shared scoped `Authorizer`/`Approval` double and recording D-Bus adapters unchanged. Current mocks already implement direct calls, single-use admission and disposal; no duplicate compatibility mock or obsolete protocol fixture remains to port/delete. |
+
+No required behavior assertion, fixture or registration was removed. Existing
+controller/request tests bind the current feature lifecycle rather than an old
+view protocol; unrelated test-controller credential proofs are preserved.
+The bounded unit-audit worker found no additional repair and is closed.
+**Usability priority: passed; Threat scope: passed** for this reconciliation:
+positive approval/sessionless controls remain, genuine denial is authoritative,
+and no new product refusal or protection requirement is introduced.
+
+Resource review covers the existing private buses, in-memory account/policy
+doubles and fixture-owned bounded worker threads. Added parameters run under
+the same fixture and release/join route; they introduce no mutable shared path,
+cache, external service, process, socket, display, storage or cleanup owner.
+The existing component admission and compatible unit classifications remain
+applicable; unit-inventory and support-architecture checks passed. Cleanup/UI
+inventories gain no owner. Only tests and documentation changed, outside
+`PACKAGE_SOURCE_FILES` and build-tool dependencies; neither package builds nor
+independent backend review is required.
+
+Host acceptance passed with no declared targets: **1,239 unit and 128 component
+checks passed**, all with explicit 600-second worker deadlines. After the audit
+worker closed, the combined final
+[acceptance/close-out report](../../output/test-runs/host/reports/20261021T033251Z-141cf0f0/report.md)
+passed **2,006 checks**, including those same acceptance inputs and all **639
+metadata checks**. It records the exact ten-module core, broker property/state-machine,
+service, request estimate/selection/model, systemd, support-architecture and
+unit-inventory selection (1,237 checks), with compatible overlap across four
+branches; the two `ParentWindowTests` authorization/startup-log cases; the
+authorization-lifecycle, private-D-Bus-service and broker-startup component
+modules; and the four maintained consistency modules plus
+`test_execution_plan_launcher.py`. All original and expanded assertions passed.
+These host results
+grant no installed qualification; C04 retains installed-helper/public-journey work.
+
+All test commands returned success after owned scratch cleanup. The audit
+worker is closed; no task-owned VM, installed state, temporary source artifact
+or live process remains. Normal runner reports are retained. No installation,
+staging, commit or push occurred. Only C03b is newly checked, its temporary brief
+is removed and the pointer selects C03. Every other row's completion, relative
+order, Scope and Requires is unchanged.
+
+C03a's two report destinations above now use the stable accepted-proof locator
+after the maintained bundle reader verified both exact original reports, the
+2,473/2,473 and 639/639 results, matching command record, accepted result and
+completed cleanup in `onpc-evidence-bundle-d8w6g8r6` (SHA-256
+`35fd01cf050fdce9284e18eec3db5c1b400d9db5f57ebf4a2f99aefa21a1ce9b`).
+Only destinations changed; predecessor status and acceptance claims are preserved.
 
 ##### C02a prepared session runtime
 

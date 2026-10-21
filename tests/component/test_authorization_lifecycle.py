@@ -349,6 +349,8 @@ def test_unobservable_session_fails_closed_without_prompt(lifecycle, fault):
 @pytest.mark.parametrize("surface", ("child", "kiosk"))
 @pytest.mark.parametrize("outcome", ("approved", "denied", "cancelled", "agent-lost"))
 def test_authentication_outcomes_and_selected_identity_are_preserved(lifecycle, surface, outcome):
+    baseline = (lifecycle.accounts.limit_type, lifecycle.accounts.daily_limit,
+                lifecycle.accounts.filter, lifecycle.accounts.extension)
     pending = lifecycle.start(surface)
     spin_until(lambda: lifecycle.authorities.checks)
     subject, action, details, flags, _cancel_id = lifecycle.authorities.checks[0]["parameters"]
@@ -365,6 +367,24 @@ def test_authentication_outcomes_and_selected_identity_are_preserved(lifecycle, 
     spin_until(lambda: pending["done"])
     assert pending["result"][1] == ("denied" if outcome == "agent-lost" else outcome)
     assert lifecycle.authorities.cancellations == []
+    if outcome == "approved":
+        assert lifecycle.accounts.filter == (False, ("org.example.Game",))
+        assert lifecycle.accounts.extension[1] == 300
+        assert sum(event[0] == "set_extension" for event in lifecycle.accounts.events) == 1
+    else:
+        assert lifecycle.accounts.events == []
+        assert (lifecycle.accounts.limit_type, lifecycle.accounts.daily_limit,
+                lifecycle.accounts.filter, lifecycle.accounts.extension) == baseline
+        # A refusal must leave both the transaction slot and success cooldown
+        # available for a genuinely new check on the same requesting surface.
+        fresh = lifecycle.start(surface)
+        spin_until(lambda: len(lifecycle.authorities.checks) == 2)
+        assert (lifecycle.authorities.checks[0]["parameters"][4] !=
+                lifecycle.authorities.checks[1]["parameters"][4])
+        lifecycle.authorities.reply(authorized=True)
+        spin_until(lambda: fresh["done"])
+        assert fresh["result"][1] == "approved"
+        assert sum(event[0] == "set_extension" for event in lifecycle.accounts.events) == 1
 
 
 @pytest.mark.parametrize("surface", ("child", "kiosk"))
@@ -457,17 +477,22 @@ def test_kiosk_lock_cancels_active_challenge_after_agent_retry(lifecycle):
     assert lifecycle.accounts.events == []
 
 
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
 @pytest.mark.parametrize("no_display", (False, True))
-def test_sessionless_agent_can_authenticate_and_disconnect_still_cancels(lifecycle, no_display):
+def test_sessionless_agent_can_authenticate_and_disconnect_still_cancels(
+        lifecycle, surface, no_display):
     lifecycle.authorities.sessionless = not no_display
     lifecycle.authorities.fallback = no_display
     lifecycle.authorities.no_display = no_display
-    pending = lifecycle.start()
+    pending = lifecycle.start(surface)
     spin_until(lambda: lifecycle.authorities.checks)
-    close_connection(lifecycle.caller)
+    close_connection(lifecycle.caller if surface == "child" else lifecycle.kiosk)
     spin_until(lambda: pending["done"])
-    assert pending["result"][1:] == ("cancelled", 0)
+    assert pending["result"][1] == "cancelled"
+    if surface == "child":
+        assert pending["result"][2] == 0
     assert len(lifecycle.authorities.cancellations) == 1
+    assert lifecycle.accounts.events == []
 
 
 @contextmanager
@@ -548,13 +573,15 @@ def test_postauthentication_disconnect_cannot_apply_approval(lifecycle, monkeypa
     assert authority.cancellations == []
 
 
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
 @pytest.mark.parametrize("trigger", ("display-replaced", "display-invalidated", "display-restored",
                                      "snapshot-error", "monitor-lost", "lock-at-final-read"))
-def test_final_admission_keeps_original_session_and_fails_closed(lifecycle, monkeypatch, trigger):
+def test_final_admission_keeps_original_session_and_fails_closed(
+        lifecycle, monkeypatch, surface, trigger):
     authority = lifecycle.authorities
     authority.fallback = True
     with pause_operation(monkeypatch, lifecycle.broker._timer_usage, "query_usage_as") as (entered, release):
-        pending = lifecycle.start("kiosk")
+        pending = lifecycle.start(surface)
         spin_until(lambda: authority.checks)
         authority.reply(authorized=True)
         spin_until(entered.is_set)
@@ -613,13 +640,18 @@ def test_admitted_request_completes_once_or_rolls_back_after_departure(
                                                1001, 1003, 300, True)
 
 
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
 @pytest.mark.parametrize("no_display", (False, True))
-def test_sessionless_child_approval_retains_bus_agent_compatibility(lifecycle, no_display):
+def test_sessionless_approval_retains_bus_agent_compatibility(lifecycle, surface, no_display):
     lifecycle.authorities.sessionless = not no_display
     lifecycle.authorities.fallback = no_display
     lifecycle.authorities.no_display = no_display
-    pending = lifecycle.start()
+    pending = lifecycle.start(surface)
     spin_until(lambda: lifecycle.authorities.checks)
     lifecycle.authorities.reply(authorized=True)
     spin_until(lambda: pending["done"])
-    assert pending["result"][1:] == ("approved", 300)
+    assert pending["result"][1] == "approved"
+    if surface == "child":
+        assert pending["result"][2] == 300
+    assert lifecycle.accounts.extension[1] == 300
+    assert sum(event[0] == "set_extension" for event in lifecycle.accounts.events) == 1

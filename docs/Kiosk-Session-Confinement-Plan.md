@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C03 — [Finish shared-form and host automation alignment](Kiosk-Prompt-Tasks/C03-host-ta.md)**.
+Next task: **C04a — [Reconcile installed-system confinement cases](Kiosk-Prompt-Tasks/C04a-system-ta.md)**.
 
 ## Outcome
 

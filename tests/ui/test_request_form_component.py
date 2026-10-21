@@ -282,24 +282,10 @@ def test_shared_rest_of_day_choice_submits_zero_seconds(
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_responsive_form_accepts_semantic_selection_and_submission(
-        launch_ui, wait_for_accessible_state, tmp_path, overlay):
-    import gi
-    gi.require_version("Atspi", "2.0")
-    from gi.repository import Atspi
-    from tests.support.automation import Automation
-
-    _application, path = launch_request(launch_ui, tmp_path, overlay=overlay,
-                                       wait_for_application=False)
-    ui = Automation(Atspi, lambda: Atspi.get_desktop(0), owner_pids=launch_ui.owner_pids,
-                    application_ids=launch_ui.application_ids,
-                    application_owners=launch_ui.application_owners,
-                    complete_read_wait=wait_for_accessible_state)
-    wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
-                              "request surface publishes its controls")
-    wait_for_accessible_state(
-        lambda: ui.state("kiosk-request-submit", Atspi.StateType.SENSITIVE),
-        "loaded request controls",
-    )
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    ui, wait = request_ui, wait_for_accessible_state
+    path = open_request(launch_ui, tmp_path, ui, wait, overlay=overlay)
+    ready(ui, wait)
     ui.activate("kiosk-duration-300")
     ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"

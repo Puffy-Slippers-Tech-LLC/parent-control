@@ -54,11 +54,12 @@ empty-list save, then one reboot with both request screens and the other child's
 unchanged reminders and language. Local editing details belong to
 `test_language_settings.py::test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list`
 and `test_language_settings.py::test_reminder_creation_validation_and_candidate_translation`.
-These cover default ordering, edited literal text and trigger description,
-Save/Cancel/empty-list behavior on both surfaces, minute/second duplicate refusal
-and German candidate descriptions. Post-edit ordering, no synthetic custom
-preset, and German descriptions alongside unchanged literal custom text/request
-choices remain pending local assertions; this allocation claims no new test pass.
+These cover default and post-edit ordering, edited literal text and trigger
+description, Save/Cancel/empty-list behavior without synthetic reminder
+presets, minute/second duplicate refusal, and German candidate descriptions
+alongside unchanged literal custom text and request choices on both surfaces.
+The [C03 host verification](../SystemDesign/Kiosk-Confinement.md#c03-shared-form-and-cumulative-host-automation-alignment)
+grants no installed acceptance.
 These details need no additional two-child journey or restart. Actual countdown
 warning delivery remains with [task 311](E2E-Tasks/311-remaining-time-notifications.md).
 

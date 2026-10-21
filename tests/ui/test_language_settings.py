@@ -394,6 +394,7 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, surface, language='en')
     wait(lambda: ui.showing('kiosk-language-ready'), 'saved language ready')
+    duration_choices = ui.getChoices('kiosk-duration-choices')
     ui.reader.open_language_preferences('kiosk')
     assert ui.find('preferences-tabs').getChoices() == ['language', 'reminders', 'presets']
     assert ui.getValue('preferences-tabs') == 'language'
@@ -413,9 +414,12 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
     ui.activate('reminder-editor-save')
     assert ui.getText('reminder-five-minutes-text') == '  Save <work>!  '
     assert ui.getText('reminder-five-minutes-trigger') == '30 seconds left'
+    assert ui.getChoices('reminder-list') == [
+        'fifteen-seconds', 'five-minutes', 'one-minute', 'ten-minutes']
     ui.activate('reminder-ten-minutes-delete')
     ui.activate('language-continue')
     wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'preferences saved')
+    assert ui.getChoices('kiosk-duration-choices') == duration_choices
     records = [e for e in read_events(path) if e['event'] == 'notifications-committed']
     assert len(records) == 1 and records[0]['uid'] == 1001
     assert records[0]['settings']['show_in_fullscreen'] is False
@@ -440,6 +444,7 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
     assert not ui.state('reminder-fullscreen-row', ui.api.StateType.SENSITIVE)
     ui.activate('language-continue')
     wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'empty list saved')
+    assert ui.getChoices('kiosk-duration-choices') == duration_choices
     ui.reader.open_language_preferences('kiosk')
     ui.setValue('preferences-tabs', 'reminders')
     wait(lambda: ui.showing('reminder-add') and ui.state('reminder-add', ui.api.StateType.SENSITIVE), 'empty list loaded')
@@ -448,11 +453,19 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
     assert_no_policy_or_request_writes(path)
 
 
+@pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
 def test_reminder_creation_validation_and_candidate_translation(
-        launch_ui, automation, wait_for_accessible_state, tmp_path):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
     ui, wait = automation, wait_for_accessible_state
-    path = launch_language(launch_ui, tmp_path, 'overlay', language='en')
+    path = launch_language(launch_ui, tmp_path, surface, language='en')
     wait(lambda: ui.showing('kiosk-language-ready'), 'startup ready')
+    ui.setValue('kiosk-duration-choices', 'custom')
+    ui.setText('kiosk-custom-duration', '2.5')
+    ui.setValue('kiosk-soft-apps-toggle', True)
+    request_choices = {identity: ui.getValue(identity) for identity in (
+        'kiosk-child-selector', 'kiosk-approver-selector',
+        'kiosk-duration-choices', 'kiosk-soft-apps-toggle')}
+    duration_choices = ui.getChoices('kiosk-duration-choices')
     ui.reader.open_language_preferences('kiosk')
     ui.setValue('preferences-tabs', 'reminders')
     wait(lambda: ui.state('reminder-add', ui.api.StateType.SENSITIVE), 'backend reminders loaded')
@@ -497,13 +510,24 @@ def test_reminder_creation_validation_and_candidate_translation(
     reminders = ui.find('reminder-list').getValue()
     added = next(r for r in reminders if r['id'].startswith('reminder-'))
     assert added == {**added, 'value': 2, 'unit': 'minute', 'text': ''}
+    ui.activate('reminder-five-minutes-edit')
+    ui.setText('reminder-text', '  Save <work>!  ')
+    ui.activate('reminder-editor-save')
     ui.setValue('preferences-tabs', 'language')
     ui.activate('language-choice-de')
     ui.setValue('preferences-tabs', 'reminders')
     assert ui.getText(f"reminder-{added['id']}-text") == 'Noch 2 Minuten'
     assert ui.getText(f"reminder-{added['id']}-trigger") == 'Noch 2 Minuten'
+    assert ui.getText('reminder-five-minutes-trigger') == 'Noch 5 Minuten'
+    assert ui.getText('reminder-five-minutes-text') == '  Save <work>!  '
     assert ui.text('reminder-add') == 'Hinzufügen'
+    assert {identity: ui.getValue(identity) for identity in request_choices} == request_choices
+    assert ui.getText('kiosk-custom-duration') == '2.5'
+    assert ui.getChoices('kiosk-duration-choices') == duration_choices
     ui.activate('language-cancel')
+    assert {identity: ui.getValue(identity) for identity in request_choices} == request_choices
+    assert ui.getText('kiosk-custom-duration') == '2.5'
+    assert ui.getChoices('kiosk-duration-choices') == duration_choices
     assert not [e for e in read_events(path) if e['event'] == 'notifications-committed']
     assert not committed(path)
 

@@ -67,9 +67,9 @@ in `tests/ui/test_language_settings.py`. Preserve these functional assertions:
 - German candidate-language checks translate default text and trigger
   descriptions while retaining literal custom text and request choices.
 
-Existing local tests cover parts of this matrix; remaining assertions stay
-pending with that owner. These checks need no additional two-child history or
-restart and do not qualify the installed route or claim live acceptance.
+The named local tests implement this matrix on both request surfaces. These
+checks need no additional two-child history or restart and do not qualify the
+installed route or claim live acceptance.
 
 This journey covers saved preference persistence and Cancel. Native notification delivery,
 fullscreen urgency, natural countdown and upgrade persistence remain in

@@ -774,7 +774,7 @@ independent backend review is required.
 Host acceptance passed with no declared targets: **1,239 unit and 128 component
 checks passed**, all with explicit 600-second worker deadlines. After the audit
 worker closed, the combined final
-[acceptance/close-out report](../../output/test-runs/host/reports/20261021T033251Z-141cf0f0/report.md)
+[acceptance/close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 passed **2,006 checks**, including those same acceptance inputs and all **639
 metadata checks**. It records the exact ten-module core, broker property/state-machine,
 service, request estimate/selection/model, systemd, support-architecture and
@@ -799,6 +799,83 @@ after the maintained bundle reader verified both exact original reports, the
 completed cleanup in `onpc-evidence-bundle-d8w6g8r6` (SHA-256
 `35fd01cf050fdce9284e18eec3db5c1b400d9db5f57ebf4a2f99aefa21a1ce9b`).
 Only destinations changed; predecessor status and acceptance claims are preserved.
+
+##### C03 shared-form and cumulative host automation alignment
+
+C03 started from clean HEAD
+`a467f60977c103f163b38c74d935022b78a0239d`: no staged, unstaged or
+untracked old-plan additions remained. The C01 preservation/consumer maps and
+C03a1/C03a/C03b dispositions were checked against current unit, component and
+UI owners, shared fixtures and registrations. Paths below are checkout-relative;
+unit filenames without a directory prefix are under `tests/unit/`.
+
+| Coverage family | Current disposition and surviving behavior |
+| --- | --- |
+| Shared request controls | `tests/ui/test_request_form_component.py`, `test_request_layout.py`; `test_kiosk_model.py`, `test_request_selections.py`, `test_request_time_estimate.py` retain both kiosk and overlay parameters, fixed overlay identity, per-child selections, units/presets/custom validation, soft-app choice, estimates, readiness, single-flight requests, denied/cancelled outcomes and safe idle/result/success exits. The responsive-form case now reuses the same `request_ui`, launch and readiness helpers as its siblings instead of constructing another automation client. |
+| Language and personal preferences | `tests/ui/test_language_settings.py` retains first-run/session defaults, Save/Cancel, selected-child language, translated public text/errors, draft preservation and read/save retry. Reminder and preset editing retain independent saved readback. Both reminder surfaces now check exact post-edit ordering, absence of a synthetic reminder preset, unchanged request-duration choices, and German trigger/default descriptions alongside exact literal custom text and retained request choices. No E2E row or installed qualification is closed by these local assertions. |
+| Notifications | The same language suite covers critical literal/default previews and the real private host notification provider, including unsaved edits. `test_preferences.py` and `test_e2e_kiosk_notification_wellbeing.py` retain schema and shared journey contracts. Actual child countdown delivery, native service integration and persistence remain installed obligations. |
+| What's New, About and feedback | `test_whats_new.py`, language-suite child notes, `tests/ui/test_about_release.py`, the overlay About shared reader, focused `test_error_feedback.py`, and the shared feedback language/draft case retain language gating, acknowledgement, metadata availability, restricted kiosk actions, error redaction, drafts and mode-specific exits. Feedback HTTP and reboot callbacks remain test doubles; no report is submitted and the host is never rebooted. |
+| Artwork, startup observations and human pauses | `test_kiosk_rendering.py` retains main artwork/cache and startup observations; paint timing has no approval vote. `test_request_time_estimate.py` checks `GLib.MAXINT` on both approval calls and delayed/stale asynchronous stages, preserving the absence of a frontend human-authentication deadline. Public session logout retains its exit-action deadline, not an idle deadline. Missing stylesheet and C-only native locale fallback remain the explicit C09a implementation gaps from C01b; current asset tests do not claim those fallbacks already work. |
+| Host fixture/import/registration closure | The 21 native-runtime modules and five helpers removed by C02d remain absent, with no host imports or registrations. C03a's PAM/account/package fixtures retain ordinary authentication, ownership, migration, rollback and removal; old filenames in previous-version manifests are finite migration data. C03b retains direct public request signatures, selected-parent authority, session/disconnect cancellation and once-only grant effects. No unused compatibility fixture or alternate confinement protocol was found. One unused identity-suite import was removed. |
+
+This completes the cumulative host map, not the installed-helper audit. The
+remaining mechanism-specific host doubles have live installed consumers:
+`test_kiosk_confinement.py:census_model` imports
+`tests/integration/system_kiosk_confinement.py`;
+`test_e2e_kiosk_feedback_confinement.py` follows
+`tests/e2e/kiosk_feedback_confinement.py` through
+`tests/integration/system_kiosk_feedback.py:feedback_census` to that census;
+`test_guest_inputs.py` retains the helper in the installed input closure.
+The C01c installed engineering/worker map assigns these producers, their host
+doubles, copied workers and frozen input definitions to C04a together. They are
+mapped surviving consumers, not orphan host tests or acceptance of discarded
+private graph assertions. C04b/u/f retain public-operation mapping and renewed
+qualification; unchanged callable names and these host results confer none.
+
+Resource review covers the existing private preview processes, displays/buses,
+pytest event files and in-memory broker/agent doubles. The extra kiosk parameter
+uses the same fixture lifetime and owned cleanup; no new process, mutable shared
+path/cache, service, storage or cleanup owner is introduced. The existing unit,
+cleanup and UI inventories remain appropriate; no module is added or left in
+unreviewed fallback. All changes are tests/documentation outside
+`PACKAGE_SOURCE_FILES` and build-tool dependencies. No package build or independent
+backend review is required. **Usability priority: passed; Threat scope: passed**
+for this host reconciliation: no product refusal or protection is introduced,
+and required normal-use, cancellation and genuine-denial assertions remain.
+
+C03b's report destination now uses the stable accepted-proof locator after the
+maintained bundle reader verified its exact original report, accepted result,
+1,239 unit/128 component/639 metadata scope, command record and completed cleanup
+in `onpc-evidence-bundle-ysivxqf3` (SHA-256
+`1356a5f75f596e1a227fb1cf17fa70edca251596a4a868a27e222a9620fd5fd7`).
+The label and acceptance claims remain unchanged; no predecessor is re-executed
+or newly checked by this destination-only retention repair.
+
+Host acceptance passed with no declared targets: **1,239 unit and 202 UI checks**
+in the [focused report](../../output/test-runs/host/reports/20261021T033844Z-8b8d01a7/report.md).
+Its inventories retain the exact ten-module unit selection, complete request
+component/layout/language modules and focused feedback, identity, preview,
+About and draft-preservation cases. All kiosk/overlay parameters, including the
+four changed reminder cases, passed. Worker deadlines were 600 seconds for units
+and 1,800 seconds for UI; compatible branches overlapped under the maintained
+scheduler. The run finished successfully after 26.4 minutes and owned scratch,
+preview and private-session cleanup. Host controls grant no installed result.
+
+Both helper agents finished before acceptance. Coverage generation succeeded
+after the UI owner released its checkout lock; inventory counts reflect current
+collection, not additional executed checks. Normal reports remain retained;
+no task-owned installed state, VM, temporary source or live process remains.
+No installation, staging, commit or push occurred. Unrelated concurrent changes
+and their worktree remain outside this task's owned paths. Only C03 is newly
+checked, its temporary brief is removed and the pointer selects C04a. Every other
+row's completion, relative order, Scope and Requires remains unchanged.
+
+Close-out passed **639 metadata checks** in the four maintained host consistency
+modules plus `test_execution_plan_launcher.py`, with a 600-second worker deadline
+and completed cleanup; see the
+[close-out report](../../output/test-runs/host/reports/20261021T040636Z-202b3281/report.md).
+Coverage generation, Markdown links, plan structure and the final diff check
+passed. Both acceptance reports remain retained.
 
 ##### C02a prepared session runtime
 

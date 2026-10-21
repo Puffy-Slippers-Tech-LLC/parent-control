@@ -2,7 +2,6 @@
 
 import pytest
 
-from tests.e2e.accessible_ui import public_automation_id
 from tests.support.automation_ids import audit_product_controls
 
 pytestmark = pytest.mark.ui

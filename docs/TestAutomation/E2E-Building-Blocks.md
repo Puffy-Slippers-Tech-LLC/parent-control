@@ -1658,6 +1658,100 @@ decoder, worker-order and recorder checks plus
 `test_preview_smoke.py::test_public_policy_legend_full_read_and_unchanged_choices`
 cover the shared mechanics. Complete case 184 has its own acceptance under task 226.
 
+### C04b baseline operation applicability
+
+This is the host binding audit for the rebuilt
+[C02 candidate](../SystemDesign/Kiosk-Confinement.md#c02-activated-session-baseline),
+after the [C04a caller port](../SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions).
+The [finite baseline recipe](E2E-Scenario-Recipes.md#c04b-baseline-public-use-slice)
+owns values, order and public assertions. This section owns operation applicability
+and gaps. It grants no installed pass, new selector or scenario readiness.
+Existing inventory IDs, executables and historical results remain unchanged.
+In particular, a retained `ready` label below is not qualification of a changed
+complete caller on the rebuilt candidate.
+
+Classification: **unchanged** identifies only the stated reusable leaf and exact
+historical scope; **changed** requires renewed installed qualification;
+**missing** has no complete implemented/qualified binding. Historical report IDs
+identify the original scope, not newly verified retained proof. Before reusing
+one, verify its retained result, complete caller/producer bytes, package inputs,
+provider tuple, assertions and cleanup under the
+[evidence contract](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
+An expired report or different provider supplies no acceptance credit.
+
+| Binding / complete caller route | Classification and exact evidence boundary | Next owner |
+| --- | --- | --- |
+| REQUEST01/03: `kiosk_entry.PLAN` / `KioskEntryJourney`; `journey_blocks.station_entry` → `onpc_gdm::enter_station` → public owned form | **Changed.** `check_e2e_kiosk_entry`, historical `20260921T184544Z-62e716ef`, covered Ubuntu disabled-child passwordless entry. C02 replaces runtime/PAM/session lifetime; C04a changes the separate census to session identity only. Neither that census nor the old entry result qualifies current usable entry. | C04u, then C04f |
+| REQUEST03–09 / FLOW04: `request_flow.prepared_request` → `onpc_request_flow::prepare`; `AccessibleUI.select_kiosk_account`, `kiosk_valid_choice`, `RequestObservation` | **Changed complete kiosk caller.** Historical `check_e2e_request_flow`, `20260926T050310Z-aef4320a`, binds Riley/Jamie, open/default then new/selected, 75 seconds, soft included, daily 900/grant 0 and estimate 975. Choice leaves retain their API contract; entry/locale/session dependencies need renewal. Valid choice history `20260926T043102Z-88f3a4f2` additionally covers 300 seconds, Rest of day and soft true/false, without authentication. It does not cover preset editing or Hours. | C04u/f for the fixed approval inputs; other feature bindings are gap B3 |
+| AUTH01/02, REQUEST11/12, FLOW05/06: `kiosk_approval.PLAN`, `kiosk_approved_flow.approved_request` / `obtain_time` → `onpc_request_flow::approve` / `obtain_time` → `onpc_password::enter_kiosk_mate_password` | **Changed.** Fixed Riley/Jamie/75-second/soft-included MATE proof, two fresh same-challenge recipient checks, one submission, explicit success then GDM. Historical approval `20261003T195605Z-9520133b`; FLOW05/06 `20260926T162146Z-b021e65a`, regression `20261001T125510Z-18d567bf`. Ubuntu tuple: MATE `1.26.1-6`, `en_US.UTF-8`, `xkb/us`. C02 agent/broker cancellation boundaries invalidate whole-operation reuse. FLOW06 ends at GDM, without child entry. `kiosk_approval.PLAN` has no independent public grant read. | C04u/f must extend the same shared qualification with an independent public grant result; no C05 journey credit |
+| FLOW07: `approval_flow.rejected_request` → `onpc_request_flow::reject`; `kiosk_rejection.PLAN` | **Changed.** Historical `check_e2e_approval_flow`, `20260926T175707Z-78d5f0fd`, and rejection `20260926T154532Z-4ed66f34` bind the same child/parent/75 seconds/soft true, explicit wrong-password rejection and separate password-free Cancel, preserved usable no-error form, then a fresh correct request. They do not independently prove no grant or unchanged app access. | Fixed cancellation/identity guards with C04u/f; public negative effects are B4 |
+| REQUEST12 / reentry: cases 47/48/49, `kiosk_cancel.PLAN`, `kiosk_escape.PLAN`, `kiosk_approved.PLAN`; `onpc_kiosk_cancel::run`, `onpc_kiosk_escape::run`, shared request exit/approval | **Changed.** Historical case 47 `20260926T051531Z-576edf40`, case 48 `20260926T052659Z-8144eb94`, case 49 `20261001T124720Z-77d15a97`. Normal API Cancel/close and immediate/automatic approved exits must renew current session shutdown/GDM results. Case 49 alone adds fresh child/countdown: daily 900 + request 75, expected 975, precision 1 second, elapsed at most 180 seconds. It proves no soft/hard app effect. | C04u/f operation exits; B4 full reentry/repeated-request composition |
+| Shared overlay REQUEST02–09 / AUTH01/02 / FLOW04/05/07: `journey_blocks.overlay_entry`, `request_flow.prepared_request(surface='overlay')`, `overlay_approved_request`, `overlay_rejected_request` → `onpc_request_flow::overlay_*` | **Changed approval caller** through C02b1/b shared broker/form cancellation; kiosk MATE evidence cannot qualify Shell. Historical Shell Cancel `20261003T194901Z-f8ac692b` (Ubuntu Shell `50.1-0ubuntu1.2`), approval `20261008T051602Z-bcc96b27`, rejection `20261008T050819Z-ffdb973c` (`50.1-0ubuntu1.3`), English/US, fixed Riley/Jamie/75/soft true. Command entry and fixed-child reads remain reusable leaf contracts, not renewal of the approval caller. | Independent surface gap B1 before C04 readiness; outside C04u/f's paired kiosk operation |
+| FLOW01/02/16, FLOW03 and Allowed FLOW08: `onpc_parent::set_allowance`, `policy_edits.policy_edit` / `onpc_app_rows::edit_policy`, `app_launch.PLAN` / `onpc_app_launch::run` | **Unchanged leaf scope only.** FLOW16 zero/15-minute `20260926T210708Z-8962d2d1`, fresh 30-minute `20260926T211055Z-daafbf03`; FLOW03 currently accepts only fixture A's match/access edits. Case 80 Allowed/native-command/30-minute Jordan then unaffected Riley: Ubuntu `20261011T014639Z-c50a592c`, Fedora `20261011T014639Z-eda36595`. Reuse only verified exact policy/Allowed-use leaves; current PAM entry and different Riley policy, H/S target edits or temporary-access effects are not supplied. | B2 supplies the missing finite target/denial bindings; no rerun of unrelated Allowed route matrices |
+| TIME01–04 and TIME03 pause mechanism | **Unchanged stated leaves; missing baseline composition.** `real_interval.wait_real_interval` / `interval_action` supports at most 300 seconds, guarded sleeps at most 250 ms; exact five-second About slice `20260929T212620Z-9ce87d41` is reusable only for that scope. `natural_expiry_observation.await_natural_expiry` has Riley/native two-minute daily-only qualification on both targets; see [TIME04](#natural-enforced-lock-qualification). Neither proves grant-only expiry or an open language/authentication pause. | B2/B4 downstream time; B3 pauses |
+| LANG01: `kiosk_language.PLAN` / `KioskLanguageJourney` → `onpc_request_flow::kiosk_language` / shared `language_selection` | **Changed entry/locale caller.** `check_e2e_kiosk_language`, Ubuntu `20261004T103336Z-73d60bd2`, binds Jordan, en/de/zh-Hans/he Save, Chinese Cancel retaining German, German reentry and unchanged policy/request. Initial observation immediately saves; no human wait. This does not qualify Riley's language binding or a different native-prompt locale. | B3 finite public feature/pause slice |
+| Reminders: `kiosk_reminders.PLAN` / `KioskReminderJourney` → `onpc_kiosk_reminders::run` | **Changed complete entry/exit caller; unchanged editing leaves.** `check_e2e_kiosk_reminder_binding`, Ubuntu `20261013T193554Z-2f3ca206` / Fedora `20261013T193554Z-a3336e1b`, binds Riley's overlay-created 90-second record, kiosk edit to 75 seconds, same ID in overlay, untouched Jordan defaults and approver isolation. No natural-notification credit. | B3 renew affected caller; [local matrices](#reminder-controls-and-notification-qualification) remain host UI |
+| About / Preferences: `kiosk_about.E2E_CASES['kiosk']` → `onpc_kiosk_about::run`; `kiosk_preferences_confinement.PLAN` | **Changed kiosk caller, missing installed About qualification.** Case 192 is the historical host-only exception, not an installed pass. It compares current product/version and unchanged 75-second request, closes About and returns to GDM. Preferences engineering checks only cancel editor drafts and read session-only census; they do not prove saved presets/reminders. | B3 public feature qualification; no blanket engineering substitute |
+| Error report: `kiosk_feedback_confinement.PLAN` → `onpc_kiosk_eligible_choices::run(exchange, 1)`, `AccessibleUI.kiosk_diagnostic_*` | **Changed engineering caller.** `check_e2e_kiosk_feedback_confinement`, Ubuntu `20261014T045241Z-59fdb539` / Fedora `20261014T045835Z-01c47c77`, includes owned broker outage/restoration, unsent draft `Installed kiosk diagnostic qualification.\n`, prepared ZIP/privacy and separate census. It cannot serve as a public baseline request journey or Parent diagnostic download. The report UI and original-cause recovery retain their later C09b/C11b/C12b obligations. | Record feature survival here; engineering renewal stays with its fault/recovery consumer, outside C04u/f |
+| Preset edit/delete persistence, Custom Hours, What's New and complete baseline history | **Missing installed binding.** No registered baseline selector or complete public operation caller covers these together with genuine approval/downstream use. Keep local value/validation/control combinations in host UI; do not invent a C-series selector or turn an absent operation into ready status. | B3/B4; C04 must refuse readiness |
+
+#### Baseline qualification gaps and first consumers
+
+These are explicit blockers of **C04's baseline-readiness gate**, not blockers
+of this host mapping task. C04u/f renew only their paired kiosk entry/approval
+operation, including its selected-child/parent, cancellation, independent grant
+and owned exit guards. They must suspend for a prerequisite if their actual
+work requires an independent operation below. Do not silently absorb these
+gaps, modify future queue rows here or transfer another plan's completed status.
+When the first consumer is selected, use the master's
+[prerequisite insertion contract](../Kiosk-Session-Confinement-Plan.md#task-boundaries)
+for bounded implementation and required both-target live qualification.
+
+| Gap | Finite return condition before C04 can declare C05 runnable |
+| --- | --- |
+| B1 — shared overlay | Renew fixed Riley/Jamie/75-second/soft-included command entry, Shell approval, wrong-password and password-free Cancel, preserved choices and original-desktop return on both targets. Reuse shared request operations; no second approval implementation. |
+| B2 — policy and downstream effects | Extend actual shared policy operations beyond fixture A to declared H/S identities and public denial observations. Qualify S usable/H denied after genuine inclusion, S denied after revocation, and correct-child time/expiry results. Native fixtures have distinct executable bytes but share primary GUI IDs; establish collision-free public instance binding before simultaneous A/S use. FLOW08 Allowed use is not denial, and TIME04 daily-only is not grant-only expiry. |
+| B3 — features and human waits | Register finite language, preset/unit, reminder and in-app information bindings from the recipe. Add guarded 90-second unset-language and 45-second authentication pauses; read preserved choices/destination independently afterward and acquire new secret-recipient proofs after the wait. No startup deadline includes human time. Existing five-second About qualification alone does not qualify these waits. |
+| B4 — baseline composition | Register a finite public composition covering zero-daily grant/use/restriction, separate denial and Cancel with no grant, exit/reentry and a fresh successful request after session switching; include B1 where shared code changed. FLOW19/FLOW20 and cases 34/36 remain pending; cases 47–52 cover only parts. Fixed single-use approval challenge names cannot be replayed for repeated requests. Preserve every existing stable case assertion; no forced fitting into an unrelated scenario or new ready selector without implementation. |
+
+Current bound cases 47–52 use `record_installed_journey(..., timeout=1800)`.
+`AccessibleUI` operation deadlines are 90 seconds in kiosk and 45 otherwise;
+recipient proofs are fresh for less than 30 seconds. Existing estimate comparisons
+allow at most 600 seconds from the earlier public balance; case 49's countdown
+allows only 180. Pause composition must schedule fresh reads/proofs within these
+original bounds, rather than broadening them or treating timeout as denial.
+Every future live attempt must retain exact package/source/inventory/assets and
+provider inputs, public assertions, original failure, collection, worker/callback
+shutdown, lease completion and owned baseline restoration. No VM, installation,
+generated input or artifact cleanup was performed by this host audit.
+
+#### C04b host acceptance
+
+The map and complete-callers audit passed the maintained five-module
+plan/inventory/coverage/composition/launcher selection: **639/639 checks**, with
+600-second collection/worker deadlines, in
+[report 20261021T052803Z-5119cd1c](../../output/test-runs/host/reports/20261021T052803Z-5119cd1c/report.md).
+Runner listing confirms cases 44–49 keep their exact executables and
+1800-second budgets; cases 34/36 and FLOW19/FLOW20 remain pending.
+No inventory/collection source changed, so coverage regeneration is unnecessary.
+After queue close-out, the same **639/639** checks passed again in
+[report 20261021T053028Z-8503050b](../../output/test-runs/host/reports/20261021T053028Z-8503050b/report.md).
+The plan check selects C04u; changed-document links and the diff check pass.
+
+Two read-only operation/feature audits and the final independent Sol caller
+review found no remaining actionable mismatch. The final map explicitly bounds
+downstream work by positive remaining grant time and records the real feedback
+worker dispatch. **Usability priority: passed; Threat scope: passed** for this
+host map only. No new restriction, confinement proof or installed readiness is
+claimed. C04u/f receive changed entry/approval plus independent grant-result
+requirements; B1–B4 remain explicit blockers of C04 readiness.
+
+Both helpers are joined/closed; maintained test children and owned scratch
+cleanup finished. No task-owned VM, installed state, temporary source or live
+process remains. Reports and pre-existing `.worktrees/` are preserved. Only
+documentation changed; no package build or core-backend review applies. No
+installation, staging, commit, push or other workflow execution occurred.
+
 ### Kiosk, child overlay and the shared request form
 
 One shared set of form blocks takes `surface = overlay | kiosk`. Child selection

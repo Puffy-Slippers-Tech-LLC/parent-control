@@ -52,15 +52,13 @@ def test_shell_only_suppression_client_update_still_needs_session_renewal():
 
 @pytest.mark.parametrize('name', ['kiosk_preparation_input.py', 'kiosk_view_receipt.py',
                                  'kiosk_preparation_service.py'])
-def test_preparation_support_is_included_in_the_manager_reboot_boundary(tmp_path, name):
-    support = Path('usr/libexec/oh-no-parent-control-kiosk-support')
-    installed = tmp_path / support / name
-    installed.parent.mkdir(parents=True)
-    installed.write_text('old preparation support')
+def test_removed_preparation_support_retains_its_recorded_impact(tmp_path, name):
     old, new = tmp_path / 'old.json', tmp_path / 'new.json'
-    generate(tmp_path, old, includes=[support])
-    installed.write_text('updated preparation support')
-    generate(tmp_path, new, includes=[support])
+    old.write_text(json.dumps({'version': 1, 'files': [{
+        'path': f'usr/libexec/oh-no-parent-control-kiosk-support/{name}',
+        'sha256': 'a' * 64, 'activation': 'reboot',
+    }]}))
+    generate(tmp_path, new, includes=[])
     assert changed_impacts(old, new) == ['reboot']
 
 
@@ -814,7 +812,6 @@ class PackageActivationTests(unittest.TestCase):
         )
 
     def test_login_profiles_activate_on_the_next_pam_transaction(self):
-        self.assertEqual(activation_for("usr/share/oh-no-parent-control/gdm-presession"), "reboot")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             pam = root / "usr/share/pam-configs/oh-no-parent-control-session-limits"

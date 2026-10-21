@@ -315,8 +315,8 @@ The saved preference is configuration, not proof of the next command. The
 required final execution boundary constrains the caller's later exec even if
 GDM's save fails or its selected command changes after the preference check.
 Validation against a supported GDM/greeter must include the actual final execution.
-The retained legacy [PreSession hook](../../data/gdm3/PreSession/Default) is only
-compatibility defense for GDM versions that invoke it; GDM 50 does not invoke it.
+The historical PreSession hook (`data/gdm3/PreSession/Default`, removed by C02e)
+was only compatibility defense for GDM versions that invoke it; GDM 50 does not invoke it.
 Session preference, the account's shell and that obsolete hook are insufficient
 to confine a graphical GDM login. Local routing diagnostics are described in
 [Logging](Logging-and-Feedback.md#kiosk-admission-diagnostics).
@@ -324,7 +324,8 @@ The product Polkit rule denies the station changing its own AccountsService
 metadata. These layers complement the kiosk compositor and disabled XDG
 autostart files; hiding desktop controls is not the account confinement mechanism.
 
-The [confinement integration](../../packaging/kiosk_confinement.py) prepends an
+The historical confinement integration (`packaging/kiosk_confinement.py`, removed
+by C02e) prepended an
 account integrity check and appends a required final session gate to
 `gdm-password` and `systemd-user`. It records exact original/owned PAM bytes,
 validates included session control flow, and refuses drift or rules which could

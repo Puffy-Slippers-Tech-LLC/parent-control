@@ -60,7 +60,7 @@ This is a **high-risk integration area**. The Cinnamon sources cited here are de
 
 ### LightDM and the request kiosk
 
-The existing kiosk uses a GNOME session declared with `Kiosk=true`, GNOME user service targets, a GDM pre-session hook, and a kiosk account login check that recognizes GDM-specific authentication. Relevant implementation: [session definition](../data/gnome-session/sessions/oh-no-parent-control.session), [kiosk application service](../data/systemd/user/oh-no-parent-control-app.service), [GDM hook](../data/gdm3/PreSession/Default), and [login check](../tools/oh-no-parent-control-login-check).
+The existing kiosk uses a GNOME session declared with `Kiosk=true`, GNOME user service targets, and a kiosk account login check that recognizes GDM-specific authentication. Relevant implementation: [session definition](../data/gnome-session/sessions/oh-no-parent-control.session), [kiosk application service](../data/systemd/user/oh-no-parent-control-app.service), and [login check](../tools/oh-no-parent-control-login-check). The obsolete GDM PreSession hook has been removed.
 
 Keeping GNOME Kiosk as a dedicated request session under LightDM is a plausible option. LightDM supports Wayland session discovery and privileged session setup and cleanup hooks. Those capabilities justify a feasibility test; they do not prove this application's GNOME session starts and shuts down correctly there. [LightDM configuration interfaces](https://github.com/canonical/lightdm/blob/main/data/lightdm.conf).
 

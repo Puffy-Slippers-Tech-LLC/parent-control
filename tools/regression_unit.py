@@ -885,8 +885,8 @@ from regression_ui import Bucket
 # pytest files. They introduce no display, bus, VM, socket or shared cache owner.
 # DESK07 recipient proofs retain those doubles, waited Perl probes and private
 # recorder files; no live session, display, socket or shared resource is added.
-# kiosk_confinement retains private legacy-package/PAM fixtures and installed
-# engineering helpers under C02e/C04 ownership. Its native feature checks compile
+# kiosk_confinement retains finite historical migration inputs and installed
+# engineering helpers under C04 ownership. Its native feature checks compile
 # two tiny private binaries and redirect exec to a private observer; compiler
 # and probe children are bounded and waited. Process-local NSS, command, policy,
 # proc/audit and descriptor doubles retain existing compatible unit scheduling.
@@ -916,7 +916,7 @@ from regression_ui import Bucket
 # and rollback fixtures keep their owned files under tmp_path. Compatible unit
 # scheduling applies; cleanup and UI inventories gain no ownership mechanism.
 # Prepared lifecycle composition reuses package_configuration's private package
-# tree and real legacy state producer. Its NSS/home-owner/native-policy doubles
+# tree and finite historical snapshots. Its NSS/home-owner/native-policy doubles
 # are process local; advisory leases, cache xattrs and faulted durable writes use
 # only tmp_path. One bounded source-list child is waited; no host PAM, shadow,
 # AccountsService cache/service, bus, display or shared process is touched.

@@ -1134,8 +1134,11 @@ def test_prepared_lifecycle_removed_manifest_members_keep_existing_activation(tm
              'usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf']
     old = tmp_path / 'previous.json'
     new = tmp_path / 'candidate.json'
+    # These are the old package's recorded impacts, independent of today's
+    # classifier for a payload that no longer includes the retired framework.
     old.write_text(json.dumps({'version': 1, 'files': [dict(path=path, sha256='a' * 64,
-                   activation=module['activation_for'](path)) for path in paths]}))
+                   activation='none' if 'accounts-daemon.service.d' in path else 'reboot')
+                   for path in paths]}))
     new.write_text('{"version":1,"files":[]}')
     assert module['changed_impacts'](old, new) == ['reboot']
 
@@ -1811,7 +1814,7 @@ def test_configuration_retires_only_the_owned_failed_kiosk_manager(package_machi
 
 
 @pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
-@pytest.mark.parametrize('failure', ['confinement', 'broker', 'query', 'reset'])
+@pytest.mark.parametrize('failure', ['lifecycle', 'broker', 'query', 'reset'])
 def test_kiosk_failed_state_recovery_preserves_configuration_retry(package_machine, failure):
     root, state, run = package_machine
     failed = root / 'kiosk-manager-failed'
@@ -1821,12 +1824,12 @@ def test_kiosk_failed_state_recovery_preserves_configuration_retry(package_machi
     previous = state / 'previous-package-activation.json'
     previous.write_text('original activation comparison\n')
     result = run(**{
-        'confinement': {'CONFINEMENT_STATUS': '7'},
+        'lifecycle': {'LIFECYCLE_COMMIT_STATUS': '7'},
         'broker': {'BROKER_STATUS': '8'},
         'query': {'KIOSK_QUERY_STATUS': '10'},
         'reset': {'KIOSK_RESET_STATUS': '9'},
     }[failure])
-    assert result.returncode == {'confinement': 7, 'broker': 1, 'query': 10, 'reset': 9}[failure]
+    assert result.returncode == {'lifecycle': 7, 'broker': 1, 'query': 10, 'reset': 9}[failure]
     assert failed.exists()
     assert (state / 'package-activation-pending').exists()
     assert previous.read_text() == 'original activation comparison\n'

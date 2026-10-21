@@ -58,12 +58,6 @@ prepare_package_notice() {
     rm -f /run/oh-no-parent-control-package-configuration-complete
 }
 
-# @pam_restore@
-    pam-auth-update --package \
-        --disable malcontent \
-        --enable oh-no-parent-control-session-limits \
-        --enable oh-no-parent-control-kiosk-only </dev/null
-
 # @broker_policy@
     broker_policy_status=0
     broker_policy_helper="${DPKG_ROOT:-}/usr/sbin/policy-rc.d"
@@ -107,39 +101,6 @@ prepare_package_notice() {
         *) echo 'oh-no-parent-control: invalid child trust backend result' >&2; exit 1 ;;
     esac
 
-# @pam_enable@
-    # Query debconf through its supported protocol before changing the one
-    # dependency profile we replace. Restore only that choice on removal.
-    pam_baseline=/var/lib/oh-no-parent-control/malcontent-pam-before-install
-    if [ -L "$pam_baseline" ]; then
-        echo 'oh-no-parent-control: unsafe original PAM selection' >&2
-        exit 1
-    fi
-    if [ ! -f "$pam_baseline" ]; then
-        pam_profiles=$(printf 'GET libpam-runtime/profiles\n' | debconf-communicate libpam-runtime)
-        case "$pam_profiles" in
-            '0 '*) ;;
-            *) echo 'oh-no-parent-control: cannot capture original PAM selection' >&2; exit 1 ;;
-        esac
-        pam_choice=disabled
-        case ", ${pam_profiles#0 }, " in
-            *', malcontent, '*) pam_choice=enabled ;;
-        esac
-        printf '%s\n' "$pam_choice" > "$pam_baseline"
-        chmod 0600 "$pam_baseline"
-    fi
-    pam-auth-update --package \
-        --disable malcontent \
-        --enable oh-no-parent-control-session-limits \
-        --enable oh-no-parent-control-kiosk-only </dev/null
-    if ! grep -Eq '^[[:space:]]*[^#[:space:]].*pam_oh_no_parent_control\.so' /etc/pam.d/common-auth ||
-       ! grep -Eq '^[[:space:]]*account[[:space:]]+required[[:space:]]+pam_oh_no_parent_control\.so[[:space:]]+kiosk[[:space:]]*$' /etc/pam.d/common-account ||
-       ! grep -Eq '^[[:space:]]*session[[:space:]]+required[[:space:]]+pam_oh_no_parent_control\.so[[:space:]]+kiosk[[:space:]]*$' /etc/pam.d/common-session ||
-       grep -Eq '^[[:space:]]*[^#[:space:]].*/usr/libexec/oh-no-parent-control-login-check' /etc/pam.d/common-account; then
-        echo 'oh-no-parent-control: PAM integration was not activated; preserving local PAM configuration' >&2
-        exit 1
-    fi
-
 # @reboot_install@
                 echo 'oh-no-parent-control: reboot required; notifying Ubuntu update-notifier' >&2
                 # Use Ubuntu's package notification hook. Avoid duplicate
@@ -179,39 +140,6 @@ prepare_package_notice() {
 # @readiness_check_remove@
 
 # @readiness_remove_rule@
-
-# @pam_remove@
-    pam_choice=--disable
-    pam_baseline=/var/lib/oh-no-parent-control/malcontent-pam-before-install
-    if [ -L "$pam_baseline" ]; then
-        echo 'oh-no-parent-control: unsafe original PAM selection' >&2
-        exit 1
-    fi
-    if [ -f "$pam_baseline" ]; then
-        case "$(cat "$pam_baseline")" in
-            enabled) pam_choice=--enable ;;
-            disabled) ;;
-            *) echo 'oh-no-parent-control: invalid original PAM selection' >&2; exit 1 ;;
-        esac
-    else
-        # A failed configuration may never have changed PAM. Do not invent a
-        # choice for the dependency in that case.
-        pam_choice=
-    fi
-    pam-auth-update --package \
-        --remove oh-no-parent-control-session-limits \
-        --remove oh-no-parent-control-kiosk-only ${pam_choice:+$pam_choice malcontent} </dev/null
-    # pam-auth-update preserves locally edited stacks and can return success
-    # without removing references. Do not delete modules still used by PAM.
-    pam_reference_status=0
-    grep -Eq '^[[:space:]]*[^#[:space:]].*(pam_oh_no_parent_control|/usr/libexec/oh-no-parent-control-)' \
-        /etc/pam.d/common-auth /etc/pam.d/common-account \
-        /etc/pam.d/common-password /etc/pam.d/common-session \
-        /etc/pam.d/common-session-noninteractive || pam_reference_status=$?
-    case "$pam_reference_status" in
-        1) ;;
-        *) echo 'oh-no-parent-control: PAM references remain or could not be checked; resolve local PAM changes before removal' >&2; exit 1 ;;
-    esac
 
 # @notice_cleanup@
 case "$1" in

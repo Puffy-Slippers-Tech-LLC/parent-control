@@ -6,6 +6,7 @@ Their differing command models stay explicit; they share path relocation.
 
 import os
 import json
+import hashlib
 from contextlib import contextmanager
 import re
 import runpy
@@ -58,18 +59,21 @@ def mapped_pam_worker(root):
 
 
 def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, installed=True, pam_original=None):
-    """Real old-state producer plus prepared migration, private native/NSS doubles.
+    """Finite historical installed inputs plus real selected lifecycle migration.
 
     All paths, descriptor locks, cache xattrs and durable writes remain real in
     this caller-owned tree. No host process/service/account or shared bus is used.
+    The retired installer is not executable test setup: these snapshots cover
+    only the two historical PAM input pairs consumed by migration histories.
     """
+    if backend not in ('apparmor', 'selinux'):
+        raise ValueError('unsupported fixture backend')
     def load(relative, name):
         with monkeypatch.context() as context:
             context.setattr(sys, 'dont_write_bytecode', True)
             return load_module(name, ROOT / relative)
 
     migration = load('packaging/lifecycle_migration.py', 'prepared_lifecycle')
-    legacy = load('packaging/kiosk_confinement.py', 'legacy_lifecycle')
     root.chmod(0o700)
     for name in ('var/lib/oh-no-parent-control', 'var/lib/AccountsService/users', 'run',
                  'etc/pam.d', 'usr/lib/pam.d', 'usr/share/oh-no-parent-control/confinement', 'proc'):
@@ -88,7 +92,7 @@ def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, install
     migration.PROFILES.write_text('')
     user = SimpleNamespace(pw_name=migration.USER, pw_uid=1006, pw_gid=1006,
                            pw_dir='/home/oh-no-parent-control')
-    machine = SimpleNamespace(migration=migration, legacy=legacy, root=root,
+    machine = SimpleNamespace(migration=migration, root=root,
                               user=user, expires=None, loaded=False, commands=[], home_uid=1006)
     home = root / 'home/oh-no-parent-control'
     home.mkdir(parents=True)
@@ -134,18 +138,6 @@ def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, install
         return SimpleNamespace(stdout=output)
 
     monkeypatch.setattr(migration, 'run', run)
-    mapping = dict(PAYLOAD=migration.PAYLOAD, STATE=migration.STATE, ADMISSION_LOCK=migration.LOCKS[0],
-                   ADMISSION_DISABLED=migration.DISABLED, LEGACY_LOGIN_LOCK=migration.LOCKS[1],
-                   PREPARATION_LOCK=migration.LOCKS[2], PROCESSES=migration.PROCESSES,
-                   PREVIOUS_ACTIVATION=migration.STATE_DIRECTORY / 'previous-package-activation.json',
-                   PAM_LOCAL=migration.PAM, PAM_VENDOR=root / 'usr/lib/pam.d',
-                   _CONFINEMENT_FILESYSTEM_ROOT=root, _CONFINEMENT_OWNER_UID=os.getuid())
-    for key, value in mapping.items():
-        monkeypatch.setattr(legacy, key, value)
-    monkeypatch.setattr(legacy, 'run', run)
-    monkeypatch.setattr(legacy, 'Path', lambda path: migration.PROFILES
-                        if str(path) == '/sys/kernel/security/apparmor/profiles' else Path(path))
-    monkeypatch.setattr(legacy, 'boot_id', lambda: migration.BOOT.read_text().strip())
     migration.OWNERSHIP.write_text('1006\n')
     migration.OWNERSHIP.chmod(0o600)
     (migration.PAYLOAD / 'config.json').write_text(json.dumps({'backend': backend}) + '\n')
@@ -156,7 +148,52 @@ def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, install
         if not path.is_symlink():
             path.chmod(path.stat().st_mode & ~0o022)
     if installed:
-        legacy.install()
+        native_original = ('account required pam_oh_no_parent_control.so kiosk\n'
+                           'session required pam_oh_no_parent_control.so kiosk\n')
+        # Exact historical bytes, not a renderer or a second legacy installer.
+        integrity = ('# Oh No Parent Control admission integrity\n'
+                     'account requisite pam_oh_no_parent_control.so kiosk-integrity\n'
+                     'session requisite pam_oh_no_parent_control.so kiosk-admission\n')
+        gate = ('# BEGIN Oh No Parent Control execution confinement\n'
+                'session required pam_oh_no_parent_control.so kiosk-confinement\n'
+                '# END Oh No Parent Control execution confinement\n')
+        credentials = ('# Oh No Parent Control manager credentials (never authentication)\n'
+                       'auth [success=done ignore=ignore default=die] '
+                       'pam_oh_no_parent_control.so kiosk-manager-credentials\n'
+                       'auth include other\n')
+        snapshots = {
+            None: {
+                'gdm-password': ('session required pam_unix.so\n', None,
+                                 integrity + 'session required pam_unix.so\n' + gate),
+                'systemd-user': (None, 'session required pam_systemd.so\n',
+                                 credentials + integrity + 'session required pam_systemd.so\n' + gate),
+            },
+            native_original: {
+                'gdm-password': (native_original, None, integrity + native_original + gate),
+                'systemd-user': (None, native_original,
+                                 credentials + integrity + native_original + gate),
+            },
+        }
+        if pam_original not in snapshots:
+            raise ValueError('unsupported historical PAM fixture')
+        saved = {'schema': 1, 'backend': backend, 'admission_protocol': 1, 'kiosk_uid': 1006,
+                 'pam': {name: {'before': before, 'vendor': vendor, 'after': after, 'mode': 0o644}
+                         for name, (before, vendor, after) in snapshots[pam_original].items()},
+                 'loaded_config_sha256': hashlib.sha256(
+                     (migration.PAYLOAD / 'config.json').read_bytes()).hexdigest(),
+                 'loaded_policy_sha256': hashlib.sha256(
+                     (migration.PAYLOAD / ('onpc-kiosk.cil' if backend == 'selinux' else
+                                           'onpc-kiosk.apparmor')).read_bytes()).hexdigest()}
+        migration.STATE.write_text(json.dumps(saved, sort_keys=True) + '\n')
+        migration.STATE.chmod(0o600)
+        for name, record in saved['pam'].items():
+            (migration.PAM / name).write_text(record['after'])
+            (migration.PAM / name).chmod(record['mode'])
+        migration.LOCKS[0].write_bytes(b'')
+        migration.LOCKS[0].chmod(0o600)
+        machine.loaded = True
+        if backend == 'apparmor':
+            migration.PROFILES.write_text('onpc-kiosk-manager (enforce)\n')
     for path in root.rglob('*'):
         if not path.is_symlink():
             path.chmod(path.stat().st_mode & ~0o022)
@@ -181,9 +218,8 @@ def selected_pam_transactions(root):
         f'-DKIOSK_ADMISSION_LOCK_OWNER={os.getuid()}',
         '-o', str(module), str(ROOT / 'tools/pam_oh_no_parent_control.c'), '-lpam',
     ], check=True, capture_output=True, text=True, timeout=30, pass_fds=scratch_descriptors())
-    # The historical producer accepts its ordinary installed module name.
-    # Resolve that one name to the private new binary only in libpam's copied
-    # configuration below, rather than changing the production legacy parser.
+    # Historical input keeps the ordinary installed module name. Resolve only
+    # that name to the private new binary in libpam's copied configuration.
     original = 'account required pam_oh_no_parent_control.so kiosk\nsession required pam_oh_no_parent_control.so kiosk\n'
     pam = ctypes.CDLL('libpam.so.0')
     class Conversation(ctypes.Structure):
@@ -316,69 +352,6 @@ except MigrationError as error:
     helper.chmod(0o755)
 
 
-def use_real_kiosk_confinement(root, backend):
-    """Run production PAM/state logic in the maintainer machine's private tree.
-
-    Substitute the fixture UID, account and native policy tools only. Keep path,
-    ownership, locking, PAM control-flow, attestation and atomic-write checks.
-    This is host composition coverage, not installed MAC qualification.
-    """
-    if backend not in ('apparmor', 'selinux'):
-        raise ValueError('unsupported fixture backend')
-    root.chmod(0o700)
-    payload = root / 'usr/share/oh-no-parent-control/confinement'
-    payload.mkdir(parents=True, exist_ok=True)
-    (payload / 'config.json').write_text('{"backend": "' + backend + '"}\n')
-    policy = payload / ('onpc-kiosk.apparmor' if backend == 'apparmor' else 'onpc-kiosk.cil')
-    policy.write_text('# private native-policy input\n')
-    pam = root / 'etc/pam.d'
-    pam.mkdir(parents=True, exist_ok=True)
-    (pam / 'gdm-password').write_text('session required pam_unix.so\n')
-    vendor = root / 'usr/lib/pam.d'
-    vendor.mkdir(parents=True, exist_ok=True)
-    (vendor / 'systemd-user').write_text('session required pam_systemd.so\n')
-    for name, contents in (
-            ('sys/kernel/security/apparmor/profiles', ''),
-            ('proc/sys/kernel/random/boot_id', '11111111-1111-1111-1111-111111111111\n')):
-        path = root / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(contents)
-    helper = root / 'usr/libexec/oh-no-parent-control-kiosk-confinement-integration'
-    helper.unlink()
-    source = (ROOT / 'packaging/kiosk_confinement.py').read_text()
-    source = relocate_system_paths(source, root, prefixes=(
-        '/etc/', '/var/', '/run/', '/home/', '/usr/', '/sys/', '/proc/'))
-    source = source.replace("_CONFINEMENT_FILESYSTEM_ROOT = Path('/')",
-                            '_CONFINEMENT_FILESYSTEM_ROOT = Path(' + repr(str(root)) + ')')
-    source = source.replace('_CONFINEMENT_OWNER_UID = 0',
-                            '_CONFINEMENT_OWNER_UID = ' + str(os.getuid()))
-    source = source.replace('os.geteuid() != 0', 'os.geteuid() != _CONFINEMENT_OWNER_UID')
-    source = source.replace("pwd.getpwnam('oh-no-parent-control')",
-                            'SimpleNamespace(pw_uid=1006)')
-    helper.write_text(f'#!{sys.executable} -IB\nfrom types import SimpleNamespace\n' +
-                      source.split('\n', 1)[1])
-    helper.chmod(0o755)
-    # Production deliberately passes a fixed environment to these tools. Use a
-    # private failure file rather than relaxing that security boundary for tests.
-    tool_source = ('#!/bin/sh\nset -eu\n'
-                   f'printf "policy-tool %s\\n" "$*" >> {shlex.quote(str(root / "commands"))}\n'
-                   'if [ "${1:-}" = -l ]; then exit 0; fi\n'
-                   f'if [ -f {shlex.quote(str(root / "policy-load-status"))} ]; then\n'
-                   f'    read -r status < {shlex.quote(str(root / "policy-load-status"))}\n'
-                   '    exit "$status"\nfi\n')
-    for name in ('apparmor_parser', 'semodule', 'restorecon'):
-        tool = root / 'usr/sbin' / name
-        tool.write_text(tool_source)
-        tool.chmod(0o755)
-    # The lightweight shell machine permits the developer's group-writable
-    # umask. Its private system inputs must have real system modes before the
-    # production ancestor audit is used; deliberate unsafe cases are added later.
-    for path in root.rglob('*'):
-        if not path.is_symlink():
-            path.chmod(path.stat().st_mode & ~0o022)
-    return payload, pam, vendor
-
-
 class Machine:
     def __init__(self, root, distribution='ubuntu'):
         self.root = root
@@ -390,7 +363,7 @@ class Machine:
         for path in ("etc/fapolicyd/rules.d", "run/systemd/system",
                      "var/lib/oh-no-parent-control", "usr/sbin", "var/mail"):
             (root / path).mkdir(parents=True, exist_ok=True)
-        # The real confinement finalizer validates every ancestor. Model the
+        # The selected lifecycle finalizer validates every ancestor. Model the
         # root-owned system directory modes explicitly, independent of the
         # developer's group-writable umask used for unrelated private fixtures.
         for path in ('run', 'var', 'var/lib'):
@@ -428,14 +401,12 @@ exit 99
         self.write("test-bin/authselect", """#!/bin/sh
 case "$1" in current) printf '%s\\n' local;; esac
 """).chmod(0o755)
-        self.write("usr/libexec/oh-no-parent-control-kiosk-confinement-integration", """#!/bin/sh
-printf '%s\\n' "kiosk-confinement $*" >> "$AUDIT_ROOT/commands"
-exit "${CONFINEMENT_STATUS:-0}"
-""").chmod(0o755)
         self.write('usr/libexec/oh-no-parent-control-kiosk-lifecycle', '''#!/bin/sh
 printf '%s\\n' "kiosk-lifecycle $*" >> "$AUDIT_ROOT/commands"
-case "$3" in visibility-needed) printf 'no\\n';; esac
-exit "${CONFINEMENT_STATUS:-0}"
+case "$3" in
+    visibility-needed) printf 'no\\n' ;;
+    commit) exit "${LIFECYCLE_COMMIT_STATUS:-0}" ;;
+esac
 ''').chmod(0o755)
         self.write('usr/libexec/oh-no-parent-control-distro-pam', '''#!/bin/sh
 printf '%s\\n' "distro-pam $*" >> "$AUDIT_ROOT/commands"
@@ -549,10 +520,6 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
         source = source.replace("_LOG_FILESYSTEM_ROOT = '/'",
                                 '_LOG_FILESYSTEM_ROOT = ' + repr(str(self.root)))
         source = source.replace('_LOG_OWNER_UID = 0', '_LOG_OWNER_UID = ' + str(os.getuid()))
-        source = source.replace("_CONFINEMENT_FILESYSTEM_ROOT = Path('/')",
-                                '_CONFINEMENT_FILESYSTEM_ROOT = Path(' + repr(str(self.root)) + ')')
-        source = source.replace('_CONFINEMENT_OWNER_UID = 0',
-                                '_CONFINEMENT_OWNER_UID = ' + str(os.getuid()))
         source = source.replace("ROOT = Path('/')", 'ROOT = Path(' + repr(str(self.root)) + ')')
         source = source.replace("Path('/run')", 'Path(' + repr(str(self.root / 'run')) + ')')
         source = source.replace("Path('/proc')", 'Path(' + repr(str(self.root / 'proc')) + ')')
@@ -697,7 +664,7 @@ def package_machine(tmp_path, request):
         (state / name).touch()
 
     (state / "package-created-kiosk-uid").write_text("1006\n")
-    for name in ("gdm-presession", "99-oh-no-parent-control-allow.rules", "child-extension.trust"):
+    for name in ("99-oh-no-parent-control-allow.rules", "child-extension.trust"):
         path = tmp_path / "usr/share/oh-no-parent-control" / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("product integration\n")
@@ -853,8 +820,7 @@ case "$name" in
                 ;;
         esac
         ;;
-    restorecon|chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|setpriv|\
-    oh-no-parent-control-kiosk-confinement-integration) exit "${CONFINEMENT_STATUS:-0}" ;;
+    restorecon|chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|setpriv) exit 0 ;;
     oh-no-parent-control-fedora-pam)
         if [ "${PAM_LOCAL_CHANGES:-0}" != 1 ]; then
             /usr/bin/cp "$AUDIT_ROOT/generated-pam/"* "$AUDIT_ROOT/etc/pam.d/"
@@ -863,7 +829,7 @@ case "$name" in
     oh-no-parent-control-kiosk-lifecycle)
         case "$3" in
             visibility-needed) printf 'no\n'; exit 0 ;;
-            commit) exit "${CONFINEMENT_STATUS:-0}" ;;
+            commit) exit "${LIFECYCLE_COMMIT_STATUS:-0}" ;;
             *) exit 0 ;;
         esac ;;
     oh-no-parent-control-provision) ;;
@@ -877,7 +843,7 @@ esac
         (bin_dir / name).symlink_to(stub)
     for name in ("rm", "touch", "grep", "cut", "cat", "cmp", "sync"):
         (bin_dir / name).symlink_to(Path("/usr/bin") / name)
-    for name in ("migrate-state", "provision", "package-activation", "fedora-pam", "fedora-execution-policy", "kiosk-confinement-integration", "kiosk-lifecycle"):
+    for name in ("migrate-state", "provision", "package-activation", "fedora-pam", "fedora-execution-policy", "kiosk-lifecycle"):
         target = tmp_path / f"usr/libexec/oh-no-parent-control-{name}"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.symlink_to(stub)

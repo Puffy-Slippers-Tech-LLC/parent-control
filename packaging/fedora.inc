@@ -32,9 +32,6 @@ require_supported_os() (
 )
 prepare_package_notice() { :; }
 
-# @pam_restore@
-    /usr/libexec/oh-no-parent-control-fedora-pam install
-
 # @broker_policy@
 # Distribution has no Debian package-service/notice hook.
 
@@ -58,16 +55,13 @@ prepare_package_notice() { :; }
 
 # @trust_complete@
 
-# @pam_enable@
-    /usr/libexec/oh-no-parent-control-fedora-pam install
-
 # @reboot_install@
                 printf '%s\n' reboot > /run/oh-no-parent-control-reboot-required
                 echo 'oh-no-parent-control: reboot required before using the kiosk session' >&2
 
 # @configuration_notice@
     # Apply system-owned SELinux labels; keep SELinux enforcing.
-    restorecon -R /etc/oh-no-parent-control /etc/gdm/PreSession \
+    restorecon -R /etc/oh-no-parent-control \
         /etc/fapolicyd/rules.d /usr/share/dbus-1/system.d \
         /var/lib/oh-no-parent-control /home/oh-no-parent-control
     echo 'PASS: Oh No! Parent Control package configuration completed successfully.'
@@ -144,9 +138,6 @@ prepare_package_notice() { :; }
                 systemctl stop oh-no-parent-control-execution-policy-ready.service
                 ;;
         esac
-
-# @pam_remove@
-    /usr/libexec/oh-no-parent-control-fedora-pam remove
 
 # @notice_cleanup@
 # Distribution has no Debian package-service/notice hook.

@@ -259,7 +259,7 @@ cutover, rather than requirements to retain the old confinement mechanism.
 | --- | --- |
 | [Shared kiosk profile](../../data/pam-configs/oh-no-parent-control-kiosk-only), [time profile](../../data/pam-configs/oh-no-parent-control-session-limits), [Ubuntu packaging](../../packaging/ubuntu.inc) | `pam-auth-update --package` adds account/session routing and child-time enforcement. Kiosk/admin skips cover product time modules, not the remaining authentication/account policy. Neither profile grants empty-token authentication. |
 | [Fedora profile owner](../../packaging/fedora_pam.py), [stager](../../packaging/stage_distribution.py), [Fedora packaging](../../packaging/fedora.inc) | The custom authselect profile copies the selected base, retains features and substitutes `wheel` for `sudo` in shared product rules. Preinstall and first profile creation currently reject `without-nullok`. This is current behavior, not a new compatibility requirement. |
-| [PAM packaging](../../packaging/kiosk_confinement.py) | Rendering preserves vendor auth/account rules, appends a final session gate, skips two callback names and rejects unfamiliar session modules, manager auth additions and exact-byte drift. Original/generated records also support owned rollback. C02c/C02c2 own selective replacement and installed-state migration. |
+| Historical PAM packaging (`packaging/kiosk_confinement.py`, removed by C02e) | Rendering preserved vendor auth/account rules, appended a final session gate, skipped two callback names and rejected unfamiliar session modules, manager auth additions and exact-byte drift. Original/generated records also supported owned rollback. C02c/C02c2 own selective replacement and installed-state migration. |
 | [Native PAM](../../tools/pam_oh_no_parent_control.c), [login check](../../tools/oh-no-parent-control-login-check) | The login helper checks integration, service and saved/actual session routing; it does not evaluate passwords, shadow expiry or arbitrary PAM access rules. Normal native authentication enforces child time rather than granting a kiosk password exemption. Account/session modes bind the GDM handle and route; manager credential mode rejects authentication and permits kiosk setcred. Close returns success, with admission ownership released by PAM-data cleanup. |
 | [Polkit authorizer](../../broker/oh_no_parent_control/authorization.py), [selected-parent rule](../../data/polkit-1/rules.d/00-oh-no-parent-control-session.rules), role policy (`tools/kiosk_confinement_policy.py`) | `PolkitAuthorizer.check` passes the validated approver and requesting system-bus identity. The rule restricts the challenge to that parent; kiosk entry confers no approval authority. Product forms never receive the parent's password. Fedora policy retains the live setuid `polkit-agent-helper-1`, `policykit_auth_t` and `unix_chkpwd`/`chkpwd_t` path; Ubuntu retains its vendor root-helper/password path. |
 
@@ -497,13 +497,13 @@ C02d host acceptance passed **1,108 unit checks plus source/traceability** in
 the ten-module kiosk login/confinement, unit inventory, package
 input/payload/activation/RPM, guest-input, system-info and systemd selection,
 with a 600-second worker deadline. The
-[initial run](../../output/test-runs/host/reports/20261021T024806Z-87612d41/report.md)
+[initial run](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 passed 1,106 checks and exposed two stale embedded-finalizer fixtures: they still
 relocated the retired helper's constants after C02 selected lifecycle migration.
 The fixture now uses the maintained migration machine and shared path relocation,
 preserving payload-erasure, original-PAM restoration and state/barrier cleanup
 assertions. The exact selection's
-[resumed acceptance](../../output/test-runs/host/reports/20261021T025048Z-dff033c2/report.md)
+[resumed acceptance](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 passed both repaired cases and the previously unrun source check, retaining the
 unaffected results. The fixture forwards scratch leases and uses only private
 files, absent-account doubles and a bounded waited interpreter; existing unit
@@ -530,10 +530,69 @@ Only destinations changed; predecessor completion and claims are unchanged.
 
 Close-out passed **639 metadata checks** with a 600-second worker deadline and
 completed cleanup in the
-[final report](../../output/test-runs/host/reports/20261021T025348Z-16532dbb/report.md).
+[final report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Markdown links and the read-only plan check passed; the pointer selects C02e
 with 52 tasks remaining. Only C02d is newly checked and its temporary brief is
 removed. Every other row, order, Scope and Requires field is unchanged.
+
+##### C02e feature protocols and package source cleanup
+
+C02e started from clean HEAD
+`a2b98d1414e638fdc023f788e5f83efd4d81e5cc`: no staged, unstaged or untracked
+old-plan delta existed. The cumulative C01/C02d source inventory now closes as
+follows; installed records and retained evidence are not source-deletion inputs.
+
+| Source family | Final source disposition and retained owner |
+| --- | --- |
+| Native/runtime graph, material, preparation, receipt and private-view code | Removed by C02d with its direct includes, imports, generated definitions and fixtures. Only the useful Wellbeing and fixed RPM diagnostic roles remain in `tools/kiosk_session.c`. |
+| `packaging/kiosk_confinement.py` | Removed with its exact-module parser, old installation/loading protocol, unused test adapter and shell doubles. Selected `distro_pam.py` and `lifecycle_migration.py` retain PAM policy, original-state ownership, quarantine, rollback and post-erase finalization. The renderer embeds only the selected migration owner. |
+| `data/gdm3/PreSession/Default` | Removed; no package input installs this obsolete hook. Fresh-package fixtures no longer generate its payload. Explicit historical-hook tests and the templates' exact owned-hook retirement remain, including the distro path scalar. |
+| Remaining package definitions | Removed overridden distro PAM fragment bodies, the stale Fedora hook-labeling operand and new-payload activation classifications for discarded roles/private trees/drop-ins. Current Wellbeing/packages classifications and recorded old-manifest removal impacts remain intact. No selected Makefile, source map, RPM/DEB payload or generated definition consumes the removed source. |
+| Frontend/broker feature interfaces | No controller, startup, visit-token or receipt API exists to delete. Direct request/XML methods, scoped genuine approval, cancellation, policy transactions, locale preparation, logout, shared overlay and all main form features remain with their current owners. No feature production source was restored from the release or removed by historical naming. |
+| Direct and remaining test consumers | Removed 54 functions (132 parametrized checks) of the retired helper, including the later optional-cgfs composition that imported its parser. Preserved the selected post-erase finalizer and 67 installed-helper functions. Migration tests now consume finite exact historical PAM/state snapshots rather than execute the retired installer; their ownership, foreign-state, restoration and retry assertions remain. C03 owns the remaining host audit; C04 owns explicit historical installed-helper consumers, which import no removed checkout module. |
+
+This accounts for the committed cleanup inputs and the empty active-delta
+inventory: each current source has a selected feature/lifecycle owner or verified
+removal. Historical links to deleted source are plain names. No discarded
+implementation remains as an executable fixture, fallback or package dependency.
+Fixed historical migration data does not recreate a selectable runtime protocol.
+
+Host acceptance passed **2,380 unit checks plus source/traceability** in the
+13-module packaging, migration/removal, kiosk feature, request/service contract,
+systemd and inventory selection, with a 600-second worker deadline and completed
+cleanup in the [focused report](../../output/test-runs/host/reports/20261021T030115Z-b6c19dca/report.md).
+Independent Astra xHigh review passed **Usability priority** and **Threat scope**,
+with no backend correctness, security, concurrency or ownership finding. Its one
+P3 finding identified the unused fresh-package hook fixture; that input was
+removed while explicit historical-hook removal tests stayed intact.
+The affected configuration, removal and RPM selection then passed **566 checks**
+with the same deadline and completed cleanup in the
+[post-review report](../../output/test-runs/host/reports/20261021T030622Z-738d6a99/report.md).
+This fixture-only correction changes no reviewed product code.
+
+Final `make build` passed for DEB and RPM after the final packaged edit, retaining
+`output/deb/oh-no-parent-control_1.4+local1~ubuntu26.04.1_amd64.deb`,
+`output/rpm/oh-no-parent-control-1.4-0.1.dev.fc44.x86_64.rpm` and
+`output/rpm/build.log`. Coverage regeneration passed when run serially after the
+tests; its initial overlapping attempt correctly refused the runner lock.
+Fixture resource review retains private pytest files/locks, bounded waited
+children and existing compatible unit scheduling; no allocation, cleanup or UI
+owner was added. All agents and owned test/build children finished. Normal
+reports/package outputs remain; no task-owned VM, installed state, temporary
+source or live process remains. This host task declares no targets and grants
+no installed qualification. No staging, commit or push was performed.
+
+Close-out passed **639 metadata checks** with a 600-second worker deadline and
+completed cleanup in the
+[close-out report](../../output/test-runs/host/reports/20261021T030914Z-b55d1f6f/report.md).
+C02d's three report destinations now use the stable accepted-proof locator after
+verifying its original reports, accepted result, exact initial/resume/metadata
+commands and cleanup record in `onpc-evidence-bundle-xc5eukic` (SHA-256
+`abef8d30eec12991f308dec37e4ed956baeea573eb16d2a8b0cb4b97d6ba5eec`).
+Only those destinations changed; earlier completion and claims are unchanged.
+The pointer selects C03a1 with 51 tasks remaining. Only C02e is newly checked
+and its temporary brief is removed; every other row, order, Scope and Requires
+field remains unchanged.
 
 ##### C02a prepared session runtime
 
@@ -1496,7 +1555,7 @@ owns the replacement behavior and threat scope.
 | Makefile `ACTIVATION_MANIFEST_PATHS`, `_generate-package-activation-manifest`; [package_activation.py](../../packaging/package_activation.py) `activation_for`; DEB rules and [RPM `%files`](../../rpm/oh-no-parent-control.spec.in) | Current classifier selects reboot for kiosk wrappers/support/confinement tree, compositor/WirePlumber drop-ins, login helper and PAM inputs. Port to justified replacement activation, including removed manifest members. Keep final packaged-byte manifests, shared builders and unrelated broker/child-trust/fapolicyd/Wellbeing activation. A former support-module reboot assertion is not a new lifecycle requirement. | C02c2 prepares classification/migration; C02 activates; C02e closes residual paths. C03a: `test_package_activation.py` (three preparation-support assertions), package payload/RPM tests; C04a maps affected installed histories. |
 | [stage_distribution.py](../../packaging/stage_distribution.py) `pam_profile/pam_stack`, [fedora_pam.py](../../packaging/fedora_pam.py), distro `pam_restore/pam_enable/pam_remove` fragments → native PAM and session-limit helper | Port kiosk-only integration selectively. Preserve ordinary-account vendor policy/authselect profile/features, child time checks and the non-kiosk administrative user-bus bridge. The packaged historical GDM PreSession hook is also copied/removed by lifecycle code; its presence is not a working GDM 50 boundary. | C02c prepares native/distro integration; C02 activates; C02e removes unconsumed hook/profile wiring. C03a: Fedora PAM, kiosk login, runtime-cap, session-limit and package composition/removal tests. |
 | [provision.py](../../tools/provision.py) account, `configure_account_access`, AccountsService session/cache/visibility methods → `postinst.in` `create_account`, AccountsService start-pre drop-in | Pin already supplies account UID/home/admin-group checks, broker UID, bus policy, icon and basic session/time setup. Main adds saved visible Wayland routing, metadata preservation, cache migration and UID-bound native expiry quarantine. Retain ownership, passwordless availability and ordinary-user independence; assess strict version gating separately from those results. Do not restore the shared provisioner wholesale. | C02c1 prepares routing/account behavior; C02c2 owns expiry/cache recovery and rollback; C02 cutover. C03a: `test_provision.py`, package configuration/removal, first-configure/account host fixtures; C04a installation/reboot histories. |
-| [kiosk_confinement.py](../../packaging/kiosk_confinement.py) `install/install_locked/load` → [postinst](../../packaging/lifecycle/postinst.in), loader service | Current path audits exact PAM text/control flow/module inventories, publishes guards/MAC attestation, then releases quarantine. Preserve effective policy, ordinary callbacks, retry/rollback and original useful causes. Exact unknown-module refusal and private loaded-material attestation are implementation assertions to replace, not customer requirements. | C02c prepares PAM; C02c2 prepares owned state; C02 switches; C02d/e remove old implementation. C03a package/PAM composition; C04a first-configuration, PAM variants and admission histories. |
+| Historical `packaging/kiosk_confinement.py` `install/install_locked/load` → [postinst](../../packaging/lifecycle/postinst.in), loader service | The former path audited exact PAM text/control flow/module inventories, published guards/MAC attestation, then released quarantine. Preserve effective policy, ordinary callbacks, retry/rollback and original useful causes. Exact unknown-module refusal and private loaded-material attestation are implementation assertions to replace, not customer requirements. | C02c prepares PAM; C02c2 prepares owned state; C02 switches; C02d/e remove old implementation. C03a package/PAM composition; C04a first-configuration, PAM variants and admission histories. |
 | [prerm](../../packaging/lifecycle/prerm.in) `check-remove/remove`; postinst abort-remove; [postrm](../../packaging/lifecycle/postrm.in) `finish_remove`; [render_lifecycle.py](../../packaging/render_lifecycle.py) `embedded_confinement_finish_remove` | Current removal refuses live/foreign state, publishes durable vendor-only PAM denials before policy unload, and restores originals after account absence. Preserve safe removal, rollback and retry outcomes. The renderer embeds the **entire integration helper source** into postrm; installed-helper deletion alone leaves this build dependency. Replace the finite migration/finalizer before removing source, template tokens or generated distro scripts. | C02c2 prepares complete configure/remove/abort/post-erase/retry handling; C02 activates; C02e removes old embedding/wiring. `tests/support/package_scripts.py:use_real_kiosk_confinement` and finalizer source rewriting, package configuration/removal/RPM tests; C04a installed removal/fault/update helpers. |
 
 ###### Host fixtures and registration closure

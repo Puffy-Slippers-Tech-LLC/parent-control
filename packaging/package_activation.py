@@ -91,24 +91,16 @@ def activation_for(path: str) -> str:
     if path.startswith((
         "etc/gdm3/",
         "etc/gdm/",
-        "usr/share/oh-no-parent-control/pam/",
-        "usr/share/pam-configs/",
         "etc/pam.d/",
         "usr/lib/systemd/system/display-manager.service.d/",
         "usr/lib/systemd/system/fapolicyd.service.d/",
         "usr/lib/systemd/system/onpc-execution-probe-.service.d/",
-        "usr/libexec/oh-no-parent-control-kiosk-",
-        "usr/share/oh-no-parent-control/confinement/",
-        "usr/lib/systemd/user/org.gnome.Kiosk@wayland.service.d/",
-        "usr/lib/systemd/user/wireplumber.service.d/",
     )) or path in {
         "usr/lib/systemd/system/oh-no-parent-control-execution-policy-ready.service",
-        "usr/lib/systemd/system/oh-no-parent-control-kiosk-confinement.service",
         "usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules",
         "usr/libexec/oh-no-parent-control-execution-policy-probe",
-        "usr/libexec/oh-no-parent-control-login-check",
-        "usr/libexec/oh-no-parent-control-kiosk-session",
-        "usr/share/oh-no-parent-control/gdm-presession",
+        "usr/libexec/oh-no-parent-control-kiosk-wellbeing",
+        "usr/libexec/oh-no-parent-control-kiosk-packages",
     }:
         return "reboot"
     # polkitd monitors its action and rule directories and evaluates them for

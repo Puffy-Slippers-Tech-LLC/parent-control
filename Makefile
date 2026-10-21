@@ -21,24 +21,12 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-migrate-state \
 	$(LIBEXECDIR)/oh-no-parent-control-provision \
 	$(LIBEXECDIR)/oh-no-parent-control-login-check \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-session \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-app \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-notifications \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-notification-client \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-wellbeing \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-cleanup \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-audio \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-packages \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-dbus \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-bwrap \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-support \
-	$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement-integration \
-	$(DATADIR)/oh-no-parent-control/confinement \
-	$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-kiosk-confinement.service \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-lifecycle \
+	$(LIBEXECDIR)/oh-no-parent-control-distro-pam \
+	$(PRODUCT_LIBDIR)/lifecycle \
 	$(SYSTEMD_SYSTEM_DIR)/accounts-daemon.service.d/oh-no-parent-control.conf \
-	$(SYSTEMD_USER_DIR)/org.gnome.Kiosk@wayland.service.d/confinement.conf \
-	$(SYSTEMD_USER_DIR)/wireplumber.service.d/oh-no-parent-control.conf \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-probe-gate \
@@ -81,8 +69,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/oh-no-parent-control/reminder-dismiss.svg \
 	$(DATADIR)/pam-configs/oh-no-parent-control-session-limits \
 	$(DATADIR)/pam-configs/oh-no-parent-control-kiosk-only \
-	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
-	$(DATADIR)/oh-no-parent-control/gdm-presession
+	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules
 ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/pam/managed-stack
 ACTIVATION_MANIFEST_PATHS += $(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-execution-policy-ready.service
@@ -167,7 +154,7 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in \
 	data/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
 	data/pam-configs/oh-no-parent-control-session-limits data/pam-configs/oh-no-parent-control-kiosk-only \
-	data/gdm3/PreSession/Default data/fapolicyd/99-oh-no-parent-control-allow.rules \
+	data/fapolicyd/99-oh-no-parent-control-allow.rules \
 	data/fapolicyd/00-oh-no-parent-control-canary.rules \
 	data/systemd/oh-no-parent-control-broker.service \
 	data/systemd/fapolicyd.service.d/oh-no-parent-control-recovery.conf \
@@ -190,20 +177,8 @@ PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.
 PACKAGE_SOURCE_FILES += tools/export_messages.py
 PACKAGE_SOURCE_FILES += data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf
 PACKAGE_SOURCE_FILES += tools/kiosk_session.c
-PACKAGE_SOURCE_FILES += tools/kiosk_bwrap.c
-PACKAGE_SOURCE_FILES += tools/kiosk_confinement.h tools/kiosk_private_creation.h tools/kiosk_confinement.py \
-	tools/kiosk_host_proof.h tools/kiosk_manager_admission.h \
-	tools/kiosk_material_authority.h tools/kiosk_view_receipt.h \
-	tools/kiosk_preparation_channel.h tools/kiosk_preparation_child.h \
-	tools/kiosk_preparation_plan.h tools/kiosk_native_realization.h \
-	tools/kiosk_policy_authority.h tools/kiosk_view_publication.h \
-	tools/kiosk_fresh_startup.h tools/kiosk_retained_record.h tools/kiosk_retained_startup.h \
-	tools/kiosk_preparation_input.py tools/kiosk_view_receipt.py \
-	tools/kiosk_preparation_service.py \
-	tools/kiosk_confinement_policy.py packaging/kiosk_confinement.py \
-	data/systemd/oh-no-parent-control-kiosk-confinement.service \
-	data/systemd/user/org.gnome.Kiosk@wayland.service.d/confinement.conf \
-	data/systemd/user/wireplumber.service.d/oh-no-parent-control.conf
+PACKAGE_SOURCE_FILES += tools/oh-no-parent-control-kiosk-lifecycle \
+	packaging/lifecycle_migration.py packaging/distro_pam.py
 
 .PHONY: publish updateversion bump-version build install uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
@@ -573,23 +548,16 @@ ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 	install -m 0755 packaging/fedora_execution_policy.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-fedora-execution-policy"
 endif
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"
-	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
-		-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-session" tools/kiosk_session.c
-	chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-session"
-	@for role in app notifications notification-client wellbeing cleanup audio packages dbus; do \
+	@for role in wellbeing packages; do \
 		$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
 			-DKIOSK_LAUNCH_ROLE=\"$$role\" \
 			-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-$$role" tools/kiosk_session.c || exit 1; \
 		chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-$$role"; \
 	done
-	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
-		-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-bwrap" tools/kiosk_bwrap.c
-	chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-bwrap"
-	install -m 0755 tools/kiosk_confinement.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement"
-	install -d "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-support"
-	install -m 0644 tools/kiosk_preparation_input.py tools/kiosk_view_receipt.py tools/kiosk_preparation_service.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-support/"
-	install -m 0755 packaging/kiosk_confinement.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement-integration"
-	$(PYTHON) tools/kiosk_confinement_policy.py --distribution "$(PACKAGE_DISTRIBUTION)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/confinement"
+	install -m 0755 tools/oh-no-parent-control-kiosk-lifecycle "$(DESTDIR)$(LIBEXECDIR)/"
+	install -m 0755 packaging/distro_pam.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-distro-pam"
+	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/lifecycle"
+	install -m 0644 packaging/lifecycle_migration.py packaging/distro_pam.py "$(DESTDIR)$(PRODUCT_LIBDIR)/lifecycle/"
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"
 	install -m 0755 tools/execution_policy_probe "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe"
 	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
@@ -643,10 +611,8 @@ ifeq ($(PACKAGE_DISTRIBUTION),ubuntu)
 	install -d "$(DESTDIR)$(DATADIR)/pam-configs"
 	install -m 0644 data/pam-configs/oh-no-parent-control-session-limits data/pam-configs/oh-no-parent-control-kiosk-only "$(DESTDIR)$(DATADIR)/pam-configs/"
 endif
-	install -m 0755 data/gdm3/PreSession/Default "$(DESTDIR)$(DATADIR)/oh-no-parent-control/gdm-presession"
 	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/systemd/oh-no-parent-control-broker.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
-	install -m 0644 data/systemd/oh-no-parent-control-kiosk-confinement.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/accounts-daemon.service.d"
 	install -m 0644 data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/accounts-daemon.service.d/"
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d"
@@ -669,10 +635,6 @@ endif
 	ln -sf ../oh-no-parent-control-wellbeing.service "$(DESTDIR)$(SYSTEMD_USER_DIR)/default.target.wants/oh-no-parent-control-wellbeing.service"
 	install -m 0644 data/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service "$(DESTDIR)$(DATADIR)/dbus-1/services/"
 	install -m 0644 data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/"
-	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/org.gnome.Kiosk@wayland.service.d"
-	install -m 0644 data/systemd/user/org.gnome.Kiosk@wayland.service.d/confinement.conf "$(DESTDIR)$(SYSTEMD_USER_DIR)/org.gnome.Kiosk@wayland.service.d/"
-	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/wireplumber.service.d"
-	install -m 0644 data/systemd/user/wireplumber.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_USER_DIR)/wireplumber.service.d/"
 	install -d "$(DESTDIR)$(DATADIR)/gnome-session/sessions" "$(DESTDIR)$(DATADIR)/wayland-sessions" "$(DESTDIR)$(DATADIR)/applications" "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps"
 	install -m 0644 data/gnome-session/sessions/oh-no-parent-control.session "$(DESTDIR)$(DATADIR)/gnome-session/sessions/"
 	install -m 0644 data/wayland-sessions/oh-no-parent-control.desktop "$(DESTDIR)$(DATADIR)/wayland-sessions/"

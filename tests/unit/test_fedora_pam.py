@@ -31,7 +31,7 @@ def pam_machine(tmp_path, monkeypatch):
     profiles.mkdir(parents=True)
     for name in ('oh-no-parent-control-kiosk-only', 'oh-no-parent-control-session-limits'):
         (profiles / name).write_bytes(
-            (ROOT / 'data/kiosk-runtime-unselected/pam-configs' / name).read_bytes())
+            (ROOT / 'data/pam-configs' / name).read_bytes())
     helper.STACK.write_text(stage.pam_stack(tmp_path))
     original = 'auth sufficient pam_unix.so nullok\naccount required pam_unix.so\n'
     for name in helper.PAM_FILES:
@@ -198,7 +198,7 @@ def test_dangling_ownership_record_is_rejected(pam_machine):
 def prepared_fedora(pam_machine, monkeypatch):
     """Compose the prepared caller with the retained authselect owner itself."""
     authselect, current, commands = pam_machine
-    source = ROOT / 'data/kiosk-runtime-unselected/distro_pam.py'
+    source = ROOT / 'packaging/distro_pam.py'
     spec = importlib.util.spec_from_file_location('prepared_fedora_distro', source)
     prepared = importlib.util.module_from_spec(spec)
     exec(compile(source.read_bytes(), str(source), 'exec'), prepared.__dict__)

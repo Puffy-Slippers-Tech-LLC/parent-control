@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Prepared Ubuntu/Fedora PAM transaction; selected only by the C02 cutover.
+"""Owned Ubuntu/Fedora PAM transaction for the release-based kiosk runtime.
 
 Uses pam-auth-update's local-edit handling and the existing Fedora authselect
 owner. Does not inspect unrelated modules, included stacks or vendor callbacks.

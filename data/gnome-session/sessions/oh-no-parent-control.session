@@ -1,6 +1,5 @@
+# Release-based dedicated kiosk runtime.
 [GNOME Session]
 Name=Oh No! Parent Control Kiosk
-# GNOME kiosk sessions skip every XDG autostart desktop file and obtain their
-# complete application set from the session's systemd target.  Without this,
-# unrelated system-wide helpers can create windows above the request station.
+# The dedicated target supplies the application set without XDG autostart.
 Kiosk=true

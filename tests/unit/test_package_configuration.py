@@ -20,9 +20,382 @@ REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***
 
 from tests.support.package_scripts import (
     mapped_pam_worker, package_machine, prepared_lifecycle_machine, rpm_script_source,
-    use_real_kiosk_confinement, use_real_state_migration,
+    selected_pam_transactions, use_real_account_lifecycle, use_real_state_migration,
 )
 from tests.support.shell import relocate_system_paths
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_activation_retains_exact_legacy_policy_across_unpack_and_retry(tmp_path, monkeypatch, backend):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    saved = migration.state()
+    originals = {path.name: path.read_bytes() for path in migration.PAYLOAD.iterdir()}
+    migration.capture_policy()
+    assert {path.name: path.read_bytes() for path in migration.RETAINED.iterdir()} == originals
+    migration.prepare()
+    for path in migration.PAYLOAD.iterdir():
+        path.unlink()
+    # A repeated preinst consumes the retained exact original, never candidate
+    # bytes at the old path or a regenerated old policy graph.
+    migration.capture_policy()
+    migration.prepare()
+    migration.restore_original_pam()
+    helper = _prepared_pam_migration_runtime(tmp_path, monkeypatch,
+        'fedora' if backend == 'selinux' else 'ubuntu', migration)
+    distribution = 'fedora' if backend == 'selinux' else 'ubuntu'
+    migration.commit_migration(lambda: helper.runtime_ready(distribution))
+    migration.retire_policy()
+    migration.release_account()
+    assert not migration.RETAINED.exists() and machine.expires is None
+    migration.verify_pam(saved, originals=True)
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_activation_retry_preserves_ordinary_erased_mapping_and_kiosk_lease(tmp_path, monkeypatch, backend):
+    import fcntl
+    import os
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    migration.capture_policy()
+    migration.prepare()
+    thread = migration.PROCESSES / '42/task/42'
+    (thread / 'attr').mkdir(parents=True)
+    (thread / 'status').write_text('Uid:\t0\t0\t0\t0\n')
+    (thread / 'loginuid').write_text('1001\n')
+    for name in ('current', 'exec'):
+        (thread / 'attr' / name).write_text('unconfined\n')
+    with mapped_pam_worker(tmp_path) as worker:
+        (thread / 'maps').symlink_to(worker.proc / 'maps')
+        worker.library.unlink()
+        for path in migration.PAYLOAD.iterdir():
+            path.unlink()
+        held = os.open(migration.LOCKS[0], os.O_RDWR)
+        try:
+            fcntl.flock(held, fcntl.LOCK_SH)
+            before = migration.STATE.read_bytes()
+            with pytest.raises(BlockingIOError):
+                migration.prepare()
+            assert migration.STATE.read_bytes() == before
+        finally:
+            os.close(held)
+        migration.prepare()
+        migration.restore_original_pam()
+        helper = _prepared_pam_migration_runtime(tmp_path, monkeypatch,
+            'fedora' if backend == 'selinux' else 'ubuntu', migration)
+        migration.commit_migration(lambda: helper.runtime_ready('fedora' if backend == 'selinux' else 'ubuntu'))
+        migration.retire_policy()
+        migration.release_account()
+        assert worker.child.poll() is None
+    assert worker.child.returncode == 0 and machine.expires is None
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_post_unpack_rollback_preserves_native_quarantine(tmp_path, monkeypatch, backend):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    migration.capture_policy()
+    migration.prepare()
+    migration.restore_original_pam()
+    for path in migration.PAYLOAD.iterdir():
+        path.unlink()
+    migration.rollback(release=False)
+    assert not machine.loaded and machine.expires == 1
+    assert migration.expiry_record(1006)['phase'] == 'quarantined'
+    assert migration.STATE.exists() and migration.RETAINED.exists()
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('callback', ['configure-failed', 'rollback'])
+def test_selected_failure_callbacks_preserve_ordinary_native_pam_and_retry(
+        tmp_path, monkeypatch, backend, callback):
+    import os
+    import pwd
+    ordinary = pwd.getpwuid(os.getuid()).pw_name
+    native = selected_pam_transactions(tmp_path)
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend, pam_original=native.original)
+    migration = machine.migration
+    migration.capture_policy()
+    migration.prepare()
+    migration.restore_original_pam()
+    for path in migration.PAYLOAD.iterdir():
+        path.unlink()
+    distribution = 'fedora' if backend == 'selinux' else 'ubuntu'
+    with monkeypatch.context() as identity:
+        identity.setattr(migration.os, 'geteuid', lambda: 0)
+        assert migration.main(['--distribution', distribution, callback]) == 0
+    assert machine.expires == 1 and migration.DISABLED.exists()
+    for service in migration.SERVICES:
+        contents = (migration.PAM / service).read_text()
+        assert contents == migration.DENIAL + native.original
+        assert native.call(migration, ordinary, service) == (0, 0)
+        assert all(result != 0 for result in native.call(migration, migration.USER, service))
+    migration.prepare()
+    migration.restore_original_pam()
+    helper = _prepared_pam_migration_runtime(tmp_path, monkeypatch, distribution, migration)
+    migration.commit_migration(lambda: helper.runtime_ready(distribution))
+    migration.retire_policy()
+    migration.release_account()
+    for service in migration.SERVICES:
+        assert native.call(migration, ordinary, service) == (0, 0)
+        assert native.call(migration, migration.USER, service) == (0, 0)
+    assert machine.expires is None
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('captured', [False, True])
+def test_capture_uid_mismatch_preserves_all_storage_and_recovery(tmp_path, monkeypatch, backend, captured):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    if captured:
+        migration.capture_policy()
+    saved = migration.state()
+    saved['kiosk_uid'] = 1007
+    migration.save(migration.STATE, saved)
+    before = {path: (path.stat().st_ino, path.read_bytes())
+              for path in migration.STATE_DIRECTORY.rglob('*') if path.is_file()}
+    with pytest.raises(ValueError, match='changed-kiosk-identity'):
+        migration.capture_policy()
+    assert {path: (path.stat().st_ino, path.read_bytes())
+            for path in migration.STATE_DIRECTORY.rglob('*') if path.is_file()} == before
+    assert migration.RETAINED.exists() == captured
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('change', ['config', 'policy', 'replacement', 'other-backend', 'missing-receipt'])
+def test_capture_retirement_preserves_changed_or_unowned_members_after_state_erasure(
+        tmp_path, monkeypatch, backend, change):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    migration.capture_policy()
+    receipt = migration.capture_record()
+    migration.prepare()
+    migration.restore_original_pam()
+    migration.commit_migration(lambda: None)
+    assert not migration.STATE.exists() and migration.CAPTURE.exists()
+    policy_name = next(name for name in receipt['files'] if name != 'config.json')
+    if change in ('config', 'policy'):
+        (migration.RETAINED / ('config.json' if change == 'config' else policy_name)).write_text('changed bytes\n')
+    elif change == 'replacement':
+        path = migration.RETAINED / policy_name
+        contents = path.read_bytes()
+        path.rename(tmp_path / 'original-captured-policy')
+        path.write_bytes(contents)
+        path.chmod(0o600)
+    elif change == 'other-backend':
+        name = 'onpc-kiosk.apparmor' if backend == 'selinux' else 'onpc-kiosk.cil'
+        (migration.RETAINED / name).write_text('unowned other backend\n')
+    else:
+        migration.CAPTURE.rename(tmp_path / 'original-capture-receipt')
+    before = {path: (path.stat().st_ino, path.read_bytes()) for path in migration.RETAINED.iterdir()}
+    with pytest.raises(ValueError):
+        migration.retire_policy()
+    assert {path: (path.stat().st_ino, path.read_bytes()) for path in migration.RETAINED.iterdir()} == before
+    assert machine.expires == 1 and migration.EXPIRY.exists()
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('boundary', ['state', 'config', 'policy', 'directory'])
+def test_capture_receipt_survives_each_retirement_interruption(tmp_path, monkeypatch, backend, boundary):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    migration.capture_policy()
+    receipt = migration.capture_record()
+    policy_name = next(name for name in receipt['files'] if name != 'config.json')
+    migration.prepare()
+    migration.restore_original_pam()
+    original_erase, original_rmdir = migration.erase, migration.Path.rmdir
+    target = {'state': migration.STATE, 'config': migration.RETAINED / 'config.json',
+              'policy': migration.RETAINED / policy_name, 'directory': migration.RETAINED}[boundary]
+    failed = False
+    def erase(path):
+        nonlocal failed
+        original_erase(path)
+        if path == target and not failed:
+            failed = True
+            raise OSError('owned cleanup interruption')
+    def rmdir(path):
+        nonlocal failed
+        original_rmdir(path)
+        if path == target and not failed:
+            failed = True
+            raise OSError('owned cleanup interruption')
+    monkeypatch.setattr(migration, 'erase', erase)
+    monkeypatch.setattr(migration.Path, 'rmdir', rmdir)
+    with pytest.raises(OSError, match='owned cleanup interruption'):
+        migration.commit_migration(lambda: None)
+        migration.retire_policy()
+    assert failed and not migration.STATE.exists()
+    assert migration.CAPTURE.exists() and machine.expires == 1
+    migration.commit_migration(lambda: None)
+    migration.retire_policy()
+    migration.release_account()
+    assert not migration.RETAINED.exists() and not migration.CAPTURE.exists()
+    assert machine.expires is None
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_capture_publication_interruption_retries_from_original_attested_bytes(tmp_path, monkeypatch, backend):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    original = migration.os.link
+    failed = False
+    def link(*args, **options):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise OSError('capture publication interruption')
+        return original(*args, **options)
+    monkeypatch.setattr(migration.os, 'link', link)
+    with pytest.raises(OSError, match='capture publication interruption'):
+        migration.capture_policy()
+    assert migration.capture_record()['phase'] == 'capture'
+    migration.capture_policy()
+    assert migration.capture_record()['phase'] == 'ready'
+    migration.verify_capture(migration.capture_record())
+
+
+@pytest.mark.parametrize('replacement', ['absent', 'symlink', 'file', 'parent-link'])
+def test_capture_retirement_noops_only_for_genuinely_absent_state(tmp_path, monkeypatch, replacement):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, installed=False)
+    migration = machine.migration
+    marker = migration.OWNERSHIP.read_bytes()
+    preserved = tmp_path / 'preserved-state'
+    migration.STATE_DIRECTORY.rename(preserved)
+    if replacement == 'symlink':
+        migration.STATE_DIRECTORY.symlink_to(tmp_path / 'absent-foreign-state')
+    elif replacement == 'file':
+        migration.STATE_DIRECTORY.write_text('foreign replacement\n')
+    elif replacement == 'parent-link':
+        parent = migration.STATE_DIRECTORY.parent
+        parent.rename(tmp_path / 'preserved-state-parent')
+        foreign = tmp_path / 'foreign-parent'
+        foreign.mkdir()
+        parent.symlink_to(foreign, target_is_directory=True)
+    if replacement == 'absent':
+        migration.retire_policy()
+        migration.retire_policy()
+        assert not migration.STATE_DIRECTORY.exists()
+    else:
+        with pytest.raises((OSError, ValueError)):
+            migration.retire_policy()
+    assert (preserved / migration.OWNERSHIP.name).read_bytes() == marker
+    assert not any(path.exists() for path in migration.LOCKS)
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+def test_partial_capture_retirement_preserves_changed_remaining_member(tmp_path, monkeypatch, backend):
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch, backend)
+    migration = machine.migration
+    migration.capture_policy()
+    receipt = migration.capture_record()
+    policy_name = next(name for name in receipt['files'] if name != 'config.json')
+    original_policy = (migration.RETAINED / policy_name).read_bytes()
+    migration.prepare()
+    migration.restore_original_pam()
+    migration.commit_migration(lambda: None)
+    original = migration.erase
+    def interrupt(path):
+        original(path)
+        if path == migration.RETAINED / 'config.json':
+            raise OSError('between capture member deletions')
+    monkeypatch.setattr(migration, 'erase', interrupt)
+    with pytest.raises(OSError, match='between capture member deletions'):
+        migration.retire_policy()
+    monkeypatch.setattr(migration, 'erase', original)
+    assert migration.capture_record()['phase'] == 'retiring'
+    remaining = migration.RETAINED / policy_name
+    remaining.write_text('changed after partial retirement\n')
+    before = migration.CAPTURE.read_bytes(), remaining.read_bytes(), remaining.stat().st_ino
+    for path in migration.PAYLOAD.iterdir():
+        path.unlink()
+    with pytest.raises(ValueError, match='changed-retained-policy'):
+        migration.retire_policy()
+    assert (migration.CAPTURE.read_bytes(), remaining.read_bytes(), remaining.stat().st_ino) == before
+    remaining.write_bytes(original_policy)
+    migration.retire_policy()
+    migration.release_account()
+    assert not migration.CAPTURE.exists() and not migration.RETAINED.exists()
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('administrator_expiry', [None, 1])
+def test_fresh_marker_interruption_keeps_credential_locked_and_preserves_native_expiry(
+        package_machine, administrator_expiry):
+    root, state, run = package_machine
+    marker = state / 'package-created-kiosk-uid'
+    marker.unlink()
+    use_real_account_lifecycle(root)
+    stub = root / 'bin/stub'
+    boundary = 'case "$name" in\n'
+    source = stub.read_text()
+    account_commands = r'''case "$name:$*" in
+    chmod:*)
+        if [ "$#" -eq 2 ] && [ "$1" = 0600 ] &&
+           [ "$2" = "$AUDIT_ROOT/var/lib/oh-no-parent-control/package-created-kiosk-uid" ]; then
+            /usr/bin/chmod "$@"
+            exit 0
+        fi
+        ;;
+    getent:'passwd oh-no-parent-control')
+        test -f "$AUDIT_ROOT/account-ready" || exit 2
+        ;;
+    useradd:*)
+        case " $* " in *" --password ! --expiredate -1 "*) ;; *) exit 93;; esac
+        /usr/bin/mkdir -p "$AUDIT_ROOT/home/oh-no-parent-control"
+        printf 'unset\n' > "$AUDIT_ROOT/account-expiry"
+        touch "$AUDIT_ROOT/account-ready" "$AUDIT_ROOT/credential-locked"
+        exit 0
+        ;;
+    passwd:*)
+        test "$(cat "$AUDIT_ROOT/account-expiry")" = 1 || exit 94
+        test -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/kiosk-configuration-account.json" || exit 95
+        rm -f "$AUDIT_ROOT/credential-locked"
+        ;;
+esac
+'''
+    assert source.count(boundary) == 1
+    stub.write_text(source.replace(boundary, account_commands + boundary))
+    (root / 'bin/useradd').symlink_to(stub)
+    first = run(INTERRUPT_AFTER_KIOSK_MARKER='1')
+    assert first.returncode == 71, first.stderr
+    assert marker.read_text() == '1006\n'
+    assert marker.stat().st_mode & 0o7777 == 0o600
+    marker_identity = marker.stat().st_dev, marker.stat().st_ino
+    assert (root / 'credential-locked').exists()
+    assert (root / 'account-expiry').read_text() == 'unset\n'
+    assert not (state / 'kiosk-configuration-account.json').exists()
+    if administrator_expiry is not None:
+        # Explicit native administrator policy after the interruption is not
+        # evidence that the package's creation quarantine must be removed.
+        (root / 'account-expiry').write_text(str(administrator_expiry) + '\n')
+    second = run()
+    assert second.returncode == 0, second.stderr
+    assert (marker.stat().st_dev, marker.stat().st_ino) == marker_identity
+    assert not (root / 'credential-locked').exists()
+    assert not (state / 'kiosk-configuration-account.json').exists()
+    assert (root / 'account-expiry').read_text() == ('unset\n' if administrator_expiry is None else '1\n')
+
+
+@pytest.mark.parametrize('private_state', ['slot', 'xattr'])
+def test_commit_requires_private_visibility_recovery_even_when_publicly_visible(tmp_path, monkeypatch, private_state):
+    import os
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
+    migration = machine.migration
+    migration.prepare()
+    migration.restore_original_pam()
+    cached = migration.CACHE / migration.USER
+    cached.write_text('[User]\nSystemAccount=false\n')
+    cached.chmod(0o600)
+    if private_state == 'slot':
+        slot = migration.CACHE / migration.SLOT
+        slot.write_text('owned recovery remains\n')
+        slot.chmod(0o600)
+    else:
+        os.setxattr(cached, migration.ATTRIBUTE, b'owned recovery remains')
+    with pytest.raises(ValueError, match='visibility-recovery-not-settled'):
+        migration.commit_migration(lambda: None)
+    assert migration.STATE.exists() and migration.EXPIRY.exists() and machine.expires == 1
 
 
 @pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
@@ -685,16 +1058,18 @@ def test_prepared_lifecycle_visibility_preserves_foreign_or_live_cache(tmp_path,
         assert (migration.CACHE / migration.SLOT).read_bytes() == b'foreign slot\n'
 
 
-def test_prepared_lifecycle_embedded_finalizer_is_unselected_and_payload_independent():
+def test_selected_lifecycle_embedded_finalizer_is_payload_independent():
     renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
-    source = renderer['embedded_prepared_confinement_finish_remove'](ROOT)
-    assert 'def finish_remove():' in source and 'legacy cleanup failed' in source
+    source = renderer['embedded_confinement_finish_remove'](ROOT)
+    assert 'def finish_remove():' in source and 'confinement cleanup failed' in source
     for distribution in ('ubuntu', 'fedora'):
         selected = renderer['render'](ROOT, distribution, 'postrm')
-        assert 'ONPC_PREPARED_CONFINEMENT_FINISH_REMOVE' not in selected
+        assert 'ONPC_CONFINEMENT_FINISH_REMOVE' in selected
+        assert 'def capture_policy():' in selected
     result = subprocess.run(['make', '--no-print-directory', 'package-source-files'],
                             cwd=ROOT, capture_output=True, text=True, timeout=30, check=True)
-    assert 'data/kiosk-runtime-unselected/lifecycle_migration.py' not in result.stdout.splitlines()
+    assert 'packaging/lifecycle_migration.py' in result.stdout.splitlines()
+    assert 'packaging/kiosk_confinement.py' not in result.stdout.splitlines()
 
 
 @pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
@@ -717,7 +1092,7 @@ def test_prepared_lifecycle_embedded_post_erase_executes_and_retries(tmp_path, m
         payload.unlink()
     # Model verified account removal in the child without querying host NSS.
     renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
-    header, body = renderer['embedded_prepared_confinement_finish_remove'](ROOT).split('\n', 1)
+    header, body = renderer['embedded_confinement_finish_remove'](ROOT).split('\n', 1)
     body = relocate_system_paths(body, tmp_path, prefixes=('/etc/', '/var/', '/run/', '/home/', '/usr/', '/sys/', '/proc/'))
     body = body.replace("ROOT = Path('/')", 'ROOT = Path(' + repr(str(tmp_path)) + ')')
     body = body.replace("Path('/run')", 'Path(' + repr(str(tmp_path / 'run')) + ')')
@@ -742,7 +1117,7 @@ def test_prepared_lifecycle_embedded_post_erase_executes_and_retries(tmp_path, m
         return subprocess.run(['/bin/sh'], input=script, capture_output=True, text=True,
                               timeout=30, pass_fds=scratch_descriptors())
     first = run_finalizer()
-    assert first.returncode == 1 and 'preserving recovery state' in first.stderr
+    assert first.returncode == 1 and 'preserving admission barrier' in first.stderr
     assert migration.STATE.exists() and migration.DISABLED.exists()
     second = run_finalizer()
     assert second.returncode == 0, second.stderr
@@ -863,13 +1238,13 @@ def test_owned_passwordless_configuration_stays_expired_until_both_guards_pass(p
     source = stub.read_text()
     boundary = 'case "$name" in\n'
     lifecycle = r'''case "$name:$*" in
-    oh-no-parent-control-provision:*--quarantine-account*)
+    oh-no-parent-control-kiosk-lifecycle:*prepare)
         printf '1\n' > "$AUDIT_ROOT/account-expiry"
         ;;
     usermod:*|passwd:*)
         test "$(cat "$AUDIT_ROOT/account-expiry")" = 1 || exit 91
         ;;
-    oh-no-parent-control-provision:*--release-account)
+    oh-no-parent-control-kiosk-lifecycle:*release)
         test -f "$AUDIT_ROOT/shared-pam-verified" || exit 92
         test -f "$AUDIT_ROOT/final-confinement-verified" || exit 93
         test "${CONFIGURE_FAILURE:-}" != release || exit 71
@@ -888,7 +1263,7 @@ def test_owned_passwordless_configuration_stays_expired_until_both_guards_pass(p
         test "${CONFIGURE_FAILURE:-}" != pam || exit 71
         touch "$AUDIT_ROOT/shared-pam-verified"
         ;;
-    oh-no-parent-control-kiosk-confinement-integration:install)
+    oh-no-parent-control-kiosk-lifecycle:*commit)
         test "$(cat "$AUDIT_ROOT/account-expiry")" = 1 || exit 91
         test "${CONFIGURE_FAILURE:-}" != confinement || exit 71
         touch "$AUDIT_ROOT/final-confinement-verified"
@@ -898,7 +1273,7 @@ esac
     assert source.count(boundary) == 1
     stub.write_text(source.replace(boundary, lifecycle + boundary, 1))
     result = run(CONFIGURE_FAILURE=failure)
-    assert result.returncode == 71, result.stderr
+    assert result.returncode == (1 if failure == 'pam' else 71), result.stderr
     assert (root / 'account-expiry').read_text() == '1\n'
     assert (state / 'package-created-kiosk-uid').read_text() == '1006\n'
     assert run().returncode == 0
@@ -908,146 +1283,80 @@ esac
     assert not any(line.startswith('runuser ') for line in commands.splitlines())
 
 
-@pytest.mark.parametrize('package_machine,backend', [('ubuntu', 'apparmor'), ('fedora', 'selinux')],
-                         indirect=['package_machine'])
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
 @pytest.mark.parametrize('profile', ['minimal', 'lxc-sssd', 'continued-include', 'vendor-symlink',
                                    'local-manager'])
-def test_configuration_composes_real_confinement_with_supported_machine_profiles(
-        package_machine, backend, profile):
+def test_configuration_composes_selected_pam_with_supported_machine_profiles(
+        package_machine, profile):
     from oh_no_parent_control.preferences import default_preferences
 
     root, state, run = package_machine
-    payload, pam, vendor = use_real_kiosk_confinement(root, backend)
     use_real_state_migration(root)
-    (payload.parent / 'app.json').write_text('{"version": "1.4"}\n')
+    (root / 'usr/share/oh-no-parent-control/app.json').write_text('{"version":"1.4"}\n')
     preferences = default_preferences()
     preferences.update(parent_control_enabled=True, daily_time_limit_minutes=75)
     preferences['personal']['language'] = 'fr'
-    preferences['apps'] = {'game.desktop': {'state': 'conditional', 'targets': ['/opt/game'],
-                                          'patterns': [], 'user_saved_match_rule': True}}
     directory = state / 'preferences'
     directory.mkdir(mode=0o700)
     record = directory / '1001.json'
     record.write_text(json.dumps(preferences))
     record.chmod(0o600)
     retained = record.read_bytes()
-    # Preserve real shared-stack inputs through the package's native-PAM audit;
-    # only pam-auth-update itself remains an explicit distribution-tool double.
-    sources = {
-        'common-auth': 'auth required pam_oh_no_parent_control.so\n',
-        'common-account': 'account required pam_oh_no_parent_control.so kiosk\n',
-        'common-session': 'session required pam_oh_no_parent_control.so kiosk\n',
-        'common-session-noninteractive': 'session required pam_unix.so\n',
-    }
+    pam = root / 'etc/pam.d'
+    vendor = root / 'usr/lib/pam.d'
+    vendor.mkdir(parents=True)
+    sources = {}
+    for generated in (root / 'generated-pam').iterdir():
+        contents = generated.read_text()
+        if profile != 'minimal':
+            contents += 'session optional pam_sss.so\nsession optional pam_cgfs.so -c freezer,memory,name=systemd\n'
+        sources[generated.name] = contents
+        (pam / generated.name).write_text(contents)
     directive = '@include\\\n\t' if profile == 'continued-include' else '@include '
-    if profile != 'minimal':
-        rule = 'session optional pam_cgfs.so -c freezer,memory,name=systemd\n'
-        sources['common-session'] += 'session optional pam_sss.so\n' + rule
-        sources['common-session-noninteractive'] += rule
-    for name, contents in sources.items():
-        (pam / name).write_text(contents)
-        (pam / name).chmod(0o644)
     (pam / 'gdm-password').write_text(directive + 'common-session\n')
-    (vendor / 'systemd-user').write_text('@include common-account\n' +
-                                       directive + 'common-session-noninteractive\n')
+    (vendor / 'systemd-user').write_text('session required pam_systemd.so\n')
     if profile == 'vendor-symlink':
-        target = vendor / 'common-session'
-        target.write_text(sources['common-session'])
-        target.chmod(0o644)
-        (pam / 'common-session').unlink()
-        (pam / 'common-session').symlink_to(target)
+        name = next(name for name in sources if 'session' in name) if any('session' in name for name in sources) else 'system-auth'
+        (vendor / name).write_text(sources[name])
+        (pam / name).unlink()
+        (pam / name).symlink_to(vendor / name)
     if profile == 'local-manager':
         (pam / 'systemd-user').write_bytes((vendor / 'systemd-user').read_bytes())
-        (pam / 'systemd-user').chmod(0o644)
-    original = {name: (pam / name).read_bytes() for name in sources}
+    originals = {path: path.read_bytes() for path in (pam / 'gdm-password', vendor / 'systemd-user')}
     for _ in range(2):
         result = run(PAM_LOCAL_CHANGES='1')
         assert result.returncode == 0, result.stderr
-        saved = json.loads((state / 'kiosk-confinement.json').read_text())
-        assert saved['loaded_config_sha256'] == hashlib.sha256(
-            (payload / 'config.json').read_bytes()).hexdigest()
-        assert saved['loaded_policy_sha256'] == hashlib.sha256(
-            (payload / ('onpc-kiosk.apparmor' if backend == 'apparmor' else 'onpc-kiosk.cil'))
-            .read_bytes()).hexdigest()
-        for name in ('gdm-password', 'systemd-user'):
-            assert (pam / name).read_text() == saved['pam'][name]['after']
-            assert (pam / name).read_text().endswith(
-                'session required pam_oh_no_parent_control.so kiosk-confinement\n'
-                '# END Oh No Parent Control execution confinement\n')
-        assert {name: (pam / name).read_bytes() for name in sources} == original
+        assert not (state / 'kiosk-confinement.json').exists()
+        assert {name: (pam / name).read_text() for name in sources} == sources
+        assert {path: path.read_bytes() for path in originals} == originals
         assert record.read_bytes() == retained
         assert not (state / 'migration-in-progress').exists()
         assert not (state / 'package-activation-pending').exists()
-        assert 'PASS: Oh No! Parent Control package configuration completed successfully.' in result.stdout
     commands = (root / 'commands').read_text().splitlines()
-    loaded = next(index for index, line in enumerate(commands)
-                  if line.startswith('policy-tool -r ' if backend == 'apparmor' else 'policy-tool -i '))
-    released = next(index for index, line in enumerate(commands)
-                    if line.startswith('oh-no-parent-control-provision ') and '--release-account' in line)
-    activated = commands.index(f'systemctl --system restart {BROKER}')
-    assert loaded < released < activated
+    committed = next(index for index, line in enumerate(commands) if line.endswith(' commit'))
+    released = next(index for index, line in enumerate(commands) if line.endswith(' release'))
+    assert committed < released < commands.index(f'systemctl --system restart {BROKER}')
+    assert not any('kiosk-confinement-integration' in line or 'policy-tool' in line for line in commands)
 
 
-@pytest.mark.parametrize('package_machine,backend', [('ubuntu', 'apparmor'), ('fedora', 'selinux')],
-                         indirect=['package_machine'])
-@pytest.mark.parametrize('failure,reason', [
-    ('unknown-module', 'unsupported-pam-session-module'),
-    ('short-circuit', 'pam-can-skip-confinement'),
-    ('pending-vendor', 'pending-distribution-pam-update'),
-    ('compiler', 'command-failed'), ('missing-tool', 'os-error'),
-])
-def test_real_confinement_failure_preserves_exclusion_and_configuration_recovers(
-        package_machine, backend, failure, reason):
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('variation', ['unknown-module', 'short-circuit', 'pending-vendor',
+                                      'missing-old-policy-tools'])
+def test_unrelated_pam_and_retired_tools_do_not_veto_configuration(package_machine, variation):
     root, state, run = package_machine
-    payload, pam, _vendor = use_real_kiosk_confinement(root, backend)
-    use_real_state_migration(root)
-    (payload.parent / 'app.json').write_text('{"version": "1.4"}\n')
-    recovery = None
-    if failure in ('unknown-module', 'short-circuit'):
-        original = (pam / 'gdm-password').read_text()
-        (pam / 'gdm-password').write_text(
-            'session optional pam_exec.so /private/program\n' if failure == 'unknown-module'
-            else 'session sufficient pam_cgfs.so\n')
-        recovery = lambda: (pam / 'gdm-password').write_text(original)
-    elif failure == 'pending-vendor':
-        pending = pam / 'gdm-password.dpkg-dist'
-        pending.write_text('session required pam_limits.so\n')
-        pending.chmod(0o644)
-        recovery = pending.unlink
-    elif failure == 'compiler':
-        status = root / 'policy-load-status'
-        status.write_text('7\n')
-        recovery = status.unlink
-    elif failure == 'missing-tool':
-        tool = root / 'usr/sbin' / ('apparmor_parser' if backend == 'apparmor' else 'semodule')
-        before = tool.read_bytes()
-        tool.unlink()
-
-        def restore():
-            tool.write_bytes(before)
-            tool.chmod(0o755)
-        recovery = restore
-    pam_before = {name: (pam / name).read_bytes() if (pam / name).exists() else None
-                  for name in ('gdm-password', 'systemd-user')}
-    result = run()
-    assert result.returncode != 0
-    assert 'reason=' + reason in result.stderr
-    assert '/private/program' not in result.stderr
-    assert (state / 'migration-in-progress').exists()
-    assert (state / 'package-activation-pending').exists()
-    assert not (root / 'run/oh-no-parent-control-package-configuration-complete').exists()
-    assert {name: (pam / name).read_bytes() if (pam / name).exists() else None
-            for name in pam_before} == pam_before
-    commands = (root / 'commands').read_text()
-    assert '--release-account' not in commands
-    assert f'systemctl --system restart {BROKER}' not in commands
-    assert f'systemctl --system start {BROKER}' not in commands
-    recovery()
+    pam = root / 'etc/pam.d'
+    original = ('session optional pam_exec.so /private/administrator-program\n' if variation == 'unknown-module'
+                else 'session sufficient pam_cgfs.so\n')
+    service = pam / 'gdm-password'
+    service.write_text(original)
+    if variation == 'pending-vendor':
+        (pam / 'gdm-password.dpkg-dist').write_text('session required pam_limits.so\n')
     result = run()
     assert result.returncode == 0, result.stderr
+    assert service.read_text() == original
+    assert not (state / 'kiosk-confinement.json').exists()
     assert not (state / 'migration-in-progress').exists()
     assert not (state / 'package-activation-pending').exists()
-    assert 'PASS: Oh No! Parent Control package configuration completed successfully.' in result.stdout
     assert f'systemctl --system restart {BROKER}' in (root / 'commands').read_text()
 
 
@@ -1111,7 +1420,7 @@ def test_reinstall_restores_snapshot_only_after_enforcement_is_ready(
         touch "$AUDIT_ROOT/snapshot-restored"
         exit 0
         ;;
-    oh-no-parent-control-kiosk-confinement-integration:install)
+    oh-no-parent-control-kiosk-lifecycle:*commit)
         test -f "$AUDIT_ROOT/snapshot-restored" || exit 99
         test -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/migration-in-progress" || exit 99
         test ! -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/uninstall-enforcement.json" || exit 99
@@ -1141,7 +1450,7 @@ esac
             assert (state / name).exists(), name
         assert not (root / 'confinement-armed').exists()
         commands = (root / 'commands').read_text()
-        assert 'oh-no-parent-control-kiosk-confinement-integration install' not in commands
+        assert 'oh-no-parent-control-kiosk-lifecycle --distribution ' + distribution + ' commit' not in commands
         assert f'systemctl --system restart {BROKER}' not in commands
         assert ('oh-no-parent-control-uninstall --restore' in commands) == (failure == 'restore')
         # Retry the same owned state through the same native entry point.
@@ -1157,7 +1466,7 @@ esac
         assert not (state / name).exists(), name
     commands = (root / 'commands').read_text().splitlines()
     restore = commands.index('oh-no-parent-control-uninstall --restore')
-    confinement = commands.index('oh-no-parent-control-kiosk-confinement-integration install')
+    confinement = commands.index('oh-no-parent-control-kiosk-lifecycle --distribution ' + distribution + ' commit')
     startup = ('systemctl' if distribution == 'fedora' else 'deb-systemd-invoke') + (
         ' start fapolicyd.service malcontent-timerd.service malcontent-timer-extension-agent.service')
     assert commands.index(startup) < commands.index(
@@ -1166,7 +1475,7 @@ esac
         assert commands.index('systemctl start oh-no-parent-control-execution-policy-ready.service') < restore
     assert restore < confinement < commands.index(f'systemctl --system restart {BROKER}')
     assert commands.count('oh-no-parent-control-uninstall --restore') == 1
-    assert commands.count('oh-no-parent-control-kiosk-confinement-integration install') == 1
+    assert commands.count('oh-no-parent-control-kiosk-lifecycle --distribution ' + distribution + ' commit') == 1
 
 
 @pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
@@ -1352,8 +1661,8 @@ def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_
     root, state, run = package_machine
     activation = runpy.run_path(str(ROOT / "debian/package_activation.py"))
     # Old manifests marked the fresh diagnostic commands as reboot-required.
-    # Current native PAM changes separately require renewal of the persistent
-    # user manager; keep unchanged PAM distinct from those command updates.
+    # Rebuilt native PAM changes require session renewal. Keep that boundary
+    # separate from boot-order changes, which still require a reboot.
     old_levels = {
         "usr/libexec/oh-no-parent-control-session-limit-check": "reboot",
         "usr/libexec/oh-no-parent-control-execution-policy-ready": "reboot",
@@ -1377,10 +1686,15 @@ def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_
     (state / "previous-package-activation.json").write_text(json.dumps({
         "version": 1, "files": old_files,
     }))
-    activation["generate"](
-        root, root / "usr/share/oh-no-parent-control/package-activation.json",
-        [Path(path) for path in old_levels],
-    )
+    current = root / "usr/share/oh-no-parent-control/package-activation.json"
+    activation["generate"](root, current, [Path(path) for path in old_levels])
+    entries = {entry['path']: entry for entry in json.loads(current.read_text())['files']}
+    native_path = 'usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so'
+    assert entries[native_path]['activation'] == 'session-renewal'
+    assert (entries[native_path]['sha256'] != hashlib.sha256(b'old payload').hexdigest()) == native_pam_changed
+    if native_pam_changed:
+        assert 'session-renewal' in activation['changed_impacts'](
+            state / 'previous-package-activation.json', current)
     # Replace only this fixture's comparison stub with the shipped helper.
     helper = root / "usr/libexec/oh-no-parent-control-package-activation"
     helper.unlink()
@@ -1406,7 +1720,7 @@ def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_
     assert result.returncode == 0, result.stderr
     commands = (root / "commands").read_text().splitlines()
     assert f"systemctl --system restart {BROKER}" in commands
-    reboot = boot_order_changed or native_pam_changed
+    reboot = boot_order_changed
     assert ("notify-reboot-required " in commands) == reboot
     assert (root / "run/reboot-required").exists() == reboot
     assert (REBOOT_NOTICE in result.stderr) == reboot
@@ -1476,6 +1790,7 @@ def test_ubuntu_does_not_start_fedora_readiness_unit(package_machine):
 @pytest.mark.parametrize('manager_state', ['inactive', 'active', 'failed'])
 def test_configuration_retires_only_the_owned_failed_kiosk_manager(package_machine, manager_state):
     root, _, run = package_machine
+    distribution = 'fedora' if (root / 'usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules').exists() else 'ubuntu'
     failure = root / 'kiosk-manager-failed'
     failed = manager_state == 'failed'
     if failed:
@@ -1490,7 +1805,7 @@ def test_configuration_retires_only_the_owned_failed_kiosk_manager(package_machi
                                        'systemctl restart user@')) for command in commands)
     assert not any('reset-failed' in command and command != reset for command in commands)
     if failed:
-        assert commands.index('oh-no-parent-control-kiosk-confinement-integration install') < commands.index(reset)
+        assert commands.index('oh-no-parent-control-kiosk-lifecycle --distribution ' + distribution + ' commit') < commands.index(reset)
         assert commands.index('systemctl --system start ' + BROKER) < commands.index(reset)
     assert REBOOT_NOTICE in result.stderr
 
@@ -1729,25 +2044,26 @@ def test_local_pam_configuration_cannot_silently_skip_enforcement(package_machin
 def test_ubuntu_activation_requires_native_kiosk_stages_and_no_generic_python_gate(package_machine, fault):
     root, state, run = package_machine
     pam = root / 'etc/pam.d'
-    sources = {
-        'common-auth': 'auth required pam_oh_no_parent_control.so\n',
-        'common-account': 'account required pam_oh_no_parent_control.so kiosk\n',
-        'common-session': 'session required pam_oh_no_parent_control.so kiosk\n',
-    }
+    sources = {path.name: path.read_text() for path in (root / 'generated-pam').iterdir()}
     if fault == 'legacy-helper':
         sources['common-account'] += (
             f'account required pam_exec.so quiet {root}/usr/libexec/oh-no-parent-control-login-check\n')
     else:
         stage, variation = fault.split('-')
         name = 'common-' + stage
-        sources[name] = ('' if variation == 'missing' else
-                         sources[name].replace('required', 'optional') if variation == 'optional' else
-                         '# ' + sources[name])
+        rule = f'{stage} required pam_oh_no_parent_control.so kiosk\n'
+        assert sources[name].count(rule) == 1
+        replacement = ('' if variation == 'missing' else
+                       rule.replace('required', 'optional') if variation == 'optional' else
+                       '# ' + rule)
+        sources[name] = sources[name].replace(rule, replacement)
     for name, contents in sources.items():
         (pam / name).write_text(contents)
     result = run(PAM_LOCAL_CHANGES='1')
     assert result.returncode != 0
-    assert 'PAM integration was not activated' in result.stderr
+    expected = ('legacy external PAM login dispatch remains' if fault == 'legacy-helper' else
+                'PAM integration was not activated')
+    assert expected in result.stderr
     assert (state / 'migration-in-progress').exists()
     assert {name: (pam / name).read_text() for name in sources} == sources
     assert f'systemctl --system start {BROKER}' not in (root / 'commands').read_text()
@@ -1758,11 +2074,11 @@ def test_missing_generated_integrations_are_recreated_on_reinstall(package_machi
     root, state, run = package_machine
     result = run()
     assert result.returncode == 0, result.stderr
-    for target in ("etc/gdm3/PreSession/Default", "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules"):
+    for target in ("etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules",):
         (root / target).unlink()
     result = run()
     assert result.returncode == 0, result.stderr
-    assert (root / "etc/gdm3/PreSession/Default").read_bytes() == (state / "installed-gdm-presession").read_bytes()
+    assert not (root / "etc/gdm3/PreSession/Default").exists()
     assert (root / "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules").read_bytes() == (state / "installed-fapolicyd-fallback").read_bytes()
 
 
@@ -2060,8 +2376,8 @@ def _prepared_pam_migration_runtime(root, monkeypatch, distribution, migration, 
     from types import SimpleNamespace
     from tools.test_storage import scratch_descriptors
 
-    prepared = ROOT / 'data/kiosk-runtime-unselected'
-    source = prepared / 'distro_pam.py'
+    prepared = ROOT
+    source = prepared / 'packaging/distro_pam.py'
     spec = importlib.util.spec_from_file_location('prepared_pam_migration_distro', source)
     helper = importlib.util.module_from_spec(spec)
     exec(compile(source.read_bytes(), str(source), 'exec'), helper.__dict__)
@@ -2070,11 +2386,11 @@ def _prepared_pam_migration_runtime(root, monkeypatch, distribution, migration, 
     payload.mkdir()
     module = payload / 'pam_oh_no_parent_control.so'
     subprocess.run(['cc', '-shared', '-fPIC', '-Wall', '-Wextra', '-Werror',
-                    '-o', str(module), str(prepared / 'pam_oh_no_parent_control.c'), '-lpam'],
+                    '-o', str(module), str(prepared / 'tools/pam_oh_no_parent_control.c'), '-lpam'],
                    check=True, capture_output=True, text=True, timeout=30, pass_fds=scratch_descriptors())
     module.chmod(0o644)
     login = payload / 'login-check'
-    login.write_bytes((prepared / 'login_check.py').read_bytes())
+    login.write_bytes((prepared / 'tools/oh-no-parent-control-login-check').read_bytes())
     login.chmod(0o755)
     time_check = payload / 'time-check'
     time_check.write_bytes((ROOT / 'tools/session_limit_check.py').read_bytes())
@@ -2096,7 +2412,7 @@ def _prepared_pam_migration_runtime(root, monkeypatch, distribution, migration, 
     profiles = profile_root / 'data/pam-configs'
     profiles.mkdir(parents=True)
     for name in ('oh-no-parent-control-kiosk-only', 'oh-no-parent-control-session-limits'):
-        (profiles / name).write_bytes((prepared / 'pam-configs' / name).read_bytes())
+        (profiles / name).write_bytes((prepared / 'data/pam-configs' / name).read_bytes())
     stage_source = ROOT / 'packaging/stage_distribution.py'
     stage = {'__name__': 'prepared_migration_pam_stage'}
     exec(compile(stage_source.read_bytes(), str(stage_source), 'exec'), stage)

@@ -33,6 +33,17 @@ BOOT_ID_PATTERN = r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}'
 
 def activation_for(path: str) -> str:
     """Return the activation required when an installed path changes."""
+    # Release-based account/PAM configuration is consumed by the next public
+    # login. Legacy manifest members retain their recorded impacts during the
+    # old/new comparison; these rules describe only the selected new payload.
+    if path in {
+        'usr/libexec/oh-no-parent-control-kiosk-lifecycle',
+        'usr/libexec/oh-no-parent-control-distro-pam',
+        'usr/libexec/oh-no-parent-control-login-check',
+    } or path.startswith(('usr/lib/oh-no-parent-control/lifecycle/',
+                          'usr/share/pam-configs/',
+                          'usr/share/oh-no-parent-control/pam/')):
+        return 'none'
     # GNOME monitors desktop entries; new overlay launches use this identity.
     if path == "usr/share/applications/com.puffyslippers.OhNoParentControl.ChildRequest.desktop":
         return "none"
@@ -59,10 +70,10 @@ def activation_for(path: str) -> str:
         "usr/libexec/oh-no-parent-control-execution-policy-ready",
     }:
         return "none"
-    # The module also confines the persistent user manager. A new graphical
-    # login can reuse that manager, so only reboot renews the whole boundary.
+    # New PAM handles consume the replacement module. Existing sessions keep
+    # their original lifetime lease; no package operation terminates them.
     if path.endswith("/security/pam_oh_no_parent_control.so"):
-        return "reboot"
+        return "session-renewal"
     # This recovery service belongs to the user manager, not a GNOME session.
     # Lingering or another login can retain it through logout/login. Package
     # configuration does not restart arbitrary users' managers, so a reboot is

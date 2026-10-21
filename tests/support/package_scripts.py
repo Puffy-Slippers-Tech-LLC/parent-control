@@ -57,7 +57,7 @@ def mapped_pam_worker(root):
             child.communicate(timeout=5)
 
 
-def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, installed=True):
+def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, installed=True, pam_original=None):
     """Real old-state producer plus prepared migration, private native/NSS doubles.
 
     All paths, descriptor locks, cache xattrs and durable writes remain real in
@@ -68,14 +68,14 @@ def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, install
             context.setattr(sys, 'dont_write_bytecode', True)
             return load_module(name, ROOT / relative)
 
-    migration = load('data/kiosk-runtime-unselected/lifecycle_migration.py', 'prepared_lifecycle')
+    migration = load('packaging/lifecycle_migration.py', 'prepared_lifecycle')
     legacy = load('packaging/kiosk_confinement.py', 'legacy_lifecycle')
     root.chmod(0o700)
     for name in ('var/lib/oh-no-parent-control', 'var/lib/AccountsService/users', 'run',
                  'etc/pam.d', 'usr/lib/pam.d', 'usr/share/oh-no-parent-control/confinement', 'proc'):
         (root / name).mkdir(parents=True, exist_ok=True)
         (root / name).chmod(0o700)
-    for name in ('STATE_DIRECTORY', 'STATE', 'OWNERSHIP', 'EXPIRY', 'DISABLED', 'PAYLOAD',
+    for name in ('STATE_DIRECTORY', 'STATE', 'OWNERSHIP', 'EXPIRY', 'DISABLED', 'PAYLOAD', 'RETAINED', 'CAPTURE',
                  'PAM', 'PROCESSES', 'BOOT', 'PROFILES', 'CACHE'):
         monkeypatch.setattr(migration, name, root / getattr(migration, name).relative_to('/'))
     monkeypatch.setattr(migration, 'LOCKS', tuple(root / path.relative_to('/') for path in migration.LOCKS))
@@ -150,8 +150,8 @@ def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, install
     migration.OWNERSHIP.chmod(0o600)
     (migration.PAYLOAD / 'config.json').write_text(json.dumps({'backend': backend}) + '\n')
     (migration.PAYLOAD / ('onpc-kiosk.cil' if backend == 'selinux' else 'onpc-kiosk.apparmor')).write_text('# owned policy\n')
-    (migration.PAM / 'gdm-password').write_text('session required pam_unix.so\n')
-    (root / 'usr/lib/pam.d/systemd-user').write_text('session required pam_systemd.so\n')
+    (migration.PAM / 'gdm-password').write_text(pam_original or 'session required pam_unix.so\n')
+    (root / 'usr/lib/pam.d/systemd-user').write_text(pam_original or 'session required pam_systemd.so\n')
     for path in root.rglob('*'):
         if not path.is_symlink():
             path.chmod(path.stat().st_mode & ~0o022)
@@ -162,6 +162,115 @@ def prepared_lifecycle_machine(root, monkeypatch, backend='apparmor', *, install
             path.chmod(path.stat().st_mode & ~0o022)
     machine.commands.clear()
     return machine
+
+
+def selected_pam_transactions(root):
+    """Compile selected PAM and call it only through a private configuration."""
+    import ctypes
+    directory = root / 'selected-native'
+    directory.mkdir()
+    module = directory / 'pam_oh_no_parent_control.so'
+    helper = directory / 'routing'
+    helper.write_text('#!/bin/sh\nexit 0\n')
+    helper.chmod(0o700)
+    subprocess.run([
+        'cc', '-shared', '-fPIC', '-Wall', '-Wextra', '-Werror',
+        f'-DLOGIN_CHECK_PATH="{helper}"', f'-DSESSION_LIMIT_CHECK_PATH="{helper}"',
+        f'-DKIOSK_ADMISSION_LOCK="{root / "run/oh-no-parent-control-kiosk-admission.lock"}"',
+        f'-DKIOSK_ADMISSION_DISABLED="{root / "var/lib/oh-no-parent-control/kiosk-confinement-removing"}"',
+        f'-DKIOSK_ADMISSION_LOCK_OWNER={os.getuid()}',
+        '-o', str(module), str(ROOT / 'tools/pam_oh_no_parent_control.c'), '-lpam',
+    ], check=True, capture_output=True, text=True, timeout=30, pass_fds=scratch_descriptors())
+    # The historical producer accepts its ordinary installed module name.
+    # Resolve that one name to the private new binary only in libpam's copied
+    # configuration below, rather than changing the production legacy parser.
+    original = 'account required pam_oh_no_parent_control.so kiosk\nsession required pam_oh_no_parent_control.so kiosk\n'
+    pam = ctypes.CDLL('libpam.so.0')
+    class Conversation(ctypes.Structure):
+        _fields_ = [('conv', ctypes.c_void_p), ('data', ctypes.c_void_p)]
+    pam.pam_start_confdir.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(Conversation),
+                                    ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p)]
+    for name in ('pam_acct_mgmt', 'pam_open_session', 'pam_close_session', 'pam_end'):
+        getattr(pam, name).argtypes = [ctypes.c_void_p, ctypes.c_int]
+    pam.pam_putenv.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    configuration = directory / 'pam'
+    configuration.mkdir()
+
+    def call(migration, user, service):
+        local = migration.PAM / service
+        vendor = root / 'usr/lib/pam.d' / service
+        contents = (local if local.exists() else vendor).read_text()
+        (configuration / service).write_text(contents.replace('pam_oh_no_parent_control.so', str(module)))
+        handle, conversation = ctypes.c_void_p(), Conversation()
+        assert pam.pam_start_confdir(service.encode(), user.encode(), ctypes.byref(conversation),
+                                    str(configuration).encode(), ctypes.byref(handle)) == 0
+        try:
+            assert pam.pam_putenv(handle, b'XDG_SESSION_TYPE=wayland') == 0
+            result = pam.pam_acct_mgmt(handle, 0), pam.pam_open_session(handle, 0)
+            if result[1] == 0:
+                assert pam.pam_close_session(handle, 0) == 0
+            return result
+        finally:
+            assert pam.pam_end(handle, 0) == 0
+    return SimpleNamespace(original=original, call=call)
+
+
+def use_real_account_lifecycle(root):
+    """Use the selected owner in the shell machine with private NSS/shadow IO."""
+    source = (ROOT / 'packaging/lifecycle_migration.py').read_text()
+    source = relocate_system_paths(source, root, prefixes=(
+        '/etc/', '/var/', '/run/', '/usr/', '/sys/', '/proc/'))
+    source = source.replace("ROOT = Path('/')", 'ROOT = Path(' + repr(str(root)) + ')')
+    source = source.replace("Path('/run')", 'Path(' + repr(str(root / 'run')) + ')')
+    source = source.replace("Path('/proc')", 'Path(' + repr(str(root / 'proc')) + ')')
+    source = source.replace('OWNER = 0', 'OWNER = ' + str(os.getuid()))
+    source = source.replace('GROUP = 0', 'GROUP = ' + str(os.getgid()))
+    source = source.replace('os.geteuid() != 0', 'os.geteuid() != ' + str(os.getuid()))
+    source = source.replace('not stat.S_ISDIR(info.st_mode) or info.st_uid != identity',
+                            'not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()')
+    boot = root / 'proc/sys/kernel/random/boot_id'
+    boot.parent.mkdir(parents=True)
+    boot.write_text('11111111-1111-1111-1111-111111111111\n')
+    helper = root / 'usr/libexec/oh-no-parent-control-kiosk-lifecycle'
+    helper.unlink()
+    adapters = '''
+import sys
+from types import SimpleNamespace
+from importlib.machinery import SourceFileLoader
+from importlib.util import spec_from_loader, module_from_spec
+sys.dont_write_bytecode = True
+fixture_root = ROOT
+with (fixture_root / 'commands').open('a') as stream:
+    stream.write('oh-no-parent-control-kiosk-lifecycle ' + ' '.join(sys.argv[1:]) + '\\n')
+def fixture_user(name):
+    if name != USER or not (fixture_root / 'account-ready').exists():
+        raise KeyError(name)
+    return SimpleNamespace(pw_name=USER, pw_uid=1006, pw_gid=1006,
+                           pw_dir='/home/oh-no-parent-control')
+pwd.getpwnam = fixture_user
+pwd.getpwuid = lambda identity: fixture_user(USER) if identity == 1006 else (_ for _ in ()).throw(KeyError(identity))
+grp.getgrall = lambda: []
+def run(arguments):
+    path = fixture_root / 'account-expiry'
+    if arguments[:2] == ['getent', 'shadow']:
+        value = path.read_text().strip()
+        return SimpleNamespace(stdout=USER + ':!::::::' + ('' if value == 'unset' else value) + ':\\n')
+    if arguments[:2] == ['usermod', '--expiredate']:
+        path.write_text('unset\\n' if arguments[2] == '-1' else arguments[2] + '\\n')
+        return SimpleNamespace(stdout='')
+    raise AssertionError('unexpected native operation: ' + repr(arguments))
+if sys.argv[-1] == 'prepare' and os.environ.get('INTERRUPT_AFTER_KIOSK_MARKER') == '1' and not EXPIRY.exists():
+    assert OWNERSHIP.read_text() == '1006\\n'
+    assert (fixture_root / 'credential-locked').exists()
+    sys.exit(71)
+loader = SourceFileLoader('distro_pam', str(fixture_root / 'usr/libexec/oh-no-parent-control-distro-pam'))
+distro = module_from_spec(spec_from_loader('distro_pam', loader))
+sys.modules['distro_pam'] = distro
+loader.exec_module(distro)
+sys.exit(main())
+'''
+    helper.write_text('#!' + sys.executable + ' -IB\n' + source.split('\n', 1)[1] + adapters)
+    helper.chmod(0o755)
 
 
 def script_source(phase, distribution='ubuntu'):
@@ -323,6 +432,35 @@ case "$1" in current) printf '%s\\n' local;; esac
 printf '%s\\n' "kiosk-confinement $*" >> "$AUDIT_ROOT/commands"
 exit "${CONFINEMENT_STATUS:-0}"
 """).chmod(0o755)
+        self.write('usr/libexec/oh-no-parent-control-kiosk-lifecycle', '''#!/bin/sh
+printf '%s\\n' "kiosk-lifecycle $*" >> "$AUDIT_ROOT/commands"
+case "$3" in visibility-needed) printf 'no\\n';; esac
+exit "${CONFINEMENT_STATUS:-0}"
+''').chmod(0o755)
+        self.write('usr/libexec/oh-no-parent-control-distro-pam', '''#!/bin/sh
+printf '%s\\n' "distro-pam $*" >> "$AUDIT_ROOT/commands"
+if [ "$2" = ubuntu ] && [ "$3" = remove ]; then
+    choice=
+    baseline="$AUDIT_ROOT/var/lib/oh-no-parent-control/malcontent-pam-before-install"
+    if [ -f "$baseline" ]; then
+        case "$(cat "$baseline")" in enabled) choice=--enable;; disabled) choice=--disable;; *) exit 1;; esac
+    fi
+    printf '%s\\n' "pam-auth-update --package --remove oh-no-parent-control-session-limits --remove oh-no-parent-control-kiosk-only ${choice:+$choice malcontent}" >> "$AUDIT_ROOT/commands"
+    if grep -Eq '^[[:space:]]*[^#[:space:]].*(pam_oh_no_parent_control|/usr/libexec/oh-no-parent-control-)' \
+        "$AUDIT_ROOT/etc/pam.d/common-auth" "$AUDIT_ROOT/etc/pam.d/common-account" \
+        "$AUDIT_ROOT/etc/pam.d/common-password" "$AUDIT_ROOT/etc/pam.d/common-session" \
+        "$AUDIT_ROOT/etc/pam.d/common-session-noninteractive"; then
+        echo 'PAM references remain' >&2
+        exit 1
+    fi
+fi
+case "$3" in
+    remove) exit "${PAM_REMOVE_FAILURE:-${PAM_FAILURE:-0}}" ;;
+    install|restore) exit "${PAM_INSTALL_FAILURE:-${PAM_FAILURE:-0}}" ;;
+    verify) exit 0 ;;
+esac
+exit 99
+''').chmod(0o755)
         self.write("test-bin/mountpoint", """#!/bin/sh
 test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
 """).chmod(0o755)
@@ -401,6 +539,9 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
             "/usr/bin/python3 -I - <<'ONPC_CONFINEMENT_FINISH_REMOVE'",
             "ONPC_FIXTURE_PYTHON -I - <<'ONPC_CONFINEMENT_FINISH_REMOVE'")
         source = source.replace(
+            "/usr/bin/python3 -I - <<'ONPC_KIOSK_PRE_UNPACK'",
+            "ONPC_FIXTURE_PYTHON -I - <<'ONPC_KIOSK_PRE_UNPACK'")
+        source = source.replace(
             '/usr/bin/python3 -I - "$1" "$2"', 'ONPC_FIXTURE_PYTHON -I - "$1" "$2"')
         # Redirect every absolute system prefix, including executable paths.
         source = relocate_system_paths(source, self.root)
@@ -412,6 +553,13 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
                                 '_CONFINEMENT_FILESYSTEM_ROOT = Path(' + repr(str(self.root)) + ')')
         source = source.replace('_CONFINEMENT_OWNER_UID = 0',
                                 '_CONFINEMENT_OWNER_UID = ' + str(os.getuid()))
+        source = source.replace("ROOT = Path('/')", 'ROOT = Path(' + repr(str(self.root)) + ')')
+        source = source.replace("Path('/run')", 'Path(' + repr(str(self.root / 'run')) + ')')
+        source = source.replace("Path('/proc')", 'Path(' + repr(str(self.root / 'proc')) + ')')
+        source = source.replace('OWNER = 0', 'OWNER = ' + str(os.getuid()))
+        source = source.replace('GROUP = 0', 'GROUP = ' + str(os.getgid()))
+        source = source.replace('pwd.getpwnam(USER)', '(_ for _ in ()).throw(KeyError(USER))')
+        source = source.replace('pwd.getpwuid(identity)', '(_ for _ in ()).throw(KeyError(identity))')
         source = source.replace("_CONFIGURATION_FILESYSTEM_ROOT = Path('/')",
                                 '_CONFIGURATION_FILESYSTEM_ROOT = Path(' + repr(str(self.root)) + ')')
         source = source.replace('_CONFIGURATION_OWNER_UID = 0',
@@ -558,6 +706,27 @@ def package_machine(tmp_path, request):
         (tmp_path / 'usr/share/oh-no-parent-control' / name).write_bytes(
             (ROOT / 'data/fapolicyd' / name).read_bytes())
     (tmp_path / "etc/pam.d").mkdir(parents=True)
+    stage = runpy.run_path(str(ROOT / 'packaging/stage_distribution.py'))
+    stack = stage['pam_stack'](ROOT).replace('ingroup wheel', 'ingroup ' + (
+        'wheel' if distribution == 'fedora' else 'sudo'))
+    generated = tmp_path / 'generated-pam'
+    generated.mkdir()
+    files = ('system-auth', 'password-auth', 'fingerprint-auth', 'smartcard-auth') if distribution == 'fedora' else (
+        'common-auth', 'common-account', 'common-password', 'common-session', 'common-session-noninteractive')
+    for name in files:
+        if distribution == 'fedora':
+            contents = stack
+        else:
+            kind = name.removeprefix('common-').split('-')[0]
+            contents = ''.join(line + '\n' for line in stack.splitlines() if line.startswith(kind + ' '))
+        (generated / name).write_text(relocate_system_paths(contents, tmp_path))
+        # Local-edit cases still begin with complete ordinary vendor files.
+        # A test changes its intended rule; missing unrelated files must not
+        # become an earlier refusal that hides the behavior under test.
+        ordinary = ('auth required pam_unix.so\naccount required pam_unix.so\n'
+                    'password required pam_unix.so\nsession required pam_unix.so\n') if distribution == 'fedora' else (
+                        f'{kind} required pam_unix.so\n')
+        (tmp_path / 'etc/pam.d' / name).write_text(ordinary)
 
     # Every executable used by postinst is either this stub or a filesystem
     # utility operating on the rewritten paths. PATH contains no host service
@@ -576,9 +745,7 @@ case "$name" in
     debconf-communicate) printf '%s\n' "${PAM_PROFILES:-0 unix, malcontent}" ;;
     pam-auth-update)
         if [ "${PAM_LOCAL_CHANGES:-0}" != 1 ]; then
-            printf 'auth required pam_oh_no_parent_control.so\n' > "$AUDIT_ROOT/etc/pam.d/common-auth"
-            printf 'account required pam_oh_no_parent_control.so kiosk\n' > "$AUDIT_ROOT/etc/pam.d/common-account"
-            printf 'session required pam_oh_no_parent_control.so kiosk\n' > "$AUDIT_ROOT/etc/pam.d/common-session"
+            /usr/bin/cp "$AUDIT_ROOT/generated-pam/"* "$AUDIT_ROOT/etc/pam.d/"
         fi
         ;;
     install)
@@ -688,7 +855,17 @@ case "$name" in
         ;;
     restorecon|chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|setpriv|\
     oh-no-parent-control-kiosk-confinement-integration) exit "${CONFINEMENT_STATUS:-0}" ;;
-    oh-no-parent-control-fedora-pam|\
+    oh-no-parent-control-fedora-pam)
+        if [ "${PAM_LOCAL_CHANGES:-0}" != 1 ]; then
+            /usr/bin/cp "$AUDIT_ROOT/generated-pam/"* "$AUDIT_ROOT/etc/pam.d/"
+        fi
+        ;;
+    oh-no-parent-control-kiosk-lifecycle)
+        case "$3" in
+            visibility-needed) printf 'no\n'; exit 0 ;;
+            commit) exit "${CONFINEMENT_STATUS:-0}" ;;
+            *) exit 0 ;;
+        esac ;;
     oh-no-parent-control-provision) ;;
     *) exit 99 ;;
 esac
@@ -698,19 +875,46 @@ esac
                  "chown", "chmod", "systemd-sysusers", "invoke-rc.d", "pam-auth-update",
                  "stat", "debconf-communicate", "usermod", "passwd", "setpriv", "restorecon"):
         (bin_dir / name).symlink_to(stub)
-    for name in ("rm", "touch", "grep", "cut", "cat", "cmp"):
+    for name in ("rm", "touch", "grep", "cut", "cat", "cmp", "sync"):
         (bin_dir / name).symlink_to(Path("/usr/bin") / name)
-    for name in ("migrate-state", "provision", "package-activation", "fedora-pam", "fedora-execution-policy", "kiosk-confinement-integration"):
+    for name in ("migrate-state", "provision", "package-activation", "fedora-pam", "fedora-execution-policy", "kiosk-confinement-integration", "kiosk-lifecycle"):
         target = tmp_path / f"usr/libexec/oh-no-parent-control-{name}"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.symlink_to(stub)
+    distro = relocate_system_paths((ROOT / 'packaging/distro_pam.py').read_text(), tmp_path)
+    distro = distro.replace('info.st_uid != 0', 'info.st_uid != ' + str(os.getuid()))
+    distro = distro.replace('os.geteuid() != 0', 'os.geteuid() != ' + str(os.getuid()))
+    helper = tmp_path / 'usr/libexec/oh-no-parent-control-distro-pam'
+    # Native command/service behavior stays explicit; production parsing,
+    # profile verification, baseline publication and payload checks run real.
+    configuration = ("\nENV.update({key: os.environ[key] for key in "
+                     "('AUDIT_ROOT', 'PAM_LOCAL_CHANGES', 'PAM_PROFILES', 'CONFIGURE_FAILURE') "
+                     "if key in os.environ})\n")
+    distro = distro.replace("if __name__ == '__main__':", configuration + "\nif __name__ == '__main__':")
+    audit = ("import sys\nwith open(" + repr(str(tmp_path / 'commands')) + ", 'a') as stream:\n"
+             "    stream.write('oh-no-parent-control-distro-pam ' + ' '.join(sys.argv[1:]) + '\\n')\n")
+    helper.write_text('#!' + sys.executable + ' -IB\n' + audit + distro.split('\n', 1)[1])
+    helper.chmod(0o755)
+    for target in ('usr/sbin/pam-auth-update', 'usr/bin/debconf-communicate'):
+        link = tmp_path / target
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(stub)
+    for target, executable in (('usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so', False),
+                               ('usr/lib64/security/pam_oh_no_parent_control.so', False),
+                               ('usr/libexec/oh-no-parent-control-login-check', True),
+                               ('usr/libexec/oh-no-parent-control-session-limit-check', True)):
+        path = tmp_path / target
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('private required payload\n')
+        path.chmod(0o755 if executable else 0o644)
+    (tmp_path / 'var/lib/oh-no-parent-control').chmod(0o700)
     notice = tmp_path / "usr/libexec/oh-no-parent-control-package-notice"
     notice.write_text(
         (ROOT / "tools/package_notice").read_text().replace("/run/", str(tmp_path) + "/run/")
     )
     notice.chmod(0o755)
     policy = tmp_path / "usr/sbin/policy-rc.d"
-    policy.parent.mkdir(parents=True)
+    policy.parent.mkdir(parents=True, exist_ok=True)
     policy.symlink_to(stub)
     for name in ('fagenrules', 'fapolicyd-cli'):
         (tmp_path / 'usr/sbin' / name).symlink_to(stub)

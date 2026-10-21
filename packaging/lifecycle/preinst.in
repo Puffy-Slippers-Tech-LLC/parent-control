@@ -27,11 +27,6 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
         echo 'oh-no-parent-control: reserved kiosk account already exists; refusing to modify an account not created by this package' >&2
         exit 1
     fi
-    if { [ -e @gdm_presession_dir@/Default ] || [ -L @gdm_presession_dir@/Default ]; } &&
-       [ ! -f "$state/installed-gdm-presession" ]; then
-        echo 'oh-no-parent-control: existing GDM PreSession hook must be resolved before installation; preserving it' >&2
-        exit 1
-    fi
     if { [ -e /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules ] ||
          [ -L /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules ]; } &&
        [ ! -f "$state/installed-fapolicyd-fallback" ]; then
@@ -151,6 +146,7 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
         touch "$activation_pending"
     fi
     sync "$activation_pending" "$state"
+@kiosk_pre_unpack@
 fi
 
 #DEBHELPER#

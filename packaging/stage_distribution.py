@@ -38,6 +38,8 @@ def stage(source: Path, destination: Path, distribution: str):
         raise ValueError('unsupported packaging distribution')
     system = destination / 'usr/lib/systemd/system/oh-no-parent-control-broker.service'
     system.write_text(system.read_text().replace('Group=sudo', 'Group=wheel'))
+    visibility = destination / 'usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf'
+    visibility.write_text(visibility.read_text().replace('--distribution ubuntu', '--distribution fedora'))
     pam = destination / 'usr/share/oh-no-parent-control/pam'
     pam.mkdir(parents=True, exist_ok=True)
     (pam / 'managed-stack').write_text(pam_stack(source))

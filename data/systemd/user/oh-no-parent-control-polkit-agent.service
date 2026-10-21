@@ -1,3 +1,4 @@
+# Release-based dedicated kiosk runtime.
 [Unit]
 Description=MATE Polkit authentication agent for Oh No! Parent Control
 BindsTo=gnome-session.target
@@ -6,8 +7,7 @@ Before=oh-no-parent-control-app.service
 
 [Service]
 EnvironmentFile=-%t/oh-no-parent-control/polkit-agent.env
-# Both supported distributions provide this native agent. Keeping the process
-# in the foreground avoids admitting the public launcher's general shell.
+# Preserve the supported vendor agent and KioskAgentLocale's restart ownership.
 Type=simple
 ExecStart=/usr/libexec/polkit-mate-authentication-agent-1
 Restart=on-failure

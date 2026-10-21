@@ -799,21 +799,21 @@ class PackageActivationTests(unittest.TestCase):
             "none",
         )
 
-    def test_kiosk_login_integration_requires_reboot(self):
+    def test_kiosk_login_integration_activates_on_invocation(self):
         self.assertEqual(
             activation_for("usr/libexec/oh-no-parent-control-login-check"),
-            "reboot",
+            "none",
         )
 
-    def test_pam_module_requires_new_user_manager_at_reboot(self):
+    def test_pam_module_activates_with_a_new_session(self):
         self.assertEqual(
             activation_for(
                 "usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so"
             ),
-            "reboot",
+            "session-renewal",
         )
 
-    def test_login_stack_change_requires_reboot(self):
+    def test_login_profiles_activate_on_the_next_pam_transaction(self):
         self.assertEqual(activation_for("usr/share/oh-no-parent-control/gdm-presession"), "reboot")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -824,7 +824,29 @@ class PackageActivationTests(unittest.TestCase):
             pam.write_text("second", encoding="utf-8")
             new = self._manifest(root, "new.json")
 
-            self.assertEqual(changed_impacts(old, new), ["reboot"])
+            self.assertEqual(changed_impacts(old, new), [])
+
+    def test_selected_lifecycle_helpers_activate_on_invocation(self):
+        for path in (
+            'usr/libexec/oh-no-parent-control-kiosk-lifecycle',
+            'usr/libexec/oh-no-parent-control-distro-pam',
+            'usr/lib/oh-no-parent-control/lifecycle/distro_pam.py',
+            'usr/lib/oh-no-parent-control/lifecycle/lifecycle_migration.py',
+            'usr/share/oh-no-parent-control/pam/managed-stack',
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(activation_for(path), 'none')
+
+    def test_removed_old_pam_module_retains_its_recorded_reboot_impact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            previous = root / 'old.json'
+            previous.write_text(json.dumps({'version': 1, 'files': [{
+                'path': 'usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so',
+                'sha256': 'a' * 64, 'activation': 'reboot',
+            }]}))
+            current = self._manifest(root, 'new.json')
+            self.assertEqual(changed_impacts(previous, current), ['reboot'])
 
     def test_execution_readiness_boot_order_requires_reboot(self):
         self.assertEqual(

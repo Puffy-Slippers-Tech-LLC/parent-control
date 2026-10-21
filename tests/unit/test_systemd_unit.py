@@ -49,7 +49,11 @@ def test_kiosk_notification_script_loads_without_a_package_context(tmp_path):
     unit = configparser.ConfigParser(interpolation=None)
     unit.read(ROOT / 'data/systemd/user/oh-no-parent-control-notifications.service')
     command = shlex.split(unit['Service']['ExecStart'])
-    assert command == ['/usr/libexec/oh-no-parent-control-kiosk-notification-client']
+    assert command == [
+        '/usr/bin/python3', '-I', '/usr/bin/gnome-service-client',
+        '--tag=gnome-kiosk-notification', '--', '/usr/bin/python3', '-I',
+        '/usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/notifications.py',
+    ]
     interpreter = '/usr/bin/python3'
     script = ROOT / 'kiosk/oh_no_parent_control_kiosk/notifications.py'
     # Match direct-file execution's empty package context without opening a

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PHASES = ('preinst', 'postinst', 'prerm', 'postrm')
 TOKEN = re.compile(r'@([a-z_]+)@')
 SCALARS = frozenset(('gdm_presession_dir', 'service_command', 'bus_reload',
-                     'delete_account', 'admin_group'))
+                     'delete_account', 'admin_group', 'kiosk_distribution'))
 
 
 def fragments(root: Path, distribution: str) -> dict[str, str]:
@@ -45,6 +45,11 @@ def fragments(root: Path, distribution: str) -> dict[str, str]:
             values[name] = ''
     values['log_tree_cleanup'] = embedded_log_cleanup(root)
     values['confinement_finish_remove'] = embedded_confinement_finish_remove(root)
+    values['kiosk_pre_unpack'] = embedded_kiosk_pre_unpack(root)
+    values['kiosk_distribution'] = distribution
+    values['pam_enable'] = f'    /usr/libexec/oh-no-parent-control-distro-pam --distribution {distribution} install'
+    values['pam_restore'] = f'    /usr/libexec/oh-no-parent-control-distro-pam --distribution {distribution} restore'
+    values['pam_remove'] = f'    /usr/libexec/oh-no-parent-control-distro-pam --distribution {distribution} remove'
     return values
 
 
@@ -52,23 +57,21 @@ def embedded_confinement_finish_remove(root: Path) -> str:
     # The package payload (including its Python helper and PAM module) has
     # already gone. Embed the same ownership-checked transaction for both
     # distributions; standalone vendor PAM denial remains until it succeeds.
-    source = (root / 'packaging/kiosk_confinement.py').read_text().split("if __name__ == '__main__':", 1)[0]
+    source = (root / 'packaging/lifecycle_migration.py').read_text()
     return ("/usr/bin/python3 -I - <<'ONPC_CONFINEMENT_FINISH_REMOVE'\n" + source +
-            "\ntry:\n    finish_remove()\nexcept Exception:\n    print('oh-no-parent-control: confinement cleanup failed; preserving admission barrier', file=sys.stderr)\n    sys.exit(1)\nONPC_CONFINEMENT_FINISH_REMOVE")
+            "\nimport sys\ntry:\n    finish_remove()\n    retire_policy()\nexcept Exception:\n    print('oh-no-parent-control: confinement cleanup failed; preserving admission barrier', file=sys.stderr)\n    sys.exit(1)\nONPC_CONFINEMENT_FINISH_REMOVE")
 
 
-def embedded_prepared_confinement_finish_remove(root: Path) -> str:
-    """C02's explicit unselected finalizer; production fragments stay unchanged.
-
-    C02 must include this source in PACKAGE_SOURCE_FILES and switch the single
-    finalizer slot together with account-marker deletion ordering. Until then
-    this function is used only by host composition tests, never either package.
-    """
-    source = (root / 'data/kiosk-runtime-unselected/lifecycle_migration.py').read_text()
-    return ("/usr/bin/python3 -I - <<'ONPC_PREPARED_CONFINEMENT_FINISH_REMOVE'\n" + source +
-            "\nimport sys\ntry:\n    finish_remove()\nexcept Exception:\n"
-            "    print('oh-no-parent-control: legacy cleanup failed; preserving recovery state', file=sys.stderr)\n"
-            "    sys.exit(1)\nONPC_PREPARED_CONFINEMENT_FINISH_REMOVE")
+def embedded_kiosk_pre_unpack(root: Path) -> str:
+    """Capture attested rollback bytes before the package erases old inputs."""
+    source = (root / 'packaging/lifecycle_migration.py').read_text()
+    return ("if [ -e /var/lib/oh-no-parent-control/kiosk-confinement.json ] || "
+            "[ -L /var/lib/oh-no-parent-control/kiosk-confinement.json ]; then\n"
+            "/usr/bin/python3 -I - <<'ONPC_KIOSK_PRE_UNPACK'\n" + source +
+            "\nimport sys\ntry:\n    capture_policy()\n"
+            "    if state() is not None:\n        prepare()\n"
+            "except Exception:\n    print('oh-no-parent-control: kiosk upgrade preparation failed; preserving recovery state', file=sys.stderr)\n"
+            "    sys.exit(1)\nONPC_KIOSK_PRE_UNPACK\nfi")
 
 
 def embedded_fedora_policy(root: Path, action: str) -> str:

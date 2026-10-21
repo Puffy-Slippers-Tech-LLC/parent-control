@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C02 — [Activate the rebuilt baseline and retire v1.4 confinement](Kiosk-Prompt-Tasks/C02-rebuild.md)**.
+Next task: **C02d — [Remove obsolete native and runtime code](Kiosk-Prompt-Tasks/C02d-runtime-cleanup.md)**.
 
 ## Outcome
 

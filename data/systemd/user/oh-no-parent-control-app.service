@@ -1,3 +1,4 @@
+# Release-based dedicated kiosk runtime.
 [Unit]
 Description=Oh No! Parent Control kiosk application
 BindsTo=gnome-session.target
@@ -9,5 +10,6 @@ OnSuccess=gnome-session-shutdown.target
 
 [Service]
 Type=simple
-ExecStart=/usr/libexec/oh-no-parent-control-kiosk-app
+# Keep main's isolated shared form, agent locale and public logout client.
+ExecStart=/usr/bin/oh-no-parent-control
 Restart=no

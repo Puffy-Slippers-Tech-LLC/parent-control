@@ -567,7 +567,7 @@ def test_changed_shared_hook_refuses_removal(machine, script, changed):
     assert "uninstall --remove" not in machine.commands
 
 
-@pytest.mark.parametrize("collision", ["hook", "account", "fallback"])
+@pytest.mark.parametrize("collision", ["account", "fallback"])
 def test_install_rejects_unowned_resources_before_mutating_state(machine, collision):
     if collision == "hook":
         path = machine.write(machine.gdm_hook, "admin hook")

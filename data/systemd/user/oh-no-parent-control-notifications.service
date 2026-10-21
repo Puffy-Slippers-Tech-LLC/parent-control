@@ -1,3 +1,4 @@
+# Release-based dedicated kiosk runtime.
 [Unit]
 Description=Oh No! Parent Control kiosk system notifications
 BindsTo=org.gnome.Kiosk@wayland.service
@@ -7,5 +8,6 @@ After=org.gnome.Kiosk@wayland.service
 [Service]
 Type=dbus
 BusName=org.freedesktop.Notifications
-ExecStart=/usr/libexec/oh-no-parent-control-kiosk-notification-client
+# The vendor client owns the tagged Wayland connection and waits for main's provider.
+ExecStart=/usr/bin/python3 -I /usr/bin/gnome-service-client --tag=gnome-kiosk-notification -- /usr/bin/python3 -I /usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/notifications.py
 Restart=on-failure

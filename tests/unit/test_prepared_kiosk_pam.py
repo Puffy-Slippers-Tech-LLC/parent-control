@@ -1,4 +1,4 @@
-"""Prepared native/PAM composition using private files, libpam and OS doubles.
+"""Selected native/PAM composition using private files, libpam and OS doubles.
 
 No host account, PAM configuration, bus, service or privilege transition is used.
 Module-scoped compiler outputs and all helper children stay within pytest scratch.
@@ -18,16 +18,19 @@ import pytest
 from tests.support.paths import ROOT
 from tools.test_storage import scratch_descriptors
 
-PREPARED = ROOT / 'data/kiosk-runtime-unselected'
+PROFILES = ROOT / 'data/pam-configs'
+LOGIN_CHECK = ROOT / 'tools/oh-no-parent-control-login-check'
+PAM_MODULE = ROOT / 'tools/pam_oh_no_parent_control.c'
+DISTRO_PAM = ROOT / 'packaging/distro_pam.py'
 
 
 def prepared_pam_output(root, distribution):
-    """Render real prepared profiles through the maintained distro translator."""
+    """Render selected production profiles through the maintained distro translator."""
     source = root / 'profile-source'
     profiles = source / 'data/pam-configs'
     profiles.mkdir(parents=True)
     for name in ('oh-no-parent-control-kiosk-only', 'oh-no-parent-control-session-limits'):
-        (profiles / name).write_bytes((PREPARED / 'pam-configs' / name).read_bytes())
+        (profiles / name).write_bytes((PROFILES / name).read_bytes())
     namespace = {'__name__': 'prepared_profile_stage'}
     path = ROOT / 'packaging/stage_distribution.py'
     exec(compile(path.read_bytes(), str(path), 'exec'), namespace)
@@ -45,9 +48,9 @@ def prepared_pam_output(root, distribution):
 @pytest.fixture
 def routing(monkeypatch):
     # Module globals must remain writable for test doubles.
-    spec = importlib.util.spec_from_file_location('prepared_login', PREPARED / 'login_check.py')
+    spec = importlib.util.spec_from_loader('selected_login', loader=None)
     helper = importlib.util.module_from_spec(spec)
-    exec(compile((PREPARED / 'login_check.py').read_bytes(), str(PREPARED / 'login_check.py'), 'exec'), helper.__dict__)
+    exec(compile(LOGIN_CHECK.read_bytes(), str(LOGIN_CHECK), 'exec'), helper.__dict__)
     state = SimpleNamespace(session=helper.SESSION, transport='wayland', calls=[], records=[], fault=None)
     monkeypatch.setenv('PAM_USER', helper.KIOSK_USER)
     monkeypatch.setenv('PAM_SERVICE', 'gdm-password')
@@ -138,7 +141,7 @@ def compiled(tmp_path_factory):
                     f'-DKIOSK_ADMISSION_LOCK="{directory / "admission"}"',
                     f'-DKIOSK_ADMISSION_DISABLED="{directory / "removing"}"',
                     f'-DKIOSK_ADMISSION_LOCK_OWNER={os.getuid()}', '-DKIOSK_LOGIN_TIMEOUT_SECONDS=1',
-                    '-o', str(module), str(PREPARED / 'pam_oh_no_parent_control.c'), '-lpam'],
+                    '-o', str(module), str(PAM_MODULE), '-lpam'],
                    check=True, capture_output=True, text=True, timeout=30, pass_fds=scratch_descriptors())
     subprocess.run([*common, '-o', str(runtime), str(ROOT / 'tests/support/pam_runtime_fixture.c'), '-lpam'],
                    check=True, capture_output=True, text=True, timeout=30, pass_fds=scratch_descriptors())
@@ -334,9 +337,9 @@ def test_ordinary_authentication_time_status_and_vendor_denial(native, service, 
 
 @pytest.fixture
 def ubuntu(tmp_path, monkeypatch):
-    spec = importlib.util.spec_from_file_location('prepared_distro', PREPARED / 'distro_pam.py')
+    spec = importlib.util.spec_from_file_location('prepared_distro', DISTRO_PAM)
     helper = importlib.util.module_from_spec(spec)
-    exec(compile((PREPARED / 'distro_pam.py').read_bytes(), str(PREPARED / 'distro_pam.py'), 'exec'), helper.__dict__)
+    exec(compile(DISTRO_PAM.read_bytes(), str(DISTRO_PAM), 'exec'), helper.__dict__)
     monkeypatch.setattr(helper, 'PAM', tmp_path / 'pam')
     monkeypatch.setattr(helper, 'BASELINE', tmp_path / 'state/baseline')
     helper.PAM.mkdir()
@@ -493,15 +496,14 @@ def test_readiness_reads_effective_pam_and_required_installed_payload_without_wr
         helper.runtime_ready('ubuntu')
 
 
-def test_prepared_profiles_preserve_current_ordinary_policy_and_supported_distro_translation(tmp_path):
+def test_selected_profiles_preserve_current_ordinary_policy_and_supported_distro_translation(tmp_path):
     spec = importlib.util.spec_from_file_location('pam_stage', ROOT / 'packaging/stage_distribution.py')
     stage = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(stage)
     directory = tmp_path / 'data/pam-configs'
     directory.mkdir(parents=True)
     for name in ('oh-no-parent-control-kiosk-only', 'oh-no-parent-control-session-limits'):
-        contents = (PREPARED / 'pam-configs' / name).read_text()
-        assert contents == (ROOT / 'data/pam-configs' / name).read_text()
+        contents = (PROFILES / name).read_text()
         (directory / name).write_text(contents)
     stack = stage.pam_stack(tmp_path)
     assert stack == stage.pam_stack(ROOT)
@@ -512,7 +514,7 @@ def test_prepared_profiles_preserve_current_ordinary_policy_and_supported_distro
 
 @pytest.fixture
 def distro_profile_machine(tmp_path, monkeypatch, distribution):
-    source = PREPARED / 'distro_pam.py'
+    source = DISTRO_PAM
     spec = importlib.util.spec_from_file_location('prepared_policy_verification', source)
     helper = importlib.util.module_from_spec(spec)
     exec(compile(source.read_bytes(), str(source), 'exec'), helper.__dict__)

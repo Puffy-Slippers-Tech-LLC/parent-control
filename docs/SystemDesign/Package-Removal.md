@@ -97,32 +97,30 @@ and never forces replacement of local PAM edits. Product references must be
 checked and absent before deleting the PAM module; an unsuccessful check blocks
 removal. This follows the [`pam-auth-update` removal guidance](https://manpages.debian.org/testing/libpam-runtime/pam-auth-update.8.en.html).
 
-The separate kiosk confinement integration owns the final gates in
-`gdm-password` and `systemd-user` and the product's AppArmor/SELinux policy.
-PAM holds a shared admission lease through the handle's lifetime and the
-root executor's UID/exec handoff. Bounded helpers inherit that lease. Removal
-takes exclusive admission, routing and preparation locks before verifying the
-recorded PAM bytes and scanning every thread's credentials, audit identity,
-current/pending MAC label and stale native-module mappings. In-flight admissions
-or kiosk executors refuse removal; no process is signalled. An upgrade from a
-generation without lifetime leases requires its recorded boot to end before
-policy removal, because a census cannot prove retirement of every old root
-worker.
+The selected [lifecycle owner](Lifecycle.md#prepared-owned-lifecycle-migration)
+holds the existing exclusive admission, routing and preparation locks while
+preparing removal. Native PAM holds the shared admission lease until `pam_end`,
+including bounded routing helpers and root-executor teardown. Active admissions
+or kiosk executors refuse removal; no process is signalled. The kiosk's original
+native expiry is journaled before quarantine. The shared distro PAM owner removes
+and verifies product references before payload erasure.
 
-Before unloading policy, removal publishes durable kiosk-only account and
-session denials using a distribution PAM module. These guards survive product
-payload erasure. The embedded `postrm` finalizer restores exact original PAM
-files and clears the ownership record only after verified kiosk account
-deletion. An aborted removal reloads policy before restoring the final gates
-and clearing the admission marker. Interrupted or foreign changes retain the
-barrier and refuse cleanup, preserving recovery evidence.
-Reconfiguration starts and verifies the native enforcement dependencies before
-restoring a retained removal snapshot, then reloads MAC policy and restores
-PAM. Migration exclusion and durable kiosk admission denials remain through
-that recovery; a failed dependency start or snapshot restore leaves them in
-place for retry.
-Completed private executable generations under `/run` remain until reboot;
-they are bounded and cannot be used after the kiosk identity is removed.
+For retained v1.4 state, removal additionally validates the recorded PAM bytes,
+credentials/audit identities, current/pending MAC labels and the old lease/boot
+boundary. Vendor-module-only kiosk denials precede old-policy unload and survive
+payload erasure. The embedded `postrm` finalizer restores only recorded originals
+after verified kiosk account/home deletion. It retains the numeric UID marker
+until finalization succeeds, and needs no erased helper or policy. Ordinary PAM
+workers retaining an erased module do not veto post-erase cleanup; held leases,
+kiosk identities and legacy executors still do.
+
+Abort-remove restores enforcement and shared PAM and requires real rebuilt
+PAM/native readiness before releasing a migrated baseline's expiry. A failure
+with retained legacy state stays quarantined for configuration retry rather than
+opening an old runtime against replaced executable code. Foreign changes retain
+their recovery records and refuse cleanup. Existing private executable
+generations and runtime locks are left for reboot; no recursive sweep or
+arbitrary installed-file deletion is introduced.
 
 After dpkg removes the payload, `postrm` removes generated D-Bus and machine
 configuration, the product's generated security integrations, transient package
@@ -241,13 +239,14 @@ does not recreate the request after reboot.
 
 ## Generated integration ownership
 
-The generated GDM hook is removed only when it matches the package's ownership copy; an existing
-administrator hook blocks installation and a modified hook or substituted
-symlink blocks removal before module deletion. A new administrator hook created
-after removal survives later purge.
-The fallback execution rule uses the same ownership check. Their templates live
-under `/usr/share/oh-no-parent-control`, so reinstall recreates these generated
-files without relying on dpkg to restore deleted conffiles. Manually deleting a
+The historical generated GDM hook is retired only when it matches the package's
+ownership copy. A changed owned hook or substituted symlink blocks retirement;
+an administrator hook without a package ownership record is preserved, including
+through later purge. The selected payload ships no GDM hook template and creates
+no replacement hook.
+The fallback execution rule uses the same ownership check. Its template lives
+under `/usr/share/oh-no-parent-control`, so reinstall recreates that generated
+file without relying on dpkg to restore deleted conffiles. Manually deleting a
 Debian conffile during ordinary removal preserves its missing state on reinstall;
 ownership records and runtime copies avoid resetting administrator conffiles.
 The supplemental child-module trust file follows the same ownership contract.

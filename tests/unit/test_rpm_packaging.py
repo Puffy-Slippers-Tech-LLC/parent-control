@@ -29,7 +29,7 @@ def fedora_payload(tmp_path_factory):
     return destination
 
 
-def test_prepared_kiosk_runtime_does_not_replace_fedora_payload(fedora_payload):
+def test_selected_kiosk_runtime_replaces_private_framework_fedora_payload(fedora_payload):
     for source, installed in (
         ('wayland-sessions/oh-no-parent-control.desktop',
          'usr/share/wayland-sessions/oh-no-parent-control.desktop'),
@@ -49,8 +49,13 @@ def test_prepared_kiosk_runtime_does_not_replace_fedora_payload(fedora_payload):
                    for path in fedora_payload.rglob('*'))
     desktop = (fedora_payload / 'usr/share/wayland-sessions/oh-no-parent-control.desktop').read_text()
     app = (fedora_payload / 'usr/lib/systemd/user/oh-no-parent-control-app.service').read_text()
-    assert 'Exec=/usr/libexec/oh-no-parent-control-kiosk-session\n' in desktop
-    assert 'ExecStart=/usr/libexec/oh-no-parent-control-kiosk-app\n' in app
+    assert 'Exec=gnome-session --session oh-no-parent-control\n' in desktop
+    assert 'ExecStart=/usr/bin/oh-no-parent-control\n' in app
+    for name in ('session', 'app', 'notifications', 'notification-client', 'cleanup', 'audio',
+                 'dbus', 'confinement', 'confinement-integration', 'support'):
+        assert not (fedora_payload / f'usr/libexec/oh-no-parent-control-kiosk-{name}').exists()
+    assert not (fedora_payload / 'usr/share/oh-no-parent-control/confinement').exists()
+    assert not (fedora_payload / 'usr/share/oh-no-parent-control/gdm-presession').exists()
 
 
 def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payload):
@@ -82,13 +87,16 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert 'session required pam_oh_no_parent_control.so kiosk\n' in stack
     manifest = json.loads((payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
     files = {entry['path']: entry for entry in manifest['files']}
-    assert files['usr/lib64/security/pam_oh_no_parent_control.so']['activation'] == 'reboot'
-    assert files['usr/libexec/oh-no-parent-control-kiosk-dbus']['activation'] == 'reboot'
+    assert files['usr/lib64/security/pam_oh_no_parent_control.so']['activation'] == 'session-renewal'
+    assert files['usr/libexec/oh-no-parent-control-kiosk-lifecycle']['activation'] == 'none'
     accounts_dropin = 'usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf'
-    assert (payload / accounts_dropin).read_bytes() == (
-        ROOT / 'data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf').read_bytes()
+    accounts = (payload / accounts_dropin).read_bytes()
+    assert accounts == (
+        ROOT / 'data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf').read_bytes().replace(
+            b'--distribution ubuntu', b'--distribution fedora')
+    assert b'ExecStartPre=-/usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution fedora visibility\n' in accounts
     assert files[accounts_dropin]['activation'] == 'none'
-    assert files['usr/share/oh-no-parent-control/pam/managed-stack']['activation'] == 'reboot'
+    assert files['usr/share/oh-no-parent-control/pam/managed-stack']['activation'] == 'none'
     for relative, entry in files.items():
         assert entry['sha256'] == hashlib.sha256((payload / relative).read_bytes()).hexdigest()
     extension = payload / 'usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com'
@@ -164,7 +172,6 @@ def test_fedora_readiness_is_a_separate_required_boot_gate(fedora_payload):
     assert display['Unit']['Requires'] == 'oh-no-parent-control-execution-policy-ready.service'
     assert set(display['Unit']['After'].split()) == {
         'oh-no-parent-control-execution-policy-ready.service',
-        'oh-no-parent-control-kiosk-confinement.service',
     }
     assert (fedora_payload / 'usr/libexec/oh-no-parent-control-execution-policy-ready').read_bytes() == (
         ROOT / 'tools/execution_policy_ready.py').read_bytes()
@@ -195,7 +202,7 @@ def test_shared_source_check_rejects_broken_lifecycle_adapters(tmp_path, monkeyp
     shutil.copytree(ROOT / 'packaging', tmp_path / 'packaging')
     check(tmp_path)
     adapter = tmp_path / 'packaging' / f'{distribution}.inc'
-    adapter.write_text(adapter.read_text().replace('# @pam_enable@\n', '# @pam_enable@\nif then\n'))
+    adapter.write_text(adapter.read_text().replace('# @initial_setup@\n', '# @initial_setup@\nif then\n'))
     with pytest.raises(ValueError, match=f'{distribution} postinst:'):
         check(tmp_path)
 
@@ -451,7 +458,7 @@ def test_rpm_preun_refusal_restores_before_releasing_owned_mask(
     retry = machine.run_rpm('preun', 0)
     assert retry.returncode == 0, retry.stderr
     assert mask.is_symlink()
-    assert 'fedora-pam remove' in machine.commands
+    assert 'distro-pam --distribution fedora remove' in machine.commands
 
 
 @pytest.mark.parametrize('failure', ['trust', 'readiness', 'kiosk'])
@@ -469,7 +476,9 @@ def test_rpm_postun_erased_payload_cleanup_retains_retry_records(
     # RPM has erased all product helpers before postun. Its callback is embedded
     # standalone shell and must finish without reconstructing the payload.
     for relative in ('usr/libexec/oh-no-parent-control-uninstall',
-                     'usr/libexec/oh-no-parent-control-fedora-pam'):
+                     'usr/libexec/oh-no-parent-control-fedora-pam',
+                     'usr/libexec/oh-no-parent-control-distro-pam',
+                     'usr/libexec/oh-no-parent-control-kiosk-lifecycle'):
         (machine.root / relative).unlink()
     result = machine.run_rpm('postun', 0, SERVICE_ACTIVE='1',
                              TRUST_UPDATE_STATUS='7' if failure == 'trust' else '0',
@@ -491,6 +500,7 @@ def test_rpm_postun_erased_payload_cleanup_retains_retry_records(
     assert not (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install').exists()
     assert prefs.exists() and log.exists()
     assert 'uninstall --' not in machine.commands and 'fedora-pam ' not in machine.commands
+    assert 'distro-pam ' not in machine.commands and 'kiosk-lifecycle ' not in machine.commands
     assert not (machine.root / 'usr/share/oh-no-parent-control/lifecycle/postinst').exists()
 
 
@@ -586,7 +596,8 @@ def test_fedora_rpm_scriptlet_owns_configuration_and_preserves_failures(
     canary = '00-oh-no-parent-control-canary.rules'
     assert (root / 'etc/fapolicyd/rules.d' / canary).read_bytes() == (ROOT / 'data/fapolicyd' / canary).read_bytes()
     assert (state / 'installed-fapolicyd-canary').read_bytes() == (ROOT / 'data/fapolicyd' / canary).read_bytes()
-    assert commands.index('oh-no-parent-control-migrate-state ') < commands.index('oh-no-parent-control-fedora-pam install')
+    pam = 'oh-no-parent-control-distro-pam --distribution fedora install'
+    assert commands.index('oh-no-parent-control-migrate-state ') < commands.index(pam)
     assert 'systemd-sysusers malcontent-timer-extension-agent.conf malcontent-timerd.conf malcontent-webd.conf' in commands
     assert 'systemctl enable fapolicyd.service malcontent-timerd.service malcontent-timer-extension-agent.service' in commands
     assert 'systemctl start fapolicyd.service malcontent-timerd.service malcontent-timer-extension-agent.service' in commands
@@ -594,15 +605,18 @@ def test_fedora_rpm_scriptlet_owns_configuration_and_preserves_failures(
     assert commands.index('systemctl start fapolicyd.service malcontent-timerd.service malcontent-timer-extension-agent.service') < commands.index(readiness)
     assert commands.index('fagenrules ') < commands.index('fapolicyd-cli --reload-rules')
     assert commands.index('fapolicyd-cli --reload-rules') < commands.index(readiness)
-    confinement = 'oh-no-parent-control-kiosk-confinement-integration install'
-    assert commands.count(confinement) == 1
-    assert commands.index(readiness) < commands.index(confinement)
-    assert commands.index(confinement) < commands.index('systemctl --system restart oh-no-parent-control-broker.service')
+    commit = 'oh-no-parent-control-kiosk-lifecycle --distribution fedora commit'
+    release = 'oh-no-parent-control-kiosk-lifecycle --distribution fedora release'
+    assert commands.count(commit) == commands.count(release) == 1
+    assert commands.index(readiness) < commands.index(commit) < commands.index(release)
+    assert commands.index(release) < commands.index('systemctl --system restart oh-no-parent-control-broker.service')
+    assert not any('kiosk-confinement-integration' in command for command in commands)
     assert commands.index(readiness) < commands.index('systemctl --system restart oh-no-parent-control-broker.service')
     assert any(command.startswith('oh-no-parent-control-provision --kiosk-user ') for command in commands)
     assert any(command.startswith('restorecon -R ') for command in commands)
     assert 'systemctl --system restart oh-no-parent-control-broker.service' in commands
-    assert (root / 'etc/gdm/PreSession/Default').read_bytes() == (state / 'installed-gdm-presession').read_bytes()
+    assert not (root / 'etc/gdm/PreSession/Default').exists()
+    assert not (state / 'installed-gdm-presession').exists()
     assert not any('pam-auth-update' in command or 'deb-systemd-invoke' in command for command in commands)
     assert not (state / 'package-activation-pending').exists()
     assert (root / 'run/oh-no-parent-control-reboot-required').is_file()

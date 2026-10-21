@@ -9,6 +9,12 @@ Implementation: [service.py](../../broker/oh_no_parent_control/service.py), [Mak
 
 ## Startup, login, and update lifecycle
 
+The selected kiosk session/PAM cutover uses the
+[owned lifecycle migration](#prepared-owned-lifecycle-migration). Earlier private
+runtime, material and admission descriptions in this module are historical
+v1.4 source context. They are disconnected from the selected baseline; C02d/C02e
+remove their remaining source and C04c reconciles their proof consumers.
+
 Checkout installation through `make install` gives APT five retries per failed
 transient download, covering both package indexes and dependency archives. APT
 owns the backoff and transient-error classification, including HTTP 503. An
@@ -1169,9 +1175,14 @@ the installed file that changed, an update needs no action, a broker restart, a
 new child/kiosk session, or a reboot for boot integration or resident user-manager
 recovery code. See
 [Package update](../Publishing.md#package-update-activation) for the classification rules.
-The native PAM module, confinement policy/preparation, fixed launchers, PAM
-profiles and login-routing integration require `reboot`: a graphical logout
-alone may retain the old user manager and its private executable generation.
+The rebuilt native PAM module requires `session-renewal`: new PAM handles load
+the replacement while existing handles keep their original lifetime lease.
+Login and lifecycle helpers and the owned PAM profiles activate on their next
+invocation/transaction. Removed old-manifest members retain their original
+activation impact, including `reboot` for the disconnected confinement graph;
+a graphical logout alone may retain a former user manager
+and its private executable generation. The rebuilt session creates no such
+generation and package configuration never ends unrelated sessions.
 New request windows and Parent processes load their installed code when opened;
 session renewal is needed for a running Shell or dedicated kiosk session to
 consume the corresponding updated payload. Configuration does not forcibly
@@ -1213,31 +1224,42 @@ still verifies import safety independently of the frontend reboot guard.
 
 ### Prepared owned lifecycle migration
 
-The unselected [migration module](../../data/kiosk-runtime-unselected/lifecycle_migration.py)
-prepares C02's replacement of the old confinement lifecycle. It has no production
-caller or CLI and is excluded from package source and installed payload selection.
-The selected provisioner, lifecycle templates, integration helper, finalizer and
-activation classifier continue using their existing path until C02. The explicit
-prepared finalizer in [the renderer](../../packaging/render_lifecycle.py) is also
-unselected. Host composition is not installed update/removal qualification.
+The selected [migration module](../../packaging/lifecycle_migration.py), fixed
+[entrypoint](../../tools/oh-no-parent-control-kiosk-lifecycle) and
+[distro PAM owner](../../packaging/distro_pam.py) replace the former confinement
+lifecycle. The shared package templates select them, and
+[the renderer](../../packaging/render_lifecycle.py) embeds pre-unpack preparation
+and the post-erase finalizer so those phases need no installed helper. The
+heading retains its predecessor anchor; C02 activates this composition.
+Host composition is not installed update/removal qualification.
 
-The migration consumes only the package's numeric kiosk UID marker, UID-bound
+The migration consumes the package's numeric kiosk UID marker, UID-bound
 configuration-expiry record, schema-1 confinement record and known removal
-marker. It accepts recorded original, generated, previous-publication and removal
+marker, plus the finite capture receipt described below. It accepts recorded original, generated, previous-publication and removal
 PAM states; unrelated edits remain untouched and stop the transaction. It reuses
-the existing admission/routing/preparation lock identities and expiry record,
-rather than introducing another persistent transaction format. Live admissions,
+the existing admission/routing/preparation lock identities and expiry record.
+The capture receipt owns only the two retained rollback files and their cleanup;
+it is not another runtime admission protocol. Live admissions,
 kiosk processes and retained legacy executors prevent retirement without being
 signalled. Runtime locks and private executable generations remain until reboot;
 this module never sweeps or recursively deletes them.
 
-C02 must compose these operations at its atomic runtime/PAM cutover:
+The atomic runtime/PAM cutover composes these operations:
 
 1. Preserve the package-created UID marker and validate the non-administrative
    reserved account and owned home. Retain the exact old attested configuration
    and MAC policy bytes across unpack until rollback is no longer needed; a new
-   file at the old pathname is not a substitute. Missing or changed rollback
-   inputs preserve the recovery records and require recovery before proceeding.
+   file at the old pathname is not a substitute. Pre-unpack capture retains only
+   `config.json` and its backend's policy under the private
+   `/var/lib/oh-no-parent-control/legacy-kiosk-policy` directory. Missing or
+   changed inputs preserve recovery records and refuse the transition.
+   The root-private `legacy-kiosk-policy.json` receipt binds one UID/backend,
+   the directory identity, the two exact member names, content hashes and inode
+   identities. Its capture/ready/retiring phases retain authority across legacy
+   state erasure and interrupted member deletion. Changed/replaced files and an
+   unexpected other-backend member remain untouched; the receipt is erased last
+   after verified directory removal. A changed saved UID refuses before capture
+   storage is created or populated.
 2. Call `prepare()` before retiring old integration. It checks owned PAM and live
    legacy state, preserves the original native expiry, expires the kiosk account,
    records removal intent, publishes vendor-module-only kiosk denials and unloads
@@ -1247,6 +1269,10 @@ C02 must compose these operations at its atomic runtime/PAM cutover:
    inode to its stock label. Pre-lease state
    records its first migration boot and must
    complete a reboot before retirement; retry does not reset that boot identity.
+   Once this leased transaction has recorded removal under quarantine, an
+   ordinary PAM worker retaining the erased native module does not veto retry.
+   Exclusive admission ownership, the pre-lease boot boundary and kiosk
+   UID/audit/MAC executor checks still apply; no live worker is terminated.
 3. Recover retained visibility using `visibility()` at AccountsService's verified
    start-pre boundary. It recovers only the fixed visibility slot or committed
    xattr using the recorded UID, inode, content and metadata digests, then changes
@@ -1262,12 +1288,15 @@ C02 must compose these operations at its atomic runtime/PAM cutover:
    call before retiring the old records. Only then call `release_account()`;
    its `releasing` phase makes interrupted expiry restoration retryable without
    overwriting unrelated native expiry policy.
-5. Before commit, abort/retry uses `rollback()`: reload the retained old policy
-   before restoring its recorded PAM gates and original expiry. On SELinux,
-   restore the admission-lock and republished PAM labels before clearing the
-   removal marker or reopening the account. A relabel or other failure keeps
-   the records needed to retry. C02 must wire this into configure/abort-remove
-   and the RPM failure callback without retaining a second live runtime path.
+5. After unpack, failed configuration and legacy-state abort-remove restore
+   recorded vendor PAM with vendor-module-only kiosk denials and retain the
+   expiry quarantine, removal intent and recovery journal. They never republish
+   the old native module options: those would also reject ordinary users under
+   the rebuilt module. Ordinary authentication and user-manager startup retain
+   their vendor policy while the kiosk remains closed for configuration retry.
+   Abort-remove releases only a rebuilt baseline whose real distro/native
+   readiness passes. Legacy-state recovery stays quarantined for configuration
+   retry, with no second live path.
 
 Removal uses the same prepared denial transaction, followed by verified owned
 account/home deletion and `finish_remove()` after payload erasure. Keep the
@@ -1282,10 +1311,10 @@ successful integration/account cleanup; preferences, logs, Fedora authselect
 ownership and all unrelated removal behavior retain their existing owners in
 [Package removal](Package-Removal.md).
 
-C02 must add the prepared module to the explicit package input/install map,
-switch the renderer's one finalizer slot, preserve the UID marker through that
-slot, and replace the selected provisioner/start-pre caller together with PAM
-activation. The existing manifest comparison already includes removed members
+The explicit package map installs these owners, selects the renderer's one
+finalizer slot and preserves the UID marker through it. The selected provisioner,
+AccountsService start-pre caller and PAM activation change together. The manifest
+comparison includes removed members
 from the old manifest and preserves their declared activation impact; do not
 drop removed confinement entries before comparing. C02d/C02e can then remove
 unconsumed old provisioning/quarantine/cache adapters, integration/loader and

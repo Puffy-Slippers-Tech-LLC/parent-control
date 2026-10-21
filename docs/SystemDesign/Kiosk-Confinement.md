@@ -8,11 +8,12 @@ The child's personal desktop is a separate account: its time and application
 restrictions belong to [Screen time](Screen-Time.md) and
 [Application policy](Applications.md).
 
-This module distinguishes the current implementation from the prospective
-[compatibility-first target](../Kiosk-Session-Confinement-Plan.md#target-design).
-The [execution plan](../Kiosk-Session-Confinement-Plan.md) owns that change's finite queue,
-acceptance and reconciliation. Replanning does not change runtime enforcement,
-tests or installed qualification.
+The selected implementation uses the release-based session, account and PAM
+baseline described in [C02 activation](#c02-activated-session-baseline).
+The [execution plan](../Kiosk-Session-Confinement-Plan.md) owns its remaining
+source cleanup, route defenses and installed acceptance. The v1.4 private-runtime
+descriptions below are historical source/disposition context, not live fallbacks
+or qualification of the rebuilt baseline.
 
 The current plan rebuilds **session confinement only** from the pinned v1.3
 release, retaining main's non-confinement kiosk features. Prospective R01–R12
@@ -35,11 +36,11 @@ do not imply that a child can write root-owned policy or invoke privileged test
 helpers. A fixture that pregrants arbitrary kiosk code execution does not, by
 itself, establish a reachable customer escape or justify an admission predicate.
 
-The trusted base comprises the kernel, enforcing AppArmor or SELinux, root-owned
-package and distribution code, PAM, systemd, GDM, AccountsService and Polkit.
-The implemented platform boundary is Ubuntu 26.04/GNOME 50 with AppArmor and
-Fedora Workstation 44/GNOME 50 with enforcing SELinux. Fedora confinement
-qualification does not change the product's overall
+The trusted base comprises the kernel, root-owned package and distribution code,
+PAM, systemd, GDM, AccountsService and Polkit, with the distribution's normal
+security policy. The packaging boundary is Ubuntu 26.04/GNOME 50 and Fedora
+Workstation 44/GNOME 50. Host composition of the rebuilt baseline supplies no
+installed confinement qualification and does not change the product's overall
 [release qualification](../System-Design.md).
 
 The required customer result is a usable passwordless request form with genuine
@@ -51,11 +52,10 @@ unsafe security fixtures separately prove that inability to establish isolation
 never becomes unrestricted success. Explicit administrator access denials remain
 effective and ordinary accounts retain their authentication and access policies.
 
-The current implementation requires each admitted route to retain its permitted
-role, executable material and private mount namespace. Kernel or trusted-service
-exploits, stolen administrator credentials, administrator policy changes and
-booting another operating system are outside this boundary. The scenario table
-records bounded proof obligations, not exhaustive exploit resistance.
+Kernel or trusted-service exploits, stolen administrator credentials,
+administrator policy changes and booting another operating system are outside
+this boundary. The historical scenario table records bounded former proof
+obligations, not exhaustive resistance or current rebuilt-baseline acceptance.
 
 ## Admission and account integrity
 
@@ -63,13 +63,17 @@ records bounded proof obligations, not exhaustive exploit resistance.
 `/usr/sbin/nologin`, the dedicated Wayland session and durable visible/saved
 AccountsService classification. Its recorded UID and reserved home determine
 ownership. The product's Polkit rule denies the station changes to its own
-AccountsService metadata. The guarded classification adapter preserves unrelated
-metadata and ordinary accounts; [Lifecycle](Lifecycle.md#startup-login-and-update-lifecycle)
-owns its distribution-version and persistence details.
+AccountsService metadata. Provisioning uses public account properties; optional
+artwork cannot veto required routing. [Lifecycle](Lifecycle.md#prepared-owned-lifecycle-migration)
+owns retirement of the former private visibility state.
 
-Initial configuration creates the account expired. Reconfiguration records its
-original expiry in a private UID-bound transaction and expires it before
-continuing. Successful PAM and confinement integration restores that expiry.
+Fresh creation explicitly leaves expiry unset and the initial password locked.
+After publishing its numeric UID authority, configuration records the original
+expiry and quarantines the account before deleting the password. A retry between
+UID publication and expiry journaling therefore records the correct unset origin;
+an administrator's explicit expiry is still preserved. Reconfiguration uses the
+same private UID-bound expiry transaction. Successful rebuilt PAM integration
+restores that expiry.
 Interruption and reboot retain the barrier, including for an already
 passwordless account. Foreign identities and changed transaction records are
 preserved rather than adopted.
@@ -81,23 +85,33 @@ repaired preference still denies the current attempt. Root-owned no-follow
 locks serialize routing, admission, preparation and lifecycle writers. Current
 missing state, unsafe lock files and contention deny admission.
 
-The [PAM integration](../../packaging/kiosk_confinement.py) preserves exact
-original and generated PAM bytes. It audits logical lines, includes, substacks
-and jumps so vendor control flow cannot skip the final session gate. Kiosk-only
-guards skip direct keyring and namespace callbacks on open and close. Unknown
-session modules, unsupported nested callbacks, added manager credential callbacks
-and vendor drift currently require reconciliation. Ordinary accounts retain
-vendor callbacks and settings. These are current compatibility constraints,
-not a mandate to preserve that parser/module inventory in the replacement.
+The [distro PAM integration](../../packaging/distro_pam.py) uses Ubuntu's
+`pam-auth-update` and Fedora's owned authselect transaction. Readiness verifies
+the finite product authentication/account blocks, their skip destinations and
+the following runtime-cap hook. It accepts equivalent logical lines and leaves
+unrelated vendor content opaque. Ordinary accounts retain their authentication,
+account denials and time policy. No v1.4 callback inventory or private material
+measurement participates in the selected native module.
 
 Saved preferences and a nologin shell do not attest to GDM's next executable.
-GDM 50 does not invoke the retained legacy PreSession hook, and `GDMSESSION`
-arrives too late. The final native boundary therefore runs in the PAM caller
-after vendor session callbacks. Any replacement must cover actual final exec,
-earlier children, manager startup and credential/session teardown before this
-boundary can be reduced.
+The legacy PreSession hook is unselected. C06a retains the actual desktop/session
+choice, TTY, SSH and remote-desktop route review, with ordinary-account controls;
+host composition does not close those defenses or prove passwordless entry.
 
 ## Native execution and executable identity
+
+The selected session uses the distribution's `gnome-session` and GNOME Kiosk
+target directly. Current isolated Python entrypoints run the shared form and
+notification provider; the vendor authentication agent retains its public
+systemd service identity. No native role dispatcher, private mount image,
+preparation service or required-material inventory is on this production path.
+The selected native PAM module retains only account/session routing, ordinary
+time/runtime-cap behavior and the lifetime lease needed by owned migration and
+removal. See [C02 activation](#c02-activated-session-baseline).
+
+**Historical v1.4 source account:** the following native graph and private-view
+descriptions explain the disconnected source that C02d removes. They describe
+neither the selected runtime nor extra requirements for its replacement.
 
 The [native gate](../../tools/kiosk_confinement.h) selects the production
 [fresh manager transaction](../../tools/kiosk_fresh_startup.h) for `systemd-user`
@@ -322,8 +336,8 @@ from **only kiosk session confinement** at `releases/v1.3` commit
 `188be907c46b1cd0dabae06ac898c43e75beb05e`, then adding justified protections.
 All main non-confinement kiosk features and other product code stay current.
 The [C01 boundary](#c01-selective-replacement-boundary) maps the exact
-function/configuration boundary; [C02](../Kiosk-Prompt-Tasks/C02-rebuild.md)
-reconstructs that slice.
+function/configuration boundary; [C02 activation](#c02-activated-session-baseline)
+selects that slice.
 This is additive work from the release, not subtraction from v1.4 confinement.
 
 The earlier custom Python/native-loader proposal is discarded. Trusted installed
@@ -339,6 +353,124 @@ mechanism assertions. Historical R01–R12 architecture and partial source/test
 receipts below are not active requirements, selected mechanisms or acceptance
 for this rebuilt candidate. Public baseline use precedes new protections, and
 final acceptance remains both-platform installed evidence.
+
+##### C02 activated session baseline
+
+C02 selects the prepared C02a/C02b/C02c account, runtime and PAM composition.
+The unchanged `oh-no-parent-control` Wayland session starts distribution
+`gnome-session --session oh-no-parent-control` and the GNOME Kiosk target. The
+app, notification provider and vendor Polkit agent retain their service names;
+the form keeps main's language, Preferences, duration controls, artwork,
+What's New, diagnostics and direct broker approval interfaces. App exit or
+failure requests session shutdown; reading, choosing and authenticating have no
+new idle deadline. Shared child-overlay behavior remains under the same form
+and broker contracts.
+
+The selected account provisioner uses the package's fixed UID marker, reserved
+home and public AccountsService routing/classification properties. Native PAM
+keeps kiosk service/Wayland checks, the ordinary-user time and runtime-cap hooks,
+and a shared admission lease through `pam_end`. The distro owner verifies only
+the finite product blocks, preserving vendor authentication/account authority
+and ordinary accounts. Actual GDM next-executable and remote-route defenses
+remain C06a/C07 acceptance work.
+
+The [lifecycle owner](Lifecycle.md#prepared-owned-lifecycle-migration) now owns
+the selected migration and post-erase finalizer. Package activation disconnects
+the old session/app/notification dispatchers, private policy/preparation graph, compositor
+and audio confinement overrides, and historical PreSession route. These are
+neither enabled alternatives nor hidden fallback paths. Exact source deletion
+and remaining host/installed automation audits remain C02d/C02e and C03/C04;
+this host cutover grants no installed passwordless-entry, approval or update
+qualification.
+
+The fixed `wellbeing` and `packages` wrappers remain selected feature consumers
+of `tools/kiosk_session.c`: ordinary users retain their own environment for the
+Wellbeing helper, and the diagnostic package query keeps its finite vendor
+command. C02d must remove only the dead roles/default from this mixed source,
+preserving or moving these two consumers. The wrappers import no old admission
+or private-runtime framework.
+
+C02d receives the following disconnected source inventory, including its direct
+test consumers. The initial C02 working tree was clean; there was no separate
+staged, unstaged or untracked old-plan delta to exempt from this inventory.
+
+| Owner | Remaining source and disposition |
+| --- | --- |
+| C02d | Remove `tools/kiosk_bwrap.c` and the native headers `kiosk_confinement.h`, `kiosk_private_creation.h`, `kiosk_host_proof.h`, `kiosk_manager_admission.h`, `kiosk_material_authority.h`, `kiosk_view_receipt.h`, `kiosk_preparation_channel.h`, `kiosk_preparation_child.h`, `kiosk_preparation_plan.h`, `kiosk_native_realization.h`, `kiosk_policy_authority.h`, `kiosk_view_publication.h`, `kiosk_fresh_startup.h`, `kiosk_retained_record.h`, `kiosk_retained_startup.h` under `tools/`, after closing their include/test callers. |
+| C02d | Remove `tools/kiosk_confinement.py`, `tools/kiosk_confinement_policy.py`, `tools/kiosk_preparation_input.py`, `tools/kiosk_preparation_service.py`, `tools/kiosk_view_receipt.py` and their generated graph/material/policy definitions and direct fixtures. They have no selected package/runtime caller. |
+| C02d | Remove `data/systemd/oh-no-parent-control-kiosk-confinement.service`, `data/systemd/user/org.gnome.Kiosk@wayland.service.d/confinement.conf` and `data/systemd/user/wireplumber.service.d/oh-no-parent-control.conf`; none is installed or enabled by the new payload. Selectively remove unused roles from `tools/kiosk_session.c` while preserving the two feature consumers above. |
+| C02e | Remove unconsumed `packaging/kiosk_confinement.py`, `data/gdm3/PreSession/Default` and residual old integration fragments/definitions after C02d closes runtime callers. Keep the selected migration's finite installed-state ownership/recovery handling; it is not a fallback admission protocol. |
+| C02e | Recheck the C01 frontend/broker map: direct public request APIs, scoped approval, cancellation, locale preparation and all main form features stay selected. Do not invent visit/controller modules absent from this source or delete useful shared code to satisfy a historical name. |
+
+The selected-path provision/login/PAM tests now target the rebuilt owners;
+discarded cache-admission, integrity/private-manager assertions lose their
+implementation. Replacement checks retain UID/home/admin ownership, public
+routing, optional-artwork fallback, ordinary time policy, service/transport
+denials and lease lifetime. Still-runnable old native/header fixtures remain
+with C02d/C03; C04 owns installed/E2E consumer alignment. No historical customer
+case or required public result is removed by this source cutover.
+
+The parallelism review retains the existing compatible unit classifications.
+The affected fixtures use launcher-owned pytest scratch, private staged package
+trees, process-local account/service doubles and the existing bounded native
+compiler/mapping children with forwarded scratch leases and joined cleanup.
+No shared host account, PAM file, service, bus, display, cache, network or VM
+resource is acquired, and no cleanup/UI inventory gains an owner.
+
+C02 host acceptance passed **974 checks** in the finite package
+configuration/removal/input/payload/activation/RPM, Fedora PAM, native PAM,
+provision/login, runtime-cap, systemd-unit and host-classification selection,
+with a 600-second worker deadline; see the
+[host report](../../output/test-runs/host/reports/20261021T023055Z-e4e7e31b/report.md).
+This includes native ordinary-user success and kiosk denial through both
+post-unpack failure callbacks, successful retry, interrupted fresh-account
+creation with genuine administrator-expiry controls, capture/retirement
+interruption and ownership refusals, and repeated removal/purge after state is
+gone. The selected source has no changes to main's broker, kiosk/shared-form,
+child or parent feature code, or the mixed feature-wrapper source.
+
+Independent Astra xHigh review passed **Usability priority**, **Threat scope**
+and **Ownership/lifecycle**, with no actionable backend finding remaining. Its
+four initial findings were resolved: failed post-unpack configuration uses
+vendor PAM with kiosk-only denials rather than incompatible legacy native
+options; fresh creation keeps a locked credential until original expiry is
+journaled and quarantined; exact captured-file ownership survives old-state
+erasure and interrupted retirement; and mismatched saved UIDs refuse before
+capture writes. The final host run covers these revisions. The review's two
+stale-document findings were corrected in the removal and screen-time owners;
+their selected-hook and activation descriptions now match the source.
+
+Final `make build` passed for both DEB and RPM after the final packaged-source
+edits. Retained outputs are
+`output/deb/oh-no-parent-control_1.4+local1~ubuntu26.04.1_amd64.deb`,
+`output/rpm/oh-no-parent-control-1.4-0.1.dev.fc44.x86_64.rpm` and
+`output/rpm/build.log`. Implementation/review agents are closed, test/build
+children and owned scratch cleanup completed, and no task-owned process, VM,
+installed state or temporary preparation source remains. Normal reports and
+package outputs are retained. No installation, staging, commit or push was
+performed. Installed entry, approval, update/removal and route qualification
+remain with their declared later tasks.
+
+C02 verified the predecessor's retained accepted result, command record and
+completed cleanup through the maintained bundle reader. The three C02c report
+destinations now use the stable accepted-proof locator; their original members
+retain the exact 187, 676 and 639 passing checks in
+`onpc-evidence-bundle-iglk69um` (SHA-256
+`2601490f36342e6652f801aebaa7065946197d9ee2f8f93c4435964bca6b41ac`).
+Only destinations changed; predecessor completion and acceptance claims remain
+historical and unchanged.
+
+Close-out passed **639 metadata checks** in the maintained consistency selection
+and `test_execution_plan_launcher.py`, with a 600-second worker deadline and
+completed cleanup; see the
+[close-out report](../../output/test-runs/host/reports/20261021T023822Z-ed834337/report.md).
+The read-only plan check selects C02d with 53 tasks remaining. Only C02 is newly
+checked and its temporary brief is removed; every other row's status, relative
+order, scope and dependencies remain unchanged.
+
+The preparation records below describe each predecessor's accepted unselected
+state at its own completion. C02 selection supersedes those exclusion claims;
+their commands, counts and review findings remain historical evidence.
 
 ##### C02a prepared session runtime
 
@@ -708,7 +840,7 @@ and `git diff --check` also passed. No product input changed after review or bui
 ##### C02c2 prepared owned lifecycle migration
 
 The unselected
-[migration module](../../data/kiosk-runtime-unselected/lifecycle_migration.py)
+[migration module](../../packaging/lifecycle_migration.py)
 prepares finite legacy-state retirement without importing the old integration or
 provisioner. The [lifecycle owner](Lifecycle.md#prepared-owned-lifecycle-migration)
 records its exact prepare/original-PAM/readiness/commit/release, rollback,
@@ -850,7 +982,7 @@ or installed acceptance credit.
 Host acceptance has no declared targets. The final prepared PAM, Fedora
 transaction and real migration-readiness selection passed **187 checks** with
 a 180-second worker deadline; see the
-[focused report](../../output/test-runs/host/reports/20261021T013514Z-f3c1132e/report.md).
+[focused report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 It includes 139 native/routing/distro cases, 32 migration composition cases and
 16 Fedora owner/facade cases. Missing or reordered required rules retain
 quarantine/recovery records; restored rules permit retry, and legacy rollback
@@ -859,7 +991,7 @@ accepting wrong module prefixes or commented-out policy.
 
 The final affected regression selection passed **676 checks** with a 600-second
 worker deadline; see the
-[regression report](../../output/test-runs/host/reports/20261021T014023Z-d121f1bc/report.md).
+[regression report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 It covers selected native/login behavior, graphical runtime caps, shared time
 checks, package configuration/removal, unit scheduling and both prepared-payload
 exclusions. Tests compile the prepared native code and exercise private PAM
@@ -895,7 +1027,7 @@ acceptance or predecessor completion change.
 Close-out passed **639 metadata checks** in the maintained consistency modules
 and `test_execution_plan_launcher.py`, with a 600-second worker deadline and
 completed cleanup; see the
-[close-out report](../../output/test-runs/host/reports/20261021T014246Z-06713092/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 Only C02c is newly checked, its temporary brief is removed, and the master
 selects C02 with 54 tasks remaining. Every other row's status, relative order,
 scope and dependencies are preserved.
@@ -1621,7 +1753,7 @@ owned cleanup complete. The native-owned GDM caller correction subsequently
 passed 300 focused authority/transaction/approval cases and both builds; it still
 required fresh integrated review. The proposed custom Python loading mechanism
 was never implemented and is now discarded. The new
-[source rebuild](../Kiosk-Prompt-Tasks/C02-rebuild.md) replaces this development
+[source rebuild](#c02-activated-session-baseline) replaces this development
 direction; historical partial results do not qualify it.
 Host tests replace OS calls with private PAM configurations or finite
 bus/account doubles; they do not prove actual GDM credentials, loaded enforcing

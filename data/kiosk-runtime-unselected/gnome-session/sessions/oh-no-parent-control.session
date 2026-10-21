@@ -1,5 +1,0 @@
-# Prepared release-based runtime; production selection remains with C02.
-[GNOME Session]
-Name=Oh No! Parent Control Kiosk
-# The dedicated target supplies the application set without XDG autostart.
-Kiosk=true

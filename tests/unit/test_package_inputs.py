@@ -89,6 +89,15 @@ def test_product_only_source_can_check_and_stage_the_complete_payload(tmp_path):
     assert Path('tools/run-tests') not in selected
     assert Path('tools/pam_oh_no_parent_control.c') in selected
     assert Path('tools/provision.py') in selected
+    for path in ('packaging/lifecycle_migration.py', 'packaging/distro_pam.py',
+                 'tools/oh-no-parent-control-kiosk-lifecycle',
+                 'tools/oh-no-parent-control-login-check'):
+        assert Path(path) in selected
+    assert not any('kiosk-runtime-unselected' in path.parts for path in selected)
+    for path in ('tools/kiosk_confinement.py', 'tools/kiosk_confinement.h',
+                 'tools/oh-no-parent-control-kiosk-confinement',
+                 'tools/oh-no-parent-control-kiosk-confinement-integration'):
+        assert Path(path) not in selected
     assert not any('preview' in p.name or 'test_user_icons' in p.parts for p in selected)
     for command in (
         ['/usr/bin/python3', '-B', 'debian/check_package.py'],

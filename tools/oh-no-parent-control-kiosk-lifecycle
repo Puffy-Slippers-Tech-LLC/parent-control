@@ -1,0 +1,8 @@
+#!/usr/bin/python3 -I
+"""Fixed installed entry for the kiosk lifecycle owner."""
+import sys
+
+sys.path.insert(0, '/usr/lib/oh-no-parent-control/lifecycle')
+from lifecycle_migration import main
+
+sys.exit(main())

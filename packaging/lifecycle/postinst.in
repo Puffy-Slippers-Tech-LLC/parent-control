@@ -4,7 +4,8 @@ set -e
 if [ "$1" = abort-remove ]; then
     /usr/libexec/oh-no-parent-control-uninstall --restore
 @pam_restore@
-    /usr/libexec/oh-no-parent-control-kiosk-confinement-integration install
+    /usr/libexec/oh-no-parent-control-distro-pam --distribution @kiosk_distribution@ verify
+    /usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution @kiosk_distribution@ rollback
 fi
 
 release_removal_guard() {
@@ -37,6 +38,9 @@ if [ "$1" = abort-remove ]; then
 fi
 
 if [ "$1" = configure ]; then
+    # Before commit a failed configuration restores only the retained owned
+    # legacy integration. Fresh-install failures remain quarantined for retry.
+    trap 'status=$?; if [ "$status" -ne 0 ]; then /usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution @kiosk_distribution@ configure-failed || true; fi; exit "$status"' 0
     rm -f /run/oh-no-parent-control-package-configuration-complete
     marker=/var/lib/oh-no-parent-control/package-created-kiosk-uid
     if getent passwd oh-no-parent-control >/dev/null; then
@@ -53,7 +57,7 @@ if [ "$1" = configure ]; then
         fi
         # A retry may already own an empty-password, visible account. Close
         # native account admission before any configure work can fail or pause.
-        /usr/libexec/oh-no-parent-control-provision --kiosk-user oh-no-parent-control --quarantine-account
+        /usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution @kiosk_distribution@ prepare
     elif [ -e /home/oh-no-parent-control ] || [ -L /home/oh-no-parent-control ]; then
         echo 'oh-no-parent-control: reserved kiosk home already exists; preserving it' >&2
         exit 1
@@ -81,7 +85,7 @@ if [ "$1" = configure ]; then
     kiosk_user=oh-no-parent-control
     package_created_kiosk=0
     if ! getent passwd "$kiosk_user" >/dev/null; then
-@create_account@        /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user" --quarantine-account --new-account
+@create_account@
         kiosk_uid=$(id -u "$kiosk_user")
         printf '%s\n' "$kiosk_uid" \
             > /var/lib/oh-no-parent-control/package-created-kiosk-uid
@@ -89,6 +93,10 @@ if [ "$1" = configure ]; then
             /var/lib/oh-no-parent-control/package-created-kiosk-uid
         chmod 0600 \
             /var/lib/oh-no-parent-control/package-created-kiosk-uid
+        sync /var/lib/oh-no-parent-control/package-created-kiosk-uid /var/lib/oh-no-parent-control
+        # The initial credential is still locked. Capture native expiry and
+        # quarantine before the later password deletion can allow sign-in.
+        /usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution @kiosk_distribution@ prepare
         package_created_kiosk=1
     elif [ ! -f /var/lib/oh-no-parent-control/package-created-kiosk-uid ]; then
         echo 'oh-no-parent-control: refusing an unowned kiosk account' >&2
@@ -109,6 +117,17 @@ if [ "$1" = configure ]; then
             --home "/home/$kiosk_user" --shell /usr/sbin/nologin "$kiosk_user"
         passwd --delete "$kiosk_user"
     fi
+    visibility_needed=$(/usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution @kiosk_distribution@ visibility-needed)
+    case "$visibility_needed" in
+        yes)
+            # The owned cache adapter runs only before the daemon loads its
+            # retained metadata; do not write underneath a running daemon.
+            systemctl --system daemon-reload
+            systemctl restart accounts-daemon.service
+            ;;
+        no) ;;
+        *) exit 1 ;;
+    esac
     /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"
 
     # These live integrations are generated, not conffiles. Deleting a
@@ -131,7 +150,6 @@ if [ "$1" = configure ]; then
         install -o root -g root -m "$integration_mode" "$integration_source" "$integration_target"
         install -o root -g root -m 0600 "$integration_source" "$integration_record"
     }
-    install -d -o root -g root -m 0755 @gdm_presession_dir@
     if [ -L /etc/fapolicyd ] || [ -L /etc/fapolicyd/rules.d ]; then
         echo 'oh-no-parent-control: refusing substituted execution-policy directory' >&2
         exit 1
@@ -141,9 +159,17 @@ if [ "$1" = configure ]; then
     if [ ! -d /etc/fapolicyd/rules.d ]; then
         install -d -o root -g root -m 0755 /etc/fapolicyd/rules.d
     fi
-    install_integration /usr/share/oh-no-parent-control/gdm-presession \
-        @gdm_presession_dir@/Default \
-        /var/lib/oh-no-parent-control/installed-gdm-presession 0755
+    # Retire only our exact historical hook. Current GDM never calls it.
+    hook_record=/var/lib/oh-no-parent-control/installed-gdm-presession
+    if [ -e "$hook_record" ] || [ -L "$hook_record" ]; then
+        if [ -L "$hook_record" ] || [ ! -f "$hook_record" ] ||
+           [ -L @gdm_presession_dir@/Default ] ||
+           { [ -e @gdm_presession_dir@/Default ] && ! cmp -s @gdm_presession_dir@/Default "$hook_record"; }; then
+            echo 'oh-no-parent-control: preserving changed historical GDM integration' >&2
+            exit 1
+        fi
+        rm -f @gdm_presession_dir@/Default "$hook_record"
+    fi
     install_integration /usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules \
         /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-fallback 0644
@@ -161,6 +187,7 @@ if [ "$1" = configure ]; then
         /var/lib/oh-no-parent-control/installed-child-extension-trust 0644
 @trust_label@
 @initial_setup@
+    /usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution @kiosk_distribution@ original-pam
 @pam_enable@
     chown root:@admin_group@ \
         /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
@@ -237,11 +264,8 @@ if [ "$1" = configure ]; then
     if [ -f /var/lib/oh-no-parent-control/uninstall-enforcement.json ]; then
         /usr/libexec/oh-no-parent-control-uninstall --restore
     fi
-    # Load MAC policy before restoring PAM and releasing kiosk admission.
-    /usr/libexec/oh-no-parent-control-kiosk-confinement-integration install
-    # Shared PAM has been verified and final MAC/PAM integration succeeded.
-    # Restore only the expiry captured before this owned configuration.
-    /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user" --release-account
+    /usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution @kiosk_distribution@ commit
+    /usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution @kiosk_distribution@ release
     # Migration stops the broker even on an unchanged reinstall. Ensure it is
     # running after every configure, without restarting an already-active
     # broker unless the changed payload requires reconciliation.

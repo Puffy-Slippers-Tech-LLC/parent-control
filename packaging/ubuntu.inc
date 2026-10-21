@@ -85,7 +85,7 @@ prepare_package_notice() {
 # @create_account@
         useradd --create-home --user-group --comment "Oh No! Parent Control" \
             --home-dir "/home/$kiosk_user" --shell /usr/sbin/nologin \
-            --expiredate 1 "$kiosk_user"
+            --password '!' --expiredate -1 "$kiosk_user"
 
 # @initial_setup@
     # User-controlled home paths must never be traversed with root's write

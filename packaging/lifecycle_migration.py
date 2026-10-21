@@ -1,12 +1,11 @@
 #!/usr/bin/python3 -I
-"""Finite legacy kiosk lifecycle migration, prepared for C02 selection only.
+"""Owned kiosk account lifecycle and finite legacy confinement migration.
 
-No command line or production caller selects this module. C02 must retain the
-legacy policy payload until commit, run visibility() at AccountsService start-pre,
-and compose prepare(), restore_original_pam(), commit_migration(real_verifier),
-release_account(). The verifier must perform side-effect-free native/distro PAM
-readiness checks, returning None or raising. It is mandatory, never a success flag.
-Before commit, rollback() restores old policy before admitting the owned account.
+Pre-unpack capture retains the legacy policy payload until commit. Configuration
+runs visibility() at AccountsService start-pre and composes prepare(),
+restore_original_pam(), commit_migration(real_verifier), release_account().
+The verifier performs side-effect-free native/distro PAM readiness checks,
+returning None or raising. Post-unpack rollback preserves account quarantine.
 Removal uses prepare() then finish_remove() after verified account/home deletion;
 keep the numeric ownership marker until this finalizer succeeds. Never delete
 runtime locks or private /run generations: their retirement belongs to reboot.
@@ -34,6 +33,8 @@ OWNERSHIP = STATE_DIRECTORY / 'package-created-kiosk-uid'
 EXPIRY = STATE_DIRECTORY / 'kiosk-configuration-account.json'
 DISABLED = STATE_DIRECTORY / 'kiosk-confinement-removing'
 PAYLOAD = Path('/usr/share/oh-no-parent-control/confinement')
+RETAINED = STATE_DIRECTORY / 'legacy-kiosk-policy'
+CAPTURE = STATE_DIRECTORY / 'legacy-kiosk-policy.json'
 PAM = Path('/etc/pam.d')
 PROCESSES = Path('/proc')
 BOOT = Path('/proc/sys/kernel/random/boot_id')
@@ -400,7 +401,13 @@ def idle(saved, identity, *, post_erase=False):
                     if str(identity) in identities[0] or (thread / 'loginuid').read_text().strip() == str(identity):
                         raise ValueError('kiosk-processes-active')
                     if saved and '0' in identities[0]:
-                        if not post_erase:
+                        # First preparation proves old mappings before unpack.
+                        # Once its durable removal intent exists, the exact
+                        # admission lease plus UID/audit/MAC checks distinguish
+                        # kiosk executors from ordinary workers retaining the
+                        # replaced module. Never make those workers a reboot
+                        # requirement during interrupted configure retries.
+                        if not post_erase and not saved.get('removing'):
                             mapped_generation(thread)
                         refreshed = [line.split()[1:] for line in (thread / 'status').read_text().splitlines()
                                      if line.startswith('Uid:')]
@@ -428,15 +435,202 @@ def marker():
         raise ValueError('changed-legacy-removal-marker')
 
 
-def policy_material(saved):
-    path = PAYLOAD / ('onpc-kiosk.cil' if saved['backend'] == 'selinux' else 'onpc-kiosk.apparmor')
+def policy_material(saved, *, source=False):
+    base = RETAINED if not source and (os.path.lexists(RETAINED) or os.path.lexists(CAPTURE)) else PAYLOAD
+    if base == RETAINED:
+        receipt = capture_record()
+        capture_authority(receipt, uid(), saved)
+        if receipt['phase'] != 'ready':
+            raise ValueError('legacy-policy-capture-not-ready')
+        verify_capture(receipt)
+    path = base / ('onpc-kiosk.cil' if saved['backend'] == 'selinux' else 'onpc-kiosk.apparmor')
     contents = read(path)[1]
-    config = read(PAYLOAD / 'config.json')[1]
+    config = read(base / 'config.json')[1]
     if (json.loads(config).get('backend') != saved['backend'] or
             ('loaded_config_sha256' in saved and hashlib.sha256(config).hexdigest() != saved['loaded_config_sha256']) or
             ('loaded_policy_sha256' in saved and hashlib.sha256(contents).hexdigest() != saved['loaded_policy_sha256'])):
         raise ValueError('changed-legacy-policy-payload')
     return path, contents
+
+
+def capture_names(backend):
+    return {'config.json', 'onpc-kiosk.cil' if backend == 'selinux' else 'onpc-kiosk.apparmor'}
+
+
+def capture_record():
+    value = read(CAPTURE, private=True, optional=True)
+    if value is None:
+        return None
+    record = json.loads(value[1])
+    if (not isinstance(record, dict) or
+            set(record) != {'version', 'uid', 'backend', 'directory', 'phase', 'files'} or
+            type(record['version']) is not int or record['version'] != 1 or
+            type(record['uid']) is not int or record['uid'] <= 0 or
+            record['backend'] not in ('apparmor', 'selinux') or
+            record['phase'] not in ('capture', 'ready', 'retiring') or
+            not isinstance(record['directory'], dict) or
+            set(record['directory']) != {'device', 'inode'} or
+            any(type(record['directory'][key]) is not int or record['directory'][key] < 0
+                for key in ('device', 'inode')) or
+            not isinstance(record['files'], dict) or
+            set(record['files']) != capture_names(record['backend'])):
+        raise ValueError('invalid-legacy-policy-capture')
+    for member in record['files'].values():
+        if (not isinstance(member, dict) or set(member) != {'sha256', 'device', 'inode'} or
+                not isinstance(member['sha256'], str) or not DIGEST.fullmatch(member['sha256']) or
+                not ((member['device'] is None and member['inode'] is None and record['phase'] == 'capture') or
+                     all(type(member[key]) is int and member[key] >= 0 for key in ('device', 'inode')))):
+            raise ValueError('invalid-legacy-policy-capture')
+    return record
+
+
+def capture_authority(receipt, identity, saved=None):
+    if receipt is None or receipt['uid'] != identity:
+        raise ValueError('changed-legacy-capture-identity')
+    if saved is not None:
+        if saved.get('kiosk_uid', identity) != identity or saved['backend'] != receipt['backend']:
+            raise ValueError('changed-legacy-capture-identity')
+        policy_name = next(name for name in receipt['files'] if name != 'config.json')
+        for key, name in (('loaded_config_sha256', 'config.json'), ('loaded_policy_sha256', policy_name)):
+            if key in saved and saved[key] != receipt['files'][name]['sha256']:
+                raise ValueError('changed-legacy-policy-capture')
+
+
+def captured_member(path, expected, *, optional=False):
+    value = read(path, private=True, optional=optional)
+    if value is not None and ((value[0].st_dev, value[0].st_ino) !=
+                              (expected['device'], expected['inode']) or
+                              hashlib.sha256(value[1]).hexdigest() != expected['sha256']):
+        raise ValueError('changed-retained-policy')
+    return value
+
+
+def verify_capture(receipt, *, missing=False):
+    with directory(RETAINED) as descriptor:
+        info = os.fstat(descriptor)
+        if (stat.S_IMODE(info.st_mode) != 0o700 or
+                (info.st_dev, info.st_ino) !=
+                (receipt['directory']['device'], receipt['directory']['inode'])):
+            raise ValueError('changed-retained-policy-directory')
+        if set(os.listdir(descriptor)) - set(receipt['files']):
+            raise ValueError('foreign-retained-policy-content')
+        for name, expected in receipt['files'].items():
+            captured_member(RETAINED / name, expected, optional=missing)
+
+
+def capture_policy():
+    """Retain only exact rollback inputs before package unpack replaces them."""
+    if not os.path.lexists(STATE_DIRECTORY):
+        return
+    with barriers():
+        saved = state()
+        if saved is None:
+            return
+        identity = uid()
+        account(identity)
+        if saved.get('kiosk_uid', identity) != identity:
+            raise ValueError('changed-kiosk-identity')
+        receipt = capture_record()
+        if receipt is not None:
+            capture_authority(receipt, identity, saved)
+            if receipt['phase'] == 'ready':
+                verify_capture(receipt)
+                return
+            if receipt['phase'] != 'capture':
+                raise ValueError('legacy-policy-capture-retiring')
+            verify_capture(receipt, missing=True)
+        path, contents = policy_material(saved, source=True)
+        config = read(PAYLOAD / 'config.json')[1]
+        inputs = {'config.json': config, path.name: contents}
+        with directory(STATE_DIRECTORY):
+            try:
+                RETAINED.mkdir(mode=0o700)
+            except FileExistsError:
+                pass
+            with directory(RETAINED) as descriptor:
+                info = os.fstat(descriptor)
+                if stat.S_IMODE(info.st_mode) != 0o700:
+                    raise ValueError('unsafe-retained-policy-directory')
+                if receipt is None:
+                    if os.listdir(descriptor):
+                        raise ValueError('unowned-retained-policy-content')
+                    receipt = {'version': 1, 'uid': identity, 'backend': saved['backend'],
+                               'directory': {'device': info.st_dev, 'inode': info.st_ino},
+                               'phase': 'capture', 'files': {
+                                   name: {'sha256': hashlib.sha256(value).hexdigest(),
+                                          'device': None, 'inode': None}
+                                   for name, value in inputs.items()}}
+                    capture_authority(receipt, identity, saved)
+                    save(CAPTURE, receipt)
+                for name, value in inputs.items():
+                    expected = receipt['files'][name]
+                    if hashlib.sha256(value).hexdigest() != expected['sha256']:
+                        raise ValueError('changed-legacy-policy-capture')
+                    if captured_member(RETAINED / name, expected, optional=True) is not None:
+                        continue
+                    # Record the independent inode before publishing its name.
+                    # If interrupted before linking, the unnamed inode expires;
+                    # a retry may renew it only from still-attested old inputs.
+                    member = os.open('.', os.O_RDWR | os.O_TMPFILE | os.O_CLOEXEC,
+                                     0o600, dir_fd=descriptor)
+                    try:
+                        with os.fdopen(member, 'wb', closefd=False) as stream:
+                            stream.write(value)
+                            stream.flush()
+                            os.fsync(member)
+                        member_info = os.fstat(member)
+                        expected.update(device=member_info.st_dev, inode=member_info.st_ino)
+                        save(CAPTURE, receipt)
+                        os.link(f'/proc/self/fd/{member}', name,
+                                dst_dir_fd=descriptor, follow_symlinks=True)
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(member)
+                verify_capture(receipt)
+                receipt['phase'] = 'ready'
+                save(CAPTURE, receipt)
+
+
+def retire_policy():
+    """Delete only the finite captured members after legacy state is retired."""
+    # Repeated remove/purge may already have retired the entire state directory.
+    # Check through its pinned, validated parent so an absent path behind a
+    # substituted ancestor is not mistaken for completed owned cleanup.
+    with directory(STATE_DIRECTORY.parent) as parent:
+        try:
+            os.stat(STATE_DIRECTORY.name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+    with barriers():
+        receipt = capture_record()
+        if receipt is None:
+            if os.path.lexists(RETAINED):
+                raise ValueError('unowned-retained-policy-content')
+            return
+        if read(STATE, optional=True) is not None:
+            raise ValueError('legacy-state-still-present')
+        capture_authority(receipt, uid())
+        if receipt['phase'] == 'capture':
+            raise ValueError('legacy-policy-capture-not-ready')
+        if os.path.lexists(RETAINED):
+            # Validate every remaining member before deleting any of them.
+            # Only a durable retirement phase permits a previously deleted
+            # member to be absent on retry after the old state is gone.
+            verify_capture(receipt, missing=receipt['phase'] == 'retiring')
+            receipt['phase'] = 'retiring'
+            save(CAPTURE, receipt)
+            for name, expected in sorted(receipt['files'].items()):
+                if captured_member(RETAINED / name, expected, optional=True) is not None:
+                    erase(RETAINED / name)
+            with directory(STATE_DIRECTORY) as descriptor:
+                info = RETAINED.stat(follow_symlinks=False)
+                if (info.st_dev, info.st_ino) != (receipt['directory']['device'], receipt['directory']['inode']):
+                    raise ValueError('changed-retained-policy-directory')
+                RETAINED.rmdir()
+                os.fsync(descriptor)
+        elif receipt['phase'] != 'retiring':
+            raise ValueError('missing-retained-policy-directory')
+        erase(CAPTURE)
 
 
 def policy(saved, *, load):
@@ -494,6 +688,21 @@ def prepare():
             run(['/usr/sbin/restorecon', '-F', str(LOCKS[0])])
 
 
+def prepare_remove():
+    """Failed first configuration and interrupted post-erase remain removable."""
+    ownership = read(OWNERSHIP, private=True, optional=True)
+    if ownership is None:
+        if any(read(path, optional=True) is not None for path in (STATE, EXPIRY, DISABLED)):
+            raise ValueError('unowned-kiosk-recovery-state')
+        return
+    try:
+        pwd.getpwnam(USER)
+    except KeyError:
+        finish_remove()
+        return
+    prepare()
+
+
 def restore_locked(saved):
     verify_pam(saved)
     if not saved.get('removing'):
@@ -537,6 +746,7 @@ def commit_migration(replacement_ready):
             idle(saved, identity)
         if replacement_ready() is not None:
             raise ValueError('replacement-verifier-must-return-none')
+        verify_visibility()
         quarantined(identity)
         if state() != saved:
             raise ValueError('legacy-state-changed-during-readiness')
@@ -548,7 +758,7 @@ def commit_migration(replacement_ready):
         erase(STATE)
 
 
-def rollback():
+def rollback(*, release=True):
     """Reload retained policy before restoring gates; expiry stays journaled."""
     with barriers():
         identity = uid()
@@ -563,6 +773,20 @@ def rollback():
             verify_pam(saved)
             idle(saved, identity)
             quarantine(identity)
+            if not release:
+                # Unpack has replaced the native module. Its old options are
+                # invalid even for ordinary users, so retain vendor callbacks
+                # with kiosk-only vendor-module denials, never old native gates.
+                saved['removing'] = True
+                save(STATE, saved)
+                write(DISABLED, b'removing\n')
+                for name, record in saved['pam'].items():
+                    write(PAM / name, (DENIAL + original(record)).encode(), record['mode'])
+                policy(saved, load=False)
+                if saved['backend'] == 'selinux':
+                    run(['/usr/sbin/restorecon', '-F', str(LOCKS[0]),
+                         str(PAM / 'gdm-password'), str(PAM / 'systemd-user')])
+                return
             policy(saved, load=True)
             if saved['backend'] == 'selinux':
                 run(['/usr/sbin/restorecon', str(LOCKS[0])])
@@ -571,9 +795,17 @@ def rollback():
             if saved['backend'] == 'selinux':
                 run(['/usr/sbin/restorecon', str(PAM / 'gdm-password'), str(PAM / 'systemd-user')])
             saved.pop('previous_pam', None)
-            saved.pop('removing', None)
+            if release:
+                saved.pop('removing', None)
             save(STATE, saved)
-            erase(DISABLED)
+            if release:
+                erase(DISABLED)
+        if not release:
+            # Package unpack may already have replaced the old native gate
+            # and launchers. Retain quarantine until configure verifies the
+            # selected replacement; old PAM/policy is recovery state only.
+            quarantine(identity)
+            return
         record = expiry_record(identity)
         if record is not None:
             actual = current_expiry()
@@ -610,6 +842,53 @@ def finish_remove():
         erase(EXPIRY)
 
 
+def main(arguments=None):
+    import argparse
+    import sys
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--distribution', choices=('ubuntu', 'fedora'), required=True)
+    parser.add_argument('action', choices=('capture', 'prepare', 'prepare-remove', 'original-pam',
+                                          'commit', 'release', 'rollback', 'configure-failed',
+                                          'visibility', 'visibility-needed', 'remove'))
+    args = parser.parse_args(arguments)
+    if os.geteuid() != 0:
+        parser.exit(1, 'kiosk-lifecycle: must run as root\n')
+    try:
+        if args.action == 'commit':
+            import distro_pam
+            commit_migration(lambda: distro_pam.runtime_ready(args.distribution))
+            retire_policy()
+        elif args.action == 'capture':
+            capture_policy()
+        elif args.action == 'remove':
+            finish_remove()
+            retire_policy()
+        elif args.action == 'configure-failed':
+            if state() is not None:
+                rollback(release=False)
+        elif args.action == 'rollback':
+            if state() is not None:
+                rollback(release=False)
+            else:
+                import distro_pam
+                distro_pam.runtime_ready(args.distribution)
+                rollback()
+        elif args.action == 'visibility-needed':
+            identity = uid()
+            account(identity)
+            cached = read(CACHE / USER, optional=True)
+            needed = read(CACHE / SLOT, optional=True) is not None or (cached is not None and
+                     (ATTRIBUTE in cached[2] or not visibility_position(cached[1])[2]))
+            print('yes' if needed else 'no')
+        else:
+            {'prepare': prepare, 'prepare-remove': prepare_remove, 'original-pam': restore_original_pam, 'release': release_account,
+             'visibility': visibility}[args.action]()
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print(f'kiosk-lifecycle: {error}', file=sys.stderr)
+        return 1
+    return 0
+
+
 def visibility_position(contents):
     """Edit only the old source-defined boolean, preserving every other byte."""
     text = contents.decode('utf-8')
@@ -639,6 +918,15 @@ def visibility_position(contents):
     if groups != 1 or len(matches) > 1:
         raise ValueError('ambiguous-legacy-cache')
     return matches[0] if matches else (insertion if insertion is not None else len(contents), None, False)
+
+
+def verify_visibility():
+    """Public visibility cannot forgive an unfinished private cache recovery."""
+    if read(CACHE / SLOT, optional=True) is not None:
+        raise ValueError('visibility-recovery-not-settled')
+    cached = read(CACHE / USER, optional=True)
+    if cached is not None and (ATTRIBUTE in cached[2] or not visibility_position(cached[1])[2]):
+        raise ValueError('visibility-recovery-not-settled')
 
 
 def metadata(info, attributes):

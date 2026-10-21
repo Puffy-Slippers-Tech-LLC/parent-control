@@ -486,10 +486,12 @@ package triggers failing to reach an exhausted child's manager with
 the change on its next invocation (`none`), on both Ubuntu and Fedora, without
 changing saved limits or restarting user managers.
 
-The [package classifier](../../packaging/package_activation.py) gives PAM profile
-and login-routing changes `reboot` activation. A replacement
-`pam_oh_no_parent_control.so` alone requires `session-renewal`; the external
-session-limit helper loads on each invocation (`none`). Extension-manager
+The [package classifier](../../packaging/package_activation.py) gives the selected
+PAM profiles and login helper next-invocation activation (`none`). A replacement
+`pam_oh_no_parent_control.so` requires `session-renewal`; the external
+session-limit helper also loads on each invocation (`none`). Boot-order changes
+and removed legacy manifest members retain their applicable reboot impacts under
+the [lifecycle owner](Lifecycle.md#package-activation-and-session-renewal). Extension-manager
 changes activate at `process-restart`, and child-extension code at
 `session-renewal`. A combined package takes every applicable impact. No
 saved-data migration is needed for these integration changes. The PAM data

@@ -167,8 +167,6 @@ remove_package_created_kiosk() {
        [ "$(stat -c %u /var/mail/oh-no-parent-control)" = "$marker_uid" ]; then
         rm -f /var/mail/oh-no-parent-control
     fi
-    configuration_account_record remove "$marker_uid"
-    rm -f "$marker"
     echo 'oh-no-parent-control: kiosk cleanup outcome=accepted' >&2
 }
 
@@ -308,6 +306,9 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
     @bus_reload@ >/dev/null || true
     remove_package_created_kiosk
 @confinement_finish_remove@
+    # The embedded finalizer still needs the numeric ownership authority after
+    # account/home deletion. Retire it only after that finalizer succeeds.
+    rm -f /var/lib/oh-no-parent-control/package-created-kiosk-uid
     if [ -f /var/lib/oh-no-parent-control/uninstall-broker-mask ]; then
         if [ "$(readlink /run/systemd/system/oh-no-parent-control-broker.service)" = /dev/null ]; then
             systemctl unmask --runtime oh-no-parent-control-broker.service >/dev/null

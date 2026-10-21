@@ -54,7 +54,7 @@ def test_payload_excludes_development_files_and_keeps_runtime_assets(production_
         assert path in paths
 
 
-def test_prepared_kiosk_runtime_does_not_replace_selected_payload(production_payload):
+def test_selected_kiosk_runtime_replaces_private_framework_payload(production_payload):
     for source, installed in (
         ('wayland-sessions/oh-no-parent-control.desktop',
          'usr/share/wayland-sessions/oh-no-parent-control.desktop'),
@@ -74,8 +74,24 @@ def test_prepared_kiosk_runtime_does_not_replace_selected_payload(production_pay
                    for path in production_payload.rglob('*'))
     desktop = (production_payload / 'usr/share/wayland-sessions/oh-no-parent-control.desktop').read_text()
     app = (production_payload / 'usr/lib/systemd/user/oh-no-parent-control-app.service').read_text()
-    assert 'Exec=/usr/libexec/oh-no-parent-control-kiosk-session\n' in desktop
-    assert 'ExecStart=/usr/libexec/oh-no-parent-control-kiosk-app\n' in app
+    assert 'Exec=gnome-session --session oh-no-parent-control\n' in desktop
+    assert 'ExecStart=/usr/bin/oh-no-parent-control\n' in app
+    assert (production_payload / 'usr/libexec/oh-no-parent-control-kiosk-lifecycle').read_bytes() == (
+        ROOT / 'tools/oh-no-parent-control-kiosk-lifecycle').read_bytes()
+    for name in ('distro_pam.py', 'lifecycle_migration.py'):
+        assert (production_payload / 'usr/lib/oh-no-parent-control/lifecycle' / name).read_bytes() == (
+            ROOT / 'packaging' / name).read_bytes()
+    for name in ('session', 'app', 'notifications', 'notification-client', 'cleanup', 'audio',
+                 'dbus', 'confinement', 'confinement-integration', 'support'):
+        assert not (production_payload / f'usr/libexec/oh-no-parent-control-kiosk-{name}').exists()
+    for path in (
+        'usr/share/oh-no-parent-control/confinement',
+        'usr/share/oh-no-parent-control/gdm-presession',
+        'usr/lib/systemd/system/oh-no-parent-control-kiosk-confinement.service',
+        'usr/lib/systemd/user/org.gnome.Kiosk@wayland.service.d',
+        'usr/lib/systemd/user/wireplumber.service.d',
+    ):
+        assert not (production_payload / path).exists()
 
 
 @pytest.mark.parametrize("command, arguments, expected", [
@@ -241,9 +257,7 @@ def test_ubuntu_retains_fapolicyd_execstartpost_readiness(production_payload):
     display = configparser.ConfigParser(interpolation=None)
     display.read(system / 'display-manager.service.d/oh-no-parent-control.conf')
     assert display['Unit']['Requires'] == 'fapolicyd.service'
-    assert set(display['Unit']['After'].split()) == {
-        'fapolicyd.service', 'oh-no-parent-control-kiosk-confinement.service',
-    }
+    assert set(display['Unit']['After'].split()) == {'fapolicyd.service'}
     manifest = json.loads((production_payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
     entries = {entry['path']: entry for entry in manifest['files']}
     recovery = 'usr/lib/systemd/system/fapolicyd.service.d/oh-no-parent-control-recovery.conf'

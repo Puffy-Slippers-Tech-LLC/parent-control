@@ -1,48 +1,40 @@
 """Kiosk routing policy and real PAM transactions, without a live login or bus."""
 
 import configparser
-import ctypes
-from contextlib import contextmanager
-import fcntl
-import importlib.machinery
-import importlib.util
 import json
-import multiprocessing
 import os
 import shlex
 import subprocess
-import time
-from types import SimpleNamespace
 
 import pytest
 
 from tests.support.paths import ROOT
 
 
-PREPARED_RUNTIME = ROOT / 'data/kiosk-runtime-unselected'
+SELECTED_RUNTIME = ROOT / 'data'
 
 
-def _prepared_config(relative):
+def _selected_config(relative):
     settings = configparser.ConfigParser(interpolation=None)
-    settings.read(PREPARED_RUNTIME / relative)
+    settings.read(SELECTED_RUNTIME / relative)
     return settings
 
 
-def test_prepared_session_preserves_release_identity_and_kiosk_selection():
-    desktop = _prepared_config('wayland-sessions/oh-no-parent-control.desktop')['Desktop Entry']
+def test_selected_session_preserves_release_identity_and_kiosk_selection():
+    desktop = _selected_config('wayland-sessions/oh-no-parent-control.desktop')['Desktop Entry']
     assert shlex.split(desktop['Exec']) == [
         'gnome-session', '--session', 'oh-no-parent-control']
     assert desktop['TryExec'] == 'gnome-session'
     assert desktop['DesktopNames'] == 'GNOME-Kiosk;GNOME;'
     assert desktop['X-GDM-SessionRegisters'] == 'false'
     assert desktop['X-GDM-CanRunHeadless'] == 'true'
-    session = _prepared_config('gnome-session/sessions/oh-no-parent-control.session')
+    session = _selected_config('gnome-session/sessions/oh-no-parent-control.session')
     assert dict(session['GNOME Session']) == {
         'name': 'Oh No! Parent Control Kiosk', 'kiosk': 'true'}
 
 
-def test_prepared_target_owns_only_the_dedicated_session_composition():
-    target = PREPARED_RUNTIME / (
+def test_selected_target_owns_only_the_dedicated_session_composition():
+    target = SELECTED_RUNTIME / (
         'systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf')
     settings = {}
     for line in target.read_text().splitlines():
@@ -59,8 +51,8 @@ def test_prepared_target_owns_only_the_dedicated_session_composition():
     }
 
 
-def test_prepared_app_keeps_current_form_and_session_shutdown_ownership():
-    source = PREPARED_RUNTIME / 'systemd/user/oh-no-parent-control-app.service'
+def test_selected_app_keeps_current_form_and_session_shutdown_ownership():
+    source = SELECTED_RUNTIME / 'systemd/user/oh-no-parent-control-app.service'
     app = configparser.ConfigParser(strict=False, interpolation=None)
     app.read(source)
     assert app['Unit']['BindsTo'] == 'gnome-session.target'
@@ -80,13 +72,9 @@ def test_prepared_app_keeps_current_form_and_session_shutdown_ownership():
         '#!/usr/bin/python3 -I')
 
 
-def test_prepared_agent_preserves_main_vendor_and_locale_restart_interface():
+def test_selected_agent_preserves_main_vendor_and_locale_restart_interface():
     relative = 'systemd/user/oh-no-parent-control-polkit-agent.service'
-    agent = _prepared_config(relative)
-    active = configparser.ConfigParser(interpolation=None)
-    active.read(ROOT / 'data' / relative)
-    assert {section: dict(agent[section]) for section in agent.sections()} == {
-        section: dict(active[section]) for section in active.sections()}
+    agent = _selected_config(relative)
     assert agent['Service']['EnvironmentFile'] == '-%t/oh-no-parent-control/polkit-agent.env'
     assert agent['Service']['Type'] == 'simple'
     assert shlex.split(agent['Service']['ExecStart']) == [
@@ -94,8 +82,8 @@ def test_prepared_agent_preserves_main_vendor_and_locale_restart_interface():
     assert agent['Service']['Restart'] == 'on-failure'
 
 
-def test_prepared_notifications_keep_tagged_current_provider_without_native_wrappers():
-    notifications = _prepared_config('systemd/user/oh-no-parent-control-notifications.service')
+def test_selected_notifications_keep_tagged_current_provider_without_native_wrappers():
+    notifications = _selected_config('systemd/user/oh-no-parent-control-notifications.service')
     assert notifications['Unit']['BindsTo'] == 'org.gnome.Kiosk@wayland.service'
     assert notifications['Unit']['PartOf'] == 'gnome-session@oh-no-parent-control.target'
     assert notifications['Unit']['After'] == 'org.gnome.Kiosk@wayland.service'
@@ -109,23 +97,12 @@ def test_prepared_notifications_keep_tagged_current_provider_without_native_wrap
     assert notifications['Service']['Restart'] == 'on-failure'
 
 
-def test_prepared_runtime_has_no_production_package_source_selection():
+def test_selected_runtime_has_complete_production_package_source_selection():
     result = subprocess.run(
         ['make', '--no-print-directory', 'package-source-files'], cwd=ROOT,
         check=True, capture_output=True, text=True, timeout=30)
     selected = set(result.stdout.splitlines())
-    prepared = {path.relative_to(ROOT).as_posix()
-                for path in PREPARED_RUNTIME.rglob('*') if path.is_file()}
-    assert {
-        'data/kiosk-runtime-unselected/provision.py',
-        'data/kiosk-runtime-unselected/lifecycle_migration.py',
-        'data/kiosk-runtime-unselected/pam_oh_no_parent_control.c',
-        'data/kiosk-runtime-unselected/login_check.py',
-        'data/kiosk-runtime-unselected/distro_pam.py',
-        'data/kiosk-runtime-unselected/pam-configs/oh-no-parent-control-kiosk-only',
-        'data/kiosk-runtime-unselected/pam-configs/oh-no-parent-control-session-limits',
-    } <= prepared
-    assert prepared.isdisjoint(selected)
+    assert not any(path.is_file() for path in (ROOT / 'data/kiosk-runtime-unselected').rglob('*'))
     assert not any(path.startswith('data/kiosk-runtime-unselected/') for path in selected)
     assert {
         'data/wayland-sessions/oh-no-parent-control.desktop',
@@ -138,6 +115,11 @@ def test_prepared_runtime_has_no_production_package_source_selection():
         'kiosk/oh_no_parent_control_kiosk/notifications.py',
         'kiosk/oh_no_parent_control_kiosk/session_logout.py',
         'tools/provision.py',
+        'tools/pam_oh_no_parent_control.c',
+        'tools/oh-no-parent-control-login-check',
+        'tools/oh-no-parent-control-kiosk-lifecycle',
+        'packaging/lifecycle_migration.py',
+        'packaging/distro_pam.py',
     } <= selected
 
 
@@ -253,7 +235,7 @@ def test_wellbeing_entry_preserves_ordinary_settings_environment(wellbeing_entry
             assert name not in observed
 
 
-def test_legacy_pam_entry_ignores_python_startup_environment(tmp_path):
+def test_selected_pam_entry_ignores_python_startup_environment(tmp_path):
     entry = tmp_path / "login-check"
     entry.write_bytes((ROOT / "tools/oh-no-parent-control-login-check").read_bytes())
     # Package staging installs this source as an executable; the checkout
@@ -269,609 +251,6 @@ def test_legacy_pam_entry_ignores_python_startup_environment(tmp_path):
         cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=5)
     assert result.returncode == 0
     assert not marker.exists()
-
-
-@pytest.fixture
-def routing(monkeypatch):
-    loader = importlib.machinery.SourceFileLoader(
-        "onpc_kiosk_login", str(ROOT / "tools/oh-no-parent-control-login-check"))
-    helper = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
-    loader.exec_module(helper)
-    state = SimpleNamespace(session=helper.SESSION, transport="wayland", calls=[],
-                            records=[], fault=None, no_write=False)
-    monkeypatch.setenv("PAM_USER", helper.KIOSK_USER)
-    monkeypatch.setenv("PAM_SERVICE", "gdm-password")
-    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
-    monkeypatch.setattr(helper.os, "geteuid", lambda: 0)
-    monkeypatch.setattr(helper.pwd, "getpwnam", lambda name: SimpleNamespace(pw_uid=12345))
-    monkeypatch.setattr(helper.syslog, "syslog", lambda level, text: state.records.append(text))
-    monkeypatch.setattr(helper, "verify_confinement", lambda: None)
-
-    def command(argv, **kwargs):
-        assert argv[:4] == ["/usr/bin/busctl", "--system", "--timeout=4",
-                            "--allow-interactive-authorization=no"]
-        assert kwargs == dict(check=True, capture_output=True, text=True,
-                              timeout=5, env=helper.ENVIRONMENT)
-        assert argv[5:8] == [helper.BUS, "/org/freedesktop/Accounts/User12345", helper.INTERFACE]
-        state.calls.append(argv[4:])
-        if state.fault:
-            raise state.fault
-        if argv[4] == "get-property":
-            assert argv[8:] == ["Session", "SessionType"]
-            output = f"s {shlex.quote(state.session)}\ns {shlex.quote(state.transport)}\n"
-        else:
-            assert argv[4] == "call" and argv[9] == "s"
-            if not state.no_write:
-                if argv[8] == "SetSession":
-                    state.session = argv[10]
-                elif argv[8] == "SetSessionType":
-                    state.transport = argv[10]
-                else:
-                    pytest.fail("unexpected AccountsService mutation")
-            output = ""
-        return SimpleNamespace(stdout=output)
-
-    monkeypatch.setattr(helper.subprocess, "run", command)
-    return helper, state
-
-
-def test_valid_preference_checks_do_not_mutate_or_depend_on_gdm_save_timing(routing):
-    helper, state = routing
-    assert helper.main(["--kiosk-account"]) == 0
-    assert state.session == helper.SESSION
-    # No GDM save occurs. This verifies a preference, not the next command:
-    # the installed first-exec matrix independently requires the MAC denial.
-    assert helper.main(["--kiosk-session"]) == 0
-    assert all(call[0] == "get-property" for call in state.calls)
-    assert "outcome=allowed" in state.records[0]
-    assert "outcome=allowed" in state.records[-1]
-
-
-@pytest.mark.parametrize("selected", ["ubuntu", "gnome", ""])
-def test_changed_desktop_preference_is_denied_and_default_restored(routing, selected):
-    helper, state = routing
-    assert helper.main(["--kiosk-account"]) == 0
-    state.session = selected
-    assert helper.main(["--kiosk-session"]) == 1
-    assert (state.session, state.transport) == (helper.SESSION, "wayland")
-    assert "outcome=denied" in state.records[-1]
-    assert "recovery=restored" in state.records[-1]
-
-
-@pytest.mark.parametrize("session,transport", [("ubuntu", ""), ("", "wayland"),
-                                               ("oh-no-parent-control", "x11"),
-                                               ("oh-no-parent-control-verification-pending", "wayland")])
-def test_bad_default_or_aborted_transaction_is_repaired_but_not_admitted(routing, session, transport):
-    helper, state = routing
-    state.session, state.transport = session, transport
-    assert helper.main(["--kiosk-account"]) == 1
-    assert (state.session, state.transport) == (helper.SESSION, "wayland")
-    assert helper.main(["--kiosk-account"]) == 0
-
-
-@pytest.mark.parametrize("transport", ["x11", "", "tty"])
-def test_actual_transport_is_checked_in_pam_environment(routing, monkeypatch, transport):
-    helper, state = routing
-    monkeypatch.setenv("XDG_SESSION_TYPE", transport)
-    assert helper.main(["--kiosk-session"]) == 1
-    assert "outcome=denied" in state.records[-1]
-
-
-@pytest.mark.parametrize("fault", [OSError("private-identity"),
-                                  subprocess.TimeoutExpired("private-identity", 5),
-                                  subprocess.CalledProcessError(1, "busctl", stderr="private-identity")])
-def test_indeterminate_policy_fails_closed_without_logging_exception_text(routing, fault):
-    helper, state = routing
-    state.fault = fault
-    assert helper.main(["--kiosk-account"]) == 1
-    assert "outcome=unavailable" in state.records[-1]
-    assert "private-identity" not in " ".join(state.records)
-
-
-def test_failed_preference_repair_is_denied(routing):
-    helper, state = routing
-    state.session = "ubuntu"
-    state.no_write = True
-    assert helper.main(["--kiosk-account"]) == 1
-    assert state.session == "ubuntu"
-    assert "outcome=denied" in state.records[-1]
-    assert "recovery=failed" in state.records[-1]
-
-
-def test_failed_recovery_and_unknown_metadata_are_logged_as_categories(routing):
-    helper, state = routing
-    state.session = "private-identity with spaces"
-    state.transport = "private-transport"
-    state.no_write = True
-    assert helper.main(["--kiosk-account"]) == 1
-    assert "session=other type=other recovery=failed" in state.records[-1]
-    assert "private" not in " ".join(state.records)
-
-
-@pytest.mark.parametrize("user,service,expected", [
-    ("ordinary-private-account", "sshd", 0),
-    ("oh-no-parent-control", "systemd-user", 0),
-    ("oh-no-parent-control", "sshd", 1),
-    ("oh-no-parent-control", "gdm-autologin", 1),
-    ("oh-no-parent-control", "gdm-password", 0),
-])
-def test_service_guard_does_not_query_accounts_service(routing, monkeypatch, user, service, expected):
-    helper, state = routing
-    monkeypatch.setenv("PAM_USER", user)
-    monkeypatch.setenv("PAM_SERVICE", service)
-    assert helper.main([]) == expected
-    assert state.calls == []
-
-
-@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
-def test_integrity_refusal_precedes_any_routing_query(routing, monkeypatch, service):
-    helper, state = routing
-    monkeypatch.setenv('PAM_SERVICE', service)
-    def refused():
-        raise subprocess.CalledProcessError(1, 'private-diagnostic')
-    monkeypatch.setattr(helper, 'verify_confinement', refused)
-    for arguments in ([], ['--kiosk-integrity'], ['--kiosk-account'], ['--kiosk-session']):
-        assert helper.main(arguments) == 1
-    assert state.calls == []
-    assert all('reason=integration' in entry and 'private' not in entry for entry in state.records)
-
-
-@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
-def test_integrity_success_does_not_change_saved_selection(routing, monkeypatch, service):
-    helper, state = routing
-    monkeypatch.setenv('PAM_SERVICE', service)
-    assert helper.main(['--kiosk-integrity']) == 0
-    assert state.calls == []
-
-
-def test_explicit_checks_require_root(routing, monkeypatch):
-    helper, state = routing
-    monkeypatch.setattr(helper.os, "geteuid", lambda: 12345)
-    assert helper.main(["--kiosk-account"]) == 1
-    assert state.calls == []
-
-
-@pytest.fixture(scope="module")
-def native_module(tmp_path_factory):
-    directory = tmp_path_factory.mktemp("onpc-kiosk-pam")
-    helper = directory / "helper"
-    module = directory / "pam-kiosk.so"
-    subprocess.run([
-        "cc", "-shared", "-fPIC", "-Wall", "-Wextra", "-Werror",
-        f'-DLOGIN_CHECK_PATH="{helper}"',
-        '-DKIOSK_ACCOUNT_NAME="private-account-canary"',
-        f'-DKIOSK_LOGIN_LOCK_PATH="{directory / "lock"}"',
-        f"-DKIOSK_LOGIN_LOCK_OWNER={os.getuid()}",
-        f'-DKIOSK_ADMISSION_LOCK="{directory / "admission-lock"}"',
-        f'-DKIOSK_ADMISSION_DISABLED="{directory / "removing"}"',
-        f"-DKIOSK_ADMISSION_LOCK_OWNER={os.getuid()}",
-        "-DKIOSK_LOGIN_TIMEOUT_SECONDS=1",
-        "-o", str(module), str(ROOT / "tools/pam_oh_no_parent_control.c"), "-lpam",
-    ], check=True, capture_output=True, text=True, timeout=30)
-    helper.write_text('''#!/usr/bin/python3
-import json, os, pathlib, sys, time
-directory = pathlib.Path(__file__).parent
-with (directory / "calls").open("a") as stream:
-    stream.write(json.dumps([sys.argv[1:], {key: os.environ.get(key, "") for key in
-        ("PAM_USER", "PAM_SERVICE", "XDG_SESSION_TYPE")}]) + "\\n")
-status = int((directory / "status").read_text())
-if status == 99:
-    time.sleep(10)
-if status == 98:
-    (directory / "ready").touch()
-    deadline = time.monotonic() + 3
-    while not (directory / "release").exists() and time.monotonic() < deadline:
-        time.sleep(0.01)
-sys.exit(status)
-''')
-    helper.chmod(0o700)
-    return module, directory
-
-
-@pytest.fixture
-def native(native_module, tmp_path):
-    module, directory = native_module
-    (directory / "status").write_text("0")
-    (directory / "calls").write_text("")
-    for name in ("ready", "release", "removing"):
-        (directory / name).unlink(missing_ok=True)
-    lock = directory / "lock"
-    # All previous PAM handles have ended before fixture cleanup/reuse.
-    lock.unlink(missing_ok=True)
-    pam = ctypes.CDLL("libpam.so.0")
-
-    class Conversation(ctypes.Structure):
-        _fields_ = [("conv", ctypes.c_void_p), ("data", ctypes.c_void_p)]
-
-    pam.pam_start_confdir.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
-                                    ctypes.POINTER(Conversation), ctypes.c_char_p,
-                                    ctypes.POINTER(ctypes.c_void_p)]
-    for name in ("pam_authenticate", "pam_setcred", "pam_acct_mgmt", "pam_open_session", "pam_close_session", "pam_end"):
-        getattr(pam, name).argtypes = [ctypes.c_void_p, ctypes.c_int]
-    pam.pam_putenv.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-
-    @contextmanager
-    def transaction(user="private-account-canary", service="gdm-password", transport="wayland", account_mode="kiosk", session_mode="kiosk", stack_source=None):
-        (tmp_path / service).write_text(
-            stack_source if stack_source is not None else
-            f"account required {module} {account_mode}\nsession required {module} {session_mode}\n")
-        handle = ctypes.c_void_p()
-        conversation = Conversation()
-        assert pam.pam_start_confdir(service.encode(), user.encode(), ctypes.byref(conversation),
-                                    str(tmp_path).encode(), ctypes.byref(handle)) == 0
-        try:
-            if transport is not None:
-                assert pam.pam_putenv(handle, f"XDG_SESSION_TYPE={transport}".encode()) == 0
-            yield handle
-        finally:
-            assert pam.pam_end(handle, 0) == 0
-
-    return SimpleNamespace(pam=pam, transaction=transaction, directory=directory, lock=lock,
-                           module=module,
-                           admission=directory / 'admission-lock',
-                           calls=lambda: [json.loads(line) for line in
-                                          (directory / "calls").read_text().splitlines()])
-
-
-@pytest.mark.parametrize('fallback', ['pam_deny.so', 'pam_permit.so'])
-@pytest.mark.parametrize('user', ['private-account-canary', 'ordinary-account-canary'])
-def test_manager_credentials_bypass_fallback_only_for_kiosk(native, tmp_path, fallback, user):
-    loader = importlib.machinery.SourceFileLoader(
-        'onpc_manager_credentials', str(ROOT / 'packaging/kiosk_confinement.py'))
-    integration = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
-    loader.exec_module(integration)
-    stack = integration.MANAGER_CREDENTIALS.replace('pam_oh_no_parent_control.so', str(native.module))
-    (tmp_path / 'other').write_text(f'auth required {fallback}\n')
-    # Exercise the production control expression through real libpam, with no
-    # authentication, matching systemd's credential callback ordering.
-    with native.transaction(user=user, service='systemd-user', stack_source=stack) as handle:
-        expected = 0 if user == 'private-account-canary' or fallback == 'pam_permit.so' else 17
-        for flags in (2, 4, 2 | 0x8000, 4 | 0x8000):
-            assert native.pam.pam_setcred(handle, flags) == expected
-    with native.transaction(user=user, service='systemd-user', stack_source=stack) as handle:
-        status = native.pam.pam_authenticate(handle, 0)
-        assert (status == 0) == (user == 'ordinary-account-canary' and fallback == 'pam_permit.so')
-    assert native.calls() == []
-    assert not native.lock.exists()
-    assert not native.admission.exists()
-
-
-@pytest.mark.parametrize('service,option', [
-    ('gdm-password', 'kiosk-manager-credentials'),
-    ('systemd-user', 'kiosk-manager-credentials unexpected'),
-])
-def test_manager_credentials_refuse_wrong_service_or_extra_arguments(native, service, option):
-    with native.transaction(service=service, stack_source=f'auth required {native.module} {option}\n') as handle:
-        assert native.pam.pam_setcred(handle, 2) != 0
-        assert native.pam.pam_authenticate(handle, 0) != 0
-    assert native.calls() == []
-
-
-def test_real_pam_binds_stages_and_passes_only_pam_transport(native, monkeypatch):
-    monkeypatch.setenv("XDG_SESSION_TYPE", "poisoned-process-environment")
-    with native.transaction(transport=None) as handle:
-        assert native.pam.pam_acct_mgmt(handle, 0) == 0
-        assert native.pam.pam_acct_mgmt(handle, 0) == 0
-        assert native.pam.pam_open_session(handle, 0) == 0
-        assert native.pam.pam_open_session(handle, 0) != 0
-    assert [call[0] for call in native.calls()] == [["--kiosk-account"], ["--kiosk-session"]]
-    assert native.calls()[1][1] == dict(PAM_USER="private-account-canary",
-                                       PAM_SERVICE="gdm-password", XDG_SESSION_TYPE="")
-
-
-def test_real_pam_rejects_open_without_successful_account_check(native):
-    with native.transaction() as handle:
-        assert native.pam.pam_open_session(handle, 0) != 0
-        (native.directory / "status").write_text("1")
-        assert native.pam.pam_acct_mgmt(handle, 0) != 0
-        (native.directory / "status").write_text("0")
-        assert native.pam.pam_acct_mgmt(handle, 0) != 0
-        assert native.pam.pam_open_session(handle, 0) != 0
-    assert len(native.calls()) == 1
-
-
-@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
-def test_real_pam_integrity_checks_manager_and_gdm_without_routing_lock(native, service):
-    with native.transaction(service=service, account_mode='kiosk-integrity') as handle:
-        assert native.pam.pam_acct_mgmt(handle, 0) == 0
-        (native.directory / 'status').write_text('1')
-        assert native.pam.pam_acct_mgmt(handle, 0) != 0
-    assert [call[0] for call in native.calls()] == [['--kiosk-integrity'], ['--kiosk-integrity']]
-    assert not native.lock.exists()
-
-
-@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
-def test_pam_removal_lease_spans_root_executor_after_session_open(native, service):
-    # No setuid or real login occurs. This is precisely the trusted executor
-    # interval which a kiosk UID census cannot see.
-    with native.transaction(service=service) as handle:
-        assert native.pam.pam_acct_mgmt(handle, 0) == 0
-        assert native.pam.pam_open_session(handle, 0) == 0
-        with native.admission.open('rb') as removal:
-            with pytest.raises(BlockingIOError):
-                fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    with native.admission.open('rb') as removal:
-        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-
-@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
-def test_removal_excludes_new_pam_admissions_and_durable_marker_survives_unlock(native, service):
-    native.admission.touch(mode=0o600, exist_ok=True)
-    with native.admission.open('rb') as removal:
-        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with native.transaction(service=service, account_mode='kiosk-integrity') as handle:
-            assert native.pam.pam_acct_mgmt(handle, 0) != 0
-        (native.directory / 'removing').write_text('removing\n')
-    with native.transaction(service=service, account_mode='kiosk-integrity') as handle:
-        assert native.pam.pam_acct_mgmt(handle, 0) != 0
-    assert native.calls() == []
-
-
-@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
-@pytest.mark.parametrize('change', ['replace', 'symlink', 'mode', 'hardlink', 'removal'])
-def test_retained_pam_lease_rechecks_exact_named_inode_before_reuse(native, service, change):
-    original = native.directory / 'saved-admission-inode'
-    sibling = native.directory / 'extra-admission-link'
-    barrier = native.directory / 'removing'
-    with native.transaction(service=service, account_mode='kiosk-integrity') as handle:
-        assert native.pam.pam_acct_mgmt(handle, 0) == 0
-        identity = native.admission.stat()
-        try:
-            if change in ('replace', 'symlink'):
-                native.admission.rename(original)
-                if change == 'replace':
-                    native.admission.touch(mode=0o600)
-                else:
-                    native.admission.symlink_to(original.name)
-            elif change == 'mode':
-                native.admission.chmod(0o640)
-            elif change == 'hardlink':
-                os.link(native.admission, sibling)
-            else:
-                barrier.write_text('removing\n')
-            assert native.pam.pam_acct_mgmt(handle, 0) != 0
-            assert len(native.calls()) == 1  # Refused before another routing helper.
-        finally:
-            if change in ('replace', 'symlink'):
-                native.admission.unlink()
-                original.rename(native.admission)
-            elif change == 'mode':
-                native.admission.chmod(0o600)
-            elif change == 'hardlink':
-                sibling.unlink()
-            else:
-                barrier.unlink()
-        restored = native.admission.stat()
-        assert (restored.st_dev, restored.st_ino) == (identity.st_dev, identity.st_ino)
-        # Restoring this exact owned inode permits a fresh observation. No
-        # replacement lock is adopted into the already leased PAM handle.
-        assert native.pam.pam_acct_mgmt(handle, 0) == 0
-
-
-@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
-def test_session_admission_denies_even_when_account_callback_was_not_used(native, service):
-    native.admission.touch(mode=0o600, exist_ok=True)
-    with native.admission.open('rb') as removal:
-        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with native.transaction(service=service, session_mode='kiosk-admission') as handle:
-            # The separate first session guard runs before vendor callbacks.
-            assert native.pam.pam_open_session(handle, 0) != 0
-
-
-def test_session_guard_retains_admission_lease_through_close_until_pam_end(native):
-    with native.transaction(session_mode='kiosk-admission') as handle:
-        assert native.pam.pam_open_session(handle, 0) == 0
-        assert native.pam.pam_close_session(handle, 0) == 0
-        with native.admission.open('rb') as removal:
-            with pytest.raises(BlockingIOError):
-                fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    with native.admission.open('rb') as removal:
-        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-
-def test_shared_profile_systemd_session_leases_without_account_callback(native):
-    with native.transaction(service='systemd-user') as handle:
-        assert native.pam.pam_open_session(handle, 0) == 0
-        with native.admission.open('rb') as removal:
-            with pytest.raises(BlockingIOError):
-                fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    with native.admission.open('rb') as removal:
-        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with native.transaction(service='systemd-user') as handle:
-            assert native.pam.pam_open_session(handle, 0) != 0
-
-
-@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
-@pytest.mark.parametrize('user,allowed', [('oh-no-parent-control', False), ('root', True)])
-def test_standalone_removal_pam_denials_preserve_ordinary_account_and_session(native, service, user, allowed):
-    spec = importlib.util.spec_from_file_location('removal_gate_source', ROOT / 'packaging/kiosk_confinement.py')
-    integration = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(integration)
-    stack = (integration.REMOVAL_PREFIX +
-             'account required pam_permit.so\nsession required pam_permit.so\n')
-    with native.transaction(user=user, service=service, stack_source=stack) as handle:
-        assert (native.pam.pam_acct_mgmt(handle, 0) == 0) is allowed
-        assert (native.pam.pam_open_session(handle, 0) == 0) is allowed
-    assert native.calls() == []
-
-
-def test_real_pam_serializes_logins_and_releases_lock_on_abort(native):
-    with native.transaction() as first:
-        assert native.pam.pam_acct_mgmt(first, 0) == 0
-        with native.transaction() as second:
-            assert native.pam.pam_acct_mgmt(second, 0) != 0
-            assert native.pam.pam_open_session(second, 0) != 0
-    with native.transaction() as retry:
-        assert native.pam.pam_acct_mgmt(retry, 0) == 0
-        assert native.pam.pam_open_session(retry, 0) == 0
-
-
-@pytest.mark.parametrize('mask', [0o077, 0o777])
-def test_real_pam_initializes_only_new_locks_despite_umask(native, mask):
-    native.admission.unlink(missing_ok=True)
-    libc = ctypes.CDLL(None)
-    libc.setfsuid.argtypes = libc.setfsgid.argtypes = [ctypes.c_uint]
-    libc.setfsuid.restype = libc.setfsgid.restype = ctypes.c_uint
-    credentials = (os.getresuid(), os.getresgid(), os.getgroups(),
-                   libc.setfsuid(0xffffffff), libc.setfsgid(0xffffffff))
-    parent = native.directory.stat()
-    inherited_gid = parent.st_gid if parent.st_mode & 0o2000 else credentials[4]
-    with native.transaction() as handle:
-        previous = os.umask(mask)
-        try:
-            assert native.pam.pam_acct_mgmt(handle, 0) == 0
-            assert os.umask(mask) == mask
-            assert (os.getresuid(), os.getresgid(), os.getgroups(),
-                    libc.setfsuid(0xffffffff), libc.setfsgid(0xffffffff)) == credentials
-            for path in (native.lock, native.admission):
-                info = path.stat()
-                assert info.st_mode & 0o7777 == 0o600
-                assert info.st_uid == credentials[3]
-                assert info.st_gid == inherited_gid
-                assert info.st_nlink == 1
-        finally:
-            os.umask(previous)
-
-
-def test_real_pam_reuses_valid_lock_without_changing_metadata(native):
-    paths = (native.lock, native.admission)
-    for path in paths:
-        path.write_bytes(b'unchanged-private-lock')
-        path.chmod(0o600)
-    before = [path.stat() for path in paths]
-    with native.transaction() as handle:
-        previous = os.umask(0o777)
-        try:
-            assert native.pam.pam_acct_mgmt(handle, 0) == 0
-            assert os.umask(0o777) == 0o777
-        finally:
-            os.umask(previous)
-    for path, original in zip(paths, before):
-        after = path.stat()
-        assert (after.st_dev, after.st_ino, after.st_uid, after.st_gid, after.st_mode,
-                after.st_nlink, after.st_ctime_ns) == (
-                    original.st_dev, original.st_ino, original.st_uid, original.st_gid, original.st_mode,
-                    original.st_nlink, original.st_ctime_ns)
-        assert path.read_bytes() == b'unchanged-private-lock'
-
-
-@pytest.mark.parametrize("fault", ["symlink", "mode", "zero-mode", "directory", "hardlink"])
-def test_real_pam_refuses_unsafe_lock_paths(native, tmp_path, fault):
-    sibling = tmp_path / 'extra-lock-link'
-    if fault == "symlink":
-        native.lock.symlink_to(native.directory / "status")
-    elif fault in ("mode", "zero-mode"):
-        native.lock.write_bytes(b'unsafe-mode-lock')
-        native.lock.chmod(0 if fault == 'zero-mode' else 0o666)
-    elif fault == 'directory':
-        native.lock.mkdir()
-    else:
-        native.lock.write_bytes(b'linked-private-lock')
-        native.lock.chmod(0o600)
-        os.link(native.lock, sibling)
-    before = native.lock.lstat()
-    try:
-        with native.transaction() as handle:
-            assert native.pam.pam_acct_mgmt(handle, 0) != 0
-        assert native.calls() == []
-        after = native.lock.lstat()
-        assert (after.st_dev, after.st_ino, after.st_uid, after.st_gid, after.st_mode,
-                after.st_nlink, after.st_ctime_ns) == (
-                    before.st_dev, before.st_ino, before.st_uid, before.st_gid, before.st_mode,
-                    before.st_nlink, before.st_ctime_ns)
-    finally:
-        if fault == "directory":
-            native.lock.rmdir()
-        elif fault == 'hardlink':
-            sibling.unlink()
-        elif fault == 'zero-mode':
-            native.lock.chmod(0o600)
-
-
-def test_real_pam_bounds_and_reaps_helper_timeout(native):
-    (native.directory / "status").write_text("99")
-    started = time.monotonic()
-    with native.transaction() as handle:
-        assert native.pam.pam_acct_mgmt(handle, 0) != 0
-        assert native.pam.pam_open_session(handle, 0) != 0
-    assert 1 <= time.monotonic() - started < 5
-    assert len(native.calls()) == 1
-
-
-def test_real_pam_denies_session_helper_failure_and_releases_lock(native):
-    with native.transaction() as handle:
-        assert native.pam.pam_acct_mgmt(handle, 0) == 0
-        (native.directory / "status").write_text("1")
-        assert native.pam.pam_open_session(handle, 0) != 0
-        (native.directory / "status").write_text("0")
-        with native.transaction() as retry:
-            assert native.pam.pam_acct_mgmt(retry, 0) == 0
-            assert native.pam.pam_open_session(retry, 0) == 0
-
-
-def test_aborted_pam_worker_cannot_unlock_a_still_running_routing_helper(native):
-    (native.directory / "status").write_text("98")
-
-    def account_worker():
-        # Also exercise a worker with closed stdin: its lock may occupy fd 0
-        # and must survive the helper's /dev/null stdio redirection.
-        os.close(0)
-        with native.transaction() as handle:
-            native.pam.pam_acct_mgmt(handle, 0)
-
-    # This is the only signalled process: our explicitly spawned, retained
-    # Process identity. The helper exits itself after release or its own bound.
-    worker = multiprocessing.get_context("fork").Process(target=account_worker)
-    worker.start()
-    try:
-        deadline = time.monotonic() + 3
-        while not (native.directory / "ready").exists() and time.monotonic() < deadline:
-            time.sleep(0.01)
-        assert (native.directory / "ready").exists()
-        worker.kill()
-        worker.join(timeout=3)
-        assert not worker.is_alive()
-        with native.admission.open('rb') as removal:
-            with pytest.raises(BlockingIOError):
-                fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        (native.directory / "status").write_text("0")
-        with native.transaction() as retry:
-            assert native.pam.pam_acct_mgmt(retry, 0) != 0
-    finally:
-        (native.directory / "release").touch()
-        if worker.is_alive():
-            worker.kill()
-        worker.join(timeout=3)
-
-    # Wait for the bounded descendant to exit and release its inherited lock,
-    # without signalling it or leaving a child mutating shared fixture state.
-    with native.lock.open("rb") as probe:
-        deadline = time.monotonic() + 4
-        while True:
-            try:
-                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                assert time.monotonic() < deadline
-                time.sleep(0.01)
-    with native.transaction() as retry:
-        assert native.pam.pam_acct_mgmt(retry, 0) == 0
-        assert native.pam.pam_open_session(retry, 0) == 0
-
-
-@pytest.mark.parametrize("user,service,expected", [
-    ("private-account-canary", "sshd", False),
-    ("private-account-canary", "gdm-autologin", False),
-    ("private-account-canary", "polkit-1", False),
-    ("private-account-canary", "systemd-user", True),
-    ("ordinary-private-account", "gdm-password", True),
-    ("ordinary-private-account", "polkit-1", True),
-])
-def test_real_pam_service_and_identity_scope(native, user, service, expected):
-    with native.transaction(user=user, service=service) as handle:
-        assert (native.pam.pam_acct_mgmt(handle, 0) == 0) == expected
-        assert (native.pam.pam_open_session(handle, 0) == 0) == expected
-    assert native.calls() == []
 
 
 @pytest.fixture(scope='module')

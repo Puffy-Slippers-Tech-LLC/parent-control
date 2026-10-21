@@ -16,10 +16,12 @@ if __name__ == '__main__':
     from native_assets import (ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources,
         riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources,
         executable_sources, runtime_sources, source_destinations, legacy_executable_paths)
+    from native_assets import native_policy_files, native_stock_rules, NATIVE_RULE_MANIFEST
 else:
     from tests.fixtures.native_assets import (ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id,
         sources, riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources,
         executable_sources, runtime_sources, source_destinations, legacy_executable_paths)
+    from tests.fixtures.native_assets import native_policy_files, native_stock_rules, NATIVE_RULE_MANIFEST
 import session_control
 
 LIMIT = 2 * 1024 * 1024
@@ -94,6 +96,7 @@ def readback(child, expected):
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
             and len({expected[source] for source in executable_sources()}) == 4)
+    verify_native_policy(expected)
     result = {}
     with versioned_directory(child):
         for source, (target, mode) in destinations(child).items():
@@ -114,6 +117,7 @@ def riley_readback(shared_owner, expected):
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
             and len({expected[source] for source in executable_sources()}) == 4)
+    verify_native_policy(expected)
     riley = pwd.getpwnam(session_control.ACCOUNTS['child'])
     require(riley.pw_uid >= 1000 and riley.pw_uid != shared_owner.pw_uid)
     targets = {source: (path, mode, shared_owner)
@@ -139,9 +143,65 @@ def activity_root_file(path, mode=0o600, gid=0, limit=LIMIT):
     path = Path(path)
     with directory(path.parent, SimpleNamespace(pw_uid=0)) as (fd, guard):
         data, info = read_regular(fd, path.name, owner=0, mode=mode, limit=limit)
-        require(info.st_gid == gid)
+        # Product lifecycle mkstemp outputs may inherit the installing root
+        # process's group. Their contract pins root/mode/links, not a group;
+        # fixture and native inputs always supply their exact expected gid.
+        require(gid is None or info.st_gid == gid)
         guard()
         return data
+
+
+def verify_native_policy(expected):
+    """Read-only Fedora preparation guard; never supplies a product outcome."""
+    if session_control.package_format() != 'rpm':
+        return
+    children = tuple(pwd.getpwnam(session_control.ACCOUNTS[role]).pw_uid
+                     for role in ('child', 'standard'))
+    rules = native_policy_files(expected, children)
+    gid = grp.getgrnam('fapolicyd').gr_gid
+    record = json.loads(activity_root_file('/var/lib/onpc-baseline-fixtures.json'))
+    require(set(record) == {'purpose', 'files', 'pending'}
+            and record['purpose'] == 'onpc-reusable-fixtures-v1' and record['pending'] is None)
+    for path, data in rules.items():
+        spec = {'sha256': hashlib.sha256(data).hexdigest(), 'uid': 0, 'gid': gid, 'mode': 0o644}
+        require(record['files'].get(path) == spec
+                and activity_root_file(path, 0o644, gid) == data
+                and not os.path.lexists(path + '.onpc-baseline-new'))
+    def command(argv):
+        try:
+            result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                                    check=True, timeout=30, env={**os.environ, 'LC_ALL': 'C'})
+        except (OSError, subprocess.SubprocessError):
+            raise ValueError('files:native-policy-unproven') from None
+        require(len(result.stdout) <= LIMIT and len(result.stderr) <= LIMIT)
+        return result.stdout.decode('utf-8')
+    stock = native_stock_rules(command(['rpm', '-q', '--queryformat',
+        NATIVE_RULE_MANIFEST, 'fapolicyd']), lambda path, mode, group:
+        activity_root_file(path, mode, 0 if group == 'root' else gid))
+    for path, (data, mode) in stock.items():
+        require(activity_root_file(path, mode, gid) == data)
+    root = Path('/etc/fapolicyd/rules.d')
+    integrations = {
+        '00-oh-no-parent-control-canary.rules': 'installed-fapolicyd-canary',
+        '02-oh-no-parent-control-original-allow.rules': 'installed-fapolicyd-original-policy',
+        '99-oh-no-parent-control-allow.rules': 'installed-fapolicyd-fallback'}
+    layers = {'01-oh-no-parent-control-deny.rules', '89-oh-no-parent-control.rules'}
+    allowed = {Path(path).name for path in (*rules, *stock)} | set(integrations) | layers
+    with directory(root, SimpleNamespace(pw_uid=0)) as (fd, guard):
+        names = set(os.listdir(fd))
+        require(len(names) <= 128 and names <= allowed
+                and {Path(path).name for path in (*rules, *stock)} <= names)
+        for name in names & (set(integrations) | layers):
+            data, info = read_regular(fd, name, owner=0, mode=0o644, limit=LIMIT)
+            if name in integrations:
+                require(data == activity_root_file(
+                    '/var/lib/oh-no-parent-control/' + integrations[name], gid=None))
+            else:
+                require(data.startswith(b'# Generated by Oh No! Parent Control. Do not edit.\n'))
+        guard()
+    require(not os.path.lexists('/etc/fapolicyd/fapolicyd.rules'))
+    output = command(['/usr/sbin/fagenrules', '--check'])
+    require('/usr/sbin/fagenrules: No change' in output.splitlines())
 
 
 def activity_readback(expected):

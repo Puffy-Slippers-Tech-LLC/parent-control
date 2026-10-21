@@ -1680,8 +1680,10 @@ its C04u/f receiving instructions are fulfilled only for that exact slice.
 The fixed Shell overlay approval, wrong-password rejection, password-free Cancel,
 preserved choices and original-activity return now have matching both-target
 qualification in the [C04o record](#c04o-shared-overlay-renewal).
-Negative grant/app effects, human pauses, other features and complete repeated
-journeys remain B2–B4. C04c's historical reconciliation supplied no acceptance.
+The finite grant/use/revocation effects now have both-target qualification in
+the [C04p record](#c04p-time-and-app-effects-applicability). Negative request
+effects, human pauses, other features and complete repeated journeys remain
+B3–B4. C04c's historical reconciliation supplied no acceptance.
 
 Classification: **unchanged** identifies only the stated reusable leaf and exact
 historical scope; **changed** requires renewed installed qualification;
@@ -1724,7 +1726,7 @@ for bounded implementation and required both-target live qualification.
 | Gap | Finite return condition before C04 can declare C05 runnable |
 | --- | --- |
 | B1 — shared overlay | **Closed for the fixed operation by [C04o](#c04o-shared-overlay-renewal).** Both targets passed Riley/Jamie/75-second/soft-included command entry, Shell approval, wrong-password and password-free Cancel, preserved choices and original-activity return through the same shared request operations. Negative grant/app effects remain B4. |
-| B2 — policy and downstream effects | E2E 313a/313 own compatible fixture preparation and shared finite policy/grant/use/revocation qualification. C04p1/C04p verify and reuse their exact evidence; they do not implement general feature coverage. Retained attempts stopped before approval because S's wildcard directory was unrepresentable with Allowed A. No installed effects passed. Daily-only expiry is not grant-only expiry; the baseline selects revocation. |
+| B2 — policy and downstream effects | **Closed for the finite baseline slice by [C04p](#c04p-time-and-app-effects-applicability).** Both targets passed zero-daily genuine 600-second soft-included approval, A/S use, attributed H denial, public revocation, zero grant with unchanged rules, time restriction/S denial and restoration. E2E 313a/313 retain shared implementation ownership and their own queue close-out; original stopped attempts remain failures. Natural grant expiry and broader feature variants receive no credit. |
 | B3 — retained features and confinement waits | Reuse existing language (300h), request choices (012c), reminders (312b) and About (185k) coverage; renew only invalidated caller scope. Keep only the bounded 90-second existing-language-chooser and 45-second authentication session-lifetime checks as confinement deltas. Freshly observe choices/session and reacquire recipient proofs after waits. No new saved-preset, Hours, What's New or language/reminder matrix blocks the baseline. |
 | B4 — baseline composition | Register a finite public composition covering zero-daily grant/use/restriction, separate denial and Cancel with no grant, exit/reentry and a fresh successful request after session switching; include B1 where shared code changed. FLOW19/FLOW20 and cases 34/36 remain pending; cases 47–52 cover only parts. Fixed single-use approval challenge names cannot be replayed for repeated requests. Preserve every existing stable case assertion; no forced fitting into an unrelated scenario or new ready selector without implementation. |
 
@@ -1733,7 +1735,8 @@ C04's source/listing audit identified these gaps. The
 the suspended C04 consumer: C04o owns B1; C04p1/C04p consume E2E 313a/313 for B2;
 C04l/C04s/C04r/C04i reuse existing B3 feature checks, with only confinement waits
 in C04l/C04w; C04j owns B4's core composition. Applicable installed results remain
-required for both targets. C04o has closed B1 only; B2–B4 remain open. Queue insertion itself
+required for both targets. C04o/C04p have closed the fixed B1/B2 slices;
+B3–B4 remain open. Queue insertion itself
 supplies no readiness, implementation or acceptance credit; C04 must recheck exact
 evidence applicability after the qualifications finish.
 
@@ -1787,7 +1790,7 @@ exact matching evidence without closing E2E rows or duplicating feature mechanic
 | Shared scope | Feature owner / existing coverage | Kiosk baseline use and remaining E2E work |
 | --- | --- | --- |
 | Compatible native fixtures | **313a**, reusing 035p and 035b's safe-directory direction | The bounded fixture work was explicitly authorized during C04p1; [exact handoff](#c04p1-compatible-fixture-applicability). C04p1 checks its host applicability only; the E2E row stays unchecked. Existing shared-directory failures supply no installed pass. |
-| Finite A/H/S grant/use/revocation | **313**, existing in-progress `baseline_app_effects` / `check_e2e_baseline_app_effects` | C04p reuses matching both-target histories, rerunning only invalidated scope. Shared code has finite H/S, distinct A/S, denial and 600-second request work; compatible host fixture handoff is delivered, installed qualification remains pending. |
+| Finite A/H/S grant/use/revocation | **313**, shared `baseline_app_effects` / `check_e2e_baseline_app_effects` | [C04p verified both final-input histories](#c04p-time-and-app-effects-applicability). Reuse only matching finite H/S, distinct A/S, denial and 600-second request scope; renew invalidated histories. No E2E row, broader variant or complete baseline journey closes automatically. |
 | Grant-only profile | **065a** consumes 313's exact grant/readback leaves | Still owns the 120-second profile, explicit revoke-first branch and its caller-owned duration scope. A 600-second Riley/Jamie result is not those bindings. |
 | Named rules and native denial | **079b/079d** consume 313's finite shared policy/instance/command-denial work | Still own FLOW19 explicit lists/entry modes and APP02 grid/command/access branches outside 313's exact slice. No reimplementation of delivered leaves. |
 | Approval and child return | **197/197a/197k** consume shared request, grant/countdown and entry leaves | Still own parameterized FLOW20 accounts, durations, soft choices, new/open forms and fresh/retained destinations. 313 does not qualify that whole matrix. |
@@ -1847,7 +1850,7 @@ the corresponding delivered source SHA-256 values are:
 
 Host acceptance on the final source passed **3,060 unit checks** and **eight UI
 cases**. The verified cumulative
-[evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-esrj2v4_/evidence.zip)
+[evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-fetsmj40/evidence.zip)
 retains these complete reports at their original paths below
 `/Data/Code/PST/parent-control/output/test-runs/host/reports/`:
 
@@ -1860,8 +1863,11 @@ retains these complete reports at their original paths below
 - `20261021T182125Z-6037ba90/report.md`: 313 plan, inventory, coverage and
   composition consistency checks passed with a 180-second bound.
 
-The bundle contains 164 files, preserving all 126 original C04p evidence files;
-SHA-256 is `42ad61f5eadef328f1769f5565201476a3a30a9e89858a309e2513e2252a67d2`.
+The original 164-file publication preserved all 126 original C04p evidence files;
+its SHA-256 was `42ad61f5eadef328f1769f5565201476a3a30a9e89858a309e2513e2252a67d2`.
+All its original members remain in the verified 481-file carry-forward bundle
+linked above, SHA-256
+`83aa047268b664a4d183117a2b81095447ddd3ac374a07079493ef85abb15c11`.
 The earlier eight-case UI group reached its 180-second deadline; that incomplete
 group supplies no complete-selection pass. Its expired report was renewed by
 the complete selections above, with no assertion omitted or deadline widened.
@@ -1890,11 +1896,107 @@ path. Earlier native/Riley FIX06 receipts verified ten/seven files; they do not
 qualify the expanded twelve/nine-file inventory. Unchanged A/H/N names alone
 supply no pass: reuse still requires matching bytes, caller, route, instance and
 provider. The two original stopped C04p histories and their bundle remain retained
-in the [consumer](../Kiosk-Prompt-Tasks/C04p-app-effects.md#retained-work-and-return-condition).
+in the [installed applicability record](#c04p-time-and-app-effects-applicability).
 This host profile applies to the shared Ubuntu/Fedora declaration, without
-establishing prepared guest state or either target's installed result. 313 and
-C04p still require their uninterrupted both-target grant/use/revocation and
-restoration histories. 035b still owns its additional copy/update/nonmatch history.
+itself establishing prepared guest state or either target's installed result.
+C04p subsequently verified the finite both-target grant/use/revocation and
+restoration histories below. 035b still owns its additional copy/update/nonmatch history.
+
+#### C04p time and app effects applicability
+
+Under the developer's explicit bounded authorization, C04p finished the shared
+313 qualification on both systems, then checked its applicability to the rebuilt
+confinement baseline. No other workflow ran and no E2E queue row closed.
+The exact command was:
+
+```sh
+tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_baseline_app_effects'
+```
+
+Each independent attempt retained its original **1800-second** bound and all
+**174** ordered steps passed:
+
+| Target | Report | Root result | Worker / collection | Duration |
+| --- | --- | --- | --- | --- |
+| `onpc-Ubuntu26.04` | `20261021T203242Z-2b32befc` | `onpc-graphical-smoke-biz6zkka/result.json` | `onpc-e2e-evidence-baq65eon` / `onpc-e2e-evidence-dzyc6eop` | 1076.437s |
+| `onpc-Fedora44` | `20261021T203242Z-a8b3de23` | `onpc-graphical-smoke-vet_4s5j/result.json` | `onpc-e2e-evidence-66eke76d` / `onpc-e2e-evidence-fn74i9bo` | 1172.757s |
+
+Reports are beneath `output/test-runs/host/reports/`; result, worker and collection
+names are beneath `output/test-runs/privileged/allocations/`. The verified
+[882-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-9w6pyh3z/evidence.zip),
+SHA-256 `e21cde5a8f8951b613bf951a6fe9769cab44446afdc5713cded9fd53c32ef86f`,
+retains those reports, complete collector events, worker/cleanup records, exact
+selected/artifact/fixture/transfer manifests and the denial records below.
+It carries forward every original member of the preceding 481-file bundle.
+Publication verification and owned export cleanup passed.
+
+Applicability checks matched all seven final implementation hashes in both
+frozen selections, revision `9e343f558e598428ed5074a8c2ee9a35e9fe67b1`, and the
+347-file package-source digest
+`c605f6015816741e7a6054342a4b24dbc4783e540049d5c3eb1a275cfc2e87f5`.
+Ubuntu's DEB SHA-256 is
+`daf2b8805916d1b0eddeb8e608fa3e6df4d475d7d88a1a5176779d52a777d194`;
+Fedora's RPM is
+`29014e5a66b65705d930576501034a166aed485bdd61493220ec3fa4f53c4fdd`.
+Both fixture manifests have digest
+`6f8a0db17afaf378849ab6f9028eeb9fb7319c8fab2514c4207f46a437613542`.
+The online `onpc-v1.4` snapshots' baseline, package/content and recipe identities
+equal their expected inputs. Native runtime readback independently verified
+four launchers and twelve files. This is the full native profile, not a separate
+nine-file Riley-grid qualification; that projection's source/preparation contract
+remains in the fixture owner above.
+
+The public results bind Riley/Jamie, zero daily/grant, precise Allowed A,
+precise permanent H and Versioned conditional S's wildcard. A genuine Custom
+10 Minutes/600-second soft-included MATE approval retained the same challenge
+through fresh qualification and recheck. Both A-primary and S-secondary windows
+completed real Submit/results; S closed before A. H remained denied. Grant-only
+countdown reads after use were within the original 180-second elapsed bound
+(133.160s/138.916s). Independent Parent reads found positive grant-only balances
+of 382s/388s and unchanged saved rules. Public revoke/Confirm produced zero
+grant with unchanged rules, followed by the same child's native time restriction
+and attributed S execution denial. Public restoration returned H/S to Allowed,
+disabled Riley's controls, independently reread settings and verified zero
+daily/grant/total balances.
+
+Ubuntu's public GDM/Shell tuple was `50.1-0ubuntu0.1` / `50.1-0ubuntu1.4`;
+Fedora's was `1:50.3-1.fc44` / `0:50.6-1.fc44`, both `en_US.UTF-8`, `xkb/us`.
+The English MATE binding retains live owner/recipient/challenge checks; its
+public result does not publish a MATE package-version tuple. This qualification
+does not claim a version or locale matrix. The root results retain all six
+finite assertions, complete leases, source/host preservation, stopped workers,
+closed callbacks, verified shutdown and passed collection/cleanup. Their shared
+product subledger remains `not-run`; the installed qualification scope and all
+174 public steps passed, without a complete-scenario or C05 claim.
+
+The paired stdout/stderr records under each root's `private/` bind H/S to their
+exact command operations and journal-attributed `operation-not-permitted` errors:
+Ubuntu `command-0905` / `command-1110`, Fedora `command-0901` / `command-1106`.
+These establish denial beyond mere window absence or service exit status.
+Independent Sol applicability review confirmed ordered outcomes and identities;
+the coordinator separately verified those raw denial pairs. Earlier Sol review
+resolved native-policy file-group and legacy-baseline cleanup findings; final
+focused fixture/ownership/refusal checks passed 366 cases in
+`20261021T200922Z-9dc458bd`, and 710 consistency/launcher checks passed in
+`20261021T202138Z-61fd419e`. No product source changed or product build was needed.
+Final close-out passed another 710 checks with a 180-second bound in
+`20261021T210051Z-351063c6`, retained in the same bundle. All 425 links in the five
+changed documents passed; both read-only plan checks select C04l with Sol High.
+
+Original Ubuntu/Fedora attempts `20261021T164144Z-4bb8c339` /
+`20261021T164144Z-b0f7c88d` stopped before approval at the incompatible wildcard
+layout and retain no acceptance credit. Fedora's later Allowed A denial came
+from the baseline's explicitly customized native policy; the maintained fixture
+reconciler now owns narrow admission files after product denials, with unknown
+policy refusal and reviewed ownership/restoration. The earlier complete Ubuntu
+pass `20261021T193705Z-5fe69675` predates final preparation/verifier changes and
+was renewed above. Both earlier Ubuntu snapshot failures and their HTTP 503
+logs remain in the cumulative bundle. The existing Git source intermittently
+failed before installation; this session's normal preparation retry succeeded
+with sources and checks unchanged. That retry does not establish outage recovery.
+VM and host owned cleanup passed, both VMs were independently observed
+off, all helpers finished, and no staging, commit, push or development-host
+installation occurred. B3/B4 and all broader scenarios remain pending.
 
 #### C04b host acceptance
 
@@ -2146,9 +2248,10 @@ Exact `result.json` allocations, in the table's profile order, are
 `onpc-graphical-smoke-i9yt5xne`, `onpc-graphical-smoke-ouhph6y6`,
 `onpc-graphical-smoke-w4pj3000` (Fedora), beneath
 `output/test-runs/privileged/allocations/`.
-The [Ubuntu report](../../output/test-runs/host/reports/20261021T155308Z-4c44bd49/report.md)
-and [Fedora report](../../output/test-runs/host/reports/20261021T155308Z-8e33c1fe/report.md)
-retain commands and all three independent results per target.
+The original reports `20261021T155308Z-4c44bd49/report.md` (Ubuntu) and
+`20261021T155308Z-8e33c1fe/report.md` (Fedora), beneath
+`output/test-runs/host/reports/` in the verified bundle below, retain commands
+and all three independent results per target.
 The verified [evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 retains all six results, collection events and worker cleanup records, both
 targets' complete frozen package/source/fixture inputs, host checks and command
@@ -4669,8 +4772,10 @@ excluded from file-trust admission.
 The historical native/Riley qualifications below bind the earlier ten/seven-file
 inventory. Their A command/grid outcomes do not establish installed verification
 of the expanded twelve/nine-file profile. Its host applicability is recorded
-[with C04p1](#c04p1-compatible-fixture-applicability); 313 retains the required
-installed verification and core-effects history after maintained preparation.
+[with C04p1](#c04p1-compatible-fixture-applicability); the full native profile and
+finite core-effects history now have both-target qualification
+[with C04p](#c04p-time-and-app-effects-applicability). This supplies no renewed
+Riley-grid qualification or copy/update/nonmatch history.
 
 Supporting screen-time and retained-work command activity uses the separate
 root-owned `/opt/onpc-test-fixtures-activity/native-fixture` and its private

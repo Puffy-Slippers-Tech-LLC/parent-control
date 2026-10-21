@@ -14,7 +14,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **035p** — Prepared native fixture inventory and read-only verification.
 
 Deliver the compatible finite A/H/S profile formerly requested by kiosk C04p1.
-The [retained failed attempts](../../Kiosk-Prompt-Tasks/C04p-app-effects.md#retained-work-and-return-condition)
+The [retained failed attempts](../E2E-Building-Blocks.md#c04p-time-and-app-effects-applicability)
 stopped before approval: Allowed space-bearing ELF A is an unrepresentable
 nonmatch in S's wildcard directory. This is the documented
 [rule-isolation limitation](../../SystemDesign/Applications.md#live-filter-and-execution-rules),

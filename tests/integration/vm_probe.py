@@ -363,23 +363,25 @@ def reproduce_kiosk_approval(lease):
 
 
 def reproduce_baseline_app_effects(lease):
-    """Retain Parent after saved S access, before the final match read.
+    """Attempt one allowed native launch after the real grant and child login.
 
     The shared maintenance envelope stops its worker and closes callbacks;
-    the owner can inspect the live scene with exec, then finish with stop.
+    leave the launch request unanswered so the owner can inspect the live scene
+    with exec, then finish with stop. An uncertain launch is never replayed.
     This diagnostic prefix supplies no qualification or acceptance result.
     """
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from baseline_app_effects import BaselineAppEffectsJourney, PLAN
     from tools.test_storage import named_input
-    assets = named_input(vm_source=True, package_source=True)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     if not assets.is_dir():
         print('baseline-app-effects-diagnosis: prepare fixture inputs with '
               'tools/run-tests artifacts prepare --for-vm --vm NAME --output ' + str(assets),
               flush=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
     return reproduce_denial(lease, BaselineAppEffectsJourney, PLAN,
-                            'soft-final-match', 'baseline-app-effects', assets=assets)
+                            'allowed-use-command', 'baseline-app-effects', assets=assets,
+                            boundary_operation='overlay-native-allowed-command-launch')
 
 
 def probe_kiosk_prompt_latency(lease, samples=10, cold=False):
@@ -969,6 +971,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                         observed = UiObservations(transport).observe(boundary_operation)
                     except Exception as error:
                         observed = {'outcome': 'refused', 'error_type': type(error).__name__}
+                        # Capture before guard probes can replace the SSH status.
+                        # This is transport evidence, not the native app's status.
+                        status = getattr(getattr(transport, 'commands', None), 'last_returncode', None)
+                        if type(status) is int and -64 <= status <= 255:
+                            observed['ssh_returncode'] = status
                     (directory / 'boundary-observation.json').write_text(json.dumps(observed))
                     guard()
                 return True

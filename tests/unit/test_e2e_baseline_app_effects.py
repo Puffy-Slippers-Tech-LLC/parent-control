@@ -100,6 +100,53 @@ def journey(tmp_path):
     return effects.BaselineAppEffectsJourney(SimpleNamespace(directory=tmp_path), Mock())
 
 
+@pytest.mark.parametrize('fault', [None, 'wrong-child', 'enabled', 'allowance', 'missing'])
+def test_restoration_save_then_exact_settings_read_gates_durable_reply(tmp_path, fault):
+    active = journey(tmp_path)
+    stages = list(effects.PLAN.stages)
+    saved, settings = 'restore-saved', 'restore-settings'
+    assert stages[stages.index(saved):stages.index(saved) + 3] == [saved, settings, 'restore-balance']
+    assert saved not in effects.PLAN.settings_checks
+    expected = effects.PLAN.settings_checks[settings]
+    assert expected == effects.SettingsObservation('fixture-child', False, ('0 minutes',))
+    save_projection = {'operation': 'parent-save-disabled', 'outcome': 'passed',
+        'save': deepcopy(accessible_ui.PARENT_SAVE_OPERATIONS['parent-save-disabled'])}
+    assert save_projection['save']['limit_enabled'] is False
+    value = {'child': 'fixture-child', 'limit_enabled': False, 'allowance': ['0 minutes']}
+    if fault == 'wrong-child': value['child'] = 'existing-fixture-child'
+    if fault == 'enabled': value['limit_enabled'] = True
+    if fault == 'allowance': value['allowance'] = ['1 minute']
+    settings_projection = {'operation': 'parent-toggle-disabled-settings', 'outcome': 'passed'}
+    if fault != 'missing': settings_projection['settings'] = value
+    active.steps = [{'stage': prior} for prior in stages[:stages.index(saved)]]
+    active.boot = 'b' * 64
+    active.ui = SimpleNamespace(boot_proof=active.boot,
+        observe=Mock(side_effect=[save_projection, settings_projection]))
+    (tmp_path / (saved + '.request.json')).write_text(json.dumps({'stage': saved, 'screenshot': None}))
+    active.step(Mock())
+    assert json.loads((tmp_path / (saved + '.reply.json')).read_text()) == {'observed': saved}
+    assert active.steps[-1]['ui'] == save_projection
+    assert saved not in active.settings_observations
+    active.progress.assert_called_once()
+    active.progress.reset_mock()
+    (tmp_path / (settings + '.request.json')).write_text(json.dumps({'stage': settings, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError, match='ui:(settings-changed|missing-settings-observation)'):
+            active.step(Mock())
+        assert active.failed and active.steps[-1]['stage'] == saved
+        assert not (tmp_path / (settings + '.reply.json')).exists()
+        assert not (tmp_path / (settings + '.reply.tmp')).exists()
+        active.progress.assert_not_called()
+    else:
+        active.step(Mock())
+        assert json.loads((tmp_path / (settings + '.reply.json')).read_text()) == {'observed': settings}
+        assert active.settings_observations[settings] == expected
+        assert active.steps[-1]['comparison']['outcome'] == 'passed'
+        active.progress.assert_called_once()
+    assert [item.args[0] for item in active.ui.observe.call_args_list] == [
+        'parent-save-disabled', 'parent-toggle-disabled-settings']
+
+
 @pytest.mark.parametrize('fault', [None, 'settings', 'hard-access', 'soft-rule', 'missing-app',
     'daily', 'total', 'wrong-child', 'missing-estimate', 'elapsed', 'too-large', 'zero-grant',
     'changed-other-policy', 'missing-capture', 'replay'])

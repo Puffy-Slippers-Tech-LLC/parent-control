@@ -61,6 +61,25 @@ class Guest:
             self.package_payloads[canonical] = self.package_payloads.pop(path)
         self.nodes['/usr/sbin'][0]['st_mode'] = stat.S_IFLNK | 0o777
         self.links['/usr/sbin'] = '/usr/bin'
+        for path in ('/etc/fapolicyd/rules.d', '/usr/share/fapolicyd',
+                     '/usr/share/fapolicyd/sample-rules'):
+            self.mkdir(path)
+        stock = {name: b'# fixed stock source\n' for name in fixture.native_assets.NATIVE_STOCK_RULE_NAMES}
+        stock.update({'42-trusted-elf.rules': b'allow perm=execute all : trust=1\n',
+                      '70-trusted-lang.rules': b'deny_audit perm=open all : ftype=text/x-python trust=0\n',
+                      '90-deny-execute.rules': b'deny_audit perm=execute all : all\n'})
+        self.policy_payloads = {'/usr/share/fapolicyd/default-ruleset.known-libs':
+                                ('\n'.join(stock) + '\n').encode()}
+        self.policy_payloads.update({'/usr/share/fapolicyd/sample-rules/' + name: data
+                                     for name, data in stock.items()})
+        for path, data in self.policy_payloads.items():
+            self.write(path, data)
+            self.chmod(0o644, path)
+        for name, data in stock.items():
+            path = '/etc/fapolicyd/rules.d/' + name
+            self.write(path, data)
+            self.chmod(0o644, path)
+            self.chown(0, 987, path)
     def lstatns(self, path): return dict(self.nodes[path][0])
     def mkdir(self, path):
         assert path not in self.nodes
@@ -97,6 +116,10 @@ class Guest:
         if argv[:2] == ['rpm', '-qf']:
             return 'fapolicyd'
         if argv[:2] == ['rpm', '-q']:
+            if argv[3] == fixture.native_assets.NATIVE_RULE_MANIFEST:
+                return ''.join(path + '\t' + hashlib.sha256(data).hexdigest()
+                    + '\t' + str(stat.S_IFREG | 0o644) + '\troot\troot\t0\n'
+                    for path, data in self.policy_payloads.items())
             if argv[3].startswith('%{FILEDIGESTALGO}'):
                 return '8\n' + ''.join(path + '\t' + hashlib.sha256(data).hexdigest() + '\n'
                                        for path, data in self.package_payloads.items())
@@ -149,6 +172,152 @@ def test_first_repeat_owned_update_and_preserved_unrelated_state(prepared):
     assert guest.read_file('/opt/unrelated') == b'keep'
     assert guest.read_file(fixture.assets.PREFIX + '/Exact Fixture.AppImage') == b'new distinct A'
     assert guest.read_file(fixture.assets.PREFIX + '/PrismLauncher.AppImage') == payload['N']
+
+
+@pytest.mark.parametrize('boundary', [None, 'write', 'rename', 'record'])
+def test_fedora_finite_admission_repeat_update_and_interruption(prepared, monkeypatch, boundary):
+    guest, payload = prepared
+    guest.set_fedora()
+    target = fixture.native_assets.NATIVE_POLICY_PATHS[1]
+    temporary = target + '.onpc-baseline-new'
+    original_write, original_move = guest.write, guest.mv
+    failed = False
+    def write(path, data):
+        nonlocal failed
+        original_write(path, data)
+        if boundary == 'write' and path == temporary and not failed:
+            failed = True
+            raise OSError('interrupted admission')
+    def move(source, destination):
+        nonlocal failed
+        if boundary == 'rename' and source == temporary and not failed:
+            failed = True
+            raise OSError('interrupted admission')
+        original_move(source, destination)
+        if boundary == 'record' and source == temporary and not failed:
+            failed = True
+            raise OSError('interrupted admission')
+    monkeypatch.setattr(guest, 'write', write)
+    monkeypatch.setattr(guest, 'mv', move)
+    if boundary:
+        with pytest.raises(OSError, match='interrupted admission'):
+            fixture.reconcile(guest, payload)
+    fixture.reconcile(guest, payload)
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    fixture.reconcile(guest, payload)
+    assert guest.nodes == before and not guest.writes
+    changed = payload | {'A': b'updated distinct A', 'gtk_automation.py': b'updated Python'}
+    fixture.reconcile(guest, changed)
+    fixture.verify(guest)
+    record = json.loads(guest.read_file(fixture.RECORD))
+    for path in fixture.native_assets.NATIVE_POLICY_PATHS:
+        assert record['files'][path] == {'sha256': guest.checksum('sha256', path),
+                                         'mode': 0o644, 'uid': 0, 'gid': 987}
+        assert b'uid=1000,1001 :' in guest.read_file(path)
+        assert b'trust=0\n' in guest.read_file(path)
+    assert hashlib.sha256(changed['A']).hexdigest().encode() in guest.read_file(target)
+    assert hashlib.sha256(payload['A']).hexdigest().encode() not in guest.read_file(target)
+    assert all(not path.endswith('.onpc-baseline-new') for path in guest.nodes)
+
+
+@pytest.mark.parametrize('fault', ['collision', 'bytes', 'mode', 'owner', 'group', 'hardlink',
+    'link', 'foreign-policy', 'stock-bytes', 'sample-bytes', 'listing-bytes', 'stock-layout', 'uid'])
+def test_fedora_admission_refuses_custom_policy_and_stale_owned_rules_without_writes(prepared, fault):
+    guest, payload = prepared
+    guest.set_fedora()
+    target = fixture.native_assets.NATIVE_POLICY_PATHS[0]
+    if fault == 'collision':
+        guest.write(target, b'foreign')
+        guest.chmod(0o644, target)
+        guest.chown(0, 987, target)
+    else:
+        fixture.reconcile(guest, payload)
+        if fault == 'bytes': guest.write(target, b'foreign')
+        if fault == 'mode': guest.chmod(0o666, target)
+        if fault == 'owner': guest.chown(1000, 987, target)
+        if fault == 'group': guest.chown(0, 0, target)
+        if fault == 'hardlink': guest.nodes[target][0]['st_nlink'] = 2
+        if fault == 'link': guest.links[target] = '/foreign'
+        if fault == 'foreign-policy': guest.write('/etc/fapolicyd/rules.d/95-administrator.rules', b'deny all')
+        if fault == 'stock-bytes': guest.write('/etc/fapolicyd/rules.d/90-deny-execute.rules', b'deny all')
+        if fault == 'sample-bytes': guest.write('/usr/share/fapolicyd/sample-rules/90-deny-execute.rules', b'allow all')
+        if fault == 'listing-bytes': guest.write('/usr/share/fapolicyd/default-ruleset.known-libs', b'foreign.rules\n')
+        if fault == 'stock-layout':
+            listing = '/usr/share/fapolicyd/default-ruleset.known-libs'
+            # Even an internally valid new RPM inventory needs compatibility
+            # review before admissions may cross different native boundaries.
+            changed = guest.read_file(listing).replace(b'70-trusted-lang.rules', b'70-new-language-policy.rules')
+            guest.write(listing, changed)
+            guest.policy_payloads[listing] = changed
+        if fault == 'uid':
+            guest.write('/etc/passwd', guest.read_file('/etc/passwd').replace(b':1000:1000:', b':1003:1000:'))
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    with pytest.raises((ValueError, KeyError)):
+        fixture.reconcile(guest, payload)
+    assert guest.nodes == before and not guest.writes
+
+
+def test_ubuntu_has_no_native_fixture_admission_outputs(prepared):
+    guest, payload = prepared
+    fixture.reconcile(guest, payload)
+    assert not set(fixture.native_assets.NATIVE_POLICY_PATHS) & set(guest.nodes)
+    assert not set(fixture.native_assets.NATIVE_POLICY_PATHS) & set(json.loads(guest.read_file(fixture.RECORD))['files'])
+
+
+def pre_admission_fedora_baseline(guest, payload, monkeypatch, old_digest):
+    """Build the exact prior declaration and its genuinely bound trust receipt."""
+    declaration = fixture.declared_files
+    def previous_files(g, identities, source_hashes=None, **options):
+        return declaration(g, identities, source_hashes, include_native_policy=False)
+    with monkeypatch.context() as previous:
+        previous.setattr(fixture, 'declared_files', previous_files)
+        previous.setattr(fixture.prepare_vm, 'preparation_digest', lambda: old_digest)
+        fixture.reconcile(guest, payload)
+
+
+@pytest.mark.parametrize('fault', [None, 'current-digest', 'absent-digest', 'wrong-old-digest',
+    'partial-record', 'disk-one', 'disk-both', 'stage', 'stage-link', 'stock',
+    'fixture', 'record-identity', 'trust-binding'])
+def test_recorded_old_fedora_baseline_inspection_is_read_only_and_requires_exact_prior_state(prepared, monkeypatch, fault):
+    guest, payload = prepared
+    guest.set_fedora()
+    old_digest = '1' * 64
+    pre_admission_fedora_baseline(guest, payload, monkeypatch, old_digest)
+    first, second = fixture.native_assets.NATIVE_POLICY_PATHS
+    digest = old_digest
+    if fault == 'current-digest': digest = fixture.prepare_vm.preparation_digest()
+    if fault == 'absent-digest': digest = None
+    if fault == 'wrong-old-digest': digest = '2' * 64
+    if fault == 'partial-record':
+        record = json.loads(guest.read_file(fixture.RECORD))
+        record['files'][first] = {'sha256': 'a' * 64, 'mode': 0o644, 'uid': 0, 'gid': 987}
+        guest.write(fixture.RECORD, json.dumps(record).encode())
+    if fault in ('disk-one', 'disk-both'):
+        for path in ((first,) if fault == 'disk-one' else (first, second)):
+            guest.write(path, b'foreign unrecorded admission')
+            guest.chmod(0o644, path)
+            guest.chown(0, 987, path)
+    if fault == 'stage': guest.write(first + '.onpc-baseline-new', b'foreign staging')
+    if fault == 'stage-link': guest.links[second + '.onpc-baseline-new'] = '/foreign'
+    if fault == 'stock': guest.write('/etc/fapolicyd/rules.d/90-deny-execute.rules', b'changed stock')
+    if fault == 'fixture': guest.write(fixture.native_assets.executable_path('A'), b'changed fixture')
+    if fault == 'record-identity': guest.chmod(0o644, fixture.RECORD)
+    if fault == 'trust-binding':
+        transaction = json.loads(guest.read_file(fixture.TRUST_RECORD))
+        transaction['complete']['preparation_script_sha256'] = '3' * 64
+        guest.write(fixture.TRUST_RECORD, json.dumps(transaction).encode())
+    before, links = copy.deepcopy(guest.nodes), dict(guest.links)
+    guest.writes.clear()
+    if fault:
+        with pytest.raises(ValueError): fixture.verify(guest, digest)
+    else:
+        fixture.verify(guest, old_digest)
+        assert not set(fixture.native_assets.NATIVE_POLICY_PATHS) & set(guest.nodes)
+        # An inspection waiver cannot make this baseline current preparation.
+        with pytest.raises(ValueError): fixture.verify(guest)
+    assert guest.nodes == before and guest.links == links and not guest.writes
 
 
 def legacy_native_baseline(guest, payload, monkeypatch):

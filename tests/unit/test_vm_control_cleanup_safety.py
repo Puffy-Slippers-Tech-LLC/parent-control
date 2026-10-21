@@ -703,20 +703,24 @@ def test_baseline_app_effects_dispatch_resumes_owned_lease_and_releases_controll
     monkeypatch.setattr(control.runner, 'Lease', lambda *args, **kwargs: lease)
     monkeypatch.setattr(storage, 'scratch_directory', lambda: tmp_path)
     monkeypatch.setattr(control.tempfile, 'mkdtemp', lambda **kwargs: str(tmp_path))
-    identity, resume, reproduce = Mock(), Mock(), Mock()
+    identity, resume, reproduce, operate = Mock(), Mock(), Mock(), Mock()
     monkeypatch.setattr(control, 'check_identity', identity)
     monkeypatch.setattr(control, 'resume', resume)
+    monkeypatch.setattr(control, 'operate', operate)
     monkeypatch.setattr(vm_probe, 'reproduce_baseline_app_effects', reproduce)
     assert control.main([*VM_ARGS, '--expected-uuid', UUID,
                          'reproduce-baseline-app-effects']) == 0
     identity.assert_called_once_with(source, UUID)
     resume.assert_called_once_with(lease)
     reproduce.assert_called_once_with(lease)
+    operate.assert_not_called()  # Retained maintenance still needs explicit stop.
+    source.domain.shutdown.assert_not_called()
+    source.domain.destroyFlags.assert_not_called()
     lease.release.assert_called_once_with()
     source.close.assert_called_once_with()
 
 
-def test_baseline_app_effects_reproduction_stops_after_saved_soft_access(monkeypatch):
+def test_baseline_app_effects_reproduction_stops_at_allowed_native_launch(monkeypatch):
     import vm_probe
     import tools.test_storage as storage
     from baseline_app_effects import BaselineAppEffectsJourney, PLAN
@@ -727,12 +731,27 @@ def test_baseline_app_effects_reproduction_stops_after_saved_soft_access(monkeyp
     lease = object()
     vm_probe.reproduce_baseline_app_effects(lease)
     reproduce.assert_called_once_with(lease, BaselineAppEffectsJourney, PLAN,
-                                     'soft-final-match', 'baseline-app-effects', assets=assets)
-    storage.named_input.assert_called_once_with(vm_source=True, package_source=True)
-    prefix = PLAN.stages[:PLAN.stages.index('soft-final-match')]
-    assert prefix[-1] == 'soft-access'
+        'allowed-use-command', 'baseline-app-effects', assets=assets,
+        boundary_operation='overlay-native-allowed-command-launch')
+    storage.named_input.assert_called_once_with(vm_source=True, package_source=True, fixture_source=True)
+    prefix = PLAN.stages[:PLAN.stages.index('allowed-use-command')]
+    assert prefix[-1] == 'allowed-use-desktop'
     assert PLAN.screen_tags['soft-access'] == 'ui:access-soft-row'
-    assert not {'soft-final-match', 'saved-policy', 'switch-user', 'new-estimate',
+    assert {'allowance-configured', 'saved-policy', 'soft-final-match', 'switch-user',
+            'new-estimate', 'approval-qualified', 'approval-rechecked', 'approval-success',
+            'new-returned', 'child-entry-child-recipient-qualified',
+            'child-entry-child-recipient-rechecked', 'child-entry-desktop',
+            'child-countdown'} <= set(prefix)
+    assert PLAN.screen_tags['approval-success'] == 'ui:kiosk-long-mate-submit-success'
+    assert PLAN.screen_tags['allowed-use-command'] == 'ui:overlay-native-allowed-command-launch'
+    # Native aliases own their fixed Riley binding; named-child kwargs are
+    # reserved for other operations and would be rejected by this UI route.
+    from accessible_ui import BASELINE_NATIVE_BINDINGS, OVERLAY_NATIVE_OPERATIONS
+    assert 'allowed-use-command' not in PLAN.child_bindings
+    assert BASELINE_NATIVE_BINDINGS['overlay-native-allowed-command-launch'] == ('A', 'command-launch')
+    assert 'overlay-native-allowed-command-launch' in OVERLAY_NATIVE_OPERATIONS
+    assert not {'allowed-use-command', 'allowed-use-opened', 'allowed-use-submit',
+                'allowed-use-submitted', 'soft-use-command', 'hard-denied',
                 'revoke-confirm', 'restore-saved'} & set(prefix)
     assets.is_dir.return_value = False
     reproduce.reset_mock()
@@ -1197,8 +1216,9 @@ def test_preferences_boundary_diagnostic_runs_once_without_acceptance_and_requir
 
 @pytest.mark.parametrize('worker_stopped,callback_closed', [
     (True, True), (False, True), (True, False)])
+@pytest.mark.parametrize('ssh_status', ['success', 255, 0, -9, None, True, -65, 256, '255', 'missing'])
 def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cleanup(
-        tmp_path, monkeypatch, worker_stopped, callback_closed):
+        tmp_path, monkeypatch, capsys, worker_stopped, callback_closed, ssh_status):
     from contextlib import nullcontext
     import vm_probe
     import baseline_app_effects
@@ -1207,9 +1227,10 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
     import qualification_storage
     import provenance
     import native_fixtures
+    import ui_observations
     import tools.test_storage as storage
     plan = baseline_app_effects.PLAN
-    boundary = 'soft-final-match'
+    boundary = 'allowed-use-command'
     prefix = plan.stages[:plan.stages.index(boundary)]
     monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
@@ -1236,7 +1257,13 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
     transport = SimpleNamespace(config={'run': 'owned-attempt'}, guard=Mock(), call=Mock(
         side_effect=[(json.dumps(value, sort_keys=True) + '\n').encode()
                      for value in ({'wrong_entry_refused': True}, receipt, receipt)]))
+    if ssh_status != 'missing':
+        transport.commands = SimpleNamespace(last_returncode=ssh_status)
     monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
+    observed = {'operation': 'overlay-native-allowed-command-launch', 'outcome': 'passed'}
+    observer = SimpleNamespace(observe=Mock(return_value=observed,
+        side_effect=None if ssh_status == 'success' else runner.CommandError('private uncertain SSH input')))
+    monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=observer))
     journeys = []
     class Journey(baseline_app_effects.BaselineAppEffectsJourney):
         def __init__(self, context, progress, *, plan):
@@ -1245,7 +1272,7 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
             self.steps = [{'stage': stage} for stage in prefix]
             journeys.append(self)
         def step(self, guard):
-            pytest.fail('the pending match read must remain available for owned probes')
+            pytest.fail('the uncertain native launch must never advance or replay')
     monkeypatch.setattr(baseline_app_effects, 'BaselineAppEffectsJourney', Journey)
     def run(directory, lease, ledger, **kwargs):
         assert kwargs['maintenance'] is True
@@ -1269,12 +1296,23 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
         assert [call.args[0][3] for call in transport.call.call_args_list] == ['refuse', 'read', 'read']
         (directory / (boundary + '.request.json')).write_text(json.dumps(
             {'stage': boundary, 'screenshot': None}))
-        guard = Mock()
+        def guard_probe():
+            if observer.observe.called and hasattr(transport, 'commands'):
+                transport.commands.last_returncode = 0
+        guard = Mock(side_effect=guard_probe)
         assert kwargs['guarded_observe'](guard) is True
-        guard.assert_called_once_with()
+        assert guard.call_count == 2
         kwargs['validate']()
+        observer.observe.assert_called_once_with('overlay-native-allowed-command-launch')
+        assert [row['stage'] for row in journey.steps] == list(prefix)
         assert not (directory / (boundary + '.reply.json')).exists()
-        assert not (directory / 'boundary-observation.json').exists()
+        assert not (directory / (boundary + '.reply.tmp')).exists()
+        retained = json.loads((directory / 'boundary-observation.json').read_text())
+        expected = observed if ssh_status == 'success' else {
+            'outcome': 'refused', 'error_type': 'CommandError'}
+        if ssh_status != 'success' and type(ssh_status) is int and -64 <= ssh_status <= 255:
+            expected['ssh_returncode'] = ssh_status
+        assert retained == expected
         return {'worker_stopped': worker_stopped, 'callback_closed': callback_closed}
     monkeypatch.setattr(e2e_worker, 'run_distribution', run)
     lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
@@ -1285,6 +1323,10 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
         with pytest.raises(runner.Error, match='diagnosis:cleanup-incomplete'):
             vm_probe.reproduce_baseline_app_effects(lease)
         lease.guard.assert_not_called()
+    output = capsys.readouterr()
+    assert 'private uncertain SSH input' not in output.out + output.err
+    if worker_stopped and callback_closed:
+        assert 'scene retained; evidence=' + str(tmp_path) in output.out
 
 
 @pytest.mark.parametrize('fault', [None, 'uri', 'uuid', 'name'])
@@ -1361,7 +1403,7 @@ def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, sc
         'kiosk-entry': (KIOSK_PLAN, 'request-form', 'station-branch'),
         'kiosk-approval': (KIOSK_APPROVAL_PLAN, 'approval-qualified', 'approval-open'),
         'kiosk-preferences': (KIOSK_PREFERENCES_PLAN, 'preferences-confined', 'open-estimate'),
-        'baseline-app-effects': (BASELINE_APP_EFFECTS_PLAN, 'soft-final-match', 'soft-access'),
+        'baseline-app-effects': (BASELINE_APP_EFFECTS_PLAN, 'allowed-use-command', 'allowed-use-desktop'),
     }[scene]
     stages = list(plan.stages)
     prefix = stages[:stages.index(boundary)]

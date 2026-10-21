@@ -2,6 +2,7 @@
 from tests.support.vm_registry import vm_name
 from contextlib import contextmanager
 from pathlib import Path
+import stat
 from unittest.mock import Mock, call
 
 import pytest
@@ -326,7 +327,46 @@ def test_guest_failure_cannot_reuse_success_from_previous_run(preparation):
         guest.prepare(p.capture, Mock(), 'fixture-password')
 
 
-def test_guest_failure_reports_only_bounded_diagnostic_tokens(preparation):
+@pytest.fixture
+def failure_retention(tmp_path, monkeypatch):
+    state = Mock(active=False, allocated=False, fail=None, artifact=tmp_path / 'evidence' / 'preparation.log')
+    @contextmanager
+    def session():
+        if state.fail == 'session':
+            raise RuntimeError('private retention failure fixture-password')
+        state.active = True
+        try:
+            yield
+            if state.fail == 'finalize':
+                raise RuntimeError('private retention failure fixture-password')
+        finally:
+            state.active = False
+    def allocate(factory, **options):
+        assert state.active and not state.allocated
+        assert factory is guest.tempfile.mkdtemp
+        assert options == {'prefix': 'onpc-baseline-preparation-failure-'}
+        if state.fail == 'allocate':
+            raise RuntimeError('private retention failure fixture-password')
+        state.artifact.parent.mkdir(mode=0o700)
+        assert not list(state.artifact.parent.iterdir())
+        state.allocated = True
+        return str(state.artifact.parent)
+    original_open = guest.os.open
+    def open_file(path, flags, mode):
+        assert state.active and state.allocated
+        assert path == state.artifact
+        assert flags == guest.os.O_WRONLY | guest.os.O_CREAT | guest.os.O_EXCL
+        assert mode == 0o600
+        if state.fail == 'write':
+            raise OSError('private retention failure fixture-password')
+        return original_open(path, flags, mode)
+    monkeypatch.setattr(guest, 'recovery_session', session)
+    monkeypatch.setattr(guest, 'allocate', allocate)
+    monkeypatch.setattr(guest.os, 'open', open_file)
+    return state
+
+
+def test_guest_failure_reports_only_bounded_diagnostic_tokens(preparation, failure_retention, capsys):
     p = preparation
     log = b'private fixture-password\nprepare-vm: [stage:guard] private\nprepare-vm: [guard:os] private\n'
     p.files[guest.STAGE + '/preparation.log'] = log
@@ -338,6 +378,88 @@ def test_guest_failure_reports_only_bounded_diagnostic_tokens(preparation):
     assert 'diagnostics:stage:guard,guard:os' in str(caught.value)
     assert 'private' not in str(caught.value) and 'fixture-password' not in str(caught.value)
     p.g.pread.assert_called_once_with(guest.STAGE + '/preparation.log', len(log), 0)
+    assert '; artifact:' + str(failure_retention.artifact) in str(caught.value)
+    assert failure_retention.artifact.read_bytes() == log
+    assert stat.S_IMODE(failure_retention.artifact.stat().st_mode) == 0o600
+    assert not failure_retention.active
+    output = capsys.readouterr()
+    assert 'private' not in output.out + output.err
+    assert 'fixture-password' not in output.out + output.err
+
+
+def test_preparation_failure_retains_only_the_last_16_kib(preparation, failure_retention):
+    p = preparation
+    log = b'old excluded data' + b'x' * 16384
+    path = guest.STAGE + '/preparation.log'
+    p.files[path] = log
+    p.g.filesize.return_value = len(log)
+    p.g.pread.return_value = log[-16384:]
+    assert guest.preparation_failure(p.g) == 'no-stage; artifact:' + str(failure_retention.artifact)
+    p.g.pread.assert_called_once_with(path, 16384, len(log) - 16384)
+    assert failure_retention.artifact.read_bytes() == log[-16384:]
+
+
+def test_missing_preparation_log_keeps_original_failure(preparation, failure_retention):
+    assert guest.preparation_failure(preparation.g) == 'no-log; inspect guest preparation.log'
+    preparation.g.pread.assert_not_called()
+    assert not failure_retention.allocated
+
+
+@pytest.mark.parametrize('unsafe', ['symlink', 'ancestor-link', 'directory', 'owner', 'hardlink'])
+def test_unsafe_preparation_log_is_never_read_or_retained(preparation, failure_retention, unsafe):
+    p = preparation
+    path = guest.STAGE + '/preparation.log'
+    p.files[path] = b'private fixture-password'
+    original_stat = p.g.lstatns.side_effect
+    def info(candidate):
+        result = original_stat(candidate)
+        if candidate == path:
+            if unsafe == 'directory':
+                result['st_mode'] = 0o40700
+            elif unsafe == 'owner':
+                result['st_uid'] = 1000
+            elif unsafe == 'hardlink':
+                result['st_nlink'] = 2
+        return result
+    p.g.lstatns.side_effect = info
+    if unsafe == 'symlink':
+        p.files.pop(path)
+        p.links[path] = '/etc/shadow'
+    elif unsafe == 'ancestor-link':
+        p.g.realpath.side_effect = lambda candidate: '/elsewhere/preparation.log' if candidate == path else candidate
+    assert guest.preparation_failure(p.g) == 'unsafe-log; inspect guest preparation.log'
+    p.g.filesize.assert_not_called()
+    p.g.pread.assert_not_called()
+    p.g.read_file.assert_not_called()
+    assert not failure_retention.allocated
+
+
+@pytest.mark.parametrize('failure', ['session', 'allocate', 'write', 'finalize'])
+def test_retention_failure_preserves_preparation_failure(preparation, failure_retention, capsys, failure):
+    p = preparation
+    log = b'prepare-vm: [guard:os] private fixture-password\n'
+    p.files[guest.STAGE + '/preparation.log'] = log
+    p.g.filesize.return_value = len(log)
+    p.g.pread.return_value = log
+    p.capture.source.domain.create.side_effect = lambda: p.files.pop(guest.STAGE + '/password')
+    failure_retention.fail = failure
+    with pytest.raises(host.CaptureError) as caught:
+        guest.prepare(p.capture, Mock(), 'fixture-password')
+    assert str(caught.value) == ('guest:preparation-failed; diagnostics:guard:os; '
+                                 'inspect guest preparation.log; retention:failed')
+    assert not failure_retention.active
+    output = capsys.readouterr()
+    assert 'private' not in output.out + output.err
+    assert 'fixture-password' not in output.out + output.err
+
+
+def test_preparation_log_read_failure_preserves_failure_category(preparation, failure_retention):
+    p = preparation
+    p.files[guest.STAGE + '/preparation.log'] = b'private'
+    p.g.filesize.side_effect = RuntimeError('private fixture-password')
+    assert guest.preparation_failure(p.g) == 'log-read-failed; inspect guest preparation.log'
+    p.g.pread.assert_not_called()
+    assert not failure_retention.allocated
 
 
 def test_guard_failure_prevents_staging_and_boot(preparation):

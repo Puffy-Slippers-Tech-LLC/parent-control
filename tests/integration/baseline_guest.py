@@ -2,12 +2,15 @@
 
 from contextlib import contextmanager
 from pathlib import Path
+import os
 import re
 import stat
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 
 import prepare_vm
+from qualification_storage import allocate, recovery_session
 from test_account_password import matches
 from watch_activity import observed
 
@@ -114,6 +117,42 @@ def label_preparation(g, paths=None):
                 g.selinux_relabel(policy, path)
 
 
+def preparation_failure(g):
+    """Keep a bounded private log while exposing only diagnostic categories."""
+    path = STAGE + '/preparation.log'
+    diagnostics = 'no-log'
+    evidence = '; inspect guest preparation.log'
+    try:
+        if not (g.exists(path) or g.is_symlink(path)):
+            return diagnostics + evidence
+        info = g.lstatns(path)
+        if (g.is_symlink(path) or g.realpath(path) != path
+                or not stat.S_ISREG(info['st_mode']) or info['st_uid'] != 0
+                or info['st_nlink'] != 1):
+            return 'unsafe-log' + evidence
+        size = g.filesize(path)
+        if size < 0:
+            return 'unsafe-log' + evidence
+        tail = g.pread(path, min(size, 16384), max(0, size - 16384))[-16384:]
+    except Exception:
+        return 'log-read-failed' + evidence
+    text = tail.decode('utf-8', 'replace')
+    tokens = re.findall(r'(?:prepare-vm|baseline): \[([a-z][a-z0-9:-]*)\]', text)
+    exceptions = re.findall(r'^([A-Za-z]+Error):', text, re.MULTILINE)
+    diagnostics = ','.join((tokens + exceptions)[-12:]) or 'no-stage'
+    try:
+        with recovery_session():
+            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-baseline-preparation-failure-'))
+            artifact = directory / 'preparation.log'
+            descriptor = os.open(artifact, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, 'wb') as stream:
+                stream.write(tail)
+        evidence = '; artifact:' + str(artifact)
+    except Exception:
+        evidence += '; retention:failed'
+    return diagnostics + evidence
+
+
 @observed('Preparing the baseline VM; waiting for guest setup and shutdown')
 def prepare(capture, guestfs, password, *, mode='manual'):
     """Operate only on the off, journal-bound source selected by the controller."""
@@ -167,16 +206,7 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         success = g.exists(STAGE + '/success') and g.read_file(STAGE + '/success') == b'success\n'
         if not success:
             # Emit only fixed diagnostic tokens, never package output or secrets.
-            path = STAGE + '/preparation.log'
-            diagnostics = 'no-log'
-            if g.exists(path):
-                size = g.filesize(path)
-                tail = g.pread(path, min(size, 16384), max(0, size - 16384)).decode('utf-8', 'replace')
-                tokens = re.findall(r'(?:prepare-vm|baseline): \[([a-z][a-z0-9:-]*)\]', tail)
-                exceptions = re.findall(r'^([A-Za-z]+Error):', tail, re.MULTILINE)
-                diagnostics = ','.join((tokens + exceptions)[-12:]) or 'no-stage'
-            require(False, 'guest:preparation-failed; diagnostics:' + diagnostics
-                    + '; inspect guest preparation.log')
+            require(False, 'guest:preparation-failed; diagnostics:' + preparation_failure(g))
         require(not g.exists(STAGE + '/password'), 'guest:preparation-secret-retained')
         hashes = [line.split(':') for line in g.read_file('/etc/shadow').decode('ascii').splitlines()]
         for account in prepare_vm.IDENTITIES:

@@ -1,7 +1,7 @@
 # Kiosk confinement baseline validation for v1.4
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04p — [Validate baseline time and app effects using E2E coverage](Kiosk-Prompt-Tasks/C04p-app-effects.md)**.
+Next task: **C04l — [Reuse kiosk language coverage and check its human pause](Kiosk-Prompt-Tasks/C04l-language.md)**.
 
 ## Outcome
 
@@ -147,10 +147,13 @@ gaps for both improvement plans, without implementing them.
 C01–C03's source, cleanup and host evidence remain in the
 [confinement design](SystemDesign/Kiosk-Confinement.md#c01-selective-replacement-boundary).
 The rebuilt code, rather than active old-plan work, is the candidate for
-validation. Current readiness and B1–B4 live gaps remain in the
+validation. Current readiness and the remaining B3–B4 live gaps remain in the
 [operation applicability map](TestAutomation/E2E-Building-Blocks.md#c04b-baseline-operation-applicability).
-C04o closed its fixed overlay operation only. Stopped app-effects attempts grant
-no approval/use/revocation acceptance; E2E 313a/313 retain their outstanding work.
+C04o closed its fixed overlay operation. C04p verified the finite both-target
+grant/use/revocation qualification in the
+[app-effects record](TestAutomation/E2E-Building-Blocks.md#c04p-time-and-app-effects-applicability).
+Original stopped attempts retain no acceptance credit; no E2E queue row or
+complete baseline journey closes through this reuse.
 
 ## Scope reconciliation
 

@@ -7,6 +7,7 @@ import stat
 from types import SimpleNamespace
 
 from tests.fixtures import baseline_assets as assets
+from tests.fixtures import native_assets
 from tests.fixtures.native_trust import (
     TRUST_RECORD, TRUST_FILE, TRUST_PENDING, TRUST_PURPOSE,
     ForeignTrustMetadataError, OwnedTrustMetadataError, native_tool_paths, trust_entries,
@@ -103,10 +104,64 @@ def write_record(g, record, path=RECORD):
     g.sync()
 
 
-def declared_files(g, identities):
+def declared_files(g, identities, source_hashes=None, *, include_native_policy=True):
     os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
         g.read_file('/etc/os-release').decode('utf-8')))
-    return assets.files(identities) | assets.automatic_update_files(os_id)
+    declaration = assets.files(identities) | assets.automatic_update_files(os_id)
+    if os_id == 'fedora' and include_native_policy:
+        if source_hashes is None:
+            recorded = json.loads(g.read_file(RECORD))['files']
+            require(type(recorded) is dict)
+            source_hashes = {}
+            for source, (path, _) in native_assets.source_destinations(identities['other'].pw_dir).items():
+                if source in native_assets.runtime_sources():
+                    require(type(recorded.get(path)) is dict and 'sha256' in recorded[path])
+                    source_hashes[source] = recorded[path]['sha256']
+        rules = native_assets.native_policy_files(source_hashes,
+            (identities['child'].pw_uid, identities['other'].pw_uid))
+        declaration.update({path: (data, 0o644, 'native-policy') for path, data in rules.items()})
+    return declaration
+
+
+def fixture_accounts(g):
+    identities = accounts(g)
+    # Native tmpfiles restores this fixed group recursively on every boot.
+    os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
+        g.read_file('/etc/os-release').decode('utf-8')))
+    if os_id == 'fedora':
+        identities['native-policy'] = SimpleNamespace(pw_uid=0,
+            pw_gid=native_trust_provenance(g)['service_gid'])
+    return identities
+
+
+def verify_native_policy_sources(g, identities, previous=None, *, include_native_policy=True):
+    """Product-free offline preflight refuses customized native rule policy."""
+    os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
+        g.read_file('/etc/os-release').decode('utf-8')))
+    if os_id != 'fedora':
+        return
+    gid = identities['native-policy'].pw_gid
+    def read(path, mode, group):
+        directory(g, str(Path(path).parent))
+        regular(g, path, 0, 0 if group == 'root' else gid, mode)
+        require(g.filesize(path) <= 2 * 1024 * 1024, 'native-policy-oversized')
+        return g.read_file(path)
+    stock = native_assets.native_stock_rules(g.command(['rpm', '-q', '--queryformat',
+        native_assets.NATIVE_RULE_MANIFEST, 'fapolicyd']), read)
+    root = '/etc/fapolicyd/rules.d'
+    directory(g, root)
+    names = g.find(root)
+    require(isinstance(names, list) and len(names) <= 128, 'native-policy-inventory')
+    paths = [root + '/' + name.removeprefix('/') for name in names]
+    permitted = set(stock) | (set(native_assets.NATIVE_POLICY_PATHS) if include_native_policy else set())
+    if include_native_policy and previous and previous['pending'] in native_assets.NATIVE_POLICY_PATHS:
+        permitted.add(previous['pending'] + '.onpc-baseline-new')
+    require(len(paths) == len(set(paths)) and set(stock) <= set(paths)
+            and set(paths) <= permitted, 'native-policy-inventory')
+    require(not g.exists('/etc/fapolicyd/fapolicyd.rules')
+            and not g.is_symlink('/etc/fapolicyd/fapolicyd.rules'), 'native-policy-legacy')
+    for path, (data, mode) in stock.items():
+        require(read(path, mode, 'fapolicyd') == data, 'native-policy-modified')
 
 
 def reconcile(g, payload):
@@ -118,8 +173,13 @@ def reconcile(g, payload):
     # Appliance-created staging files stay private even if writing is interrupted
     # before chmod. Guest modes are set explicitly before each atomic placement.
     g.umask(0o077)
-    identities = accounts(g)
-    declaration = declared_files(g, identities)
+    identities = fixture_accounts(g)
+    source_keys = dict(zip(native_assets.executable_sources(),
+                           (asset[0] for asset in native_assets.ASSETS)))
+    source_keys.update({source: source.rsplit('/', 1)[-1] for source in native_assets.gui_sources()})
+    source_hashes = {source: hashlib.sha256(payload[key]).hexdigest()
+                     for source, key in source_keys.items()}
+    declaration = declared_files(g, identities, source_hashes)
     desired = {}
     contents = {}
     for path, (source, mode, role) in declaration.items():
@@ -137,6 +197,7 @@ def reconcile(g, payload):
                 and set(previous['files']) <= set(desired)
                 and (previous['pending'] is None or previous['pending'] in desired))
     trusted = preflight_trusted(g)
+    verify_native_policy_sources(g, identities, previous)
     # Preflight the whole finite set before any mutation, including unrelated collisions.
     for path, spec in desired.items():
         ancestor = Path(path).parent
@@ -190,12 +251,32 @@ def reconcile(g, payload):
 
 
 def verify(g, script_digest=None):
+    """Inspect current fixtures or an unchanged recorded pre-admission baseline.
+
+    Restoration passes the recorded preparation digest. A previous Fedora
+    baseline may omit both new admissions solely for that read-only inspection;
+    new acquisition independently requires the current preparation digest.
+    """
     regular(g, RECORD, 0, 0, 0o600)
     record = json.loads(g.read_file(RECORD))
-    identities = accounts(g)
-    declaration = declared_files(g, identities)
-    require(set(record) == {'purpose', 'files', 'pending'} and record['purpose'] == PURPOSE
-            and record['pending'] is None and set(record['files']) == set(declaration))
+    require(type(record) is dict and set(record) == {'purpose', 'files', 'pending'}
+            and record['purpose'] == PURPOSE and record['pending'] is None
+            and type(record['files']) is dict)
+    identities = fixture_accounts(g)
+    os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
+        g.read_file('/etc/os-release').decode('utf-8')))
+    legacy = (os_id == 'fedora' and type(script_digest) is str
+              and re.fullmatch('[0-9a-f]{64}', script_digest) is not None
+              and script_digest != prepare_vm.preparation_digest()
+              and not set(native_assets.NATIVE_POLICY_PATHS) & set(record['files']))
+    if legacy:
+        require(not any(g.exists(path) or g.is_symlink(path)
+                        for target in native_assets.NATIVE_POLICY_PATHS
+                        for path in (target, target + '.onpc-baseline-new')),
+                'legacy-native-policy-collision')
+    declaration = declared_files(g, identities, include_native_policy=not legacy)
+    verify_native_policy_sources(g, identities, include_native_policy=not legacy)
+    require(set(record['files']) == set(declaration))
     for path, (source, mode, role) in declaration.items():
         spec = record['files'][path]
         account = identities[role]

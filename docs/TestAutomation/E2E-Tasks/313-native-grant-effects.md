@@ -30,7 +30,7 @@ their additional arguments, entry modes, results and qualification.
 
 Preserve the existing in-progress `tests/e2e/baseline_app_effects.py`,
 `check_e2e_baseline_app_effects.py` and `onpc_baseline_app_effects.pm` work and
-the [retained failure](../../Kiosk-Prompt-Tasks/C04p-app-effects.md#retained-work-and-return-condition).
+the [retained failures and C04p qualification](../E2E-Building-Blocks.md#c04p-time-and-app-effects-applicability).
 Names need not change with queue ownership. Inspect complete shared policy,
 fixture, native-launch, request-flow, recipient and comparison functions first.
 After 313a, extend only missing finite shared bindings; no second policy,
@@ -57,7 +57,9 @@ tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_bas
 Keep independent 1800-second attempts and original observation/input-freshness
 bounds. No synthetic grant, clock changes, missing-window denial or daily-only
 expiry substitution. Retain exact candidate/fixtures/providers, public outcomes,
-collection and owned restoration. No installed pass exists yet. Update only the
+collection and owned restoration. Both final-input histories now passed under
+the explicitly authorized C04p session; verify their exact applicability in the
+record above and reuse matching results. This E2E row remains unchecked. Update only the
 qualified finite scope and later briefs' remaining work; close no kiosk row,
 broader FLOW13/19/20 capability or complete E2E scenario automatically.
 
@@ -66,4 +68,5 @@ The compatible fixture implementation and host checks are now delivered in the
 Use its full Versioned S target/wildcard and current fixture-source-keyed inputs.
 Older ten/seven-file receipts do not verify the expanded twelve/nine-file
 native/Riley profile; verify maintained baseline preparation before installed
-attempts. Both-target installed grant/use/revocation acceptance is still pending.
+attempts. C04p qualified the finite full-native grant/use/revocation history;
+broader bindings and this queue's own close-out remain separate.

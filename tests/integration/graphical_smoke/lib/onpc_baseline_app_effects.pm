@@ -56,7 +56,7 @@ sub run {
         onpc_app_rows::edit_policy($journey, $apps{$edit->[0]}, $edit->[1], 'allowed', $edit->[2], []);
     }
     onpc_text::replace_text($journey, 'catalogue-clear', 'restore-clear');
-    $journey->seen($_) for qw(restore-screen restore-disabled restore-saved restore-balance);
+    $journey->seen($_) for qw(restore-screen restore-disabled restore-saved restore-settings restore-balance);
     $journey->finish();
 }
 1;

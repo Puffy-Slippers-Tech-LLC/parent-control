@@ -71,6 +71,7 @@ SCREENS = {
     'restore-screen': 'ui:parent-screen-page',
     'restore-disabled': 'ui:parent-toggle-disabled',
     'restore-saved': 'ui:parent-save-disabled',
+    'restore-settings': 'ui:parent-toggle-disabled-settings',
     'restore-balance': 'ui:time-explanation-reach-read',
 }
 _login = set(CHILD_ENTRY) | set(PARENT_RETURN) | set(RESTORE_RETURN)
@@ -89,7 +90,7 @@ PLAN = JourneyPlan(
     settings_checks={
         'parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
         'saved-settings': SettingsObservation('fixture-child', True, ('0 minutes',)),
-        'restore-saved': SettingsObservation('fixture-child', False, ('0 minutes',))},
+        'restore-settings': SettingsObservation('fixture-child', False, ('0 minutes',))},
     balance_checks={'allowance-configured': 0, 'restore-balance': 0},
     match_checks=_matches, access_checks=_accesses,
     countdown_checks={stage: ('new-estimate', 600, 60, 180)

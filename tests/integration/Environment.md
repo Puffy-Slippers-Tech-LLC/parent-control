@@ -121,6 +121,12 @@ RAM bytes in online snapshots. Configured maximum/current memory stays unchanged
 The host removes the temporary service, independently inspects the guest, and
 captures its baseline. The guest log remains at
 `/var/lib/onpc-baseline-preparation/preparation.log`; it contains no password.
+When the guest does not record success, preparation retains up to the last
+16 KiB of that log in private recovery storage and reports the artifact path.
+Read it through the [artifact reader](../README.md#prompt-free-test-artifact-access)
+before retrying; console output keeps only diagnostic categories. Missing,
+unsafe or unreadable logs and retention errors never replace the original
+preparation failure.
 There is no guest checkout or interactive password prompt to maintain.
 Existing virtualization, product-residue, disk, snapshot and ownership guards
 still apply. Preparation refuses a running source VM and never adopts a
@@ -188,9 +194,24 @@ entries. A separate durable receipt preserves the exact original/reconciled
 configuration and metadata; interrupted activation is reconciled before trust
 publication. The native configuration check must pass. The completed fixture
 receipt binds this enabled configuration and its backend receipt as well.
-No directory trust or execution-policy allow rule is added. Running consumers
+No directory trust is added. On Fedora, the stock policy otherwise rejects the
+deliberately untrusted A/H/S/N GUI fixtures. Two finite baseline-owned rule files
+admit only their exact prepared executable bytes and the two shared Python
+runtime payloads for Riley and Jordan. Runtime open admission follows the
+product's early concrete denials and precedes the stock language restriction;
+execute admission follows the product's late wildcard guards and precedes the
+stock execute denial. These content identities also admit identical copies for
+those two fixture users; they confer no future-version or copy/update coverage.
+The fixtures remain absent from native trust. Preparation and read-only consumers
+refuse unfamiliar native rule inventories or modified stock rule sources, and
+verify the exact owned rule bytes, metadata and compiled freshness. No product
+policy, provenance, grant or enforcement expectation changes. Running consumers
 verify the receipt, exact bytes/metadata and loaded native trust database; they
 refuse stale or substituted state rather than repairing it during a test.
+Read-only restoration may inspect a recorded older Fedora baseline with neither
+admission file, retaining its original preparation binding and every other
+fixture check. Both files and their staging paths must be absent. This permits
+owned cleanup and refresh; new attempts still require current preparation.
 The guest dependency inventory declares the distribution's `fapolicyd` package
 on both platforms, so its native trust tools are available on clean baselines.
 Native vendor trust sources are inspected without adopting or rewriting them;

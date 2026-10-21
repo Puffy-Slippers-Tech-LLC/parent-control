@@ -22,10 +22,13 @@ composition, and child diagnostic isolation from process-exit/cleanup isolation.
 Each consumer names its remaining slice. Independent incident families depend
 only on the shared capabilities they actually consume.
 
-Rows 006a/006b require the kiosk plan's accepted R01 behavioral mapping before
-execution, as specified in their briefs. Until then they remain unchecked.
-Their stable IDs and legacy selector names do not preserve obsolete masking or
-mode-bit-only rejection requirements.
+Rows 006a/006b use the current C03/C04 mapping specified in their maintained
+briefs: 006a binds C09/C10 host variation, while 006b binds C08/C10 input
+protection. Until those prerequisites pass,
+they remain unchecked. Their retained “R01-mapped” Scope labels are historical
+names for that behavioral mapping, not a requirement to execute the superseded
+R-series plan. Their stable IDs and legacy selector names do not preserve
+obsolete masking or mode-bit-only rejection requirements.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |

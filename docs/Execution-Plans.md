@@ -571,6 +571,10 @@ Previously reviewed scope reallocation in the surviving unfinished rows requires
 one explicit `--revise-task ID` per changed Scope; no other Scope may change.
 Review their receiving owners and full assertions before invoking this exception.
 Retained active/suspended metadata must still match the base acceptance/targets.
+If an older base committed a surviving row before its brief was tracked, use
+that surviving task's reviewed committed declaration while preserving its exact
+retained active/suspended acceptance metadata. A transferred brief must always
+exist in the original base; this exception cannot establish its missing targets.
 This exception does not apply to ordinary restart, merge reconciliation or task
 close-out. The original checkpoint is archived before atomic adoption, with its
 rejected results, handoffs, counters, accepted proof and Git ownership preserved.

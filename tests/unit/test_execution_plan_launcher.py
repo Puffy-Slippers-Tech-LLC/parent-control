@@ -2083,7 +2083,7 @@ def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan,
 
 
 @pytest.fixture
-def split_scene(git_plan):
+def split_scene(git_plan, request):
     from test_storage import directory
 
     scene = git_plan
@@ -2091,6 +2091,10 @@ def split_scene(git_plan):
     queue = scene.root / scene.plan.queue
     queue.write_text(queue.read_text().replace('](003.md) | — |', '](003.md) | 002 |'))
     scene.git('add', '--', 'docs')
+    missing = getattr(request, 'param', None)
+    scene.originally_untracked = missing
+    if missing:
+        scene.git('rm', '--cached', '--', f'docs/{missing}.md')
     scene.git('commit', '-qm', 'Original three-task queue')
     scene.base = scene.git('rev-parse', 'HEAD').stdout.strip()
     state = state_for(scene.plan, task_sessions=2, total_sessions=7, handoff='Original retained work.')
@@ -2169,6 +2173,40 @@ def test_reviewed_split_preserves_rejected_work_counters_and_resume(split_scene,
     assert scene.git('diff', '--cached').stdout == index
     assert scene.git('diff').stdout == worktree
     assert scene.git('rev-parse', 'HEAD').stdout == head
+
+
+@pytest.mark.parametrize('split_scene', ['001', '002'], indirect=True)
+@pytest.mark.parametrize('mismatch', [False, True])
+def test_reviewed_split_retains_untracked_survivor_acceptance(split_scene, mismatch):
+    scene = split_scene
+    checkpoint = scene.run / 'checkpoint.json'
+    state = json.loads(checkpoint.read_text())
+    if mismatch:
+        # Both the active and suspended survivor must keep frozen acceptance,
+        # even when its then-untracked brief is absent from the old Git tree.
+        if scene.originally_untracked == '001':
+            state['task']['targets'] = ['retained-extra-target']
+        else:
+            state['suspended_tasks']['002']['task']['acceptance'] = 'review'
+        workflow.launcher.atomic(checkpoint, state)
+    raw = checkpoint.read_bytes()
+    if mismatch:
+        with pytest.raises(ValueError, match='retained task metadata'):
+            workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, **scene.options)
+    else:
+        assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name,
+                                       check=True, **scene.options)['checked']
+    assert checkpoint.read_bytes() == raw
+
+
+@pytest.mark.parametrize('split_scene', ['003'], indirect=True)
+def test_reviewed_split_refuses_untracked_transferred_brief(split_scene):
+    scene = split_scene
+    checkpoint = scene.run / 'checkpoint.json'
+    raw = checkpoint.read_bytes()
+    with pytest.raises(ValueError, match='transferred brief must exist'):
+        workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, **scene.options)
+    assert checkpoint.read_bytes() == raw
 
 
 @pytest.mark.parametrize('boundary', ['archive', 'checkpoint'])

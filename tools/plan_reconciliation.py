@@ -85,7 +85,18 @@ def split_plan(root, plan, state, destination, base, revisions, *, git):
         if link is None:
             raise ValueError('split base needs every original unfinished brief')
         brief = local_path(root, link[1], base=(root / plan.queue).parent)
-        prior = acceptance_metadata(git(root, 'show', f'{base}:{brief.relative_to(root)}').stdout, task.id)
+        relative = str(brief.relative_to(root))
+        tracked = git(root, 'ls-tree', '--name-only', base, '--', relative).stdout.strip()
+        if not tracked:
+            if task.id in moved:
+                raise ValueError('transferred brief must exist in the committed split base')
+            # Older queues could commit a prerequisite row while its brief was
+            # still untracked. Surviving work keeps the reviewed committed brief;
+            # the retained active/suspended records below still freeze acceptance.
+            # This exception never transfers an unproven original declaration.
+            prior = task.acceptance_metadata()
+        else:
+            prior = acceptance_metadata(git(root, 'show', f'{base}:{relative}').stdout, task.id)
         records[task.id] = dict(brief=str(brief), **prior)
         if task.brief != brief or task.acceptance_metadata() != prior:
             raise ValueError('split must preserve brief identities, acceptance kinds and targets')

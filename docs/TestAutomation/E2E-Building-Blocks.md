@@ -1969,10 +1969,15 @@ Exact results are `result.json` in privileged allocations
 `onpc-graphical-smoke-yxvuyqy2` / `onpc-graphical-smoke-xgzbjp79` (Ubuntu).
 Reports are [Fedora](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 and [Ubuntu](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
-The verified [evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
-retains all four results, command reports, worker shutdown records, the original
-failure and affected host checks, plus C04u's earlier proof; SHA-256
-`bd49eacc0fe795f53e3258e072e72f407a28352ee2e97ffa4d83ff92291b278c`.
+The original verified export, SHA-256
+`bd49eacc0fe795f53e3258e072e72f407a28352ee2e97ffa4d83ff92291b278c`,
+recorded all four results, command reports, worker shutdown records, the original
+failure and affected host checks, plus C04u's earlier proof. That standalone
+export and both reports have rotated. The linked stable accepted-evidence
+locator retains C04f's original accepted result and command log with those exact
+target/report identities and cleanup; it does not supply the missing standalone
+report/export payloads. The historical accepted completion is unchanged; do not
+infer new qualification or detailed proof from its summary alone.
 
 The six-module native/PAM/login/lifecycle selection passed **502/502** with
 `--timeout '600s'` in report `20261021T062713Z-7ff04225`. `make build` passed

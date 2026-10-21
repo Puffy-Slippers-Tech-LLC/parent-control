@@ -153,63 +153,31 @@ file, application inventory, or other arbitrary file becomes an attachment.
 
 ### Kiosk admission diagnostics
 
-The PAM module and fixed-purpose login helper emit local journal/syslog records
-with the `onpc.pam` prefix before the kiosk application can start. These are
-integration diagnostics. The broker projects only the reviewed closed-field
-records described below into feedback; raw journal text is never attached.
-Inspect local raw records using the maintained system diagnostics reader.
+The selected PAM module and fixed-purpose login helper emit local journal/syslog
+records before the kiosk application can start. These are integration
+diagnostics, not proof of actual GDM execution or usable entry. The helper's
+routing records categorize account/session stage, outcome, saved session and
+transport, default repair and fixed failure reason. Repair never changes the
+failed attempt into an allowed login. The native module also records its
+removal barrier; actual execution-route qualification remains C06a/C07 work.
 
-Routing records identify the account or session stage, allowed/denied/
-unavailable outcome, dedicated/other/unset session category, wayland/other/unset
-transport category, none/restored/failed default recovery, and a fixed failure
-reason (timeout, bus-failed, identity, verification or unavailable). Native records
-also identify denied services, unsafe/busy locks, an unbound session check and
-numeric PAM results, helper failure and helper timeout. Successful preference
-checks are retained so a missing session-stage record can distinguish an
-interrupted login from completed preference validation. These records do not
-attest to GDM's next executable; the final native boundary owns that check.
-Wrong saved defaults produce stage records. Recovery never changes the failed
-attempt into an allowed login.
+The broker's [closed-field parser](../../broker/oh_no_parent_control/dependency_diagnostics.py)
+projects reviewed records into feedback using producer identity and exact
+formats; raw journal text is never attached. Inspect local raw records through
+the maintained system diagnostics reader.
 
-The final native boundary emits `onpc.pam kiosk execution-boundary` with an
-armed or denied outcome. Integrity failures use the fixed `integration` reason.
-Preparation emits `onpc.kiosk confinement preparation` with a denied outcome,
-a closed manager/gate role and preparation stage, a fixed failure reason and
-the last failing source line in the shipped preparation helper. Stages separate
-account identity, attestation/payload, enforcement, executable/privileged
-inventories, directory layout, manager generation, runtime/recovery, generation
-creation/verification and binding publication. Reviewed reason tokens identify
-trust, missing executable, inventory, generation and policy failures; unknown
-errors remain `verification`. OS failures include bounded numeric errno;
-command failures/timeouts identify their category and bounded exit status,
-without command arguments or captured output. The retained
-`stale-manager-reboot-required` and `generation-limit-reboot-required` reasons
-require reboot rather than automatic process termination. A separate
-`onpc.kiosk confinement directory-view` record reports the aggregate number of
-writable or non-root-owned sibling directories hidden behind empty private
-directories, with
-`outcome=masked reason=writable-sibling-directory`. It contains no directory
-names and does not assert completed admission. Unavailable diagnostic output
-does not change the preparation result.
+#### Retained historical admission formats
 
-`onpc.kiosk confinement directory-entry` adds aggregated mask, omission or
-refusal classifications for ownership, access, entry kind, required/sibling
-scope, broad system area and the closed reason. Untrusted sibling files/links,
-special types, separator names and unavailable metadata can be omitted
-without exposing their contents; required inputs must still fail closed. The
-alias ancestry and UTF-8 publication repairs passed historical host acceptance,
-retained in the [implementation baseline](../Kiosk-Session-Confinement-Plan.md#implementation-baseline).
-Neither classification record includes the entry name or full path.
+The parser still recognizes historical v1.4 `execution-boundary`,
+`confinement preparation`, `directory-view`, `directory-entry` and
+`native-view` formats. Their native/preparation producers were removed by
+C02d/C02e. These retained schemas and their engineering parser/privacy tests
+permit bounded interpretation of old records; they require no replacement
+private view, mask, material receipt, MAC role or manager generation. Historical
+`stale-manager-reboot-required` and `generation-limit-reboot-required` values
+describe the original candidate's refusal, not current reboot policy.
 
-The native PAM caller adds a separate `onpc.pam kiosk native-view` record for
-private-view failures. The existing `execution-boundary` and `cleanup=failed`
-records retain their format and meaning. The collector projects validated cause
-records as `kiosk.admission-journal` with `source=native-view`, keeping primary
-denial and independent cleanup failure separate. Producer coverage and host
-archive composition do not establish installed recovery acceptance under the
-[entry plan](../Kiosk-Session-Confinement-Plan.md#acceptance).
-
-The producer schema is fixed, with no optional or arbitrary text fields:
+Historical native-view examples retain the primary/cleanup distinction:
 
 ```text
 onpc.pam kiosk native-view outcome=denied role=manager stage=manifest reason=manifest errno=-1
@@ -217,25 +185,14 @@ onpc.pam kiosk native-view outcome=denied role=gate stage=bind reason=mount errn
 onpc.pam kiosk native-view outcome=cleanup-failed role=gate stage=detach reason=identity errno=-1
 ```
 
-These sanitized examples illustrate independent records, not a single admission.
-`outcome` is `denied` for the primary native failure or `cleanup-failed` for an
-independent owned-cleanup failure. `role` is the validated service-derived
-`manager` or `gate`. Closed stages are `namespace`, `staging`, `manifest`,
-`structure`, `source`, `bind`, `attach`, `readonly` and `detach`; closed reasons
-are `manifest`, `metadata`, `identity`, `namespace`, `mount`, `readonly` and
-`detach`. The stage identifies the operation; the reason distinguishes invalid
-records, unsafe metadata, identity mismatch and kernel operation failure.
-`errno` is a directly observed error number from 1 through 4095, or -1 when
-unavailable, out of range or a validation comparison failed. Never infer an
-error number from a successful call's leftover state.
-
-Each invocation retains its first primary failure and first cleanup failure,
-emitting at most two cause records at the final PAM boundary. Success emits no
-cause record. No names, paths, inode/mount/account identities, manifest contents
-or system error text enter these records. Logging preserves the caller's error
-state and cannot change admission or cleanup results. Host fixture witnesses
-cover cause production; installed behavior and archive composition keep their
-separate acceptance obligations.
+The parser validates closed role/stage/reason values and numeric bounds before
+producing `kiosk.admission-journal` with `source=native-view`; directory-entry
+records use the separate `kiosk.admission-directory` event. Names, paths,
+account/process/mount identities, manifest bytes and raw error text are excluded.
+Unknown fields or unreviewed formats are not diagnostics. Historical cause
+production and current parser/archive checks grant no installed recovery
+acceptance; the [current acceptance owner](../Kiosk-Session-Confinement-Plan.md#acceptance)
+requires the actual fault, original useful cause, recovery and public results.
 
 The native preparation exchange also reports a checked helper refusal at
 `stage=measurement`, always with `errno=-1`. Its numbered causes map only to

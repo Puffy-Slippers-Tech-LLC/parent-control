@@ -19,12 +19,13 @@ This task does not inherit the commits' performance-improvement objective.
 
 Read the [master](../Reliability-Plan.md),
 [frontend lifecycle](../SystemDesign/Frontends.md),
-[directory-generation lifecycle](../SystemDesign/Kiosk-Confinement.md#native-execution-and-executable-identity),
+[selected session lifecycle](../SystemDesign/Kiosk-Confinement.md#native-execution-and-executable-identity),
 [timing observation contract](../../tests/e2e/README.md#kiosk-transition-timing)
-and complete shared `vm_probe.py`, locale/logout and namespace cleanup call
+and complete shared `vm_probe.py`, locale/logout and owned-session cleanup call
 chains. 008a/008c supply deterministic pending-warm-up ordering and failure/retry;
-008b supplies fallback lifetime. Use the existing native startup fixture and
-record its actual renderer path; neither 006a's writable-directory mutation nor
+008b supplies fallback lifetime. Use the maintained public entry/approval binding
+qualified by C04u/C04f and record its actual renderer path; neither 006a's
+writable-directory mutation nor
 007b's GPU mapping proof is a prerequisite for this inventory-growth condition.
 Crash/export and unrelated customer scenarios are not prerequisites.
 
@@ -35,13 +36,14 @@ extending the existing transition qualification/transport owner.
 
 Use one verified candidate. Run one ordinary-inventory entry/Request/Cancel
 cycle, then add 256 inert root-owned sibling entries through the shared owned
-fixture. Activate that changed inventory through the existing supported guest
-reboot/session preparation route before its first kiosk entry: confinement pins
-the manager's directory generation, so reusing the ordinary profile's live
-manager would test stale-generation refusal instead of inventory growth.
+fixture. Use the supported session preparation/entry route before its first
+kiosk entry. The selected runtime has no private directory-generation admission
+protocol; unrelated inventory growth must not require a reboot or private
+receipt. If this fixture needs a separate activation step, record the actual
+current lifecycle reason rather than restoring stale-generation refusal.
 Run two enlarged-profile entry/Request/Cancel cycles without resetting between
 them. Record both inventory manifests and an owned idle resource baseline per
-profile. The activation reboot is not a cold/warm benchmark matrix.
+profile. Any justified activation step is not a cold/warm benchmark matrix.
 
 In each cycle, submit Request once at the first independently established form
 readiness. Observe the correctly bound native approval prompt, cancel without
@@ -57,7 +59,7 @@ deliberately for speculative preparation; a fast VM completion does not prove
 the pending-warm-up race, which 008a/008c cover deterministically.
 
 At equivalent quiescent checkpoints after every cycle, compare owned timers,
-app/report children, namespace staging mounts and units against that profile's
+app/report children and owned session units against that profile's
 recorded baseline. A previous kiosk must not leave duplicate clients or staging
 behind.
 Global process counts are not an ownership oracle. Preserve each intermediate
@@ -76,7 +78,7 @@ failure before another transition can hide it.
 
 ## Validation and close-out
 
-Run affected host locale/logout, namespace/input/timing and cleanup guards.
+Run affected host locale/logout, current input/timing and cleanup guards.
 Execute all three cycles on both targets. Fix demonstrated redundant work or
 lifecycle defects without weakening policy, durability, recipient checks or
 deadlines. Rerun the complete affected history after changed inputs. Build after

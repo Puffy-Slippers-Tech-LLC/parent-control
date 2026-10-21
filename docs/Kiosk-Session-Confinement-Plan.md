@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04c — [Reconcile obsolete proof and design consumers](Kiosk-Prompt-Tasks/C04c-proof-consumers.md)**.
+Next task: **C04 — [Reconcile proof consumers and baseline readiness](Kiosk-Prompt-Tasks/C04-installed-ta.md)**.
 
 ## Outcome
 

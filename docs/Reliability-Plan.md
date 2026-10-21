@@ -82,10 +82,28 @@ the v1.3 session-confinement rebuild. Reliability 006a/006b cannot execute
 until its C03/C04 map legacy tests and C06 approves the relevant deliberate-child
 protection under the new usability-first contract.
 Neither empty private views, identical retained managers nor mode-bit-only
-refusal survives as an implicit requirement. Cases 290/291 and their receipts
-retain their original historical scope until explicitly adapted; registration
-alone is no successor acceptance. Reuse exact applicable results without
-concurrent overlapping work or closing the other plan's tasks.
+refusal survives as an implicit requirement. The
+[C04a dispositions](SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions)
+removed the old 290/291 workers and registrations: 290 remains pending for usable
+host variation, while 291 now tracks essential-service recovery, not the 006b
+consumed-input control. Bind 006b to actual C08/C10 input protection and usable
+controls before execution. Historical results retain their original scope;
+reserved IDs and the current session-only census supply no successor acceptance.
+Reuse exact applicable results without concurrent overlapping work or closing
+the other plan's tasks.
+
+The same reconciliation applies to the renderer and inventory consumers.
+007a's generated private-role policy and 007b's old platform/role-census helpers
+were removed; their role-specific mapping assertions are retired. Required usable
+GPU rendering and justified current consumed/exposed-route controls remain,
+with current host/provider binding and actual Fedora GPU mapping still needing
+qualification. Do not recreate discarded roles to satisfy historical assertions.
+008 retains one ordinary and two enlarged-inventory functional cycles, current request/locale
+readiness and bounded logout; it requires no private directory generation,
+receipt or ambient-inventory activation reboot. Machine-work deadlines never
+limit human reading, selection or genuine parent authentication. This C04c
+documentation reconciliation changes no task ID, order, dependency, scope,
+acceptance declaration or completion; all these consumers remain unfinished.
 
 Each task owns implementation, affected checks and cleanup. Installed tasks
 require both `onpc-Ubuntu26.04` and `onpc-Fedora44` with exact package, baseline
@@ -141,7 +159,7 @@ regressions, not general product acceptance or release qualification.
 | [E2E queue](TestAutomation/E2E-Task-Queue.md) and [scenario inventory](../tests/e2e/scenarios.json) | Natural exhaustion/recovery, approved entry, countdown, long routines and suspend/wake retain their customer scope and status. Reuse necessary public operations without inheriting all their scenarios. |
 | [Usage-read obligation 143](TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation), queued as task 172 | Tasks 002a/002 extend the same session owner with native contention/owner-loss conditions. Preserve that obligation's wider assertions and pending status. |
 | [Startup obligations](TestAutomation/E2E-Scenario-Recipes.md#coverage-ownership-and-remaining-limits) | Startup-enforcement and broker-reconciliation tasks 169–170 keep their own fault matrices. |
-| [Confinement design and native proofs](SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) | Broader alias, executor, notification and resource-denial qualification remains here. Preserve existing tests; qualify only affected incident paths in this plan. |
+| [Confinement design and proof limits](SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) | Current route protections and qualification remain with the C-series owner. Retired native/private-runtime tests are not restoration obligations; preserve required outcomes and historical claims, qualifying only affected incident paths in this plan. |
 | [UI/E2E allocation](TestAutomation/UI-and-E2E-Coverage.md) | Local control/value matrices stay in host UI/unit coverage. Native policy and recovery require installed evidence. |
 
 Keep enduring lessons, selector bindings, limitations and evidence in the queue

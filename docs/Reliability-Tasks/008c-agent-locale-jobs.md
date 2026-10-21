@@ -15,6 +15,9 @@ Extract the locale manager's asynchronous job contract from 008a. Read the
 `tests/unit/test_request_time_estimate.py`. Reuse explicit bus/job callbacks,
 private runtime files and fake deadlines; no real service restart is needed.
 008a owns the separate RequestWindow submission composition.
+This retained feature service uses the ordinary systemd job interface; no native
+admission receipt, private graph or view-generation protocol is required. Its
+bounded job deadline does not impose a human authentication deadline.
 
 ## Work sequence
 

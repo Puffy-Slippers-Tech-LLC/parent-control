@@ -14,12 +14,16 @@ mapping evidence must describe the same installed attempt on each target.
 ## Deliverable and route
 
 Reproduce the renderer/confinement boundary behind `4e08dcdb`'s Fedora
-pre-form crash. 007a supplies the changed mapping permission's host regression.
+pre-form crash. 007a supplies the current renderer/security boundary's host regression.
 Unrelated writable-directory variants from 006a/006b are not prerequisites.
 Read the [renderer contract](../SystemDesign/Kiosk-Confinement.md#roles-services-and-dialogs),
 [crash diagnosis](../SystemDesign/Logging-and-Feedback.md#kiosk-startup-crash-diagnostics)
-and complete existing platform/confinement qualifier and role-census helpers.
-Extend their incident-specific binding; do not recreate a platform matrix.
+and the [current engineering dispositions](../SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions).
+The former platform/native-loading qualifier and strict role census were
+removed; the retained census is session-identity-only and proves no device
+mapping or confinement. Map a maintained incident-specific renderer/provenance
+binding before execution, preserving the actual GPU-mapping requirement below;
+if unavailable, keep this row unchecked. Do not recreate a platform matrix.
 
 Planned selector (unimplemented):
 `test_kiosk_renderer_startup_reliability`, area `enforcement`.
@@ -33,13 +37,15 @@ Discover actual registration and available VM renderer paths before running it.
    observe a ready usable request form, rather than accepting process existence,
    policy text or a painted frame as the result.
 3. On Fedora require evidence that the incident's renderer actually exercises
-   the allowed `dri_device_t` character-device mapping. Bind the observation to
-   the real role/device and record startup outcome. A software-renderer result
+   the real GPU character-device mapping under the selected enforcing policy.
+   Record the actual device/context and startup outcome; the removed private
+   MAC role/type mapping is not required. A software-renderer result
    without that mapping is useful limited evidence, not the missing GPU regression.
    Ubuntu supplies the corresponding usable enforcing startup control with its
    actual backend/path explicitly recorded.
 4. Exit through station Cancel, observe usable GDM and compare the owned
-   role/resource census with its recorded baseline. Complete owned cleanup.
+   renderer/process/unit resources with their recorded baseline. Complete
+   owned cleanup. A session-only census cannot supply the mapping proof in step 3.
 
 Keep existing confinement guards and 007a's narrow negative controls. No extra
 all-role resource-denial or notification-preview journey is required. Do not

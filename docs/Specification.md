@@ -114,13 +114,12 @@ the separate technical checks described in the system design.
 - [ONPC-CORE-REQUEST-017] The footer estimates usable time after a fixed-duration approval and refreshes as choices or balances change. Rest-of-day says access lasts until midnight. Loading, invalid-input, denial and waiting-for-approval messages take priority. An unavailable estimate does not prevent an otherwise valid request.
 - [ONPC-CORE-REQUEST-018] The current request forms have sound and lightning disabled and expose no mute control. Previously saved child and kiosk mute choices remain separate, but cannot enable sound in this release.
 
-### Prospective kiosk visit lifetime
+### Kiosk request lifetime
 
-The kiosk resilience design selects the following behavior before implementation;
-it is not a claim about the current release. The shared rules above, including
-pending-authentication cancellation, grant calculation and rollback, still apply.
-The [Broker lifetime decision](SystemDesign/Broker.md#prospective-kiosk-approval-lifetime)
-owns the mechanism and current implementation gap.
+These outcomes preserve genuine approval and cancellation on the shared request
+path. The [Broker lifetime boundary](SystemDesign/Broker.md#request-lifetime-and-effect-admission)
+owns the current mechanism and its qualification limits. A “visit” below means
+the user's time at the request station, not a private session protocol.
 
 - [ONPC-CORE-KIOSKVISIT-001] Leaving, locking or switching away from a request-station visit cancels its
   request until the broker has finished authentication and all checks and is
@@ -139,9 +138,12 @@ owns the mechanism and current implementation gap.
   request needs fresh authentication after the original operation and cleanup
   finish, and after the normal cooldown if the original request succeeded.
 - [ONPC-CORE-KIOSKVISIT-004] Another sign-in attempt preserves an already open request-station session.
-  It waits within the entry deadline, then starts its own visit after release or
-  returns to sign-in explaining that the station is already open, with retry
-  available. It never takes over a pending request or closes someone else's session.
+  It never takes over a pending request or closes someone else's session.
+  Contention must leave a safe retry/exit path; it grants no approval authority.
+- [ONPC-CORE-KIOSKVISIT-005] Time spent choosing a language, reading a dialog,
+  deciding a request or entering a parent password does not count against a
+  machine-startup deadline and does not cause forced logout. Machine-work and
+  cleanup limits do not impose an authentication idle timeout.
 
 ### Revocation, persistence, and failures
 

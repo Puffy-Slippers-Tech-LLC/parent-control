@@ -17,13 +17,17 @@ Follow the [master](../Reliability-Plan.md),
 and [crash diagnostics](../SystemDesign/Logging-and-Feedback.md#kiosk-startup-crash-diagnostics).
 The lesson from `4e08dcdb` is that a pre-form crash can kill the app and session;
 neither a startup callback nor a surviving reporter is a recovery oracle.
-Read complete platform/confinement qualifier and owned-process cleanup helpers.
-007a supplies the affected permission's host guard; the GPU-specific mapping
+Read the [current engineering dispositions](../SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions)
+and complete maintained public entry/session-identity and owned-process cleanup
+helpers. The former platform/native-loading qualifier and strict role census
+were removed; do not restore them for this recovery history.
+007a supplies the current renderer/security boundary's host guard; the GPU-specific mapping
 proof in 007b is independent of this abnormal-exit recovery result.
 
 Planned selector (unimplemented): `test_kiosk_renderer_role_recovery`, area
-`enforcement`. Use the existing qualifier's supported renderer/provenance
-mechanics and recheck candidate applicability. Software rendering is sufficient
+`enforcement`. Map the current supported renderer/provenance and public entry
+binding, qualified after its changed inputs, and recheck candidate applicability.
+Missing binding keeps this row unchecked. Software rendering is sufficient
 for this exit/reentry history; it grants no GPU mapping credit to 007b.
 
 ## Work sequence and expected results

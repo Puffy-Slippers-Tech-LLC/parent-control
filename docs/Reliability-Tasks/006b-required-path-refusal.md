@@ -10,8 +10,8 @@ Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
 Coordination: the [kiosk resilience plan](../Kiosk-Session-Confinement-Plan.md#scope-reconciliation)
 owns the compatibility redesign's input protection and recovery qualification.
-Before execution, require C03/C04's [current test mapping](../Kiosk-Session-Confinement-Plan.md#product-and-test-automation-must-match) from legacy refusal assertions
-to the [prospective boundary](../SystemDesign/Kiosk-Confinement.md#prospective-compatibility-first-target);
+Before execution, require C03/C04's [current test mapping](../SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions) from legacy refusal assertions
+to the [compatibility boundary](../SystemDesign/Kiosk-Confinement.md#compatibility-and-recovery-boundary);
 if absent, keep this row unchecked. Review its
 [historical baseline](../Kiosk-Session-Confinement-Plan.md#implementation-baseline);
 reuse only exact matching scope/candidate/target evidence. Neither plan closes
@@ -24,12 +24,15 @@ must complete on each target in one owned fault/recovery history.
 Keep one adjacent safety control for `83d502b3`: tolerating an unrelated writable
 sibling must not admit child-controlled code through a consumed path. No package
 transaction or retained-child approval journey is needed. Read the
-[prospective boundary](../SystemDesign/Kiosk-Confinement.md#prospective-compatibility-first-target),
+[compatibility boundary](../SystemDesign/Kiosk-Confinement.md#compatibility-and-recovery-boundary),
 the current C03/C04 mapping, complete relevant consumed-input/admission callers and
-`system_kiosk_confinement.py` functions. Existing case 291,
-`test_kiosk_required_ancestor_refusal`, area `enforcement`, has legacy mode-bit
-and refusal assertions. Adapt or reuse it only under the current C03/C04 mapping; neither its
-name nor a historical refusal establishes the new safety condition.
+`system_kiosk_confinement.py` functions. C04a removed case 291's
+`test_kiosk_required_ancestor_refusal` worker and registration; ID 291 remains
+reserved and pending for essential-service recovery under C09b/C10. It is not a
+consumed-input protection binding. Map this safety control to the actual C08/C10
+input protection and its normal-use control before execution; absent that
+binding, keep this row unchecked. Neither the old name, a historical refusal nor
+the current session-identity census establishes this safety condition.
 
 Choose one consumed startup/code path and record its identity, original metadata
 and actual write authority. First require usable entry with a group-writable
@@ -67,5 +70,5 @@ baseline preparation. Retain protection/recovery results, any justified refusal
 stage, kernel/security mode, legitimate-use and ordinary-user controls plus
 cleanup receipts. Repair demonstrated shared causes, build as required and update
 existing confinement owners. Close
-only 006b. General pinned-alias mismatch qualification stays with the existing
+only 006b. Broader deliberate-route qualification stays with the existing
 confinement owner and is excluded from this plan.

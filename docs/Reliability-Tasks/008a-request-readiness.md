@@ -16,11 +16,14 @@ the agent-preparation failure slice from 009; do not repeat the manager matrix.
 
 ## Deliverable and route
 
-Read the [frontend lifecycle](../SystemDesign/Frontends.md), RequestWindow's
+Read the [frontend lifecycle](../SystemDesign/Frontends.md), `main.py:RequestWindow`'s
 preference-save, agent-prepared, failure and close callbacks, their callers and
 complete canonical host tests in `tests/unit/test_request_time_estimate.py`.
 Compose the real locale manager's maintained interface from 008c using explicit
 job callbacks and fake deadlines; native timing is not the race oracle.
+The retained guards bind one frontend request revision and stage, not a visit
+token or private confinement receipt. Machine preparation deadlines do not bound
+human time in a genuine parent-authentication prompt.
 
 ## Work sequence
 

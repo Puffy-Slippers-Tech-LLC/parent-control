@@ -618,10 +618,10 @@ and migration from releases that predate this mechanism.
 ### Activation levels
 
 The table below describes the **current shipped classifier**. The kiosk
-replacement's [R01e activation decision](SystemDesign/Lifecycle.md#changed-input-activation-decisions)
-selects safe owned renewal where it can replace a blanket reboot. R05 implements
-that mapping only after the both-platform early proof; this prospective decision
-does not change present package actions or their regression assertions.
+[activation and renewal owner](SystemDesign/Lifecycle.md#package-activation-and-session-renewal)
+records the remaining C09c1 update/reentry work. That task must justify activation
+from actual changed consumers and preserve safe owned renewal and usable entry;
+documentation reconciliation changes no package action or regression assertion.
 
 | Level | Package action | Reboot marker |
 | --- | --- | --- |

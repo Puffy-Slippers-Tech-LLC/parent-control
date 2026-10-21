@@ -10,8 +10,8 @@ Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
 Coordination: the [kiosk resilience plan](../Kiosk-Session-Confinement-Plan.md#scope-reconciliation)
 owns the compatibility redesign and its installed qualification. Before execution,
-require C03/C04's [current test mapping](../Kiosk-Session-Confinement-Plan.md#product-and-test-automation-must-match) from legacy masking assertions to the
-[prospective boundary](../SystemDesign/Kiosk-Confinement.md#prospective-compatibility-first-target);
+require C03/C04's [current test mapping](../SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions) from legacy masking assertions to the
+[compatibility boundary](../SystemDesign/Kiosk-Confinement.md#compatibility-and-recovery-boundary);
 if absent, keep this row unchecked. Review the
 [historical baseline](../Kiosk-Session-Confinement-Plan.md#implementation-baseline);
 reuse only exact matching scope/candidate/target evidence.
@@ -26,10 +26,11 @@ tolerant entry before and after a host-side replacement. No package transaction 
 retained-child approval journey is needed for these filesystem fixtures.
 Read the current C03/C04 mapping, complete relevant admission/consumed-input callers and
 `system_kiosk_confinement.py` functions. Extend canonical variants and affected
-host checks. Existing case 290, `test_kiosk_writable_sibling_isolation`, area
-`enforcement`, has legacy mask/private-view assertions. Adapt or reuse it only
-under that mapping; its current registration and historical passes do not prove
-the successor contract.
+host checks. C04a removed case 290's `test_kiosk_writable_sibling_isolation`
+worker and registration; ID 290 remains reserved and pending for usable host
+variation under C09/C10. Discover its current binding before execution; if absent,
+keep this row unchecked. Historical mask/private-view passes do not prove the
+successor contract, and the session-identity census is not confinement proof.
 
 Use two unrelated root-owned sibling directories, modes 0775 and 0777, with
 one distinct inert canary each. Kiosk entry and the request form work without

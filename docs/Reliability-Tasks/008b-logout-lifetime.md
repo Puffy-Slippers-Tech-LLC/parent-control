@@ -10,8 +10,10 @@ Estimate: 15–30 minutes.
 ## Deliverable and route
 
 Extract deterministic exit/fallback lifetime coverage from 008. Read the
-[frontend lifecycle](../SystemDesign/Frontends.md), `KioskLogout`, native service
-callbacks and complete canonical logout/cleanup tests. Reuse existing process,
+[frontend lifecycle](../SystemDesign/Frontends.md),
+`session_logout.py:KioskLogout`, its GNOME SessionManager client and app-unit exit
+fallback, native service callbacks and complete canonical logout/cleanup tests.
+Reuse existing process,
 callback and fake-clock adapters rather than introducing another exit protocol.
 
 Cover successful native logout, native service failure/timeout, bounded fallback

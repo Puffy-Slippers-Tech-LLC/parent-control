@@ -1670,6 +1670,17 @@ Existing inventory IDs, executables and historical results remain unchanged.
 In particular, a retained `ready` label below is not qualification of a changed
 complete caller on the rebuilt candidate.
 
+Current disposition after C04f: the fixed passwordless entry and
+Riley/Jamie/75-second/soft-included MATE approval operation, prompt Cancel,
+form Cancel/reentry, approved exit and independent Parent grant read have
+matching both-target qualification in the
+[C04f record](#c04f-fedora-qualification-and-ubuntu-renewal).
+The table below retains C04b's input audit and original evidence boundaries;
+its C04u/f receiving instructions are fulfilled only for that exact slice.
+Wrong-password rejection, negative grant/app effects, overlay, human pauses,
+other features and complete repeated journeys remain B1–B4. C04c reconciles
+these consumers without changing readiness, inventory or acceptance.
+
 Classification: **unchanged** identifies only the stated reusable leaf and exact
 historical scope; **changed** requires renewed installed qualification;
 **missing** has no complete implemented/qualified binding. Historical report IDs
@@ -1905,7 +1916,7 @@ only process-local descriptors/private scratch; its resource classification
 remains applicable. Both helpers are joined/closed. Final five-module
 plan/inventory/coverage/composition/launcher validation passed **639/639** with
 `--timeout '600s'` in
-[report 20261021T064958Z-27058426](../../output/test-runs/host/reports/20261021T064958Z-27058426/report.md).
+[report 20261021T064958Z-27058426](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 
 All four installed attempts passed collection and cleanup, verified worker
 shutdown/callback closure, complete leases and host/source preservation. Both

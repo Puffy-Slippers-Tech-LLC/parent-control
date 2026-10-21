@@ -27,6 +27,15 @@ inventory and stable IDs; pending compositions remain pending. C04 must refuse
 readiness until the missing bindings and both-target operation qualifications
 are delivered through its prerequisite route.
 
+The [C04f qualification](E2E-Building-Blocks.md#c04f-fedora-qualification-and-ubuntu-renewal)
+now supplies the exact fixed entry/approval operation on both targets, including
+prompt Cancel, form Cancel/reentry, approved exit and independent Parent grant
+read with daily 900 and initial grant zero. This does not qualify the zero-daily
+downstream journey below, wrong-password effects, overlay or human pauses.
+B1–B4 remain C04 readiness gaps. Removed private receipts, view generations and
+all-process censuses are not recipe prerequisites; engineering session identity
+observations cannot replace any public result.
+
 ### Baseline inputs and public results
 
 Use the registered fixture roles, not names as selectors. Riley is

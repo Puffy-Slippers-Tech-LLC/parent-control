@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04a — [Reconcile installed-system confinement cases](Kiosk-Prompt-Tasks/C04a-system-ta.md)**.
+Next task: **C04b — [Bind the baseline public-use journey](Kiosk-Prompt-Tasks/C04b-baseline-ta.md)**.
 
 ## Outcome
 

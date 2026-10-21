@@ -11,48 +11,15 @@ pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
 
 def test_kiosk_execution_confinement(record_testsuite_property):
-    from system_kiosk_confinement import verify
-    verify(record_testsuite_property)
-
-
-def test_kiosk_writable_sibling_isolation(record_testsuite_property):
-    from system_kiosk_confinement import verify_sibling_isolation
-    verify_sibling_isolation(record_testsuite_property)
-
-
-def test_kiosk_required_ancestor_refusal(record_testsuite_property):
-    from system_kiosk_confinement import verify_required_recovery
-    verify_required_recovery(record_testsuite_property)
-
-
-def test_kiosk_native_bootstrap_permissions(record_testsuite_property):
-    from system_kiosk_confinement import verify_bootstrap_permissions
-    verify_bootstrap_permissions(record_testsuite_property)
-
-
-def test_kiosk_retained_ambient_history(record_testsuite_property):
-    from system_kiosk_ambient_history import verify_history
-    verify_history(record_testsuite_property)
-
-
-def test_kiosk_retained_required_history(record_testsuite_property):
-    from system_kiosk_required_history import verify_history
-    verify_history(record_testsuite_property)
+    # Stable ID 267 now observes the selected session composition. Reachable
+    # escape attempts remain separate pending engineering obligations.
+    from system_kiosk_confinement import verify_session_composition
+    verify_session_composition(record_testsuite_property)
 
 
 def test_kiosk_login_admission(record_testsuite_property):
     from system_kiosk_admission import verify
     verify(record_testsuite_property)
-
-
-def test_kiosk_platform_integrations(record_testsuite_property):
-    from system_kiosk_platform import verify
-    verify(record_testsuite_property)
-
-
-def test_kiosk_namespace_guard_callbacks(record_testsuite_property):
-    from system_kiosk_confinement import verify_namespace_guard
-    verify_namespace_guard(record_testsuite_property)
 
 
 def test_kiosk_shared_integration_scope(record_testsuite_property):

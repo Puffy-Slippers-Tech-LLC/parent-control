@@ -8572,8 +8572,8 @@ class AccessibleUI:
     def station_refused(self):
         """Read GDM's safe fallback, without treating its prompt as auth failure.
 
-        The system-history caller independently requires the native preparation
-        refusal and absence of a station session before requesting this read.
+        The diagnostic caller retains the observed fallback for investigation;
+        this read alone proves no product refusal or absence of a station session.
         No credential or error-message oracle belongs to this operation.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')

@@ -49,15 +49,6 @@ def test_trusted_native_upgrade_fixtures(record_testsuite_property):
     qualify(record_testsuite_property)
 
 
-def test_native_dependency_update_retained_session(record_testsuite_property):
-    from system_native_update import retain_upgrade, fresh_after_reboot
-    phase = os.environ['ONPC_SYSTEM_PHASE']
-    guest.require(phase in ('native-update', 'native-update-rebooted'),
-                  'native-update:test-phase')
-    {'native-update': retain_upgrade, 'native-update-rebooted': fresh_after_reboot}[
-        phase](record_testsuite_property)
-
-
 def test_first_configuration_interruption_retry(record_testsuite_property):
     from system_first_configure import exercise, verify_reboot
     {'first-configure': exercise, 'first-configure-rebooted': verify_reboot}[
@@ -83,7 +74,7 @@ def test_pam_environment_installation_variants(variant, record_testsuite_propert
 def test_kiosk_account_classification_survives_reboot(record_testsuite_property):
     from system_kiosk_accounts import exercise, verify_reboot
     from system_kiosk_admission import verify as verify_admission, verify_gates
-    from system_kiosk_confinement import verify as verify_confinement
+    from system_kiosk_confinement import verify_session_composition
 
     phase = os.environ['ONPC_SYSTEM_PHASE']
     guest.require(phase in ('installed', 'rebooted'), 'kiosk-accounts:test-phase')
@@ -100,7 +91,7 @@ def test_kiosk_account_classification_survives_reboot(record_testsuite_property)
     action = exercise if phase == 'installed' else verify_reboot
     action(record_testsuite_property)
     verify_gates(record_testsuite_property)
-    verify_confinement(record_testsuite_property)
+    verify_session_composition(record_testsuite_property)
     if pending:
         guest.verify_reboot_gate()
         guest.require(guest.execution_rule_state() == rules_before,

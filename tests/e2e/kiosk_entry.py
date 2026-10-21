@@ -2,7 +2,6 @@
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import station_entry
-from contextlib import contextmanager
 import json
 import re
 import system_runner as system
@@ -28,7 +27,11 @@ PLAN = JourneyPlan(
 
 
 def confinement_census(transport, lease):
-    """Use the strict installed census with its complete default role set."""
+    """Observe session identity separately from the public form result.
+
+    This engineering observation grants no confinement or renewed installed
+    qualification; the current public entry operation needs live qualification.
+    """
     lease.guard()
     result = transport.call(['env', 'ONPC_EXPECTED_RUN=' + lease.state['run'],
         'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
@@ -105,85 +108,6 @@ def observe_activation(transport, lease, phase):
         observe('gdm-station-returned')
         return {'phase': phase, 'boot_sha256': boot, 'public_observations': observations,
                 'engineering_confinement': census}
-
-
-def observe_station_refusal(transport, lease, verify_refusal, *, receipt):
-    """Select once, require independent native/session refusal, then read GDM."""
-    with watch_activity.operation('Checking refused request-station entry'):
-        ui = UiObservations(transport)
-        ui.boot_guard = ''
-        observations = []
-        receipt['public_observations'] = observations
-
-        def observe(operation):
-            lease.guard()
-            value = ui.observe(operation)
-            observations.append(value)
-            return value
-
-        enter_station(lease, ui, observe)
-        receipt['boot_sha256'] = ui.boot_proof
-        verify_refusal()
-        checked = time.monotonic()
-        result = observe('gdm-station-refused')
-        receipt['fallback'] = result['fallback']
-        if result['fallback'] == 'station-prompt':
-            # Escape is navigation from the freshly identified station prompt,
-            # never credential submission or an automatically replayed Enter.
-            lease.guard()
-            require(0 <= time.monotonic() - checked < 30, 'kiosk-activation:stale-recipient')
-            try:
-                lease.source.domain.sendKey(
-                    lease.source.api.VIR_KEYCODE_SET_LINUX, 100, [1], 1, 0)
-            finally:
-                lease.guard()
-        observe('gdm-station-returned')
-        receipt['safe_return'] = True
-
-
-@contextmanager
-def native_update_station(transport, lease, *, receipt=None):
-    """Hold one publicly admitted station across a native transaction assertion."""
-    ui = UiObservations(transport)
-    ui.boot_guard = ''
-    observations = []
-
-    def observe(operation):
-        lease.guard()
-        value = ui.observe(operation)
-        observations.append(value)
-        return value
-
-    with watch_activity.operation('Checking the native update request station'):
-        receipt = {} if receipt is None else receipt
-        receipt.update(boot_sha256=None, normal_exit=False, station_confirmed=False,
-                       public_observations=observations)
-        enter_station(lease, ui, observe)
-        receipt['boot_sha256'] = ui.boot_proof
-        observe('station-default-entry')
-        receipt['station_confirmed'] = True
-        primary = None
-        try:
-            observe('kiosk-request-form')
-            observe('restart-kiosk-missing-refused')
-            receipt['engineering_confinement'] = confinement_census(transport, lease)
-            yield receipt
-        except BaseException as error:
-            primary = error
-            receipt['first_failure'] = type(error).__name__ + ': ' + str(error)
-            raise
-        finally:
-            # Public cancellation owns logout. Never terminate the manager to
-            # manufacture an inactive session, including on an assertion error.
-            try:
-                observe('kiosk-request-cancel')
-                observe('gdm-station-returned')
-                receipt['normal_exit'] = True
-            except BaseException as error:
-                receipt['exit_failure'] = type(error).__name__ + ': ' + str(error)
-                if primary is None:
-                    raise
-                primary.add_note('kiosk-activation:public-exit-failed:' + type(error).__name__)
 
 
 class KioskEntryJourney(InstalledJourney):

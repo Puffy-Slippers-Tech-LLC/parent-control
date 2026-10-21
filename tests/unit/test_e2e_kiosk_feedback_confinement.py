@@ -322,10 +322,10 @@ def test_dedicated_kiosk_report_refuses_exposed_download_without_activating_it()
     send.action.do_action.assert_not_called()
 
 
-def test_feedback_qualification_requires_strict_census(tmp_path):
+def test_feedback_qualification_retains_separate_session_identity_observation(tmp_path):
     from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
     journey = KioskFeedbackConfinementJourney(SimpleNamespace(directory=tmp_path), Mock())
-    census = {'census': {'backend': 'apparmor'}}
+    census = {'census': {'scope': 'session-identity-only', 'confinement_qualified': False}}
     journey.engineering = Mock(return_value=census)
     observed = {}
     journey.check_request('kiosk-diagnostic-editor', observed)
@@ -420,17 +420,14 @@ def test_preparation_refusal_never_starts_broker_fault(tmp_path):
     journey.engineering.assert_not_called()
 
 
-def test_strict_census_requires_webkit(monkeypatch):
+def test_feedback_census_observes_session_without_private_role_requirements(monkeypatch):
     helper = load_module('private_kiosk_feedback_census', ROOT / 'tests/integration/system_kiosk_feedback.py')
     import system_kiosk_confinement
-    value = {'backend': 'apparmor', 'confined_thread_roles': {
-        'onpc-kiosk-webkit': 7}}
+    value = {'scope': 'session-identity-only', 'confinement_qualified': False}
     census = Mock(return_value=value)
     monkeypatch.setattr(system_kiosk_confinement, 'census', census)
     assert helper.feedback_census() == {'census': value}
-    assert census.call_args.kwargs['required_roles'] == (
-        'manager', 'app', 'service', 'wellbeing', 'pipewire', 'webkit',
-        'notifications', 'notification-client')
+    census.assert_called_once_with()
 
 
 @pytest.mark.parametrize('refused', ['', 'kiosk-diagnostic-error'])

@@ -889,8 +889,8 @@ remain reserved; a removed implementation never makes its ID reusable.
 | IDs / consumers | Current disposition and surviving obligation |
 | --- | --- |
 | 267, `system_kiosk_confinement.verify_session_composition` | Runnable engineering composition read: selected account/routing, finite distro PAM verification and shipped GNOME Kiosk session/app definitions. The old name remains the stable case selector. This grants no execution-fence proof. Deliberate reachable routes require the C06–C08 protections and C10 final binding review. |
-| Entry, installation activation, Preferences and feedback census callers | The shared `census()` observes the live logind Wayland session and required compositor/app identities. Its result explicitly says `session-identity-only` and `confinement_qualified: false`. Optional providers have no startup vote. This replaces the all-process/private namespace/generation/MAC-role census; public form/editor observations remain independent. C04b maps the exact changed compositions; C04u/C04f renew entry/approval qualification. |
-| 268, admission | Runnable installed account-only PAM/routing checks retain ordinary-account positives, empty kiosk token, deliberate alternate session/transport refusal, retry and exact restoration. Fedora's engineering caller fixture and root-held PAM-handle cleanup remain. They do not prove graphical sign-in, session callbacks or an enabled SSH/remote-desktop route. C06a/C07 and later public acceptance own those results. |
+| Entry, installation activation, Preferences and feedback census callers | The shared `census()` observes the live logind Wayland session and required compositor/app identities. Its result explicitly says `session-identity-only` and `confinement_qualified: false`. Optional telemetry has a three-second command budget and reports unavailable on timeout; it has no startup vote. This replaces the all-process/private namespace/generation/MAC-role census; public form/editor observations remain independent. C04b maps the exact changed compositions; C04u/C04f renew entry/approval qualification. |
+| 268, admission | Runnable installed account-only PAM/routing checks retain ordinary-account positives, deliberate alternate session/transport refusal, retry and exact restoration. Empty-token authentication remains in case 4 and PAM histories 283–286. Fedora's engineering caller fixture and root-held PAM-handle cleanup remain. These account probes do not prove authentication, graphical sign-in, session callbacks or an enabled SSH/remote-desktop route. C06a/C07 and later public acceptance own those results. |
 | 271, ordinary integration scope | Runnable ordinary administrator/standard-user controls retain vendor execution, selected distro PAM readiness and invocation-owned manager cleanup. Private executable-generation, namespace and ambient-mask equality assertions are removed. Vendor/admin-denial histories and ordinary graphical login remain separate installed checks. |
 | 269 | Pending reachable startup/audio input checks with ordinary-use controls under C08 and final C10 mapping. Removed the unconsumed platform library/MAC/loading audit and its host doubles; continuous distro library auditing is outside the threat model. |
 | 270, 292 | Retired private namespace-callback and native bootstrap/loader matrices. Shared PAM/ordinary-role behavior survives in 268/271 and lifecycle histories; no private namespace/loader mechanism is required. |
@@ -902,12 +902,13 @@ remain reserved; a removed implementation never makes its ID reusable.
 `system_case_ids.UNBOUND_CASES` records pending/retired reserved bindings and
 refuses their accidental executable registration. Only current pytest selectors
 are runnable. The installed runner list and host registration/composition checks
-must be validated again after the final caller port. The current read-only list
-shows 267/268/271 and the ordinary enforcement cases, with all eight removed
-bindings explicitly pending/retired. The list alone does not qualify a binding.
+were validated after the final caller port. The read-only list shows 267/268/271
+and the ordinary enforcement cases, with all eight removed confinement bindings
+explicitly pending/retired; lifecycle ID 10 is separately retired by C04a2.
+The list alone does not qualify a binding.
 
-The audit exposed three independent unfinished families, now prerequisites
-C04a1–C04a3 immediately before this consumer:
+The audit initially exposed three independent unfinished families. Prerequisites
+C04a1–C04a3 completed them before this consumer's full host acceptance:
 
 - Case 4: `system_first_configure.fault_command`, `configure_fault`, `exercise`
   and `quarantine_statuses` assumed consumed PreSession writes, private policy
@@ -924,9 +925,9 @@ C04a1–C04a3 immediately before this consumer:
   restoration authority, genuine administrator denial and usable retry. The full
   install/reconfigure/reboot/remove history still needs installed qualification.
 
-C04a keeps its original scope and host acceptance and receives **no acceptance
-credit** from this suspension. Only its Requires chain gains the three explicit
-prerequisites; their briefs name the exact remaining sources and checks.
+C04a kept its original scope and host acceptance and received **no acceptance
+credit** from its suspension. Only its Requires chain gained the three explicit
+prerequisites; their completed records below identify their sources and checks.
 
 Supporting host validation completed with 600-second worker deadlines. The
 retained [partial handoff](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/18b4960ab7d544d091cb590ae9e86219/agent-result.json)
@@ -954,15 +955,15 @@ Their original report IDs are `20261021T041636Z-5f2c9cf9`,
 `20261021T041906Z-3138deea` and `20261021T042018Z-d3d62d3e` respectively.
 The saved handoff retains the export identity and supporting summary, including
 the passing 12-case retry and 639 metadata checks. Detailed proof is unavailable;
-these historical partial results supply no consumer acceptance credit. C04a
-still requires its full current host acceptance after all prerequisites.
+these historical partial results supply no consumer acceptance credit. Current
+consumer acceptance uses the fresh complete selection recorded below.
 
 The final entry/Preferences/feedback caller doubles now use the same explicit
 session-only census shape instead of retained MAC-role dictionaries. The retained
 C04a handoff records their 823-case check as passed with a 600-second worker
 deadline and completed cleanup (original report `20261021T042302Z-0ba76be0`).
 That detailed report has rotated; this historical summary grants no current
-acceptance, and C04a still requires its full host validation after its prerequisites.
+acceptance; the fresh consumer validation below covers these callers again.
 Public entry,
 recipient/boot guards, unsent feedback and Preferences worker ordering assertions
 remain. Coverage generation succeeded again after the final collection edit.
@@ -990,6 +991,61 @@ source or live process remains. Reports and historical bundles are preserved.
 No installation, staging, commit, push or other workflow launcher occurred.
 At suspension, C04a and all three prerequisites stayed unchecked; the sole pointer selected C04a1.
 Every other existing row's status, relative order, Scope and Requires is unchanged.
+
+###### C04a completed host acceptance
+
+After all three prerequisites, the full 32-module host selection passed
+**4,857/4,857 checks** with explicit 600-second collection/worker deadlines.
+It covers installed registration/composition, first-configuration/removal/PAM
+helpers, frozen guest inputs, snapshots, process/cleanup ownership, ordinary-role
+controls, entry/Preferences/feedback callers, resource inventories and all five
+metadata/launcher modules. The eight affected modules then passed
+**1,900/1,900 checks** after the final review fixes. Exact inventories, commands,
+results and the original regression reproducer are preserved in the
+[verified 34-file evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-urf6i6kt/evidence.zip)
+(SHA-256 `b50e16ad8c11debe09907f970211c38898b2483268b93be677c1c081d680d1e5`):
+reports `20261021T051417Z-f3414ba8`, `20261021T051545Z-a36d24f3` and
+`20261021T051741Z-1574028e` respectively.
+
+Independent Sol High review found three issues, all resolved: optional telemetry
+let a command timeout escape and inherited the full outer deadline; two orphan
+entry helpers (`native_update_station`, `observe_station_refusal`) survived their
+removed producers; and case 268's mapping overclaimed authentication. The focused
+reproducer confirmed the timeout/budget failures before repair. Four regression
+cases now cover unavailable telemetry, the short budget, a usable core session
+and closed descriptors. The orphan helpers and their 16 dedicated cases are
+removed; the independently consumed diagnostic refusal provider and its input
+guards remain. Empty-token authentication stays with cases 4/283–286. Follow-up
+review found no actionable omissions. **Usability priority: passed; Threat scope:
+passed.** No product restriction is added and absent providers prove no denial.
+
+Both source inventories and actual import/caller closure were audited. The
+removed private-runtime/history workers, host doubles and phase dispatch have
+no executable consumers; bounded historical evidence readers remain. Resource
+ownership stays with private pytest files, process-local doubles and existing
+bounded waited children; unit/cleanup classifications remain compatible and no
+UI resource owner is added. Coverage generation succeeds after the final edit.
+Product/package/build-tool inputs are unchanged, so no build or mandatory
+core-backend review applies. These results grant no installed qualification.
+C04b receives the exact current bindings above; later qualification owners retain
+the full pending public-use, variation, recovery and update obligations.
+
+The maintained reader verified C04a1/C04a3's accepted results, exact original
+report inventories and completed cleanup in the plan's cumulative accepted
+bundle (`3970de450acd26c58a0e49191c40e2e9fddc8c5d3d81d45640f822e850c032ca`).
+Three rotated predecessor evidence destinations now use its stable locator,
+preserving labels and claims. All helper agents and maintained test/coverage
+children finished; owned scratch cleanup and evidence publication cleanup ended.
+No task-owned VM, installed state, temporary source or live process remains.
+Pre-existing `.worktrees/` and unrelated work are preserved. No installation,
+staging, commit, push or other workflow execution occurred.
+
+After close-out, the final
+[639/639 consistency and launcher checks](../../output/test-runs/host/reports/20261021T052113Z-95d28b87/report.md)
+passed with 600-second collection/worker deadlines and completed cleanup. Plan
+validation selects C04b; Markdown links and the final diff check pass. Only C04a
+is newly checked, its temporary brief is removed, and every other row's status,
+order, Scope and Requires is unchanged.
 
 ##### C04a1 first-configuration interruption inputs
 
@@ -1031,7 +1087,7 @@ historical accepted receipts from pending qualification of these changed inputs.
 This prerequisite grants no installed acceptance or C04a consumer completion.
 
 Host acceptance used explicit 600-second worker deadlines. The
-[verified 35-file evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-awajp7xl/evidence.zip)
+[verified 35-file evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 retains all selections, outputs and original failures from reports
 `20261021T043004Z-ed5f0e7b`, `20261021T043128Z-ef1ccbb8` and
 `20261021T043222Z-228ef04c` (bundle SHA-256
@@ -1186,7 +1242,7 @@ refusal. Frozen guest payloads still follow actual imports and verify exact
 current helper bytes and isolated importability, without removed runtime modules.
 
 Host acceptance passed **3,822/3,822 checks** with explicit 600-second collection
-and worker deadlines; the [retained report](../../output/test-runs/host/reports/20261021T050755Z-2213e2ca/report.md)
+and worker deadlines; the [retained report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 includes exact inventories, command selections and all four passing buckets.
 It covers PAM variants, native/distro PAM, first-configuration/removal/fault
 helpers, guest/frozen inputs, runner/cleanup/snapshots, package configuration,
@@ -1220,7 +1276,7 @@ occurred. C04a retains its full audit and host acceptance, and changed reusable
 operations still require their separately scheduled installed qualification.
 
 After queue/pointer/brief close-out, the final
-[313/313 host consistency check](../../output/test-runs/host/reports/20261021T051058Z-77badc02/report.md)
+[313/313 host consistency check](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 passed with a 600-second collection/worker deadline and completed cleanup.
 The plan check selects C04a; all 304 links in the five changed Markdown owners
 and the final diff check pass. Only C04a3 is newly checked, its temporary brief

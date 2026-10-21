@@ -297,7 +297,7 @@ def test_preferences_confinement_census_finishes_before_durable_worker_reply(tmp
             'pages': ['language', 'reminders', 'presets'],
             'editors': ['reminder-add', 'reminder-edit', 'preset-add', 'preset-edit'],
             'actions_confined': True, 'drafts_discarded': True}}))
-    census = {'backend': 'apparmor', 'confined_thread_roles': {'onpc-kiosk-app': 4}}
+    census = {'scope': 'session-identity-only', 'confinement_qualified': False}
     reply = tmp_path / (stage + '.reply.json')
     def read_census(command, *, timeout):
         assert not reply.exists()

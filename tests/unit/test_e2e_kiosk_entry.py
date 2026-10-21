@@ -64,9 +64,8 @@ def activation_harness(monkeypatch, *, recipient=None, elapsed=0, enter_error=No
     def census(argv, *, timeout):
         assert active
         events.append(('census', argv, timeout))
-        return json.dumps({'backend': 'apparmor', 'confined_thread_roles': {
-            'onpc-kiosk-' + role: 1
-            for role in ('manager', 'app', 'service', 'wellbeing', 'pipewire')}}).encode()
+        return json.dumps({'scope': 'session-identity-only',
+                           'confinement_qualified': False}).encode()
 
     lease = SimpleNamespace(state={'run': 'b' * 32},
         guard=Mock(side_effect=lambda: events.append(('guard',))),
@@ -88,9 +87,8 @@ def test_real_activation_observes_each_phase_without_reset(monkeypatch, phase, p
     expected = ['gdm-station-list', 'gdm-station-focused', *public_steps, 'gdm-station-returned']
     assert [item['operation'] for item in result['public_observations']] == expected
     assert result['phase'] == phase and result['boot_sha256'] == 'a' * 64
-    assert result['engineering_confinement']['confined_thread_roles'] == {
-        'onpc-kiosk-' + role: 1
-        for role in ('manager', 'app', 'service', 'wellbeing', 'pipewire')}
+    assert result['engineering_confinement'] == {
+        'scope': 'session-identity-only', 'confinement_qualified': False}
     factory.assert_called_once_with(transport)
     lease.source.domain.sendKey.assert_called_once_with(0, 100, [28], 1, 0)
     transport.call.assert_called_once_with(['env', 'ONPC_EXPECTED_RUN=' + 'b' * 32,
@@ -119,72 +117,6 @@ def test_real_activation_invalid_phase_releases_no_input(monkeypatch, phase):
     factory.assert_not_called()
     transport.call.assert_not_called()
     lease.source.domain.sendKey.assert_not_called()
-
-
-@pytest.mark.parametrize('failed', [False, True])
-def test_native_station_remains_open_during_assertions_and_uses_public_exit(monkeypatch, failed):
-    helper, transport, lease, ui, factory, events = activation_harness(monkeypatch)
-    receipt = None
-    try:
-        with helper.native_update_station(transport, lease) as receipt:
-            assert not receipt['normal_exit']
-            assert ui.observe.call_args_list[-1].args[0] == 'restart-kiosk-missing-refused'
-            events.append(('assert-native',))
-            if failed:
-                raise RuntimeError('native assertion')
-    except RuntimeError as error:
-        assert failed and str(error) == 'native assertion'
-    assert receipt['normal_exit']
-    assert [call.args[0] for call in ui.observe.call_args_list][-2:] == [
-        'kiosk-request-cancel', 'gdm-station-returned']
-    lease.source.domain.sendKey.assert_called_once()
-    assert next(index for index, event in enumerate(events) if event == ('assert-native',)) < next(
-        index for index, event in enumerate(events) if event[:2] == ('observe', 'kiosk-request-cancel'))
-
-
-@pytest.mark.parametrize('fault', ['entry', 'form', 'exit'])
-def test_native_station_records_entry_refusal_and_owned_exit_failure(monkeypatch, fault):
-    helper, transport, lease, ui, factory, events = activation_harness(
-        monkeypatch, enter_error=EvidenceError('uncertain-entry') if fault == 'entry' else None)
-    original = ui.observe.side_effect
-    def observe(operation):
-        if operation == {'form': 'kiosk-request-form', 'exit': 'gdm-station-returned'}.get(fault):
-            raise EvidenceError('public-' + fault)
-        return original(operation)
-    ui.observe.side_effect = observe
-    receipt = {}
-    with pytest.raises(EvidenceError):
-        with helper.native_update_station(transport, lease, receipt=receipt):
-            assert fault == 'exit'
-    steps = [call.args[0] for call in ui.observe.call_args_list]
-    assert receipt['normal_exit'] == (fault == 'form')
-    assert receipt['station_confirmed'] == (fault != 'entry')
-    assert ('kiosk-request-cancel' in steps) == (fault != 'entry')
-    lease.source.domain.sendKey.assert_called_once()
-
-
-@pytest.mark.parametrize('failure', ['body', 'interrupt', 'form'])
-def test_native_station_keeps_first_failure_when_public_exit_also_fails(monkeypatch, failure):
-    helper, transport, lease, ui, factory, events = activation_harness(monkeypatch)
-    original = ui.observe.side_effect
-    def observe(operation):
-        if operation == 'kiosk-request-cancel':
-            raise EvidenceError('uncertain-cancel')
-        if failure == 'form' and operation == 'kiosk-request-form':
-            raise RuntimeError('first-form')
-        return original(operation)
-    ui.observe.side_effect = observe
-    receipt = {}
-    expected = KeyboardInterrupt if failure == 'interrupt' else RuntimeError
-    with pytest.raises(expected, match='first') as caught:
-        with helper.native_update_station(transport, lease, receipt=receipt):
-            raise expected('first-' + failure)
-    assert receipt['first_failure'].startswith(expected.__name__ + ': first')
-    assert receipt['exit_failure'] == 'EvidenceError: uncertain-cancel'
-    assert not receipt['normal_exit']
-    assert caught.value.__notes__ == ['kiosk-activation:public-exit-failed:EvidenceError']
-    assert [call.args[0] for call in ui.observe.call_args_list].count('kiosk-request-cancel') == 1
-    lease.source.domain.sendKey.assert_called_once()
 
 
 @pytest.mark.parametrize('fault', ['wrong-recipient', 'failed-proof', 'stale', 'backward-clock', 'boot'])
@@ -313,60 +245,6 @@ def test_station_refusal_rejects_wrong_or_ambiguous_fallback(fault):
     ui.input_uncertain = fault == 'uncertain'
     with pytest.raises(UiError):
         ui.run('gdm-station-refused', '')
-
-
-@pytest.mark.parametrize('fallback', ['account-list', 'station-prompt'])
-@pytest.mark.parametrize('fault', [None, 'native', 'observation', 'escape'])
-def test_refused_station_requires_native_result_before_guarded_single_use_escape(
-        monkeypatch, fallback, fault):
-    from contextlib import nullcontext
-    from types import SimpleNamespace
-    from unittest.mock import Mock
-    import kiosk_entry
-    events = []
-
-    def observe(operation):
-        events.append(operation)
-        if operation == 'gdm-station-refused' and fault == 'observation':
-            raise RuntimeError('observation')
-        return {'operation': operation, 'outcome': 'passed',
-                'interface': 'ApplicationUI+external-provider', 'fallback': fallback}
-
-    def enter(lease, ui, observed):
-        events.append('enter')
-        ui.boot_proof = 'a' * 64
-
-    def verify():
-        events.append('native')
-        if fault == 'native':
-            raise RuntimeError('native')
-
-    def escape(*args):
-        events.append('escape')
-        assert args[2] == [1]
-        if fault == 'escape':
-            raise RuntimeError('escape')
-
-    ui = SimpleNamespace(observe=observe)
-    lease = SimpleNamespace(guard=Mock(), source=SimpleNamespace(
-        domain=SimpleNamespace(sendKey=Mock(side_effect=escape)),
-        api=SimpleNamespace(VIR_KEYCODE_SET_LINUX=0)))
-    monkeypatch.setattr(kiosk_entry, 'UiObservations', lambda transport: ui)
-    monkeypatch.setattr(kiosk_entry, 'enter_station', enter)
-    monkeypatch.setattr(kiosk_entry.watch_activity, 'operation', lambda _: nullcontext())
-    receipt = {}
-    failed = fault in ('native', 'observation') or (fault == 'escape' and fallback == 'station-prompt')
-    if failed:
-        with pytest.raises(RuntimeError, match=fault):
-            kiosk_entry.observe_station_refusal(None, lease, verify, receipt=receipt)
-        assert not receipt.get('safe_return')
-    else:
-        kiosk_entry.observe_station_refusal(None, lease, verify, receipt=receipt)
-        assert receipt['safe_return']
-        assert events[-1] == 'gdm-station-returned'
-    assert events[:2] == ['enter', 'native']
-    assert events.count('escape') <= 1
-    assert ('escape' in events) == (fallback == 'station-prompt' and fault not in ('native', 'observation'))
 
 
 def test_greeter_waits_for_public_owner_before_resolving_account(monkeypatch):

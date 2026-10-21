@@ -131,8 +131,9 @@ def restore():
 
 def feedback_census():
     from system_kiosk_confinement import census
-    value = census(required_roles=('manager', 'app', 'service', 'wellbeing', 'pipewire',
-                                   'webkit', 'notifications', 'notification-client'))
+    # Supplement the public editor observation with session identity only.
+    # Optional providers and a private MAC role census have no admission vote.
+    value = census()
     return {'census': value}
 
 

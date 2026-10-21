@@ -871,20 +871,36 @@ def collect(marker, outcome):
 
 
 def collect_native_checkpoints(output, redacted):
-    """Export only the finite native history records through normal redaction."""
+    """Read bounded historical records without reviving their retired producers."""
     names = [f'native-update-{phase}.json' for phase in
              ('intent', 'old', 'retained-intent', 'updated', 'retired', 'loader-drained', 'complete')]
     names += ['required-ancestor.json', 'required-native-refusal.json', 'required-gdm-refusal.json',
               'required-restored.json', 'required-cleanup.json']
-    from system_kiosk_ambient_history import checkpoint_names as ambient_checkpoints
-    from system_kiosk_required_history import checkpoint_names as required_checkpoints
-    from system_kiosk_scope import RetainedManager
-    names += [*ambient_checkpoints(), *required_checkpoints()]
+    # Literal migration vocabulary: the former writers and their protocols are
+    # retired. These names permit evidence collection from an interrupted run.
+    steps = ('initial', 'empty-added', 'empty-removed', 'replaced',
+             'replacement-restored', 'writable', 'mode-restored', 'foreign-owned',
+             'owner-restored', 'unlinked', 'unlinked-restored')
+    kinds = ('file', 'directory', 'link', 'vanished', 'empty', 'added')
+    ambient = ['prepare-intent', 'prepared', 'source', 'cleanup-intent', 'cleanup']
+    ambient += ['created-' + name for name in kinds if name != 'added']
+    ambient += ['observed-' + step for step in steps]
+    ambient += [prefix + step for step in steps[1:] for prefix in ('intent-', 'changed-')]
+    ambient += [prefix + name for name in ('file', 'directory', 'link')
+                for prefix in ('saved-', 'replacement-')]
+    ambient += ['removing-' + name for name in
+                (*kinds, 'file-saved', 'directory-saved', 'link-saved')]
+    names += ['retained-ambient-' + name + '.json' for name in ambient]
+    names += ['required-history-' + branch + '-' + phase + '.json'
+              for branch in ('native', 'config', 'policy', 'privilege')
+              for phase in ('intent', 'mutated', 'refusal', 'public-refusal', 'restored', 'complete')]
+    manager_phases = ('intent', 'starting', 'owned', 'retention', 'ready',
+                      'cleanup', 'restored', 'stopped', 'complete')
     managers = sorted((PAYLOAD / 'private').glob('retained-manager-*.json'))
-    require(len(managers) <= 5 * len(RetainedManager.phases), 'retained-history:collection-bound')
+    require(len(managers) <= 5 * len(manager_phases), 'retained-history:collection-bound')
     for source in managers:
         require(re.fullmatch(r'retained-manager-[a-f0-9]{32}-(' +
-                            '|'.join(RetainedManager.phases) + r')\.json', source.name),
+                            '|'.join(manager_phases) + r')\.json', source.name),
                 'retained-history:collection-name')
     names += [source.name for source in managers]
     for name in names:
@@ -905,25 +921,6 @@ def install_setup():
     require(sha(PAYLOAD / 'selected-inputs.json') == marker['selected_inputs_sha256'],
             'selected-inputs-digest')
     install()
-
-
-def native_establish_old():
-    from system_native_update import establish_old
-    guard()
-    enable_diagnostics()
-    establish_old(lambda *_: None)
-
-
-def native_retired():
-    from system_native_update import retired
-    guard()
-    retired(lambda *_: None)
-
-
-def native_loader_drained():
-    from system_native_update import loader_after_reboot
-    guard()
-    loader_after_reboot()
 
 
 def install_suite():
@@ -1021,14 +1018,11 @@ def main(argv=None):
             prepare_activation_greeter()
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
-                             ['native-establish-old'], ['native-retired'], ['native-loader-drained'],
                              ['install-previous'], ['upgrade'], ['install-setup'],
                              ['verify-setup'], ['install-suite'], ['verify-installed'],
                              ['verify-snapshot'], ['prepare-toggle-session']),
                     'invalid-command')
             {'guard': guard, 'before-install': before_install, 'install': install,
-             'native-establish-old': native_establish_old, 'native-retired': native_retired,
-             'native-loader-drained': native_loader_drained,
              'install-previous': install_previous, 'upgrade': upgrade,
              'install-setup': install_setup, 'verify-setup': verify_setup,
              'install-suite': install_suite, 'verify-installed': verify_installed,
@@ -1036,11 +1030,7 @@ def main(argv=None):
              'prepare-toggle-session': prepare_toggle_session}[argv[0]]()
         return 0
     except Exception as error:
-        from native_transaction import PreflightError
-        if isinstance(error, PreflightError):
-            category = error.public_category
-        else:
-            category = str(error) if isinstance(error, (GuestError, CommandError)) else 'unexpected-failure'
+        category = str(error) if isinstance(error, (GuestError, CommandError)) else 'unexpected-failure'
         print(f'onpc-system: outcome=failed category={category}', file=sys.stderr)
         return 1
 

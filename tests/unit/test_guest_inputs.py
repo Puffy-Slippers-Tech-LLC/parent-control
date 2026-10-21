@@ -150,6 +150,34 @@ def test_native_preflight_freezes_without_copying_distribution_rpm_bindings(tmp_
     assert result.returncode == 0, result.stderr
 
 
+def test_removal_histories_freeze_and_import_the_current_recovery_helpers(tmp_path):
+    import system_runner as runner
+    from tests.support.vm_runner import RECOVERY_INVENTORIES
+
+    selection = runner.resolve_selection('removal', inventories=RECOVERY_INVENTORIES)
+    runner.stage_selected_inputs(selection, tmp_path)
+    frozen = Bundle.from_staged(ROOT, tmp_path)
+    helpers = ('system_removal.py', 'system_removal_faults.py',
+               'system_removal_ownership.py', 'system_removal_identity.py')
+    assert set(helpers) <= frozen.files.keys()
+    for name in helpers:
+        assert frozen.files[name] == (ROOT / 'tests/integration' / name).read_bytes()
+    assert not {'system_kiosk_platform.py', 'system_native_update.py',
+                'system_kiosk_required_history.py', 'system_kiosk_ambient_history.py'} & frozen.files.keys()
+    assert all('mac-unload' not in execution.case_id for execution in selection.executions)
+    result = subprocess.run([sys.executable, '-I', '-B', '-c',
+        'import sys; sys.path.insert(0, sys.argv[1]); '
+        'import system_removal, system_removal_faults, system_removal_ownership, '
+        'system_removal_identity; '
+        'assert callable(system_removal.aborted_cleanup_rollback_retry); '
+        'assert callable(system_removal.interrupted_finalization_retry); '
+        'assert callable(system_removal.rpm_posterase_recovery); '
+        'assert callable(system_removal.check_remove_preflight)',
+        str(tmp_path)], capture_output=True, timeout=10,
+        pass_fds=scratch_descriptors())
+    assert result.returncode == 0, result.stderr
+
+
 def test_recipe_digest_tracks_its_dependencies_but_ignores_unrelated_helpers(tmp_path):
     write(tmp_path, 'entry.py', 'import recipe\nimport helper\n')
     write(tmp_path, 'recipe.py', 'import installation\n')

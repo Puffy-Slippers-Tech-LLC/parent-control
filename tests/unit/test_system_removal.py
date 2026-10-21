@@ -18,7 +18,6 @@ import system_removal as removal
                                  'exercise_live_refusals',
                                  'aborted_cleanup_rollback_retry', 'rollback_rearmed_rebooted',
                                  'rpm_posterase_recovery', 'rpm_posterase_reinstalled_rebooted',
-                                 'mounted_pam_fault',
                                  'verify_removed', 'password_login_health',
                                  'verify_active_kiosk_refusal', 'verify_inflight_admission_refusal'])
 def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
@@ -31,11 +30,7 @@ def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
         if entry in ('verify_active_kiosk_refusal', 'verify_inflight_admission_refusal'):
             getattr(removal, entry)(Mock(), {})
         else:
-            if entry == 'mounted_pam_fault':
-                with removal.mounted_pam_fault(Mock()):
-                    pass
-            else:
-                getattr(removal, entry)(Mock())
+            getattr(removal, entry)(Mock())
     diagnostics.assert_not_called()
     commands.run.assert_not_called()
 
@@ -96,13 +91,14 @@ def test_diagnostic_runs_only_finite_refusal_recovery(monkeypatch, capsys, packa
     monkeypatch.setattr(removal.guest, 'guard', Mock())
     monkeypatch.setattr(removal.guest, 'enable_diagnostics', Mock())
     monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.' + package_format))
-    monkeypatch.setattr(removal, 'provision_native', lambda: accounts)
+    provision = Mock(return_value=accounts)
+    monkeypatch.setattr(removal, 'provision_native', provision)
     monkeypatch.setattr(removal, 'account_digest', lambda uid: str(uid))
     monkeypatch.setattr(removal, 'configure_restrictions',
-                        lambda current: events.append(('configure', current)))
-    def refuse(*args, record):
+                        lambda current, *, variant: events.append(('configure', current, variant)))
+    def refuse(*args, record, reason):
         assert callable(record)
-        events.append(args)
+        events.append((*args, reason))
     monkeypatch.setattr(removal, 'refuse_foreign_integration', refuse)
     commands, install, save = Mock(), Mock(), Mock()
     monkeypatch.setattr(removal.guest, 'commands', commands)
@@ -110,10 +106,17 @@ def test_diagnostic_runs_only_finite_refusal_recovery(monkeypatch, capsys, packa
     monkeypatch.setattr(removal, 'save_state', save)
     monkeypatch.setattr(removal.sys, 'argv', ['system_removal.py', 'exercise-live-refusals'])
     assert removal.main() == 0
-    hook = '/etc/gdm/PreSession/Default' if package_format == 'rpm' else '/etc/gdm3/PreSession/Default'
-    assert events == [('configure', accounts),
-                      (accounts, '1004', '1005', 'hook', Path(hook)),
-                      (accounts, '1004', '1005', 'pam', Path('/etc/pam.d/gdm-password'))]
+    native_variant = 'trusted-hard' if package_format == 'rpm' else 'command'
+    provision.assert_called_once_with(native_variant)
+    hook = '/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules'
+    pam = '/var/lib/oh-no-parent-control/' + (
+        'fedora-authselect.json' if package_format == 'rpm' else 'malcontent-pam-before-install')
+    assert events == [('configure', accounts, native_variant),
+                      (accounts, '1004', '1005', 'hook', Path(hook),
+                       b'system integration was modified; preserving it and refusing removal'),
+                      (accounts, '1004', '1005', 'pam', Path(pam),
+                       b'invalid original authselect selection' if package_format == 'rpm'
+                       else b'invalid original PAM selection')]
     assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
         {'property': 'onpc.removal.' + category + '-refusal-retry',
          'value': 'foreign-edit-refused; payload-and-policy-preserved'}
@@ -193,60 +196,6 @@ def test_removal_state_stays_private_and_refuses_symlink(tmp_path, monkeypatch, 
         assert removal.state_path().stat().st_mode & 0o777 == 0o600
 
 
-@pytest.mark.parametrize('fault', ['none', 'preexisting', 'remount', 'foreign-mount',
-                                 'foreign-file', 'namespace', 'body'])
-def test_pam_fault_unmounts_only_exact_owned_mount(monkeypatch, fault):
-    path = Path('/etc/pam.d/systemd-user')
-    identity = (1, 2, 0, 0, 0o100644, 1, b'unchanged')
-    rows = {}
-    namespace = 'mnt:[123]'
-    row = lambda options: (('42', '1', '8:1', '/etc/pam.d/systemd-user', str(path), options),
-                           ('ext4', '/dev/root', 'rw'))
-    if fault == 'preexisting':
-        rows['99'] = row('rw')
-    monkeypatch.setattr(removal.guest, 'guard', Mock())
-    monkeypatch.setattr(removal, 'fault_file_identity', lambda current: identity)
-    monkeypatch.setattr(removal, 'mount_inventory', lambda: (namespace, dict(rows)))
-    operations = []
-    def run(argv, **kwargs):
-        operations.append(argv)
-        if argv[:2] == ['mount', '--bind']:
-            rows['42'] = row('rw')
-        elif argv[0] == 'mount':
-            if fault == 'remount':
-                raise removal.guest.CommandError('remount-failed')
-            rows['42'] = row('ro')
-        elif argv[0] == 'umount':
-            rows.clear()
-        else:
-            pytest.fail('unexpected OS command')
-    monkeypatch.setattr(removal.guest, 'run', run)
-    def exercise():
-        nonlocal namespace
-        with removal.mounted_pam_fault(Mock()):
-            if fault == 'foreign-mount':
-                rows['99'] = rows.pop('42')
-            elif fault == 'foreign-file':
-                monkeypatch.setattr(removal, 'fault_file_identity', lambda current: (*identity[:-1], b'foreign'))
-            elif fault == 'namespace':
-                namespace = 'mnt:[456]'
-            elif fault == 'body':
-                raise RuntimeError('body-failed')
-    if fault == 'none':
-        exercise()
-    else:
-        with pytest.raises((removal.guest.GuestError, removal.guest.CommandError, RuntimeError)):
-            exercise()
-    unmounts = [argv for argv in operations if argv[0] == 'umount']
-    assert unmounts == ([['umount', '--', str(path)]]
-                        if fault in ('none', 'remount', 'body') else [])
-    if fault == 'preexisting':
-        assert operations == []
-    else:
-        assert operations[0] == ['mount', '--bind', str(path), str(path)]
-        assert all('lazy' not in arg and arg != '-l' for argv in operations for arg in argv)
-
-
 @pytest.mark.parametrize('fault', ['none', 'limit', 'grant', 'filter', 'extension', 'rules', 'snapshot'])
 def test_cleanup_transition_requires_positive_complete_native_clearing(tmp_path, monkeypatch, fault):
     snapshot = tmp_path / 'snapshot'
@@ -275,8 +224,9 @@ def test_cleanup_transition_requires_positive_complete_native_clearing(tmp_path,
                        'policy_absent': list(removal.GENERATED_POLICY)} if fault == 'none' else None)
 
 
-@pytest.mark.parametrize('fault', ['none', 'watcher', 'command', 'missed', 'snapshot', 'gdm'])
-def test_aborted_watcher_has_private_commands_and_always_joins(tmp_path, monkeypatch, fault):
+@pytest.mark.parametrize('quarantine', [False, True])
+@pytest.mark.parametrize('fault', ['none', 'watcher', 'command', 'missed', 'snapshot', 'quarantine'])
+def test_aborted_watcher_has_private_commands_and_always_joins(tmp_path, monkeypatch, fault, quarantine):
     events = []
     expected = {'uid': 1004}
     transaction = SimpleNamespace(directory=None, last_returncode=7)
@@ -303,11 +253,10 @@ def test_aborted_watcher_has_private_commands_and_always_joins(tmp_path, monkeyp
     ticks = iter([0, 1, 1801])
     monkeypatch.setattr(removal.time, 'monotonic', lambda: next(ticks))
     monkeypatch.setattr(removal.time, 'sleep', lambda value: None)
-    gdm = tmp_path / 'gdm'
-    gdm.write_bytes(b'foreign' if fault == 'gdm' else b'denial')
-    real_path = Path
-    monkeypatch.setattr(removal, 'Path', lambda value: gdm if value == '/etc/pam.d/gdm-password'
-                        else real_path(value))
+    saved = {'uid': 1007, 'expires': None} if quarantine else None
+    verify_quarantine = Mock(side_effect=(removal.guest.GuestError('changed-quarantine')
+                                         if fault == 'quarantine' else None))
+    monkeypatch.setattr(removal, 'verify_quarantine', verify_quarantine)
     def transition(uid):
         if fault == 'watcher':
             raise RuntimeError('watcher-failed')
@@ -316,16 +265,18 @@ def test_aborted_watcher_has_private_commands_and_always_joins(tmp_path, monkeyp
                 'policy_absent': list(removal.GENERATED_POLICY)}
     monkeypatch.setattr(removal, 'cleanup_transition', transition)
     record = Mock()
-    if fault == 'none':
-        assert removal.observe_aborted_transaction(1004, expected, b'denial', record) == (
+    if fault == 'none' or (fault == 'quarantine' and not quarantine):
+        assert removal.observe_aborted_transaction(1004, expected, saved, record) == (
             b'native callback failure', 7)
         assert (transaction.directory / 'observed-snapshot.txt').stat().st_mode & 0o777 == 0o600
     else:
         with pytest.raises((RuntimeError, removal.guest.GuestError, removal.guest.CommandError)):
-            removal.observe_aborted_transaction(1004, expected, b'denial', record)
+            removal.observe_aborted_transaction(1004, expected, saved, record)
     assert events == ['native', 'joined']
     assert transaction.directory.parent == tmp_path.parent
     assert transaction.directory.name.startswith('rollback-')
+    if not quarantine:
+        verify_quarantine.assert_not_called()
 
 
 @pytest.mark.parametrize('replacement', ['content', 'inode', 'symlink'])
@@ -469,6 +420,8 @@ def test_removed_pam_retains_independent_restoration_evidence(removed_machine, v
     ('snapshot', 'integration-remains'), ('authselect-profile', 'integration-remains'),
     ('confinement-state', 'integration-remains'), ('confinement-policy', 'kiosk-policy-remains'),
     ('confinement-marker', 'integration-remains'), ('pam-barrier', 'pam-barrier-remains'),
+    ('expiry-record', 'integration-remains'), ('capture-record', 'integration-remains'),
+    ('capture-directory', 'integration-remains'),
     ('dangling-trust', 'integration-remains'), ('dangling-home', 'kiosk-home-remains'),
     ('pam-module', 'pam-reference-remains'), ('pam-helper', 'pam-reference-remains'),
     ('extension', 'extension-entry-remains'), ('other-extension', 'other-extension-settings-changed'),
@@ -484,6 +437,9 @@ def test_removed_machine_rejects_residue_and_health_mismatches(removed_machine, 
              'snapshot': '/var/lib/oh-no-parent-control/uninstall-enforcement.json',
              'confinement-state': '/var/lib/oh-no-parent-control/kiosk-confinement.json',
              'confinement-marker': '/var/lib/oh-no-parent-control/kiosk-confinement-removing',
+             'expiry-record': '/var/lib/oh-no-parent-control/kiosk-configuration-account.json',
+             'capture-record': '/var/lib/oh-no-parent-control/legacy-kiosk-policy.json',
+             'capture-directory': '/var/lib/oh-no-parent-control/legacy-kiosk-policy/config.json',
              'authselect-profile': '/etc/authselect/custom/oh-no-parent-control/system-auth'}
     if fault in files:
         target = path(files[fault])
@@ -615,6 +571,7 @@ def test_foreign_refusal_checks_payload_before_resolution_and_public_retry(
     monkeypatch.setattr(removal, 'write_hook', write)
     def native_remove(arguments, **options):
         assert arguments == removal.removal_command()
+        assert options == {'check': False, 'timeout': 1800, 'merge_stderr': True}
         events.append('remove')
         if fault == 'foreign-edit':
             contents[0] = b'foreign replacement'
@@ -646,7 +603,7 @@ def test_foreign_refusal_checks_payload_before_resolution_and_public_retry(
             raise configure_error
         configured[0] = True
     monkeypatch.setattr(removal.guest, 'run', lambda arguments, **options: run(arguments))
-    install = Mock(side_effect=AssertionError('recovery must not replace live PAM payload'))
+    install = Mock(side_effect=lambda: events.append('reinstall'))
     monkeypatch.setattr(removal.guest, 'install_package', install)
     def files():
         assert configured[0] and contents[0] == original
@@ -671,6 +628,7 @@ def test_foreign_refusal_checks_payload_before_resolution_and_public_retry(
         assert events == (['edited', 'remove', 'payload', 'resolved'] +
                           (['status'] if package_format == 'deb' else []) +
                           (['configure'] if status == 'install ok half-configured' else []) +
+                          (['reinstall'] if package_format == 'rpm' else []) +
                           ['configured'])
         assert [call.args for call in record.call_args_list] == ([
             ('onpc.removal.pam-status-before-recovery', status),
@@ -679,27 +637,26 @@ def test_foreign_refusal_checks_payload_before_resolution_and_public_retry(
     assert contents[0] == (b'foreign replacement' if fault == 'foreign-edit' else original)
     if fault in ('payload', 'policy', 'accepted', 'status', 'foreign-edit', 'guard', 'unsafe-target'):
         assert 'configure' not in events and 'configured' not in events
-    install.assert_not_called()
+    if package_format == 'rpm' and (fault is None or fault in ('retry-policy', 'recovery-payload')):
+        install.assert_called_once_with()
+    else:
+        install.assert_not_called()
 
 
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 @pytest.mark.parametrize('fault', [None, 'accepted', 'erased', 'pam', 'marker', 'policy',
-                                   'invocation', 'generation', 'namespace', 'uid'])
+                                   'invocation', 'identity', 'dead', 'pid', 'uid',
+                                   'record-group', 'record-bytes'])
 def test_active_kiosk_native_removal_preserves_policy_and_stops_only_owned_manager(
         tmp_path, monkeypatch, package_format, fault):
     import system_kiosk_confinement as confinement
     def path(value):
         return tmp_path / str(value).lstrip('/')
     monkeypatch.setattr(removal, 'Path', path)
-    for name in ('/var/lib/oh-no-parent-control/kiosk-confinement.json',
-                 '/etc/pam.d/gdm-password', '/etc/pam.d/systemd-user',
-                 '/proc/234/root/usr/share/oh-no-parent-control/confinement/generation'):
+    for name in ('/etc/pam.d/gdm-password', '/etc/pam.d/systemd-user'):
         target = path(name)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(b'owned')
-    namespace = path('/proc/234/ns/mnt')
-    namespace.parent.mkdir()
-    namespace.symlink_to('owned-namespace')
     changed = False
     account = SimpleNamespace(pw_uid=1007)
     monkeypatch.setattr(removal.pwd, 'getpwnam', lambda name:
@@ -723,13 +680,10 @@ def test_active_kiosk_native_removal_preserves_policy_and_stops_only_owned_manag
         if fault == 'pam':
             path('/etc/pam.d/gdm-password').write_bytes(b'changed')
         if fault == 'marker':
-            path('/var/lib/oh-no-parent-control/kiosk-confinement-removing').write_text('removing')
-        if fault == 'generation':
-            path('/proc/234/root/usr/share/oh-no-parent-control/confinement/generation').write_bytes(b'foreign')
-        if fault == 'namespace':
-            namespace.unlink()
-            namespace.symlink_to('foreign-namespace')
-        return b'reason=kiosk-admissions-active'
+            marker = path('/var/lib/oh-no-parent-control/kiosk-configuration-account.json')
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text('unexpected quarantine')
+        return b'oh-no-parent-control: log out of the kiosk session before removal'
     commands = SimpleNamespace(run=native_remove, last_returncode=1)
     monkeypatch.setattr(removal.guest, 'commands', commands)
     monkeypatch.setattr(removal, 'package_absent', lambda: fault == 'erased')
@@ -737,11 +691,22 @@ def test_active_kiosk_native_removal_preserves_policy_and_stops_only_owned_manag
                         'changed' if changed and fault == 'policy' else 'owned')
     verify = Mock()
     monkeypatch.setattr(removal.guest, 'verify_package_files', verify)
-    monkeypatch.setattr(confinement, 'manager_pid', lambda unit: 234)
-    monkeypatch.setattr(confinement, 'process_identity', lambda process: ('start', 1, ('1007',) * 4))
-    monkeypatch.setattr(confinement, 'exited', lambda fd: False)
-    census = Mock()
-    monkeypatch.setattr(confinement, 'census', census)
+    monkeypatch.setattr(confinement, 'manager_pid', lambda unit:
+                        999 if changed and fault == 'pid' else 234)
+    monkeypatch.setattr(confinement, 'process_identity', lambda process:
+                        ('foreign' if changed and fault == 'identity' else 'start', 1, ('1007',) * 4))
+    monkeypatch.setattr(confinement, 'exited', lambda fd: changed and fault == 'dead')
+    preflight = Mock()
+    monkeypatch.setattr(removal, 'check_remove_preflight', preflight)
+    authselect = '/var/lib/oh-no-parent-control/fedora-authselect.json'
+    monkeypatch.setattr(removal.grp, 'getgrnam', lambda _: SimpleNamespace(gr_gid=10))
+    def records():
+        return {'pam': 'changed' if changed and fault == 'pam' else 'owned',
+                authselect: (0o600, 0,
+                    1000 if changed and fault == 'record-group' else
+                    0 if changed and package_format == 'rpm' else 10,
+                    'changed' if changed and fault == 'record-bytes' else 'original')}
+    monkeypatch.setattr(removal, 'admission_removal_state', records)
     monkeypatch.setattr(confinement, 'user_command', lambda account, command: b'systemd 257')
     monkeypatch.setattr(removal.os, 'pidfd_open', lambda pid: 987)
     close = Mock()
@@ -753,15 +718,14 @@ def test_active_kiosk_native_removal_preserves_policy_and_stops_only_owned_manag
     else:
         removal.verify_active_kiosk_refusal(record, {'child': 1004, 'other': 1005})
         verify.assert_called_once()
-        assert census.call_args_list == [((), {'required_roles': ('manager',)})] * 2
-        assert calls[-1][-1] == 'check-remove'
+        preflight.assert_called_once_with()
         assert [call.args[0] for call in record.call_args_list] == [
             'onpc.removal.kiosk-inactive-before-owned-start',
             'onpc.removal.active-kiosk-native-removal-refused',
             'onpc.removal.active-kiosk-drained',
         ]
     stopped = ['systemctl', 'stop', 'user@1007.service'] in calls
-    assert stopped is (fault not in ('invocation', 'generation', 'namespace', 'uid'))
+    assert stopped is (fault not in ('invocation', 'identity', 'dead', 'pid', 'uid'))
     close.assert_called_once_with(987)
 
 
@@ -895,35 +859,98 @@ def test_admission_snapshot_witnesses_fedora_link_and_effective_target(
         assert removal.admission_removal_state() != before
 
 
-@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
-@pytest.mark.parametrize('fault', [None, 'product-domain', 'vendor-domain'])
-def test_loaded_confinement_checks_installed_policy_and_vendor_domain(
-        tmp_path, monkeypatch, backend, fault):
-    config = {'backend': backend, 'domains': ['manager', 'gate']}
-    config_path = tmp_path / 'config.json'
-    config_path.write_text(json.dumps(config))
-    monkeypatch.setattr(removal, 'Path', lambda name: config_path)
+@pytest.mark.parametrize('suffix,distribution', [('.deb', 'ubuntu'), ('.rpm', 'fedora')])
+@pytest.mark.parametrize('fault', [False, True])
+def test_kiosk_readiness_uses_current_distro_pam_owner(monkeypatch, suffix, distribution, fault):
     monkeypatch.setattr(removal.guest, 'guard', Mock())
-    enforcing = Mock(side_effect=ValueError('domain-not-enforcing')
-                     if fault == 'product-domain' else None)
-    preparation = Mock(return_value={'enforcing': enforcing})
-    monkeypatch.setattr(removal.runpy, 'run_path', preparation)
-    native = Mock(return_value='Builtin Permissive Types\n\nCustomized Permissive Types\n' +
-                  ('xdm_t\n' if fault == 'vendor-domain' else 'other_xdm_t\n'))
-    monkeypatch.setattr(removal.guest, 'run', native)
-    if fault == 'product-domain' or (backend == 'selinux' and fault == 'vendor-domain'):
-        with pytest.raises(removal.guest.GuestError, match=(
-                'confinement-not-enforcing' if fault == 'product-domain'
-                else 'vendor-domain-not-enforcing')):
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package' + suffix))
+    ready = Mock(side_effect=ValueError('owned-policy-changed') if fault else None)
+    load = Mock(return_value={'runtime_ready': ready})
+    monkeypatch.setattr(removal.runpy, 'run_path', load)
+    if fault:
+        with pytest.raises(removal.guest.GuestError, match='kiosk-pam-not-ready'):
             removal.verify_loaded_confinement()
     else:
         removal.verify_loaded_confinement()
-    preparation.assert_called_once_with('/usr/libexec/oh-no-parent-control-kiosk-confinement')
-    enforcing.assert_called_once_with(config)
-    if backend == 'selinux' and fault != 'product-domain':
-        native.assert_called_once_with(['/usr/sbin/semanage', 'permissive', '-l'], timeout=30)
+    load.assert_called_once_with('/usr/lib/oh-no-parent-control/lifecycle/distro_pam.py')
+    ready.assert_called_once_with(distribution)
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+@pytest.mark.parametrize('fault', [None, 'identity', 'marker', 'idle', 'quarantine', 'prepared'])
+def test_current_removal_preflight_uses_owned_readers_without_quarantine(monkeypatch, legacy, fault):
+    events = []
+    marker = object()
+    saved = {'kiosk_uid': 999 if fault == 'identity' else 1007} if legacy else None
+
+    @contextmanager
+    def barriers():
+        events.append('lock')
+        try:
+            yield
+        finally:
+            events.append('unlock')
+
+    def idle(value, identity):
+        assert value is saved and identity == 1007
+        events.append('idle')
+        if fault == 'idle':
+            raise ValueError('kiosk-processes-active')
+
+    lifecycle = dict(barriers=barriers, uid=lambda: 1007,
+        account=Mock(), state=lambda: saved, marker=Mock(), DISABLED=marker,
+        read=Mock(return_value=b'removing' if fault == 'marker' else None),
+        verify_pam=Mock(), policy_material=Mock(), idle=idle,
+        expiry_record=Mock(return_value={'uid': 1007} if fault in ('quarantine', 'prepared') else None),
+        quarantined=Mock(side_effect=ValueError('changed-quarantine') if fault == 'quarantine' else None))
+    mutations = {name: Mock(side_effect=AssertionError('preflight must remain read-only'))
+                 for name in ('prepare_remove', 'prepare', 'quarantine', 'save', 'write',
+                              'erase', 'set_expiry', 'release_account')}
+    lifecycle.update(mutations)
+    load = Mock(return_value=lifecycle)
+    monkeypatch.setattr(removal.guest, 'guard', Mock())
+    monkeypatch.setattr(removal.runpy, 'run_path', load)
+    refused = fault in ('idle', 'quarantine') or (legacy and fault == 'identity') or (not legacy and fault == 'marker')
+    if refused:
+        with pytest.raises((ValueError, removal.guest.GuestError)):
+            removal.check_remove_preflight()
     else:
-        native.assert_not_called()
+        removal.check_remove_preflight()
+    load.assert_called_once_with('/usr/lib/oh-no-parent-control/lifecycle/lifecycle_migration.py')
+    lifecycle['account'].assert_called_once_with(1007)
+    lifecycle['expiry_record'].assert_called_once_with(1007)
+    if fault in ('quarantine', 'prepared'):
+        lifecycle['quarantined'].assert_called_once_with(1007)
+    else:
+        lifecycle['quarantined'].assert_not_called()
+    assert events[0] == 'lock' and events[-1] == 'unlock'
+    assert ('idle' in events) is (not refused or fault == 'idle')
+    if fault == 'quarantine':
+        lifecycle['read'].assert_not_called()
+        lifecycle['verify_pam'].assert_not_called()
+        lifecycle['policy_material'].assert_not_called()
+    elif legacy:
+        lifecycle['read'].assert_not_called()
+        if fault != 'identity':
+            lifecycle['verify_pam'].assert_called_once_with(saved)
+            lifecycle['policy_material'].assert_called_once_with(saved)
+    else:
+        lifecycle['read'].assert_called_once_with(marker, private=True, optional=True)
+        lifecycle['verify_pam'].assert_not_called()
+        lifecycle['policy_material'].assert_not_called()
+    for mutation in mutations.values():
+        mutation.assert_not_called()
+
+
+def test_current_lifecycle_readers_refuse_before_loading_installed_code(monkeypatch):
+    guard = Mock(side_effect=removal.guest.GuestError('wrong-guest'))
+    load = Mock()
+    monkeypatch.setattr(removal.guest, 'guard', guard)
+    monkeypatch.setattr(removal.runpy, 'run_path', load)
+    for action in (removal.check_remove_preflight, removal.verify_loaded_confinement):
+        with pytest.raises(removal.guest.GuestError, match='wrong-guest'):
+            action()
+    load.assert_not_called()
 
 
 @pytest.mark.parametrize('fault,category', [
@@ -937,19 +964,32 @@ def test_loaded_confinement_checks_installed_policy_and_vendor_domain(
       for target in ('home', 'lease') for field in ('dev', 'ino', 'uid', 'gid', 'mode')],
     ('child', 'inflight-refusal-changed-policy'),
     ('other', 'inflight-refusal-changed-policy'), ('payload', 'package-file-digests'),
-    ('enforcement-before', 'confinement-not-enforcing'),
-    ('enforcement-after', 'confinement-not-enforcing'),
+    *[(name, 'inflight-refusal-guards-not-retained') for name in
+      ('mask-content', 'mask-owner', 'mask-type', 'mask-target', 'expiry', 'expiry-record')],
+    ('preexisting-mask', 'inflight-refusal-changed-records'),
+    ('recovery-status', 'inflight-unexpected-recovery-package-status'),
+    ('recovery-command', 'fixture-recovery'), ('recovery-payload', 'package-file-digests'),
+    ('recovery-records', 'inflight-recovery-changed-state'),
+    ('recovery-mask', 'inflight-recovery-changed-state'),
+    ('recovery-expiry', 'inflight-recovery-changed-state'),
+    ('recovery-policy', 'inflight-recovery-changed-state'),
+    ('recovery-readiness', 'kiosk-pam-not-ready'),
+    ('enforcement-before', 'kiosk-pam-not-ready'),
+    ('enforcement-after', 'kiosk-pam-not-ready'),
 ])
 @pytest.mark.parametrize('variant', ['command', 'trusted-hard'])
-def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, fault, category, variant):
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, fault, category, variant, package_format):
     import system_kiosk_admission as admission
     import system_kiosk_confinement as confinement
     events = []
     removed = False
     held = False
     controlled = False
+    recovered = False
     account = SimpleNamespace(pw_uid=1007, pw_dir='/home/owned')
     monkeypatch.setattr(removal.guest, 'guard', Mock())
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.' + package_format))
     monkeypatch.setattr(removal.pwd, 'getpwnam', lambda name:
                         SimpleNamespace(pw_uid=9999) if removed and fault == 'account' else account)
     def info(name):
@@ -958,21 +998,44 @@ def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, 
             if removed and fault == name + '-' + field.removeprefix('st_'):
                 fields[field] += 1
         return SimpleNamespace(**fields)
-    monkeypatch.setattr(removal, 'Path', lambda value: (
-        SimpleNamespace(lstat=lambda: info('home' if value == account.pw_dir else 'lease'))
-        if value != '/proc' else Path(value)))
+    runtime_mask = '/run/systemd/system/oh-no-parent-control-broker.service'
+    mask_record = '/var/lib/oh-no-parent-control/uninstall-broker-mask'
+    def path(value):
+        if value == '/proc':
+            return Path(value)
+        if value == runtime_mask:
+            return SimpleNamespace(lstat=lambda: SimpleNamespace(
+                st_mode=0o100600 if fault == 'mask-type' else 0o120777,
+                st_uid=1000 if fault == 'mask-owner' else 0))
+        return SimpleNamespace(lstat=lambda: info('home' if value == account.pw_dir else 'lease'))
+    monkeypatch.setattr(removal, 'Path', path)
+    monkeypatch.setattr(removal, 'fault_file_identity', lambda target:
+                        (b'foreign' if fault == 'mask-content' else b'',))
+    monkeypatch.setattr(removal.os, 'readlink', lambda target:
+                        '/foreign' if fault == 'mask-target' else '/dev/null')
+    monkeypatch.setattr(removal.os.path, 'lexists', lambda target:
+        (str(target).endswith('kiosk-configuration-account.json') and removed and fault == 'expiry-record') or
+        (str(target) == runtime_mask and recovered and fault == 'recovery-mask'))
+    monkeypatch.setattr(removal, 'current_expiry', lambda:
+                        1 if (removed and fault == 'expiry') or (recovered and fault == 'recovery-expiry') else 23000)
     monkeypatch.setattr(removal, 'wait_kiosk_inactive', lambda current: events.append('inactive'))
     monkeypatch.setattr(admission, 'verify_gates', lambda record: events.append('gates'))
-    monkeypatch.setattr(removal, 'admission_removal_state', lambda:
-                        'changed' if removed and fault == 'records' else 'owned')
+    def records():
+        return {mask_record: ((0o600, 0, 0, 'empty') if
+                    (fault == 'preexisting-mask' or (removed and not recovered)) else None),
+                'pam': 'changed' if (removed and fault == 'records') or
+                       (recovered and fault == 'recovery-records') else 'owned'}
+    monkeypatch.setattr(removal, 'admission_removal_state', records)
     def enforcement():
-        assert held
+        assert held or recovered
         events.append('enforcing')
-        if fault == ('enforcement-after' if removed else 'enforcement-before'):
-            raise removal.guest.GuestError('removal:confinement-not-enforcing')
+        if (fault == ('enforcement-after' if removed else 'enforcement-before') or
+                (recovered and fault == 'recovery-readiness')):
+            raise removal.guest.GuestError('removal:kiosk-pam-not-ready')
     monkeypatch.setattr(removal, 'verify_loaded_confinement', enforcement)
     monkeypatch.setattr(removal, 'account_digest', lambda uid:
-                        'changed' if removed and fault == {1004: 'child', 1005: 'other'}[uid] else 'owned')
+                        'changed' if (removed and fault == {1004: 'child', 1005: 'other'}[uid]) or
+                        (recovered and fault == 'recovery-policy') else 'owned')
     @contextmanager
     def holder(record):
         nonlocal held
@@ -1003,7 +1066,8 @@ def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, 
         assert options == {'check': False, 'timeout': 120, 'merge_stderr': True}
         removed = True
         events.append('remove')
-        return b'unrelated failure' if fault == 'reason' else b'reason=kiosk-admissions-active'
+        return (b'unrelated failure' if fault == 'reason' else
+                b'kiosk-lifecycle: [Errno 11] Resource temporarily unavailable')
     monkeypatch.setattr(removal, 'removal_command', lambda: ['native-remove'])
     monkeypatch.setattr(removal.guest, 'commands', SimpleNamespace(
         run=native_remove, last_returncode=0 if fault == 'accepted' else 1))
@@ -1012,7 +1076,29 @@ def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, 
         events.append('payload')
         if fault == 'payload':
             raise removal.guest.GuestError('removal:package-file-digests')
-    monkeypatch.setattr(removal.guest, 'verify_package_files', payload)
+    monkeypatch.setattr(removal.guest, 'verify_package_payload', payload)
+    def recovery_files():
+        assert not held and recovered
+        events.append('files')
+        if fault == 'recovery-payload':
+            raise removal.guest.GuestError('removal:package-file-digests')
+    monkeypatch.setattr(removal.guest, 'verify_package_files', recovery_files)
+    def recover():
+        nonlocal recovered
+        assert not held and removed
+        if fault == 'recovery-command':
+            raise removal.guest.GuestError('removal:fixture-recovery')
+        recovered = True
+        events.append('rearm')
+    monkeypatch.setattr(removal.guest, 'install_package', recover)
+    def run(arguments, **options):
+        assert not held and removed
+        if arguments == ['dpkg-query', '-W', '-f=${Status}', removal.PRODUCT]:
+            assert options == {}
+            return 'unexpected' if fault == 'recovery-status' else 'install ok half-configured'
+        assert arguments == ['dpkg', '--configure', removal.PRODUCT] and options == {'timeout': 1800}
+        recover()
+    monkeypatch.setattr(removal.guest, 'run', run)
     def launch(uid, allowed, **options):
         assert options == {'variant': variant}
         assert (uid, allowed) in ((1005, True), (1004, False))
@@ -1026,29 +1112,33 @@ def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, 
         controlled = True
         events.append('probe')
     monkeypatch.setattr(admission, 'probe', probe)
-    def preflight(arguments, **options):
+    def preflight():
         assert not held
-        assert arguments == ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
-                             'check-remove']
-        assert options == {'timeout': 30}
         events.append('preflight')
-    monkeypatch.setattr(removal.guest, 'run', preflight)
+    monkeypatch.setattr(removal, 'check_remove_preflight', preflight)
     record = Mock()
-    if fault:
+    effective_fault = fault is not None and not (fault == 'recovery-status' and package_format == 'rpm')
+    if effective_fault:
         with pytest.raises(removal.guest.GuestError, match='^removal:' + category + '$'):
             removal.verify_inflight_admission_refusal(record, {'child': 1004, 'other': 1005},
                                                      variant=variant)
-        assert events[-2:] == ['close', 'failed-release']
-        record.assert_not_called()
+        if fault.startswith('recovery-'):
+            assert 'normal-release' in events and 'failed-release' not in events
+            assert [item.args[0] for item in record.call_args_list] == [
+                'onpc.removal.inflight-admission-refused', 'onpc.removal.inflight-admission-drained']
+        else:
+            assert events[-2:] == ['close', 'failed-release']
+            record.assert_not_called()
     else:
         removal.verify_inflight_admission_refusal(record, {'child': 1004, 'other': 1005},
                                                  variant=variant)
         assert events == ['inactive', 'gates', ('launch', 1005, True), 'preflight',
                           'hold', 'inactive', 'enforcing', 'remove', 'enforcing', 'payload',
                           ('launch', 1005, True), ('launch', 1004, False), 'probe',
-                          'close', 'normal-release', 'preflight', 'gates']
+                          'close', 'normal-release', 'preflight', 'rearm', 'files', 'enforcing', 'gates']
         assert [call.args[0] for call in record.call_args_list] == [
-            'onpc.removal.inflight-admission-refused', 'onpc.removal.inflight-admission-drained']
+            'onpc.removal.inflight-admission-refused', 'onpc.removal.inflight-admission-drained',
+            'onpc.removal.inflight-admission-restored']
     assert not held
     close.assert_called_once_with(987)
 
@@ -1258,7 +1348,7 @@ def test_policy_diagnostics_use_bounded_native_reads_and_keep_probe_failures(mon
         commands.run.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', [None, 'boot', 'policy', 'home', 'ordinary', 'preflight'])
+@pytest.mark.parametrize('fault', [None, 'boot', 'policy', 'home', 'ordinary', 'preflight', 'expiry'])
 @pytest.mark.parametrize('variant', ['command', 'trusted-hard'])
 def test_rollback_reboot_requires_preserved_state_before_native_finalization(
         tmp_path, monkeypatch, fault, variant):
@@ -1273,7 +1363,7 @@ def test_rollback_reboot_requires_preserved_state_before_native_finalization(
     state = {'accounts': {'child': 41001, 'parent': 41002}, 'kiosk_name': 'oh-no-parent-control',
              'native_variant': variant,
              'rollback_rearm': {
-                 'boot': 'old', 'policy': 'child-policy', 'extensions': ['child-extension'],
+                 'boot': 'old', 'policy': 'child-policy', 'extensions': ['child-extension'], 'expires': None,
                  'kiosk_identity': [kiosk.pw_uid, kiosk.pw_gid, kiosk.pw_dir, kiosk.pw_shell],
                  'kiosk_home': [info.st_ino, info.st_uid, info.st_gid, info.st_mode],
                  'ordinary': {'parent': {'uid': 41002, 'policy': 'parent-policy',
@@ -1286,6 +1376,7 @@ def test_rollback_reboot_requires_preserved_state_before_native_finalization(
     monkeypatch.setattr(removal, 'state_path', lambda: path)
     monkeypatch.setattr(removal, 'Path', lambda _: home)
     monkeypatch.setattr(removal, 'boot', lambda: 'old' if fault == 'boot' else 'new')
+    monkeypatch.setattr(removal, 'current_expiry', lambda: 1 if fault == 'expiry' else None)
     monkeypatch.setattr(removal.guest, 'guard', Mock())
     monkeypatch.setattr(removal.guest, 'enable_diagnostics', Mock())
     monkeypatch.setattr(removal.guest, 'reboot_cleared', lambda: True)
@@ -1304,7 +1395,7 @@ def test_rollback_reboot_requires_preserved_state_before_native_finalization(
         monkeypatch.setattr(removal, name, Mock())
     monkeypatch.setattr(admission, 'verify_gates', Mock())
     monkeypatch.setattr(admission, 'probe', Mock())
-    monkeypatch.setattr(removal.guest, 'run', Mock(side_effect=(
+    monkeypatch.setattr(removal, 'check_remove_preflight', Mock(side_effect=(
         removal.guest.GuestError('preflight') if fault == 'preflight' else None)))
     commands, verify = Mock(), Mock()
     monkeypatch.setattr(removal.guest, 'commands', commands)
@@ -1344,17 +1435,94 @@ def test_finalization_entry_refuses_before_setup(monkeypatch, entry, fault):
     state.assert_not_called()
 
 
-def test_durable_denial_oracle_preserves_exact_original_local_or_vendor_bytes():
-    saved = {'pam': {'gdm-password': {'before': '# local\naccount required pam_unix.so\n',
-                                     'vendor': 'ignored vendor\n'},
-                     'systemd-user': {'before': None, 'vendor': 'session required pam_systemd.so\n'},
-                     'empty-local': {'before': '', 'vendor': 'must not substitute\n'}}}
-    prefix = (b'# Oh No Parent Control removal admission barrier\n'
-              b'account requisite pam_succeed_if.so quiet user != oh-no-parent-control\n'
-              b'session requisite pam_succeed_if.so quiet user != oh-no-parent-control\n')
-    assert removal.removal_denials(saved) == {
-        'gdm-password': prefix + b'# local\naccount required pam_unix.so\n',
-        'systemd-user': prefix + b'session required pam_systemd.so\n', 'empty-local': prefix}
+@pytest.mark.parametrize('raw,expected', [('', None), ('0', 0), ('20000', 20000)])
+def test_native_expiry_reader_preserves_original_empty_or_numeric_value(monkeypatch, raw, expected):
+    run = Mock(return_value=removal.PRODUCT + ':!:1:0:99999:7::' + raw + ':')
+    monkeypatch.setattr(removal.guest, 'run', run)
+    assert removal.current_expiry() == expected
+    assert run.call_args.args == (['getent', 'shadow', removal.PRODUCT],)
+    redactor = run.call_args.kwargs['diagnostic_stdout']
+    assert redactor(b'arbitrary private shadow fields') == b'kiosk-expiry-read\n'
+    assert set(run.call_args.kwargs) == {'diagnostic_stdout'}
+
+
+@pytest.mark.parametrize('suffix,expected', [('.deb', 7), ('.rpm', 13)])
+@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
+def test_native_expiry_oracle_uses_distribution_account_status(monkeypatch, suffix, expected, service):
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package' + suffix))
+    assert removal.expiry_status(service) == expected
+
+
+@pytest.mark.parametrize('suffix,service', [('.deb', 'login'), ('.unknown', 'gdm-password')])
+def test_native_expiry_oracle_refuses_unknown_service_or_package(monkeypatch, suffix, service):
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package' + suffix))
+    with pytest.raises(removal.guest.GuestError, match='expiry-service|package-format'):
+        removal.expiry_status(service)
+
+
+@pytest.mark.parametrize('raw', ['other:!:1:0:99999:7:::','invalid',
+    removal.PRODUCT + ':!:1:0:99999:7::-1:',
+    removal.PRODUCT + ':!:1:0:99999:7::١:',
+    removal.PRODUCT + ':!:1:0:99999:7::tomorrow:',
+    removal.PRODUCT + ':!:1:0:99999:7::1:extra:extra'])
+def test_native_expiry_reader_refuses_unowned_or_malformed_shadow_output(monkeypatch, raw):
+    monkeypatch.setattr(removal.guest, 'run', Mock(return_value=raw))
+    with pytest.raises(removal.guest.GuestError, match='invalid-kiosk-expiry'):
+        removal.current_expiry()
+
+
+@pytest.mark.parametrize('fault', [None, 'uid', 'legacy', 'legacy-marker', 'expiry', 'capture', 'capture-directory'])
+def test_fresh_recovery_snapshot_owns_current_identity_and_exact_pam_metadata(monkeypatch, fault):
+    monkeypatch.setattr(removal.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=41000))
+    marker = Mock(return_value=SimpleNamespace(contents=(b'41001\n' if fault == 'uid' else b'41000\n')))
+    monkeypatch.setattr(removal, 'private_recovery_record', marker)
+    names = {'legacy': 'kiosk-confinement.json', 'legacy-marker': 'kiosk-confinement-removing',
+             'expiry': 'kiosk-configuration-account.json', 'capture': 'legacy-kiosk-policy.json',
+             'capture-directory': 'legacy-kiosk-policy'}
+    monkeypatch.setattr(removal.os.path, 'lexists', lambda path: Path(path).name == names.get(fault))
+    monkeypatch.setattr(removal, 'current_expiry', lambda: 23000)
+    identities = {name: (1, index, 0, 0, 0o100644, 1, name.encode())
+                  for index, name in enumerate(('gdm-password', 'systemd-user'))}
+    monkeypatch.setattr(removal, 'fault_file_identity', lambda path: identities[path.name])
+    if fault:
+        with pytest.raises(removal.guest.GuestError, match='changed-kiosk-identity|nonfresh-lifecycle-records'):
+            removal.removal_recovery_state()
+    else:
+        assert removal.removal_recovery_state() == {'uid': 41000, 'expires': 23000,
+            'pam': {name: identity[2:] for name, identity in identities.items()}}
+        marker.assert_called_once_with(Path('/var/lib/oh-no-parent-control/package-created-kiosk-uid'))
+
+
+@pytest.mark.parametrize('fault', [None, 'version', 'bool-version', 'uid', 'expires', 'bool-expires', 'phase', 'extra',
+                                  'json', 'non-object',
+                                  'actual-expiry', 'marker', 'legacy', 'legacy-marker'])
+@pytest.mark.parametrize('marker_uid', [None, 41003])
+@pytest.mark.parametrize('expires', [None, 0, 23000])
+def test_quarantine_oracle_requires_exact_uid_expiry_phase_and_known_records(monkeypatch, fault, marker_uid, expires):
+    saved = {'uid': 41000, 'expires': expires}
+    current = {'version': 1, 'uid': 41000, 'expires': expires, 'phase': 'quarantined'}
+    if fault == 'bool-version':
+        current['version'] = True
+    elif fault == 'bool-expires':
+        current['expires'] = False
+    elif fault in ('version', 'uid', 'expires', 'phase', 'extra'):
+        current[fault] = {'version': 2, 'uid': 41001, 'expires': 2,
+                          'phase': 'releasing', 'extra': True}[fault]
+    def read(path):
+        contents = (json.dumps(current).encode() if path.name == 'kiosk-configuration-account.json'
+                    else (str(999 if fault == 'marker' else marker_uid or saved['uid']) + '\n').encode())
+        if path.name == 'kiosk-configuration-account.json' and fault in ('json', 'non-object'):
+            contents = b'invalid json' if fault == 'json' else b'[]'
+        return SimpleNamespace(contents=contents)
+    monkeypatch.setattr(removal, 'private_recovery_record', read)
+    monkeypatch.setattr(removal, 'current_expiry', lambda: None if fault == 'actual-expiry' else 1)
+    monkeypatch.setattr(removal.os.path, 'lexists', lambda path: Path(path).name == {
+        'legacy': 'kiosk-confinement.json', 'legacy-marker': 'kiosk-confinement-removing'}.get(fault))
+    if fault:
+        with pytest.raises(removal.guest.GuestError, match='quarantine-record-changed|recovery-records-changed'):
+            removal.verify_quarantine(saved, marker_uid=marker_uid)
+    else:
+        removal.verify_quarantine(saved, marker_uid=marker_uid)
 
 
 @pytest.mark.parametrize('residue', [None, 'executable', 'dangling'])
@@ -1383,6 +1551,9 @@ def finalization_machine(tmp_path, monkeypatch):
         target.write_text(value)
         return target
     monkeypatch.setattr(removal, 'Path', path)
+    native_lexists = os.path.lexists
+    monkeypatch.setattr(removal.os.path, 'lexists', lambda target: native_lexists(
+        path(target) if str(target).startswith(('/etc/', '/var/', '/run/')) else target))
     home = path('/home/kiosk')
     home.mkdir(parents=True)
     info = home.lstat()
@@ -1398,8 +1569,9 @@ def finalization_machine(tmp_path, monkeypatch):
     monkeypatch.setattr(removal, 'preference_digest', lambda uid: 'preferences')
     state = {'accounts': {'child': 41001, 'parent': 41002, 'other': 41003},
              'preferences': 'preferences', 'other': 'policy-41003',
+             'pam_services': {'original': 'bytes'},
              'kiosk_name': removal.PRODUCT, 'payload': [str(tmp_path / 'erased-broker')]}
-    recovery = {'variant': 'mac-unload', 'boot': 'old', 'completed': False,
+    recovery = {'variant': 'denial-publication', 'boot': 'old', 'completed': False, 'expires': None,
                 'policy': 'policy-41001', 'extensions': ['extensions-41001'],
                 'kiosk_identity': [kiosk.pw_uid, kiosk.pw_gid, kiosk.pw_dir, kiosk.pw_shell],
                 'kiosk_home': ['btrfs', '98a66632-e833-4d5b-9539-84d88ac96e90', '257',
@@ -1412,16 +1584,24 @@ def finalization_machine(tmp_path, monkeypatch):
             'uid': uid, 'policy': 'policy-' + str(uid), 'extensions': ['extensions-' + str(uid)],
             'identity': [account.pw_name, uid, uid, account.pw_dir, account.pw_shell]}
     state['finalization_retry'] = recovery
-    saved = {'version': 1, 'pam': {
-        'gdm-password': {'before': 'account required pam_unix.so\n', 'vendor': 'ignored\n'},
-        'systemd-user': {'before': None, 'vendor': 'session required pam_systemd.so\n'}}}
-    write('/var/lib/oh-no-parent-control/kiosk-confinement.json', json.dumps(dict(saved, removing=True)))
-    write('/var/lib/oh-no-parent-control/kiosk-confinement-removing', 'removing\n')
+    saved = {'uid': 41000, 'expires': None, 'pam': {}}
+    write('/var/lib/oh-no-parent-control/kiosk-configuration-account.json', json.dumps({
+        'version': 1, 'uid': 41000, 'expires': None, 'phase': 'quarantined'}))
     write('/var/lib/oh-no-parent-control/package-created-kiosk-uid', '41000\n')
-    for service, contents in removal.removal_denials(saved).items():
-        write('/etc/pam.d/' + service, contents.decode())
+    for service, contents in {'gdm-password': 'account required pam_unix.so\n',
+                               'systemd-user': 'session required pam_systemd.so\n'}.items():
+        write('/etc/pam.d/' + service, contents)
     write('/sys/kernel/security/apparmor/profiles', 'unrelated (enforce)\n')
-    monkeypatch.setattr(removal, 'fault_file_identity', lambda target: (target.read_bytes(),))
+    def file_identity(target):
+        info = target.lstat()
+        return (info.st_dev, info.st_ino, 0, 0, info.st_mode, info.st_nlink, target.read_bytes())
+    monkeypatch.setattr(removal, 'fault_file_identity', file_identity)
+    saved['pam'] = {service: file_identity(path('/etc/pam.d/' + service))[2:]
+                    for service in ('gdm-password', 'systemd-user')}
+    monkeypatch.setattr(removal, 'current_expiry', lambda: 1)
+    monkeypatch.setattr(removal.guest, 'pam_service_state', lambda: {'original': 'bytes'})
+    monkeypatch.setattr(removal, 'private_recovery_record', lambda target:
+                        SimpleNamespace(contents=target.read_bytes()))
     monkeypatch.setattr(removal.guest, 'guard', Mock())
     monkeypatch.setattr(removal.guest, 'enable_diagnostics', Mock())
     monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.deb'))
@@ -1594,8 +1774,9 @@ def test_durable_interval_uses_installed_native_boundaries_and_exact_recovery(fi
     for service in ('gdm-password', 'systemd-user'):
         expected.extend([mock_call(service, role, 'account', 0, service + '.' + role, record)
                          for role in ('ordinary', 'other')])
-        expected.extend([mock_call(service, 'kiosk', callback, 7, service + '.kiosk.' + callback, record)
-                         for callback in ('account', 'session')])
+        expected.append(mock_call(service, 'kiosk', 'account',
+                                  13 if package_format == 'rpm' else 7,
+                                  service + '.kiosk.account', record))
     assert machine.durable.call_args_list == expected
     assert machine.probe.call_args_list == [
         mock_call('login', role, 0, 'finalization.payload-erased.' + role, record)
@@ -1610,24 +1791,30 @@ def test_durable_interval_uses_installed_native_boundaries_and_exact_recovery(fi
     machine.commands.run.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['removing', 'extra-record', 'marker', 'uid', 'denial-bytes', 'erased-module'])
+@pytest.mark.parametrize('fault', ['phase', 'extra-record', 'legacy', 'uid', 'pam-bytes',
+                                 'pam-mode', 'erased-module', 'ordinary-pam', 'expiry'])
 def test_durable_interval_refuses_changed_records_or_non_native_denial(finalization_machine, fault):
     machine = finalization_machine
-    if fault in ('removing', 'extra-record'):
-        current = dict(machine.saved, removing=True)
-        current.update({'removing': 1} if fault == 'removing' else {'foreign': 'value'})
-        machine.write('/var/lib/oh-no-parent-control/kiosk-confinement.json', json.dumps(current))
-    elif fault in ('marker', 'uid'):
-        machine.write('/var/lib/oh-no-parent-control/' + (
-            'kiosk-confinement-removing' if fault == 'marker' else 'package-created-kiosk-uid'), 'changed\n')
-    elif fault == 'denial-bytes':
+    if fault in ('phase', 'extra-record', 'expiry'):
+        current = {'version': 1, 'uid': 41000, 'expires': None, 'phase': 'quarantined'}
+        current.update({'phase': 'releasing'} if fault == 'phase' else
+                       {'expires': 123} if fault == 'expiry' else {'foreign': 'value'})
+        machine.write('/var/lib/oh-no-parent-control/kiosk-configuration-account.json', json.dumps(current))
+    elif fault == 'legacy':
+        machine.write('/var/lib/oh-no-parent-control/kiosk-confinement-removing', 'removing\n')
+    elif fault == 'uid':
+        machine.write('/var/lib/oh-no-parent-control/package-created-kiosk-uid', '41003\n')
+    elif fault == 'pam-bytes':
         machine.write('/etc/pam.d/gdm-password', 'account required pam_permit.so\n')
+    elif fault == 'pam-mode':
+        machine.path('/etc/pam.d/gdm-password').chmod(0o600)
+    elif fault == 'ordinary-pam':
+        machine.state['pam_services'] = {'changed': 'PAM baseline'}
     else:
-        machine.saved['pam']['gdm-password']['before'] += 'session required pam_oh_no_parent_control.so\n'
-        machine.write('/var/lib/oh-no-parent-control/kiosk-confinement.json',
-                      json.dumps(dict(machine.saved, removing=True)))
-        machine.write('/etc/pam.d/gdm-password', removal.removal_denials(machine.saved)['gdm-password'].decode())
-    with pytest.raises(removal.guest.GuestError, match='recovery-records-changed|durable-denial-not-installed'):
+        machine.write('/etc/pam.d/gdm-password', 'account required pam_oh_no_parent_control.so\n')
+    with pytest.raises(removal.guest.GuestError, match=(
+            'recovery-records-changed|quarantine-record-changed|vendor-service-changed|'
+            'original-pam-not-restored|pam-reference-remains')):
         removal.verify_durable_interval(machine.state, machine.recovery, machine.saved, Mock())
     machine.durable.assert_not_called()
 
@@ -1660,8 +1847,10 @@ def finalization_reboot(finalization_machine, monkeypatch):
     state_file = machine.write('/private/finalization-state.json', json.dumps(machine.state))
     monkeypatch.setattr(removal, 'state_path', lambda: state_file)
     monkeypatch.setattr(removal, 'boot', lambda: 'new')
+    monkeypatch.setattr(removal, 'current_expiry', lambda: machine.recovery['expires'])
     for owner, name in [(removal.guest, 'installed'), (removal, 'verify_loaded_confinement'),
-                        (removal, 'wait_kiosk_inactive'), (admission, 'verify_gates')]:
+                        (removal, 'wait_kiosk_inactive'), (removal, 'check_remove_preflight'),
+                        (admission, 'verify_gates')]:
         monkeypatch.setattr(owner, name, Mock())
     monkeypatch.setattr(removal, 'removal_command', lambda: ['native-remove'])
     verify = Mock()
@@ -1679,14 +1868,13 @@ def test_finalization_reboot_finishes_only_pending_native_removal(
     machine.state['finalization_retry']['completed'] = completed
     machine.state_file.write_text(json.dumps(machine.state))
     record = Mock()
-    removal.finalization_retry_rebooted(record, 'mac-unload')
+    removal.finalization_retry_rebooted(record, 'denial-publication')
     if completed:
         machine.commands.run.assert_not_called()
         removal.guest.installed.assert_not_called()
     else:
         machine.commands.run.assert_called_once_with(['native-remove'], timeout=1800, merge_stderr=True)
-        assert machine.run.call_args_list[-1] == mock_call([
-            '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'check-remove'], timeout=30)
+        removal.check_remove_preflight.assert_called_once_with()
     machine.verify.assert_called_once_with(machine.state, record=record)
     assert machine.probe.call_args_list == [
         mock_call('login', role, 0, 'finalization.completed.' + role, record)
@@ -1701,13 +1889,13 @@ def test_finalization_reboot_finishes_only_pending_native_removal(
 
 
 @pytest.mark.parametrize('fault', ['missing-state', 'variant', 'boot', 'identity', 'policy',
-                                 'extensions', 'preflight', 'native-removal', 'removed-check'])
+                                 'extensions', 'expiry', 'preflight', 'native-removal', 'removed-check'])
 def test_finalization_retry_stops_at_failed_identity_or_recovery_boundary(finalization_reboot, monkeypatch, fault):
     machine = finalization_reboot
     if fault == 'missing-state':
         machine.state.pop('finalization_retry')
     elif fault == 'variant':
-        machine.recovery['variant'] = 'denial-publication'
+        machine.recovery['variant'] = 'account-finalization'
     elif fault == 'boot':
         monkeypatch.setattr(removal, 'boot', lambda: 'old')
     elif fault == 'identity':
@@ -1716,13 +1904,10 @@ def test_finalization_retry_stops_at_failed_identity_or_recovery_boundary(finali
         machine.recovery['policy'] = 'changed'
     elif fault == 'extensions':
         machine.recovery['extensions'] = []
+    elif fault == 'expiry':
+        monkeypatch.setattr(removal, 'current_expiry', lambda: 1)
     elif fault == 'preflight':
-        native_run = machine.run.side_effect
-        def fail_preflight(argv, **kwargs):
-            if argv[0] == 'findmnt':
-                return native_run(argv, **kwargs)
-            raise removal.guest.GuestError('fixture:preflight')
-        machine.run.side_effect = fail_preflight
+        removal.check_remove_preflight.side_effect = removal.guest.GuestError('fixture:preflight')
     elif fault == 'native-removal':
         machine.commands.run.side_effect = removal.guest.CommandError('fixture:native-removal')
     else:
@@ -1730,7 +1915,7 @@ def test_finalization_retry_stops_at_failed_identity_or_recovery_boundary(finali
     machine.state_file.write_text(json.dumps(machine.state))
     record = Mock()
     with pytest.raises((KeyError, removal.guest.GuestError, removal.guest.CommandError)):
-        removal.finalization_retry_rebooted(record, 'mac-unload')
+        removal.finalization_retry_rebooted(record, 'denial-publication')
     if fault not in ('native-removal', 'removed-check'):
         machine.commands.run.assert_not_called()
     else:
@@ -1767,9 +1952,11 @@ def interrupted_finalization(finalization_machine, monkeypatch, tmp_path):
     for owner, name in [(removal, 'configure_restrictions'), (removal, 'wait_kiosk_inactive'),
         (removal.guest, 'retain_identity_for_redaction'), (removal.guest, 'verify_package_payload'),
         (removal.guest, 'verify_package_files'), (removal.guest, 'install_package'),
-        (removal, 'verify_loaded_confinement'), (admission, 'verify_gates')]:
+        (removal, 'verify_loaded_confinement'), (removal, 'check_remove_preflight'),
+        (admission, 'verify_gates')]:
         monkeypatch.setattr(owner, name, Mock())
-    machine.write('/var/lib/oh-no-parent-control/kiosk-confinement.json', json.dumps(machine.saved))
+    monkeypatch.setattr(removal, 'removal_recovery_state', lambda: machine.saved)
+    monkeypatch.setattr(removal, 'current_expiry', lambda: machine.saved['expires'])
     monkeypatch.setattr(removal, 'original_authselect', lambda: 'sssd')
     monkeypatch.setattr(removal, 'package_absent', lambda: False)
     monkeypatch.setattr(removal, 'removal_command', lambda: ['native-remove'])
@@ -1778,7 +1965,7 @@ def interrupted_finalization(finalization_machine, monkeypatch, tmp_path):
         'install ok half-configured' if argv[0] == 'dpkg-query' else native_run(argv, **kwargs))
     # This fixture models only declared marker checks, never the host filesystem.
     monkeypatch.setattr(removal.os.path, 'lexists', lambda _: False)
-    transaction = Mock(return_value=(b'kiosk confinement configuration failed', 1))
+    transaction = Mock(return_value=(b'onpc-removal-fault: selected finite interruption', 1))
     monkeypatch.setattr(removal, 'observe_aborted_transaction', transaction)
     fault = Mock()
     @contextmanager
@@ -1824,11 +2011,11 @@ def test_interrupted_finalization_selects_only_supported_native_recovery(interru
     machine = interrupted_finalization
     monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.' + package_format))
     if variant == 'account-finalization':
-        machine.transaction.return_value = (b'refusing cleanup of a mounted directory', 1)
+        machine.transaction.return_value = (b'onpc-removal-fault: account-finalization', 1)
     record = Mock()
     removal.interrupted_finalization_retry(record, variant)
     machine.fault.verify_triggered.assert_called_once_with()
-    assert machine.transaction.call_args.args[2] == removal.removal_denials(machine.saved)['gdm-password']
+    assert machine.transaction.call_args.args[2] is None
     state = machine.save.call_args.args[0]
     native_variant = 'trusted-hard' if package_format == 'rpm' else 'command'
     machine.provision.assert_called_once_with(native_variant)
@@ -1880,7 +2067,7 @@ def test_interrupted_finalization_never_retries_after_failed_proof(interrupted_f
     else:
         machine.commands.run.side_effect = removal.guest.CommandError('fixture:retry')
     if fault != 'wrong-output':
-        machine.transaction.return_value = (b'refusing cleanup of a mounted directory', 1)
+        machine.transaction.return_value = (b'onpc-removal-fault: account-finalization', 1)
     record = Mock()
     with pytest.raises((removal.guest.GuestError, removal.guest.CommandError)):
         removal.interrupted_finalization_retry(record, 'account-finalization')
@@ -1898,7 +2085,7 @@ def test_interrupted_finalization_preserves_foreign_recovery_records(interrupted
     monkeypatch.setattr(removal, 'admission_removal_state', Mock(side_effect=[
         {'ordinary-pam': None}, {'ordinary-pam': 'foreign-change'}]))
     with pytest.raises(removal.guest.GuestError, match='foreign-or-ownership-state-changed'):
-        removal.interrupted_finalization_retry(Mock(), 'mac-unload')
+        removal.interrupted_finalization_retry(Mock(), 'denial-publication')
     machine.commands.run.assert_not_called()
     removal.guest.install_package.assert_not_called()
 
@@ -1911,9 +2098,9 @@ def test_deb_finalization_rearm_uses_actual_native_configuration_state(interrupt
         status if argv[0] == 'dpkg-query' else native_run(argv, **kwargs))
     if status == 'unexpected':
         with pytest.raises(removal.guest.GuestError, match='unexpected-rearm-package-status'):
-            removal.interrupted_finalization_retry(Mock(), 'mac-unload')
+            removal.interrupted_finalization_retry(Mock(), 'denial-publication')
     else:
-        removal.interrupted_finalization_retry(Mock(), 'mac-unload')
+        removal.interrupted_finalization_retry(Mock(), 'denial-publication')
     configurations = [item for item in machine.run.call_args_list
                       if item.args[0][:2] == ['dpkg', '--configure']]
     assert len(configurations) == (1 if status == 'install ok half-configured' else 0)
@@ -1938,7 +2125,6 @@ def ownership_machine(finalization_machine, monkeypatch):
     machine = finalization_machine
     machine.state['hook'] = '/etc/gdm3/PreSession/Default'
     machine.state['ownership_retry'] = machine.recovery
-    machine.write('/var/lib/oh-no-parent-control/kiosk-confinement.json', json.dumps(machine.saved))
     before = {'recovery': (0o600, 0, 0, 'original')}
     start = Mock(return_value=(machine.state, machine.recovery, machine.saved, before, {}))
     monkeypatch.setattr(removal, 'focused_recovery_start', start)
@@ -1946,17 +2132,32 @@ def ownership_machine(finalization_machine, monkeypatch):
     monkeypatch.setattr(removal.os.path, 'lexists', lambda _: False)
     for owner, name in [(removal, 'verify_surviving_identity'), (removal, 'verify_loaded_confinement'),
                         (removal, 'wait_kiosk_inactive'), (removal.guest, 'verify_package_payload'),
-                        (removal.guest, 'verify_package_files'), (admission, 'verify_gates')]:
+                        (removal.guest, 'verify_package_files'), (removal, 'check_remove_preflight'),
+                        (admission, 'verify_gates')]:
         monkeypatch.setattr(owner, name, Mock())
     monkeypatch.setattr(removal, 'package_absent', lambda: False)
     monkeypatch.setattr(removal, 'removal_command', lambda: ['native-remove'])
     monkeypatch.setattr(removal, 'boot', lambda: 'old')
     machine.commands.last_returncode = 1
-    machine.commands.run.return_value = (b'reason=modified-pam-confinement '
-        b'reason=unsafe-confinement-path reason=changed-kiosk-identity '
-        b'system integration was modified; preserving it and refusing removal')
+    machine.commands.run.return_value = b'invalid original PAM selection'
     machine.run.return_value = 'install ok half-configured'
     machine.run.side_effect = None
+    monkeypatch.setattr(removal.guest, 'install_package', Mock())
+    expiry = [1]
+    monkeypatch.setattr(removal, 'current_expiry', lambda: expiry[0])
+    def rearmed():
+        expiry[0] = machine.saved['expires']
+        journal = machine.path('/var/lib/oh-no-parent-control/kiosk-configuration-account.json')
+        if journal.exists():
+            journal.unlink()
+    removal.guest.verify_package_files.side_effect = rearmed
+    machine.write('/var/lib/oh-no-parent-control/uninstall-broker-mask', '')
+    mask = machine.path('/run/systemd/system/oh-no-parent-control-broker.service')
+    mask.parent.mkdir(parents=True, exist_ok=True)
+    mask.symlink_to('/dev/null')
+    native_readlink = os.readlink
+    monkeypatch.setattr(removal.os, 'readlink', lambda target: native_readlink(
+        machine.path(target) if str(target).startswith('/run/') else target))
     conflict = Mock()
     events = []
     @contextmanager
@@ -1981,11 +2182,32 @@ def test_ownership_refusal_preserves_proofs_before_owned_resolution(ownership_ma
     machine = ownership_machine
     monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.' + package_format))
     machine.recovery['variant'] = variant
+    reasons = {
+        'systemd-user-edit': (b'invalid original authselect selection' if package_format == 'rpm'
+                              else b'invalid original PAM selection'),
+        'gdm-password-link': (b'unsafe authselect ownership or substituted path' if package_format == 'rpm'
+                              else b'unsafe original PAM selection'),
+        'systemd-user-link': b'refusing substituted child trust integration',
+        'gdm-hook-link': b'system integration was modified; preserving it and refusing removal',
+        'confinement-record-owner': b'unsafe-migration-file',
+        'confinement-record-link': b'[Errno 40]',
+        'confinement-record-uid': b'changed-kiosk-expiry-record',
+    }
+    machine.commands.run.return_value = reasons[variant]
     record = Mock()
     removal.ownership_refusal_retry(record, variant)
     machine.commands.run.assert_called_once_with(['native-remove'], check=False, timeout=1800,
                                                  merge_stderr=True)
     assert machine.events[0][1] == variant
+    baseline = ('fedora-authselect.json' if package_format == 'rpm'
+                else 'malcontent-pam-before-install')
+    expected_target = {
+        'systemd-user-edit': '/var/lib/oh-no-parent-control/' + baseline,
+        'gdm-password-link': '/var/lib/oh-no-parent-control/' + baseline,
+        'systemd-user-link': '/var/lib/oh-no-parent-control/installed-child-extension-trust',
+        'gdm-hook-link': '/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules',
+    }.get(variant, '/var/lib/oh-no-parent-control/kiosk-configuration-account.json')
+    assert machine.events[0][2] == expected_target
     assert machine.events[0][3] == machine.state['accounts']['other']
     assert machine.events[1] == ('resolved', variant)
     assert machine.conflict.verify.call_count == 2
@@ -1993,7 +2215,8 @@ def test_ownership_refusal_preserves_proofs_before_owned_resolution(ownership_ma
     removal.guest.verify_package_files.assert_called_once_with()
     assert machine.save.call_args.args[0]['ownership_retry']['boot'] == 'old'
     names = [item.args[0] for item in record.call_args_list]
-    assert names == ['onpc.ownership.native-status', 'onpc.ownership.refused', 'onpc.ownership.resolved']
+    assert names == ['onpc.ownership.target', 'onpc.ownership.native-status',
+                     'onpc.ownership.refused', 'onpc.ownership.resolved']
     configurations = [item for item in machine.run.call_args_list
                       if item.args[0][:2] == ['dpkg', '--configure']]
     assert len(configurations) == (package_format == 'deb')
@@ -2032,7 +2255,7 @@ def test_ownership_failed_proof_never_rearms_or_claims_resolution(ownership_mach
 
 def test_admission_snapshot_excludes_only_conflict_under_separate_identity_guard(admission_records):
     path, _, _ = admission_records
-    target = path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
+    target = path('/var/lib/oh-no-parent-control/kiosk-configuration-account.json')
     target.symlink_to('foreign')
     result = removal.admission_removal_state(exclude=(str(target),))
     assert str(target) not in result
@@ -2081,8 +2304,6 @@ def identity_filesystem_machine(ownership_machine, monkeypatch):
     snapshot_path.chmod(0o600)
     machine.write('/var/lib/oh-no-parent-control/uninstall-broker-mask', '')
     mask = machine.path('/run/systemd/system/oh-no-parent-control-broker.service')
-    mask.parent.mkdir(parents=True, exist_ok=True)
-    mask.symlink_to('/dev/null')
     lstat = Path.lstat
     def root_mask_info(path):
         info = lstat(path)
@@ -2098,7 +2319,8 @@ def identity_filesystem_machine(ownership_machine, monkeypatch):
     @contextmanager
     def fixture(variant, foreign_uid, record):
         conflict.variant = variant
-        conflict.preflight = variant in ('state-owner', 'state-link')
+        conflict.preflight = variant in ('kiosk-marker-uid', 'home-owner', 'home-link',
+                                         'state-owner', 'state-link')
         machine.events.append(('start', variant))
         try:
             if not conflict.preflight:
@@ -2123,7 +2345,8 @@ def test_identity_filesystem_refusal_keeps_native_stage_and_owned_retry(
     machine.recovery['variant'] = variant
     record = Mock()
     removal.identity_filesystem_refusal_retry(record, variant)
-    preflight = variant in ('state-owner', 'state-link')
+    preflight = variant in ('kiosk-marker-uid', 'home-owner', 'home-link',
+                           'state-owner', 'state-link')
     completed = not preflight and package_format == 'deb'
     assert machine.commands.run.call_args_list[0] == mock_call(
         ['native-remove'], check=False, timeout=1800, merge_stderr=True)
@@ -2134,7 +2357,7 @@ def test_identity_filesystem_refusal_keeps_native_stage_and_owned_retry(
     if not preflight:
         assert machine.durable_interval.call_args.kwargs == {'conflict': machine.conflict}
     assert machine.removed.call_count == completed
-    assert removal.guest.install_package.call_count == (not preflight and package_format == 'rpm')
+    assert removal.guest.install_package.call_count == (package_format == 'rpm')
     assert machine.recovery['completed'] == completed
     assert machine.save.call_args.args[0]['identity_filesystem_retry']['boot'] == 'old'
     assert record.call_args.args[0] == 'onpc.identity-filesystem.resolved'
@@ -2169,7 +2392,7 @@ def test_identity_filesystem_failed_proof_never_claims_resolution(
         machine.removed.side_effect = error
     record = Mock()
     with pytest.raises(removal.guest.GuestError):
-        removal.identity_filesystem_refusal_retry(record, 'home-owner')
+        removal.identity_filesystem_refusal_retry(record, 'home-mount')
     machine.save.assert_not_called()
     assert all(item.args[0] != 'onpc.identity-filesystem.resolved' for item in record.call_args_list)
 
@@ -2189,7 +2412,7 @@ def test_durable_ownership_interval_keeps_identity_and_foreign_state_guards(
     removal.verify_durable_interval(machine.state, machine.recovery, machine.saved, Mock(),
                                     conflict=conflict)
     conflict.verify.assert_called_once_with()
-    assert machine.durable.call_count == 8
+    assert machine.durable.call_count == 6
     machine.kiosk.pw_uid += 1
     with pytest.raises(removal.guest.GuestError, match='kiosk-identity-changed'):
         removal.verify_durable_interval(machine.state, machine.recovery, machine.saved, Mock(),
@@ -2268,7 +2491,7 @@ def test_ownership_reboot_requires_continuous_proof_before_finalization(finaliza
     elif fault == 'identity':
         identity.side_effect = removal.guest.GuestError('identity')
     elif fault == 'preflight':
-        machine.run.side_effect = removal.guest.CommandError('preflight')
+        removal.check_remove_preflight.side_effect = removal.guest.CommandError('preflight')
     elif fault == 'native-removal':
         machine.commands.run.side_effect = removal.guest.CommandError('native-removal')
     elif fault == 'removed-check':
@@ -2433,7 +2656,7 @@ def test_rpm_posterase_reboot_requires_complete_history_before_completion(
         machine.recovery['ordinary']['parent']['extensions'] = []
     elif fault in ('identity', 'MAC', 'gates', 'preflight', 'purge', 'removed', 'login', 'password'):
         target = {'identity': identity, 'MAC': removal.verify_loaded_confinement,
-            'gates': admission.verify_gates, 'preflight': machine.run,
+            'gates': admission.verify_gates, 'preflight': removal.check_remove_preflight,
             'purge': machine.commands.run, 'removed': machine.verify,
             'login': machine.probe, 'password': password}[fault]
         target.side_effect = error
@@ -2455,7 +2678,8 @@ def test_rpm_posterase_reboot_requires_complete_history_before_completion(
 
 
 @pytest.mark.parametrize('fault', [None, 'guard', 'command', 'cancel', 'watcher', 'snapshot',
-                                 'marker', 'marker-bytes', 'policy', 'extensions', 'rules',
+                                 'marker', 'marker-bytes', 'marker-uid', 'marker-phase',
+                                 'marker-expiry', 'native-expiry', 'policy', 'extensions', 'rules',
                                  'execution', 'release-during-execution',
                                  'release-during-read', 'finished-before-observation'])
 def test_rpm_reinstall_observer_requires_bracketed_restoration_and_joins_worker(
@@ -2466,10 +2690,18 @@ def test_rpm_reinstall_observer_requires_bracketed_restoration_and_joins_worker(
         if str(value).startswith(str(tmp_path)):
             return Path(value)
         return tmp_path / str(value).lstrip('/')
-    marker = path('/var/lib/oh-no-parent-control/kiosk-confinement-removing')
+    marker = path('/var/lib/oh-no-parent-control/kiosk-configuration-account.json')
     marker.parent.mkdir(parents=True)
+    quarantine = {'version': 1, 'uid': 41000, 'expires': None, 'phase': 'quarantined'}
+    current = dict(quarantine)
+    if fault and fault.startswith('marker-'):
+        field = fault.removeprefix('marker-')
+        if field in ('uid', 'phase', 'expiry'):
+            current[{'expiry': 'expires'}.get(field, field)] = {
+                'uid': 41003, 'phase': 'releasing', 'expiry': 123}[field]
     if fault != 'marker':
-        marker.write_bytes(b'foreign' if fault == 'marker-bytes' else b'removing\n')
+        marker.write_bytes(b'foreign' if fault == 'marker-bytes' else json.dumps(current).encode())
+    marker.with_name('package-created-kiosk-uid').write_bytes(b'41000\n')
     snapshot = marker.with_name('uninstall-enforcement.json')
     if fault == 'snapshot':
         snapshot.write_bytes(b'retained')
@@ -2502,6 +2734,9 @@ def test_rpm_reinstall_observer_requires_bracketed_restoration_and_joins_worker(
         removal.guest.GuestError('identity') if fault == 'guard' else None)))
     monkeypatch.setattr(removal.guest, 'enable_diagnostics', Mock())
     monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.rpm'))
+    monkeypatch.setattr(removal, 'current_expiry', lambda: None if fault == 'native-expiry' else 1)
+    monkeypatch.setattr(removal, 'private_recovery_record', lambda target:
+                        SimpleNamespace(contents=target.read_bytes()))
     class Worker:
         def __init__(self, *, target, name):
             assert name == 'onpc-rpm-reinstall'
@@ -2521,10 +2756,11 @@ def test_rpm_reinstall_observer_requires_bracketed_restoration_and_joins_worker(
             raise RuntimeError('read-failed')
         return 'changed' if fault == 'policy' else 'policy'
     monkeypatch.setattr(removal, 'account_digest', digest)
-    def launch(uid, allowed):
+    def launch(uid, allowed, **options):
         assert uid == 41001 and allowed is False
+        assert options == {'variant': 'command'}
         if fault != 'release-during-read':
-            assert marker.read_bytes() == b'removing\n'
+            assert json.loads(marker.read_bytes()) == quarantine
         if fault == 'execution':
             raise removal.guest.GuestError('fixture:execution-not-denied')
         if fault == 'release-during-execution':
@@ -2538,7 +2774,7 @@ def test_rpm_reinstall_observer_requires_bracketed_restoration_and_joins_worker(
     record = Mock()
     def observe():
         removal.observe_rpm_reinstall({'accounts': {'child': 41001}},
-            {'policy': 'policy', 'extensions': ['extension']},
+            {'policy': 'policy', 'extensions': ['extension'], 'kiosk_identity': [41000], 'expires': None},
             {'/etc/fapolicyd/rules.d/owned.rules': b'restored'}, record)
     if fault:
         with pytest.raises((removal.guest.GuestError, RuntimeError, KeyboardInterrupt)) as caught:

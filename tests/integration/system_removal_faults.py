@@ -9,7 +9,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import pwd
 import shlex
 import shutil
 import stat
@@ -19,16 +18,17 @@ import system_guest as guest
 
 
 OWNER_UID = 0
-PAM = Path('/etc/pam.d/systemd-user')
-HOME = Path('/home/oh-no-parent-control')
-STATE = Path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
-MARKER = Path('/var/lib/oh-no-parent-control/kiosk-confinement-removing')
-TOOLS = {'selinux': Path('/usr/sbin/semodule'),
-         'apparmor': Path('/usr/sbin/apparmor_parser')}
+TOOLS = {'usermod': Path('/usr/sbin/usermod'),
+         'deluser': Path('/usr/sbin/deluser'),
+         'userdel': Path('/usr/sbin/userdel'),
+         'distro-pam': Path('/usr/libexec/oh-no-parent-control-distro-pam')}
 SBIN = Path('/usr/sbin')
 BIN = Path('/usr/bin')
-POLICY = Path('/usr/share/oh-no-parent-control/confinement/onpc-kiosk.apparmor')
-WITNESS = b'onpc-removal-fault:exact-native-unload-refused\n'
+WITNESS = b'onpc-removal-fault:exact-native-invocation-refused\n'
+INTERRUPTION_VARIANTS = ('denial-publication', 'pam-restoration', 'account-finalization')
+# The removed private MAC unload has no fresh-install action to intercept.
+# Its installed case ID remains reserved in the controller inventory.
+RETIRED_VARIANTS = ('mac-unload',)
 
 
 def require(condition, reason):
@@ -64,8 +64,8 @@ def alias_identity(path):
     return metadata(info) + (target,)
 
 
-def native_tool(backend):
-    tool = TOOLS[backend]
+def native_tool(name):
+    tool = TOOLS[name]
     if tool.parent == SBIN and SBIN.is_symlink():
         return BIN / tool.name, ((SBIN, alias_identity(SBIN)),)
     return tool, ()
@@ -78,64 +78,85 @@ def identity(path, *, directory=False, owner=None):
             info.st_uid == (OWNER_UID if owner is None else owner) and
             not info.st_mode & 0o022 and (directory or info.st_nlink == 1),
             'unsafe-target')
-    return metadata(info) + (() if directory else (path.read_bytes(),))
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
+                 (os.O_DIRECTORY if directory else 0))
+    try:
+        value = pinned_identity(fd, directory=directory)
+        require(metadata(os.fstat(fd)) == metadata(info) == metadata(path.lstat()) and
+                value[:6] == metadata(info), 'target-changed-during-read')
+        return value
+    finally:
+        os.close(fd)
 
 
 def pinned_identity(fd, *, directory=False):
     info = os.fstat(fd)
-    contents = () if directory else (os.pread(fd, info.st_size, 0),)
-    return metadata(info) + contents
+    attrs = tuple((name, os.getxattr(fd, name)) for name in sorted(os.listxattr(fd)))
+    contents = () if directory else (os.pread(fd, info.st_size + 1, 0),)
+    return metadata(info) + (attrs,) + contents
 
 
-def unload_arguments(backend):
-    require(backend in TOOLS, 'unknown-backend')
-    return ['-r', 'onpc-kiosk'] if backend == 'selinux' else ['-R', str(POLICY)]
+def fault_command(variant):
+    """Match the complete current lifecycle command, never a removed helper."""
+    require(variant in INTERRUPTION_VARIANTS, 'unknown-variant')
+    fedora = guest.package_path().suffix == '.rpm'
+    distribution = 'fedora' if fedora else 'ubuntu'
+    if variant == 'denial-publication':
+        name, arguments = 'usermod', [('--expiredate', '1', 'oh-no-parent-control')]
+    elif variant == 'account-finalization':
+        name, arguments = ('userdel' if fedora else 'deluser'), [('oh-no-parent-control',)]
+    else:
+        name = 'distro-pam'
+        arguments = [('--distribution', distribution, action) for action in ('remove', 'restore')]
+    tool, aliases = native_tool(name)
+    return tool, aliases, arguments
 
 
-def wrapper_source(original, witness, arguments):
-    """Only the exact two native unload arguments select the deliberate fault."""
-    require(len(arguments) == 2, 'invalid-unload-arguments')
+def wrapper_source(original, witness, arguments, *, hold_seconds=0):
+    """One exclusive witness per exact command; all other arguments delegate."""
+    require(arguments and all(isinstance(value, str) for value in arguments),
+            'invalid-native-arguments')
+    require(type(hold_seconds) is int and 0 <= hold_seconds <= 1, 'invalid-hold')
     quote = shlex.quote
     return ('#!/bin/sh\nset -eu\n'
-            f'if [ "$#" -eq 2 ] && [ "$1" = {quote(arguments[0])} ] && '
-            f'[ "$2" = {quote(arguments[1])} ]; then\n'
+            f'if [ "$#" -eq {len(arguments)} ] && ' +
+            ' && '.join(f'[ "${{{index}}}" = {quote(value)} ]'
+                        for index, value in enumerate(arguments, 1)) + '; then\n' +
             '    (set -C; umask 077; '
             f'printf %s {quote(WITNESS.decode())} > {quote(str(witness))})\n'
+            + (f'    sleep {hold_seconds}\n' if hold_seconds else '') +
             '    exit 79\nfi\n'
             f'exec {quote(str(original))} "$@"\n')
 
 
 class Fault:
     def __init__(self, variant, path, expected, *, directory=False, owner=None,
-                 witness=None, wrapper=None, artifacts=(), aliases=()):
+                 witness=None, wrapper=None, artifacts=(), aliases=(), witnesses=()):
         self.variant, self.path, self.expected = variant, path, expected
         self.directory, self.owner = directory, owner
         self.witness, self.wrapper = witness, wrapper
         self.artifacts = artifacts
         self.aliases = aliases
+        self.witnesses = witnesses or ((witness,) if witness is not None else ())
+        self.triggered = {}
 
     def verify_artifacts(self):
         for path, expected in self.aliases:
             require(alias_identity(path) == expected, 'native-tool-alias-changed')
         for path, expected in self.artifacts:
             require(identity(path) == expected, 'fixture-identity-changed')
+        for path, expected in self.triggered.items():
+            require(identity(path) == expected, 'trigger-witness-changed')
 
     def verify_triggered(self):
         self.verify_artifacts()
-        if self.variant == 'mac-unload':
-            require(self.witness is not None and self.wrapper is not None,
-                    'missing-witness-identity')
-            require(identity(self.path) == self.wrapper, 'wrapper-changed')
-            value = identity(self.witness)
+        require(self.witnesses and self.wrapper is not None, 'missing-witness-identity')
+        require(identity(self.path) == self.wrapper, 'wrapper-changed')
+        for witness in self.witnesses:
+            value = identity(witness)
             require(stat.S_IMODE(value[4]) == 0o600 and value[-1] == WITNESS,
-                    'exact-unload-not-observed')
-        else:
-            require(identity(self.path, directory=self.directory, owner=self.owner) == self.expected,
-                    'protected-target-changed')
-            saved, marker = identity(STATE), identity(MARKER)
-            require(stat.S_IMODE(saved[4]) == stat.S_IMODE(marker[4]) == 0o600 and
-                    json.loads(saved[-1]).get('removing') is True and
-                    marker[-1] == b'removing\n', 'removal-transition-not-observed')
+                    'exact-native-invocation-not-observed')
+            self.triggered[witness] = value
 
 
 @contextmanager
@@ -147,18 +168,28 @@ def mounted_fault(fault, source, record, *, readonly=False):
             'preexisting-mount')
     fd = os.open(fault.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
                  (os.O_DIRECTORY if fault.directory else 0))
+    owned = None
+    visible = fault.wrapper if fault.wrapper is not None else fault.expected
     try:
         require(pinned_identity(fd, directory=fault.directory) == fault.expected,
                 'target-changed-before-mount')
-        guest.run(['mount', '--bind', str(source), str(fault.path)], timeout=30)
-        current, rows = mount_inventory()
-        owned = {key: row for key, row in rows.items()
-                 if key not in before and row[0][4] == str(fault.path)}
-        require(current == namespace and len(owned) == 1, 'mount-not-attributable')
-        visible = identity(fault.path, directory=fault.directory, owner=fault.owner)
-        require(visible == (fault.wrapper if fault.wrapper is not None else fault.expected),
-                'mounted-target-changed')
         try:
+            try:
+                guest.run(['mount', '--bind', str(source), str(fault.path)], timeout=30)
+            finally:
+                # Even a failing mount command can have completed its syscall.
+                # Adopt only a new row in the original namespace whose visible
+                # inode and pinned original are still exactly ours.
+                current, rows = mount_inventory()
+                candidates = {key: row for key, row in rows.items()
+                              if key not in before and row[0][4] == str(fault.path)}
+                if candidates:
+                    require(current == namespace and len(candidates) == 1 and
+                            identity(fault.path, directory=fault.directory, owner=fault.owner) == visible and
+                            pinned_identity(fd, directory=fault.directory) == fault.expected,
+                            'mount-not-attributable')
+                    owned = candidates
+            require(owned is not None, 'mount-not-attributable')
             if readonly:
                 try:
                     guest.run(['mount', '-o', 'remount,bind,ro', str(fault.path)], timeout=30)
@@ -180,19 +211,21 @@ def mounted_fault(fault, source, record, *, readonly=False):
                 'device': fault.expected[0], 'inode': fault.expected[1]}, sort_keys=True))
             yield fault
         finally:
-            fault.verify_artifacts()
-            current, rows = mount_inventory()
-            matches = {key: row for key, row in rows.items() if row[0][4] == str(fault.path)}
-            require(current == namespace and matches == owned and
-                    identity(fault.path, directory=fault.directory, owner=fault.owner) == visible and
-                    pinned_identity(fd, directory=fault.directory) == fault.expected,
-                    'cleanup-ownership-changed')
-            guest.run(['umount', '--', str(fault.path)], timeout=30)
-            current, rows = mount_inventory()
-            require(current == namespace and
-                    not any(row[0][4] == str(fault.path) for row in rows.values()) and
-                    identity(fault.path, directory=fault.directory, owner=fault.owner) == fault.expected,
-                    'cleanup-not-verified')
+            # No attributable mount means no authority over an unknown row.
+            if owned is not None:
+                fault.verify_artifacts()
+                current, rows = mount_inventory()
+                matches = {key: row for key, row in rows.items() if row[0][4] == str(fault.path)}
+                require(current == namespace and matches == owned and
+                        identity(fault.path, directory=fault.directory, owner=fault.owner) == visible and
+                        pinned_identity(fd, directory=fault.directory) == fault.expected,
+                        'cleanup-ownership-changed')
+                guest.run(['umount', '--', str(fault.path)], timeout=30)
+                current, rows = mount_inventory()
+                require(current == namespace and
+                        not any(row[0][4] == str(fault.path) for row in rows.values()) and
+                        identity(fault.path, directory=fault.directory, owner=fault.owner) == fault.expected,
+                        'cleanup-not-verified')
     finally:
         os.close(fd)
 
@@ -201,22 +234,7 @@ def mounted_fault(fault, source, record, *, readonly=False):
 def interruption_fault(variant, record):
     """Yield an owned finite mount; caller verifies product protection before exit."""
     guest.guard()
-    require(variant in ('denial-publication', 'mac-unload', 'account-finalization'),
-            'unknown-variant')
-    if variant != 'mac-unload':
-        directory = variant == 'account-finalization'
-        path = HOME if directory else PAM
-        owner = pwd.getpwnam('oh-no-parent-control').pw_uid if directory else OWNER_UID
-        expected = identity(path, directory=directory, owner=owner)
-        fault = Fault(variant, path, expected, directory=directory, owner=owner)
-        with mounted_fault(fault, path, record):
-            yield fault
-        return
-    saved = identity(STATE)
-    require(stat.S_IMODE(saved[4]) == 0o600, 'unsafe-removal-state')
-    backend = json.loads(saved[-1])['backend']
-    arguments = unload_arguments(backend)
-    tool, aliases = native_tool(backend)
+    tool, aliases, commands = fault_command(variant)
     expected = identity(tool)
     private = guest.PAYLOAD / 'private'
     info = private.lstat()
@@ -225,12 +243,19 @@ def interruption_fault(variant, record):
     parents(private)
     # This is a child of the already retained guest allocation, not another
     # storage root. Keep its evidence for the controller's owned final cleanup.
-    fixture = Path(tempfile.mkdtemp(prefix='removal-unload-', dir=private))
-    original, wrapper, witness = (fixture / name for name in ('original', 'wrapper', 'triggered.txt'))
+    fixture = Path(tempfile.mkdtemp(prefix='removal-' + variant + '-', dir=private))
+    original, wrapper = (fixture / name for name in ('original', 'wrapper'))
+    witnesses = tuple(fixture / ('triggered-' + str(index) + '.txt') for index in range(len(commands)))
     shutil.copy2(tool, original, follow_symlinks=False)
     require(identity(tool) == expected and original.read_bytes() == expected[-1],
             'native-tool-changed-during-copy')
-    wrapper.write_text(wrapper_source(original, witness, arguments))
+    # Compose bounded exact matches; a nonmatching command delegates through
+    # the next match and eventually to the untouched original native tool.
+    source = f'exec {shlex.quote(str(original))} "$@"\n'
+    for witness, arguments in reversed(tuple(zip(witnesses, commands))):
+        source = wrapper_source(original, witness, arguments, hold_seconds=1).replace(
+            f'exec {shlex.quote(str(original))} "$@"\n', source)
+    wrapper.write_text(source)
     shutil.copystat(tool, wrapper, follow_symlinks=False)
     # copystat includes Linux extended attributes, notably security.selinux.
     # Explicitly compare them: an unrelated exec denial is never a fault hit.
@@ -240,11 +265,13 @@ def interruption_fault(variant, record):
     require(stat.S_IMODE(wrapper.stat().st_mode) == stat.S_IMODE(expected[4]),
             'native-tool-mode-not-preserved')
     wrapper_identity = identity(wrapper)
-    fault = Fault(variant, tool, expected, witness=witness, wrapper=wrapper_identity,
+    fault = Fault(variant, tool, expected, witness=witnesses[0], witnesses=witnesses,
+                  wrapper=wrapper_identity,
                   artifacts=((original, identity(original)), (wrapper, wrapper_identity)),
                   aliases=aliases)
-    record('onpc.interruption.unload-fixture', json.dumps({
-        'tool': str(tool), 'arguments': arguments,
+    fault.original = original
+    record('onpc.interruption.native-fixture', json.dumps({
+        'tool': str(tool), 'commands': commands,
         'wrapper_sha256': hashlib.sha256(wrapper.read_bytes()).hexdigest(),
         'original_sha256': hashlib.sha256(original.read_bytes()).hexdigest()}, sort_keys=True))
     with mounted_fault(fault, wrapper, record):

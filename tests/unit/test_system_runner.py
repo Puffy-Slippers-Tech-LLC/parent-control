@@ -784,8 +784,8 @@ def test_rpm_posterase_wrong_target_stops_before_tool_artifact_or_vm_checks(monk
     assert 'selection:history-package-format-mismatch' in capsys.readouterr().err
 
 
-def test_interrupted_finalization_registration_has_three_distinct_baseline_histories():
-    variants = ('denial-publication', 'mac-unload', 'account-finalization')
+def test_interrupted_finalization_registration_has_two_distinct_baseline_histories():
+    variants = ('denial-publication', 'account-finalization')
     histories = tuple(history for history in runner.REMOVAL_HISTORIES
                       if history.case_id.startswith('test_interrupted_finalization_retry['))
     assert tuple(history.case_id for history in histories) == tuple(
@@ -915,7 +915,7 @@ def test_rpm_posterase_guest_dispatch_requires_exact_continuous_phase(monkeypatc
             helper.assert_not_called()
 
 
-@pytest.mark.parametrize('variant', ['denial-publication', 'mac-unload', 'account-finalization'])
+@pytest.mark.parametrize('variant', ['denial-publication', 'account-finalization'])
 @pytest.mark.parametrize('phase_kind', ['interruption', 'rebooted', 'foreign'])
 def test_interrupted_finalization_guest_dispatch_keeps_exact_variant(
         monkeypatch, variant, phase_kind):
@@ -924,7 +924,7 @@ def test_interrupted_finalization_guest_dispatch_keeps_exact_variant(
     case = load_module('private_finalization_dispatch',
                        runner.ROOT / 'tests/system/test_removal.py')
     registration = case.test_interrupted_finalization_retry.pytestmark[0]
-    assert registration.args == ('variant', ['denial-publication', 'mac-unload', 'account-finalization'])
+    assert registration.args == ('variant', ['denial-publication', 'account-finalization'])
     phase = {'interruption': variant, 'rebooted': variant + '-retry-rebooted',
              'foreign': 'rollback'}[phase_kind]
     monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
@@ -1554,9 +1554,7 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
         'system_kiosk_accounts.py',
         'system_kiosk_admission.py', 'system_assertions.py',
         'system_kiosk_confinement.py', 'system_kiosk_scope.py',
-        'system_kiosk_ambient_history.py', 'system_kiosk_required_history.py',
-        'system_kiosk_platform.py', 'system_wellbeing_qualification.py',
-        'system_native_update.py', 'native_transaction.py',
+        'system_wellbeing_qualification.py',
             'system_first_configure.py', 'system_pam_variants.py', 'system_previous_upgrade.py',
         'system_removal.py', 'system_removal_faults.py',
         'system_removal_identity.py', 'system_removal_ownership.py',
@@ -1664,9 +1662,9 @@ def test_full_selection_activation_verifies_entire_frozen_host_manifest(tmp_path
     runner.stage_selected_inputs(selection, tmp_path / 'input')
     inputs = json.loads((tmp_path / 'input/selected-inputs.json').read_bytes())
     identity = inputs['host_files']
+    extra = 'tests/integration/system_trusted_fixtures.py'
+    identity[extra] = runner.baseline.digest(runner.ROOT / extra)
     assert set(runner.KIOSK_ACTIVATION_HOST_INPUTS) < identity.keys()
-    extra = 'tests/integration/system_kiosk_ambient_history.py'
-    assert extra in identity
     if fault == 'missing-activation':
         del identity[runner.KIOSK_ACTIVATION_HOST_INPUTS[0]]
     elif fault == 'activation':
@@ -1772,9 +1770,9 @@ def test_gdm_failure_keeps_actionable_category_and_correct_domain(
 @pytest.mark.parametrize('phase,fault', [
     ('installed', None), ('rebooted', None),
     ('installed', 'routing'), ('installed', 'exercise'),
-    ('installed', 'gates'), ('installed', 'execution'),
+    ('installed', 'gates'), ('installed', 'composition'),
     ('installed', 'reboot-gate'), ('rebooted', 'verify-reboot'),
-    ('rebooted', 'gates'), ('rebooted', 'execution'),
+    ('rebooted', 'gates'), ('rebooted', 'composition'),
     ('installed', 'reboot-requested'), ('rebooted', 'reboot-cleared'),
     ('installed', 'policy-changed'),
 ])
@@ -1790,8 +1788,8 @@ def test_kiosk_activation_keeps_boundary_checks_in_the_same_guarded_history(
     events = []
     expected = {
         'installed': ['policy', 'installed', 'reboot-requested', 'routing', 'exercise',
-                      'gates', 'execution', 'reboot-gate', 'policy'],
-        'rebooted': ['installed', 'reboot-cleared', 'verify-reboot', 'gates', 'execution'],
+                      'gates', 'composition', 'reboot-gate', 'policy'],
+        'rebooted': ['installed', 'reboot-cleared', 'verify-reboot', 'gates', 'composition'],
     }[phase]
 
     def action(name, result=None):
@@ -1820,7 +1818,7 @@ def test_kiosk_activation_keeps_boundary_checks_in_the_same_guarded_history(
     monkeypatch.setattr(accounts, 'verify_reboot', action('verify-reboot'))
     monkeypatch.setattr(admission, 'verify', action('routing'))
     monkeypatch.setattr(admission, 'verify_gates', action('gates'))
-    monkeypatch.setattr(confinement, 'verify', action('execution'))
+    monkeypatch.setattr(confinement, 'verify_session_composition', action('composition'))
 
     if fault is None:
         case.test_kiosk_account_classification_survives_reboot(Mock())
@@ -2043,353 +2041,6 @@ def test_native_kiosk_handoff_wait_is_guarded_bounded_and_read_only(monkeypatch,
         'guard', 'identity', 'later-guard', 'later-identity'))
     if fault == 'guard':
         identity.assert_not_called()
-
-
-@pytest.mark.parametrize('settled', ['inactive', 'failed', None])
-@pytest.mark.parametrize('entrypoint', ['verify', 'verify_execution_boundary'])
-def test_native_confinement_requires_natural_inactivity_before_start(monkeypatch, settled, entrypoint):
-    import system_kiosk_confinement as confinement
-
-    account = SimpleNamespace(pw_uid=1007, pw_shell='/usr/sbin/nologin')
-    monkeypatch.setattr(confinement.guest, 'guard', Mock())
-    monkeypatch.setattr(confinement.guest, 'enable_diagnostics', Mock())
-    monkeypatch.setattr(confinement.Path, 'read_text', Mock(return_value='{"backend":"apparmor"}'))
-    monkeypatch.setattr(confinement, 'record_native_packages', Mock())
-    monkeypatch.setattr(confinement.pwd, 'getpwnam', Mock(return_value=account))
-    monkeypatch.setattr(confinement.time, 'sleep', Mock())
-    monkeypatch.setattr(confinement.time, 'monotonic', Mock(
-        side_effect=[0, 1] if settled else [0, 75]))
-    classification = ['busctl', '--system', 'get-property', 'org.freedesktop.Accounts',
-                      '/org/freedesktop/Accounts/User1007', 'org.freedesktop.Accounts.User',
-                      'SystemAccount']
-    query = ['systemctl', 'show', '--value', '--property=ActiveState', 'user@1007.service']
-    start = ['systemctl', 'start', 'user@1007.service']
-    run = Mock(side_effect=['b false', 'active', settled, guest.GuestError('owned-start')]
-               if settled else ['b false', 'active'])
-    monkeypatch.setattr(confinement.guest, 'run', run)
-    admission = Mock()
-    monkeypatch.setattr(confinement, 'verify_loader_admission_refusal', admission)
-    sequence, record = Mock(), Mock()
-    sequence.attach_mock(run, 'run')
-    sequence.attach_mock(admission, 'admission')
-    with pytest.raises(guest.GuestError, match=(
-            'owned-start' if settled else 'kiosk-confinement:manager-already-active')):
-        getattr(confinement, entrypoint)(record)
-    assert [call.args[0] for call in run.call_args_list] == (
-        [classification, query, query, start] if settled else [classification, query])
-    if settled:
-        assert run.call_args.kwargs == {'timeout': 75}
-        admission.assert_called_once_with({'backend': 'apparmor'}, record)
-        assert [call[0] for call in sequence.mock_calls] == [
-            'run', 'run', 'run', 'admission', 'run']
-    else:
-        admission.assert_not_called()
-
-
-@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
-@pytest.mark.parametrize('execution_failed', [False, True])
-def test_complete_native_matrix_retains_policy_loss_checks_after_execution(
-        tmp_path, monkeypatch, backend, execution_failed):
-    import system_kiosk_confinement as confinement
-    account, record = SimpleNamespace(pw_uid=1007), Mock()
-    execution = Mock(side_effect=guest.GuestError('execution-failed') if execution_failed else None,
-                     return_value=(account, backend))
-    faults = Mock()
-    monkeypatch.setattr(confinement, 'verify_execution_boundary', execution)
-    monkeypatch.setattr(confinement, 'verify_admission_faults', faults)
-    monkeypatch.setattr(confinement.guest, 'PAYLOAD', tmp_path)
-    if execution_failed:
-        with pytest.raises(guest.GuestError, match='execution-failed'):
-            confinement.verify(record)
-        faults.assert_not_called()
-    else:
-        confinement.verify(record)
-        observed_account, directory, observed_backend, observed_record = faults.call_args.args
-        assert (observed_account, observed_backend, observed_record) == (account, backend, record)
-        assert directory.parent == tmp_path and not directory.exists()
-        faults.assert_called_once()
-    execution.assert_called_once_with(record)
-
-
-@pytest.fixture
-def native_census(monkeypatch):
-    import system_kiosk_confinement as confinement
-
-    config = {'backend': 'apparmor'}
-    monkeypatch.setattr(confinement.guest, 'guard', guard := Mock())
-    monkeypatch.setattr(confinement.pwd, 'getpwnam', Mock(
-        return_value=SimpleNamespace(pw_uid=1007)))
-    read_text = confinement.Path.read_text
-    monkeypatch.setattr(confinement.Path, 'read_text', Mock(return_value=json.dumps(config)))
-    monkeypatch.setattr(confinement.runpy, 'run_path', Mock(
-        return_value={'enforcing': (enforcing := Mock())}))
-    monkeypatch.setattr(confinement, 'manager_pid', manager := Mock(return_value=42))
-    opened, closed = Mock(return_value=142), Mock()
-    monkeypatch.setattr(confinement, 'os', SimpleNamespace(
-        pidfd_open=opened, close=closed, readlink=confinement.os.readlink))
-    monkeypatch.setattr(confinement, 'exited', exited := Mock(return_value=False))
-    monkeypatch.setattr(confinement.time, 'sleep', sleep := Mock())
-    monkeypatch.setattr(confinement.time, 'monotonic', Mock(return_value=0))
-    observe = confinement.census_processes
-    monkeypatch.setattr(confinement, 'census_processes', observation := Mock(
-        return_value={'backend': 'apparmor', 'confined_thread_roles': {'onpc-kiosk-manager': 1}}))
-    return SimpleNamespace(helper=confinement, config=config, guard=guard, enforcing=enforcing,
-                           manager=manager, opened=opened, closed=closed, exited=exited,
-                           sleep=sleep, observation=observation, read_text=read_text,
-                           observe=observe)
-
-
-def test_census_retries_complete_observation_with_one_pinned_manager(native_census):
-    model = native_census
-    error = guest.GuestError('kiosk-census:process-lifecycle-changed')
-    complete = {'backend': 'apparmor', 'confined_thread_roles': {'onpc-kiosk-manager': 1}}
-    model.observation.side_effect = [error, complete]
-    assert model.helper.census(required_roles=('manager',)) == complete
-    assert model.observation.call_count == model.guard.call_count == model.enforcing.call_count == 2
-    assert model.observation.call_args_list[0] == model.observation.call_args_list[1]
-    assert model.observation.call_args.args[3:] == (
-        model.helper.PROC / '42', 142, 'user@1007.service')
-    assert model.observation.call_args.kwargs == {'required_roles': ('manager',)}
-    model.opened.assert_called_once_with(42)
-    model.closed.assert_called_once_with(142)
-    model.sleep.assert_called_once_with(0.05)
-
-
-@pytest.fixture
-def native_census_processes(native_census, tmp_path, monkeypatch):
-    model = native_census
-    helper = model.helper
-    # Exercise the real observation, with two private proc-shaped processes.
-    monkeypatch.setattr(helper, 'census_processes', model.observe)
-    monkeypatch.setattr(helper, 'PROC', tmp_path)
-    model.config.update(domains=['manager', 'app'],
-                        apparmor_profiles=['onpc-kiosk-manager', 'onpc-kiosk-app'])
-    processes = []
-    for pid, role in ((42, 'manager'), (43, 'app')):
-        process = tmp_path / str(pid)
-        process.mkdir()
-        processes.append(process)
-        fields = ['S', '1'] + ['0'] * 17 + [str(pid * 100)]
-        (process / 'stat').write_text(f'{pid} (fixture) ' + ' '.join(fields))
-        (process / 'status').write_text('PPid:\t1\nUid:\t1007\t1007\t1007\t1007\n')
-        (process / 'ns').mkdir()
-        (process / 'ns/mnt').symlink_to('mnt:[private]')
-        marker = process / 'root/usr/share/oh-no-parent-control/confinement/generation'
-        marker.parent.mkdir(parents=True)
-        marker.write_text('fixture-generation')
-        attribute = 'attr/apparmor/current'
-        (process / attribute).parent.mkdir(parents=True)
-        (process / attribute).write_text('onpc-kiosk-' + role + ' (enforce)')
-        thread = process / 'task' / str(pid)
-        thread.mkdir(parents=True)
-        for name in ('stat', 'status', 'ns', 'root', 'attr'):
-            (thread / name).symlink_to(process / name)
-    host = tmp_path / '1/ns/mnt'
-    host.parent.mkdir(parents=True)
-    host.symlink_to('mnt:[host]')
-    iterate = helper.Path.iterdir
-    monkeypatch.setattr(helper.Path, 'iterdir', lambda path: (
-        iter(processes) if path == tmp_path else iterate(path)))
-    monkeypatch.setattr(helper.Path, 'read_text', lambda path, *args, **kwargs: (
-        json.dumps(model.config) if str(path) == '/usr/share/oh-no-parent-control/confinement/config.json'
-        else model.read_text(path, *args, **kwargs)))
-    model.processes = processes
-    model.opened.side_effect = [100, 101, 102, 103, 104]
-    return model
-
-
-@pytest.mark.parametrize('race,error', [
-    ('process-reused', None),
-    ('thread-initial', FileNotFoundError), ('thread-final', FileNotFoundError),
-    ('thread-initial', ProcessLookupError), ('thread-final', ProcessLookupError),
-], ids=['process-reused', 'initial-enoent', 'final-enoent', 'initial-esrch', 'final-esrch'])
-def test_census_transient_task_race_discards_partial_role_counts(
-        native_census_processes, monkeypatch, race, error):
-    model = native_census_processes
-    helper, processes = model.helper, model.processes
-    identity = helper.process_identity
-    reads = 0
-
-    def changing_identity(path):
-        nonlocal reads
-        value = identity(path)
-        if path == processes[1]:
-            reads += 1
-            if reads == 2 and race == 'process-reused':
-                return ('transient-change', *value[1:])
-        return value
-
-    monkeypatch.setattr(helper, 'process_identity', changing_identity)
-    thread_stat = processes[1] / 'task/43/stat'
-    read_text = helper.Path.read_text
-    thread_reads = 0
-
-    def disappearing_thread(path, *args, **kwargs):
-        nonlocal thread_reads
-        if path == thread_stat:
-            thread_reads += 1
-            if race != 'process-reused' and thread_reads == (1 if race == 'thread-initial' else 2):
-                thread_stat.unlink()
-                if error is ProcessLookupError:
-                    raise ProcessLookupError('fixture task exited while parent remains live')
-        return read_text(path, *args, **kwargs)
-
-    monkeypatch.setattr(helper.Path, 'read_text', disappearing_thread)
-    model.sleep.side_effect = lambda _delay: (
-        thread_stat.symlink_to(processes[1] / 'stat') if not thread_stat.exists() else None)
-    result = helper.census(required_roles=('manager', 'app'))
-    assert result == {'backend': 'apparmor', 'confined_thread_roles': {
-        'onpc-kiosk-manager': 1, 'onpc-kiosk-app': 1}}
-    assert reads == (4 if race == 'process-reused' else 3)
-    assert model.guard.call_count == model.enforcing.call_count == 2
-    assert [call.args for call in model.manager.call_args_list] == [('user@1007.service',)] * 3
-    assert model.exited.return_value is False  # The parent never exits to excuse the task race.
-    model.sleep.assert_called_once_with(0.05)
-    assert [call.args[0] for call in model.opened.call_args_list] == [42, 42, 43, 42, 43]
-    assert [call.args[0] for call in model.closed.call_args_list] == [101, 102, 103, 104, 100]
-
-
-@pytest.mark.parametrize('point', ['initial', 'final'])
-def test_census_disappearing_thread_churn_reaches_original_deadline(
-        native_census_processes, monkeypatch, point):
-    model = native_census_processes
-    helper = model.helper
-    thread_stat = model.processes[1] / 'task/43/stat'
-    read_text = helper.Path.read_text
-    reads = 0
-
-    def disappearing_thread(path, *args, **kwargs):
-        nonlocal reads
-        if path == thread_stat:
-            reads += 1
-            if point == 'initial' or reads % 2 == 0:
-                thread_stat.unlink()
-        return read_text(path, *args, **kwargs)
-
-    monkeypatch.setattr(helper.Path, 'read_text', disappearing_thread)
-    model.sleep.side_effect = lambda _delay: thread_stat.symlink_to(model.processes[1] / 'stat')
-    monkeypatch.setattr(helper.time, 'monotonic', Mock(side_effect=[0, 1, 2, 5]))
-    with pytest.raises(guest.GuestError, match='^kiosk-census:process-lifecycle-changed$'):
-        helper.census(required_roles=('manager', 'app'))
-    assert reads == (2 if point == 'initial' else 4)
-    assert model.guard.call_count == model.enforcing.call_count == 2
-    model.sleep.assert_called_once_with(0.05)
-    assert model.exited.return_value is False
-    assert [call.args[0] for call in model.opened.call_args_list] == [42, 42, 43, 42, 43]
-    assert [call.args[0] for call in model.closed.call_args_list] == [101, 102, 103, 104, 100]
-
-
-@pytest.mark.parametrize('fault,category', [
-    ('label', 'kiosk-census:unconfined-thread'),
-    ('generation', 'kiosk-census:unconfined-generation'),
-    ('namespace', 'kiosk-census:unconfined-namespace'),
-    ('credentials', 'kiosk-census:required-service-missing:app'),
-    ('missing-label', 'kiosk-census:live-process-unreadable'),
-    ('missing-generation', 'kiosk-census:live-process-unreadable'),
-    ('missing-namespace', 'kiosk-census:live-process-unreadable'),
-    ('unreadable-initial-identity', None),
-    ('unreadable-final-identity', None),
-])
-def test_census_live_thread_security_failure_is_terminal(
-        native_census_processes, monkeypatch, fault, category):
-    model = native_census_processes
-    helper = model.helper
-    process = model.processes[1]
-    if fault in ('label', 'missing-label'):
-        target = process / 'attr/apparmor/current'
-        if fault == 'missing-label':
-            target.unlink()
-        else:
-            target.write_text('unconfined (enforce)')
-    elif fault in ('generation', 'missing-generation'):
-        target = process / 'root/usr/share/oh-no-parent-control/confinement/generation'
-        if fault == 'missing-generation':
-            target.unlink()
-        else:
-            target.write_text('different-generation')
-    elif fault in ('namespace', 'missing-namespace'):
-        target = process / 'ns/mnt'
-        target.unlink()
-        if fault == 'namespace':
-            target.symlink_to('mnt:[host]')
-    elif fault == 'credentials':
-        (process / 'status').write_text('PPid:\t1\nUid:\t0\t0\t0\t0\n')
-    else:
-        read_text = helper.Path.read_text
-        reads = 0
-
-        def unreadable_identity(path, *args, **kwargs):
-            nonlocal reads
-            if path == process / 'task/43/stat':
-                reads += 1
-                if reads == (1 if fault == 'unreadable-initial-identity' else 2):
-                    raise PermissionError('fixture live task identity access denied')
-            return read_text(path, *args, **kwargs)
-
-        monkeypatch.setattr(helper.Path, 'read_text', unreadable_identity)
-    with pytest.raises(guest.GuestError if category else PermissionError,
-                       match='^' + category + '$' if category else 'identity access denied'):
-        helper.census(required_roles=('manager', 'app'))
-    model.sleep.assert_not_called()
-    assert model.guard.call_count == model.enforcing.call_count == 1
-    assert model.exited.return_value is False
-    assert [call.args[0] for call in model.opened.call_args_list] == [42, 42, 43]
-    assert [call.args[0] for call in model.closed.call_args_list] == [101, 102, 100]
-
-
-@pytest.mark.parametrize('expires', ['before-retry', 'after-guard', 'persistent'])
-def test_census_persistent_race_retains_first_error_and_closes_manager(native_census, monkeypatch, expires):
-    model = native_census
-    first = guest.GuestError('kiosk-census:process-lifecycle-changed')
-    later = guest.GuestError('kiosk-census:process-lifecycle-changed')
-    model.observation.side_effect = [first, later]
-    monkeypatch.setattr(model.helper.time, 'monotonic', Mock(side_effect={
-        'before-retry': [0, 5], 'after-guard': [0, 1, 5], 'persistent': [0, 1, 2, 5],
-    }[expires]))
-    with pytest.raises(guest.GuestError) as failure:
-        model.helper.census()
-    assert failure.value is first
-    assert model.observation.call_count == (2 if expires == 'persistent' else 1)
-    model.closed.assert_called_once_with(142)
-    model.opened.assert_called_once_with(42)
-
-
-@pytest.mark.parametrize('category', [
-    'kiosk-census:manager-lifecycle-changed', 'kiosk-census:manager-uid',
-    'kiosk-census:manager-label', 'kiosk-census:manager-generation',
-    'kiosk-census:required-service-missing:app', 'kiosk-census:unknown-required-role',
-    'kiosk-census:unconfined-thread', 'kiosk-census:unenforced-thread',
-    'kiosk-census:unconfined-namespace', 'kiosk-census:unconfined-generation',
-    'kiosk-census:live-process-unreadable', 'kiosk-password:credentials',
-])
-def test_census_never_retries_security_or_ownership_failure(native_census, category):
-    model = native_census
-    original = guest.GuestError(category)
-    model.observation.side_effect = original
-    with pytest.raises(guest.GuestError) as failure:
-        model.helper.census()
-    assert failure.value is original
-    model.observation.assert_called_once()
-    model.sleep.assert_not_called()
-    model.closed.assert_called_once_with(142)
-
-
-@pytest.mark.parametrize('fault', ['guard', 'enforcing', 'manager-exited', 'manager-replaced'])
-def test_census_rechecks_policy_and_pinned_manager_before_retry(native_census, fault):
-    model = native_census
-    model.observation.side_effect = guest.GuestError('kiosk-census:process-lifecycle-changed')
-    if fault in ('guard', 'enforcing'):
-        getattr(model, fault).side_effect = [None, guest.GuestError('retry:' + fault)]
-        category = 'retry:' + fault
-    else:
-        model.exited.return_value = fault == 'manager-exited'
-        model.manager.side_effect = [42, 99] if fault == 'manager-replaced' else None
-        category = 'kiosk-census:manager-lifecycle-changed'
-    with pytest.raises(guest.GuestError, match=category):
-        model.helper.census()
-    model.observation.assert_called_once()
-    model.opened.assert_called_once_with(42)
-    model.closed.assert_called_once_with(142)
 
 
 def test_conflicting_helper_targets_are_refused_before_any_staging(tmp_path, monkeypatch):
@@ -3070,197 +2721,34 @@ def test_snapshot_changed_during_run_leaves_recovery_evidence(lease_rig):
     lease.source.domain.destroyFlags.assert_not_called()
 
 
-def test_bootstrap_permissions_selection_freezes_ordinary_enforcement_inputs(tmp_path):
-    import system_snapshots
-
-    case = 'test_kiosk_native_bootstrap_permissions'
-    inventories = dict(INVENTORIES, enforcement=(case,))
-    selection = runner.resolve_selection('enforcement', case, inventories=inventories)
-    assert selection.phases == ('enforcement',)
-    assert len(selection.executions) == 1
-    assert not selection.executions[0].prerequisite
-    assert selection.executions[0].case_id == case
-    assert 'retained-app-snapshot' in selection.prerequisites
-    assert 'native-enforcement-fixture' in selection.prerequisites
-    assert system_snapshots.attempts(selection) == [(selection, True)]
-    numeric = runner.resolve_selection(recording_ids='292', inventories=inventories)
-    assert numeric.phases == selection.phases
-    assert numeric.executions == selection.executions
-    assert numeric.prerequisites == selection.prerequisites
-    assert runner.pytest_command(RUN, 'enforcement', selection)[-1] == (
-        runner.PAYLOAD + '/test_enforcement.py::' + case)
-    runner.stage_selected_inputs(selection, tmp_path)
-    inputs = json.loads((tmp_path / 'selected-inputs.json').read_text())
-    assert 'host_files' not in inputs
-    for name in ('test_enforcement.py', 'system_kiosk_confinement.py', 'system_guest.py',
-                 'system_caller.py', 'system_enforcement.py'):
-        frozen = inputs['files'][name]
-        assert frozen['sha256'] == hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
-        assert frozen['sha256'] == hashlib.sha256(
-            (runner.ROOT / frozen['source']).read_bytes()).hexdigest()
+@pytest.mark.parametrize('numeric_id', sorted(system_case_ids.UNBOUND_CASES))
+def test_historical_unbound_ids_stay_reserved_without_executable_selectors(
+        numeric_id, monkeypatch, capsys):
+    collect = Mock(side_effect=AssertionError('unbound ID collected tests'))
+    monkeypatch.setattr(runner, 'collect_area_cases', collect)
+    with pytest.raises(runner.Error, match='numeric-id-not-runnable'):
+        runner.resolve_selection(recording_ids=str(numeric_id))
+    collect.assert_not_called()
+    selection = runner.resolve_selection(inventories=INVENTORIES)
+    runner.print_selection(selection)
+    output = capsys.readouterr().out
+    statuses, selectors = output.split('  available-selectors:')
+    status, reason = system_case_ids.UNBOUND_CASES[numeric_id]
+    assert f'    system-{numeric_id}: {status}; {reason}' in statuses
+    assert f'[system-{numeric_id}]' not in selectors
+    assert system_case_ids.BY_ID[numeric_id].case_id not in {
+        item.case_id for item in selection.executions}
 
 
-@pytest.mark.parametrize('failure', [False, True])
-def test_bootstrap_permissions_case_dispatches_only_its_owned_history(monkeypatch, failure):
-    error = guest.GuestError('bootstrap-permissions:original-failure')
-    verify = Mock(side_effect=error if failure else None)
-    monkeypatch.setitem(sys.modules, 'system_kiosk_confinement',
-                        SimpleNamespace(verify_bootstrap_permissions=verify))
-    case = load_module('private_bootstrap_permissions_case',
-                       runner.ROOT / 'tests/system/test_enforcement.py')
-    record = Mock()
-    if failure:
-        with pytest.raises(guest.GuestError) as caught:
-            case.test_kiosk_native_bootstrap_permissions(record)
-        assert caught.value is error
-    else:
-        case.test_kiosk_native_bootstrap_permissions(record)
-    verify.assert_called_once_with(record)
-
-
-def test_sibling_selection_freezes_exact_scope_and_public_entry_inputs(tmp_path):
-    import system_snapshots
-    selection = runner.resolve_selection('enforcement', runner.SIBLING_CASE,
-        inventories=dict(INVENTORIES, enforcement=(runner.SIBLING_CASE,)))
-    assert selection.phases == (runner.SIBLING_PHASE,)
-    assert system_snapshots.attempts(selection) == [(selection, True)]
-    assert len(selection.executions) == 1 and not selection.executions[0].prerequisite
-    assert runner.pytest_command(RUN, runner.SIBLING_PHASE, selection)[-1] == (
-        runner.PAYLOAD + '/test_enforcement.py::' + runner.SIBLING_CASE)
-    runner.stage_selected_inputs(selection, tmp_path)
-    inputs = json.loads((tmp_path / 'selected-inputs.json').read_text())
-    assert inputs['host_files'] == runner.kiosk_activation_host_inputs()
-    assert {'system_kiosk_confinement.py', 'system_native_update.py', 'system_guest.py'} <= set(inputs['files'])
-    assert system_case_ids.identity_for_case('enforcement', runner.SIBLING_CASE).numeric_id == 290
-
-
-def test_required_selection_freezes_exact_refusal_recovery_history(tmp_path):
-    import system_snapshots
-    selection = runner.resolve_selection('enforcement', runner.REQUIRED_CASE,
-        inventories=dict(INVENTORIES, enforcement=(runner.REQUIRED_CASE,)))
-    assert selection.phases == (runner.REQUIRED_PHASE,)
-    assert system_snapshots.attempts(selection) == [(selection, True)]
-    assert runner.pytest_command(RUN, runner.REQUIRED_PHASE, selection)[-1] == (
-        runner.PAYLOAD + '/test_enforcement.py::' + runner.REQUIRED_CASE)
-    runner.stage_selected_inputs(selection, tmp_path)
-    inputs = json.loads((tmp_path / 'selected-inputs.json').read_text())
-    assert inputs['host_files'] == runner.kiosk_activation_host_inputs()
-    assert 'tests/integration/test_account_password.py' in inputs['host_files']
-    assert system_case_ids.identity_for_case('enforcement', runner.REQUIRED_CASE).numeric_id == 291
-
-
-@pytest.mark.parametrize('fault', [None, 'preparation', 'native', 'gdm', 'restore', 'assertion'])
-def test_required_history_restores_after_uncertain_preparation_and_keeps_original_failures(
-        tmp_path, monkeypatch, fault):
-    from contextlib import contextmanager
-    import kiosk_entry
-    import test_account_password
-    (tmp_path / 'input').mkdir()
-    inputs = {'host_files': {'source': 'digest'}}
-    (tmp_path / 'input/selected-inputs.json').write_text(json.dumps(inputs))
-    monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', lambda: inputs['host_files'])
-    monkeypatch.setattr(test_account_password, 'read_password', lambda: 'private-secret')
-    events = []
-
-    def call(command, **kwargs):
-        if command[-2] == 'ordinary-authentication':
-            assert kwargs['input'] == b'private-secret'
-            events.append('authentication')
-            return json.dumps({'authenticate': 0, 'account': 0, 'end': 0})
-        operation = command[-1]
-        events.append(operation)
-        if operation == {'preparation': 'prepare-required-ancestor', 'native': 'verify-required-refusal',
-                         'gdm': 'verify-required-gdm-refusal', 'restore': 'restore-required-ancestor'}.get(fault):
-            raise RuntimeError(fault)
-
-    def refusal(vm, lease, verify, *, receipt):
-        events.append('public-refusal')
-        verify()
-        receipt['safe_return'] = True
-
-    @contextmanager
-    def station(vm, lease, *, receipt):
-        events.append('public-recovery')
-        try:
-            yield
-        finally:
-            events.append('public-exit')
-            receipt['normal_exit'] = True
-
-    def assertions(*args):
-        events.append('assertions')
-        if fault == 'assertion':
-            raise RuntimeError(fault)
-
-    monkeypatch.setattr(kiosk_entry, 'observe_station_refusal', refusal)
-    monkeypatch.setattr(kiosk_entry, 'native_update_station', station)
-    monkeypatch.setattr(runner, 'run_pytest', assertions)
-    vm, lease = SimpleNamespace(call=call), SimpleNamespace(state={'run': RUN})
-    if fault:
-        with pytest.raises(RuntimeError, match=fault):
-            runner.run_required_phase(vm, lease, tmp_path, None)
-    else:
-        runner.run_required_phase(vm, lease, tmp_path, None)
-    assert events.count('restore-required-ancestor') == 1
-    if fault in ('preparation', 'native', 'gdm', 'restore'):
-        assert 'public-recovery' not in events
-    else:
-        assert events.index('restore-required-ancestor') < events.index('public-recovery')
-        assert 'public-exit' in events
-    receipt = json.loads((tmp_path / 'guest-results/station-required-ancestor.json').read_text())
-    assert 'private-secret' not in json.dumps(receipt)
-    assert receipt['host_inputs_unchanged']
-
-
-@pytest.mark.parametrize('fault', [None, 'preparation', 'assertion', 'cleanup', 'input-drift'])
-def test_sibling_history_preserves_failure_and_finishes_owned_cleanup(
-        tmp_path, monkeypatch, fault):
-    from contextlib import contextmanager
-    import kiosk_entry
-    inputs = {'host_files': {'source': 'digest'}}
-    (tmp_path / 'input').mkdir()
-    (tmp_path / 'input/selected-inputs.json').write_text(json.dumps(inputs))
-    monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', lambda: inputs['host_files'])
-    events = []
-
-    @contextmanager
-    def station(vm, lease, *, receipt):
-        events.append('public-entry')
-        receipt['station_confirmed'] = True
-        try:
-            yield receipt
-        finally:
-            events.append('public-exit')
-            receipt['normal_exit'] = True
-
-    def call(command, **kwargs):
-        operation = command[-1]
-        events.append(operation)
-        if (operation == 'prepare-siblings' and fault == 'preparation' or
-                operation == 'cleanup-siblings' and fault == 'cleanup'):
-            raise RuntimeError(fault)
-
-    def pytest_call(*args):
-        events.append('assertions')
-        if fault == 'assertion':
-            raise RuntimeError(fault)
-        if fault == 'input-drift':
-            monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', lambda: {'source': 'changed'})
-
-    monkeypatch.setattr(kiosk_entry, 'native_update_station', station)
-    monkeypatch.setattr(runner, 'run_pytest', pytest_call)
-    vm = SimpleNamespace(call=call)
-    lease = SimpleNamespace(state={'run': RUN})
-    if fault:
-        with pytest.raises((RuntimeError, runner.Error)):
-            runner.run_sibling_phase(vm, lease, tmp_path, None)
-    else:
-        runner.run_sibling_phase(vm, lease, tmp_path, None)
-    receipt = json.loads((tmp_path / 'guest-results/station-sibling-isolation.json').read_text())
-    if fault == 'preparation':
-        assert events == ['prepare-siblings']
-    else:
-        assert events == ['prepare-siblings', 'public-entry', 'assertions', 'public-exit', 'cleanup-siblings']
-        assert receipt['normal_exit']
-        assert receipt.get('fixture_cleanup') == (None if fault == 'cleanup' else 'passed')
-    assert receipt['host_inputs_unchanged'] == (fault != 'input-drift')
+@pytest.mark.parametrize('options', [
+    {'native_inputs': True},
+    {'native_inputs': True, 'inventories': {
+        **INVENTORIES, 'package': (*INVENTORIES['package'], runner.NATIVE_UPDATE_CASE)}},
+    {'area': 'package', 'test': runner.NATIVE_UPDATE_CASE},
+])
+def test_pending_native_update_refuses_before_collection_or_preparation(monkeypatch, options):
+    collect = Mock(side_effect=AssertionError('pending native history collected tests'))
+    monkeypatch.setattr(runner, 'collect_area_cases', collect)
+    with pytest.raises(runner.Error, match='native-update-pending'):
+        runner.resolve_selection(**options)
+    collect.assert_not_called()

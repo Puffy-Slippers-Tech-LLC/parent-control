@@ -78,7 +78,8 @@ def test_each_variant_preserves_foreign_witness_and_restores_owned_conflict(mach
     try:
         with identity.identity_filesystem_conflict(variant, 23456, record) as conflict:
             assert conflict.target == target
-            assert conflict.preflight == (variant in ('state-owner', 'state-link'))
+            assert conflict.preflight == (variant in (
+                'kiosk-marker-uid', 'home-owner', 'home-link', 'state-owner', 'state-link'))
             conflict.verify()
             if variant == 'kiosk-marker-uid':
                 assert conflict.expected_marker_uid == 23456

@@ -822,6 +822,13 @@ from regression_ui import Bucket
 # conflict tests likewise use private roots, process-local UID and mount rows,
 # and command doubles; no host mounts, accounts, services or shared caches.
 # system_removal_identity and its stage-aware recovery checks are compatible.
+# C04a2 ports removal histories to current quarantine/distro ownership records.
+# All host record, refusal, exact restoration and native-action witnesses remain
+# pytest-private files and process-local account/mount/transport doubles. Finite
+# wrapper children are waited and inherit scratch ownership. Retiring the private
+# MAC-unload history adds no resource. Removal/fault/identity/ownership, guest
+# input and runner classifications remain compatible; no host service, package,
+# account, mount, VM, bus, display, shared cache or external service is acquired.
 # Mapped-module identity regressions use private map_files-shaped symlinks and
 # stat/permission doubles; locked SELinux relabel tests use command doubles and
 # existing private advisory locks, with no host /proc scan or MAC mutation.

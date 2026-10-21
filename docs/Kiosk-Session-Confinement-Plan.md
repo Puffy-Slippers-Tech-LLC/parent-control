@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04a2 — [Port installed removal and recovery records](Kiosk-Prompt-Tasks/C04a2-removal-records.md)**.
+Next task: **C04a3 — [Port installed PAM variation histories](Kiosk-Prompt-Tasks/C04a3-pam-variants.md)**.
 
 ## Outcome
 

@@ -35,7 +35,7 @@ def test_rpm_posterase_recovery(record_testsuite_property):
          os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property)
 
 
-@pytest.mark.parametrize('variant', ['denial-publication', 'mac-unload', 'account-finalization'])
+@pytest.mark.parametrize('variant', ['denial-publication', 'account-finalization'])
 def test_interrupted_finalization_retry(record_testsuite_property, variant):
     {variant: interrupted_finalization_retry,
      variant + '-retry-rebooted': finalization_retry_rebooted}[

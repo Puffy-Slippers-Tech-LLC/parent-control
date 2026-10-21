@@ -88,9 +88,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Pidfd-acquisition refusal owns one finite Python Popen child and private pipe;
 # only that direct unreaped child is killed/waited, with finally cleanup. No
 # process scan or shared fixture is added; unit/cleanup overlap stays compatible.
-# Retained-manager history recovery uses process-local lifecycle/transport/public
-# entry doubles and tiny receipt dictionaries; no live VM, manager, bus, display,
-# subprocess or shared path is acquired. Existing compatible scheduling applies.
+# C04a removes the unconsumed private retained-manager history recovery doubles.
+# Remaining controller/process ownership checks keep their existing private
+# fixtures and compatible unit/cleanup classifications; no new owner is added.
 # system_runner diagnostic-filter checks use bounded in-memory output, private
 # pytest logs and mocked children/pidfds. Existing interruption ownership and
 # compatible cleanup/unit scheduling remain; no real process or VM is started.
@@ -100,6 +100,10 @@ fixtures and external resources have been reviewed; never omit their cases.
 # compatible classification holds in both cleanup and unit inventories.
 # Finalization history dispatch/replay adds private phase/result files and VM
 # doubles only to system_runner; its compatible cleanup classification holds.
+# C04a2's retired MAC history and current quarantine-record bindings retain
+# those same private runner files and transport doubles. No cleanup ownership,
+# shared resource or process lifetime changes; both inventory classifications
+# remain compatible and exact recorded-owner refusal checks remain active.
 
 # Explicit VM-name forwarding retains private journals and process-local API
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.

@@ -15,7 +15,7 @@ import system_removal_ownership as ownership
 @pytest.fixture
 def machine(tmp_path, monkeypatch):
     target = tmp_path / 'target'
-    target.write_bytes(b'{"kiosk_uid": 12345, "backend": "selinux"}\n')
+    target.write_bytes(b'{"version": 1, "uid": 12345, "expires": null, "phase": "quarantined"}\n')
     target.chmod(0o600)
     monkeypatch.setattr(ownership, 'OWNER_UID', os.getuid())
     monkeypatch.setattr(ownership, 'parents', Mock())
@@ -60,7 +60,8 @@ def test_each_conflict_preserves_controls_and_restores_exact_inode(machine, vari
                 assert stat.S_IMODE(conflict.expected.metadata[4]) == 0o600
                 assert conflict.expected.contents == original.contents
             elif variant.endswith('-uid'):
-                assert json.loads(machine.read_bytes()) == {'kiosk_uid': 23456, 'backend': 'selinux'}
+                assert json.loads(machine.read_bytes()) == {
+                    'version': 1, 'uid': 23456, 'expires': None, 'phase': 'quarantined'}
             else:
                 assert machine.read_bytes() == original.contents + ownership.COMMENT
             if body_failure:
@@ -150,8 +151,16 @@ def test_exclusive_backup_never_overwrites_collision(machine, monkeypatch):
     assert ownership.witness(collision) == foreign
 
 
-@pytest.mark.parametrize('payload', [b'{"uid": 12345}', b'{"kiosk_uid": "12345"}',
-                                     b'{"kiosk_uid": 23456}', b'[]'])
+@pytest.mark.parametrize('payload', [
+    b'{"kiosk_uid": 12345}', b'{"uid": 12345}', b'[]',
+    b'{"version": 1, "uid": "12345", "expires": null, "phase": "quarantined"}',
+    b'{"version": 1, "uid": 23456, "expires": null, "phase": "quarantined"}',
+    b'{"version": true, "uid": 12345, "expires": null, "phase": "quarantined"}',
+    b'{"version": 1, "uid": 12345, "expires": -1, "phase": "quarantined"}',
+    b'{"version": 1, "uid": 12345, "expires": true, "phase": "quarantined"}',
+    b'{"version": 1, "uid": 12345, "expires": null, "phase": "unknown"}',
+    b'{"version": 1, "uid": 12345, "expires": null, "phase": "quarantined", "extra": 1}',
+])
 def test_invalid_record_rejected_before_mutation(machine, payload):
     machine.write_bytes(payload)
     original = ownership.witness(machine)
@@ -291,4 +300,42 @@ def test_invalid_selection_refused(machine, variant, uid):
     with pytest.raises(ownership.guest.GuestError):
         with ownership.ownership_conflict(variant, machine, uid, Mock()):
             pytest.fail('must not yield')
+    assert ownership.witness(machine) == original
+
+
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+def test_historic_variants_bind_current_authorities(distribution):
+    targets = ownership.ownership_targets(distribution)
+    assert set(targets) == set(ownership.OWNERSHIP_VARIANTS)
+    assert targets['systemd-user-edit'] == targets['gdm-password-link']
+    assert targets['systemd-user-edit'].name == (
+        'fedora-authselect.json' if distribution == 'fedora' else 'malcontent-pam-before-install')
+    assert targets['systemd-user-link'].name == 'installed-child-extension-trust'
+    assert targets['gdm-hook-link'] == Path('/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules')
+    for variant in ownership.OWNERSHIP_VARIANTS:
+        assert ownership.ownership_reason(variant, distribution)
+        if variant.startswith('confinement-record-'):
+            assert targets[variant].name == 'kiosk-configuration-account.json'
+
+
+def test_fedora_selection_edit_preserves_valid_json_and_original_inode(machine):
+    machine = machine.rename(machine.parent / 'fedora-authselect.json')
+    document = {'version': 1, 'original': ['sssd', 'with-faillock'],
+                'files': {'system-auth': 'a' * 64}, 'phase': 'installed'}
+    machine.write_text(json.dumps(document))
+    original = ownership.witness(machine)
+    with ownership.ownership_conflict('systemd-user-edit', machine, 23456, Mock()) as conflict:
+        assert json.loads(conflict.expected.contents) == {**document, 'original': []}
+        assert conflict.expected.metadata[:2] == original.metadata[:2]
+    assert ownership.witness(machine) == original
+
+
+@pytest.mark.parametrize('expires', [None, 0, 99999])
+@pytest.mark.parametrize('phase', ['quarantined', 'releasing'])
+def test_current_expiry_authority_retains_prior_expiry_and_phase(machine, expires, phase):
+    document = {'version': 1, 'uid': 12345, 'expires': expires, 'phase': phase}
+    machine.write_text(json.dumps(document))
+    original = ownership.witness(machine)
+    with ownership.ownership_conflict('confinement-record-uid', machine, 23456, Mock()) as conflict:
+        assert json.loads(conflict.expected.contents) == {**document, 'uid': 23456}
     assert ownership.witness(machine) == original

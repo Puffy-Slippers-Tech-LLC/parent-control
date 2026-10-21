@@ -62,12 +62,12 @@ class IdentityConflict:
         self.namespace, self.mounts, self.ancestors = namespace, mounts, ancestors
         self.foreign_account = foreign_account
         self.expected_marker_uid = None
-        self.preflight = variant in ('state-owner', 'state-link')
+        self.preflight = variant in ('kiosk-marker-uid', 'home-owner', 'home-link',
+                                     'state-owner', 'state-link')
         self.reason = (
-            b'reason=unsafe-confinement-path' if self.preflight else
-            b'preserving changed kiosk identity' if variant == 'kiosk-marker-uid' else
-            b'preserving substituted kiosk home' if variant == 'home-owner' else
-            b'refusing cleanup of a substituted directory' if variant == 'home-link' else
+            b'uninstall snapshot directory is unsafe' if variant in ('state-owner', 'state-link') else
+            b'changed-kiosk-identity' if variant == 'kiosk-marker-uid' else
+            b'changed-kiosk-home' if variant in ('home-owner', 'home-link') else
             b'refusing cleanup of a mounted directory')
         self.original = self.expected = None
         self.backup = self.link = None

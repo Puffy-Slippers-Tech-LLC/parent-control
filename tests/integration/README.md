@@ -345,20 +345,26 @@ completed independent histories retain their passes. App-snapshot bootstrap
 retires its old payload, including `before.json`, so this original-PAM history
 does not start from an app snapshot.
 
-`removal::test_interrupted_finalization_retry[denial-publication]`,
-`[mac-unload]` and `[account-finalization]` are separate continuous focused
+`removal::test_interrupted_finalization_retry[denial-publication]` and
+`[account-finalization]` are separate continuous focused
 histories with the same baseline and six package prerequisites. Each uses its
 variant name for the first recovery phase and `<variant>-retry-rebooted` for
 the second; package phases are `<variant>-installed` and `<variant>-rebooted`.
 Selection, frozen inputs, JUnit identities, failure stopping and complete replay
 use the same controller metadata as rollback. Quote the full parametrized case
 when selecting it. Previous-package and app-snapshot starts refuse.
-The fixtures interrupt an atomic PAM denial publication, the exact native MAC
-unload command, or native account finalization after real payload erasure.
-Owned mount identities and any native unload witness must match; unrelated
-command failures supply no interruption proof. The surviving-account interval
-requires actual account and session denials through both installed service
-stacks, successful ordinary-account controls and exact retained recovery records.
+The historical `denial-publication` label now interrupts the exact native
+account-expiry command after the current lifecycle saves its quarantine journal.
+The second history interrupts native account finalization after real payload
+erasure. Owned mount identities and exact native-command witnesses must match;
+unrelated command failures supply no interruption proof. The surviving-account
+interval requires native account-expiry denial through both service stacks,
+successful ordinary-account controls, unchanged vendor service files and the
+exact UID-bound recovery journal. Fresh installations publish no private MAC
+policy or service-level removal denial. Case 10 (`mac-unload`) is retired and
+reserved; its surviving quarantine/finalization outcomes remain in cases 9/11.
+Legacy migration and its standalone PAM barriers remain covered separately by
+the package configuration/removal and embedded-finalizer host regressions.
 Across reboots, home identity uses the filesystem UUID, Btrfs subvolume when
 applicable, inode, owner and mode. Same-boot fault cleanup still requires the
 exact device, inode, pinned descriptor, mount namespace and mount inventory.
@@ -369,6 +375,12 @@ The variants are `systemd-user-edit`, `gdm-password-link`, `systemd-user-link`,
 `gdm-hook-link`, `confinement-record-owner`, `confinement-record-link` and
 `confinement-record-uid`. Each retains its own baseline installation/reboot
 prerequisites and continuous conflict/refusal/resolution/reboot/removal attempt.
+The historic variant labels retain cases 12–18. Their current targets are the
+distro PAM selection authority (edit/link), child-trust ownership record (link),
+generated fallback rule (link), and the real lifecycle-created account-expiry
+journal (owner/link/UID). The journal is created through lifecycle preparation,
+then released through verified rollback after exact conflict restoration; no
+legacy record is invented for a fresh installation.
 Native refusal must preserve the exact conflict inode, metadata, bytes or link
 text and referent, recovery records, enforcement and ordinary-user access.
 Fixture cleanup restores only that recorded conflict; full owned integration
@@ -385,11 +397,11 @@ no acceptance; finish maintenance cleanup before a fresh installed history.
 prerequisites and two phases, `rpm-posterase` and
 `rpm-posterase-reinstalled-rebooted`, form one continuous baseline attempt.
 The packaged purge action must fail in real RPM post-erase cleanup with the
-payload erased, durable account/session denials and exact recovery records
+payload erased, native account-expiry denials and exact recovery records
 retained. A pinned self-bind on the kiosk home and a foreign-owned sentinel
 remain through normal `make install` recovery. A joined observer independently
-requires restored native enforcement and a denied child launch while the durable
-admission marker remains.
+requires restored native enforcement and a denied child launch while the
+UID-bound quarantine journal remains.
 Only then does the fixture resolve its exact conflict. A real reboot precedes
 the repeated packaged purge, owned account/home deletion, exact original PAM
 and authselect restoration, and ordinary-user checks under enforcing SELinux.

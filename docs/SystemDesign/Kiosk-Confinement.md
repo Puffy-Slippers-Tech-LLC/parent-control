@@ -914,11 +914,11 @@ C04a1–C04a3 immediately before this consumer:
   loading or old callback ordering. The [C04a1 port](#c04a1-first-configuration-interruption-inputs)
   binds actual finite interruption inputs while retaining quarantine, genuine
   ordinary positives and retry/reboot; installed qualification remains pending.
-- Cases 6–25: removal's foreign-integration, rollback/rearmed, finalization,
-  post-erase, ownership and filesystem-refusal histories still assume fresh
-  legacy records/hooks or the removed integration CLI. Map complete histories
-  to selected lifecycle records, distinguishing explicit legacy migration from
-  fresh installation. The current readiness/live-holder port is partial.
+- Cases 6–25: the [C04a2 port](#c04a2-removal-and-recovery-records) maps
+  foreign-integration, rollback/rearmed, finalization, post-erase, ownership and
+  filesystem-refusal histories to current lifecycle records and native package
+  actions. Fresh quarantine and retained legacy migration remain distinct;
+  changed installed histories still require qualification.
 - Cases 283–286: PAM `pending_retry` still expects removed strict vendor-text
   refusal, fresh legacy records and obsolete activation exclusions. Preserve
   vendor/admin authority and the full install/reconfigure/reboot/remove history.
@@ -928,29 +928,33 @@ credit** from this suspension. Only its Requires chain gains the three explicit
 prerequisites; their briefs name the exact remaining sources and checks.
 
 Supporting host validation completed with 600-second worker deadlines. The
-[initial 2,661-case attempt](../../output/test-runs/host/exports/onpc-evidence-bundle-_ba0ncb0/evidence.zip)
+retained [partial handoff](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/18b4960ab7d544d091cb590ae9e86219/agent-result.json)
+records supporting results and completed cleanup; its detailed report/export
+bundle has rotated under maintained retention. The initial 2,661-case attempt
 passed 2,640 and exposed 21 maintenance failures: eleven unconsumed retired
 history-cleanup tests, nine admission doubles missing the newly required guard,
 and a stale frozen-input expectation. The eleven obsolete tests were removed
 with their producer; current manager/command ownership checks remain. The
-[focused repair and metadata attempt](../../output/test-runs/host/exports/onpc-evidence-bundle-_ba0ncb0/evidence.zip)
+focused repair and metadata attempt
 passed 762/763, including all nine guard repairs, retained cleanup checks and
 all 639 metadata checks. Its remaining frozen-input smoke imported the now
 unconsumed enforcement module; the
-[exact 12-case input retry](../../output/test-runs/host/exports/onpc-evidence-bundle-_ba0ncb0/evidence.zip)
+exact 12-case input retry
 passed after following only the actual current setup closure. Assertions still
 verify immutable staging and successful isolated imports; the dependency guards
 were not weakened. These retained attempts validate the partial port, not the
 unfinished lifecycle histories or installed product.
 
 Those three exact original report directories, including selections, results,
-failures and cleanup-complete runs, are retained in the verified 35-file partial
-evidence bundle above (SHA-256
+failures and cleanup-complete runs, were retained in the now-rotated verified
+35-file partial evidence bundle (SHA-256
 `eadf859397893dad03839be7b2afc6890c395bd22753323ed7ece0323fccd6f3`).
 Their original report IDs are `20261021T041636Z-5f2c9cf9`,
 `20261021T041906Z-3138deea` and `20261021T042018Z-d3d62d3e` respectively.
-This export preserves results, including superseded failures; it supplies no
-consumer acceptance credit and deletes no source evidence.
+The saved handoff retains the export identity and supporting summary, including
+the passing 12-case retry and 639 metadata checks. Detailed proof is unavailable;
+these historical partial results supply no consumer acceptance credit. C04a
+still requires its full current host acceptance after all prerequisites.
 
 The final entry/Preferences/feedback caller doubles now use the same explicit
 session-only census shape instead of retained MAC-role dictionaries. The retained
@@ -1040,7 +1044,7 @@ declared asset aliases and complete fixture registry. The 741-case retry passed
 the complete consistency/launcher selection. The exact 13-case guest-input
 retry then passed, including immutable staging/import of case 4's real closure.
 No assertion, missing-module guard or product behavior was weakened.
-The final [313-case host consistency check](../../output/test-runs/host/reports/20261021T043447Z-6ca8632e/report.md)
+The final [313-case host consistency check](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 passed after queue/pointer/brief close-out. Plan validation selects C04a2;
 all 300 links in the four changed Markdown owners and the diff check pass.
 
@@ -1060,6 +1064,95 @@ finished, export cleanup verified complete, and historical reports/bundles are
 preserved under maintained retention. No VM or installed state was acquired;
 no installation, staging, commit, push or workflow execution occurred. C04a2
 and C04a3 remain unfinished, and C04a retains all its acceptance obligations.
+
+##### C04a2 removal and recovery records
+
+The [installed removal histories](../../tests/integration/system_removal.py)
+now distinguish a fresh installation's UID ownership and account-expiry journal
+from retained legacy PAM/MAC migration records. They use the actual package
+remove, configuration retry, reinstall and packaged purge actions. The shared
+preflight calls the installed lifecycle's owned readers and admission lease;
+it publishes no quarantine, PAM or removal record. It never substitutes the
+mutating `prepare-remove` action for the removed `check-remove` command.
+
+| Stable IDs | Current binding and preserved result |
+| --- | --- |
+| 6 | Complete ordinary erase/reboot/reinstall/purge/reinstall; edited owned fallback and distro PAM selection authorities refuse removal without losing policy or ordinary-account access. |
+| 7 | Exact distro PAM remove/restore faults retain native enforcement rollback, the real expiry quarantine and owned broker mask; native retry, reboot and final removal restore the original state. |
+| 8 | Fedora's real failed post-erase packaged purge retains the owned home conflict, saved policy, provenance and quarantine; normal reinstall, joined restoration observer, reboot and repeated packaged purge complete the history. |
+| 9, 11 | Historical `denial-publication` now interrupts the exact native expiry command after journal publication; `account-finalization` interrupts native account deletion. Both retain ordinary controls, original expiry, exact recovery records, owned retry and reboot. |
+| 10 | Retired private MAC-unload witness, reserved without an executable registration. Actual quarantine/finalization outcomes remain in 7/9/11; legacy policy retirement and embedded post-erase restoration remain in the package/lifecycle host regressions. |
+| 12–18 | Historical labels now bind distro PAM selection edit/link, child-trust ownership link, generated fallback link, and the genuine lifecycle-created expiry journal's owner/link/UID. Exact conflict metadata, bytes, referents and foreign state survive native refusal and only the recorded mutation is restored. |
+| 19–25 | Marker UID, home owner/link/mount and saved-state owner/link/mount retain their full histories. Current account/home validation refuses identity substitutions before erase; mounted-root faults retain the post-erase recovery interval. |
+
+Fresh post-erase protection is native account expiry, checked through both vendor
+service stacks with ordinary-account positives and unchanged service bytes.
+There is no fresh private policy unload or standalone session-only PAM veto.
+Ubuntu's common-account policy reports expiry as status 7; Fedora reports 13.
+Original shared PAM/authselect restoration remains independently measured before
+installation, rather than inferred from the product's recovery records.
+Live kiosk-manager and root-held PAM-admission refusals retain their live identity,
+payload, policy, recovery-record and normal-drain controls.
+
+Faults use exact once-only command witnesses and the existing guest-private
+allocation. Mount restoration pins namespace, source, original inode, bytes,
+metadata and xattrs; a changed owner or replacement is preserved and refused.
+Frozen guest inputs follow actual imports and retain all four removal helpers.
+The changed bindings require installed qualification in their later consumer;
+host doubles, registration and read-only listing grant no installed result.
+
+Host acceptance used explicit 600-second collection/worker deadlines. The
+[verified 47-file evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-3ubk7ync/evidence.zip)
+retains the exact selections, outputs, failures and cleanup records from
+`20261021T044414Z-d02f5487`, `20261021T045128Z-879513eb` and
+`20261021T045257Z-9404569b` and final consistency run
+`20261021T045606Z-89708816` (SHA-256
+`59eb071b4641a7e44184edeb8278726daa35e6886a70b6bee0992a51c4854fac`).
+The first 2,228-case selection stopped after fixture setup failed, with 1,458
+passes and 26 recorded failures. These exposed missing current reader doubles,
+stale recovery-stage fixtures and a supposedly partial command that was actually
+complete. The expanded 3,243-case selection completed with 3,236 passes and seven
+remaining stale diagnostic/native-reinstall expectations. The final 854-case
+removal-module retry passed all checks, closing that complete 3,243-case scope.
+No product expectation or assertion was weakened.
+
+That scope includes removal/fault/identity/ownership, root-held and live-manager
+controls, cleanup, runner/guest/frozen inputs, shared first-configuration/PAM
+consumers, host classifications, legacy migration/removal/finalizer checks and
+all five composition/metadata/launcher modules. Four source-composition cases
+independently bind both distributions' real lifecycle and rendered callbacks to
+the exact fault commands, saved journal, delegation, restoration and successful
+retry. The read-only removal list has 19 runnable histories and 155 phase
+executions including prerequisites; ID 8 remains RPM-only and ID 10 is reserved
+without an executable binding. Coverage generation succeeded. The final
+313/313 host consistency checks passed after queue/pointer/brief close-out;
+the plan check selects C04a3.
+
+Resource review covers all affected unit and cleanup inventories: private pytest
+files, process-local account/PAM/mount/transport doubles, bounded waited shell
+children with inherited scratch ownership, and existing joined watcher lifetimes.
+No shared cache, service, account, package database, VM, bus or display is acquired
+on the development host. Both existing compatible scheduler classifications
+remain valid. **Usability priority: passed; Threat scope: passed** for this test
+port: ordinary controls and useful original causes remain, and no product
+restriction or absent-provider denial is introduced. Packaged source/build
+inputs are unchanged; no package build or core-backend review applies.
+
+All three helpers are joined and have relinquished their files. Runner-owned
+children and scratch lifetimes ended; the evidence export independently verified
+its bundle and completed owned cleanup. No VM, installation, staging, commit,
+push or other workflow launcher occurred. Artifact ownership and unrelated
+changes are preserved; the expired unaccepted C04a partial export is explicitly
+disclosed above. C04a retains its full scope and all changed installed
+qualification obligations.
+
+C04a1's rotated final consistency-report link now uses its stable accepted-proof
+locator. The maintained reader verified its exact original 313/313 report,
+four-module selection and 600-second command, accepted result and completed
+cleanup in the retained 690-file plan bundle (SHA-256
+`8885d3728fe8aeaeb69becc04cc4450c356f06811b2678eb9f61d1c52eed9ff1`).
+Only that link's destination changed; its claims and predecessor completion
+remain unchanged.
 
 ##### C02a prepared session runtime
 

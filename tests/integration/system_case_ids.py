@@ -611,6 +611,22 @@ CASES = (
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})
+
+# Reserved identities whose former implementation depended on the removed
+# private runtime. These are neither executable bindings nor accepted results.
+# The C04a disposition map in docs/SystemDesign/Kiosk-Confinement.md owns the
+# surviving behavior and its receiving task. Never reuse these numeric IDs.
+UNBOUND_CASES = MappingProxyType({
+    10: ('retired', 'private MAC unload witness; quarantine/finalization recovery remains in 9/11'),
+    269: ('pending', 'C08: reachable startup/audio inputs and ordinary-use controls'),
+    270: ('retired', 'private namespace callback witness; PAM behavior remains in 268/271'),
+    289: ('pending', 'C09c1: real dependency update, retained use and fresh reentry'),
+    290: ('pending', 'C09: unrelated writable siblings must not prevent ordinary use'),
+    291: ('pending', 'C09b: essential-service interruption and usable recovery'),
+    292: ('retired', 'private native bootstrap/loader permission matrix'),
+    293: ('pending', 'C09: ordinary ambient variation with usable repeated entry'),
+    294: ('pending', 'C09c: owned interrupted state recovery with foreign/live preservation'),
+})
 _BY_SELECTOR = MappingProxyType({(case.area, case.case_id): case for case in CASES})
 _BY_CASE = MappingProxyType({case.case_id: case for case in CASES})
 if (len(BY_ID) != len(CASES) or len(_BY_SELECTOR) != len(CASES)
@@ -642,8 +658,11 @@ def validate_inventory(inventories):
     """
     for area, selectors in inventories.items():
         for case_id in selectors:
-            if identity_for_case(area, case_id) is None:
+            identity = identity_for_case(area, case_id)
+            if identity is None:
                 raise ValueError('system-case-ids:unregistered-case')
+            if identity.numeric_id in UNBOUND_CASES:
+                raise ValueError('system-case-ids:non-runnable-case')
 
 
 def parse_recording_ids(value):

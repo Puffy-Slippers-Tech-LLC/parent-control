@@ -20,6 +20,40 @@ OWNERSHIP_VARIANTS = (
     'confinement-record-uid',
 )
 COMMENT = b'\n# onpc removal ownership conflict\n'
+STATE = Path('/var/lib/oh-no-parent-control')
+
+
+def ownership_targets(distribution):
+    """Historic variant labels retain IDs; these are their current authorities."""
+    require(distribution in ('ubuntu', 'fedora'), 'unknown-distribution')
+    selection = STATE / ('fedora-authselect.json' if distribution == 'fedora'
+                         else 'malcontent-pam-before-install')
+    return {
+        'systemd-user-edit': selection,
+        'gdm-password-link': selection,
+        'systemd-user-link': STATE / 'installed-child-extension-trust',
+        'gdm-hook-link': Path('/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules'),
+        **{variant: STATE / 'kiosk-configuration-account.json'
+           for variant in OWNERSHIP_VARIANTS if variant.startswith('confinement-record-')},
+    }
+
+
+def ownership_reason(variant, distribution):
+    require(variant in OWNERSHIP_VARIANTS and distribution in ('ubuntu', 'fedora'),
+            'unknown-selection')
+    if variant.startswith('confinement-record-'):
+        return {'confinement-record-uid': b'changed-kiosk-expiry-record',
+                'confinement-record-owner': b'unsafe-migration-file',
+                'confinement-record-link': b'[Errno 40]'}[variant]
+    if variant == 'systemd-user-link':
+        return b'refusing substituted child trust integration'
+    if variant == 'gdm-hook-link':
+        return b'system integration was modified; preserving it and refusing removal'
+    if distribution == 'fedora':
+        return (b'invalid original authselect selection' if variant.endswith('-edit') else
+                b'unsafe authselect ownership or substituted path')
+    return (b'invalid original PAM selection' if variant.endswith('-edit') else
+            b'unsafe original PAM selection')
 
 
 def require(condition, reason):
@@ -194,8 +228,14 @@ def ownership_conflict(variant, target: Path, foreign_uid: int, record):
     if variant.startswith('confinement-record-'):
         require(stat.S_IMODE(info.st_mode) == 0o600, 'unsafe-record-mode')
         document = json.loads(original.contents)
-        require(isinstance(document, dict) and type(document.get('kiosk_uid')) is int and
-                document['kiosk_uid'] > 0 and document['kiosk_uid'] != foreign_uid,
+        require(isinstance(document, dict) and
+                set(document) == {'version', 'uid', 'expires', 'phase'} and
+                type(document['version']) is int and document['version'] == 1 and
+                type(document['uid']) is int and 0 < document['uid'] < 2 ** 32 - 1 and
+                document['uid'] != foreign_uid and
+                (document['expires'] is None or
+                 (type(document['expires']) is int and document['expires'] >= 0)) and
+                document['phase'] in ('quarantined', 'releasing'),
                 'unsafe-record-uid')
     from system_removal import mount_inventory
     namespace, mounts = mount_inventory()
@@ -226,7 +266,16 @@ def ownership_conflict(variant, target: Path, foreign_uid: int, record):
             else:
                 data = original.contents + COMMENT
                 if variant == 'confinement-record-uid':
-                    document['kiosk_uid'] = foreign_uid
+                    document['uid'] = foreign_uid
+                    data = (json.dumps(document, sort_keys=True) + '\n').encode()
+                elif variant == 'systemd-user-edit' and target.name == 'fedora-authselect.json':
+                    # Keep a valid JSON document so the real owner diagnoses
+                    # changed selection authority, rather than JSON syntax.
+                    document = json.loads(original.contents)
+                    require(isinstance(document, dict) and document.get('version') == 1 and
+                            isinstance(document.get('original'), list) and document['original'],
+                            'unsafe-pam-selection')
+                    document['original'] = []
                     data = (json.dumps(document, sort_keys=True) + '\n').encode()
                 os.lseek(fd, 0, os.SEEK_SET)
                 offset = 0

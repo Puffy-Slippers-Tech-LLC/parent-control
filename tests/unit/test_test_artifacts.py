@@ -295,6 +295,308 @@ def bundle_helper(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.fixture
+def retained_plan_helper(tmp_path, monkeypatch):
+    """Real helper/plan/journals; only the installed identity boundary is synthetic."""
+    from contextlib import contextmanager, nullcontext
+    from types import SimpleNamespace
+    import tempfile
+    import evidence_bundle
+    import execution_plan
+    import test_retention
+    import test_storage
+    import vm_config
+
+    checkout = tmp_path / 'checkout'
+    checkout.mkdir(mode=0o700)
+    documents = checkout / 'docs'
+    documents.mkdir(mode=0o700)
+    (documents / 'Plan.md').write_text(
+        'Task queue: [Queue](Queue.md)\nNext task: **proof — Read retained proof**\n')
+    (documents / 'Queue.md').write_text(
+        '| Done | ID | Task | Requires | Scope |\n'
+        '| [ ] | proof | [Read retained proof](Proof.md) | Baseline | host |\n')
+    (documents / 'Proof.md').write_text('Acceptance: host\n')
+    plan = execution_plan.Plan.load(checkout, 'docs/Plan.md')
+    assert [task.id for task in plan.tasks()] == ['proof']
+    monkeypatch.setattr(test_storage, 'ROOT', checkout)
+    monkeypatch.setattr(test_storage, 'BASE', checkout / 'output/test-runs')
+    monkeypatch.delenv(test_retention.VARIABLE, raising=False)
+    monkeypatch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+    uid, gid = os.geteuid(), os.getegid()
+    monkeypatch.setitem(HELPER['main'].__globals__, 'CHECKOUT', str(checkout))
+    monkeypatch.setitem(HELPER['main'].__globals__, 'caller', lambda: (uid, gid))
+    monkeypatch.setattr(evidence_bundle, 'os',
+        SimpleNamespace(**(vars(os) | {'geteuid': lambda: 0})))
+    monkeypatch.setattr(evidence_bundle, 'identity', lambda *_: nullcontext())
+    monkeypatch.setattr(vm_config, 'registry', lambda: {'synthetic-target': None, 'other-target': None})
+
+    source_owner = test_retention.Store(test_storage.directory('state') / 'retention-synthetic-target')
+    parent = evidence_bundle.plan_parent(checkout, plan.namespace, create=True)
+    workflow_owner = test_retention.Store(parent.parent / 'retention')
+    with workflow_owner.session():
+        pass
+
+    def allocate(contents):
+        root = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-active-reader-'))
+        for name, data in contents.items():
+            path = root / name
+            path.write_bytes(data)
+            path.chmod(0o600)
+        return root
+
+    contents = [b'first attempt: passed\n', b'second attempt: passed\n']
+    with source_owner.session():
+        originals = [allocate({'report.json': data}) / 'report.json' for data in contents]
+    with evidence_bundle.Selection(checkout, uid, gid, ['synthetic-target'],
+            list(map(str, originals)), [], plan_namespace=plan.namespace) as selection:
+        bundle = evidence_bundle.export(selection, expected=selection.selection_sha256)['path']
+    # Retire the originals through their real bounded owner, never manual unlink.
+    for _ in range(3):
+        with source_owner.session():
+            allocate({'later.json': b'later unrelated result'})
+    assert all(not path.exists() for path in originals)
+
+    def arguments(references=None, *, target='synthetic-target', sources=()):
+        result = ['bundle-plan', '--plan', plan.path, '--target', target, '--bundle', bundle]
+        for path in originals if references is None else references:
+            result += ['--reference', str(path)]
+        for path in sources:
+            result += ['--source', str(path)]
+        return result
+
+    @contextmanager
+    def active():
+        with source_owner.session():
+            live = allocate({'mutable.json': b'producer is still running'}) / 'mutable.json'
+            yield live
+
+    return SimpleNamespace(checkout=checkout, owner=source_owner, originals=originals,
+        contents=contents, bundle=Path(bundle), arguments=arguments, active=active,
+        archive_owner=test_retention.Store(parent / 'retention'))
+
+
+def test_bundle_plan_resolves_two_retired_reports_during_unrelated_active_target(
+        retained_plan_helper, monkeypatch, capsys):
+    from contextlib import contextmanager
+    import evidence_bundle
+    import test_retention
+    fixture = retained_plan_helper
+    inspected, opened = [], []
+    inspection = test_retention.Store.inspection
+    open_selected = evidence_bundle.Selection.open
+
+    @contextmanager
+    def observe_inspection(store, **options):
+        inspected.append(store.path)
+        with inspection(store, **options) as state:
+            yield state
+
+    @contextmanager
+    def observe_open(selection, path):
+        opened.append(Path(path))
+        with open_selected(selection, path) as value:
+            yield value
+
+    with fixture.active() as live:
+        # The old load strategy eagerly inspected this complete catalogue.
+        # Keep that refusal as a finite control without changing the real reader.
+        eager = evidence_bundle.Selection(fixture.checkout, os.geteuid(), os.getegid(),
+            ['synthetic-target'], [], [str(fixture.bundle)])
+        assert fixture.owner.path in {journal for journal, *_ in eager.catalogue()}
+        with pytest.raises(ValueError, match='another owner is active'):
+            with fixture.owner.inspection():
+                pytest.fail('eager catalogue adopted the active target owner')
+        eager.stack.close()
+        before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                  for path in fixture.checkout.rglob('*') if path.is_file()}
+        with monkeypatch.context() as patch:
+            patch.setattr(test_retention.Store, 'inspection', observe_inspection)
+            patch.setattr(evidence_bundle.Selection, 'open', observe_open)
+            patch.setattr(test_retention.Store, 'save',
+                lambda *_a, **_k: pytest.fail('reader wrote a source journal/checkpoint'))
+            patch.setattr(test_retention.Store, 'prune',
+                lambda *_a, **_k: pytest.fail('reader rotated source evidence'))
+            assert HELPER['main'](fixture.arguments()) == 0
+            captured = capsys.readouterr()
+            assert not captured.err
+            result = json.loads(captured.out)
+        assert fixture.owner.path not in inspected
+        assert fixture.archive_owner.path in inspected
+        assert live not in opened and live.parent not in opened
+        assert all(not path.exists() for path in fixture.originals)
+        entries = {item['path']: item for item in result['manifest']['files']}
+        assert set(entries) == set(map(str, fixture.originals))
+        for path, data in zip(fixture.originals, fixture.contents):
+            assert entries[str(path)]['sha256'] == evidence_bundle.digest(data)
+            assert entries[str(path)]['bytes'] == len(data)
+            assert entries[str(path)]['allocation']['journal'] == str(fixture.owner.path)
+            assert evidence_bundle.inspect(fixture.checkout, os.geteuid(), os.getegid(),
+                                           str(fixture.bundle), member=str(path)) == data
+        after = {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                 for path in fixture.checkout.rglob('*') if path.is_file()}
+        assert after == before
+
+
+@pytest.mark.parametrize('defect', ['missing-member', 'wrong-attempt', 'wrong-target'])
+def test_bundle_plan_active_target_requires_exact_archived_reference(
+        retained_plan_helper, capsys, defect):
+    fixture = retained_plan_helper
+    first, second = fixture.originals
+    if defect == 'missing-member':
+        requested = first.with_name('missing.json')
+        target = 'synthetic-target'
+    elif defect == 'wrong-attempt':
+        requested = first.parent.with_name(first.parent.name + '-other-attempt') / first.name
+        target = 'synthetic-target'
+    else:
+        requested = first
+        target = 'other-target'
+    with fixture.active():
+        status = HELPER['main'](fixture.arguments([requested, second], target=target))
+    captured = capsys.readouterr()
+    assert not captured.out
+    if defect == 'wrong-target':
+        assert status == 2 and captured.err.startswith('test-artifacts: ')
+        assert 'evidence_unavailable' not in captured.err
+    else:
+        assert status == 3
+        assert json.loads(captured.err) == dict(error='evidence_unavailable', paths=[str(requested)])
+
+
+def test_bundle_plan_target_archive_requires_explicit_target(retained_plan_helper, capsys):
+    fixture = retained_plan_helper
+    arguments = fixture.arguments()
+    # Keep the validated plan, bundle and exact references, omitting only target.
+    with fixture.active():
+        assert HELPER['main'](arguments[:3] + arguments[5:]) == 2
+        captured = capsys.readouterr()
+        assert not captured.out
+        assert 'archived reference target does not match selection' in captured.err
+        assert 'evidence_unavailable' not in captured.err
+
+
+def test_bundle_plan_target_can_read_archived_shared_private_export(
+        retained_plan_helper, capsys):
+    import evidence_bundle
+    fixture = retained_plan_helper
+    source = fixture.checkout / 'artifacts' / 'shared-report.json'
+    source.parent.mkdir(mode=0o700)
+    source.write_bytes(b'shared exported report')
+    source.chmod(0o600)
+    assert HELPER['main'](['export', str(source)]) == 0
+    original = Path(capsys.readouterr().out.strip())
+    namespace = fixture.archive_owner.path.parent.parent.name
+    with evidence_bundle.Selection(fixture.checkout, os.geteuid(), os.getegid(),
+            ['synthetic-target'], [str(original)], [], plan_namespace=namespace) as selection:
+        archive = evidence_bundle.export(selection, expected=selection.selection_sha256)['path']
+    for index in range(3):
+        source.write_bytes(f'later export {index}'.encode())
+        assert HELPER['main'](['export', str(source)]) == 0
+        capsys.readouterr()
+    assert not original.exists()
+    arguments = ['bundle-plan', '--plan', 'docs/Plan.md', '--target', 'synthetic-target',
+                 '--bundle', archive, '--reference', str(original)]
+    with fixture.active():
+        assert HELPER['main'](arguments) == 0
+        captured = capsys.readouterr()
+        assert not captured.err
+        entry, = json.loads(captured.out)['manifest']['files']
+        assert entry['path'] == str(original)
+        assert entry['sha256'] == evidence_bundle.digest(b'shared exported report')
+        assert entry['allocation']['journal'] == str(original.parent.parent / 'retention')
+
+
+@pytest.mark.parametrize('defect', ['corrupt', 'denied', 'active-source', 'active-reference', 'unregistered'])
+def test_bundle_plan_active_target_preserves_authority_integrity_and_owner_refusals(
+        retained_plan_helper, monkeypatch, capsys, defect):
+    from contextlib import contextmanager
+    import evidence_bundle
+    fixture = retained_plan_helper
+    open_selected = evidence_bundle.Selection.open
+
+    @contextmanager
+    def denied(selection, path):
+        if Path(path) == fixture.bundle:
+            raise PermissionError('selected archive reader denied')
+        with open_selected(selection, path) as value:
+            yield value
+
+    if defect == 'corrupt':
+        fixture.bundle.write_bytes(b'corrupt selected archive')
+    elif defect == 'denied':
+        monkeypatch.setattr(evidence_bundle.Selection, 'open', denied)
+    with fixture.active() as live:
+        arguments = fixture.arguments(
+            [*fixture.originals, live] if defect == 'active-reference' else None,
+            target='unregistered' if defect == 'unregistered' else 'synthetic-target',
+            sources=[live] if defect == 'active-source' else [])
+        assert HELPER['main'](arguments) == 2
+        captured = capsys.readouterr()
+        assert not captured.out and captured.err.startswith('test-artifacts: ')
+        assert 'evidence_unavailable' not in captured.err
+        if defect.startswith('active-'):
+            assert 'another owner is active' in captured.err
+        elif defect == 'denied':
+            assert captured.err == 'test-artifacts: PermissionError\n'
+        elif defect == 'unregistered':
+            assert 'registered canonical targets' in captured.err
+
+
+def test_bundle_plan_archived_selection_shares_readers_and_excludes_writer(
+        retained_plan_helper, monkeypatch, capsys):
+    import evidence_bundle
+    import test_retention
+    fixture = retained_plan_helper
+    with fixture.active(), monkeypatch.context() as patch:
+        # Separate helper processes do not inherit the synthetic producer's
+        # in-process retention environment; its real owner locks stay held.
+        patch.delenv(test_retention.VARIABLE, raising=False)
+        patch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+        with fixture.archive_owner.inspection():
+            assert HELPER['main'](fixture.arguments()) == 0
+            assert json.loads(capsys.readouterr().out)['files'] == 2
+            with pytest.raises(ValueError, match='another owner is active'):
+                with fixture.archive_owner.publication(projected_bytes=0):
+                    pytest.fail('writer entered while archive reader held ownership')
+        with fixture.archive_owner.publication(projected_bytes=0):
+            assert HELPER['main'](fixture.arguments()) == 2
+            captured = capsys.readouterr()
+            assert not captured.out and 'another owner is active' in captured.err
+    assert evidence_bundle.inspect(fixture.checkout, os.geteuid(), os.getegid(),
+                                   str(fixture.bundle))['files'] == 2
+
+
+def test_bundle_plan_refuses_original_reappearing_after_absence_probe(
+        retained_plan_helper, monkeypatch, capsys):
+    import evidence_bundle
+    fixture = retained_plan_helper
+    original = fixture.originals[0]
+    reference_present = evidence_bundle.Selection.reference_present
+    introduced = []
+
+    def reappear(selection, path):
+        present = reference_present(selection, path)
+        if path == original and not introduced:
+            assert not present
+            # Simulate a competing producer recreating an expired pathname;
+            # this fault is intentionally outside the obsolete allocation owner.
+            original.parent.mkdir(mode=0o700)
+            original.write_bytes(b'new mutable report at the old name')
+            original.chmod(0o600)
+            introduced.append(original)
+        return present
+
+    monkeypatch.setattr(evidence_bundle.Selection, 'reference_present', reappear)
+    with fixture.active():
+        assert HELPER['main'](fixture.arguments()) == 2
+        captured = capsys.readouterr()
+        assert not captured.out and captured.err.startswith('test-artifacts: ')
+        assert 'evidence_unavailable' not in captured.err
+        assert introduced == [original]
+        assert original.read_bytes() == b'new mutable report at the old name'
+
+
 @pytest.mark.parametrize('arguments', [
     [], ['--record-id', 'a' * 64], ['--member-id', 'b' * 64],
     ['--record-id', 'a' * 64, '--member-id', 'b' * 64],

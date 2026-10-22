@@ -1871,6 +1871,7 @@ def test_capture_selection_enforces_combined_source_budget_limit(producer, monke
 
 def test_named_capture_targets_require_canonical_registry_names(
         producer, tmp_path, monkeypatch):
+    from contextlib import nullcontext
     from tests.integration import vm_config
 
     config = tmp_path / 'fixture-vms.json'
@@ -1891,4 +1892,23 @@ def test_named_capture_targets_require_canonical_registry_names(
         with pytest.raises(ValueError, match='canonical|registered'):
             capture.issue_session(producer.store, target=target, **options)
     assert (producer.store.path / 'current.json').read_bytes() == before
+    record = producer.record(context=capture.session_context(handle))
+    identifier = capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER])
+    opened = retention.Store.opened
+
+    def no_active_parent(store):
+        assert store.path != producer.store.path, 'selection inspected active parent'
+        return opened(store)
+
+    with monkeypatch.context() as local:
+        # Exercise the unprivileged Selection gate even on a root test host,
+        # without changing credentials or replacing real capture/lock mechanics.
+        local.setattr(bundle, 'os', SimpleNamespace(**(vars(os) | {
+            'geteuid': lambda: os.geteuid() or 12345})))
+        local.setattr(bundle, 'identity', lambda *_: nullcontext())
+        local.setattr(retention.Store, 'opened', no_active_parent)
+        with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                ['Fixture-Guest'], [], [], captures=[identifier]) as selected:
+            assert selected.manifest['records'] == [record]
+            assert selected.plan()['files'] == 1
 

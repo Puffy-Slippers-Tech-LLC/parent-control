@@ -1984,6 +1984,16 @@ its exact original member in an explicitly selected verified bundle. Missing
 references return exit 3 and finite JSON `error: evidence_unavailable` plus exact
 `paths`, allowing the controller to renew acceptance. Other failures remain exit 2;
 mandatory `--source` and `--bundle` inputs never receive this renewal exception.
+When references have vanished and only finished bundles are selected, discovery
+authenticates and inspects their exact publication owners, without inspecting
+unrelated current producer journals, including those for the same target. The
+archived member retains its original path, attempt and target provenance. A live
+original still requires its normal owner and identity checks; a reappearing
+original, wrong target, denied reader, corrupt archive or active selected owner
+refuses rather than becoming missing evidence. Readers recheck absence and pinned
+archive identities before returning, keep deterministic journal lock order and
+exclude publication writers throughout their read scope. Discovery never rotates
+sources or writes workflow checkpoints.
 It also checks source budgets and conservative simultaneous export space before
 publication. Export requires the exact plan digest and repeats these guards.
 Concurrent identical exports serialize the reuse decision under the publication

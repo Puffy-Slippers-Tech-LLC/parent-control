@@ -257,7 +257,7 @@ def validator_tree(tmp_path, monkeypatch):
     return tools, workflow.response_validator_sources()
 
 
-@pytest.fixture(params=ADDED_VALIDATOR_SOURCES)
+@pytest.fixture(params=(*ADDED_VALIDATOR_SOURCES, 'evidence_bundle.py'))
 def validator_checkout(tmp_path, monkeypatch, request, rig):
     tools, snapshot = validator_tree(tmp_path, monkeypatch)
     path = tools / request.param
@@ -266,7 +266,8 @@ def validator_checkout(tmp_path, monkeypatch, request, rig):
         path.write_bytes(b'repaired dependency bytes\n')
         current = workflow.response_validator_sources()
         assert {name for name in snapshot if current[name] != snapshot[name]} == {request.param}
-        assert all(current[name] == snapshot[name] for name in ORIGINAL_VALIDATOR_SOURCES)
+        assert all(current[name] == snapshot[name] for name in ORIGINAL_VALIDATOR_SOURCES
+                   if name != request.param)
 
     inputs = rig.run / 'input' / 'selected-inputs.json'
     inputs.parent.mkdir()

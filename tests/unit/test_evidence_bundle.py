@@ -120,11 +120,11 @@ def evidence(tmp_path, monkeypatch):
     checkout.mkdir(mode=0o700)
     monkeypatch.setattr(storage, 'ROOT', checkout)
     monkeypatch.setattr(storage, 'BASE', checkout / 'output/test-runs')
-    sources = retention.Store(storage.directory('state') / 'retention-fixture')
+    sources = retention.Store(storage.directory('state') / 'retention-host')
     exports = retention.Store(storage.directory('exports') / 'retention')
     uid, gid = os.geteuid(), os.getegid()
 
-    def catalogue(self):
+    def catalogue(self, **_):
         journals = [sources.path]
         if exports.path.exists():
             journals.append(exports.path)
@@ -878,6 +878,23 @@ def test_reference_fallback_requires_plan_and_never_weakens_live_revalidation(ev
         source.write_bytes(b'changed after inventory')
         with pytest.raises(ValueError, match='identity changed'):
             bundle.export(selection, expected=selection.selection_sha256)
+
+
+@pytest.mark.parametrize('operation', ['plan', 'export'])
+def test_inherited_receipt_change_invalidates_selected_archive(evidence, operation):
+    root = evidence.allocate({'result.json': b'proof'})
+    archive = Path(evidence.publish([root])['path'])
+    with evidence.select(previous=[archive]) as selection:
+        receipt = archive.parent / 'receipt.json'
+        # An in-place receipt write leaves its containing directory unchanged.
+        before = archive.parent.stat().st_mtime_ns
+        receipt.write_bytes(b'{}')
+        assert archive.parent.stat().st_mtime_ns == before
+        with pytest.raises(ValueError, match='inherited receipt identity changed'):
+            if operation == 'plan':
+                selection.plan()
+            else:
+                bundle.export(selection, expected=selection.selection_sha256)
 
 
 @pytest.mark.parametrize('kind', ['source', 'bundle'])

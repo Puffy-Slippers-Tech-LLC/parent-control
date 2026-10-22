@@ -190,6 +190,8 @@ class Selection:
         self.records, self.files, self.archives = {}, {}, {}
         self.directories = {}
         self.bundle_identities = {}
+        self.receipt_identities = {}
+        self.absent_references = set()
         self.source_budgets, self.previous = [], []
         self.total_bytes = 0
         self.plan_namespace = plan_namespace
@@ -213,10 +215,13 @@ class Selection:
             raise
 
     def __exit__(self, *args):
-        return self.stack.__exit__(*args)
+        try:
+            if args[0] is None:
+                self.revalidate_absence()
+        finally:
+            self.stack.__exit__(*args)
 
-    def catalogue(self):
-        # Only fixed shared journals and registered canonical targets are read.
+    def validate_targets(self):
         if self.targets:
             import sys
             sys.path.insert(0, str(self.checkout / 'tests/integration'))
@@ -225,9 +230,39 @@ class Selection:
             if (len(self.targets) != len(set(self.targets))
                     or any(target not in registry for target in self.targets)):
                 raise ValueError('bundle: expected registered canonical targets')
-        result = []
         if self.targets and os.geteuid() != 0:
             raise ValueError('bundle: target evidence requires the installed helper')
+
+    def catalogue(self, *, archives=None):
+        # Only fixed shared journals and registered canonical targets are read.
+        self.validate_targets()
+        result = []
+        if archives is not None:
+            # Finished archives authenticate their own recorded allocation. An
+            # expired original does not depend on its producer's current owner.
+            # Derive only established publication owners, never a caller-supplied
+            # journal or an archive's historical source journal.
+            with identity(self.uid, self.gid):
+                parents = set()
+                if self.plan_namespace is not None:
+                    parents.add(self.publication_parent())
+                try:
+                    parents.add(storage.directory('exports', root=self.checkout, create=False))
+                except FileNotFoundError:
+                    pass
+                selected = set()
+                for value in archives:
+                    path = path_text(value)
+                    if (path.name != 'evidence.zip'
+                            or not path.parent.name.startswith('onpc-evidence-bundle-')
+                            or path.parent.parent not in parents):
+                        raise ValueError('bundle: bundle must be in retained exports for this plan')
+                    selected.add(path.parent.parent / 'retention')
+                # Preserve the destination budget snapshot when it exists.
+                destination = self.publication_parent() / 'retention'
+                if destination.exists():
+                    selected.add(destination)
+                return [(path, self.uid, self.gid) for path in sorted(selected)]
         if os.geteuid() == 0:
             try:
                 parent = storage.directory('state', root=self.checkout, create=False)
@@ -279,13 +314,30 @@ class Selection:
         if self.references and self.plan_namespace is None:
             raise ValueError('bundle: renewable references require a validated plan')
         self.structured_references()
+        if self.sources or self.bundles or self.references:
+            self.validate_targets()
+        present = {}
+        for value in self.references:
+            path = path_text(value)
+            privacy(path)
+            present[value] = self.reference_present(path)
+        archive_only = (not self.sources and not self.captures
+                        and all(not exists or Path(value).name == 'evidence.zip'
+                                for value, exists in present.items()))
+        if archive_only:
+            self.absent_references.update(value for value, exists in present.items() if not exists)
         # Capture-only reads consult finite finished-slot registrations. Opening
         # the producer catalogue here would inspect an unrelated active parent.
-        journals = self.catalogue() if self.sources or self.bundles or self.references else ()
+        if self.sources or self.bundles or self.references:
+            archives = [*self.bundles, *(value for value, exists in present.items()
+                                       if exists and Path(value).name == 'evidence.zip')]
+            journals = self.catalogue(archives=archives) if archive_only else self.catalogue()
+        else:
+            journals = ()
         if self.captures and not journals:
             import evidence_capture
             evidence_capture.validate_targets(self.checkout, self.targets)
-        for journal, uid, gid in journals:
+        for journal, uid, gid in sorted(journals):
             with identity(uid, gid):
                 publication = (journal.parent.name == 'exports' if self.plan_namespace is None else
                                journal == self.publication_parent() / 'retention')
@@ -347,7 +399,7 @@ class Selection:
             if path.name == 'evidence.zip':
                 if not path.parent.name.startswith('onpc-evidence-bundle-'):
                     raise ValueError('bundle: expected a retained evidence bundle')
-                (archived if self.reference_present(path) else missing).append(value)
+                (archived if present[value] else missing).append(value)
         for value in [*self.bundles, *archived]:
             path = path_text(value)
             if path.name != 'evidence.zip' or not path.parent.name.startswith('onpc-evidence-bundle-'):
@@ -357,6 +409,7 @@ class Selection:
                 if receipt_info.st_size > 4096:
                     raise ValueError('bundle: invalid receipt size')
                 receipt = decoded(os.read(receipt_fd, 4096))
+                self.receipt_identities[str(path.parent / 'receipt.json')] = fingerprint(receipt_info)
             with self.open(path) as (fd, info):
                 before = fingerprint(info)
                 checksum = file_digest(fd, info.st_size)
@@ -394,9 +447,14 @@ class Selection:
             if path.name == 'evidence.zip':
                 continue
             if self.reference_present(path):
+                if value in self.absent_references:
+                    raise ValueError('bundle: absent reference appeared during selection')
                 self.load_source(path)
             elif value not in self.files:
                 missing.append(value)
+            else:
+                self.absent_references.add(value)
+                self.reference_context(path)
         if missing:
             raise EvidenceUnavailable(missing)
         if not self.files:
@@ -438,6 +496,36 @@ class Selection:
         if getattr(self, 'capture_reuse', None) is not None:
             self.manifest = self.capture_reuse['manifest']
             self.selection_sha256 = digest(encoded(self.manifest))
+        self.revalidate()
+
+    def reference_context(self, path):
+        """Check archived target authority without opening historical owners."""
+        entry = self.files[str(path)][0]
+        journal = Path(entry['allocation']['journal'])
+        base = self.checkout / 'output/test-runs'
+        shared = {'retention-host', 'retention-batch', 'retention', 'standalone-reports'}
+        allowed = {base / 'host/state' / name for name in shared}
+        allowed.add(base / 'host/exports/retention')
+        allowed.add(base / 'privileged/state' / f'recovery-diagnostics-{self.uid}')
+        for target in self.targets:
+            allowed.add(base / 'host/state' / f'retention-{target}')
+            allowed.add(base / 'privileged/state' / f'retention-{self.uid}-{target}')
+            allowed.add(base / 'privileged/state' / f'recovery-diagnostics-{self.uid}-{target}')
+        if self.plan_namespace is not None:
+            for owner in ('host', 'privileged'):
+                parent = base / owner / 'plans' / self.plan_namespace
+                allowed.update((parent / 'retention', parent / 'evidence/retention'))
+        # Sealed originals carry their exact target in authenticated logical
+        # records, rather than in the opaque capture journal name.
+        records = [record for record in self.logical_records
+                   if any(member['original_path'] == str(path) for member in record['members'])]
+        if records:
+            selected_targets = set(self.targets) if self.targets else {''}
+            if any(record['context']['target'] not in selected_targets for record in records):
+                raise logical.EvidenceContextError('bundle: archived reference target does not match selection')
+            return
+        if journal not in allowed:
+            raise logical.EvidenceContextError('bundle: archived reference target does not match selection')
 
     def repository(self):
         with retention.directory_descriptor(self.checkout) as fd:
@@ -618,6 +706,7 @@ class Selection:
             raise ValueError('bundle: finite selection limit exceeded')
 
     def plan(self):
+        self.revalidate()
         return dict(selection_sha256=self.selection_sha256, files=len(self.files),
                     logical_bytes=self.logical_bytes, projected_bytes=self.projected_bytes,
                     export_budget=self.export_budget, manifest=self.manifest)
@@ -650,7 +739,13 @@ class Selection:
         archive.close()
         self.revalidate()
 
+    def revalidate_absence(self):
+        for value in sorted(self.absent_references):
+            if self.reference_present(path_text(value)):
+                raise ValueError('bundle: absent reference appeared during selection')
+
     def revalidate(self):
+        self.revalidate_absence()
         for path in self.directories.copy():
             with self.open(Path(path)):
                 pass
@@ -663,6 +758,10 @@ class Selection:
             with self.open(Path(path)) as (_, info):
                 if fingerprint(info) != before:
                     raise ValueError('bundle: inherited bundle identity changed')
+        for path, before in self.receipt_identities.items():
+            with self.open(Path(path)) as (_, info):
+                if fingerprint(info) != before:
+                    raise ValueError('bundle: inherited receipt identity changed')
 
 
 def file_digest(fd, size):

@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E05a — [Read retained proof during unrelated active runs](Export-Tasks/E05a-active-readers.md)**.
+Next task: **E06 — [Capture runner results at terminal boundaries](Export-Tasks/E06-runners.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

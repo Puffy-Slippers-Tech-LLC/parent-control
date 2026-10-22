@@ -1611,6 +1611,13 @@ def buckets(nodeids):
 # current identity; no credential changes, subprocess, VM, service, socket or
 # shared cache is acquired. Artifact/bundle modules remain compatible; retention
 # reuse guards retain the same private resources in unit and cleanup inventories.
+# E05a authenticated archived reads use tiny pytest-private plans, target journals
+# and archives with real in-process descriptor locks and identity/registry doubles.
+# Named host captures keep these same private locks. Actual-byte controller
+# histories reuse their private checkout/input witnesses. No VM, subprocess,
+# socket, display, service or shared cache is acquired; bundle, artifact, capture
+# and controller modules retain compatible overlap. Cleanup/UI inventories gain
+# no module or resource owner.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

@@ -237,6 +237,71 @@ customer scenarios, and require exact target evidence and normal owned cleanup.
 
 ## Identity and build publication
 
+### Frozen schema vocabulary
+
+F51 freezes the following **planned v1 contracts**, not executable interfaces.
+F02–F50 deliver them through their queued boundaries. Existing codecs retain
+their original names and versions; an old record is never upgraded by relabelling
+it. All new records have an exact `schema` discriminator as listed below;
+unknown fields, missing fields, duplicate JSON keys and unknown variants refuse.
+Optional values are explicit `null`, not omitted. Integers exclude Booleans.
+Digests are lowercase SHA-256 hex; nonces/run tokens are 32 lowercase hex digits
+from fresh random bytes. A digest proves bytes, not their authority.
+
+Canonical encoding `C(value)` is UTF-8 JSON with sorted object keys,
+`ensure_ascii=True`, separators `(',', ':')`, no whitespace/newline and no
+floating-point values. Paths retain their exact characters; do not normalize a
+different pathname into an accepted one. Set-valued arrays are sorted and unique;
+ordered phase/source lists retain their declared order. `H(kind, value)` is
+SHA-256 of ASCII `kind`, a NUL byte and `C(value)`; each identity below uses its
+field name as `kind`. Raw files and archives use SHA-256 of their exact bytes.
+Identity-bearing records must match their canonical re-encoding on read.
+
+| Identity / exact hashed value | Authority and invalidation owner |
+| --- | --- |
+| `source_id`: ordered `{name, size, sha256, mode}` source closure and its declaration version | F02 freezes relative checkout source names/bytes before building and rechecks the live capture. No credentials, product package closure, generated timestamps or absolute checkout path enter it. A genuinely shared product input keeps its separate product invalidation. |
+| `toolchain_id`: builder source ID, immutable target build-environment digest, compiler/linker versions and executable digests, fixed build options | F02 verifies actual construction environment and records reproducible inputs; a host version string alone is insufficient. |
+| `abi_id`: `{os_id, release, architecture, environment_contract, runtime_dependencies}`; each dependency has its accepted package/content ABI identity | F11/F12 own the environment declaration and baseline verification; F02 checks executable interpreter/loader/library requirements against it. Only the declared Ubuntu/Fedora x86_64 targets are initially supported. |
+| `placement_id`: complete finite destination/role/mode/trust declaration, subset definitions and absence controls | F01's inventory, implemented by F02/F33/F15; changes cannot be hidden inside a source digest or a caller's subset label. |
+| `compatibility_key`: `{profile, abi_id}` | F04 counts versions for the finite `native-runtime` profile; target names and subset/run labels cannot manufacture extra keys. |
+| `build_key`: `{source_id, toolchain_id, abi_id, placement_id, profile}` | F02/F03 match a request to a verified completion, never to an unfinished directory. |
+| `content_id`: sorted complete manifest `files` array | F02 independently hashes every output, including bytes, symbolic ownership, placement and activation metadata. Different source/toolchain identities may yield identical content without becoming the same build request. |
+| `bundle_id`: canonical manifest below | F03 publishes the immutable manifest and payload. `bundle_id` is external to the hashed manifest, avoiding self-reference. |
+
+The manifest schema is `onpc-fixture-manifest-v1`, with exact fields
+`schema, profile, source_id, toolchain_id, abi_id, placement_id, compatibility_key,
+build_key, content_id, identity_inputs, files, subsets, absent_paths`.
+`identity_inputs` retains the exact source/toolchain/ABI/placement preimages
+defined above; recompute every key and reject inconsistent references. Thus OS,
+release, architecture and dependency details are independently inspectable, not
+unresolved digest labels. Each file has
+`member, source_names, destination_id, owner_role, group_role, mode, size, sha256,
+trust_action, admission_action`. `member` is a unique relative POSIX archive name
+without empty, dot, parent, absolute or control-character components;
+`source_names` refers to the frozen source closure. `destination_id` resolves
+only through the finite placement declaration, including user-role destinations;
+no manifest/request supplies a new arbitrary guest path. Roles are the accepted
+guest accounts/system groups, not numeric host IDs. Modes are integer permission
+bits with no special bits. Trust actions are `none` or `exact-file`; admission
+actions are `none` or `exact-child-content`. Their finite target expansions are
+part of `placement_id`, not archive scripts.
+
+`subsets` maps each finite selection ID to its sorted member closure and required
+absence controls; combined selections use a sorted unique array of these IDs
+and its verified union, not a new build. `absent_paths` contains declared negative
+controls such as the catalogue fallback. Empty closure is valid only for a
+declared empty consumer. Archive directories are exactly the parents implied by
+members. The completion record `onpc-fixture-completion-v1` has
+`schema, bundle_id, manifest_sha256, archive_sha256, archive_size, expanded_size,
+member_count, build_key, verification_id`. It binds the separately verified
+archive without a circular manifest digest. Before extraction, require exact
+membership, declared individual/aggregate lengths, modes and checksums, regular
+singly linked files, and no undeclared extension headers, links, devices, sparse expansion or
+trailing payload. These finite declared lengths are extraction guards, not a
+cache byte quota. F02 owns verification; F03 owns immutable publication/recovery.
+Manifest/completion are authenticated control metadata outside the runtime
+payload archive; neither is installed as guest runtime payload.
+
 Build from a frozen host source closure through existing builders. Record source,
 builder/toolchain, target OS/release/architecture, profile and dependency-contract
 identities separately from the resulting bundle's exact content digest. Identical
@@ -268,6 +333,64 @@ Share completed bundles across compatible VMs without giving two
 journals deletion ownership of the same allocation.
 
 ### Cache ownership and execution sessions
+
+#### Frozen host records and authenticated requests
+
+All names in this subsection are planned. F03 owns host catalogue/pin writers,
+F14 the authenticated reader/session bridge, F29 producer lifetime, and F04
+retirement. The current reference points are
+[test_storage](../../tools/test_storage.py),
+[test_retention](../../tools/test_retention.py) and the installed
+[dispatcher](../../tools/onpc-test-runner). Existing `directory('cache')` is
+euid-specific and is not this cache. Existing retention identity validators also
+assume the effective UID; F14 must add caller-owned read validation explicitly.
+New canonical encoding does not change existing artifact/startup-cache digests.
+
+Every durable allocation identity contains the allocator's exact root-relative
+locator plus device, inode, mode, owner and mount identity; every process owner
+contains boot ID, PID/start identity and its held owner-lock identity. Serialized
+identities are comparison claims and must be checked against pinned descriptors
+and the shared allocator. Paths or PID numbers alone confer no authority.
+`checkout` is `{root_identity, owner_uid}` from the trusted resolver;
+`target` is `{name, uuid}` from the pinned registry. `slots` and `pins` are
+ID-keyed maps to the records below, with no duplicate slot/bundle/pin claims.
+`intent` is null when settled, otherwise `{transaction_id, operation, phase,
+expected_generation, resources, before, after, owner, cleanup}`; resources carry
+exact registered identities, before/after carry the expected durable records,
+and the owning writer records action/readback/settlement before advancing phase.
+
+| Schema | Exact fields and authority/recovery owner |
+| --- | --- |
+| `onpc-fixture-catalogue-v1` | `schema, checkout, generation, next_publication_sequence, limits, slots, pins, intent`. `checkout` binds the validated checkout root identity and authenticated owner; `limits` is `{global, per_key}`. Generation advances on each committed mutation. Only the host cache authority writes; F03/F04 recover its exact write-ahead `intent`. |
+| Slot within catalogue | `slot_id, transaction_id, compatibility_key, build_key, state, owner, allocations, bundle_id, completion_sha256, publication_sequence, intent`. Nullable completion fields stay null until verified; `allocations` names every registered scratch/staging/rollback/published tree in that one slot. F29 records owner/descendant leases before writes; F03 commits completion; F04 retires it. |
+| `onpc-fixture-pin-v1` | `schema, pin_id, checkout, caller_uid, host_run, host_owner, slot_id, bundle_id, manifest_sha256, subset, subset_id, request_nonce, request_id, state, privileged_binding, cleanup`. `subset` is the sorted selection-ID array; `subset_id` hashes its exact expanded manifest closure and absence controls. F03 creates it durably before returning a bundle; F14 binds the privileged consumer and reconciles both owners before release. |
+| `onpc-fixture-request-v1` | `schema, operation, checkout, caller_uid, host_run, pin_id, request_nonce, bundle_id, manifest_sha256, subset, subset_id, target, quiesce_owned`. `operation` is `provision`, `sync` or `inspect`; `target` binds the registry name and pinned UUID. `quiesce_owned` is a Boolean allowed only for explicitly requested maintenance sync. `request_id` is H over this record, stored outside it. Host prepares it from the durable pin; F14 independently validates it at privileged dispatch. |
+| `onpc-fixture-attempt-v1` | `schema, request_id, request_nonce, caller_uid, checkout, host_run, pin_id, bundle_id, subset_id, vm_uuid, privileged_run, attempt_id, domain_id, boot_id, owner_journal, transaction_id, phase, generation, result, cleanup`. The privileged controller derives instance/attempt/boot fields from its held lease and transport, not from host claims; it saves the binding before mutation. Nullable not-yet-established fields never imply readiness. F14/F15 reconcile this record and return its exact result. |
+
+`privileged_binding` is the immutable request/VM/privileged-run/attempt/journal
+identity from that attempt record; `cleanup` binds both owners' terminal evidence
+and allocation/lease settlement, not a caller-supplied success Boolean. The
+request has no cache-root, arbitrary command/destination, user-selected guest UID
+or unpin option. A serialized `caller_uid` must equal the dispatcher's independently
+authenticated caller. Resolve the actual checkout before imports through the
+existing trusted resolver, derive the cache location through shared storage, and
+refuse mismatching checkout/caller/pin/request identities. Do not authenticate
+through a child environment variable or trust a guest-supplied host identity.
+Root opens only existing caller-owned private directories/records and verified
+immutable members read-only, retaining descriptors and a shared version lease.
+Host-private directories/records remain 0700/0600; payload construction modes
+and guest placement modes are distinct. Root never repairs a host record.
+
+Pin states are `host-pinned → dispatch-pending → attempt-bound → consuming →
+cleanup-pending → released`; host-only use can go from `host-pinned` to
+`cleanup-pending`. Persist `dispatch-pending` before dispatch so a lost reply
+cannot make an unknown privileged owner look absent. A repeated identical
+request reconciles its recorded attempt/result; changed bytes under one nonce
+refuse, and no uncertain guest action is replayed. Release requires host owner
+and descendants settled, privileged cleanup/restoration proven (or authenticated
+proof dispatch never acquired an attempt), and no version reader. Root returns
+evidence; only the host authority commits release. Owner death/age alone leaves
+the pin protecting its bundle. Inspection creates no new mutation request.
 
 One unprivileged authority per checkout owner creates, publishes, pins and retires
 fixture bundles. Extend the shared storage allocator with an authenticated-caller
@@ -398,7 +521,91 @@ bytes, pins, pending work and retirement reasons without allocating a build;
 prune uses the same authority, not a filesystem sweep. Finite configurable limits
 may tighten/adjust these defaults but cannot disable bounds.
 
+### Frozen slot transitions and lock order
+
+The catalogue state machine is finite; `recovery-pending` retains its exact last
+phase and intent. Absent slots are free; a failed transaction is not free merely
+because its completion fields are null.
+
+| Transition | Durable boundary / interruption and lost-reply result |
+| --- | --- |
+| Miss → `reserved` | Hold producer lease, verify limits and retire required oldest eligible completions first; register slot/owner/empty allocation before first producer write. Failure before reservation creates no build. Already committed retirement stays committed. |
+| `reserved → producing → verifying` | One slot owns all producer copies and inherited descendant leases. Catalogue gate is released during build/hash work. Failure records exact cleanup; the slot stays occupied until descendants and allocations settle. |
+| `verifying → publish-intent → complete` | Independently verify manifest/archive/tree; fsync members and completion, save exact source/destination identities, publish immutable allocation, then atomically commit catalogue visibility and publication sequence. Readers require both matching completion and committed catalogue. Recovery either finishes the recorded publication or cleans its uncommitted allocation; it never adopts another tree. |
+| `complete → retire-intent → absent` | Under the gate, audit durable pins and acquire a nonblocking exclusive version lease before deletion intent. Delete only registered identities with shared safe deletion, then durably remove the slot. Interrupted deletion blocks new admission until that same intent settles. Unknown/replaced entries are preserved. |
+| Any unfinished phase → `recovery-pending` → recorded phase or absent | Reconcile owner/descendants, exact allocations and prior intent. No fresh build starts while failed producer cleanup is unfinished. Publication/deletion reply loss reads durable state; it does not allocate another slot or roll back an earlier committed eviction. |
+
+Lock order is producer lease (writers only), short catalogue gate, then
+**nonblocking** version-lease acquisition under that gate. No gate waits for a
+reader: release/refuse and retry only through the owning transaction. Consumers
+pin and acquire a shared version lease before any VM lease. Holding a version
+lease or VM lease permits only a nonblocking gate check of that existing pin;
+it never permits a build, pin substitution or wait for a cache writer. No cache
+mutation holds a gate while acquiring/waiting for VM, execution-owner or external
+recovery locks. Stale-pin recovery snapshots candidate identities, drops cache
+locks, obtains ordinary owner/VM recovery proof, then reacquires the gate and
+rechecks the unchanged catalogue generation, pin and attempt before release.
+
+Admission projects both the occupied-slot count after reservation and the
+requested key's completed count after successful publication. If either exceeds
+its cap, retire the smallest publication sequence among eligible complete slots
+(bundle ID tie-break), restricted to the requested key while its per-key cap is
+the constraint; then satisfy any remaining global constraint. Eligibility
+requires no active/recovery pin, no reader and no pending foreign intent. If no
+eligible candidate can satisfy a constraint, refuse before writing. With six
+completed builds, production first commits retirement and uses five complete
+plus one unfinished slot; failure never produces a seventh. Lowered limits use
+the same transaction and refusal across **every retained compatibility key**,
+not just the requested key. Before committing new limits, retire oldest eligible
+versions from each over-limit key and satisfy the global cap; any protected
+over-limit key refuses the limit change and new admission. Persist the new
+limits only after all constraints comply, then apply the requested key's projected
+publication/reservation checks. Completed retirements remain committed if a later
+constraint refuses. Hits change neither slot count nor sequence.
+There is no byte-quota admission step or quota-specific setup prerequisite.
+
 ## Owned SSH provisioning and readiness
+
+### Frozen guest generations
+
+F15 owns the new `onpc-fixture-guest-v1` receipt and
+`onpc-fixture-transaction-v1` journal, written root-private through the fixed
+helper. Both bind `request_id, transaction_id, vm_uuid, boot_id, privileged_run,
+attempt_id, baseline_capture_id, app_capture_id, abi_id, account_map,
+provisioner_id, bundle_id, manifest_sha256, subset_id`. `app_capture_id` is null
+for product-free entry. `account_map` independently binds symbolic roles to
+accepted guest UID/GID; `provisioner_id` hashes the frozen helper closure.
+The receipt additionally has `schema, generation, previous_generation,
+files, absent_paths, native_receipt_id, state`; state is only `ready`.
+Each file readback includes destination ID, bytes/mode/owner and filesystem
+identity. Absence controls and native receipt refer to the same transaction.
+Generation is a strictly increasing positive integer within this VM boot/owner;
+first provisioning has previous generation null. Restored/rebooted/new attempts
+start a fresh binding and cannot reuse saved readiness even if the bytes match.
+
+The journal additionally has `schema, previous_receipt_id, old_generation,
+new_generation, phase, changes, staging, rollback, native_phase, probes, cleanup`.
+`changes` exhaustively classifies the union as unchanged/added/replaced/removed,
+including launchers/admissions and the imported legacy movable set. Every change
+has preflight identity, planned action, rollback identity and independent readback
+or absence result. Staging/rollback are the sole recorded extra generation,
+not guest cache versions. Phases are `preflight, staged, barrier-requested,
+barrier-proven, quiesced, placement-pending, payload-verified, trust-proven,
+barrier-removal-pending, witnesses-proven, observers-retired, receipt-committed,
+cleanup-complete`; intent precedes each action. Failure after mutation retains
+unavailable readiness, barrier and exact rollback/recovery phase. Before mutation,
+an unchanged ready receipt remains usable only after complete fresh verification;
+an unchanged sync replaces no payload, launcher, trust or admission bytes and
+does not advance a still-current generation. Fresh verification may write only
+its owned private probes/control journals and must retire them before return;
+it is not permission to repair mismatching payload during an unchanged check.
+
+Publish readiness atomically only after native proof and observer retirement;
+do not admit scenario input until recorded rollback/staging cleanup also finishes.
+After receipt commit, lost cleanup replies reconcile that generation and delete
+only its recorded obsolete copies. Never repeat an uncertain exec/signal. If
+roll-forward cannot be proven, ordinary owned restoration settles the attempt;
+there is no fallback to an older ready receipt after partial mutation.
 
 The host selects and pushes an exact pinned bundle through the existing owned
 SSH transport. No guest polling, host artifact server, live host mount or guest
@@ -486,7 +693,8 @@ payload, with no old launcher or trust admission and no unrelated data loss.
 In an explicitly owned maintenance instance, build/select a new host version,
 stage and verify its selected closure, then rerun the affected diagnostic without
 restore, snapshot replacement or reboot for ordinary payload-only changes.
-Unchanged sync does no fixture writes. In-use executables/runtime files require
+Unchanged sync changes no payload/trust/admission bytes; only the verification
+control writes described above are allowed. In-use executables/runtime files require
 an explicit quiescent boundary: stop/restart only recorded fixture processes or
 refuse with their required release. Do not kill by name or restart product/desktop
 services as an incidental fixture refresh. Preserve unrelated guest/session data.
@@ -527,6 +735,103 @@ process/descendant quiescence and F15 composes these with transactional placemen
 F05/F06 qualify the complete boundary before production runner integration.
 
 ### Fixture-only native acknowledgement protocol
+
+#### Frozen grammar, ordering and proof records
+
+F31's closed fixture grammar uses one explicit `perm=open` or `perm=execute`
+per rule. Barriers use `deny_syslog perm=PERM uid=U : OBJECT`; observers use
+`allow_syslog perm=PERM uid=U pid=P exe=E : OBJECT`, with an optional object `trust=0`
+or `trust=1` for the separately enumerated trust witnesses. `U`/`P` are resolved
+decimal identities, `E` is the unique private probe executable's safe absolute
+nonce pathname, and `OBJECT` is exact `path=PATH`, optionally combined with
+`sha256hash=HASH`, or hash alone for unrepresentable paths. `HASH` is exactly
+64 lowercase hex characters. Do not interpolate whitespace/comma/control
+characters into rule tokens, use globs/directories/sets, infer quoting support,
+or accept arbitrary predicates/commands. Fixture admission retains its recognized
+finite `allow perm=open|execute uid=U1,U2 : sha256hash=HASH trust=0` expansion;
+sort/deduplicate accepted child UIDs and hashes. Hash-only barriers also block
+identical fixture copies for those UIDs, as explicitly declared above.
+The [older rule grammar](https://github.com/linux-application-whitelisting/fapolicyd/blob/v1.3.6/doc/fapolicyd.rules.5)
+provides this hash spelling. Other spellings/hash widths require an explicit
+backend variant and renewed qualification, not a permissive parser fallback.
+
+The planned fragments are `00-onpc-fixture-00-barrier.rules` then
+`00-onpc-fixture-01-observers.rules`. Validate actual natural compilation order
+and the complete recognized inventory: the disjoint product boot-canary fragment
+may precede them; both must precede product `01-oh-no-parent-control-deny.rules`
+and optional proven `02-oh-no-parent-control-original-allow.rules`. Existing
+stock order is `10-languages, 20-dracut, 21-updaters, 30-patterns, 40-bad-elf,
+41-shared-obj, 42-trusted-elf, 70-trusted-lang, 72-shell, 90-deny-execute,
+95-allow-open` (all `.rules`), with Fedora fixture runtime admission at `69`,
+fixture executable admission at `89-onpc-baseline-fixtures.rules`, and product
+rules at `89-oh-no-parent-control.rules`. Preserve every non-fixture byte.
+F31 must map every parsed rule's one-based ordinal to its exact fragment and
+predicate; source line numbers are not ordinals. Closed parsing applies to new
+fixture fragments; stock/product fragments require their separately recognized
+qualified bytes/grammar and exact parsed counts. Unknown earlier precedence,
+legacy `fapolicyd.rules`, unsupported fragments or ambiguous compilation refuse.
+Filename prefixes alone never establish that barriers are first effective rules.
+
+The required qualified log format is
+`rule,dec,perm,pid,uid,exe,:,path,trust`, using the public
+[logging interface](https://github.com/linux-application-whitelisting/fapolicyd/blob/v1.4.5/doc/fapolicyd.conf.5).
+Correlate exact subject and object fields, parsed ordinal and syscall outcome;
+bind object hash through pinned input readback, not a nonexistent mandatory log
+hash field. Reject missing/repeated/binary/truncated fields or messages reaching
+the backend's message limit. Trusted journal origin requires `_BOOT_ID,
+_SYSTEMD_INVOCATION_ID, _PID, _UID, _EXE, _SYSTEMD_UNIT, _TRANSPORT`, plus
+`__CURSOR, __MONOTONIC_TIMESTAMP, MESSAGE`. Journal PID is the daemon; message PID
+is the supervised tracee. Derive daemon executable path/UID from the qualified
+target backend, not an Ubuntu-only constant. Require active nonpermissive
+enforcement and watched input mounts. Missing logging support is a baseline
+prerequisite; it is never repaired by restarting the daemon during sync.
+
+`onpc-fixture-native-v1` has exact fields `schema, transaction_id, request_id,
+phase, backend_id, daemon, inputs, rule_map, cursor_start, cursor_end, probes,
+observer_retirement, result`. `backend_id` binds native package version,
+executable digest, effective configuration and supported grammar/logging variant.
+`daemon` binds boot, PID/start, service InvocationID and trusted executable/UID.
+`inputs` contains ordered fragment/compiled/config digests, exact trust-fragment
+and database readbacks, and writer-exclusion/change-detection evidence covering
+the whole phase. Equal before/after snapshots alone do not exclude an intervening
+reload/change-and-restore. F50 must prove that exclusion/detection on the qualified
+backend or refuse; no product generation acknowledgement is added by this plan.
+
+Each `probes` member has `probe_id, nonce, phase, permission, subject_uid,
+process_owner, executable_identity, object_identity, expected_rule,
+expected_decision, expected_trust, journal_record, syscall_result, pipe_result,
+settlement`. Expected trust is null outside trust witnesses. Process ownership
+includes live pinned handles/cgroup and PID/start; executable identity includes
+fresh private path, inode, digest and held descriptor; object identity binds the
+still-present exact path/content. Decisions carry trusted journal coordinates
+and ordinal from the recorded rule map. F32 owns pre-exec process admission and
+settlement; F50 owns the finite positive/deny/trust/removal matrix and collector.
+Retain verified input identity and exclude/detect writes throughout each witness
+and placement phase, including child-owned payloads and hash-only path classes;
+a changed hash cannot silently bypass the barrier. If this cannot be proven,
+refuse mutation rather than treating the original preflight as current proof.
+Tracee startup allowances are finite dependencies of that probe executable;
+they cannot authorize scenario processes or shadow any barrier rule. Readiness
+needs every class/UID/permission result, not merely one representative nonce.
+
+Native phases are `barrier-intent → barrier-proven → trust-intent → trust-proven
+→ removal-intent → removal-proven → tracees-settled → observers-retired`.
+Persist intent and unique probe identity before syscall admission; record native
+outcome and correlated decision before replying. Lost replies read these durable
+coordinates; uncertain starts/execs/signals must settle through F32 before any
+fresh verification. A new verification uses a new nonce/executable and never
+reuses an uncertain tracee. Remove observers only after every descendant exits,
+descriptors close, no executable mapping remains and the exact private executable
+is removed. `observer_retirement` records these proofs and final fragment map.
+After observer-source removal, a stale loaded observer can match only an extinct
+executable identity. Failure retains unavailable readiness and identity-bound
+barrier/restoration recovery. Unsupported backend proof disables that backend's
+live update route; it cannot be waived by a disk receipt or successful reload.
+
+These contracts require new implementations. In particular,
+[system_probe_decision](../../tests/integration/system_probe_decision.py) currently
+validates only a smaller execute/path grammar and positive correlation; it has
+no live writer/collector and cannot supply this protocol's open/hash/trust proof.
 
 Use rule-attributed, per-operation witnesses for this finite fixture set, rather
 than infer a complete daemon generation from a marker. The
@@ -825,6 +1130,90 @@ boot ID. Real product/dependency/ABI changes still invalidate their own caches.
 
 ### Legacy recovery compatibility
 
+#### Frozen recovery sidecar and clean-schema admission
+
+F24/F30 own `onpc-fixture-original-proof-v1`, with exact fields
+`schema, capture_id, baseline_id, capture_schema, marker_schema,
+original_preparation_digest, original_dependencies, original_declaration,
+source_closure, records, codecs, referring_owners`. IDs bind accepted capture
+source/directory/operation/proof and saved snapshot identity, not just a matching
+guest file. `source_closure` preserves the original ordered 17-input declaration
+and digests, plus the complete retained 21-file checkout inventory with symbolic
+ownership/modes. `records` preserves exact raw preparation/fixture/pending/trust/
+backend bytes and metadata alongside their digests (binary bytes encoded as
+base64); parsed copies never replace raw proof. `codecs` names the recognized
+original shape/purpose and decoder version for each record. `referring_owners`
+binds existing preparation, capture, execution, maintenance, app and credential
+recovery journals; cache pins do not own this sidecar.
+
+Publish root-private sidecar bytes and fsync their parent before a migration
+removes declarations or source copies; bind its digest in the root-owned VM
+recovery state. Lost publication replies verify that same sidecar/capture pair.
+Missing proof may only come from the accepted original snapshot/recognized
+decoder; current declarations cannot reconstruct it. Unknown variants or changed
+bytes preserve the owner and refuse. Pending original placement remains owned by
+its original preparation transaction, never imported as a completed new receipt.
+Retire a sidecar only through the existing recovery owner after all its recorded
+references have settled; normal fixture eviction/result rotation cannot remove
+it. F33 uses it to classify the complete movable set, including unrequested
+runtime, launchers and retained source/archive copies, before selecting a subset.
+Environment, recovery and scenario state keep their separate owners.
+
+New planned `onpc-fixture-clean-baseline-v1` metadata has `schema, target,
+vm_uuid, abi_id, environment_contract, account_map, preparation_id, capture_id,
+clean_audit_id`. `onpc-fixture-clean-app-v1` adds `baseline_id, package_sha256,
+package_content_sha256, recipe_id, mode, capture_id, clean_audit_id` to its
+`schema, target, vm_uuid, abi_id, environment_contract` fields. `mode` is online
+or offline, with online credential publication still independently bound to the
+exact saved XML/run/keys. Capture IDs preserve existing disk/XML/proof guards;
+`clean_audit_id` binds the complete active/archived payload, staging, admission,
+barrier and retained-source absence audit. Actual installed product identity is
+provenance, not fixture source identity. F11/F12 implement the new writer and
+dependency-digest split together; original schema 1/2 app content-equivalence
+rules remain in original codecs. No new capture is clean by changing its label.
+
+`onpc-fixture-admission-v1` is root-owned control metadata in existing VM state,
+published by F48/F49 with exact fields `schema, target, vm_uuid,
+clean_baseline_schema, clean_app_schema, environment_contract, abi_id, backend_id,
+provisioner_id, envelope_inputs, rows, qualification_id`. Its identity excludes
+its own storage/publication metadata so publication cannot invalidate tested
+inputs. `qualification_id` hashes the target/VM, environment/ABI, backend,
+provisioner, envelope inputs and accepted rows; the whole immutable receipt's
+`receipt_id` is external to it. `envelope_inputs` maps all seven envelope IDs to their exact frozen
+implementation/alias/selector closure digests. `rows` contains exactly one
+accepted clean-schema proof per envelope: `envelope, selector, source_id,
+baseline_capture_id, app_capture_id, mode, bundle_id, subset_id, request_id,
+attempt_id, guest_receipt_id, evidence_id, cleanup_id, result`; product-free app
+capture/mode are null. Each result must be passed, including selected-byte use,
+missing/incompatible refusal before input, fresh boot/attempt readiness and
+complete owned cleanup. F48 binds F34–F40; F49 binds F41–F47. Earlier legacy
+snapshot results and source/host reviews cannot fill these rows.
+
+The separate root-owned `onpc-fixture-admission-state-v1` has exact fields
+`schema, target, vm_uuid, receipt_id, phase, owner, enable_attempt_id,
+enable_proof_id, cleanup_id, intent`. Nullable proof fields cannot authorize
+ordinary use. Phases are disabled, qualifying, enable-check, enabled or
+invalidated; absence is disabled. F48/F49 own the state and its write-ahead
+publication/recovery intent under the existing VM state/lease. F11/F12
+leave ordinary clean dispatch disabled. Only an exact named engineering selector
+under its owning task can traverse a disabled clean route; it grants no general
+bypass. After all seven proofs, atomically publish the immutable receipt, save
+`enable-check` bound to one exact F48/F49-owned attempt, and exercise the common
+ordinary dispatch/readiness/cleanup boundary through that qualification entry.
+Only that recorded attempt may use a candidate receipt; no ordinary caller can.
+After its proof and cleanup are durable, commit `enabled`. A lost reply reconciles
+the exact receipt, attempt, proof, cleanup and intent before that commit; incomplete
+state never admits ordinary callers. Runtime requires matching enabled state and
+receipt, and checks the receipt against
+the current capture schema/environment/ABI, backend, provisioner and envelope
+inputs on every dispatch. A mismatch disables affected routes and requires renewed
+affected preparation proofs; a shared change renews affected rows on both targets.
+Unchanged rows retain only verified still-applicable evidence. Same-contract
+capture renewal or different product bytes retain exact new provenance without
+invalidating environment qualification; neither supplies current fixture readiness.
+Any new ABI/backend/recipe contract requires its affected proofs before reenablement.
+Unsupported targets/profiles retain their old route, with no inferred admission.
+
 F24 and F30 install version-dispatched read-only codecs before guest-reader/writer
 migration or either snapshot cutover. Every later task preserves those routes.
 Freeze the following existing formats and their currently accepted variants;
@@ -878,6 +1267,24 @@ side-effect-free adapter selection passed
 Both read-only helpers finished; no VM, build, setup or product/runtime operation
 was performed and no owned live resources remain. This is F01 review evidence,
 not F51 schema completion, F52 independent review or installed qualification.
+
+F51's source-backed walkthrough covers the following transitions; the schemas
+remain planned and none of these reviews supplies runtime acceptance:
+
+| History reviewed | Existing boundary and frozen result |
+| --- | --- |
+| Successful capture/build/publication/hit | `artifact_inputs.capture` and `package_inputs.paths/digest/copy` separate package and fixture inputs; F02 still needs frozen fixture capture/target ABI verification. Manifest preimages and archive/content keys are independently checked before catalogue visibility; hits neither allocate nor reorder versions. |
+| Failed/interrupted producer and retirement | `test_storage` scratch descriptor lifetime and `test_retention` allocation/deletion identity primitives protect descendants/replaced trees. One unfinished slot remains occupied; retirement precedes reservation and is not undone by failure. Lower-limit review includes a protected excess version on a different compatibility key. Ordinary result/export retention is unchanged. |
+| Dispatch/host loss and lost replies | The installed dispatcher authenticates the actual caller; current storage lookup needs the planned caller-owned reader. Persist dispatch-pending and privileged attempt binding before action. `vm_control.save_owner/resume` preserves exact instance/journal restoration; missing privileged cleanup cannot release a host pin. |
+| Guest contraction/native failure or uncertain exec | `baseline_fixtures` currently owns one pending destination and cannot retire arbitrary prior members; `AssetTransfer` makes failed/partial transfer terminal to its outer lease. New union/import/rollback and finite open/execute/trust witnesses remain F15/F31/F32/F33/F50 work. Observer retirement and input-writer exclusion are required before readiness. |
+| Original-schema stop/restore and clean cutover | `prepare_vm.validate_marker` still compares current declarations and current trusted verification requires current shape. Original codecs/sidecar therefore precede writer migration; `app_snapshot.input_identity/mismatch` retains v1 exact-archive/v2 content-equivalence behavior. Seven clean rows, immutable receipt and durable enable-check proof precede each ordinary target cutover. |
+
+The bounded F51 helper review identified and resolved all-key lowered-limit
+checking, durable admission-state/enable-proof recovery and the unchanged-sync
+control-write distinction. Full independent design review remains F52. This task
+changes documentation only; no VM, fixture build, setup, installation or product
+code is involved. All read-only helpers finished and no owned live resources
+remain. Final link/plan and metadata-check evidence is recorded in the queue.
 
 Qualify Ubuntu 26.04 and Fedora 44 independently: first stage, repeat/no writes,
 version update, corrupt/missing inputs, interrupted transaction/retry, foreign

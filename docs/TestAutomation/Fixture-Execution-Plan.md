@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F51 — [Freeze schemas and transition contracts](Fixture-Tasks/F51-schemas.md)**.
+Next task: **F52 — [Independently review the frozen design](Fixture-Tasks/F52-design-review.md)**.
 
 ## Outcome and present status
 
@@ -13,8 +13,9 @@ and recover interrupted publication/provisioning without consuming partial state
 
 The [target design](Fixture-Design.md) remains unimplemented. F01 completed its
 source-backed [placement inventory](Fixture-Design.md#frozen-placement-inventory),
-consumer/alias map and planned public names under review acceptance. Schemas and
-independent design review remain F51/F52. No fixture was provisioned, no current
+consumer/alias map and planned public names under review acceptance. F51 froze
+the canonical schemas, authority/recovery fields and transition contracts in the
+design; independent design review remains F52. No fixture was provisioned, no current
 VM/storage policy changed and no installed acceptance was supplied.
 
 The specialized [E2E plan](E2E-Execution-Plan.md) remains responsible for customer

@@ -349,6 +349,9 @@ class Selection:
             journals = self.catalogue(archives=archives) if archive_only else self.catalogue()
         else:
             journals = ()
+        selected_paths = [path_text(value) for value in
+                          [*self.sources, *self.bundles,
+                           *(value for value, exists in present.items() if exists)]]
         if self.captures and not journals:
             if __package__:
                 from . import evidence_capture
@@ -359,8 +362,22 @@ class Selection:
             with identity(uid, gid):
                 publication = (journal.parent.name == 'exports' if self.plan_namespace is None else
                                journal == self.publication_parent() / 'retention')
+                store = retention.Store(journal)
+                if not publication:
+                    # Registration precedes payload writes. Read only the
+                    # authenticated metadata to find selected allocations, then
+                    # pin their finished owners before reading any payload.
+                    # An unrelated active producer must remain free to write.
+                    with store.opened() as fd, store.locked(fd, 'writer.lock', shared=True):
+                        state = store.read(fd)
+                        records = ([] if state is None else retention.latest_allocations(
+                            [*state['history'], state]))
+                        needed = any(path.is_relative_to(path_text(record['path']))
+                                     for _, record in records for path in selected_paths)
+                    if not needed:
+                        continue
                 owner = self.export_stack if publication else self.stack
-                state = owner.enter_context(retention.Store(journal).inspection())
+                state = owner.enter_context(store.inspection())
                 if state is None:
                     continue
                 entries = [*state['history'], state]

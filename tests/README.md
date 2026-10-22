@@ -2001,7 +2001,14 @@ mandatory `--source` and `--bundle` inputs never receive this renewal exception.
 When references have vanished and only finished bundles are selected, discovery
 authenticates and inspects their exact publication owners, without inspecting
 unrelated current producer journals, including those for the same target. The
-archived member retains its original path, attempt and target provenance. A live
+same isolation applies when a completion also selects fresh controller records:
+discovery reads authenticated journal metadata under shared writer locks, then
+pins and audits only owners with selected allocations, plus the publication
+destination. It releases discovery locks before inspecting finished owners, so
+unrelated active producers can continue registering output. Selected active or
+unfinished owners still refuse; metadata, identity and budget checks remain in
+force for the selected journals.
+The archived member retains its original path, attempt and target provenance. A live
 original still requires its normal owner and identity checks; a reappearing
 original, wrong target, denied reader, corrupt archive or active selected owner
 refuses rather than becoming missing evidence. Readers recheck absence and pinned

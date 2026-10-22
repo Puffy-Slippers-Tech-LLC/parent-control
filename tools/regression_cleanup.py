@@ -36,6 +36,10 @@ fixtures and external resources have been reviewed; never omit their cases.
 # synchronous reentry adds no process or shared resource in either inventory.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch; test_test_retention_cleanup_safety remains compatible in both inventories.
+# Its retention-discard lease checks also use a pytest-private VM-pool runtime
+# and synthetic UUID, with one bounded joined thread for queued acquisition;
+# no live VM/coordinator or shared lock path is accessed. Dispatcher doubles
+# open only their real private child retention session.
 # E05 publication reuse uses private fixture journals and descriptor locks only;
 # it adds no shared mutable resource or cleanup owner and remains compatible.
 # Capture retirement and resumable-publication checks add only private journals,

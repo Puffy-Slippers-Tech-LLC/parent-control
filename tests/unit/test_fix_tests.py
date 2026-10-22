@@ -383,7 +383,7 @@ def test_agent_is_ephemeral_sol_medium_standard_without_parent_context(monkeypat
 
 @pytest.mark.parametrize('mode', ['review-only', 'delegation', 'adviser'])
 @pytest.mark.parametrize('transport', ['exec', 'app-server'])
-def test_shared_backend_review_preserves_any_launcher_model(tmp_path, monkeypatch, mode, transport):
+def test_shared_agent_instructions_preserve_any_launcher_model(tmp_path, monkeypatch, mode, transport):
     monkeypatch.setattr(detached_launcher.shutil, 'which', lambda _: '/opt/codex')
     options = {}
     if mode == 'delegation':
@@ -403,6 +403,7 @@ def test_shared_backend_review_preserves_any_launcher_model(tmp_path, monkeypatc
     assert config['agents']['max_depth'] == 1
     assert config['agents']['max_concurrent_threads_per_session'] == (3 if mode == 'delegation' else 1)
     instructions = config['developer_instructions']
+    assert detached_launcher.SOURCE_DISCOVERY_INSTRUCTIONS in instructions
     assert 'On every spawn_agent call, explicitly set fork_turns="none".' in instructions
     assert 'self-contained assignment' in instructions
     assert detached_launcher.BACKEND_REVIEW_INSTRUCTIONS in instructions

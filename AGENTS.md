@@ -126,6 +126,10 @@ preparation lifetime, which a task's example command cannot establish.
   the intended working directory. Use `rg -n` with literal paths and quoted
   `--glob` filters; use `tools/read-only files|search --path-glob ...` for filename
   expansion and the validated reader for untrusted arguments.
+- Discover unverified source/test filenames before content reads; never derive
+  test filenames from module or launcher names. Reuse observed paths and follow
+  [source discovery](docs/Approval-Tools.md#source-discovery-before-reads) for
+  absent references and failed batched lookups.
 - Public read-only research and log inspection are authorized. Use maintained
   [diagnostics](docs/Approval-Tools.md#system-reads) and
   [artifact readers](tests/README.md#prompt-free-test-artifact-access) for

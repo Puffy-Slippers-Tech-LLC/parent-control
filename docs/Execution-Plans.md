@@ -130,7 +130,8 @@ owning contracts/source. The shared coordinator prompt supplies the validated
 checkout-relative master, queue and selected brief paths. Use those exact paths;
 resolve other document links relative to their containing document rather than
 guessing filenames from titles or launcher names. Preserve pre-existing changes
-and valid evidence. Execute
+and valid evidence. Apply [source discovery](Approval-Tools.md#source-discovery-before-reads)
+before reading unverified source/test paths. Execute
 the first unchecked task through implementation, required acceptance, owned cleanup
 and close-out. A blocker keeps its row unchecked and its pointer unchanged. Record
 the concrete blocker and return condition; do not silently skip it. Propose a

@@ -120,6 +120,22 @@ def environment():
     return result
 
 
+SOURCE_DISCOVERY_INSTRUCTIONS = """Follow AGENTS.md and the source-discovery contract in
+docs/Approval-Tools.md#source-discovery-before-reads. Before reading or searching
+source/test contents, use exact paths from current instructions, resolved links
+or earlier successful checkout reads. Discover any other filename first with
+rg --files on a known directory and quoted --glob filters, or tools/read-only files.
+Never infer test filenames from module/launcher names, task titles or memory.
+Reuse observed paths without relisting them. If a reference is absent, inspect
+its containing directory and relevant symbols; distinguish planned tests from
+existing source and generated inputs. Do not create placeholders or suppress
+missing-path errors. A batched lookup with any missing operand is incomplete:
+correct the selection and rerun the affected lookup before relying on it.
+Include this discovery requirement in every delegated assignment.
+
+"""
+
+
 SUBAGENT_CONTEXT_INSTRUCTIONS = """This launcher coordinator is ephemeral and has no
 stored rollout to fork. On every spawn_agent call, explicitly set fork_turns="none".
 Never omit fork_turns or use "all": copying the coordinator's stored conversation
@@ -161,7 +177,8 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
             '-c', 'features.multi_agent_v2=false',
             '-c', 'agents.enabled=true',
             '-c', 'developer_instructions=' + json.dumps(
-                SUBAGENT_CONTEXT_INSTRUCTIONS + BACKEND_REVIEW_INSTRUCTIONS),
+                SOURCE_DISCOVERY_INSTRUCTIONS + SUBAGENT_CONTEXT_INSTRUCTIONS
+                + BACKEND_REVIEW_INSTRUCTIONS),
             '-c', 'agents.backend_reviewer.description="Mandatory independent review of core backend changes only; no implementation"',
             '-c', 'agents.backend_reviewer.config_file=' + json.dumps(str(Path(__file__).with_name('backend_reviewer.toml'))),
             '--json', '--color', 'never', '--cd', str(root)]

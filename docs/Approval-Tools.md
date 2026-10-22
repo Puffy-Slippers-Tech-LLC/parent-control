@@ -735,6 +735,34 @@ unquoted shell wildcards: Codex can classify shell expansion as an unsplit shell
 invocation, which the direct executable rule does not cover. Never grant a
 generic shell to solve that parsing limitation.
 
+### Source discovery before reads
+
+Use exact paths supplied by current instructions, resolved document links or
+earlier successful checkout reads. For any other source or test filename,
+discover the actual path before passing it to a content reader or search.
+Do not derive `test_<module>.py` or wrapper test names from production modules,
+launcher names, task titles or memory. Existing observed paths can be reused;
+there is no need to list them again before every read.
+
+Search a known directory with a quoted filename filter when the name is uncertain:
+
+```sh
+rg --files 'tests/unit' --glob '*plan*'
+tools/read-only files 'tools'
+```
+
+Then read/search only the returned literal paths. Filename filters may match
+nothing; that is a discovery result, not proof that a fixture or export is
+missing. Check the owning contract before treating a planned test as an existing
+file or a missing source file as a generated input. Resolve stale references
+through the containing directory and relevant symbols rather than trying more
+guessed filenames. Report a genuinely required missing source as unresolved;
+do not create placeholders, suppress errors or broaden the lookup silently.
+
+If a batched content read/search reports any missing operand, its other output
+does not establish a complete lookup. Discover the correct paths and rerun the
+affected lookup before drawing conclusions from it.
+
 ### Ripgrep searches without shell expansion
 
 Preflight **every** path operand. If any needs filename expansion, use the

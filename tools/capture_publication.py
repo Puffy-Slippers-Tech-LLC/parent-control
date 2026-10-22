@@ -55,7 +55,10 @@ def _validate(state, request):
                         'capture publication generation')
         logical._hex(generation['selection_sha256'])
         requests = generation['requests']
-        if not isinstance(requests, list) or not 0 < len(requests) <= 256:
+        # This is accumulated authenticated history, not one caller selection.
+        # Keep it within the shared collection/metadata bounds; Selection.load
+        # separately limits each invocation to 256 explicitly selected inputs.
+        if not isinstance(requests, list) or not 0 < len(requests) <= logical.MAX_ENTRIES:
             raise ValueError('capture publication: invalid request closure')
         ids = []
         for item in requests:

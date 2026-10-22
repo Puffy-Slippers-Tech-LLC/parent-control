@@ -538,6 +538,77 @@ def test_publication_preserves_complete_selected_dependency_closure(producer):
     assert producer.result.read_bytes() == PAYLOAD
 
 
+def test_cumulative_history_crosses_selection_limit_and_resumes_exact_publication(producer, monkeypatch):
+    import capture_publication as publication
+
+    identifiers, handles = [], []
+    for number in range(capture.MAX_SELECTIONS):
+        handle = capture.issue_session(
+            producer.store, repository=producer.checkout, workflow='capture-fixture', task='P03',
+            check='history-' + str(number), inputs_sha256='c' * 64, sources_sha256='d' * 64,
+            consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)})
+        record = producer.record(context=capture.session_context(handle))
+        identifiers.append(capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER]))
+        handles.append(handle)
+    # Each batch also leaves room for the inherited publication's budget entry.
+    batch = bundle.MAX_SOURCE_BUDGETS - 1
+    for start in range(0, len(identifiers), batch):
+        with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                              [], [], [], captures=identifiers[start:start + batch]) as selected:
+            previous = bundle.export(selected, expected=selected.selection_sha256)
+    old = producer.inspect(identifiers[0])
+    # Another finished producer contributes one valid selection to the same
+    # workflow; its history must not inherit the single-call selection limit.
+    later = retention.Store(storage.directory('state') / 'retention-batch')
+    with later.session() as run:
+        source = Path(retention.allocate(tempfile.mkdtemp, prefix='onpc-later-proof-'))
+        result = source / 'result.json'
+        result.write_bytes(PAYLOAD)
+        result.chmod(0o600)
+        info = source.stat()
+        allocation = dict(path=str(source), device=info.st_dev, inode=info.st_ino,
+                          mode=0o700, journal=str(later.path), run=run)
+        handle = capture.issue_session(
+            later, repository=producer.checkout, workflow='capture-fixture', task='P03',
+            check='next-producer', inputs_sha256='c' * 64, sources_sha256='d' * 64,
+            consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)})
+        member = dict(producer.record()['members'][0], original_path=str(result),
+                      source_allocation=allocation)
+        member.pop('member_id')
+        context = capture.session_context(handle)
+        record = producer.record(context=context, members=[member], cleanup=dict(
+            state='complete', record_members=[], scope=dict(owner=context['owner'], resources=[])))
+        identifier = capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER])
+        with pytest.raises(ValueError, match='256 explicit sources'):
+            with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                                  [], [], [], captures=[*identifiers, identifier]):
+                pytest.fail('oversized individual selection accepted')
+        def interrupt(stage):
+            if stage == 'publication.committed':
+                raise KeyboardInterrupt('private history-boundary interruption')
+        with monkeypatch.context() as patch:
+            patch.setattr(publication, 'checkpoint', interrupt)
+            with pytest.raises(KeyboardInterrupt):
+                publish_capture(producer, identifier)
+        request = producer.inspect(identifier)
+        parent = bundle.plan_parent(producer.checkout, publication._namespace(request))
+        pending = json.loads((parent / 'retention' / publication.JOURNAL).read_bytes())['pending']
+        assert len(pending['requests']) == capture.MAX_SELECTIONS + 1
+        receipt = publish_capture(producer, identifier)
+        assert str(Path(receipt['path']).parent) == pending['allocation']['path']
+        assert receipt['path'] != previous['path'] and receipt['cleanup_complete']
+        for item in (old, request):
+            proof = item['record']
+            assert bundle.inspect(producer.checkout, os.geteuid(), os.getegid(), receipt['path'],
+                record_id=proof['record_id'], member_id=proof['members'][0]['member_id'],
+                closure_sha256=proof['closure_sha256']) == PAYLOAD
+        capture.acknowledge_capture(producer.checkout, os.geteuid(), os.getegid(), identifier,
+            expected=request['request_sha256'], session_handle=handle)
+    capture.acknowledge_capture(producer.checkout, os.geteuid(), os.getegid(), identifiers[0],
+        expected=old['request_sha256'], session_handle=handles[0])
+    assert producer.result.read_bytes() == PAYLOAD
+
+
 @pytest.mark.parametrize('boundary', [
     'publication.registered', 'publication.copied', 'publication.committed',
     'publication.locator', 'publication.delivered',

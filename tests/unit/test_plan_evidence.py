@@ -1,5 +1,6 @@
 """Accepted proof survives ordinary bounded rotation without a new archive format."""
 import copy
+import fcntl
 import json
 import io
 import os
@@ -205,6 +206,109 @@ def test_suspended_turn_is_published_with_later_accepted_proof(campaign):
     assert json.loads(raw) == result
     assert json.loads(raw)['checks'][0]['result'] == 'failed'
     assert accepted['tasks']['consumer']['cleanup'] is True
+
+
+@pytest.mark.parametrize('scope', ['sessions-host', 'sessions'])
+def test_prerequisite_turn_preserves_finished_runner_output_after_rotation(campaign, scope):
+    from detached_launcher import finish_nested
+
+    run, state, result, _ = campaign.accepted('consumer')
+    parent = bundle.storage.directory(scope)
+    sessions = bundle.retention.Store(parent / 'retention')
+    session = parent / uuid.uuid4().hex
+    with sessions.session():
+        session.mkdir(mode=0o700)
+        bundle.retention.retain(session)
+        (session / 'owner').touch(mode=0o600)
+        (session / 'output').write_bytes(b'publication failed; no acceptance\n')
+    result.update(status='prerequisite_required')
+    result['checks'] = [dict(kind='host', target='', result='not_run',
+                            evidence=str(session / 'output'))]
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    finish_nested(campaign.plan.root, run)
+    proof.retain_turn(campaign.plan, run, state, result)
+    for _ in range(4):
+        with sessions.session():
+            pass
+    assert not session.exists()
+    # Re-publish the original reference from verified archived proof only.
+    later, _, _, _ = campaign.accepted('later')
+    proof.carry(campaign.plan, later, state)
+    for name in proof.SOURCE_FILES:
+        (later / name).write_bytes((run / name).read_bytes())
+    (later / 'agent-commands.log').write_text('later continuation')
+    proof.retain_turn(campaign.plan, later, state, result)
+    saved = proof.recover(campaign.plan)
+    assert saved['tasks'] == {}
+    assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(), saved['bundle'],
+                          member=str(session / 'output')) == b'publication failed; no acceptance\n'
+
+
+@pytest.mark.parametrize('defect', ['active', 'unregistered', 'owner-link', 'owner-replaced'])
+def test_runner_output_requires_registered_idle_unchanged_owner(campaign, defect):
+    parent = bundle.storage.directory('sessions-host')
+    sessions = bundle.retention.Store(parent / 'retention')
+    session = parent / uuid.uuid4().hex
+    with sessions.session():
+        session.mkdir(mode=0o700)
+        if defect != 'unregistered':
+            bundle.retention.retain(session)
+        (session / 'owner').touch(mode=0o600)
+        (session / 'output').write_bytes(b'exact terminal output')
+    if defect == 'owner-link':
+        (session / 'owner').unlink()
+        (session / 'owner').symlink_to(session / 'output')
+    with (session / 'owner').open('rb') as owner:
+        if defect == 'active':
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        selection = bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [],
+                                     [str(session / 'output')], [])
+        expected = {'active': 'session is active', 'unregistered': 'one recorded allocation',
+                    'owner-replaced': 'changed'}
+        with pytest.raises((ValueError, OSError)) as failure:
+            with selection:
+                assert defect == 'owner-replaced'
+                (session / 'owner').rename(session / 'old-owner')
+                (session / 'owner').touch(mode=0o600)
+                bundle.export(selection, expected=selection.selection_sha256)
+        assert not isinstance(failure.value, proof.EvidenceUnavailable)
+        if defect in expected:
+            assert expected[defect] in str(failure.value)
+    assert (session / 'output').read_bytes() == b'exact terminal output'
+
+
+def test_target_session_output_keeps_target_scope_live_and_archived(campaign, monkeypatch):
+    # Registry/privilege checks have their own coverage. This host-safe history
+    # exercises real journal discovery and provenance without a VM or helper.
+    monkeypatch.setattr(bundle.Selection, 'validate_targets', lambda self: None)
+    parent = bundle.storage.directory('sessions') / 'vm-guest'
+    bundle.retention.ensure_directory(parent)
+    sessions = bundle.retention.Store(parent / 'retention')
+    with sessions.session():
+        session = parent / uuid.uuid4().hex
+        session.mkdir(mode=0o700)
+        bundle.retention.retain(session)
+        (session / 'owner').touch(mode=0o600)
+        (session / 'output').write_bytes(b'exact target failure')
+    source = str(session / 'output')
+    with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), ['guest'],
+                          [source], []) as selected:
+        archive = bundle.export(selected, expected=selected.selection_sha256)['path']
+    with pytest.raises(ValueError, match='one recorded allocation'):
+        with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [], [source], []):
+            pytest.fail('unselected live target accepted')
+    for _ in range(4):
+        with sessions.session():
+            pass
+    assert not Path(source).exists()
+    namespace = plan_namespace(campaign.plan.path)
+    with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), ['guest'], [],
+                          [archive], references=[source], plan_namespace=namespace) as selected:
+        assert selected.files[source][0]['sha256'] == bundle.digest(b'exact target failure')
+    with pytest.raises(identities.EvidenceContextError, match='target does not match'):
+        with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [], [],
+                              [archive], references=[source], plan_namespace=namespace):
+            pytest.fail('unselected archived target accepted')
 
 
 @pytest.mark.parametrize('rejected', [False, True])

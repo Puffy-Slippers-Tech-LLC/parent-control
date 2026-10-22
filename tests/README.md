@@ -1997,6 +1997,11 @@ finished allocations, including the caller's shared and selected-target
 recovery-diagnostic journals used by maintenance probes. Select exact files or
 directories containing only evidence; never select an attempt directory containing
 SSH keys or online snapshot state.
+Recorded runner output under `host/sessions-host`, `host/sessions` and selected
+targets' `host/sessions/vm-NAME` is also supported. The reader holds the session's
+retention journal and its separate idle worker lock through publication; active,
+unregistered or replaced sessions refuse. Archived session members retain their
+exact original path, journal and target scope after session rotation.
 Use repeated `--source` arguments for result/JUnit/native/cleanup records,
 input manifests and the corresponding host reports. Directories are inventoried
 recursively with finite depth/file/byte limits; no glob or arbitrary archive
@@ -2502,6 +2507,9 @@ and closure digest. `runner_evidence.resolve_reference` derives the workflow's
 existing publication journal and verifies the current cumulative archive under
 its reader lock; original report paths and superseded export paths can retire.
 A denied publication is attempted once and preserves the required original.
+Cumulative authenticated request history uses the shared 60,000-entry and 64-MiB
+metadata bounds, alongside the existing archive and retention limits. The
+256-input limit applies separately to each explicit publication selection.
 Ordinary plan consumers use the same cumulative proof for closed handoffs and
 exact runner references under the [plan evidence contract](../docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
 Working publication preserves original reports and verdicts without adding an

@@ -1707,6 +1707,14 @@ def buckets(nodeids):
 # display, service, cache or shared path. Existing compatible classifications for
 # execution_plan_launcher, plan_evidence, plan_evidence_recovery and test_artifacts
 # remain appropriate; cleanup and UI inventories gain no module or resource.
+# Runner-session bundle histories in plan_evidence use only pytest-private
+# journals, tiny ZIPs and in-process flock descriptors, all closed by contexts.
+# No worker, VM, shared cache, service, socket or display is acquired; compatible
+# unit overlap remains valid, with no cleanup/UI inventory change.
+# Capture history-boundary coverage seals 257 tiny private records across two
+# local producer journals, reusing real descriptor locks and bounded archives.
+# Its source, publication and acknowledgement state remains pytest-private;
+# evidence_capture retains compatible overlap and adds no cleanup/UI owner.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

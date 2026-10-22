@@ -5,6 +5,7 @@ caller. Source journals remain locked while their exact selected files are read.
 Retention owns publication, recovery and every deletion.
 """
 from contextlib import contextmanager, ExitStack
+import fcntl
 import hashlib
 import grp
 import json
@@ -100,6 +101,19 @@ def privacy(path):
             raise ValueError('bundle: credentials are not evidence')
 
 
+def session_parent(path):
+    """Recognize runner allocations, including the per-target session layout."""
+    path = Path(path)
+    if re.fullmatch(r'[0-9a-f]{32}', path.name) is None:
+        return None
+    parent = path.parent
+    if (parent.parent.name == 'host' and parent.name in ('sessions', 'sessions-host')
+            or parent.parent.name == 'sessions' and parent.parent.parent.name == 'host'
+            and re.fullmatch(r'vm-[A-Za-z0-9._-]+', parent.name)):
+        return parent
+    return None
+
+
 def checkout_allocation(checkout, record):
     path = path_text(record['path'])
     base = Path(checkout) / 'output/test-runs'
@@ -114,7 +128,9 @@ def checkout_allocation(checkout, record):
     capture = (len(parts) == 4 and parts[0] in ('host', 'privileged')
                and parts[1] == 'captures' and re.fullmatch(r'[0-9a-f]{64}', parts[2])
                and parts[3] == 'snapshot')
-    if not ordinary and not plan and not capture:
+    session = (len(parts) in (3, 4) and parts[0] == 'host'
+               and session_parent(path) is not None)
+    if not ordinary and not plan and not capture and not session:
         raise ValueError('bundle: allocation is outside the trusted checkout storage')
 
 
@@ -198,6 +214,7 @@ class Selection:
         self.directories = {}
         self.bundle_identities = {}
         self.receipt_identities = {}
+        self.session_owners = {}
         self.absent_references = set()
         self.source_budgets, self.previous = [], []
         self.total_bytes = 0
@@ -317,6 +334,13 @@ class Selection:
                 result.append((proof.parent / 'retention', self.uid, self.gid))
                 if present(proof / 'retention'):
                     result.append((proof / 'retention', self.uid, self.gid))
+            # Runner registration finishes before its worker starts. Discover
+            # only explicitly selected sessions; their separate live owner is
+            # pinned below, in addition to the normal retention journal leases.
+            selected = [path_text(value) for value in (*self.sources, *self.references)]
+            for parent in self.session_parents():
+                if any(path.is_relative_to(parent) for path in selected) and present(parent / 'retention'):
+                    result.append((parent / 'retention', self.uid, self.gid))
             try:
                 exports = storage.directory('exports', root=self.checkout, create=False)
             except FileNotFoundError:
@@ -324,6 +348,11 @@ class Selection:
             if present(exports / 'retention'):
                 result.append((exports / 'retention', self.uid, self.gid))
         return result
+
+    def session_parents(self):
+        base = self.checkout / 'output/test-runs/host'
+        return [base / 'sessions-host', base / 'sessions',
+                *(base / 'sessions' / ('vm-' + target) for target in sorted(self.targets))]
 
     def load(self):
         values = [*self.sources, *self.bundles, *self.references, *self.record_references, *self.captures]
@@ -562,6 +591,7 @@ class Selection:
         shared = {'retention-host', 'retention-batch', 'retention', 'standalone-reports'}
         allowed = {base / 'host/state' / name for name in shared}
         allowed.add(base / 'host/exports/retention')
+        allowed.update(parent / 'retention' for parent in self.session_parents())
         allowed.add(base / 'privileged/state' / f'recovery-diagnostics-{self.uid}')
         for target in self.targets:
             allowed.add(base / 'host/state' / f'retention-{target}')
@@ -667,6 +697,21 @@ class Selection:
     def load_source(self, path):
         privacy(path)
         record = self.record(path)
+        root = Path(record['path'])
+        if session_parent(root) is not None and str(root) not in self.session_owners:
+            if (root.parent not in self.session_parents()
+                    or record['journal'] != str(root.parent / 'retention')):
+                raise logical.EvidenceContextError('bundle: runner session does not match selection')
+            # The session journal owns retention, while this lock owns the
+            # worker. A finished journal alone cannot authenticate closed output.
+            with self.open(root / 'owner') as (fd, info):
+                owner = os.dup(fd)
+                self.stack.callback(os.close, owner)
+                try:
+                    fcntl.flock(owner, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except BlockingIOError as error:
+                    raise ValueError('bundle: selected runner session is active') from error
+                self.session_owners[str(root)] = fingerprint(info)
         # A plan accepts the complete host report and its exact supporting
         # records. Missing named reports must never be replaced by siblings.
         if self.plan_namespace is not None and Path(record['path']).parent.name == 'reports':
@@ -802,6 +847,10 @@ class Selection:
 
     def revalidate(self):
         self.revalidate_absence()
+        for root, before in self.session_owners.items():
+            with self.open(Path(root) / 'owner') as (_, info):
+                if fingerprint(info) != before:
+                    raise ValueError('bundle: runner session owner changed')
         for path in self.directories.copy():
             with self.open(Path(path)):
                 pass
@@ -988,7 +1037,9 @@ def verify_stream(stream):
                        and allocation.parent.parent.name == 'captures'
                        and allocation.parents[2].name in ('host', 'privileged')
                        and journal == allocation.parent / 'retention-sealed')
-            if not (ordinary or plan_run or plan_export or capture) or path == allocation:
+            session = (session_parent(allocation) is not None
+                       and journal == allocation.parent / 'retention')
+            if not (ordinary or plan_run or plan_export or capture or session) or path == allocation:
                 raise ValueError('bundle: inconsistent storage provenance')
             paths.add(str(path))
             expected.append(entry['member'])

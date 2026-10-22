@@ -327,10 +327,13 @@ Expose exact validated options/help in their implementation tasks. There is no
 new catalogue-ID, cache inspect/prune or quiesce option.
 
 `check_fixture_snapshots` is registered and qualified for Ubuntu only; use
-`tools/run-tests integration --list` for bindings. `check_fixture_provisioning`,
-the seven matrix selectors and `check_fixture_live_refresh` remain **planned
+`tools/run-tests integration --list` for bindings. `check_fixture_provisioning`
+is registered for Ubuntu but remains unqualified. F53 delivered its native backend
+environment prerequisite through the [clean snapshot owner](../../tests/integration/Environment.md#ubuntu-clean-snapshots);
+F05 still owns installed provisioning acceptance.
+The seven matrix selectors and `check_fixture_live_refresh` remain **planned
 and unimplemented** until their own registration/listing; examples in briefs
-grant no operation.
+grant no operation. Ordinary runner dispatch remains unavailable.
 
 ## Acceptance and ownership handoff
 

@@ -21,8 +21,13 @@ immutable selections, authenticated read-only handoff and inherited retention
 ownership. F15 delivered the host-validated, fail-closed SSH provisioning boundary.
 F11 delivered Ubuntu's fixture-independent baseline/app captures, exact legacy
 retirement, standalone app reuse and dependency/product invalidation proof.
-Later tasks remain unimplemented; runner dispatch stays unavailable until target
-qualification. Host inputs and host checks supply no installed acceptance.
+F53 delivered package-owned native policy bootstrap and a separate fresh-boot
+readiness step. Restored Ubuntu baseline/app captures passed active-service,
+read-only database, vendor preservation and complete fixture-absence checks.
+F05's qualification selector is registered but still has no installed provisioning
+acceptance. Later tasks remain unimplemented;
+runner dispatch stays unavailable until target qualification. Host inputs and
+host checks supply no installed acceptance.
 
 ## Launcher
 

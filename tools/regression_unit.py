@@ -1,5 +1,11 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Ubuntu native-readiness checks in baseline_guest_cleanup_safety,
+baseline_fixtures_cleanup_safety and fixture_snapshots use pytest-private files and in-memory service, transport and
+guestfs doubles. No live daemon, VM, display, socket, bus, shared cache or new
+subprocess owner is added; their compatible unit classifications remain valid.
+The baseline modules retain their existing cleanup classifications; UI gains no resource.
+
 e2e_baseline_journey uses pytest-private records, in-memory UI/transport/clock
 doubles and bounded waited Perl children. It owns no VM, display, bus, socket,
 external service, shared cache or fixture build. Its small CPU/I/O load permits
@@ -1096,6 +1102,13 @@ from regression_ui import Bucket
 # Fixture provisioning uses pytest-private descriptor trees and in-memory
 # transport/native/lease doubles. No VM, service, shared cache or child process;
 # compatible in both unit and cleanup inventories.
+# Fixture provisioning qualification checks finite in-memory audit records and
+# pytest-private result files with process-local suite/lease/transport doubles.
+# No VM, process, fixture build, socket, display, service or shared cache is used;
+# compatible unit overlap, with no cleanup inventory or resource owner added.
+# Output-ancestor reconciliation uses pytest-private directories, metadata and
+# descriptor/ownership doubles in storage/handoff cleanup tests. No shared
+# output is touched; both modules retain compatible unit/cleanup scheduling.
 # fixture_snapshots owns only pytest-private records and in-process suite,
 # transport and filesystem doubles. It starts no VM, subprocess, display, bus,
 # socket or service and uses no shared cache. Its small CPU/I/O demand permits
@@ -1103,6 +1116,7 @@ from regression_ui import Bucket
 # Baseline, app-snapshot and transfer safety additions retain their existing
 # private filesystem/double ownership in both unit and cleanup inventories.
 REVIEWED = frozenset("""
+fixture_provision_qualification
 fixture_snapshots
 fixture_provision_cleanup_safety
 fixture_execution_cleanup_safety fixture_handoff_cleanup_safety

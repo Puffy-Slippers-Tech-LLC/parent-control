@@ -91,7 +91,12 @@ SNAPSHOT_SOURCE_SYMBOLS = {
         'RECORD', 'PURPOSE', 'CLEAN_PURPOSE', 'RETIRE_RECORD', 'environment_files', '_clean_declaration',
         'movable_files', '_present', '_retirement_plan', 'reconcile_clean', 'verify_clean',
         'require', 'accounts', 'directory', 'regular', 'write_record',
-        'native_trust_provenance', 'verify_foreign_trust', 'preflight_backend', 'reconcile_backend'),
+        'native_trust_provenance', 'verify_foreign_trust', 'preflight_backend', 'reconcile_backend',
+        'NATIVE_RULES_RECORD', 'NATIVE_RULES_PURPOSE', 'NATIVE_RULES_ROOT',
+        'NATIVE_RULES_FILE', 'NATIVE_RULES_PENDING', 'NATIVE_RULES_LEGACY',
+        'NATIVE_RULES_COMPILED', 'NATIVE_RULES_SOURCE_PATTERN', '_native_open_rule',
+        '_native_rules_source', '_native_rules_record', '_preflight_native_rules',
+        'reconcile_native_rules', 'verify_native_rules'),
     'tests/fixtures/native_trust.py': (
         'TRUST_RECORD', 'TRUST_FILE', 'TRUST_PENDING', 'TRUST_PURPOSE', 'FIXTURE_RECORD',
         'BACKEND_CONFIG', 'BACKEND_RECORD', 'BACKEND_PENDING', 'BACKEND_PURPOSE',

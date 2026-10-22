@@ -514,6 +514,9 @@ def test_clean_ubuntu_digest_separates_fixture_payloads_from_environment_and_sha
     lifecycle.write_text(source + '\nimport math\n')
     assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original
     lifecycle.write_text(source)
+    lifecycle.write_text(source.replace("'native-rules-semantics'", "'changed-native-rules-semantics'"))
+    assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original
+    lifecycle.write_text(source)
     environment = tmp_path / 'tests/fixtures/baseline_environment.py'
     environment.write_bytes(environment.read_bytes() + b'\n# changed persistent settings\n')
     assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original

@@ -22,6 +22,8 @@ def preparation(monkeypatch):
         '/opt/onpc-baseline-assets/test': ('mechanical', 0o755, 'system')}))
     monkeypatch.setattr(baseline_fixtures, 'reconcile_clean', Mock(return_value={}))
     monkeypatch.setattr(baseline_fixtures, 'verify_clean', Mock())
+    monkeypatch.setattr(baseline_fixtures, 'reconcile_native_rules', Mock())
+    monkeypatch.setattr(baseline_fixtures, 'verify_native_rules', Mock())
     monkeypatch.setattr(baseline_console, 'reconcile', Mock())
     files, links = {}, {}
     files['/etc/os-release'] = b'ID=ubuntu\nVERSION_ID=26.04\n'
@@ -64,6 +66,12 @@ def preparation(monkeypatch):
         yield g
     monkeypatch.setattr(guest, 'mounted', mounted)
     def boot():
+        if b'--prepare-native' in files[guest.UNIT]:
+            assert guest.STAGE + '/password' not in files
+            assert files[guest.STAGE + '/success'] == b''
+            assert b'ConditionPathExists=' + guest.STAGE.encode() + b'/mode' in files[guest.UNIT]
+            files[guest.STAGE + '/success'] = b'success\n'
+            return
         assert files[guest.STAGE + '/password'] == b'fixture-password'
         assert modes[guest.STAGE + '/password'] == 0o600
         assert modes[guest.STAGE] == 0o700
@@ -82,7 +90,7 @@ def test_repeat_stages_only_maintained_code_and_never_the_host_envrc(preparation
         assert guest.STAGE + '/password' not in p.files
         assert not any(path.endswith('.envrc') for path in p.files)
         assert not any(b'fixture-password' in data for data in p.files.values())
-    assert p.capture.source.domain.create.call_count == 2
+    assert p.capture.source.domain.create.call_count == 4
     p.capture.source.shutdown.assert_not_called()
 
 
@@ -96,10 +104,33 @@ def test_clean_preparation_never_builds_fixtures_and_removes_shared_module_copy(
     baseline_fixtures.build_payload.assert_not_called()
     baseline_fixtures.reconcile.assert_not_called()
     baseline_fixtures.reconcile_clean.assert_called_once()
+    baseline_fixtures.reconcile_native_rules.assert_called_once()
+    baseline_fixtures.verify_native_rules.assert_called_once()
     guest.verify_clean_sources(p.g)
     for identity in guest.prepare_vm.IDENTITIES:
         relative = Path(identity.icon_file).relative_to(guest.prepare_vm.CHECKOUT)
         assert p.files[guest.STAGE + '/checkout/' + str(relative)] == Path(identity.icon_file).read_bytes()
+
+
+@pytest.mark.parametrize('failure', ['boot', 'readiness'])
+def test_native_readiness_failure_cannot_capture_old_success_and_retries(preparation, failure):
+    p = preparation
+    def boot():
+        if b'--prepare-native' not in p.files[guest.UNIT]:
+            p.boot()
+            return
+        assert p.files[guest.STAGE + '/success'] == b''
+        if failure == 'boot':
+            raise RuntimeError('interrupted native preparation')
+        # A failed one-shot powers off without publishing success.
+    p.capture.source.domain.create.side_effect = boot
+    with pytest.raises((RuntimeError, host.CaptureError), match='native'):
+        guest.prepare(p.capture, Mock(), 'fixture-password', mode='auto')
+    assert p.files[guest.STAGE + '/success'] == b''
+    p.capture.source.domain.create.side_effect = p.boot
+    guest.prepare(p.capture, Mock(), 'fixture-password', mode='auto')
+    assert guest.UNIT not in p.files and guest.LINK not in p.links
+    guest.verify_clean_sources(p.g)
 
 
 def test_clean_capture_refuses_archived_fixture_sources_without_deleting_the_tree(preparation):
@@ -226,7 +257,9 @@ def test_auto_updates_request_at_most_one_observed_reboot(preparation, monkeypat
     boots = []
     def boot():
         boots.append(True)
-        if len(boots) == 1:
+        if b'--prepare-native' in p.files[guest.UNIT]:
+            p.boot()
+        elif len(boots) == 1:
             p.boot()
             assert p.files[guest.STAGE + '/mode'] == b'auto'
             if reboot:
@@ -239,7 +272,7 @@ def test_auto_updates_request_at_most_one_observed_reboot(preparation, monkeypat
             p.files.pop(guest.STAGE + '/reboot-required')
     p.capture.source.domain.create.side_effect = boot
     guest.prepare(p.capture, Mock(), 'fixture-password', mode='auto')
-    assert len(boots) == attach.call_count == 1 + int(reboot)
+    assert len(boots) == attach.call_count == 2 + int(reboot)
     assert all(call.args[0] is p.capture for call in attach.call_args_list)
     assert guest.UNIT not in p.files
 
@@ -295,6 +328,84 @@ def test_guest_update_failure_never_marks_success(guest_entry, monkeypatch):
     with pytest.raises(RuntimeError, match='update failed'):
         entry.main(['--vm', vm_name()])
     assert not (root / 'success').exists()
+
+
+@pytest.mark.parametrize('failure', [None, 'tabs', 0, 1, 2, 3, 4, 5, 6, 7, 'static', 'inactive', 'empty'])
+def test_native_preparation_uses_packaged_service_and_gates_success(
+        guest_entry, monkeypatch, failure):
+    import subprocess
+    entry, root = guest_entry
+    calls = []
+    clock = Mock()
+    clock.monotonic.side_effect = range(0, 10000, 90)
+    monkeypatch.setattr(entry, 'time', clock)
+    def run(command, **kwargs):
+        calls.append(command)
+        if len(calls) - 1 == failure:
+            raise subprocess.CalledProcessError(1, command)
+        output = 'active\n'
+        if command[-1] == '--dump-db':
+            output = '' if failure == 'empty' else 'debdb /usr/bin/vendor 12 ' + 'a' * 64 + '\n'
+            if failure == 'tabs':
+                output = output.replace(' ', '\t')
+        elif command[1:2] == ['is-enabled']:
+            output = 'static\n' if failure == 'static' else 'enabled\n'
+        elif command[1:2] == ['is-active'] and failure == 'inactive':
+            output = 'inactive\n'
+        return Mock(stdout=output)
+    monkeypatch.setattr(entry.prepare_vm, 'Runner', lambda: Mock(run=run))
+    if failure in (None, 'tabs'):
+        assert entry.main(['--prepare-native', '--vm', vm_name()]) == 0
+        assert (root / 'success').read_text() == 'success\n'
+        first = list(calls)
+        # Repeat/update/retry use the same supported idempotent service APIs;
+        # no database bytes, trust entries or config are written by this code.
+        assert entry.main(['--prepare-native', '--vm', vm_name()]) == 0
+        assert calls == first * 2
+        assert first == [
+            ['/usr/sbin/fapolicyd-cli', '--check-config'],
+            ['systemctl', 'enable', 'fapolicyd.service'],
+            ['systemctl', 'start', 'fapolicyd.service'],
+            ['systemctl', 'is-enabled', 'fapolicyd.service'],
+            ['systemctl', 'is-active', 'fapolicyd.service'],
+            ['/usr/sbin/fapolicyd-cli', '--dump-db'],
+            ['/usr/sbin/fapolicyd-cli', '--check-status'],
+            ['/usr/sbin/fapolicyd-cli', '--dump-db']]
+    else:
+        with pytest.raises((subprocess.CalledProcessError, ValueError)):
+            entry.main(['--prepare-native', '--vm', vm_name()])
+        assert not (root / 'success').exists()
+    entry.prepare_vm.main.assert_not_called()
+    assert (root / 'password').read_text() == 'fixture-password'
+
+
+def test_native_preparation_waits_for_database_and_native_initialization(guest_entry, monkeypatch, capsys):
+    import subprocess
+    entry, root = guest_entry
+    missing = subprocess.CalledProcessError(1, ['fapolicyd-cli', '--dump-db'],
+        stderr='mdb_env_open failed, error 2 No such file or directory\n')
+    vendor = 'debdb /usr/bin/vendor 12 ' + 'a' * 64 + '\n'
+    dumps = iter([missing, 'Trust database is empty\n', vendor, vendor * 2])
+    events = []
+    def run(command, **kwargs):
+        events.append(command[-1])
+        if command[-1] == '--dump-db':
+            value = next(dumps)
+            if isinstance(value, Exception):
+                raise value
+            return Mock(stdout=value)
+        if command[-1] == '--check-status':
+            assert events.count('--dump-db') == 3
+        return Mock(stdout='enabled\n' if command[1:2] == ['is-enabled'] else 'active\n')
+    clock = Mock()
+    clock.monotonic.side_effect = range(20)
+    monkeypatch.setattr(entry, 'time', clock)
+    monkeypatch.setattr(entry.prepare_vm, 'Runner', lambda: Mock(run=run))
+    assert entry.main(['--prepare-native', '--vm', vm_name()]) == 0
+    assert clock.sleep.call_count == 2
+    assert events[-2:] == ['--check-status', '--dump-db']
+    assert 'database_rows=2 vendor_rows=2' in capsys.readouterr().out
+    assert (root / 'success').read_text() == 'success\n'
 
 
 def test_auto_guest_records_reboot_before_success(guest_entry, monkeypatch):
@@ -374,7 +485,7 @@ def test_baseline_boot_uses_shared_endpoint_and_collector(preparation, monkeypat
         copied = configured.findall('devices/graphics')[1]
         assert copied.attrib == {'type': 'dbus', 'p2p': 'yes'}
         assert copied.find('gl').get('enable') == 'no'
-        attach.assert_not_called()
+        assert attach.call_count == p.capture.source.domain.create.call_count - 1
         p.boot()
     xml = p.capture.source.domain.XMLDesc.return_value
     p.capture.source.domain.XMLDesc.return_value = xml.replace('<devices>',
@@ -428,6 +539,8 @@ def test_baseline_display_ignores_only_live_memory_report(preparation, monkeypat
         else:
             with pytest.raises(host.CaptureError, match='preparation-display-changed'):
                 adapter.revalidate()
+        # Each separate boot starts with its own unchanged fake definition.
+        domain.XMLDesc.return_value = xml
     monkeypatch.setattr(e2e_watch, 'attach_display', attach)
     guest.prepare(preparation.capture, Mock(), 'fixture-password')
     observer.close.assert_not_called()

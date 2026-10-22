@@ -256,6 +256,27 @@ binaries, launchers, exact fixture trust entries or copied fixture sources.
 The native file backend, account pictures and recovery records remain intact.
 Fedora retains schema 3 and its legacy inventory until F12 is accepted.
 
+Ubuntu preparation verifies native readiness in a fresh watched boot after
+package updates and the final offline backend reconciliation. It uses the
+packaged service to enable persistent startup and initialize its own database,
+then requires an active service and a successful read-only native database dump
+containing vendor package trust before accepting the capture. It never writes
+database files or adds fixture admissions. First preparation, unchanged repeat,
+updates and interrupted retries use the same baseline-owned step; qualification
+and app preparation only verify the prerequisite.
+The packaged daemon reports service startup before finishing trust loading.
+Preparation uses a bounded read-only wait, then the native status handshake and
+a fresh database dump before recording success.
+
+The Debian native package requires administrator-supplied rule units, as
+documented by its [native policy owner](https://github.com/linux-application-whitelisting/fapolicyd/blob/main/README.md#policies).
+Preparation bootstraps only the package-verified vendor `95-allow-open.rules`
+unit. This open-only rule leaves execution at the native default and adds no
+product policy or fixture admission. A separate durable receipt owns exact
+bytes, native-group metadata and interrupted publication. Unknown rules, legacy
+policy, unexplained compiler output or changed vendor semantics refuse without
+overwriting them. The packaged service owns rule compilation and database files.
+
 An explicit auto-mode refresh restores the accepted old baseline before migration.
 Retirement first verifies the complete recorded legacy inventory and source
 digest. Durable intents permit exact interrupted deletion and temporary source
@@ -280,7 +301,13 @@ List registered checks with `tools/run-tests integration --list`.
 `tools/run-tests integration --vm onpc-Ubuntu26.04 check_fixture_snapshots`
 audits actual clean baseline/app captures, retained checkout and archived input
 trees, independent byte readback, source/product invalidation and owned final
-restoration. Invoke authorized baseline refresh separately; this check never
+restoration. Both restored captures must also have an active native service and
+a readable database, preserve vendor trust and contain no fixture trust rows.
+Every original vendor row and its count must survive app preparation. Added
+`debdb` rows are accepted only for exact files reported by the native package
+manager for packages installed or updated by the public app installation; other
+additions and package removals refuse. Retained results bind those package versions.
+Invoke authorized baseline refresh separately; this check never
 refreshes a baseline or grants provisioning, runner or customer acceptance.
 
 ### Verified finite native transaction inputs

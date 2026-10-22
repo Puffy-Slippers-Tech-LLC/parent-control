@@ -21,6 +21,15 @@ RECORD = '/var/lib/onpc-baseline-fixtures.json'
 PURPOSE = 'onpc-reusable-fixtures-v1'
 CLEAN_PURPOSE = 'onpc-baseline-environment-v1'
 RETIRE_RECORD = '/var/lib/onpc-baseline-fixture-retirement.json'
+NATIVE_RULES_RECORD = '/var/lib/onpc-baseline-native-rules.json'
+NATIVE_RULES_PURPOSE = 'onpc-ubuntu-native-open-policy-v1'
+NATIVE_RULES_ROOT = '/etc/fapolicyd/rules.d'
+NATIVE_RULES_FILE = NATIVE_RULES_ROOT + '/95-allow-open.rules'
+NATIVE_RULES_PENDING = NATIVE_RULES_FILE + '.onpc-baseline-new'
+NATIVE_RULES_LEGACY = '/etc/fapolicyd/fapolicyd.rules'
+NATIVE_RULES_COMPILED = '/etc/fapolicyd/compiled.rules'
+NATIVE_RULES_SOURCE_PATTERN = (
+    r'/usr/share/(?:fapolicyd|doc/fapolicyd)/(?:[A-Za-z0-9_.+-]+/)*95-allow-open[.]rules')
 
 
 def environment_files(identities, os_id='ubuntu'):
@@ -279,6 +288,173 @@ def write_record(g, record, path=RECORD):
     g.sync()
     g.mv(temporary, path)
     g.sync()
+
+
+def _native_open_rule(data):
+    """Qualify only the vendor open-only policy, with no execution admissions."""
+    require(isinstance(data, bytes) and 0 < len(data) <= 65536, 'native-rules-size')
+    lines = [line.split('#', 1)[0].split() for line in data.decode('ascii').splitlines()]
+    require([line for line in lines if line] ==
+            [['allow', 'perm=open', 'all', ':', 'all']], 'native-rules-semantics')
+
+
+def _native_rules_source(g):
+    native = native_trust_provenance(g)
+    require(native['os_id'] == 'ubuntu', 'native-rules-target')
+    manifest = g.command(['dpkg-query', '--control-show', 'fapolicyd', 'md5sums'])
+    require(isinstance(manifest, str) and 0 < len(manifest.encode()) <= 2 * 1024 * 1024,
+            'native-rules-package')
+    rows = [line.split() for line in manifest.splitlines()]
+    require(all(len(row) == 2 for row in rows), 'native-rules-package')
+    sources = [(digest, '/' + path) for digest, path in rows
+               if re.fullmatch(NATIVE_RULES_SOURCE_PATTERN, '/' + path)]
+    require(len(sources) == 1, 'native-rules-package')
+    digest, path = sources[0]
+    require(re.fullmatch('[0-9a-f]{32}', digest) is not None
+            and g.command(['dpkg-query', '-S', path]).strip() == 'fapolicyd: ' + path,
+            'native-rules-package')
+    directory(g, str(Path(path).parent))
+    info = g.lstatns(path)
+    require(stat.S_IMODE(info['st_mode']) in (0o444, 0o644), 'native-rules-source-metadata')
+    regular(g, path, 0, 0, stat.S_IMODE(info['st_mode']))
+    require(g.filesize(path) <= 65536 and g.checksum('md5', path) == digest,
+            'native-rules-package')
+    data = g.read_file(path)
+    _native_open_rule(data)
+    return native, {'path': path, 'md5': digest, 'sha256': hashlib.sha256(data).hexdigest()}, data
+
+
+def _native_rules_record(g, path, desired):
+    regular(g, path, 0, 0, 0o600)
+    require(g.filesize(path) <= 8192, 'native-rules-record')
+    record = json.loads(g.read_file(path))
+    require(type(record) is dict and set(record) == set(desired)
+            and record['purpose'] == NATIVE_RULES_PURPOSE
+            and type(record['complete']) is bool
+            and type(record['source']) is dict and set(record['source']) == {'path', 'md5', 'sha256'}
+            and type(record['source']['path']) is str
+            and re.fullmatch(NATIVE_RULES_SOURCE_PATTERN, record['source']['path']) is not None
+            and record['source']['sha256'] == desired['source']['sha256']
+            and record['source']['md5'] == desired['source']['md5']
+            and record['target'] == desired['target'], 'native-rules-record')
+    native = record['native']
+    require(type(native) is dict and set(native) == set(desired['native'])
+            and all(native[key] == desired['native'][key] for key in ('os_id', 'package', 'service_gid'))
+            and type(native['version']) is str
+            and re.fullmatch('[A-Za-z0-9.+:~_-]{1,256}', native['version']) is not None
+            and all(type(native[key]) is str and re.fullmatch('[0-9a-f]{64}', native[key]) is not None
+                    for key in ('daemon_sha256', 'cli_sha256')), 'native-rules-record')
+    return record
+
+
+def _preflight_native_rules(g):
+    """Read the complete finite policy boundary before any publication writes."""
+    native, source, data = _native_rules_source(g)
+    desired = {'purpose': NATIVE_RULES_PURPOSE, 'complete': True, 'native': native,
+               'source': source, 'target': {'uid': 0, 'gid': native['service_gid'],
+                                          'mode': 0o644, 'sha256': source['sha256']}}
+    directory(g, '/var/lib')
+    directory(g, '/etc/fapolicyd')
+    previous = (_native_rules_record(g, NATIVE_RULES_RECORD, desired)
+                if _present(g, NATIVE_RULES_RECORD) else None)
+    receipt_stage = NATIVE_RULES_RECORD + '.new'
+    if _present(g, receipt_stage):
+        regular(g, receipt_stage, 0, 0, 0o600)
+        if previous is None:
+            # The first receipt write itself can stop before valid JSON exists.
+            # Only an exact private prefix of this qualified intent is retryable;
+            # the complete preflight below still forbids any unowned policy.
+            intent = (json.dumps(desired | {'complete': False}, sort_keys=True) + '\n').encode()
+            require(g.filesize(receipt_stage) <= len(intent)
+                    and intent.startswith(g.read_file(receipt_stage)), 'native-rules-record')
+    target_present = _present(g, NATIVE_RULES_FILE)
+    stage_present = _present(g, NATIVE_RULES_PENDING)
+    if _present(g, NATIVE_RULES_ROOT):
+        directory(g, NATIVE_RULES_ROOT)
+        names = g.find(NATIVE_RULES_ROOT)
+        require(isinstance(names, list) and len(names) <= 2
+                and all(type(name) is str for name in names), 'native-rules-inventory')
+        names = [name.removeprefix('/') for name in names]
+        allowed = {Path(NATIVE_RULES_FILE).name, Path(NATIVE_RULES_PENDING).name}
+        expected = ({Path(NATIVE_RULES_FILE).name} if target_present else set()) | (
+            {Path(NATIVE_RULES_PENDING).name} if stage_present else set())
+        require(len(names) == len(set(names)) and set(names) <= allowed
+                and set(names) == expected, 'native-rules-inventory')
+    else:
+        require(not target_present and not stage_present, 'native-rules-inventory')
+    require(not _present(g, NATIVE_RULES_LEGACY), 'native-rules-legacy')
+    if target_present:
+        require(previous is not None, 'native-rules-collision')
+        regular(g, NATIVE_RULES_FILE, 0, native['service_gid'], 0o644)
+        require(g.filesize(NATIVE_RULES_FILE) == len(data)
+                and g.read_file(NATIVE_RULES_FILE) == data, 'native-rules-substituted')
+    else:
+        require(previous is None or not previous['complete'], 'native-rules-missing')
+    if stage_present:
+        require(previous is not None and not previous['complete'] and not target_present,
+                'native-rules-staging-collision')
+        info = g.lstatns(NATIVE_RULES_PENDING)
+        mode = stat.S_IMODE(info['st_mode'])
+        require(info['st_gid'] in (0, native['service_gid']) and mode in (0o600, 0o644),
+                'native-rules-staging-metadata')
+        regular(g, NATIVE_RULES_PENDING, 0, info['st_gid'], mode)
+        if mode != 0o600:
+            require(g.filesize(NATIVE_RULES_PENDING) == len(data)
+                    and g.read_file(NATIVE_RULES_PENDING) == data, 'native-rules-staging-substituted')
+    if _present(g, NATIVE_RULES_COMPILED):
+        # Startup alone owns compiler output. Never adopt unexplained output on
+        # first placement; later accept only this same open-only policy.
+        require(previous is not None and target_present, 'native-rules-compiled-collision')
+        info = g.lstatns(NATIVE_RULES_COMPILED)
+        require(info['st_gid'] in (0, native['service_gid'])
+                and stat.S_IMODE(info['st_mode']) in (0o600, 0o640, 0o644),
+                'native-rules-compiled-metadata')
+        regular(g, NATIVE_RULES_COMPILED, 0, info['st_gid'], stat.S_IMODE(info['st_mode']))
+        require(g.filesize(NATIVE_RULES_COMPILED) <= 65536, 'native-rules-size')
+        _native_open_rule(g.read_file(NATIVE_RULES_COMPILED))
+    return previous, desired, data
+
+
+def reconcile_native_rules(g):
+    """Bootstrap the absent Debian admin policy using one verified vendor unit."""
+    previous, desired, data = _preflight_native_rules(g)
+    if previous == desired:
+        require(not _present(g, NATIVE_RULES_RECORD + '.new'), 'native-rules-incomplete')
+        return desired
+    g.umask(0o077)
+    if not _present(g, NATIVE_RULES_FILE):
+        write_record(g, desired | {'complete': False}, NATIVE_RULES_RECORD)
+        directory(g, NATIVE_RULES_ROOT, 0, desired['native']['service_gid'], create=True)
+        if _present(g, NATIVE_RULES_PENDING):
+            g.chmod(0o600, NATIVE_RULES_PENDING)
+            g.chown(0, 0, NATIVE_RULES_PENDING)
+        g.write(NATIVE_RULES_PENDING, data)
+        g.chown(0, 0, NATIVE_RULES_PENDING)
+        g.chmod(0o600, NATIVE_RULES_PENDING)
+        regular(g, NATIVE_RULES_PENDING, 0, 0, 0o600)
+        require(g.filesize(NATIVE_RULES_PENDING) == len(data)
+                and g.read_file(NATIVE_RULES_PENDING) == data, 'native-rules-staging-substituted')
+        g.chown(0, desired['native']['service_gid'], NATIVE_RULES_PENDING)
+        g.chmod(0o644, NATIVE_RULES_PENDING)
+        regular(g, NATIVE_RULES_PENDING, 0, desired['native']['service_gid'], 0o644)
+        require(g.read_file(NATIVE_RULES_PENDING) == data, 'native-rules-staging-substituted')
+        g.sync()
+        g.mv(NATIVE_RULES_PENDING, NATIVE_RULES_FILE)
+        g.sync()
+        regular(g, NATIVE_RULES_FILE, 0, desired['native']['service_gid'], 0o644)
+        require(g.read_file(NATIVE_RULES_FILE) == data, 'native-rules-substituted')
+    write_record(g, desired, NATIVE_RULES_RECORD)
+    return verify_native_rules(g)
+
+
+def verify_native_rules(g):
+    """Read-only offline policy/provenance proof; never initialize the daemon."""
+    previous, desired, _ = _preflight_native_rules(g)
+    require(previous == desired and _present(g, NATIVE_RULES_FILE)
+            and not any(_present(g, path) for path in
+                        (NATIVE_RULES_PENDING, NATIVE_RULES_RECORD + '.new')),
+            'native-rules-incomplete')
+    return previous
 
 
 def declared_files(g, identities, source_hashes=None, *, include_native_policy=True):

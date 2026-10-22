@@ -340,9 +340,9 @@ def prepare(capture, guestfs, password, *, mode='manual'):
             require(mode == 'auto', 'guest:unexpected-reboot')
             # A full power cycle provides a fresh kernel and boot identity. The
             # second one-shot validates that identity before powering off again.
-            service = service.replace('/password', '/reboot-required').replace(
+            reboot_service = service.replace('/password', '/reboot-required').replace(
                 '\nTimeoutStartSec=', ' --verify-reboot\nTimeoutStartSec=')
-            write(g, UNIT, service.encode('ascii'))
+            write(g, UNIT, reboot_service.encode('ascii'))
             label_preparation(g)
     if reboot:
         with operation('Rebooting the updated guest and verifying the new boot'):
@@ -363,11 +363,34 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         g.rm(UNIT)
     if os_id == 'ubuntu':
         with mounted(guestfs, capture) as g:
-            from baseline_fixtures import verify_clean, reconcile_clean
+            from baseline_fixtures import (
+                verify_clean, reconcile_clean, reconcile_native_rules, verify_native_rules)
             reconcile_clean(g)
+            reconcile_native_rules(g)
             recover_source_staging(g)
             verify_clean_sources(g)
             verify_clean(g)
+            # The final native configuration is reconciled offline, after all
+            # package work. A fresh boot lets the packaged daemon initialize
+            # and load its own database before any snapshot can be accepted.
+            write(g, STAGE + '/success', b'')
+            native_service = service.replace('/password', '/mode').replace(
+                '\nTimeoutStartSec=', ' --prepare-native\nTimeoutStartSec=')
+            write(g, UNIT, native_service.encode('ascii'))
+            g.ln_s(UNIT, LINK)
+            label_preparation(g)
+        with operation('Preparing and verifying the native service and trust database'):
+            boot_and_wait(capture)
+        with mounted(guestfs, capture) as g:
+            if not (g.exists(STAGE + '/success') and
+                    g.read_file(STAGE + '/success') == b'success\n'):
+                require(False, 'guest:native-preparation-failed; diagnostics:' + preparation_failure(g))
+            require(g.is_symlink(LINK) and g.readlink(LINK) == UNIT, 'guest:preparation-unit')
+            g.rm(LINK)
+            g.rm(UNIT)
+            verify_clean_sources(g)
+            verify_clean(g)
+            verify_native_rules(g)
         return
     from baseline_fixtures import build_payload, reconcile
     with operation('Reconciling reusable baseline application fixtures'):

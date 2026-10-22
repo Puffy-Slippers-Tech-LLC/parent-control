@@ -204,6 +204,255 @@ def test_clean_baseline_preparation_needs_no_movable_payload(prepared):
     assert not any(guest.exists(path) for path in fixture.movable_files(guest))
 
 
+@pytest.fixture
+def native_rules_guest(prepared):
+    guest, _ = prepared
+    # Debian ships examples rather than an active admin policy. Its checksum
+    # manifest, not a presumed example directory, selects this one vendor unit.
+    for path in ('/usr/share/doc', '/usr/share/doc/fapolicyd',
+                 '/usr/share/doc/fapolicyd/examples',
+                 '/usr/share/doc/fapolicyd/examples/rules.d'):
+        guest.mkdir(path)
+    source = '/usr/share/doc/fapolicyd/examples/rules.d/95-allow-open.rules'
+    data = b'# Vendor open policy; execution keeps its native default.\nallow perm=open all : all\n'
+    guest.write(source, data)
+    guest.chmod(0o644, source)
+    guest.package_payloads[source] = data
+    guest.writes.clear()
+    return guest, source, data
+
+
+@pytest.mark.parametrize('existing_directory', [False, True])
+def test_native_rules_first_repeat_and_readonly_verification_preserve_unrelated_state(
+        native_rules_guest, existing_directory):
+    guest, source, data = native_rules_guest
+    if existing_directory:
+        guest.mkdir(fixture.NATIVE_RULES_ROOT)
+        guest.chown(0, 42, fixture.NATIVE_RULES_ROOT)
+        guest.chmod(0o750, fixture.NATIVE_RULES_ROOT)
+    guest.write('/opt/unrelated', b'preserved')
+    before = copy.deepcopy(guest.nodes)
+    fixture.reconcile_native_rules(guest)
+    assert guest.read_file(fixture.NATIVE_RULES_FILE) == data
+    assert guest.lstatns(fixture.NATIVE_RULES_FILE)['st_gid'] == 987
+    assert stat.S_IMODE(guest.lstatns(fixture.NATIVE_RULES_FILE)['st_mode']) == 0o644
+    assert guest.read_file(source) == data
+    assert not guest.exists(fixture.NATIVE_RULES_COMPILED)
+    assert not guest.exists(fixture.TRUST_FILE)
+    assert not guest.exists(fixture.RECORD)
+    assert not any(path.startswith('/var/lib/fapolicyd') for path in guest.nodes)
+    assert all(guest.nodes[path] == value for path, value in before.items())
+    record = fixture.verify_native_rules(guest)
+    assert record['source']['path'] == source and record['complete'] is True
+    assert record['target']['sha256'] == hashlib.sha256(data).hexdigest()
+    assert stat.S_IMODE(guest.lstatns(fixture.NATIVE_RULES_RECORD)['st_mode']) == 0o600
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    fixture.reconcile_native_rules(guest)
+    fixture.verify_native_rules(guest)
+    assert guest.nodes == before and guest.writes == []
+
+
+def test_native_rules_package_update_refreshes_receipt_only_for_same_qualified_bytes(
+        native_rules_guest, monkeypatch):
+    guest, _, _ = native_rules_guest
+    fixture.reconcile_native_rules(guest)
+    target = copy.deepcopy(guest.nodes[fixture.NATIVE_RULES_FILE])
+    actual_command = guest.command
+    def command(argv):
+        if argv[:2] == ['dpkg-query', '-W']:
+            return 'fapolicyd 1.3.3-1build2\n'
+        return actual_command(argv)
+    monkeypatch.setattr(guest, 'command', command)
+    guest.writes.clear()
+    with pytest.raises(ValueError):
+        fixture.verify_native_rules(guest)
+    assert guest.writes == []
+    fixture.reconcile_native_rules(guest)
+    assert fixture.verify_native_rules(guest)['native']['version'] == '1.3.3-1build2'
+    assert guest.nodes[fixture.NATIVE_RULES_FILE] == target
+    assert set(guest.writes) == {fixture.NATIVE_RULES_RECORD + '.new'}
+
+
+@pytest.mark.parametrize('boundary', ['receipt-partial', 'receipt-stage', 'intent', 'directory', 'partial-write',
+                                     'group', 'mode', 'publish', 'complete'])
+def test_native_rules_interrupted_first_publication_retries_only_durable_owned_state(
+        native_rules_guest, monkeypatch, boundary):
+    guest, _, data = native_rules_guest
+    actual_write, actual_move = guest.write, guest.mv
+    actual_chown, actual_chmod, actual_mkdir = guest.chown, guest.chmod, guest.mkdir
+    failed = False
+    def write(path, value):
+        nonlocal failed
+        if not failed and boundary == 'receipt-partial' and path == fixture.NATIVE_RULES_RECORD + '.new':
+            actual_write(path, value[:30])
+            failed = True
+            raise OSError('interrupted native policy')
+        if not failed and boundary == 'partial-write' and path == fixture.NATIVE_RULES_PENDING:
+            actual_write(path, value[:5])
+            failed = True
+            raise OSError('interrupted native policy')
+        actual_write(path, value)
+    def move(source, target):
+        nonlocal failed
+        record = json.loads(guest.read_file(source)) if target == fixture.NATIVE_RULES_RECORD else None
+        if not failed and boundary == 'receipt-stage' and record and not record['complete']:
+            failed = True
+            raise OSError('interrupted native policy')
+        actual_move(source, target)
+        if not failed and ((boundary == 'intent' and record and not record['complete'])
+                           or (boundary == 'complete' and record and record['complete'])
+                           or (boundary == 'publish' and target == fixture.NATIVE_RULES_FILE)):
+            failed = True
+            raise OSError('interrupted native policy')
+    def chown(uid, gid, path):
+        nonlocal failed
+        actual_chown(uid, gid, path)
+        if not failed and boundary == 'group' and path == fixture.NATIVE_RULES_PENDING and gid == 987:
+            failed = True
+            raise OSError('interrupted native policy')
+    def chmod(mode, path):
+        nonlocal failed
+        actual_chmod(mode, path)
+        if not failed and boundary == 'mode' and path == fixture.NATIVE_RULES_PENDING and mode == 0o644:
+            failed = True
+            raise OSError('interrupted native policy')
+    def mkdir(path):
+        nonlocal failed
+        actual_mkdir(path)
+        if not failed and boundary == 'directory' and path == fixture.NATIVE_RULES_ROOT:
+            failed = True
+            raise OSError('interrupted native policy')
+    for name, implementation in (('write', write), ('mv', move), ('chown', chown),
+                                 ('chmod', chmod), ('mkdir', mkdir)):
+        monkeypatch.setattr(guest, name, implementation)
+    with pytest.raises(OSError, match='interrupted native policy'):
+        fixture.reconcile_native_rules(guest)
+    # Native tmpfiles may normalize this stage's group on the next public boot.
+    if guest.exists(fixture.NATIVE_RULES_PENDING):
+        actual_chown(0, 987, fixture.NATIVE_RULES_PENDING)
+    fixture.reconcile_native_rules(guest)
+    fixture.verify_native_rules(guest)
+    assert guest.read_file(fixture.NATIVE_RULES_FILE) == data
+    assert not guest.exists(fixture.NATIVE_RULES_PENDING)
+    assert not guest.exists(fixture.NATIVE_RULES_RECORD + '.new')
+
+
+@pytest.mark.parametrize('fault', ['foreign-rule', 'unrecorded-target', 'legacy', 'compiled',
+                                 'root-link', 'root-writable', 'source-link', 'source-hardlink',
+                                 'source-owner', 'source-writable', 'source-changed',
+                                 'source-semantics', 'ambiguous-source', 'target-stage',
+                                 'receipt-link', 'receipt-stage'])
+def test_native_rules_first_placement_refuses_complete_foreign_boundary_before_writes(
+        native_rules_guest, fault):
+    guest, source, data = native_rules_guest
+    if fault in ('foreign-rule', 'unrecorded-target', 'root-link', 'root-writable', 'target-stage'):
+        guest.mkdir(fixture.NATIVE_RULES_ROOT)
+    if fault == 'foreign-rule': guest.write(fixture.NATIVE_RULES_ROOT + '/10-foreign.rules', b'# keep\n')
+    if fault == 'unrecorded-target':
+        guest.write(fixture.NATIVE_RULES_FILE, data)
+        guest.chown(0, 987, fixture.NATIVE_RULES_FILE)
+        guest.chmod(0o644, fixture.NATIVE_RULES_FILE)
+    if fault == 'legacy': guest.write(fixture.NATIVE_RULES_LEGACY, b'# keep\n')
+    if fault == 'compiled': guest.write(fixture.NATIVE_RULES_COMPILED, data)
+    if fault == 'root-link': guest.links[fixture.NATIVE_RULES_ROOT] = '/foreign'
+    if fault == 'root-writable': guest.chmod(0o775, fixture.NATIVE_RULES_ROOT)
+    if fault == 'source-link': guest.links[source] = '/foreign'
+    if fault == 'source-hardlink': guest.nodes[source][0]['st_nlink'] = 2
+    if fault == 'source-owner': guest.chown(1000, 0, source)
+    if fault == 'source-writable': guest.chmod(0o664, source)
+    if fault == 'source-changed': guest.write(source, data + b'# unqualified\n')
+    if fault == 'source-semantics':
+        guest.write(source, b'allow perm=any all : all\n')
+        guest.package_payloads[source] = guest.read_file(source)
+    if fault == 'ambiguous-source':
+        guest.package_payloads['/usr/share/fapolicyd/95-allow-open.rules'] = data
+    if fault == 'target-stage': guest.write(fixture.NATIVE_RULES_PENDING, b'unknown stage')
+    if fault == 'receipt-link':
+        guest.write(fixture.NATIVE_RULES_RECORD, b'unknown receipt')
+        guest.links[fixture.NATIVE_RULES_RECORD] = '/foreign'
+    if fault == 'receipt-stage': guest.write(fixture.NATIVE_RULES_RECORD + '.new', b'unknown receipt')
+    before = copy.deepcopy(guest.nodes)
+    links = dict(guest.links)
+    guest.writes.clear()
+    with pytest.raises(ValueError):
+        fixture.reconcile_native_rules(guest)
+    assert guest.nodes == before and guest.links == links and guest.writes == []
+
+
+@pytest.mark.parametrize('fault', ['target-bytes', 'target-link', 'target-hardlink', 'target-group',
+                                 'target-mode', 'target-missing', 'foreign-rule', 'legacy',
+                                 'compiled-semantics', 'compiled-link', 'record-owner',
+                                 'record-shape', 'source-update'])
+def test_native_rules_owned_repeat_refuses_substitution_without_repair(native_rules_guest, fault):
+    guest, source, data = native_rules_guest
+    fixture.reconcile_native_rules(guest)
+    if fault == 'target-bytes': guest.write(fixture.NATIVE_RULES_FILE, data + b'# changed\n')
+    if fault == 'target-link': guest.links[fixture.NATIVE_RULES_FILE] = '/foreign'
+    if fault == 'target-hardlink': guest.nodes[fixture.NATIVE_RULES_FILE][0]['st_nlink'] = 2
+    if fault == 'target-group': guest.chown(0, 42, fixture.NATIVE_RULES_FILE)
+    if fault == 'target-mode': guest.chmod(0o664, fixture.NATIVE_RULES_FILE)
+    if fault == 'target-missing': guest.rm(fixture.NATIVE_RULES_FILE)
+    if fault == 'foreign-rule': guest.write(fixture.NATIVE_RULES_ROOT + '/10-foreign.rules', b'# keep\n')
+    if fault == 'legacy': guest.write(fixture.NATIVE_RULES_LEGACY, b'# keep\n')
+    if fault in ('compiled-semantics', 'compiled-link'):
+        guest.write(fixture.NATIVE_RULES_COMPILED, b'allow perm=execute all : all\n')
+        guest.chmod(0o644, fixture.NATIVE_RULES_COMPILED)
+        if fault == 'compiled-link': guest.links[fixture.NATIVE_RULES_COMPILED] = '/foreign'
+    if fault == 'record-owner': guest.chown(1000, 0, fixture.NATIVE_RULES_RECORD)
+    if fault == 'record-shape':
+        record = json.loads(guest.read_file(fixture.NATIVE_RULES_RECORD))
+        record['unexpected'] = True
+        guest.write(fixture.NATIVE_RULES_RECORD, json.dumps(record).encode())
+    if fault == 'source-update':
+        guest.write(source, data + b'# qualified vendor comment update\n')
+        guest.package_payloads[source] = guest.read_file(source)
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    for operation in (fixture.verify_native_rules, fixture.reconcile_native_rules):
+        with pytest.raises(ValueError): operation(guest)
+        assert guest.nodes == before and guest.writes == []
+
+
+def test_native_rules_native_compiler_output_is_inspected_readonly_without_creating_it(native_rules_guest):
+    guest, _, data = native_rules_guest
+    fixture.reconcile_native_rules(guest)
+    guest.write(fixture.NATIVE_RULES_COMPILED, b'# Native fagenrules output\n' + data)
+    guest.chown(0, 987, fixture.NATIVE_RULES_COMPILED)
+    guest.chmod(0o644, fixture.NATIVE_RULES_COMPILED)
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    fixture.verify_native_rules(guest)
+    fixture.reconcile_native_rules(guest)
+    assert guest.nodes == before and guest.writes == []
+
+
+@pytest.mark.parametrize('fault', ['link', 'hardlink', 'owner', 'group', 'public-bytes', 'no-intent'])
+def test_native_rules_retry_refuses_ambiguous_stage_before_any_write(native_rules_guest, monkeypatch, fault):
+    guest, _, _ = native_rules_guest
+    actual_write = guest.write
+    def write(path, data):
+        actual_write(path, data)
+        if path == fixture.NATIVE_RULES_PENDING:
+            raise OSError('interrupted native stage')
+    monkeypatch.setattr(guest, 'write', write)
+    with pytest.raises(OSError, match='interrupted native stage'):
+        fixture.reconcile_native_rules(guest)
+    monkeypatch.setattr(guest, 'write', actual_write)
+    if fault == 'link': guest.links[fixture.NATIVE_RULES_PENDING] = '/foreign'
+    if fault == 'hardlink': guest.nodes[fixture.NATIVE_RULES_PENDING][0]['st_nlink'] = 2
+    if fault == 'owner': guest.chown(1000, 0, fixture.NATIVE_RULES_PENDING)
+    if fault == 'group': guest.chown(0, 42, fixture.NATIVE_RULES_PENDING)
+    if fault == 'public-bytes':
+        guest.chmod(0o644, fixture.NATIVE_RULES_PENDING)
+        guest.write(fixture.NATIVE_RULES_PENDING, b'foreign public content\n')
+    if fault == 'no-intent': guest.rm(fixture.NATIVE_RULES_RECORD)
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    with pytest.raises(ValueError): fixture.reconcile_native_rules(guest)
+    assert guest.nodes == before and guest.writes == []
+
+
 def test_clean_environment_retry_preserves_owned_stage_between_chown_and_chmod(prepared, monkeypatch):
     guest, _ = prepared
     original = guest.chmod

@@ -561,6 +561,8 @@ ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_graphical_lease.py': 8.5,
              'test_e2e_execution_cleanup_safety.py': 20,
              'test_e2e_recording_cleanup_safety.py': 10,
+             # Output-ancestor/handoff checks mutate pytest-private metadata
+             # only; no shared output, process or new cleanup owner is acquired.
              'test_test_storage_cleanup_safety.py': 17,
              'test_e2e_startup_cache_cleanup_safety.py': 10,
              'test_vm_control_cleanup_safety.py': 6.5,
@@ -573,6 +575,9 @@ ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              # the unrelated sentinel survives. No compositor/shared resource.
              'test_child_preview_cleanup_safety.py': 2,
              'test_appsnapshot_cleanup_safety.py': 1,
+             # Native readiness and policy receipt/retry checks in both baseline
+             # modules add private service/guestfs doubles only;
+             # no live daemon, VM, shared files or process/cleanup owner.
              'test_baseline_guest_cleanup_safety.py': 1,
              'test_ui_watch_cleanup_safety.py': 1}
 

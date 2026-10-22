@@ -12,6 +12,7 @@ import stat
 import sys
 import tempfile
 import traceback
+from collections import Counter
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +31,8 @@ from provenance import preflight_source
 from qualification_storage import allocate, session
 from suite_lease import Suite
 import system_runner as system
+from tests.fixtures.native_trust import database_row
+from vm_transport import Transport
 
 
 def check_input_files(files, allowed):
@@ -102,6 +105,12 @@ def audit_baseline(suite, allowed):
                    'fixture-snapshots:clean-baseline-required')
     with system.mounted_guest(suite.guestfs, lease, readonly=True) as g:
         baseline_fixtures.verify_clean(g)
+        baseline_fixtures.verify_native_rules(g)
+        native_policy = {}
+        for path in (baseline_fixtures.NATIVE_RULES_FILE, baseline_fixtures.NATIVE_RULES_RECORD):
+            info = g.lstatns(path)
+            native_policy[path] = {'sha256': g.checksum('sha256', path),
+                'mode': stat.S_IMODE(info['st_mode']), 'uid': info['st_uid'], 'gid': info['st_gid']}
         baseline_guest.verify_clean_sources(g)
         checkout = baseline_guest.STAGE + '/checkout'
         checkout_files = []
@@ -137,7 +146,8 @@ def audit_baseline(suite, allowed):
         for path in runtime_absence():
             system.require(not g.exists(path) and not g.is_symlink(path),
                            'fixture-snapshots:runtime-fixture-retained')
-    return {'runtime_absent': True, 'retained_checkout_files': sorted(checkout_files),
+    return {'runtime_absent': True, 'native_policy': native_policy,
+            'retained_checkout_files': sorted(checkout_files),
             'input_trees': inventories}
 
 
@@ -201,6 +211,146 @@ def audit_online(transport, allowed, expected):
     for files in value['trees'].values():
         check_input_files(files, allowed)
     return value
+
+
+def baseline_transport(suite, directory):
+    """Boot the restored baseline with only the shared observation SSH input."""
+    observation = directory / 'baseline-observation'
+    (observation / 'input').mkdir(parents=True, mode=0o700)
+    (observation / 'input/selected-inputs.json').write_bytes(system.baseline.encode({
+        'schema_version': 1, 'scope': 'fixture-snapshot-qualification'}))
+    host_key = system.bootstrap(suite.commands, suite.lease, observation, suite.guestfs,
+                                observation_only=True, environment_only=True)
+    suite.lease.start()
+    hostname = system.address(suite.source)
+    (observation / 'known-hosts').write_text(f'{hostname} {host_key}\n')
+    transport = Transport({'directory': str(observation), 'hostname': hostname,
+        'domain_uuid': suite.source.uuid, 'domain_id': suite.lease.view.domain_id,
+        'run': suite.lease.state['run']}, suite.commands,
+        guard=lambda _: suite.lease.guard(), lease=suite.lease)
+    transport.probe_ready()
+    return transport
+
+
+def native_rows(raw, absent, product_paths):
+    """Separate package-owned product rows from the preserved vendor database."""
+    system.require(type(raw) is bytes and 0 < len(raw) <= 32 * 1024 * 1024,
+                   'fixture-snapshots:native-database-size')
+    vendor, product = Counter(), Counter()
+    for line in raw.decode('utf-8').splitlines():
+        fields = database_row(line)
+        system.require(fields is not None and fields[0] in ('debdb', 'filedb') and
+                       fields[2].isdecimal() and re.fullmatch(r'[0-9a-f]{64}', fields[3]) is not None,
+                       'fixture-snapshots:native-database-row')
+        path = fields[1]
+        system.require(path not in absent, 'fixture-snapshots:native-fixture-trust-retained')
+        (product if path in product_paths else vendor)[line] += 1
+    system.require(vendor, 'fixture-snapshots:vendor-trust-missing')
+    return vendor, product
+
+
+@system.observed('Checking live native service and database readiness')
+def audit_native(transport, absent, product_paths=(), native_policy=None):
+    if native_policy is not None:
+        # Verify the actual restored policy source and ownership receipt without
+        # importing preparation code or changing compiler/service state.
+        transport.call(['/usr/bin/python3', '-I', '-c', NATIVE_POLICY_AUDIT],
+                       input=system.baseline.encode(native_policy), timeout=30, attempts=1)
+    active = transport.call(['/usr/bin/systemctl', 'is-active', 'fapolicyd.service'],
+                            timeout=30, attempts=1)
+    system.require(active == b'active\n', 'fixture-snapshots:native-service-inactive')
+    raw = transport.call(['/usr/sbin/fapolicyd-cli', '--dump-db'], timeout=60, attempts=1)
+    vendor, product = native_rows(raw, absent, product_paths)
+    digest = hashlib.sha256('\n'.join(sorted(vendor.elements())).encode()).hexdigest()
+    return {'service_active': True, 'database_readable': True,
+            'vendor_rows': sum(vendor.values()), 'vendor_sha256': digest,
+            'product_rows': sum(product.values()),
+            'native_policy_preserved': native_policy is not None}, vendor
+
+
+NATIVE_POLICY_AUDIT = '''import hashlib,json,os,pathlib,stat,sys
+expected=json.load(sys.stdin)
+assert set(expected)=={'/etc/fapolicyd/rules.d/95-allow-open.rules','/var/lib/onpc-baseline-native-rules.json'},'native-policy-inventory'
+for name,spec in expected.items():
+ path=pathlib.Path(name)
+ assert path.resolve()==path,'native-policy-link'
+ with os.fdopen(os.open(path,os.O_RDONLY|os.O_NOFOLLOW),'rb') as stream:
+  before=os.fstat(stream.fileno())
+  assert stat.S_ISREG(before.st_mode) and before.st_nlink==1 and before.st_size<=65536,'native-policy-file'
+  raw=stream.read(65537)
+  after=os.fstat(stream.fileno())
+  signature=lambda s:(s.st_dev,s.st_ino,s.st_mode,s.st_uid,s.st_gid,s.st_nlink,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+  assert signature(before)==signature(after)==signature(path.lstat()),'native-policy-changed'
+  assert {'sha256':hashlib.sha256(raw).hexdigest(),'mode':stat.S_IMODE(before.st_mode),'uid':before.st_uid,'gid':before.st_gid}==spec,'native-policy-substituted'
+'''
+
+
+def installed_product_paths(assets):
+    manifest = json.loads((assets / 'installed-files.json').read_bytes())
+    system.require(type(manifest) is list and all(type(entry) is dict and
+                   type(entry.get('path')) is str and entry['path'].startswith('/')
+                   for entry in manifest), 'fixture-snapshots:product-manifest')
+    return {entry['path'] for entry in manifest}
+
+
+def package_inventory(transport):
+    raw = transport.call(['/usr/bin/dpkg-query', '-W',
+        r'-f=${binary:Package}\t${Version}\t${db:Status-Status}\n'], timeout=60, attempts=1)
+    system.require(type(raw) is bytes and len(raw) <= 4 * 1024 * 1024,
+                   'fixture-snapshots:package-inventory-size')
+    packages = {}
+    for line in raw.decode().splitlines():
+        fields = line.split('\t')
+        system.require(len(fields) == 3 and fields[2] in ('installed', 'config-files', 'not-installed'),
+                       'fixture-snapshots:package-inventory')
+        name, version, status = fields
+        if status != 'installed':
+            continue
+        system.require(re.fullmatch(r'[a-z0-9][a-z0-9+.-]*(?::[a-z0-9-]+)?', name) is not None
+                       and re.fullmatch(r'[A-Za-z0-9.+:~_-]+', version) is not None
+                       and name not in packages, 'fixture-snapshots:package-inventory')
+        packages[name] = version
+    system.require(packages and len(packages) <= 8192, 'fixture-snapshots:package-inventory')
+    return packages
+
+
+def verify_vendor_preservation(transport, before, after, packages_before, packages_after):
+    """Preserve every original row; authenticate additions from installed packages.
+
+    The public installer may add its declared native dependencies. Their files
+    are vendor-owned, separate from the product's installation manifest.
+    """
+    system.require(not (before - after), 'fixture-snapshots:vendor-trust-changed')
+    system.require(set(packages_before) <= set(packages_after),
+                   'fixture-snapshots:vendor-package-removed')
+    changed = {name: version for name, version in packages_after.items()
+               if packages_before.get(name) != version}
+    system.require(len(changed) <= 256, 'fixture-snapshots:package-change-inventory')
+    additions = after - before
+    paths = set()
+    if changed:
+        raw = transport.call(['/usr/bin/dpkg-query', '-L', *sorted(changed)],
+                             timeout=60, attempts=1)
+        system.require(type(raw) is bytes and len(raw) <= 8 * 1024 * 1024,
+                       'fixture-snapshots:package-file-inventory-size')
+        for path in raw.decode().splitlines():
+            # Native multi-package listings separate package blocks with an
+            # empty line. It is formatting, never a trusted file path.
+            if path in ('', '/', '/.'):
+                continue
+            system.require(path.startswith('/') and '\x00' not in path
+                           and all(part not in ('', '.', '..') for part in path[1:].split('/')),
+                           'fixture-snapshots:package-file-inventory')
+            paths.add(path)
+    for line in additions:
+        source, rest = line.split(None, 1)
+        path = rest.rsplit(None, 2)[0]
+        system.require(source == 'debdb' and path in paths,
+                       'fixture-snapshots:unowned-vendor-trust-added')
+    return {'original_vendor_rows_preserved': True,
+            'original_vendor_rows': sum(before.values()),
+            'additional_vendor_rows': sum(additions.values()),
+            'installed_or_updated_packages': changed}
 
 
 def changed_bundle(bundle, sources):
@@ -318,12 +468,19 @@ def qualify(directory, assets):
         lean = installed_setup.snapshot_inputs(bundle)
         allowed = set(lean.files) | {'package.deb', 'installed-files.json',
                                    'selected-inputs.json', 'transfer-sha256.json'}
+        product_paths = installed_product_paths(assets)
         source, _, lease = suite.acquire(system.RunLedger())
         system.require(source.domain.name() == 'onpc-Ubuntu26.04',
                        'fixture-snapshots:target-not-qualified')
         with lease:
             lease.prepare()
             result['baseline'] = audit_baseline(suite, allowed)
+            baseline = baseline_transport(suite, directory)
+            result['baseline']['native'], vendor = audit_native(
+                baseline, set(runtime_absence()), product_paths, result['baseline']['native_policy'])
+            packages_before = package_inventory(baseline)
+            system.require(result['baseline']['native']['product_rows'] == 0,
+                           'fixture-snapshots:baseline-product-trust')
             lease.stop()
             created = suite.prepare_installed(directory, assets,
                 {'schema_version': 1, 'scope': 'fixture-snapshot-qualification',
@@ -344,6 +501,10 @@ def qualify(directory, assets):
             captured = directory / 'suite-setup/input'
             expected = {name: system.baseline.digest(captured / name) for name in allowed}
             result['online_app'] = audit_online(transport, allowed, expected)
+            result['online_app']['native'], app_vendor = audit_native(
+                transport, set(runtime_absence()), product_paths, result['baseline']['native_policy'])
+            result['vendor_preservation'] = verify_vendor_preservation(
+                transport, vendor, app_vendor, packages_before, package_inventory(transport))
             result['online_app']['snapshot'] = lease.installed_name
             result['online_app']['snapshot_sha256'] = hashlib.sha256(xml.encode()).hexdigest()
             result['baseline_sha256'] = lease.state['baseline_sha256']

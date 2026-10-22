@@ -1,5 +1,11 @@
 """Snapshot qualification boundaries with private records and VM doubles only."""
+from collections import Counter
+import hashlib
+import io
 import json
+import os
+import stat
+import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
@@ -86,6 +92,177 @@ def test_complete_runtime_inventory_preserves_clean_environment_record():
     assert not any('apt-daily' in path or 'xdg-user-dirs' in path for path in paths)
 
 
+def test_native_readiness_requires_active_service_and_readable_database():
+    transport = Mock()
+    vendor = 'debdb /usr/bin/vendor-tool 17 ' + 'a' * 64
+    product = 'debdb /usr/lib/oh-no-parent-control/child 23 ' + 'b' * 64
+    transport.call.side_effect = [b'active\n', (vendor + '\n' + product + '\n').encode()]
+    report, preserved = qualification.audit_native(transport, {'/opt/fixture'},
+        {'/usr/lib/oh-no-parent-control/child'})
+    assert report['service_active'] is True and report['database_readable'] is True
+    assert report['vendor_rows'] == report['product_rows'] == 1
+    assert preserved == Counter({vendor: 1})
+    assert transport.call.call_args.args[0] == ['/usr/sbin/fapolicyd-cli', '--dump-db']
+    transport.call.reset_mock()
+    transport.call.side_effect = [b'inactive\n']
+    with pytest.raises(Exception, match='native-service-inactive'):
+        qualification.audit_native(transport, set())
+    assert transport.call.call_count == 1
+    transport.call.side_effect = [b'active\n', RuntimeError('mdb_env_open failed, error 2')]
+    with pytest.raises(RuntimeError, match='mdb_env_open'):
+        qualification.audit_native(transport, set())
+
+
+def test_native_database_rejects_fixture_trust_and_empty_vendor_inventory():
+    fixture = ('filedb /opt/onpc-test-fixtures-trusted-hard/native-fixture 17 ' + 'a' * 64)
+    with pytest.raises(Exception, match='native-fixture-trust-retained'):
+        qualification.native_rows((fixture + '\n').encode(),
+            {'/opt/onpc-test-fixtures-trusted-hard/native-fixture'}, set())
+    product = 'debdb /usr/lib/oh-no-parent-control/child 23 ' + 'b' * 64
+    with pytest.raises(Exception, match='vendor-trust-missing'):
+        qualification.native_rows((product + '\n').encode(), set(),
+            {'/usr/lib/oh-no-parent-control/child'})
+    with pytest.raises(Exception, match='native-database-size'):
+        qualification.native_rows(b'', set(), set())
+    with pytest.raises(Exception, match='native-database-row'):
+        qualification.native_rows(b'invalid database line\n', set(), set())
+
+
+@pytest.mark.parametrize('change', [None, 'bytes', 'mode', 'symlink', 'inventory'])
+def test_live_policy_reader_checks_actual_bytes_metadata_and_inventory(tmp_path, monkeypatch, change):
+    names = ['/etc/fapolicyd/rules.d/95-allow-open.rules',
+             '/var/lib/onpc-baseline-native-rules.json']
+    program = qualification.NATIVE_POLICY_AUDIT
+    expected = {}
+    for index, name in enumerate(names):
+        path = tmp_path / str(index)
+        data = b'qualified vendor source or receipt'
+        path.write_bytes(data)
+        info = path.stat()
+        expected[str(path)] = {'sha256': hashlib.sha256(data).hexdigest(),
+            'mode': stat.S_IMODE(info.st_mode), 'uid': os.getuid(), 'gid': os.getgid()}
+        program = program.replace(name, str(path))
+    path = tmp_path / '0'
+    if change == 'bytes':
+        path.write_bytes(b'changed')
+    elif change == 'mode':
+        path.chmod(0o400)
+    elif change == 'symlink':
+        path.unlink()
+        path.symlink_to(tmp_path / '1')
+    elif change == 'inventory':
+        expected.pop(str(path))
+    monkeypatch.setattr(sys, 'stdin', io.StringIO(json.dumps(expected)))
+    if change is None:
+        exec(compile(program, '<native-policy-read-only-probe>', 'exec'), {})
+    else:
+        with pytest.raises(AssertionError, match='native-policy-'):
+            exec(compile(program, '<native-policy-read-only-probe>', 'exec'), {})
+
+
+def test_product_rows_are_scoped_to_actual_install_manifest(tmp_path):
+    manifest = tmp_path / 'installed-files.json'
+    manifest.write_text(json.dumps([
+        {'path': '/usr/lib/oh-no-parent-control/child', 'kind': 'file'},
+        {'path': '/etc/oh-no-parent-control', 'kind': 'directory'}]))
+    assert qualification.installed_product_paths(tmp_path) == {
+        '/usr/lib/oh-no-parent-control/child', '/etc/oh-no-parent-control'}
+    manifest.write_text(json.dumps([{'path': 'relative/path', 'kind': 'file'}]))
+    with pytest.raises(Exception, match='product-manifest'):
+        qualification.installed_product_paths(tmp_path)
+
+
+def test_package_inventory_uses_native_binary_package_identities_and_ignores_removed_configs():
+    transport = Mock()
+    transport.call.return_value = b'libvendor:amd64\t1:2.3-1\tinstalled\nold\t1\tconfig-files\n'
+    assert qualification.package_inventory(transport) == {'libvendor:amd64': '1:2.3-1'}
+    assert transport.call.call_args.args[0][:2] == ['/usr/bin/dpkg-query', '-W']
+
+
+@pytest.mark.parametrize('raw', [b'', b'bad row\n', b'a\t1\tunpacked\n',
+    b'--argument\t1\tinstalled\n', b'a\t1\tinstalled\na\t1\tinstalled\n'])
+def test_package_inventory_refuses_unsafe_ambiguous_or_incomplete_state(raw):
+    transport = Mock()
+    transport.call.return_value = raw
+    with pytest.raises(Exception, match='package-inventory'):
+        qualification.package_inventory(transport)
+
+
+@pytest.mark.parametrize('fault', [None, 'removed-row', 'changed-row', 'duplicate-lost',
+                                 'foreign-addition', 'file-trust-addition', 'no-package-change',
+                                 'package-removed', 'unsafe-package-file'])
+def test_vendor_preservation_authenticates_only_package_owned_additions(fault):
+    original = 'debdb /usr/bin/vendor 17 ' + 'a' * 64
+    addition = 'debdb /usr/bin/dependency 23 ' + 'b' * 64
+    before = Counter({original: 2})
+    after = before + Counter({addition: 1})
+    old_packages = {'vendor:amd64': '1'}
+    new_packages = old_packages | {'dependency': '2'}
+    transport = Mock()
+    transport.call.return_value = b'/.\n/usr\n\n/.\n/usr/bin\n/usr/bin/dependency\n\n'
+    expected = 'unowned-vendor-trust-added'
+    if fault == 'removed-row':
+        after = Counter({addition: 1})
+        expected = 'vendor-trust-changed'
+    elif fault == 'changed-row':
+        after = Counter({original.replace('17', '18', 1): 2, addition: 1})
+        expected = 'vendor-trust-changed'
+    elif fault == 'duplicate-lost':
+        after = Counter({original: 1, addition: 1})
+        expected = 'vendor-trust-changed'
+    elif fault == 'foreign-addition':
+        after['debdb /foreign/path 1 ' + 'c' * 64] = 1
+    elif fault == 'file-trust-addition':
+        after[addition.replace('debdb', 'filedb')] = 1
+    elif fault == 'no-package-change':
+        new_packages = old_packages
+    elif fault == 'package-removed':
+        new_packages = {'dependency': '2'}
+        expected = 'vendor-package-removed'
+    elif fault == 'unsafe-package-file':
+        transport.call.return_value += b'/usr/../foreign\n'
+        expected = 'package-file-inventory'
+    if fault is None:
+        value = qualification.verify_vendor_preservation(
+            transport, before, after, old_packages, new_packages)
+        assert value == {'original_vendor_rows_preserved': True, 'original_vendor_rows': 2,
+                         'additional_vendor_rows': 1, 'installed_or_updated_packages': {'dependency': '2'}}
+        assert transport.call.call_args.args[0] == ['/usr/bin/dpkg-query', '-L', 'dependency']
+    else:
+        with pytest.raises(Exception, match=expected):
+            qualification.verify_vendor_preservation(
+                transport, before, after, old_packages, new_packages)
+
+
+def test_baseline_native_probe_uses_observation_only_guarded_ssh(tmp_path, monkeypatch):
+    events = []
+    suite = Mock()
+    suite.source.uuid = 'a' * 36
+    suite.lease.state = {'run': 'b' * 32}
+    suite.lease.view.domain_id = 7
+    monkeypatch.setattr(qualification.system, 'bootstrap',
+        lambda *args, **kwargs: events.append(('bootstrap', kwargs)) or 'ssh-ed25519 host-key')
+    monkeypatch.setattr(qualification.system, 'address',
+                        lambda *_: events.append('address') or '192.168.122.10')
+    suite.lease.start.side_effect = lambda: events.append('start')
+    transport = Mock()
+    def make_transport(config, commands, guard, lease):
+        events.append(('transport', config))
+        guard(None)
+        return transport
+    monkeypatch.setattr(qualification, 'Transport', make_transport)
+    result = qualification.baseline_transport(suite, tmp_path)
+    assert result is transport
+    assert events[0] == ('bootstrap', {'observation_only': True, 'environment_only': True})
+    assert events[1:3] == ['start', 'address']
+    assert events[3][1]['domain_id'] == 7
+    assert (tmp_path / 'baseline-observation/known-hosts').read_text() == (
+        '192.168.122.10 ssh-ed25519 host-key\n')
+    assert (tmp_path / 'baseline-observation/input/selected-inputs.json').is_file()
+    suite.lease.guard.assert_called_once_with()
+    transport.probe_ready.assert_called_once_with()
+
+
 @pytest.mark.parametrize('link', [False, True])
 def test_product_byte_probe_repacks_private_copy_and_refuses_links(tmp_path, link):
     assets = tmp_path / 'original'
@@ -159,7 +336,15 @@ def capture(tmp_path, monkeypatch):
     monkeypatch.setattr(qualification.installed_setup, 'snapshot_inputs',
                         lambda _: SimpleNamespace(files={'system_guest.py': b'helper'}))
     monkeypatch.setattr(qualification, 'audit_baseline',
-                        lambda *_: events.append('baseline-audit') or {'clean': True})
+                        lambda *_: events.append('baseline-audit') or {'clean': True, 'native_policy': {}})
+    monkeypatch.setattr(qualification, 'baseline_transport',
+                        lambda *_: events.append('baseline-ssh') or Mock())
+    monkeypatch.setattr(qualification, 'audit_native',
+                        lambda *args: (events.append('native-audit') or
+                                      ({'service_active': True, 'database_readable': True,
+                                        'product_rows': 0}, Counter({'vendor-row': 1}))))
+    monkeypatch.setattr(qualification, 'installed_product_paths', lambda _: set())
+    monkeypatch.setattr(qualification, 'package_inventory', lambda _: {'vendor': '1'})
     monkeypatch.setattr(qualification, 'qualify_identities', lambda *_: {'identities': True})
     monkeypatch.setattr(qualification.online_snapshot, 'load', lambda *_: {'run': 'b' * 32})
     monkeypatch.setattr(qualification.online_snapshot, 'restore',
@@ -174,23 +359,28 @@ def capture(tmp_path, monkeypatch):
 def test_real_shared_capture_and_restore_branches_precede_owned_close(tmp_path, capture):
     suite, lease, events = capture
     result = qualification.qualify(tmp_path, tmp_path / 'input')
-    assert events == ['prepare', 'baseline-audit', 'stop', 'capture', 'stop', 'prepare',
-                      'online-restore', 'saved-ssh', 'online-audit', 'close']
+    assert events == ['prepare', 'baseline-audit', 'baseline-ssh', 'native-audit', 'stop',
+                      'capture', 'stop', 'prepare', 'online-restore', 'saved-ssh',
+                      'online-audit', 'native-audit', 'close']
     assert suite.prepare_installed.call_args.kwargs == {
         'root': qualification.ROOT, 'overwrite': True, 'mode': 'online'}
     assert result['owned_baseline_restoration_verified'] is True
     assert result['online_app']['snapshot'] == 'onpc-v9.8.7'
+    assert result['baseline']['native']['service_active'] is True
+    assert result['online_app']['native']['database_readable'] is True
     lease.__exit__.assert_called_once()
     suite.close.assert_called_once_with()
 
 
-@pytest.mark.parametrize('failure', ['baseline', 'capture', 'credentials', 'audit'])
+@pytest.mark.parametrize('failure', ['baseline', 'native', 'capture', 'credentials', 'audit'])
 def test_failures_keep_diagnostics_and_close_existing_owned_lease(
         tmp_path, monkeypatch, capture, failure):
     suite, lease, events = capture
     error = RuntimeError('deliberate owned qualification failure')
     if failure == 'baseline':
         monkeypatch.setattr(qualification, 'audit_baseline', Mock(side_effect=error))
+    elif failure == 'native':
+        monkeypatch.setattr(qualification, 'audit_native', Mock(side_effect=error))
     elif failure == 'capture':
         suite.prepare_installed.side_effect = error
     elif failure == 'credentials':
@@ -204,6 +394,18 @@ def test_failures_keep_diagnostics_and_close_existing_owned_lease(
     suite.close.assert_called_once_with()
     lease.__exit__.assert_called_once()
     assert events[-1] == 'close'
+
+
+def test_vendor_database_drift_refuses_app_capture_and_closes_owned_lease(
+        tmp_path, monkeypatch, capture):
+    suite, lease, events = capture
+    inventories = iter([({'product_rows': 0}, Counter({'vendor': 1})),
+                        ({'product_rows': 1}, Counter({'changed-vendor': 1}))])
+    monkeypatch.setattr(qualification, 'audit_native', lambda *_: next(inventories))
+    with pytest.raises(Exception, match='vendor-trust-changed'):
+        qualification.qualify(tmp_path, tmp_path / 'input')
+    suite.close.assert_called_once_with()
+    lease.__exit__.assert_called_once()
 
 
 def test_other_target_refuses_before_any_vm_mutation(tmp_path, capture):

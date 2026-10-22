@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
+from urllib.parse import quote
 import uuid
 import zipfile
 from contextlib import contextmanager
@@ -505,13 +506,15 @@ def test_prose_report_references_publish_exact_evidence(campaign, reference):
         accepted['bundle'], member=str(source)) == b'Exact report for first'
 
 
-@pytest.mark.parametrize('reference', ['[report]({path}).', '`{path}`.'])
-@pytest.mark.parametrize('filename', ['result.md.', 'result.md,', 'result, exact.md'])
+@pytest.mark.parametrize('reference', ['[report](<{path}>).', '`{path}`.'])
+@pytest.mark.parametrize('filename', ['result.md.', 'result.md,', 'result, exact.md',
+                                      'result.md?', 'result%20.md'])
 def test_delimited_report_paths_preserve_literal_punctuation(campaign, reference, filename):
     run, state, result, report = campaign.accepted('first')
     source = report / filename
     (report / 'result.md').rename(source)
-    result['checks'][0]['evidence'] = reference.format(path=source)
+    result['checks'][0]['evidence'] = reference.format(
+        path=quote(str(source), safe='/') if reference.startswith('[') else source)
     (run / 'agent-result.json').write_text(json.dumps(result))
     assert proof._references(campaign.plan, result, state) == [str(source)]
     accepted = proof.preserve(campaign.plan, run, state, result)
@@ -535,6 +538,25 @@ def test_queue_prose_and_relative_links_preserve_one_exact_source(campaign):
                      f'Passed: {source}. [report]({relative}). |\n')
     result['checks'][0]['evidence'] = 'See queue for retained evidence.'
     assert proof._references(campaign.plan, result, state) == [str(source)]
+
+
+def test_reference_style_queue_proof_uses_selected_row_and_document_base(campaign):
+    run, state, result, report = campaign.accepted('first')
+    source = report / 'result (exact)#1.md.'
+    (report / 'result.md').rename(source)
+    queue = campaign.plan.root / campaign.plan.queue
+    relative = os.path.relpath(source, queue.parent).replace('#', '%23')
+    label = report / 'label-only.md'
+    queue.write_text(f'| [x] | first | task | Baseline | scope | [{label}][proof] |\n'
+                     '| [ ] | later | task | first | scope | [missing][other] |\n'
+                     f'\n[proof]: <{relative}> "exact original proof"\n'
+                     '[other]: ../output/test-runs/missing.md\n')
+    result['checks'][0]['evidence'] = 'See the selected queue row.\n```md\n' + str(label) + '\n```'
+    assert proof._references(campaign.plan, result, state) == [str(source)]
+    (run / 'agent-result.json').write_text(json.dumps(result))
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+                          accepted['bundle'], member=str(source)) == b'Exact report for first'
 
 
 def test_missing_prose_report_still_refuses_publication(campaign):
@@ -1175,11 +1197,15 @@ def test_queue_rewrite_changes_only_proven_selected_estimate_destinations(campai
     queue = campaign.plan.root / campaign.plan.queue
     relative = os.path.relpath(report / 'result.md', queue.parent)
     before = ('| [x] | earlier | unchanged | Baseline | old scope | [old](missing.md) |\n'
-              '| [x] | first | selected task | earlier | exact scope | 3 min; [passed](' + relative + ') |\n')
+              '| [x] | first | selected task | earlier | exact scope | 3 min; [passed](' + relative + ') '
+              '`[example](' + relative + ')` ![image](' + relative + ') '
+              '[angle](<' + relative + '>) [title](' + relative + ' "title") [reference][proof] |\n'
+              '\n[proof]: ' + relative + '\n')
     queue.write_text(before)
     accepted = proof.preserve(campaign.plan, run, state, result)
     assert proof.rewrite_references(campaign.plan, state, accepted)
-    expected = before.replace(relative, os.path.relpath(proof.locator(campaign.plan), queue.parent))
+    expected = before.replace('[passed](' + relative + ')',
+                              '[passed](' + os.path.relpath(proof.locator(campaign.plan), queue.parent) + ')')
     assert queue.read_text() == expected
     assert not proof.rewrite_references(campaign.plan, state, accepted)
     queue.write_text(before.replace(relative, relative + '.missing'))

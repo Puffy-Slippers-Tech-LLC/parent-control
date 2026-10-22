@@ -16,6 +16,7 @@ import stat
 import uuid
 
 import detached_launcher as launcher
+from document_checks import simple_inline_references
 from execution_plan import closeout_structure, evidence_references, local_file
 from launcher_runtime import capacity_session_recovery
 
@@ -32,7 +33,6 @@ PROTECTED_FIELDS = (
     'evidence_recovery',
 )
 LABEL_SUFFIX = ' — detailed proof unavailable; retained accepted completion'
-LINK = re.compile(r'(?<![!\\])\[([^\[\]\\\n]+)\]\(([^()\s<>\\|]+)\)')
 REQUEST = re.compile(r'^```plan-evidence-recovery\n(.*?)\n```[ \t]*$', re.M | re.S)
 
 
@@ -105,29 +105,30 @@ def request_from_brief(plan, state):
 
 def _links(before, after, kind, plan):
     """Only exact simple links change; surrounding claims stay literal."""
-    from document_checks import without_code
-    old = list(LINK.finditer(without_code(before)))
-    new = list(LINK.finditer(without_code(after)))
+    old = list(simple_inline_references(before))
+    new = list(simple_inline_references(after))
     if len(old) != len(new) or not old:
         raise ValueError('evidence recovery must preserve the simple link count')
     old_position = new_position = 0
     changed = disclosures = 0
     for left, right in zip(old, new):
-        if before[old_position:left.start()] != after[new_position:right.start()]:
+        if before[old_position:left.start] != after[new_position:right.start]:
             raise ValueError('evidence recovery cannot change surrounding claims')
-        old_position, new_position = left.end(), right.end()
-        if left.group() == right.group():
+        old_position, new_position = left.end, right.end
+        if before[left.start:left.end] == after[right.start:right.end]:
             continue
         changed += 1
-        disclosure = kind == 'historical-disclosure' and right[1] == left[1] + LABEL_SUFFIX
-        if right[1] != left[1] and not disclosure:
+        left_label = before[left.label_start:left.label_end]
+        right_label = after[right.label_start:right.label_end]
+        disclosure = kind == 'historical-disclosure' and right_label == left_label + LABEL_SUFFIX
+        if right_label != left_label and not disclosure:
             raise ValueError('evidence recovery needs the exact disclosure or unchanged label')
         if disclosure:
             disclosures += 1
-            destination = (plan.root / plan.queue).parent / left[2]
+            destination = (plan.root / plan.queue).parent / left.destination
             if destination.exists():
                 raise ValueError('historical disclosure requires unavailable original proof')
-        if left[2] == right[2]:
+        if left.destination == right.destination:
             raise ValueError('evidence recovery must replace an evidence destination')
     if before[old_position:] != after[new_position:] or not changed:
         raise ValueError('evidence recovery needs exact evidence link replacements')
@@ -312,21 +313,22 @@ def verify_proof(plan, correction, request):
     bundle = _bundle_path(plan, proof['bundle'])
     result = _inspect_bundle(plan, bundle)
     members = {entry['path']: entry for entry in result['manifest']['files']}
+    before, after = correction['before'], correction['after']
     changes = [(left, right) for left, right in zip(
-        LINK.finditer(correction['before']), LINK.finditer(correction['after']))
-        if left.group() != right.group()]
+        simple_inline_references(before), simple_inline_references(after))
+        if before[left.start:left.end] != after[right.start:right.end]]
     if len(changes) != len(proof['links']):
         raise ValueError('evidence recovery proof does not cover every changed link')
     authority = None
     for (left, right), record in zip(changes, proof['links']):
         if (not isinstance(record, dict) or set(record) != {'before', 'member', 'sha256'}
-                or record['before'] != left[2]
-                or ((plan.root / plan.queue).parent / right[2]).resolve() != bundle.resolve()
+                or record['before'] != left.destination
+                or ((plan.root / plan.queue).parent / right.destination).resolve() != bundle.resolve()
                 or record['member'] not in members
                 or members[record['member']]['sha256'] != record['sha256']):
             raise ValueError('evidence recovery replacement differs from exact bundle proof')
-        original = str(((plan.root / plan.queue).parent / left[2]).resolve())
-        if right[1] == left[1] + LABEL_SUFFIX:
+        original = str(((plan.root / plan.queue).parent / left.destination).resolve())
+        if after[right.label_start:right.label_end] == before[left.label_start:left.label_end] + LABEL_SUFFIX:
             if (Path(original).exists() or original in members
                     or record['member'] != request['authorization']['checkpoint']
                     or record['sha256'] != request['authorization']['sha256']):

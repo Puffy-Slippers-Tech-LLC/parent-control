@@ -14,6 +14,7 @@ import uuid
 from contextlib import ExitStack, contextmanager
 
 import evidence_bundle as bundle
+from document_checks import evidence_prose, local_destination, references, simple_inline_references
 from execution_plan import plan_namespace
 
 
@@ -905,28 +906,48 @@ def recover(plan):
 
 def _references(plan, result, state):
     """Only explicit checkout-storage references are inputs to proof publication."""
-    texts = [check['evidence'] for check in result['checks']
+    texts = [(check['evidence'], None) for check in result['checks']
              if _structured(check['evidence']) is None]
     queue = (plan.root / plan.queue).read_text()
-    texts += [line for line in queue.splitlines()
-              if re.match(r'^\| \[[ x]\] \| ' + re.escape(state['task_id']) + r' \|', line)]
+    texts.append((queue, state['task_id']))
     found = set()
-    for text in texts:
-        # Consume delimited references before bare prose so their exact paths
-        # (including spaces or punctuation) cannot generate partial duplicates.
-        # Literal terminal sentence punctuation requires a link or code span.
-        references = re.finditer(
-            r'\[[^\]\n]*\]\(([^)]+)\)|`([^`]+)`|'
-            r'((?:/[^\s`<>\[\]()]+)?output/test-runs/[^\s`<>\[\](),;]+)', text)
-        values = [link or code or bare.rstrip('.:!?\'"')
-                  for link, code, bare in (match.groups() for match in references)]
-        for value in values:
-            value = value.split('#', 1)[0]
+    for text, selected in texts:
+        # Parse the whole queue so reference definitions outside the selected
+        # row resolve, while only that row contributes publication inputs.
+        selected_lines = {number for number, line in enumerate(text.splitlines(), 1)
+                          if selected is None or re.match(
+                              r'^\| \[[ x]\] \| ' + re.escape(selected) + r' \|', line)}
+        values = [(link.destination, True) for link in references(text)
+                  if link.line in selected_lines]
+        prose = evidence_prose(text)
+        if selected is not None:
+            prose = '\n'.join(line for number, line in enumerate(prose.splitlines(), 1)
+                              if number in selected_lines)
+        # Code-delimited and bare storage paths are intentional legacy evidence
+        # inputs, not another Markdown parser. Examples and link labels are masked
+        # by the shared syntax owner before this compatibility route runs.
+        legacy = re.finditer(
+            r'`([^`\n]+)`|((?:/[^\s`<>\[\]()]+)?output/test-runs/[^\s`<>\[\](),;]+)', prose)
+        values += [(code or bare.rstrip('.:!?\'"'), False)
+                   for code, bare in (match.groups() for match in legacy)
+                   if not code or re.match(r'^(?:/|\.{1,2}/|output/test-runs/)', code)]
+        for value, markdown in values:
+            if markdown:
+                target = local_destination(value)
+                if target is None:
+                    continue
+                value = target.path
+            else:
+                # Legacy code/prose names are literal filesystem paths, not
+                # URLs. Keep '?' and '%' bytes; retain the old #fragment suffix.
+                value = value.split('#', 1)[0]
             if 'output/test-runs/' not in value:
                 continue
             source = Path(value)
             if not source.is_absolute():
-                source = (plan.root / plan.queue).parent / source if value.startswith('../') else plan.root / source
+                base = ((plan.root / plan.queue).parent
+                        if (markdown and selected is not None) or value.startswith('../') else plan.root)
+                source = base / source
             # Resolve lexical '..' without following any source symlink.
             source = Path(os.path.abspath(source))
             if not source.is_relative_to(plan.root / 'output/test-runs'):
@@ -1172,25 +1193,29 @@ def rewrite_references(plan, state, index):
         completed = state.get('queue_before', {}).get(cells[2].strip()) is True
         if not selected and not completed:
             continue
-        def replace(match):
+        def replacement(link):
             nonlocal changed
-            value = match[1]
-            if 'output/test-runs/' not in value:
-                return match[0]
-            value = value.split('#', 1)[0]
+            target = local_destination(link.destination)
+            if target is None or 'output/test-runs/' not in target.path:
+                return None
+            value = target.path
             source = Path(value)
             source = Path(os.path.abspath(source if source.is_absolute() else path.parent / source))
             if source == locator(plan):
-                return match[0]
+                return None
             original = str(source)
             if (original not in files and original not in inherited
                     and not (selected and any(member.startswith(original + '/') for member in files))):
                 if not selected:
-                    return match[0]  # Historical loss needs its authorized disclosure route.
+                    return None  # Historical loss needs its authorized disclosure route.
                 raise ValueError('plan evidence: queue reference has no exact preserved proof')
             changed = True
-            return match[0][:match.start(1) - match.start()] + destination + match[0][match.end(1) - match.start():]
-        cells[6] = re.sub(r'(?<![!\\])\[[^\[\]\\\n]+\]\(([^()\s<>\\|]+)\)', replace, cells[6])
+            return destination
+        estimate = cells[6]
+        for link in reversed(list(simple_inline_references(estimate))):
+            value = replacement(link)
+            if value is not None:
+                cells[6] = cells[6][:link.destination_start] + value + cells[6][link.destination_end:]
         lines[number] = '|'.join(cells)
     if changed:
         _atomic(path, ''.join(lines).encode())

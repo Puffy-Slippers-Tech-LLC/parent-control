@@ -310,18 +310,48 @@ tools/read-only words --after '## Ordered building-block catalogue' 'docs/TestAu
 
 | Check | Contract |
 | --- | --- |
-| `links` | Checks inline Markdown link/image destination files relative to each document. Handles plain, angle-wrapped, balanced/escaped parentheses and optional titles. Ignores code spans/fences, URLs and fragment-only links; does not fetch or validate anchors, reference-style or HTML links. |
+| `links` | Checks local inline/image and full, collapsed or shortcut reference-style links relative to each document, including same-document and Markdown heading fragments. Handles angle destinations, balanced/escaped parentheses, encoded spaces and optional titles. Masks code spans, fenced/indented examples and HTML comments without changing source offsets; never fetches URLs or evaluates input. HTML links are outside its syntax subset. |
 | `words` | Counts whitespace-separated source words in one UTF-8 file, optionally between exact `--after`/`--before` markers. Each marker must occur once in the selected text; missing/ambiguous markers fail. Without `--before`, counts to EOF. |
 
 Both accept regular files up to 8 MiB, refuse final symlinks/special files, and
 expose no code, command, output-file or interpreter options. Link-check exits:
-0 success, 1 missing targets, 2 invalid request/read failure. Failure diagnostics
+0 success, 1 missing targets/fragments, 2 invalid request/read failure. Failure diagnostics
 give document argument number/line without copying prose or destinations.
 For inaccessible destinations within this checkout's `output/test-runs/`, the
 unprivileged checker uses only the [approved artifact reader's](../tests/README.md#prompt-free-test-artifact-access)
 metadata action. It does not read protected contents or change permissions.
 Other inaccessible destinations, or a refused/unavailable reader, return 2 and
 are reported separately from missing files, even when other links are missing.
+
+`tools/document_checks.py` owns the shared `Link` representation: character
+offsets for the complete link, label and destination, use-site line, syntax kind
+and Markdown-unescaped destination. Reference-style destination offsets address
+the definition, while the complete-link offsets address its use. Definitions
+are case-insensitive with collapsed whitespace; the first valid definition wins.
+URL path/query/fragment separation precedes percent decoding, preserving encoded
+filename punctuation. Delimited destinations retain terminal punctuation;
+legacy code paths keep literal filesystem spelling, and bare evidence paths
+trim sentence punctuation. Unrecognized or malformed
+Markdown remains literal source rather than creating a reference.
+
+Supported heading anchors use lowercase Unicode text, remove punctuation except
+hyphens/underscores, replace whitespace with hyphens, and suffix duplicate IDs
+with `-1`, `-2`, and so on without collisions. ATX and Setext headings, heading
+code text, Markdown labels, escaping/entities, and quoted HTML `<a id="...">`
+or `<a name="...">` anchors are supported. Non-Markdown fragments, including
+reserved evidence selectors, remain available to their semantic owner; file
+existence grants no evidence identity or acceptance. This reader assigns no
+required/optional severity.
+
+The parser bounds each UTF-8 source at 8 MiB, destinations at 8192 characters,
+bracket/parenthesis nesting at 32 and reference labels at 999 characters.
+`references` and `local_destination` expose syntax separately from evidence
+validation. Legacy evidence collection uses `evidence_prose` to exclude link
+labels, definitions and examples while retaining explicit code-delimited paths.
+Protected queue comparison and rewriting use `simple_inline_references`, the
+existing narrower grammar and conservative code masking: images, references,
+titles, angle destinations, escapes and nested parentheses remain literal
+protected claims.
 
 The [rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/rules#understand-rule-fields)
 matches literal argument prefixes; the strictest decision wins.

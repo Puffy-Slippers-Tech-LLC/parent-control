@@ -114,8 +114,8 @@ For documentation reconciliation:
    Refactored test code also needs its affected regressions and resource review.
 
 Check renamed headings against incoming links as well: the link reader checks
-destination files, not fragments. Keep still-used anchors or update their
-consumers. Verify the final diff stays within the authorized scope; a prose-only
+local Markdown fragments under its [reader contract](../Approval-Tools.md#launcher-inspection-and-workspace-edits).
+Keep still-used anchors or update their consumers. Verify the final diff stays within the authorized scope; a prose-only
 session leaves executable code, inventories and generated coverage unchanged.
 
 This work does not execute or close the next queue task. Prose-only reconciliation

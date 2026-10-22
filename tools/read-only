@@ -41,7 +41,7 @@ def command(argv):
     fetch = actions.add_parser('fetch', allow_abbrev=False)
     fetch.add_argument('url')
     links = actions.add_parser('links', allow_abbrev=False,
-                               help='check local inline Markdown link destinations without fetching URLs')
+                               help='check local Markdown links and heading fragments without fetching URLs')
     links.add_argument('paths', nargs='+')
     words = actions.add_parser('words', allow_abbrev=False,
                                help='count source words in a file or between exact text markers')

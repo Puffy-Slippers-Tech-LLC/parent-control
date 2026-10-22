@@ -346,7 +346,9 @@ def validator_tree(tmp_path, monkeypatch):
     return tools, workflow.response_validator_sources()
 
 
-@pytest.fixture(params=(*ADDED_VALIDATOR_SOURCES, 'evidence_bundle.py'))
+@pytest.fixture(params=(*ADDED_VALIDATOR_SOURCES, 'evidence_bundle.py',
+                       'document_checks.py', 'execution_plan.py', 'plan_evidence.py',
+                       'plan_evidence_recovery.py'))
 def validator_checkout(tmp_path, monkeypatch, request, rig):
     tools, snapshot = validator_tree(tmp_path, monkeypatch)
     path = tools / request.param
@@ -1935,12 +1937,16 @@ def test_completed_evidence_destinations_allow_transition_and_recovery(tmp_path,
 @pytest.mark.parametrize('defect', [
     'label', 'count', 'prose', 'timing', 'unfinished-estimate', 'scope', 'requires',
     'task-link', 'order', 'completion', 'code', 'image', 'title', 'pipe', 'placeholder',
+    'reference', 'angle', 'parentheses', 'escaped-code',
 ])
 def test_completed_evidence_repair_preserves_every_other_obligation(tmp_path, defect):
     plan, queue, evidence = completed_evidence_plan(tmp_path)
-    if defect in ('code', 'image', 'title'):
+    if defect in ('code', 'image', 'title', 'reference', 'angle', 'parentheses', 'escaped-code'):
         extra = {'code': '`[literal](old.md)`', 'image': '![image](old.md)',
-                 'title': '[complex](old.md "retained title")'}[defect]
+                 'title': '[complex](old.md "retained title")',
+                 'reference': '[claim][old.md]', 'angle': '[claim](<old.md>)',
+                 'parentheses': '[claim](nested(old.md))',
+                 'escaped-code': r'\`[claim](old.md)\`'}[defect]
         queue.write_text(queue.read_text().replace(evidence, evidence + '; ' + extra))
     if defect == 'unfinished-estimate':
         queue.write_text(queue.read_text().replace('finite scope 003 | 15–30 min',
@@ -1955,7 +1961,8 @@ def test_completed_evidence_repair_preserves_every_other_obligation(tmp_path, de
         text = text.replace('cleanup complete', 'cleanup unnecessary')
     elif defect == 'timing':
         text = text.replace('15–30 min; 551/551', '1 min; 551/551')
-    elif defect == 'unfinished-estimate' or defect in ('code', 'image', 'title'):
+    elif defect == 'unfinished-estimate' or defect in ('code', 'image', 'title',
+                                                     'reference', 'angle', 'parentheses', 'escaped-code'):
         text = text.replace('old.md', 'new.md')
     elif defect in ('scope', 'requires', 'task-link'):
         fields = {'scope': ('finite scope 001', 'reduced scope'),

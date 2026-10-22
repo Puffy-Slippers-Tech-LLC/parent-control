@@ -5,7 +5,7 @@ import hashlib
 from pathlib import Path
 import re
 
-from document_checks import without_code
+from document_checks import simple_inline_references
 
 
 def queue_state(root, plan, queue, *, validate_pointer=True):
@@ -53,11 +53,9 @@ def evidence_references(text):
     Code spans, images and more complex Markdown remain literal: unsupported
     syntax must not turn an unrelated edit into an evidence-reference repair.
     """
-    masked = without_code(text)
-    links = re.finditer(r'(?<![!\\])\[[^\[\]\\\n]+\]\(([^()\s<>\\|]+)\)', masked)
     parts, position = [], 0
-    for match in links:
-        start, end = match.span(1)
+    for link in simple_inline_references(text):
+        start, end = link.destination_start, link.destination_end
         parts.append(text[position:start])
         position = end
     # A tuple preserves link count and cannot collide with a literal placeholder

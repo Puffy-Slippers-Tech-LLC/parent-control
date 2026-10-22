@@ -93,6 +93,14 @@ checks each own a bounded, waited Python child without model inference.
 No VM, bus, display, network, shared mutable path
 or cache, heavy build or cleanup-inventory resource is acquired; compatible unit
 scheduling is appropriate. Cleanup and UI inventories gain no module.
+E08 Markdown parsing, reference collection and protected rewrites use bounded
+strings and pytest-private documents/journals. Reader command-safety checks keep
+their bounded, waited child processes; dependency-byte histories use private
+checkouts and process-local controller doubles. No shared mutable path/cache,
+socket, bus, display, VM, service or heavy build is acquired. document_checks,
+read_only_launcher, plan_evidence, plan_evidence_recovery and
+execution_plan_launcher retain compatible unit overlap; cleanup/UI inventories
+gain no resource owner.
 launcher_worktrees uses pytest-private Git checkouts, worktrees, bare remotes,
 stash objects and checkpoint/lock trees, bounded waited Git children and a
 private supervised Python agent double. It owns no live service, network, VM, bus, display,

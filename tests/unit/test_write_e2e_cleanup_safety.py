@@ -24,6 +24,129 @@ EXIT_TIMING_PATTERN = (r'\nEnded: (?:0[1-9]|1[0-2]):[0-5]\d'
                        r'\nDuration: \d+(?:h \d+m|m)\s*$')
 
 
+@pytest.mark.parametrize('changed,stall', [(name, False) for name in (
+    None, 'repair_evidence.py', 'fix_tests.py', 'fix_tests_git.py', 'write_e2e.py',
+    'e2e_progress.py', 'e2e_startup_cache.py', 'write_e2e_response.schema.json',
+    'fix_tests_response.schema.json')] + [('e2e_startup_cache.py', True)])
+def test_real_source_bytes_stop_before_acceptance_and_replay_without_another_session(
+        tmp_path, monkeypatch, changed, stall):
+    import repair_evidence
+    from types import SimpleNamespace
+
+    root = tmp_path / 'task'
+    root.mkdir()
+    prepare(root)
+    source_root = tmp_path / 'controller'
+    (source_root / 'tools').mkdir(parents=True)
+    # Copy the reviewed inventory before mutation; the same real byte reader
+    # drives the worker, including the original unchanged shared sources.
+    real_sources = repair_evidence.controller_sources
+    inventory = real_sources()
+    for name in inventory:
+        destination = source_root / 'tools' / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((ROOT / 'tools' / name).read_bytes())
+    captured = real_sources(root=source_root)
+    monkeypatch.setattr(repair_evidence, 'controller_sources', lambda: real_sources(root=source_root))
+    monkeypatch.setattr(workflow.signal, 'signal', lambda *_: None)
+    monkeypatch.setattr(workflow, 'worktree_snapshot', lambda *_: {})
+    monkeypatch.setattr(workflow, 'session_changes', lambda *_: set())
+    monkeypatch.setattr(workflow, 'git_output', lambda *_args, **_kwargs:
+                        SimpleNamespace(stdout='', stderr='', returncode=0))
+    monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda *_: None)
+    invocations = []
+    response = reply('stalled', 'not_run') if stall else reply()
+
+    def execute(_root, run, *_args):
+        invocations.append(1)
+        result = response
+        launcher.atomic(run / 'agent-result.json', result)
+        launcher.atomic(run / 'nested.json', [])
+        (run / 'nested-closed').touch(mode=0o600)
+        (run / 'agent-commands.log').write_text('exact original command output\n')
+        if changed:
+            path = source_root / 'tools' / changed
+            path.write_bytes(path.read_bytes() + b'\n# changed dependency bytes\n')
+        else:
+            (run / 'stop').touch()
+        return result
+
+    monkeypatch.setattr(workflow, 'execute', execute)
+    first = tmp_path / 'first'
+    first.mkdir(mode=0o700)
+    workflow.TaskBudget(first).initialize(1)
+    owner = os.open(first / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    initial = workflow.fresh_state('001')
+    if stall:
+        initial['model_tier'] = 2
+    assert workflow.worker(root, first, owner, 1, json.dumps(initial)) == 0
+    retained = json.loads((first / 'checkpoint.json').read_text())
+    assert len(invocations) == 1 and retained['task_sessions'] == 1
+    if changed is None:
+        assert 'source_changed_result' not in retained
+        assert retained['failed_attempts'] == retained['live_attempts'] == 1
+        return
+    after = real_sources(root=source_root)
+    assert {name for name in inventory if captured[name] != after[name]} == {changed}
+    assert retained['failed_attempts'] == retained['live_attempts'] == 0
+    assert retained['source_changed_result'] == response
+    monkeypatch.setattr(launcher, 'current_run', lambda _: first)
+    resumed = workflow.initial_state(root, tmp_path)
+    second = tmp_path / 'second'
+    second.mkdir(mode=0o700)
+    workflow.carry_evidence_turns(second, resumed)
+    launcher.atomic(second / 'checkpoint.json', resumed)
+    (second / 'stop').touch()
+    workflow.TaskBudget(second).initialize(1)
+    owner = os.open(second / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert workflow.worker(root, second, owner, 1, json.dumps(resumed)) == (1 if stall else 0)
+    replayed = json.loads((second / 'checkpoint.json').read_text())
+    assert len(invocations) == 1 and replayed['task_sessions'] == 1
+    assert replayed['failed_attempts'] == replayed['live_attempts'] == (0 if stall else 1)
+    if stall:
+        assert replayed['model_tier'] == 2
+    assert 'source_changed_result' not in replayed
+    assert all(Path(item['path']).parent == second for item in replayed['evidence_turns'])
+    assert json.loads((second / 'result.json').read_text()) == dict(status=1 if stall else 0, sessions=0, tasks=0)
+    assert workflow.queue_state(root)[0] == '001'
+
+
+def test_interrupted_turn_marker_requires_successful_nested_cleanup(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    root = tmp_path / 'task'
+    root.mkdir()
+    prepare(root)
+    monkeypatch.setattr(workflow.signal, 'signal', lambda *_: None)
+    monkeypatch.setattr(workflow, 'worktree_snapshot', lambda *_: {})
+    monkeypatch.setattr(workflow, 'session_changes', lambda *_: set())
+    monkeypatch.setattr(workflow, 'git_output', lambda *_args, **_kwargs:
+                        SimpleNamespace(stdout='', stderr='', returncode=0))
+
+    def execute(_root, run, *_args):
+        launcher.atomic(run / 'agent-result.json', reply())
+        launcher.atomic(run / 'nested.json', [])
+        (run / 'nested-closed').touch(mode=0o600)
+        raise ValueError('transport stopped after cleanup admission closed')
+
+    def refuse_cleanup(*_):
+        raise ValueError('nested owner identity changed')
+
+    monkeypatch.setattr(workflow, 'execute', execute)
+    monkeypatch.setattr(workflow.launcher, 'finish_nested', refuse_cleanup)
+    run = tmp_path / 'run'
+    run.mkdir(mode=0o700)
+    workflow.TaskBudget(run).initialize(1)
+    owner = os.open(run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert workflow.worker(root, run, owner, 1, json.dumps(workflow.fresh_state('001'))) == 1
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert not state.get('evidence_turns')
+    assert not list(run.glob('specialized-turn-*.json'))
+    assert state['task_sessions'] == 1 and state['live_attempts'] == 0
+    assert json.loads((run / 'agent-result.json').read_text()) == reply()
+    assert 'nested owner identity changed' in (run / 'handoff.txt').read_text()
+
+
 def select_vm(root, argv):
     return workflow.select(root, ['--vm', vm_name(), *argv])
 
@@ -1699,6 +1822,9 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(
     assert 'Continue with the launcher-selected coordinator.' in handoff
     assert 'Next coordinator and implementer: gpt-6.1-sol high.' in handoff
     assert 'Continue with GPT-6-Astra High' not in handoff
+    interrupted = json.loads((run / 'checkpoint.json').read_text())
+    assert interrupted['evidence_turns']
+    assert interrupted['live_attempts'] == 0
     recovered, started = select_vm(root, [])
     assert started and recovered != run
     output = io.StringIO()
@@ -1716,6 +1842,9 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(
     assert workflow.queue_state(root) == ('002' if live == 'passed' else '001',
                                          {'001': live == 'passed', '002': False})
     state = json.loads((recovered / 'checkpoint.json').read_text())
+    assert {item['sha256'] for item in interrupted['evidence_turns']} <= {
+        item['sha256'] for item in state['evidence_turns']}
+    assert all(Path(item['path']).parent == recovered for item in state['evidence_turns'])
     assert state['live_attempts'] == 1
     assert state['phase'] == ('complete' if live == 'passed' else 'live')
     assert 'RECOVERED HANDOFF' in (recovered / 'handoff.txt').read_text()

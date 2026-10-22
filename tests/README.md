@@ -460,6 +460,18 @@ output/error tails, read through the scoped artifact reader when privileged.
 They survive ordinary execution-journal rotation for the repair run's lifetime;
 missing/refused reads and size limits remain explicit. Bulk captures retain their
 normal retention policy. A snapshot is investigation evidence, never a pass.
+Version-1 runner handoffs separately retain exact logical records, consumers and
+member references through the shared cumulative publication. Repair verification
+uses the original selector, case, target and completed-command identities;
+archived failure records keep their original verdict. Missing or denied full
+proof cannot fall back to a diagnostic tail or an unrelated aggregate pass.
+Closed repair/E2E responses, prompts, command records and cleanup inventories
+are copied in full within their existing launcher allocation before a fresh
+session overwrites them. Fresh controllers carry those exact capsules forward.
+The specialized source-byte guard stops at a child-free boundary when its
+reviewed decision dependencies change; it grants no new session or retry credit.
+The fresh controller validates the exact retained response before repair
+verification or close-out, keeping the original failure and owned-file baseline.
 The runner's `failure.json` includes `failures` entries with category, case ID
 and VM name; host cases have an empty VM name. Worker bucket names, report paths
 and model-generated labels never define a case. Multi-VM handoffs retain each
@@ -699,6 +711,14 @@ valid acceptance. Commit intent is checkpointed before Git writes. Recovery
 recognizes only the matching immediate commit with unchanged owned files, avoiding
 a duplicate after interruption; an unexpected HEAD or changed files refuse.
 Push recovery retries the push after recognizing the existing commit.
+Structured E2E results use optional `checks` with the ordinary
+`onpc-plan-evidence` version-1 declaration. The shared reader authenticates the
+original record, consumer, target, inputs, verdict and cleanup. Passing live
+claims cover every selected target; formal acceptance and diagnostic observations
+retain distinct producer attempts. Continuation and accepted Git retry reverify
+the retained declarations without spending another model session. Legacy results
+retain their existing handoff and acceptance policy. After structured formal proof
+has been recorded, later formal results keep that full-proof requirement.
 Missing Git identity, remote/upstream configuration or a failing Git hook remains
 an actionable close-out failure; the launcher does not change Git configuration
 or bypass hooks.

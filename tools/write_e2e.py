@@ -441,6 +441,11 @@ may be empty when nothing has been independently verified.
 Previous progress: {json.dumps(state.get('progress'), ensure_ascii=False)}
 Last formal live acceptance: {json.dumps(acceptance_evidence(state), ensure_ascii=False)}
 Previous diagnostic progress: {json.dumps(state.get('diagnostic_progress'), ensure_ascii=False)}
+When a runner supplies structured evidence, return it in checks using
+kind (host or installed), target, result and evidence. Evidence is the exact
+onpc-plan-evidence version-1 JSON string containing reference, consumer and record.
+Retain the original runner declaration; diagnostic tails cannot supply acceptance.
+Return checks null for legacy handoffs without runner-issued declarations.
 {BLOCKER_INSTRUCTIONS}
 Missing generated qualification assets are routine test preparation. Use the
 maintained artifact builder to prepare missing named inputs, then resume validation
@@ -676,6 +681,60 @@ def validate_progress(state, result):
     return progress
 
 
+def consume_evidence(root, state, result):
+    """Authenticate explicit claims without turning legacy handoff prose into proof."""
+    from types import SimpleNamespace
+    import plan_evidence
+    checks = result.get('checks')
+    if checks is None:
+        if (result['live_result'] != 'not_run' and (
+                any(check['kind'] == 'installed' for check in
+                    ((acceptance_evidence(state) or {}).get('checks') or []))
+                or any(claim['binding']['task_id'] == state['task_id']
+                    and claim['consumer']['expected_context']['target']
+                    for claim in state.get('evidence_consumers', {}).values()))):
+            raise ValueError('structured formal evidence cannot fall back to a legacy live result')
+        return {}
+    if not isinstance(checks, list) or not checks:
+        raise ValueError('structured E2E evidence requires nonempty checks')
+    binding = state.get('vm')
+    targets = binding.get('vms', []) if isinstance(binding, dict) else [binding] if binding else []
+    for check in checks:
+        if (not isinstance(check, dict) or set(check) != {'kind', 'target', 'result', 'evidence'}
+                or check['kind'] not in ('host', 'installed')
+                or check['result'] not in ('passed', 'failed', 'not_run')
+                or not isinstance(check['target'], str)
+                or not isinstance(check['evidence'], str)
+                or plan_evidence._structured(check['evidence']) is None
+                or check['kind'] == 'host' and check['target']
+                or check['kind'] == 'installed' and (not check['target'] or
+                    targets and check['target'] not in targets)):
+            raise ValueError('invalid structured E2E evidence check or target')
+    if (result['host_validated'] and not any(check['kind'] == 'host' and
+            check['result'] == 'passed' for check in checks)
+            or any(check['kind'] == 'host' and check['result'] != 'passed'
+                   for check in checks) and result['host_validated']):
+        raise ValueError('structured evidence does not establish host validation')
+    installed = [check for check in checks if check['kind'] == 'installed']
+    if (result['live_result'] != 'not_run' and not any(
+            check['result'] == result['live_result'] for check in installed)
+            or result['live_result'] == 'passed' and any(check['result'] != 'passed' for check in installed)
+            or result['live_result'] == 'passed' and targets and
+                set(check['target'] for check in installed) != set(targets)
+            or result['live_result'] == 'not_run' and any(check['result'] != 'not_run' for check in installed)):
+        raise ValueError('structured evidence does not match the formal live result')
+    context = dict(state, task={'plan': PLAN, 'task_id': state['task_id']},
+                   evidence_attempt=state.get('task_sessions', 0))
+    return plan_evidence.consume(SimpleNamespace(root=root), context, result, register=False)
+
+
+def verify_retained_evidence(root, state):
+    """Recheck exact retained declarations before a continuation or Git retry."""
+    for retained in (acceptance_evidence(state), state.get('diagnostic_evidence')):
+        if retained and retained.get('checks') is not None:
+            consume_evidence(root, dict(state, task_sessions=retained['session']), retained)
+
+
 def accept_result(root, state, result, before):
     if (not isinstance(result, dict) or result.get('task_id') != state['task_id']
             or result.get('status') not in ('ready_for_vm', 'investigating', 'task_complete', 'blocked', 'stalled')
@@ -692,14 +751,29 @@ def accept_result(root, state, result, before):
         validate_blocker(blocker)
     elif blocker is not None:
         raise ValueError('only a blocked result may ask a question')
+    verify_retained_evidence(root, state)
+    registrations = consume_evidence(root, state, result)
     progress = validate_progress(state, result)
     acceptance = acceptance_evidence(state)
+    if result['live_result'] != 'not_run' and result.get('checks'):
+        import plan_evidence
+        previous = {claim['reference']['record_id']
+                    for claim in state.get('evidence_consumers', {}).values()
+                    if claim['binding']['task_id'] == state['task_id']
+                    and claim['binding']['attempt'] != state.get('task_sessions', 0)
+                    and claim['consumer']['expected_context']['target']}
+        if any(plan_evidence._structured(check['evidence'])['reference']['record_id'] in previous
+               for check in result['checks'] if check['kind'] == 'installed'):
+            raise ValueError('a prior formal runner attempt cannot become a new live attempt')
     outstanding_failure = bool(acceptance and acceptance['live_result'] == 'failed')
     if result['status'] == 'investigating':
         if not outstanding_failure or result['live_result'] != 'not_run':
             raise ValueError('diagnostic continuation requires a prior failed acceptance and no new live result')
     if result['live_result'] != 'not_run':
         acceptance = {'live_result': result['live_result'], 'progress': progress}
+        if result.get('checks') is not None:
+            acceptance.update(checks=result['checks'], host_validated=result['host_validated'],
+                              session=state.get('task_sessions', 0))
     current, after = queue_state(root)
     task = state['task_id']
     if state.get('optimization_session'):
@@ -716,13 +790,14 @@ def accept_result(root, state, result, before):
             raise ValueError('optimization handoff lacks matching live outcome')
         if result['status'] == 'stalled' and result['live_result'] == 'passed':
             raise ValueError('optimization stall cannot claim passing live acceptance')
-        return dict(state, summary=result['summary'], handoff=result['handoff'],
+        updated = dict(state, summary=result['summary'], handoff=result['handoff'],
                     in_flight=False, blocker=blocker, acceptance=acceptance,
                     progress=state.get('progress') if result['live_result'] == 'not_run' else progress,
                     diagnostic_progress=progress if result['status'] == 'investigating' else None,
                     diagnostic_continuation=result['status'] == 'investigating',
                     phase='complete' if result['status'] == 'task_complete' else
                           'blocked' if result['status'] == 'blocked' else 'optimize')
+        return retain_evidence_state(updated, result, registrations)
     if any(after.get(key) != complete for key, complete in before.items() if key != task):
         raise ValueError('agent changed another task status; inspect the queue')
     status = result['status']
@@ -770,8 +845,19 @@ def accept_result(root, state, result, before):
                         'live' if status in ('ready_for_vm', 'investigating') else
                         'recover' if status == 'stalled' else 'blocked')
     if current != task and status == 'blocked':
-        return defer_to_prerequisite(root, updated)
-    return updated
+        return defer_to_prerequisite(root, retain_evidence_state(updated, result, registrations))
+    return retain_evidence_state(updated, result, registrations)
+
+
+def retain_evidence_state(state, result, registrations):
+    if registrations:
+        state['evidence_consumers'] = registrations
+    if result['status'] == 'investigating' and result.get('checks') is not None:
+        state['diagnostic_evidence'] = dict(checks=result['checks'], live_result='not_run',
+            host_validated=result['host_validated'], session=state.get('task_sessions', 0))
+    elif result['status'] != 'investigating':
+        state.pop('diagnostic_evidence', None)
+    return state
 
 
 def wait_for_answer(run, state, progress_key):
@@ -831,6 +917,8 @@ def finish_completion(root, run, state, result, updated):
 
 
 def _finish_completion(root, run, state, result, updated):
+    verify_retained_evidence(root, state)
+    consume_evidence(root, state, result)
     if state.get('commit_intent'):
         paths = state['commit_intent']['paths']
     else:
@@ -1015,6 +1103,25 @@ def execute(root, run, owner, phase, live_attempts=0):
     return read_session_result(run)
 
 
+def carry_evidence_turns(run, state):
+    """Carry exact closed controller records before startup rotates their owner."""
+    from repair_evidence import carry_turns
+    for retained in (state, *state.get('suspended_tasks', {}).values()):
+        if retained.get('evidence_turns'):
+            retained['evidence_turns'] = carry_turns(run, retained['evidence_turns'])
+
+
+def retain_evidence_turn(run, state):
+    from repair_evidence import retain_turn
+    identity = dict(workflow='write-e2e', task=state['task_id'],
+                    session=state['task_sessions'], live_attempts_before=state['live_attempts'],
+                    phase=state['phase'])
+    reference = retain_turn(run, identity)
+    references = state.setdefault('evidence_turns', [])
+    if reference not in references:
+        references.append(reference)
+
+
 def task_info_instructions(run, task):
     from launcher_chat import task_info_instructions as instructions
     return instructions(run, task) + 'Describe the task in parent/child scenario language.\n'
@@ -1022,6 +1129,7 @@ def task_info_instructions(run, task):
 
 def worker(root, run, owner, tasks, state_json):
     from launcher_progress import publish_progress, read_progress
+    from repair_evidence import controller_sources
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     def cancel(*_):
@@ -1029,18 +1137,54 @@ def worker(root, run, owner, tasks, state_json):
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, cancel)
-    state = json.loads(state_json)
+    # on_start carries retained capsules after allocation and before spawn.
+    # Its checkpoint can therefore contain newer paths than the prepared argv.
+    checkpoint = run / 'checkpoint.json'
+    state = json.loads(checkpoint.read_text() if checkpoint.exists() else state_json)
     state['commit_required'] = True
     total = state.get('total_sessions', state.get('task_sessions', 0))
     count, completed, status, reason = 0, 0, 0, 'task limit reached'
     completions = []
     budget = TaskBudget(run)
+    sources = controller_sources()
+    final_replayed_stall = False
 
     def compact_completions():
         for task_id, task_sessions, duration, keys, heading in completions:
             publish_completion(run, task_id, heading, duration, keys)
 
     try:
+        if state.get('source_changed_result') is not None:
+            # The previous controller could not load changed validation code.
+            # Replay its exact closed response under this fresh process without
+            # spending another session or changing the acceptance attempt.
+            result = state['source_changed_result']
+            try:
+                updated = validate_session_result(result, lambda result: accept_result(
+                    root, state, result, state['queue_before']))
+            except SessionResultRejected as error:
+                state.pop('source_changed_result')
+                state.update(phase='optimize' if state.get('optimization_session') else 'recover',
+                             in_flight=False)
+                retain_result_rejection(run, error, label='write-e2e', checkpoint=state)
+            else:
+                final_replayed_stall = (not state.get('optimization_session')
+                    and result['status'] == 'stalled'
+                    and model_tier(state) == len(MODEL_TIERS) - 1)
+                if updated['phase'] == 'complete':
+                    state.update(pending_completion=result)
+                    launcher.atomic(run / 'checkpoint.json', state)
+                    updated = finish_completion(root, run, state, result, updated)
+                    if not state.get('optimization_session'):
+                        completed += 1
+                        budget.complete()
+                state = updated
+                state.pop('source_changed_result', None)
+                state.pop('result_recovery', None)
+                state.pop('worktree_before', None)
+                if final_replayed_stall:
+                    status, reason = 1, 'reasoning stalled at GPT-6.1 Sol Max; inspect the retained evidence'
+                launcher.atomic(run / 'checkpoint.json', state)
         if state.get('closeout_recovery_run'):
             previous = Path(state.pop('closeout_recovery_run'))
             state = recover_completion(root, previous, state, destination=run)
@@ -1049,7 +1193,11 @@ def worker(root, run, owner, tasks, state_json):
                 total = state.get('task_sessions', 0)
             state['commit_required'] = True
             launcher.atomic(run / 'checkpoint.json', state)
-        while True:
+        while not final_replayed_stall:
+            if controller_sources() != sources:
+                reason = 'controller sources changed; restart tools/write-e2e from the retained boundary'
+                break
+            verify_retained_evidence(root, state)
             if state['phase'] == 'complete' and optimization_due(state):
                 state = start_optimization(state)
                 launcher.atomic(run / 'checkpoint.json', state)
@@ -1063,6 +1211,9 @@ def worker(root, run, owner, tasks, state_json):
                 state['task_session_limit'] = max(state.get('task_session_limit', MAX_TASK_SESSIONS),
                                                   state['task_sessions'] + 1)
                 launcher.atomic(run / 'checkpoint.json', state)
+                if controller_sources() != sources:
+                    reason = 'controller sources changed; restart tools/write-e2e with the retained answer'
+                    break
             if task_session_limit_reached(state):
                 status, reason = 1, 'task session limit reached'
                 budget.close()
@@ -1130,6 +1281,7 @@ def worker(root, run, owner, tasks, state_json):
             model, effort = session_model(state)
             print(f"\nwrite-e2e: session {count}; "
                   f"task {task}; {model} {effort}", flush=True)
+            turn_retained = False
             try:
                 try:
                     result = execute(root, run, owner, state['phase'], state['live_attempts'])
@@ -1138,12 +1290,35 @@ def worker(root, run, owner, tasks, state_json):
                     candidates.update(session_changes(root, state['worktree_before']))
                     state['stage_candidates'] = sorted(candidates)
                     launcher.atomic(run / 'checkpoint.json', state)
+                    # Transport failure and cancellation can still leave an
+                    # exactly closed turn. Retain it before outer recovery so
+                    # subsequent owner rotation cannot erase the interruption.
+                    if (run / 'nested-closed').exists():
+                        # The marker closes admission before cleanup inspects
+                        # every owner. Only a successful inspection closes a turn.
+                        launcher.finish_nested(root, run)
+                        retain_evidence_turn(run, state)
+                        turn_retained = True
+                launcher.finish_nested(root, run)
+                if not turn_retained:
+                    retain_evidence_turn(run, state)
+                    turn_retained = True
+                if controller_sources() != sources:
+                    state['source_changed_result'] = result
+                    launcher.atomic(run / 'checkpoint.json', state)
+                    reason = 'controller sources changed; restart tools/write-e2e to validate the retained response'
+                    break
                 updated = validate_session_result(result, lambda result: accept_result(root, state, result, before))
             except SessionResultRejected as error:
                 launcher.finish_nested(root, run)
+                if not turn_retained:
+                    retain_evidence_turn(run, state)
                 state.update(phase='optimize' if state.get('optimization_session') else 'recover',
                              in_flight=False)
                 retain_result_rejection(run, error, label='write-e2e', checkpoint=state)
+                if controller_sources() != sources:
+                    reason = 'controller sources changed; restart tools/write-e2e with the retained rejected response'
+                    break
                 continue
             updated.pop('result_recovery', None)
             optimizing = bool(state.get('optimization_session'))
@@ -1214,6 +1389,10 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             saved.pop('progress_keys', None)
         if state.get('result_recovery'):
+            used = state.get('task_sessions', 0)
+            return dict(state, recovery_run=str(previous), total_sessions=used,
+                        task_session_limit=used + MAX_TASK_SESSIONS)
+        if state.get('source_changed_result') is not None:
             used = state.get('task_sessions', 0)
             return dict(state, recovery_run=str(previous), total_sessions=used,
                         task_session_limit=used + MAX_TASK_SESSIONS)
@@ -1351,6 +1530,7 @@ def select(root, argv):
                 str(root), str(run), str(owner), json.dumps(args.tasks), json.dumps(state)]
 
     def start(run):
+        carry_evidence_turns(run, initial_checkpoint)
         launcher.atomic(run / 'limits.json', initial_limits)
         launcher.atomic(run / 'checkpoint.json', initial_checkpoint)
         save_binding(run, binding)

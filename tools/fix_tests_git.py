@@ -19,6 +19,7 @@ def validated_fingerprint(path):
 class RepairCommits:
     def __init__(self, root, run):
         self.root, self.run = root, run
+        self.guard = lambda: None
         path = run / 'checkpoint.json'
         self.state = json.loads(path.read_text()) if path.exists() else {'repairs': {}}
 
@@ -61,11 +62,13 @@ class RepairCommits:
                                  for path in entry['stage_paths']}
         self.save()
 
-    def verified(self, target):
+    def verified(self, target, *, evidence=None):
         key = self.key(target)
         entry = self.state['repairs'].get(key)
         if entry is None:  # The loop can report the same pass again at category completion.
             return
+        if evidence is not None:
+            entry['verification_attempt'] = evidence
         self.state['pending'] = key
         self.save()  # Retain acceptance before staging, committing or pushing.
         self.finish_pending()
@@ -78,7 +81,22 @@ class RepairCommits:
         key = self.state.get('pending')
         if key is None:
             return
+        self.guard()
         entry = self.state['repairs'][key]
+        if entry.get('pending_response') is not None:
+            raise ValueError('retained repair response needs current validation before Git close-out')
+        evidence = entry.get('verification_attempt')
+        from repair_evidence import verify_runner
+        required = [handoff for attempt in entry.get('failure_attempts', [])
+                    for handoff in attempt['handoffs']]
+        if required and (evidence is None or not evidence['handoffs']):
+            raise ValueError('retained structured repair needs exact verification proof before Git close-out')
+        for handoff in required:
+            verify_runner(self.root, handoff)
+        if evidence is not None and evidence['handoffs']:
+            from fix_tests import runner_case_pass
+            if runner_case_pass(self.root, evidence, tuple(entry['failure'])) is not True:
+                raise ValueError('retained repair case has no exact runner pass; revalidate before Git close-out')
         identity, _ = validate_pull_identity(self.root, self.state)
         if 'pull_intent' not in self.state:
             # Reuse shared branch/upstream recovery guards, without pulling or
@@ -113,5 +131,7 @@ class RepairCommits:
         self.save()
 
     def require_complete(self):
+        if any(entry.get('pending_response') is not None for entry in self.state['repairs'].values()):
+            raise ValueError('retained repair response has not been validated by this controller')
         if any(entry.get('status') in ('fixed', 'test_fixed') for entry in self.state['repairs'].values()):
             raise ValueError('repair case has no confirmed pass; retained Git close-out needs verification')

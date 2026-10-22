@@ -300,7 +300,7 @@ def test_selected_run_skips_completed_category_and_retains_serial_failure_limit(
     event(checkpoint, 'finished', 'tests/unit/test_core.py::passed')
     checkpoint.finish([])
     calls = []
-    monkeypatch.setattr(regression_selection, 'source_identity', lambda _: 'fixed')
+    monkeypatch.setattr(regression_selection, 'source_identity', lambda _: 'f' * 64)
     monkeypatch.setattr(regression.host, 'environment', lambda _: {})
     monkeypatch.setattr(regression_selection, 'pytest_command',
                         lambda *_: ['pytest', 'no:cacheprovider', '-x', '--'])

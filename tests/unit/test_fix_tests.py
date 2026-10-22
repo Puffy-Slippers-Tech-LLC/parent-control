@@ -129,6 +129,120 @@ def test_failure_context_does_not_retry_a_denied_reader(tmp_path, monkeypatch):
     assert evidence['output_tail'] == 'original failure'
 
 
+def test_complete_specialized_turn_survives_restart_and_refuses_changed_bytes(tmp_path):
+    import repair_evidence
+    first, second = tmp_path / 'first', tmp_path / 'second'
+    first.mkdir(mode=0o700)
+    second.mkdir(mode=0o700)
+    result = first / 'agent-result.json'
+    result.write_bytes(b'{"status":"blocked","original":"failure"}')
+    (first / 'prompt.txt').write_text('exact original selectors and attempt')
+    (first / 'developer-answers.json').write_text('[{"answer":"Keep the original rule."}]')
+    (first / 'agent-error.json').write_text('{"error":"original transport failure"}')
+    with pytest.raises(ValueError, match='cleanup has not finished'):
+        repair_evidence.retain_turn(first, dict(task='case', session=5))
+    (first / 'nested-closed').touch(mode=0o600)
+    reference = repair_evidence.retain_turn(first, dict(task='case', session=5))
+    assert repair_evidence.retain_turn(first, dict(task='case', session=5)) == reference
+    carried, = repair_evidence.carry_turns(second, [reference])
+    assert Path(carried['path']).read_bytes() == Path(reference['path']).read_bytes()
+    assert carried['sha256'] == reference['sha256']
+    result.write_text('later result')
+    import base64
+    capsule = json.loads(Path(carried['path']).read_text())
+    assert capsule['identity'] == dict(task='case', session=5)
+    assert base64.b64decode(capsule['files']['agent-result.json']) == (
+        b'{"status":"blocked","original":"failure"}')
+    assert json.loads(base64.b64decode(capsule['files']['developer-answers.json'])) == [
+        dict(answer='Keep the original rule.')]
+    assert json.loads(base64.b64decode(capsule['files']['agent-error.json'])) == dict(
+        error='original transport failure')
+    Path(carried['path']).write_text('{}')
+    with pytest.raises(ValueError, match='retained turn changed'):
+        repair_evidence.carry_turns(first, [carried])
+
+
+@pytest.fixture
+def repair_publication(tmp_path, monkeypatch):
+    import os
+    import evidence_capture
+    import runner_evidence
+    import test_retention
+    import test_storage
+    root = tmp_path / 'checkout'
+    root.mkdir(mode=0o700)
+    monkeypatch.setattr(test_storage, 'ROOT', root)
+    monkeypatch.setattr(test_storage, 'BASE', root / 'output/test-runs')
+    monkeypatch.delenv(test_retention.VARIABLE, raising=False)
+    monkeypatch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+    monkeypatch.delenv('ONPC_RUNNER_INVOCATION', raising=False)
+    monkeypatch.setattr(evidence_capture, '_authenticated_caller',
+                        lambda: dict(uid=os.geteuid(), gid=os.getegid()))
+    monkeypatch.setattr(evidence_capture, 'validate_targets', lambda root, targets: None)
+    monkeypatch.setattr(runner_evidence.regression_inputs, 'identity', lambda root: 'f' * 64)
+    return root, test_retention.Store(test_storage.directory('state') / 'retention-host')
+
+
+def test_repair_resolves_exact_failure_after_real_runner_rotation(repair_publication):
+    import tempfile
+    import repair_evidence
+    import runner_evidence
+    import test_retention
+    root, store = repair_publication
+    run = root / 'repair'
+    run.mkdir(mode=0o700)
+    with store.session():
+        allocation = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-repair-proof-'))
+        evidence = runner_evidence.ReportEvidence(root, allocation)
+        path = allocation / 'failure.json'
+        original = dict(prompt='Original failed case A', categories=['unit'],
+                        failures=[dict(category='unit', case='A', vm='')])
+        path.write_text(json.dumps(original))
+        path.chmod(0o600)
+        first = evidence.finalize(categories=[dict(name='unit')], status='failed',
+            cleanup='complete', members=[dict(path=path, role='result')])
+    log = run / 'last-test.log'
+    log.write_text('Runner evidence: ' + json.dumps(first) + '\n')
+    handoffs = repair_evidence.retain_runner(root, run, log)
+    for _ in range(5):
+        with store.session():
+            later = runner_evidence.ReportEvidence(root, Path(test_retention.allocate(
+                tempfile.mkdtemp, prefix='onpc-repair-proof-')))
+            later.finalize(categories=[], status='passed', cleanup='complete')
+    assert not path.exists()
+    assert not Path(first['receipt']['path']).exists()
+    assert repair_evidence.read_failure(root, path, handoffs) == original
+    assert handoffs[0]['records'][-1]['status'] == 'failed'
+    assert list(run.glob('runner-evidence-*.json'))
+    with pytest.raises(ValueError, match='missing or ambiguous'):
+        repair_evidence.read_failure(root, path.with_name('other-case.json'), handoffs)
+
+
+def test_structured_repair_proof_denial_never_falls_back_or_retries(repair_publication, monkeypatch):
+    import tempfile
+    import repair_evidence
+    import runner_evidence
+    import test_retention
+    root, store = repair_publication
+    with store.session():
+        allocation = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-repair-proof-'))
+        producer = runner_evidence.ReportEvidence(root, allocation)
+        proof = producer.finalize(categories=[], status='failed', cleanup='complete')
+    denied = Mock(side_effect=PermissionError('reader denied'))
+    monkeypatch.setattr(runner_evidence, 'resolve_reference', denied)
+    with pytest.raises(PermissionError, match='reader denied'):
+        repair_evidence.read_failure(root, allocation / 'failure.json', [proof])
+    assert denied.call_count == 1
+
+
+def test_truncated_runner_handoff_never_becomes_legacy_proof(tmp_path):
+    import repair_evidence
+    log = tmp_path / 'last-test.log'
+    log.write_text('Runner evidence: {"schema":1,"records":\n')
+    with pytest.raises(ValueError):
+        repair_evidence.retain_runner(tmp_path, tmp_path, log)
+
+
 def test_category_status_uses_the_discovered_inventory_position():
     categories = ['unit', 'future-suite', 'e2e']
     assert fix_tests.category_status('future-suite', categories) == (

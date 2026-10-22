@@ -351,6 +351,16 @@ or retry operations grant no additional allowance. Older specialized controllers
 retain their own lifecycle policy and use its supported
 safe-boundary restart; this does not add model retries or change their budgets.
 
+E07a's specialized controllers reuse that reviewed shared dependency closure
+through `repair_evidence.controller_sources`, adding `repair_evidence.py`,
+`fix_tests.py`, `fix_tests_git.py`, `write_e2e.py`, `e2e_progress.py`,
+`e2e_startup_cache.py` and both specialized response schemas. These files own
+the exact evidence selection, model/session limits, retained acceptance and Git
+retry decisions. Their actual-file histories stop before another response
+correction, blocker continuation or acceptance decision; the retained response,
+original inputs, counters and cleanup remain available to the fresh controller.
+Advisory rendering and test activity remain outside this decision closure.
+
 ### Legacy reference migration
 
 Inventory tracked references and explicitly registered local catalogues, not an

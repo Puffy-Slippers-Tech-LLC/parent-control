@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -84,6 +85,188 @@ def checkout(tmp_path, monkeypatch):
         child.wait(timeout=20)
 
 
+@pytest.mark.parametrize('result', ['test_fixed', 'invalid-status', 'malformed', 'blocked'])
+def test_changed_dependency_bytes_stop_before_validation_retry_or_answer_continuation(checkout, result):
+    import base64
+    import repair_evidence
+    from launcher_question import submit
+
+    root, _ = checkout
+    source_root = root / 'controller'
+    (source_root / 'tools').mkdir(parents=True)
+    for name in repair_evidence.controller_sources():
+        destination = source_root / 'tools' / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / 'tools' / name, destination)
+    (root / 'controller-root').write_text(str(source_root))
+    script = dict(agents=['invalid-status' if result == 'malformed' else result], tests=['A'])
+    if result == 'malformed':
+        script['raw_response'] = '{not valid JSON'
+    if result != 'blocked':
+        script['change_source'] = 'repair_evidence.py'
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(script))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    if result == 'blocked':
+        wait_for(run / 'question.json')
+        source = source_root / 'tools/repair_evidence.py'
+        source.write_bytes(source.read_bytes() + b'\n# changed after blocker\n')
+        question = json.loads((run / 'question.json').read_text())
+        assert submit(run, question['id'], 0)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1, output.getvalue()
+    assert 'controller sources changed' in output.getvalue()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in calls] == ['test', 'agent']
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert list(state['session_counts'].values()) == [1]
+    assert len(state['turns']) == (2 if result == 'blocked' else 1) and 'controller_restart' in state
+    turn = json.loads(Path(state['turns'][0]['path']).read_bytes())
+    raw = base64.b64decode(turn['files']['agent-result.json'])
+    if result == 'malformed':
+        assert raw == b'{not valid JSON'
+    else:
+        assert json.loads(raw)['status'] == result
+    assert raw == (run / 'agent-result.json').read_bytes()
+    assert base64.b64decode(turn['files']['prompt.txt']).decode() == calls[1]['prompt']
+    assert not (run / 'rejected-agent-result.json').exists()
+    if result != 'blocked':
+        script.pop('change_source')
+        script['tests'].append(None)
+        if result != 'test_fixed':
+            script['agents'].append('test_fixed')
+        (root / 'script.json').write_text(json.dumps(script))
+        resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
+        output = io.StringIO()
+        assert fix_tests.follow(resumed, output) == 0, output.getvalue()
+        later = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+        assert [call['kind'] for call in later] == (
+            ['test', 'agent', 'test'] if result == 'test_fixed' else ['test', 'agent', 'agent', 'test'])
+        usage = [json.loads(line) for line in (resumed / 'agent-usage.jsonl').read_text().splitlines()]
+        assert len([row for row in usage if row['event'] == 'turn']) == (0 if result == 'test_fixed' else 1)
+        if result == 'test_fixed':
+            assert [row['result'] for row in usage if row['event'] == 'result_replay'] == ['test_fixed']
+        else:
+            assert 'controller rejected' in later[2]['prompt']
+            assert 'model_reasoning_effort="low"' in later[2]['args']
+        assert subprocess.run(['git', 'log', '-1', '--format=%s', '@{upstream}'], cwd=root,
+                              capture_output=True, text=True, check=True, timeout=10).stdout.strip() == 'TA: Fixed unit A'
+        assert json.loads((resumed / 'checkpoint.json').read_text())['repairs'] == {}
+    if result == 'blocked':
+        continuation = state['controller_restart']['continuation']
+        assert continuation['result']['status'] == 'blocked'
+        assert continuation['failure'] == dict(category='unit', case='A', vm='')
+        answered = json.loads(Path(state['turns'][-1]['path']).read_bytes())
+        assert json.loads(base64.b64decode(answered['files']['developer-answers.json'])) == continuation['answers']
+        script.update(agents=['blocked', 'test_fixed', 'test_fixed'],
+                      tests=['A', 'A', 'A', None], change_source='repair_evidence.py')
+        (root / 'script.json').write_text(json.dumps(script))
+        resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
+        output = io.StringIO()
+        assert fix_tests.follow(resumed, output) == 1, output.getvalue()
+        repeated = json.loads((resumed / 'checkpoint.json').read_text())
+        assert repeated['controller_restart']['continuation']['answers'] == continuation['answers']
+        script.pop('change_source')
+        (root / 'script.json').write_text(json.dumps(script))
+        final, _ = fix_tests.select(root, categories=('unit',), resume=True)
+        output = io.StringIO()
+        assert fix_tests.follow(final, output) == 0, output.getvalue()
+        later = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+        assert [call['kind'] for call in later] == ['test', 'agent', 'test', 'agent', 'test', 'agent', 'test']
+        for call in (later[3], later[5]):
+            assert 'Restore the specified behavior.' in call['prompt']
+            assert 'Previous attempt paused with this handoff:\nfixture result 1' in call['prompt']
+        for current in (resumed, final):
+            usage = [json.loads(line) for line in (current / 'agent-usage.jsonl').read_text().splitlines()]
+            assert [row['repair_session'] for row in usage if row['event'] == 'turn'] == [1]
+
+
+def test_failed_agent_stops_once_and_explicit_fresh_run_can_retry(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    script = dict(agents=['test_fixed', 'test_fixed'], tests=['A', 'A', None], agent_exit=7)
+    (root / 'script.json').write_text(json.dumps(script))
+    first, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(first, output) == 1
+    assert 'repair agent exited with status 7' in output.getvalue()
+    original = json.loads((first / 'checkpoint.json').read_text())
+    assert all('pending_response' not in entry for entry in original['repairs'].values())
+    turn = json.loads(Path(original['turns'][-1]['path']).read_text())
+    assert turn['identity']['exit_status'] == 7
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in calls] == ['test', 'agent']
+    script.pop('agent_exit')
+    (root / 'script.json').write_text(json.dumps(script))
+    resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
+    output = io.StringIO()
+    assert fix_tests.follow(resumed, output) == 0, output.getvalue()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'test', 'agent', 'test']
+    usage = [json.loads(line) for line in (resumed / 'agent-usage.jsonl').read_text().splitlines()]
+    assert [row['repair_session'] for row in usage if row['event'] == 'turn'] == [1]
+    assert json.loads((resumed / 'checkpoint.json').read_text())['repairs'] == {}
+
+
+def test_structured_repair_uses_exact_archived_failure_and_case_pass_after_rotation(tmp_path, monkeypatch):
+    import tempfile
+    import evidence_capture
+    import repair_evidence
+    import runner_evidence
+    import test_retention
+    import test_storage
+
+    root = tmp_path / 'checkout'
+    root.mkdir(mode=0o700)
+    monkeypatch.setattr(test_storage, 'ROOT', root)
+    monkeypatch.setattr(test_storage, 'BASE', root / 'output/test-runs')
+    monkeypatch.delenv(test_retention.VARIABLE, raising=False)
+    monkeypatch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+    monkeypatch.setattr(evidence_capture, '_authenticated_caller',
+                        lambda: dict(uid=os.geteuid(), gid=os.getegid()))
+    monkeypatch.setattr(evidence_capture, 'validate_targets', lambda *_: None)
+    monkeypatch.setattr(runner_evidence.regression_inputs, 'identity', lambda *_: 'f' * 64)
+    run = tmp_path / 'controller'
+    run.mkdir(mode=0o700)
+    invocation = dict(repair_run=str(run), attempt='exact-attempt',
+                      selection=[['unit', ['-k', 'selected']]])
+    monkeypatch.setenv('ONPC_RUNNER_INVOCATION', json.dumps(invocation))
+    store = test_retention.Store(test_storage.directory('state') / 'retention-host')
+    original = dict(prompt='Original failure before rotation', categories=['unit'],
+                    failures=[dict(category='unit', case='B', vm='')])
+    with store.session():
+        report = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-repair-proof-'))
+        failure_path = report / 'failure.json'
+        failure_path.write_text(json.dumps(original))
+        failure_path.chmod(0o600)
+        producer = runner_evidence.ReportEvidence(root, report)
+        producer.command(dict(category='unit', check='unit', target='', status='failed',
+            cleanup='complete', selected_ids=['A', 'B'], completed_ids=['A'],
+            resumed_ids=[], failed_ids=['B'], exit_status=1, argv=['exact original command']))
+        proof = producer.finalize(categories=[dict(name='unit')], status='failed',
+            cleanup='complete', members=[dict(path=failure_path, role='result')])
+    log = run / 'last-test.log'
+    log.write_text(f'Failure handoff: {failure_path}\n' + 'diagnostic\n' * (fix_tests.TAIL_BYTES // 10 + 1)
+                   + 'Runner evidence: ' + json.dumps(proof) + '\n')
+    handoffs = repair_evidence.retain_runner(root, run, log)
+    attempt = dict(category='unit', selectors={'unit': ['-k', 'selected']},
+                   invocation=invocation, run=str(run), status=1, handoffs=handoffs)
+    for _ in range(5):
+        with store.session():
+            pass
+    assert not failure_path.exists()
+    assert fix_tests.handoff(run, root=root, runner_handoffs=handoffs)['failures'] == original['failures']
+    assert fix_tests.runner_case_pass(root, attempt, ('unit', 'A', '')) is True
+    assert fix_tests.runner_case_pass(root, attempt, ('unit', 'B', '')) is None
+    assert fix_tests.runner_case_pass(root, attempt, ('ui', 'A', '')) is None
+    assert fix_tests.runner_case_pass(root, attempt, ('unit', 'A', 'other-target')) is None
+    assert fix_tests.runner_case_pass(root, dict(attempt, invocation=dict(invocation, attempt='stale')),
+                                     ('unit', 'A', '')) is None
+    assert fix_tests.runner_case_pass(root, dict(attempt, selectors={'unit': ['-k', 'other']}),
+                                     ('unit', 'A', '')) is None
+    assert fix_tests.runner_case_pass(root, attempt, ('unit', '', '')) is None
+
+
 @pytest.mark.parametrize('rounds', [1, 2, 3])
 def test_worker_round_count_and_top_frame(checkout, rounds):
     root, _ = checkout
@@ -151,6 +334,67 @@ def test_failed_push_resumes_before_tests_without_duplicate_commit(checkout):
     assert subprocess.run(['git', 'rev-parse', '@{upstream}'], cwd=root, capture_output=True,
                           text=True, check=True, timeout=10).stdout == head
     assert json.loads((resumed / 'checkpoint.json').read_text())['repairs'] == {}
+
+
+def test_structured_verified_push_retry_carries_original_proof_without_another_attempt(checkout):
+    import repair_evidence
+
+    root, _ = checkout
+    hook = root / 'remote.git/hooks/pre-receive'
+    hook.write_text('#!/bin/sh\nexit 1\n')
+    hook.chmod(0o700)
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=['A', None], structured=True)))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1, output.getvalue()
+    assert 'repair push failed' in output.getvalue()
+    state = json.loads((run / 'checkpoint.json').read_text())
+    entry = state['repairs'][state['pending']]
+    assert len(state['runner_attempts']) == 2 and len(state['turns']) == 1
+    assert entry['failure_attempts'][0]['handoffs']
+    assert fix_tests.runner_case_pass(root, entry['verification_attempt'], ('unit', 'A', '')) is True
+    before = (root / 'calls').read_bytes()
+    hook.unlink()
+    resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
+    output = io.StringIO()
+    assert fix_tests.follow(resumed, output) == 0, output.getvalue()
+    assert (root / 'calls').read_bytes() == before
+    carried = json.loads((resumed / 'checkpoint.json').read_text())
+    assert carried['repairs'] == {} and len(carried['runner_attempts']) == 2
+    assert Path(carried['turns'][0]['path']).parent == resumed
+    assert carried['turns'][0]['sha256'] == state['turns'][0]['sha256']
+    for attempt in carried['runner_attempts']:
+        for handoff in attempt['handoffs']:
+            repair_evidence.verify_runner(root, handoff)
+    (root / 'mode').write_text('pass')
+    fresh, _ = fix_tests.select(root, categories=('unit',))
+    assert fix_tests.follow(fresh, io.StringIO()) == 0
+    unrelated = json.loads((fresh / 'checkpoint.json').read_text())
+    assert len(unrelated['runner_attempts']) == 1
+    assert not unrelated.get('turns') and 'session_counts' not in unrelated
+    assert 'controller_restart' not in unrelated
+    assert json.loads((resumed / 'checkpoint.json').read_text()) == carried
+
+
+def test_structured_noncase_failure_cannot_commit_a_retry_without_exact_proof(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=['', None], structured=True, structured_until=1)))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1, output.getvalue()
+    assert 'repair case has no confirmed pass' in output.getvalue()
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert len(state['runner_attempts']) == 2
+    assert state['runner_attempts'][0]['handoffs'] and not state['runner_attempts'][1]['handoffs']
+    assert 'pending' not in state
+    calls = [json.loads(line)['kind'] for line in (root / 'calls').read_text().splitlines()]
+    assert calls == ['test', 'agent', 'test']
+    assert subprocess.run(['git', 'log', '-1', '--format=%s'], cwd=root, capture_output=True,
+                          text=True, check=True, timeout=10).stdout.strip() == 'Initial fixture'
 
 
 @pytest.mark.parametrize('staged', [False, True])
@@ -244,11 +488,12 @@ def test_repair_git_refuses_changed_validated_files(checkout, change):
                           text=True, check=True, timeout=10).stdout.strip() == 'Initial fixture'
 
 
-def test_category_success_without_the_repaired_case_pass_cannot_commit(checkout):
+@pytest.mark.parametrize('structured', [False, True])
+def test_category_success_without_the_repaired_case_pass_cannot_commit(checkout, structured):
     root, _ = checkout
     (root / 'mode').write_text('agent-script')
     (root / 'script.json').write_text(json.dumps(dict(
-        agents=['test_fixed'], tests=['A', None], unexecuted=['A'])))
+        agents=['test_fixed'], tests=['A', None], unexecuted=['A'], structured=structured)))
     run, _ = fix_tests.select(root, categories=('unit',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 1

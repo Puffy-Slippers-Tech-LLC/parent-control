@@ -18,6 +18,20 @@
     "host_validated": {"type": "boolean"},
     "live_result": {"type": "string", "enum": ["not_run", "failed", "passed"]},
     "stage_paths": {"type": "array", "items": {"type": "string"}},
+    "checks": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {"type": "string", "enum": ["host", "installed"]},
+          "target": {"type": "string"},
+          "result": {"type": "string", "enum": ["passed", "failed", "not_run"]},
+          "evidence": {"type": "string"}
+        },
+        "required": ["kind", "target", "result", "evidence"],
+        "additionalProperties": false
+      }
+    },
     "progress": {
       "type": "object",
       "properties": {
@@ -29,6 +43,6 @@
       "additionalProperties": false
     }
   },
-  "required": ["status", "task_id", "summary", "handoff", "blocker", "host_validated", "live_result", "stage_paths", "progress"],
+  "required": ["status", "task_id", "summary", "handoff", "blocker", "host_validated", "live_result", "stage_paths", "progress", "checks"],
   "additionalProperties": false
 }

@@ -181,6 +181,13 @@ Repair failure-context checks extend fix_tests with tiny pytest-private report,
 queue and command files plus a process-local artifact-reader double. No live
 Polkit, VM, bus, display, shared path/cache or new child lifetime is introduced;
 its existing compatible unit classification remains appropriate.
+Specialized evidence consumers add private retention/publication journals,
+finite JSON/ZIP closures and complete controller capsules. Real source-byte
+restart checks copy the reviewed inventory into pytest-private trees; launcher
+children and local Git remotes retain their existing recorded, waited owners.
+No model, remote service, VM, display, bus, shared cache or new cleanup owner
+is added. fix_tests/write_e2e and their cleanup modules remain compatible;
+the UI inventory gains no module or resource.
 Checkpoint replacement regressions reuse fix_tests_cleanup_safety's private
 trees and finite, waited test/agent doubles. No shared checkpoint, live service
 or new child lifetime is added; its compatible unit/cleanup classifications hold.

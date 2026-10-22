@@ -6,10 +6,12 @@ even SIGKILL of the worker cancels the current operation before releasing it.
 """
 
 import argparse
+import base64
 import fcntl
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import shlex
 import signal
@@ -236,15 +238,24 @@ def read_tail(path):
         return stream.read().decode('utf-8', errors='replace')
 
 
-def handoff(run, *, root=None):
+def handoff(run, *, root=None, runner_handoffs=()):
     lines = read_tail(run / 'last-test.log').splitlines()
     paths = [line.removeprefix('Failure handoff: ') for line in lines
              if line.startswith('Failure handoff: ')]
+    if not paths and runner_handoffs:
+        # A complete structured declaration can be larger than the diagnostic
+        # tail. Recover only the terminal report's exact original failure member.
+        paths = list(dict.fromkeys(member['original_path']
+            for member in runner_handoffs[-1]['records'][-1]['members']
+            if member['role'] == 'result' and Path(member['original_path']).name == 'failure.json'))
+        if len(paths) != 1:
+            raise ValueError('exact terminal failure handoff is missing or ambiguous')
     if not paths:
         errors = [line for line in lines if line.startswith('Test runner infrastructure failed: ')]
         detail = ('; ' + errors[-1][:2000]) if errors else ''
         raise ValueError('test runner did not produce a failure handoff' + detail + '; see last-test.log')
-    value = json.loads(Path(paths[-1]).read_text())
+    from repair_evidence import read_failure
+    value = read_failure(root, paths[-1], runner_handoffs)
     if (not isinstance(value, dict) or not isinstance(value.get('prompt'), str)
             or not value['prompt'].strip() or not isinstance(value.get('categories'), list)):
         raise ValueError('invalid test failure handoff')
@@ -255,6 +266,77 @@ def handoff(run, *, root=None):
         value['prompt'] += ('\nRetained private failure context (bounded log tails): '
                             + evidence + '\nRead this copy if execution evidence has rotated.')
     return value
+
+
+def runner_case_pass(root, attempt, target):
+    """Require the archived command's exact selection and completed case.
+
+    An aggregate pass, another target's pass or a bounded diagnostic copy cannot
+    establish that the repaired case reached teardown under our selectors.
+    """
+    from repair_evidence import verify_runner
+    from runner_evidence import resolve_reference
+    category, case, vm = target
+    if attempt['category'] not in ('all', category):
+        return None
+    expected = [category, attempt['selectors'].get(category, [])]
+    def commands(handoff_value, *, nested=False):
+        verify_runner(root, handoff_value)
+        for record, consumer in zip(handoff_value['records'], handoff_value['consumers']):
+            if (record['context']['task'] != 'runner-terminal'
+                    or record['cleanup']['state'] != 'complete'):
+                continue
+            payloads = {}
+            for member in record['members']:
+                if (member['role'] not in ('input', 'command') or not re.fullmatch(
+                        r'[0-9]{4}-(input|command)\.json', Path(member['original_path']).name)):
+                    continue
+                reference = next(item for item in handoff_value['references']
+                                 if item['record_id'] == record['record_id']
+                                 and item['member_id'] == member['member_id'])
+                value = json.loads(resolve_reference(root, reference, consumer=consumer))
+                if isinstance(value, dict):
+                    if member['role'] == 'input' and value.get('categories') is not None:
+                        payloads['input'] = value
+                    if member['role'] == 'command' and isinstance(value.get('commands'), list):
+                        payloads['command'] = value
+            if set(payloads) != {'input', 'command'}:
+                continue
+            invocation = payloads['input'].get('invocation', {})
+            selection = invocation.get('selection', [])
+            # Only this exact producer invocation may establish applicability.
+            matches = (expected in selection or attempt['category'] == 'all'
+                       and selection == [['all', []]])
+            if (not matches or invocation.get('target', vm) != vm
+                    or not nested and invocation != attempt['invocation']):
+                continue
+            matching = []
+            for command in payloads['command']['commands']:
+                if (not nested and command.get('provenance') == 'worker-join'
+                        and command.get('target') == vm and expected in command.get('selection', [])
+                        and command.get('cleanup') == 'complete'):
+                    for worker in command.get('worker_evidence', []):
+                        yield from commands(worker, nested=True)
+                if (command.get('category') != category or command.get('target', '') != vm
+                        or command.get('collect')):
+                    continue
+                matching.append(command)
+            if case:
+                yield from (command for command in matching if command.get('cleanup') == 'complete')
+            elif (matching and record['status'] == 'passed' and record['completeness'] == 'complete'
+                  and all(command.get('status') == 'passed' and command.get('exit_status') == 0
+                          and command.get('cleanup') == 'complete'
+                          and not command.get('failed_ids')
+                          and set(command.get('selected_ids', [])) <= set(command.get('completed_ids', []))
+                          for command in matching)):
+                yield matching[0]
+    selected_commands = [command for handoff_value in attempt['handoffs']
+                         for command in commands(handoff_value)]
+    if case and any(case in command.get('failed_ids', []) for command in selected_commands):
+        return None
+    if any(not case or case in command.get('completed_ids', []) for command in selected_commands):
+        return True
+    return None
 
 
 def failure_target(failure, category):
@@ -414,10 +496,16 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     if kind == 'test':
         from vm_selection import execution_arguments, selected
         vm_args = execution_arguments() if selected(required=False) is not None else []
-        options = json.loads(test_args)
+        declaration = json.loads(test_args)
+        options = declaration['args'] if isinstance(declaration, dict) else declaration
         resume = '--resume' in options
         command = [str(root / 'tools/run-tests'), *(['--resume'] if resume else []),
                    '--stop-on-error', category, *[arg for arg in options if arg != '--resume'], *vm_args]
+        os.environ['ONPC_RUNNER_INVOCATION'] = json.dumps(declaration['invocation']
+            if isinstance(declaration, dict) else dict(
+            repair_run=str(run), attempt=uuid.uuid4().hex,
+            selection=[[category, [arg for arg in options if arg != '--resume'
+                                   and not arg.startswith('--resume-case=')]]]))
     elif kind == 'recovery':
         from vm_selection import execution_arguments, execution_binding
         options = execution_arguments() if execution_binding() is not None else ['--host-only']
@@ -480,7 +568,34 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     active_task = None
     budget = TaskBudget(run)
     from fix_tests_git import RepairCommits
+    from repair_evidence import controller_sources, read_turn, retain_runner, retain_turn
     commits = None
+    sources = controller_sources()
+    runner_handoffs = []
+    latest_attempt = None
+    restart_continuation = None
+
+    def check_controller(*, continuation=None):
+        current = controller_sources()
+        if current != sources:
+            continuation = continuation or restart_continuation
+            if continuation is not None and commits.key(tuple(continuation['failure'][name]
+                    for name in ('category', 'case', 'vm'))) not in commits.state['repairs']:
+                continuation = None  # The authorized repair already closed.
+            commits.state['controller_restart'] = dict(expected=sources, actual=current,
+                sessions={commits.key(key): value for key, value in case_sessions.items()})
+            if continuation is not None:
+                commits.state['controller_restart']['continuation'] = continuation
+            commits.save()
+            if continuation is not None:
+                turn = retain_turn(run, dict(continuation['session'], boundary='authorized_continuation'),
+                                   require_cleanup=False)
+                commits.state.setdefault('turns', []).append(turn)
+                key = commits.key(tuple(continuation['failure'][name] for name in ('category', 'case', 'vm')))
+                commits.state['repairs'][key].setdefault('turns', []).append(turn)
+                commits.save()
+            raise ValueError('repair controller sources changed; exact handoff retained. '
+                             'Start a fresh fix-tests controller before continuing')
 
     def task_started():
         if not budget.admit():
@@ -531,25 +646,54 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise Stopped()
 
     def execute(kind, category='', options=(), *, agent_model=None, agent_effort=None):
+        nonlocal runner_handoffs, latest_attempt
         check_stop()
+        check_controller()
+        invocation = dict(repair_run=str(run), attempt=uuid.uuid4().hex,
+                          selection=[[category, [arg for arg in options if arg != '--resume'
+                                                 and not arg.startswith('--resume-case=')]]]) if kind == 'test' else None
+        arguments = dict(args=options, invocation=invocation) if kind == 'test' else options
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--supervise', str(root), str(run), str(owner), kind, category,
                    agent_model or model, agent_effort or effort or DEFAULT_EFFORT,
-                   json.dumps(options)]
+                   json.dumps(arguments)]
         # The supervisor inherits ownership, but the test/agent does not. Its
         # stdin pipe is a liveness lease, not an interactive agent conversation.
         with subprocess.Popen(command, cwd=root, env=environment(), stdin=subprocess.PIPE,
                               pass_fds=(owner, *detached_launcher.scratch_descriptors()), start_new_session=True) as child:
             status = child.wait()
+        # Full producer declarations must survive before a retry overwrites the
+        # log or ordinary bounded presentation compacts it.
+        if kind != 'agent' and (run / 'last-test.log').exists():
+            runner_handoffs = retain_runner(root, run, run / 'last-test.log')
+            latest_attempt = dict(category=category, selectors={
+                name: spec['args'] for name, spec in inventory.items()},
+                run=str(run), invocation=invocation, status=status, handoffs=runner_handoffs)
+            commits.state.setdefault('runner_attempts', []).append(latest_attempt)
+            commits.save()
+        elif kind == 'agent':
+            turn = retain_turn(run, dict(options, exit_status=status), require_cleanup=False)
+            commits.state.setdefault('turns', []).append(turn)
+            target = tuple(options['failure'][name] for name in ('category', 'case', 'vm'))
+            commits.state['repairs'][commits.key(target)].setdefault('turns', []).append(turn)
+            commits.save()
         sys.stdout.flush()
         compact_log(run / 'output', writer_fd=1)
         if (run / 'last-test.log').exists():
             compact_log(run / 'last-test.log')
         check_stop()
+        if kind != 'agent':
+            check_controller()
         return status
 
     def test(category, *, resume=False, retry_case='', fresh=False):
         nonlocal pending, verifying_fix
+        # A stopped source guard owns an unvalidated response, not permission
+        # to skip its repair handoff because a later test happens to pass.
+        for entry in commits.state['repairs'].values():
+            response = entry.get('pending_response')
+            if response is not None and category in ('all', entry['failure'][0]):
+                return response['failure']
         checking_fix = verifying_fix
         verifying_fix = False
         resume = not fresh and (resume or (resuming and (category == pending or
@@ -626,14 +770,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 if recovery_status:
                     if status_line is not None:
                         print(status_line, flush=True)
-                    failure = handoff(run, root=root)
+                    failure = handoff(run, root=root, runner_handoffs=runner_handoffs)
                     failed(category)
                     return failure
                 recovered = True
                 continue
             if status_line is not None:
                 print(status_line, flush=True)
-            failure = handoff(run, root=root)
+            failure = handoff(run, root=root, runner_handoffs=runner_handoffs)
             failed(category)
             return failure
 
@@ -644,14 +788,23 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             return repair_owned(prompt, failure_key=failure_key, previous=previous)
 
     def repair_owned(prompt, *, failure_key, previous=None):
-        nonlocal verifying_fix
+        nonlocal verifying_fix, restart_continuation
         commits.begin(failure_key, inventory[failure_key[0]]['args'])
+        entry = commits.state['repairs'][commits.key(failure_key)]
+        failure_prompt = prompt
+        replay = entry.get('pending_response')
+        if latest_attempt is not None:
+            entry.setdefault('failure_attempts', []).append(latest_attempt)
+            commits.save()
         diagnostic = previous is not None and previous.get('status') == 'diagnostic_ready'
         classification = ((('diagnostic evidence: ' if diagnostic else 'verification_failed: ')
                            + previous['summary']) if previous else None)
         repair_id = previous['repair_id'] if previous else uuid.uuid4().hex
         attempt = previous['attempt'] + 1 if previous else 1
         blocker_summary = None
+        continuation = commits.state.get('controller_restart', {}).get('continuation')
+        if continuation is not None and continuation['failure'] == dict(zip(('category', 'case', 'vm'), failure_key)):
+            blocker_summary = continuation['result']['summary']
         result_recovery = None
         target = dict(zip(('category', 'case', 'vm'), failure_key))
         category = target['category']
@@ -705,40 +858,73 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
         while True:
             check_stop()
-            check_budget()
-            sessions = case_sessions.get(failure_key, 0) + 1
-            agent_model, agent_effort = case_tiers.setdefault(failure_key, initial)
-            progress(category, 'fixing errors', model=agent_model, effort=agent_effort)
-            # Aggregate failures can enter a leaf repair before its own test.
-            task = active_task
-            if not task_info(run, task).get('last_error'):
-                failed(category)
-            phase = 'repair review' if classification else 'classify and repair'
-            print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
-                  f'case session {sessions}/{MAX_REPAIR_SESSIONS}', flush=True)
-            (run / 'prompt.txt').write_text(
-                repair_prompt(prompt + f'\nThis is case session {sessions}/{MAX_REPAIR_SESSIONS}; '
-                              f'{MAX_REPAIR_SESSIONS - sessions} further agent sessions remain. '
-                              'A diagnostic execution after the last session can retain evidence, '
-                              'but cannot start another interpretation session in this run.\n',
-                              app_issue=classification, developer_answers=developer_answers,
-                              blocker_summary=blocker_summary, category=category)
-                + task_info_instructions(run, task)
-                + '\nThe launcher owns verification and its testing statuses. Report your '
-                  'investigation/fixing status through LAUNCHER_STATUS; finish with the required '
-                  'repair result so the launcher can run the original checks.\n'
-                + result_recovery_instructions(result_recovery), encoding='utf-8')
-            # An agent crash cannot reuse an earlier reply.
-            (run / 'agent-result.json').write_text('')
-            case_sessions[failure_key] = sessions
-            metadata = dict(repair_id=repair_id, attempt=attempt, round=round_number,
-                            repair_session=sessions, failure=target,
-                            session_id=uuid.uuid4().hex)
-            from launcher_git import worktree_snapshot
-            before = worktree_snapshot(root)
-            status = execute('agent', phase, metadata,
-                             agent_model=agent_model, agent_effort=agent_effort)
-            commits.capture_session(failure_key, before)
+            check_controller()
+            replaying = replay is not None
+            if replaying:
+                capsule = read_turn(replay['turn'])
+                metadata = replay['session']
+                status = replay['exit_status']
+                if (metadata['failure'] != target
+                        or capsule['identity'] != dict(metadata, exit_status=status)):
+                    raise ValueError('retained repair response identity changed')
+                (run / 'agent-result.json').write_bytes(base64.b64decode(capsule['files']['agent-result.json'], validate=True))
+                (run / 'prompt.txt').write_bytes(base64.b64decode(capsule['files']['prompt.txt'], validate=True))
+                sessions = case_sessions.get(failure_key, 0)
+                repair_id, attempt = metadata['repair_id'], metadata['attempt']
+                phase = replay['phase']
+                classification = replay['classification']
+                case_tiers[failure_key] = (replay['model'], replay['effort'])
+                progress(category, 'validating retained response', model=replay['model'], effort=replay['effort'])
+                replay = None  # Validation itself spends no model session.
+            else:
+                check_budget()
+                sessions = case_sessions.get(failure_key, 0) + 1
+                agent_model, agent_effort = case_tiers.setdefault(failure_key, initial)
+                progress(category, 'fixing errors', model=agent_model, effort=agent_effort)
+                # Aggregate failures can enter a leaf repair before its own test.
+                task = active_task
+                if not task_info(run, task).get('last_error'):
+                    failed(category)
+                phase = 'repair review' if classification else 'classify and repair'
+                print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
+                      f'case session {sessions}/{MAX_REPAIR_SESSIONS}', flush=True)
+                (run / 'prompt.txt').write_text(
+                    repair_prompt(prompt + f'\nThis is case session {sessions}/{MAX_REPAIR_SESSIONS}; '
+                                  f'{MAX_REPAIR_SESSIONS - sessions} further agent sessions remain. '
+                                  'A diagnostic execution after the last session can retain evidence, '
+                                  'but cannot start another interpretation session in this run.\n',
+                                  app_issue=classification, developer_answers=developer_answers,
+                                  blocker_summary=blocker_summary, category=category)
+                    + task_info_instructions(run, task)
+                    + '\nThe launcher owns verification and its testing statuses. Report your '
+                      'investigation/fixing status through LAUNCHER_STATUS; finish with the required '
+                      'repair result so the launcher can run the original checks.\n'
+                    + result_recovery_instructions(result_recovery), encoding='utf-8')
+                # An agent crash cannot reuse an earlier reply.
+                (run / 'agent-result.json').write_text('')
+                case_sessions[failure_key] = sessions
+                metadata = dict(repair_id=repair_id, attempt=attempt, round=round_number,
+                                repair_session=sessions, failure=target,
+                                session_id=uuid.uuid4().hex)
+                commits.state['session_counts'] = {
+                    commits.key(key): value for key, value in case_sessions.items()}
+                commits.save()
+                from launcher_git import worktree_snapshot
+                before = worktree_snapshot(root)
+                status = execute('agent', phase, metadata,
+                                 agent_model=agent_model, agent_effort=agent_effort)
+                commits.capture_session(failure_key, before)
+                if status == 0:
+                    entry['pending_response'] = dict(turn=commits.state['turns'][-1], session=metadata,
+                        exit_status=status, phase=phase, model=agent_model, effort=agent_effort,
+                        classification=classification,
+                        failure=dict(prompt=failure_prompt, categories=[category], failures=[target]))
+                else:
+                    # Preserve the failed turn, without making its transport
+                    # failure a response replay loop in explicitly fresh runs.
+                    entry.pop('pending_response', None)
+                commits.save()
+            check_controller()
             if status:
                 raise ValueError(f'repair agent exited with status {status}; '
                                  'inspect the output before restarting')
@@ -750,11 +936,17 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 validate_session_result(result, validate)
             except SessionResultRejected as error:
                 result_recovery = retain_result_rejection(run, error, label='fix-tests')
+                check_controller()
+                entry.pop('pending_response', None)
+                commits.save()
                 continue
             result_recovery = None
             commits.record(failure_key, result)
+            entry.pop('pending_response', None)
+            commits.save()
             case_results[failure_key] = result
-            record_usage(run, dict(metadata, phase=phase, result=result['status']), event='result')
+            record_usage(run, dict(metadata, phase=phase, result=result['status']),
+                         event='result_replay' if replaying else 'result')
             if result['status'] == 'blocked':
                 check_budget()
                 progress_row = repair_progress(run, read_progress(run))[-1]
@@ -766,6 +958,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 developer_answers.append(answer)
                 atomic(run / 'developer-answers.json', developer_answers)
                 blocker_summary = result['summary']
+                restart_continuation = dict(failure=target, result=result,
+                    answers=developer_answers, prompt=prompt, session=metadata)
+                check_controller(continuation=restart_continuation)
                 print('Answer received. Continuing this repair.', flush=True)
                 continue
             if result['status'] in ('app_issue', 'uncertain', 'stalled'):
@@ -793,17 +988,26 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             # Small, bounded evidence snapshots live with the launcher's private
             # retained control files, never in disposable agent scratch.
             path = run / f'diagnostic-{repair["repair_id"]}-{repair["attempt"]}-{uuid.uuid4().hex}.json'
-            atomic(path, dict(observation, output_tail=read_tail(run / 'last-test.log')))
+            atomic(path, dict(observation, output_tail=read_tail(run / 'last-test.log'),
+                              bounded_tails=True, may_be_truncated=True))
             repair['evidence_path'] = str(path)
             observation['evidence_path'] = str(path)
         record_usage(run, observation, event=event)
         if event == 'verification' and passed is True:
             check_stop()
-            commits.verified(tuple(repair['failure'][key] for key in ('category', 'case', 'vm')))
+            commits.verified(tuple(repair['failure'][key] for key in ('category', 'case', 'vm')),
+                             evidence=latest_attempt)
 
     def outcome(failure, target):
         result = verification_outcome(failure, target)
-        if result is False or not target[1]:
+        if result is False:
+            return result
+        if latest_attempt is not None and latest_attempt['handoffs']:
+            return runner_case_pass(root, latest_attempt, target)
+        entry = commits.state['repairs'].get(commits.key(target), {})
+        if any(item['handoffs'] for item in entry.get('failure_attempts', [])):
+            return None  # A structured failure cannot fall back to mutable proof.
+        if not target[1]:
             return result
         # A different failure is not a pass. Require the runner's validated,
         # teardown-complete case checkpoint, scoped to the original selectors
@@ -821,12 +1025,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 continue
             if target[0] not in inventory or inventory[target[0]]['args'] != entry['args']:
                 raise ValueError('pending repair selectors changed; resume the original selection')
+            if entry.get('pending_response') is not None:
+                continue  # Current response validation precedes any acceptance.
             if entry.get('status') in ('fixed', 'test_fixed'):
                 passed = (outcome(None, target) if target[1] else
-                          checkpoint.complete(target[0]))
+                          checkpoint.complete(target[0]) and outcome(None, target))
                 if passed is True:
                     check_stop()
-                    commits.verified(target)
+                    commits.verified(target, evidence=latest_attempt)
 
     status = 1
     limited = False
@@ -852,13 +1058,22 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise ValueError('resume round exceeds --rounds; retain the original round count')
         rounds = int(rounds)
         commits = RepairCommits(root, run)
+        continuation = commits.state.get('controller_restart', {}).get('continuation')
+        if continuation is not None:
+            restart_continuation = continuation
+            developer_answers = continuation['answers']
+            atomic(run / 'developer-answers.json', developer_answers)
+        latest_attempt = next(reversed(commits.state.get('runner_attempts', [])), None)
+        commits.guard = check_controller
+        commits.state['controller_sources'] = sources
+        commits.save()
         commits.finish_pending()  # Retry accepted Git work before tests or another agent.
         # A worker can stop after runner cleanup but before its verification
         # callback. Recover only the exact retained case pass and source bytes.
         close_verified()
         for entry in commits.state['repairs'].values():
             category = entry['failure'][0]
-            if entry.get('status') in ('fixed', 'test_fixed') and category in completed:
+            if (entry.get('status') in ('fixed', 'test_fixed') or entry.get('pending_response') is not None) and category in completed:
                 completed.remove(category)  # Its exact repaired case still needs proof.
         remaining_current = len(categories) - len(completed)
         if start_round > 1 and not requested:
@@ -925,6 +1140,20 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
         previous = current_run(run.parent)
         if previous is not None and (previous / 'checkpoint.json').exists():
             retained_git = json.loads((previous / 'checkpoint.json').read_text())
+            if not retained_git['repairs'] and retained_git.get('pending') is None:
+                retained_git = None  # Completed history stays with its original run.
+            else:
+                entries = list(retained_git['repairs'].values())
+                required = [attempt for entry in entries for attempt in entry.get('failure_attempts', [])]
+                required.extend(entry['verification_attempt'] for entry in entries if 'verification_attempt' in entry)
+                attempts = retained_git.get('runner_attempts', [])
+                if attempts and any(attempts[-1]['category'] in ('all', entry['failure'][0])
+                    and attempts[-1]['selectors'].get(entry['failure'][0]) == entry['args'] for entry in entries):
+                    required.append(attempts[-1])  # Interrupted after runner cleanup, before verification.
+                retained_git['runner_attempts'] = [attempt for attempt in attempts if attempt in required]
+                turn_ids = {reference['sha256'] for entry in entries for reference in entry.get('turns', [])}
+                retained_git['turns'] = [reference for reference in retained_git.get('turns', [])
+                                         if reference['sha256'] in turn_ids]
         selected_model, _ = initial_model(model, effort)
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
@@ -937,6 +1166,15 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
     def started(run):
         if retained_git is not None:
+            from repair_evidence import carry_turns
+            retained_git['turns'] = carry_turns(run, retained_git.get('turns', []))
+            carried = {reference['sha256']: reference for reference in retained_git['turns']}
+            for entry in retained_git['repairs'].values():
+                if 'turns' in entry:
+                    entry['turns'] = [carried[item['sha256']] for item in entry['turns']]
+                if 'pending_response' in entry:
+                    reference = entry['pending_response']['turn']
+                    entry['pending_response']['turn'] = carried[reference['sha256']]
             atomic(run / 'checkpoint.json', retained_git)
         TaskBudget(run).initialize(tasks)
         save_binding(run, name)

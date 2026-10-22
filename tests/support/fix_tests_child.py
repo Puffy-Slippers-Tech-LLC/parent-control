@@ -10,6 +10,39 @@ import sys
 import time
 
 
+def structured_report(root, category, case, passed, options):
+    """Publish the private runner double's exact closed attempt."""
+    import tempfile
+    import runner_evidence
+    import test_retention
+    import test_storage
+
+    test_storage.ROOT = root
+    test_storage.BASE = root / 'output/test-runs'
+    runner_evidence.regression_inputs.identity = lambda *_: 'f' * 64
+    store = test_retention.Store(test_storage.directory('state') / 'retention-host')
+    target = dict(category=category, case=case, vm='') if isinstance(case, str) else case
+    with store.session():
+        report = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-private-repair-'))
+        members = []
+        if case is not None:
+            failure = report / 'failure.json'
+            value = dict(prompt='LATEST FAILURE ONLY', categories=[target['category']], failures=[target])
+            failure.write_text(json.dumps(value))
+            failure.chmod(0o600)
+            (root / 'failure.json').write_text(json.dumps(value))
+            members.append(dict(path=failure, role='result'))
+            print(f'Failure handoff: {failure}', flush=True)
+        producer = runner_evidence.ReportEvidence(root, report)
+        producer.command(dict(category=category, check=category, target='', status='passed' if case is None else 'failed',
+            cleanup='complete', selected_ids=list(dict.fromkeys([*passed, *([case] if isinstance(case, str) and case else [])])),
+            completed_ids=passed, resumed_ids=[], failed_ids=[case] if isinstance(case, str) and case else [],
+            exit_status=0 if case is None else 1, argv=[category, *options]))
+        proof = producer.finalize(categories=[dict(name=category)], cleanup='complete',
+                                  status='passed' if case is None else 'failed', members=members)
+        print('Runner evidence: ' + json.dumps(proof), flush=True)
+
+
 def main():
     root = Path.cwd()
     kind, *args = sys.argv[1:]
@@ -21,6 +54,11 @@ def main():
         vm_pool.selected_reservation = lambda **kwargs: nullcontext()
         vm_pool.reservation = lambda *args, **kwargs: nullcontext()
         root, run, owner, *options = args
+        source_record = Path(root) / 'controller-root'
+        if source_record.exists():
+            import repair_evidence
+            source_reader = repair_evidence.controller_sources
+            repair_evidence.controller_sources = lambda: source_reader(root=Path(source_record.read_text()))
         return fix_tests.worker(Path(root), Path(run), int(owner), *options)
     if kind == 'agent' and args == ['debug', 'models']:
         if (root / 'catalog.json').exists():
@@ -116,6 +154,10 @@ def main():
                     guest = Checkpoint(root, [(category, options)], resume=True, binding=item['vm'])
                     guest.event(category, dict(kind='finished', nodeid=item['case']), set())
                     guest.save()
+            if script.get('structured') and index < script.get('structured_until', len(script['tests'])):
+                completed = [node for node in passed if node and node not in script.get('unexecuted', [])]
+                structured_report(root, category, case, completed, options)
+                return 0 if case is None else 1
             if case is None:
                 return 0
             target = dict(category=category, case=case, vm='') if isinstance(case, str) else case
@@ -217,6 +259,12 @@ def main():
                                     'options': ['Restore the specified behavior.',
                                                 'Investigate the requirement before editing.']
                                 } if blocked else None}))
+    if script.get('raw_response') and count == 0:
+        reply.write_text(script['raw_response'])
+    if script.get('change_source'):
+        source_root = Path((root / 'controller-root').read_text())
+        changed = source_root / 'tools' / script['change_source']
+        changed.write_bytes(changed.read_bytes() + b'\n# changed dependency bytes\n')
     print(json.dumps({'type': 'item.completed', 'item': {
         'id': 'thinking', 'type': 'reasoning', 'text': 'PRIVATE REASONING FIXTURE'}}), flush=True)
     print(json.dumps({'type': 'item.completed', 'item': {
@@ -231,7 +279,7 @@ def main():
         print(json.dumps({'type': 'turn.completed', 'usage': {
             'input_tokens': 100, 'cached_input_tokens': 40, 'output_tokens': 20}}), flush=True)
     print('PREVIOUS AGENT TRANSCRIPT MUST NOT BECOME INPUT', flush=True)
-    return 0
+    return script.get('agent_exit', 0)
 
 
 if __name__ == '__main__':

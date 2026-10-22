@@ -609,7 +609,8 @@ class TaskDisplay(LauncherDisplay):
         working = ''
         if owns_session:
             ended = self.chat_state.get('finished_at', time.time())
-            summary_lines[-1] += '; ' + clock_duration(ended - started)
+            summary_lines[-1] = (summary_lines[-1].split(':', 1)[0] + ': '
+                                 + clock_duration(ended - started))
             if self.input_mode == 'chat' and self.chat_state.get('status') == 'running':
                 turn_started = self.chat_state.get('turn_started_at', started)
                 working = f'Working ({working_duration(time.time() - turn_started)})'

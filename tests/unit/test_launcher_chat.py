@@ -1027,7 +1027,8 @@ def test_fresh_backend_session_clock_reaches_real_workflow_display(conversation,
         display.refresh_chat()
         steps = json.loads((run / 'controller.json').read_text())
         display.update(progress(run, steps, []), [])
-        assert 'Session [1]: gpt-6.1-sol xhigh; 12m' in terminal.visible()
+        assert 'Session [1]: 12m' in terminal.visible()
+        assert 'Session [1]: gpt-6.1-sol' not in terminal.visible()
 
 
 @pytest.mark.parametrize('progress', [plan_progress, e2e_progress])
@@ -1108,27 +1109,27 @@ def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp
     display.chat_state.update(progress_key=progress_key, session=8)
     display.chat_state['started_at'] = clock[0]
     display.draw()
-    assert 'Writing code; 0m' in terminal.visible()
+    assert 'Session [1]: 0m' in terminal.visible()
     unchanged = terminal.getvalue()
     clock[0] += 59
     display.draw()
     assert terminal.getvalue() != unchanged
     assert 'Working (59s)' in terminal.visible()
-    assert 'Writing code; 0m' in terminal.visible()
+    assert 'Session [1]: 0m' in terminal.visible()
     clock[0] += 1
     display.draw()
-    assert 'Writing code; 1m' in terminal.visible()
+    assert 'Session [1]: 1m' in terminal.visible()
     for elapsed, duration in ((12 * 60, '12m'), (3599, '59m'), (3600, '1h 0m'), (4330, '1h 12m')):
         clock[0] = 1000 + elapsed
         display.draw()
-        assert 'Writing code; ' + duration in terminal.visible()
+        assert 'Session [1]: ' + duration in terminal.visible()
 
     launcher.atomic(tmp_path / 'chat-state.json', display.chat_state)
     reconnected, screen = display_fixture(tmp_path, width=240)
     reconnected.steps[-1]['key'] = progress_key
     reconnected.refresh_chat()
     reconnected.draw()
-    assert 'Writing code; 1h 12m' in screen.visible()
+    assert 'Session [1]: 1h 12m' in screen.visible()
     reconnected.chat_state.update(status='finished', finished_at=clock[0])
     reconnected.draw()
     # Session time stops; only the independent status age keeps refreshing.
@@ -1136,7 +1137,7 @@ def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp
     clock[0] += 120
     reconnected.draw()
     assert [row.plain for row in reconnected.previous if 'Status:' not in row.plain] == unchanged
-    assert 'Writing code; 1h 12m' in screen.visible()
+    assert 'Session [1]: 1h 12m' in screen.visible()
     assert 'Working (' not in screen.visible()
     assert 'Status: Running (2m ago)' in screen.visible()
     assert reconnected.steps[-1]['lines'][-1] == 'Session [1]: Writing code'
@@ -1148,7 +1149,7 @@ def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp
     reconnected.chat_state.update(session=9, progress_key='2', started_at=clock[0], status='running')
     reconnected.chat_state.pop('finished_at')
     reconnected.draw()
-    assert 'Writing code; 0m' in screen.visible()
+    assert 'Session [1]: 0m' in screen.visible()
 
     # Ordinary plans reuse the task key across retries. The next session line
     # must not borrow the old attempt's elapsed time during that transition.
@@ -1156,7 +1157,7 @@ def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp
     assert 'Writing code;' not in screen.visible()
     reconnected.chat_state.update(task_id='001', task_session=2, progress_key='001')
     reconnected.draw()
-    assert 'Writing code; 0m' in screen.visible()
+    assert 'Session [2]: 0m' in screen.visible()
 
 
 def test_split_drag_resize_and_task_summary_location(tmp_path):

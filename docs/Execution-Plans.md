@@ -462,8 +462,9 @@ While the agent works, the composer border shows `Working (duration)`, refreshin
 every second even without output. This clock measures the active turn, survives
 observer reconnection and resets on continuation after interruption or a reply.
 The indicator disappears while waiting, interrupting, cleaning up or finished.
-The Plan/E2E session line appends elapsed clock time, refreshing every minute even
-without new output: `12m` below one hour, then `1h 0m`, `1h 12m`, and so on.
+The Plan/E2E right-panel session line shows only the session number and elapsed
+clock time, for example `Session [1]: 2m`, refreshing every minute even without
+new output: `12m` below one hour, then `1h 0m`, `1h 12m`, and so on.
 The clock starts with each session, survives observer reconnection and stops
 when the session finishes.
 The top and lower splits share one 75:25 width ratio. Dragging either vertical

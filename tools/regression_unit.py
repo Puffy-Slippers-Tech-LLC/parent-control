@@ -71,6 +71,10 @@ checks each own a bounded, waited Python child without model inference.
 No VM, bus, display, network, shared mutable path
 or cache, heavy build or cleanup-inventory resource is acquired; compatible unit
 scheduling is appropriate. Cleanup and UI inventories gain no module.
+Export freeze metadata checks read bounded checkout Markdown inputs and copy
+only selected plan/brief text into tmp_path. In-process insertion and cleanup
+guards add no subprocess, live owner or shared mutation; the same compatible
+classification applies, with no cleanup/UI resource or module addition.
 Committed-baseline close-out checks reuse pytest-private checkouts and bare
 remotes with finite, synchronously waited Git commands. They cover binary/link/
 deletion fingerprints, executable-mode ownership and two-task push/advance/restart

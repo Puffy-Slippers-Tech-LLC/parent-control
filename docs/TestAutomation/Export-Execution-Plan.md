@@ -1,13 +1,14 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E01b — [Independently review and freeze delivery](Export-Tasks/E01b-freeze.md)**.
+Next task: **E02 — [Resolve stable evidence identities](Export-Tasks/E02-identities.md)**.
 
 Reduce repeated missing, wrong, outdated and expired evidence references through
 shared test infrastructure. The [target design](Export-Design.md) records the
 investigated failure families, proposed changes and quality boundary. E01's source
-audit and E01a's protocol proposal are complete; independent freeze and runtime
-delivery remain pending. Authoring a plan supplies no implementation credit.
+audit, E01a's protocol proposal and E01b's independent
+[delivery freeze](Export-Design.md#e01b-delivery-freeze) are complete; runtime
+delivery remains pending. Authoring a plan supplies no implementation credit.
 
 ## Scope and execution
 

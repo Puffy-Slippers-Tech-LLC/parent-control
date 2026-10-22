@@ -9,6 +9,7 @@ need the launcher implementation or retention details below.
 
 | Operation | Read |
 | --- | --- |
+| Decide whether to add, retain or remove tests | [Test scope mandate](../docs/Mandates/Test-Scope-Mandate.md) |
 | Choose or run regressions | [Suite selection](#all-established-regressions); `tools/run-tests --help` and `--list` |
 | Add a host module or change resources | [Parallelism review](#host-test-parallelism-review) and [coverage maintenance](#coverage-maintenance-workflow) |
 | Investigate a failure or continue prior work | [Failure handling](#handling-test-failures), [reconnection](#aggregate-execution-and-reconnection), then [resume](#resuming-test-execution) if needed |
@@ -2682,7 +2683,9 @@ the unexecuted/failed selection with its original assertions.
 ### Coverage maintenance workflow
 
 1. Identify the changed behavior and its authoritative specification/design
-   requirement, or the necessary harness safety guarantee. Follow the
+   requirement, or the necessary harness safety guarantee. Apply the
+   [test scope mandate](../docs/Mandates/Test-Scope-Mandate.md) before adding
+   coverage or carrying forward an existing matrix. Follow the
    [app scope and prerequisite rules](../docs/TestAutomation/E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope).
    Use supported fixture helpers for unrelated OS/account/asset setup. Add
    regression cases at the lowest effective layer. Apply the

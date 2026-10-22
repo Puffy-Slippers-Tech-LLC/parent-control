@@ -6,6 +6,10 @@ owns callables and qualified scopes; the [coverage allocation](../TestAutomation
 owns which layer exercises each matrix. Read this mandate when changing either
 layer's automation, including shared workers.
 
+Apply the [test scope mandate](Test-Scope-Mandate.md) before requiring UI
+coverage. It excludes UI tests of test tools and bounds infrastructure tests;
+the automation routes below do not create additional coverage obligations.
+
 ## Result-oriented test scope
 
 E2E tests verify product functionality through realistic customer journeys.

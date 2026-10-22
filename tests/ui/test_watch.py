@@ -287,6 +287,16 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
         raise
     assert evidence()['top_tabs'] == ['All', *('[Fixture] ' + name for name in sorted(
         evidence()['vm_names'], key=lambda name: int(evidence()['vm_ids'][name])))]
+    control.write_text('scroll-history')
+    wait(lambda: evidence().get('scrollbar_visible') and
+         'HISTORY 199' in evidence().get('terminal_text', ''),
+         'overflowing dashboard history shows a vertical scrollbar')
+    control.write_text('scroll-top')
+    wait(lambda: 'HISTORY 0\n' in evidence().get('terminal_text', ''),
+         'scrollbar reaches the oldest retained output')
+    control.write_text('scroll-bottom')
+    wait(lambda: 'HISTORY 199' in evidence().get('terminal_text', ''),
+         'scrollbar returns to the latest output')
     control.write_text('close')
     wait(lambda: process.poll() is not None, 'closing viewer releases only its own resources')
     assert process.returncode == 0, log.read_text()

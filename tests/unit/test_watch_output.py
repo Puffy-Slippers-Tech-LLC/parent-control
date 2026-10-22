@@ -444,12 +444,16 @@ def test_embedded_log_survives_invalid_progress_and_supports_scrollback(tmp_path
         (run / 'output').write_bytes(b''.join(f'line {i}\n'.encode() for i in range(30)))
         screen.write(observer.poll()[3].decode())
         assert 'line 29' in screen.visible()
+        position, total, visible = observer.scroll_state()
+        assert total == 30 and visible == 9 and position == 21
         observer.scroll(20)
         screen.write(observer.poll()[3].decode())
         assert 'line 5\n' in screen.visible()
+        assert observer.scroll_state() == (1, total, visible)
         observer.scroll(-100)
         screen.write(observer.poll()[3].decode())
         assert 'line 29' in screen.visible()
+        assert observer.scroll_state() == (21, total, visible)
         with (run / 'output').open('ab') as stream:
             stream.write(b'partial \xe2')
         screen.write(observer.poll()[3].decode())

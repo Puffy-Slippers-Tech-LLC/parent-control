@@ -157,6 +157,19 @@ def tick():
                 # Native split position and terminal reflow are rendering checks,
                 # never coordinates for resolving or operating a test target.
                 app.pane.set_position(300)
+            elif stage == 'scroll-history':
+                fcntl.flock(locks['sessions-host'], fcntl.LOCK_EX)
+                path = directory('sessions-host', root=root) / ('a' * 32) / 'output'
+                replacement = path.with_suffix('.next')
+                replacement.write_text(''.join(f'HISTORY {index}\n' for index in range(200)))
+                replacement.replace(path)
+                app.primary.output = Output(root, terminal_size=lambda: os.terminal_size((
+                    max(1, app.terminal.get_column_count()), max(1, app.terminal.get_row_count()))))
+            elif stage == 'scroll-top':
+                app.output_adjustment.set_value(0)
+            elif stage == 'scroll-bottom':
+                adjustment = app.output_adjustment
+                adjustment.set_value(adjustment.get_upper() - adjustment.get_page_size())
             elif stage == 'hide-vm':
                 assert app.selected == 'ui-' + ui_source.run
                 vm_source.publish(progress=dict(vm_source.meta['progress'], step='VM next'))
@@ -251,6 +264,7 @@ def tick():
         result['stage'] = stage
         result['output_active'] = app.output_active
         result['output_status'] = app.output_status.get_label()
+        result['scrollbar_visible'] = app.output_scrollbar.get_visible()
         result['stalled_vm_entered'] = stalled_vm_entered.is_set()
         result['terminal_text'] = app.terminal.get_text_format(Vte.Format.TEXT)
         result['terminal_size'] = [app.terminal.get_column_count(), app.terminal.get_row_count()]

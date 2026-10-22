@@ -151,7 +151,15 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             self.writer = TerminalWriter(self.terminal)
             self.output = output if output is not None else Output(root, terminal_size=lambda: os.terminal_size((
                 max(1, self.terminal.get_column_count()), max(1, self.terminal.get_row_count()))))
-            if output is None:
+            self.output_scroll.set_overlay_scrolling(False)
+            self.output_adjustment = Gtk.Adjustment()
+            self.output_scrollbar = Gtk.Scrollbar(orientation=Gtk.Orientation.VERTICAL,
+                                                 adjustment=self.output_adjustment)
+            set_automation_id(self.output_scrollbar, prefix + 'watch-output-scrollbar')
+            self.output_scrollbar.set_visible(False)
+            self.syncing_output_scroll = False
+            self.output_adjustment.connect('value-changed', self.scroll_output_to)
+            if self.output.terminal_size is not None:
                 scrolling = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
                 scrolling.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
                 def scroll_output(controller, dx, dy):
@@ -180,7 +188,10 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                 menu_items.append(button)
             self.menu.set_child(menu_items)
             self.append(self.output_status)
-            self.append(self.output_scroll)
+            output_row = Gtk.Box(hexpand=True, vexpand=True)
+            output_row.append(self.output_scroll)
+            output_row.append(self.output_scrollbar)
+            self.append(output_row)
             self.vm_keys = {name: 'vm-' + name.encode('ascii').hex() for name in vm_feeds}
             self.vm_ids = {self.vm_keys[name]: vm.id for name, vm in configured.items()}
             from ui_watch_transport import Feeds
@@ -222,6 +233,21 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
         def copy_selection(self):
             if self.terminal.get_has_selection():
                 self.terminal.copy_clipboard_format(Vte.Format.TEXT)
+
+        def scroll_output_to(self, adjustment):
+            if not self.syncing_output_scroll:
+                position, _total, _visible = self.output.scroll_state()
+                self.output.scroll(position - round(adjustment.get_value()))
+
+        def sync_output_scrollbar(self):
+            position, total, visible = self.output.scroll_state()
+            self.syncing_output_scroll = True
+            try:
+                self.output_adjustment.configure(position, 0, max(total, visible), 1,
+                                                 max(1, visible - 1), visible)
+                self.output_scrollbar.set_visible(total > visible > 0)
+            finally:
+                self.syncing_output_scroll = False
 
         def select_output(self):
             self.terminal.select_all()
@@ -271,6 +297,7 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                 if not self.terminal.get_has_selection():
                     label, active, reset, data = self.output.poll()
                     self.writer.feed(data, reset=reset)
+                    self.sync_output_scrollbar()
                     self.output_active = active
                 else:
                     run, _label = self.output.discover()

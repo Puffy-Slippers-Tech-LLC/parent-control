@@ -140,6 +140,15 @@ class Output:
         if self.display is not None:
             self.display.offsets['bottom'] = max(0, self.display.offsets['bottom'] + rows)
 
+    def scroll_state(self):
+        """Top row, total rows and visible rows of the embedded dashboard log."""
+        display = self.display
+        if display is None or display.size is None or 'bottom' not in display.row_cache:
+            return 0, 0, 0
+        total = len(display.row_cache['bottom'][1])
+        visible = max(0, display.size.lines - display.top_height - 1)
+        return max(0, total - visible - display.offsets['bottom']), total, visible
+
     def cancel(self):
         """Request the displayed owner's cooperative Ctrl+C shutdown."""
         run, _label = self.discover()

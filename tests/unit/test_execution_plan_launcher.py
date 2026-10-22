@@ -221,7 +221,6 @@ ADDED_VALIDATOR_SOURCES = (
     'test_retention.py', 'test_storage.py', 'test_input_transfer.py', 'launcher_git.py',
     'onpc-test-artifacts', 'launcher_question.py', 'plan_reconciliation.py',
     'vm_selection.py', '../tests/integration/vm_config.py', 'evidence_identity.py',
-    'evidence_capture.py',
 )
 
 
@@ -576,6 +575,14 @@ def test_response_validator_sources_detects_content_changes_only(tmp_path, monke
     path.write_text('repaired')
     current = workflow.response_validator_sources()
     assert {name for name in original if current[name] != original[name]} == {changed}
+
+
+def test_response_validator_sources_reads_real_checkout():
+    # Synthetic dependency trees cannot detect a premature, undelivered source
+    # in the controller's startup inventory.
+    sources = workflow.response_validator_sources()
+    assert set(sources) == set(workflow.RESPONSE_VALIDATOR_SOURCES)
+    assert all(re.fullmatch(r'[0-9a-f]{64}', digest) for digest in sources.values())
 
 
 def test_unchanged_dependency_bytes_do_not_restart_worker(rig, monkeypatch, validator_checkout):

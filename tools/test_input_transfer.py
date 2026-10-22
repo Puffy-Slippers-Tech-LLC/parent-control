@@ -117,6 +117,10 @@ def transfer(source, destination, path, *, selector, vm, verify):
                 'recovery-required' in os.listdir(fd) for fd in (sf, df)):
             raise ValueError('retention: input transfer requires finished, unmarked owners')
         ss, ds = states
+        # Capture dependency ownership cannot move through this legacy recovery
+        # route. A later custody protocol must explicitly transfer or release it.
+        for state in states:
+            retention.require_no_captures([*state['history'], state])
         si, di = read_intent(source, sf), read_intent(destination, df)
         # Completed markers are only a receipt-cleanup tail. Their commits were
         # already durable; later ordinary rotation may legitimately change runs.

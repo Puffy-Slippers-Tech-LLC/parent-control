@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E03p-auth — [Authenticate sealed producer handoffs](Export-Tasks/E03p-auth.md)**.
+Next task: **E03p-capture — [Publish and acknowledge working capture](Export-Tasks/E03p-capture.md)**.
 
 Reduce repeated missing, wrong, outdated and expired evidence references through
 shared test infrastructure. The [target design](Export-Design.md) records the

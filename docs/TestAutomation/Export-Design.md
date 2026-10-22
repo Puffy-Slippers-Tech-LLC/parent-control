@@ -1072,7 +1072,7 @@ Validation on 2026-10-21: `tools/run-tests unit` with exactly
 `tests/unit/test_e2e_inventory.py`, `tests/unit/test_coverage_generation.py`,
 `tests/unit/test_e2e_case_composition.py`, `tests/unit/test_regression_unit.py`
 and `--timeout 180s`: **759 passed** in four maintained buckets
-([retained report](../../output/test-runs/host/reports/20261022T035225Z-30f98d1c/report.md)).
+([retained report](../../output/test-runs/host/plans/643d1e71b404620c98e268576999c6fd3cf8a728c1c844f648f480b1ff2dfb3c/accepted-evidence.json)).
 This includes all twelve actual frozen-block/status combinations and existing
 dropped-dependency, future-row, invalid-brief, cleanup and suspension guards.
 Plan `--check` passed and changed links had no missing destinations. The new
@@ -1082,7 +1082,7 @@ inventory resource. These checks are not implementations of planned P histories.
 After close-out, the exact same frozen-block selector with `-k
 'export_frozen_blocks_use_real_prerequisite_and_cleanup_guards'` and
 `--timeout 180s` passed all **12** cases again against the final queue/pointer
-([report](../../output/test-runs/host/reports/20261022T035426Z-61e9715f/report.md)).
+([report](../../output/test-runs/host/plans/643d1e71b404620c98e268576999c6fd3cf8a728c1c844f648f480b1ff2dfb3c/accepted-evidence.json)).
 Final plan `--check` selected E02 with 17 unfinished runtime/review rows; final
 master/queue/design link checks and `git diff --check` passed.
 

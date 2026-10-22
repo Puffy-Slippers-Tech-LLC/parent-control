@@ -3805,9 +3805,9 @@ def test_export_frozen_blocks_use_real_prerequisite_and_cleanup_guards(
         tmp_path, consumer, handoff_status):
     """Exercise authored insertion rows, linked briefs and metadata, not P histories.
 
-    All edits stay in tmp_path; checkout documents are read-only inputs. Once a
-    block is activated or its consumer accepted, normal retained-state guards own
-    it and the temporary freeze brief may be retired.
+    All edits stay in tmp_path; checkout documents are read-only inputs. An
+    activated block is restored to its authored pre-insertion state only in this
+    private fixture, so activation does not silently remove insertion coverage.
     """
     checkout = Path(workflow.__file__).resolve().parent.parent
     source = Plan.load(checkout, 'docs/TestAutomation/Export-Execution-Plan.md')
@@ -3822,14 +3822,15 @@ def test_export_frozen_blocks_use_real_prerequisite_and_cleanup_guards(
     fields = [[part.strip() for part in line.split('|')] for line in additions]
     assert all(len(row) == 8 for row in fields)
     added_ids = [row[2] for row in fields]
-    if any(item.id in added_ids for item in tasks):
-        pytest.skip('activated block is governed by retained execution-state guards')
+    activated = {item.id for item in tasks if item.id in added_ids}
+    assert not activated or activated == set(added_ids), 'freeze block must activate together'
     declaration = re.search(
         rf'Exact {re.escape(consumer)} Requires before: `([^`]+)`; after: `([^`]+)`\.', frozen)
     assert declaration is not None
     before, after = declaration.groups()
-    assert ', '.join(task.requires) == before
-    assert re.search(r'^Requires: (.+)$', text, re.M)[1] == before
+    current_requires = after if activated else before
+    assert ', '.join(task.requires) == current_requires
+    assert re.search(r'^Requires: (.+)$', text, re.M)[1] == current_requires
 
     for relative in (source.path, source.queue):
         destination = tmp_path / relative
@@ -3853,8 +3854,14 @@ def test_export_frozen_blocks_use_real_prerequisite_and_cleanup_guards(
 
     queue = tmp_path / source.queue
     lines = queue.read_text().splitlines()
+    if activated:
+        lines = [line for line in lines if not (
+            line.startswith('| [') and line.split('|')[2].strip() in activated)]
     position = next(index for index, line in enumerate(lines)
                     if line.startswith(f'| [ ] | {consumer} |'))
+    baseline = lines[position].split('|')
+    baseline[4] = f' {before} '
+    lines[position] = '|'.join(baseline)
     for index in range(position):
         if lines[index].startswith('| [ ] |'):
             lines[index] = lines[index].replace('| [ ] |', '| [x] |', 1)
@@ -3862,6 +3869,8 @@ def test_export_frozen_blocks_use_real_prerequisite_and_cleanup_guards(
     master = tmp_path / source.path
     master.write_text(re.sub(r'^Next task: .+$', f'Next task: **{consumer} — Selected**.',
                              master.read_text(), flags=re.M))
+    private_brief = tmp_path / task.brief.relative_to(checkout)
+    private_brief.write_text(re.sub(r'^Requires: .+$', f'Requires: {before}', text, flags=re.M))
     plan = Plan.load(tmp_path, source.path)
     state = state_for(plan, handoff='Retain all original consumer assertions.')
     saved = json.dumps(state, sort_keys=True)
@@ -3872,7 +3881,6 @@ def test_export_frozen_blocks_use_real_prerequisite_and_cleanup_guards(
     queue.write_text('\n'.join(lines) + '\n')
     master.write_text(re.sub(r'^Next task: .+$', f'Next task: **{added_ids[0]} — Prerequisite**.',
                              master.read_text(), flags=re.M))
-    private_brief = tmp_path / task.brief.relative_to(checkout)
     private_brief.write_text(re.sub(r'^Requires: .+$', f'Requires: {after}', text, flags=re.M))
     selected = plan.prerequisite_repair(state)
     assert selected.id == added_ids[0]

@@ -255,6 +255,7 @@ class Store:
                 if (state is None or 'recovery-required' in os.listdir(fd)
                         or not state['finished']):
                     raise ValueError('retention: unpublished input requires a finished, unmarked owner')
+                require_no_captures([*state['history'], state])
                 records = [record for _, record in latest_allocations([*state['history'], state])
                            if record['path'] == str(path)]
                 if len(records) != 1:

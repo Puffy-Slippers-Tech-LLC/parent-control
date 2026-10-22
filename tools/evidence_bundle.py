@@ -22,6 +22,7 @@ import test_retention as retention
 import test_storage as storage
 
 MAX_FILES = 60000
+MAX_SOURCE_BUDGETS = 64
 MAX_MANIFEST = 64 * 1024 ** 2
 MAX_READ = 16 * 1024 ** 2
 MAX_BYTES = 1024 ** 3
@@ -299,6 +300,8 @@ class Selection:
                 if measured > retention.MAX_RETAINED_BYTES:
                     raise ValueError('bundle: source journal exceeds its existing budget')
                 self.source_budgets.append(dict(journal=str(journal), allocated_bytes=measured))
+                if len(self.source_budgets) > MAX_SOURCE_BUDGETS:
+                    raise ValueError('bundle: source budget entry limit exceeded')
         if self.captures:
             import evidence_capture
             for capture_id in self.captures:
@@ -327,6 +330,8 @@ class Selection:
                             source_allocation=mapping['source_allocation'], identity=originals[mapping['member_id']])
                 measured = retention.allocation_bytes(allocation)
                 self.source_budgets.append(dict(journal=allocation['journal'], allocated_bytes=measured))
+                if len(self.source_budgets) > MAX_SOURCE_BUDGETS:
+                    raise ValueError('bundle: source budget entry limit exceeded')
         missing, archived = [], []
         for value in self.references:
             path = path_text(value)

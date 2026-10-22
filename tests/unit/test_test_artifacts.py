@@ -481,6 +481,161 @@ def test_plan_completion_with_fresh_records_does_not_open_unrelated_active_owner
                 result['path'], member=str(completion / 'result.json')) == b'{"cleanup_complete":true}'
 
 
+def test_ordinary_plan_preserves_two_retired_reports_through_authenticated_helper(
+        retained_plan_helper, monkeypatch):
+    from contextlib import contextmanager, redirect_stdout, redirect_stderr
+    from types import SimpleNamespace
+    import uuid
+    import evidence_bundle
+    import execution_plan
+    import plan_evidence
+    import test_retention
+    import test_storage
+
+    fixture = retained_plan_helper
+    plan = execution_plan.Plan.load(fixture.checkout, 'docs/Plan.md')
+    namespace = fixture.archive_owner.path.parent.parent
+    runs = test_retention.Store(namespace / 'retention')
+    run = namespace / uuid.uuid4().hex
+    with runs.session():
+        run.mkdir(mode=0o700)
+        test_retention.retain(run)
+    state = dict(task_id='proof', task=dict(brief='docs/Proof.md',
+        targets=['synthetic-target'], acceptance='host'), task_sessions=1,
+        total_sessions=1, session_limit=5)
+    plan_evidence.capture(plan, run, state)
+    result = dict(task_id='proof', status='task_complete', cleanup_complete=True,
+        checks=[dict(kind='host', target='synthetic-target', result='passed',
+            evidence=' '.join(f'`{path}`' for path in [*fixture.originals, fixture.bundle]))],
+        summary='Both exact original reports passed.', handoff='Owned cleanup complete.',
+        stage_paths=[], blocker=None)
+    for name, data in {
+        'agent-result.json': evidence_bundle.encoded(result),
+        'checkpoint.json': evidence_bundle.encoded(state),
+        'nested.json': b'[]', 'prompt.txt': b'Original acceptance request',
+        'agent-commands.log': b'Original finite acceptance commands',
+    }.items():
+        path = run / name
+        path.write_bytes(data)
+        path.chmod(0o600)
+
+    # A separate plan checkpoint is protected independently of the active target.
+    foreign = test_storage.directory('plans') / execution_plan.plan_namespace('docs/Foreign.md')
+    test_retention.ensure_directory(foreign)
+    with test_retention.Store(foreign / 'retention').session():
+        checkpoint = foreign / uuid.uuid4().hex
+        checkpoint.mkdir(mode=0o700)
+        test_retention.retain(checkpoint)
+        (checkpoint / 'checkpoint.json').write_bytes(b'{"task_id":"foreign","task_sessions":4}')
+        (checkpoint / 'checkpoint.json').chmod(0o600)
+
+    commands, inspected, opened = [], [], []
+    inspection = test_retention.Store.inspection
+    open_selected = evidence_bundle.Selection.open
+
+    @contextmanager
+    def observe_inspection(store, **options):
+        inspected.append(store.path)
+        with inspection(store, **options) as value:
+            yield value
+
+    @contextmanager
+    def observe_open(selection, path):
+        opened.append(Path(path))
+        with open_selected(selection, path) as value:
+            yield value
+
+    def invoke(command, **options):
+        assert command[:3] == ['pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-artifacts']
+        assert options == dict(cwd=fixture.checkout, capture_output=True, text=True, check=False)
+        commands.append(command)
+        output, error = io.StringIO(), io.StringIO()
+        # The authenticated helper is an independent interpreter, not a child
+        # producer. Drop only the synthetic inherited capabilities while leaving
+        # the producer's actual open descriptors and kernel locks untouched.
+        with monkeypatch.context() as child:
+            child.delenv(test_retention.VARIABLE, raising=False)
+            child.delenv(test_retention.OWNER_VARIABLE, raising=False)
+            child.setattr(test_retention, '_sessions', {})
+            child.setattr(test_retention, '_locks', set())
+            with pytest.raises(ValueError, match='live producer session is required'):
+                fixture.owner.producer_binding()
+            with redirect_stdout(output), redirect_stderr(error):
+                status = HELPER['main'](command[3:])
+        return SimpleNamespace(returncode=status, stdout=output.getvalue(), stderr=error.getvalue())
+
+    def snapshot(roots):
+        return {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                for root in roots for path in root.rglob('*') if path.is_file()}
+
+    monkeypatch.setattr(plan_evidence.subprocess, 'run', invoke)
+    monkeypatch.setattr(test_retention.Store, 'inspection', observe_inspection)
+    monkeypatch.setattr(evidence_bundle.Selection, 'open', observe_open)
+    with fixture.active() as live:
+        (live.parent / 'checkpoint.json').write_bytes(b'{"producer":"still active"}')
+        (live.parent / 'checkpoint.json').chmod(0o600)
+        protected = [fixture.owner.path, live.parent, foreign]
+        before = snapshot(protected)
+        accepted = plan_evidence.preserve(plan, run, state, result)
+        assert [command[3] for command in commands] == ['bundle-plan', 'bundle-export']
+        assert fixture.owner.path not in inspected
+        assert live not in opened and live.parent not in opened
+        assert all(not path.exists() for path in fixture.originals)
+        assert state['task'] == dict(brief='docs/Proof.md', targets=['synthetic-target'], acceptance='host')
+        assert (state['task_sessions'], state['total_sessions'], state['session_limit']) == (1, 1, 5)
+        assert accepted == plan_evidence.recover(plan)
+        retained = accepted['tasks']['proof']
+        assert retained['attempt'] == state['evidence_attempt']
+        saved = evidence_bundle.inspect(fixture.checkout, os.geteuid(), os.getegid(),
+            accepted['bundle'], member=retained['result'])
+        assert evidence_bundle.decoded(saved) == result
+        with evidence_bundle.Selection(fixture.checkout, os.geteuid(), os.getegid(),
+                [], [], [accepted['bundle']], plan_namespace=plan.namespace) as selected:
+            entries = selected.files
+            for path, data in zip(fixture.originals, fixture.contents):
+                entry = entries[str(path)][0]
+                assert entry['sha256'] == evidence_bundle.digest(data)
+                assert entry['bytes'] == len(data)
+                assert entry['allocation']['journal'] == str(fixture.owner.path)
+                assert evidence_bundle.inspect(fixture.checkout, os.geteuid(), os.getegid(),
+                    accepted['bundle'], member=str(path)) == data
+        assert snapshot(protected) == before
+
+
+@pytest.mark.parametrize('defect', ['live-reference', 'foreign-plan-source'])
+def test_plan_sources_do_not_bypass_active_target_refusals(
+        retained_plan_helper, capsys, defect):
+    import uuid
+    import execution_plan
+    import test_retention
+    import test_storage
+
+    fixture = retained_plan_helper
+    namespace = (fixture.archive_owner.path.parent.parent if defect == 'live-reference' else
+        test_storage.directory('plans') / execution_plan.plan_namespace('docs/Foreign.md'))
+    test_retention.ensure_directory(namespace)
+    with test_retention.Store(namespace / 'retention').session():
+        run = namespace / uuid.uuid4().hex
+        run.mkdir(mode=0o700)
+        test_retention.retain(run)
+        source = run / 'checkpoint.json'
+        source.write_bytes(b'{"task_id":"protected","task_sessions":3}')
+        source.chmod(0o600)
+    with fixture.active() as live:
+        references = [*fixture.originals, live] if defect == 'live-reference' else fixture.originals
+        before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                  for path in fixture.checkout.rglob('*') if path.is_file()}
+        assert HELPER['main'](fixture.arguments(references, sources=[source])) == 2
+        captured = capsys.readouterr()
+        assert not captured.out
+        assert 'another owner is active' in captured.err
+        assert 'evidence_unavailable' not in captured.err
+        after = {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                 for path in fixture.checkout.rglob('*') if path.is_file()}
+        assert after == before
+        assert all(not path.exists() for path in fixture.originals)
+
+
 @pytest.mark.parametrize('defect', ['missing-member', 'wrong-attempt', 'wrong-target'])
 def test_bundle_plan_active_target_requires_exact_archived_reference(
         retained_plan_helper, capsys, defect):

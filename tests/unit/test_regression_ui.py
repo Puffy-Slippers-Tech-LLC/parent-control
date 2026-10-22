@@ -58,14 +58,18 @@ def test_invalid_partition_refuses(nodes):
 def execution(tmp_path):
     (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').mkdir(parents=True)
     report = Report(tmp_path)
-    run = Run(tmp_path, report, Control(), host_only=True)
-    run.dashboard.stream = io.StringIO()
-    item = Category('UI', 1, nodeids=('tests/ui/test_a.py::test_a',))
-    run.categories.append(item)
-    execution = Execution(run, item, events=True)
-    yield execution
-    execution.close()
-    report.stream.close()
+    try:
+        run = Run(tmp_path, report, Control(), host_only=True)
+        run.dashboard.stream = io.StringIO()
+        item = Category('UI', 1, nodeids=('tests/ui/test_a.py::test_a',))
+        run.categories.append(item)
+        execution = Execution(run, item, events=True)
+        try:
+            yield execution
+        finally:
+            execution.close()
+    finally:
+        report.close()
 
 
 def event(execution, kind, **fields):

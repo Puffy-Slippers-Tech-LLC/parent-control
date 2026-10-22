@@ -105,6 +105,246 @@ def test_git_retry_reuses_only_the_exact_verified_result(campaign):
         proof.preserve(campaign.plan, run, state, dict(result, summary='changed'))
 
 
+@pytest.mark.parametrize('status', ['continue', 'blocked', 'task_complete'])
+def test_closed_turns_retain_exact_response_commands_and_scope_after_restarts(campaign, status):
+    run, state, result, _ = campaign.accepted('consumer')
+    from detached_launcher import finish_nested
+    result['status'] = status
+    result['checks'][0]['result'] = 'failed'
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    finish_nested(campaign.plan.root, run)
+    original = copy.deepcopy(state)
+    first = proof.retain_turn(campaign.plan, run, state, result)
+    expected = {name: (first / name).read_bytes() for name in proof.SOURCE_FILES}
+    # A controller checkpoint update does not allocate a second terminal turn.
+    (run / 'checkpoint.json').write_bytes(bundle.encoded(state))
+    assert proof.retain_turn(campaign.plan, run, state, result) == first
+    assert len(state['evidence_turns']) == 1
+    for _ in range(5):
+        run = campaign.namespace / uuid.uuid4().hex
+        run.mkdir(mode=0o700)
+        with campaign.runs.session():
+            bundle.retention.retain(run)
+        state = json.loads(json.dumps(state))
+        proof.carry(campaign.plan, run, state)
+        carried = Path(state['evidence_turns'][0])
+        assert {name: (carried / name).read_bytes() for name in expected} == expected
+        assert json.loads((carried / 'agent-result.json').read_bytes()) == result
+        assert state['task'] == original['task']
+        assert state['task_sessions'] == original['task_sessions']
+    assert not first.exists()
+    assert proof.recover(campaign.plan)['tasks'] == {}
+
+
+@pytest.mark.parametrize('terminal', ['malformed', 'provider', 'missing'])
+def test_rejected_and_missing_responses_preserve_truthful_terminal_bytes(campaign, terminal):
+    run, state, _, _ = campaign.accepted('consumer')
+    from detached_launcher import finish_nested
+    (run / 'agent-result.json').unlink()
+    if terminal == 'malformed':
+        (run / 'agent-result.json').write_bytes(b'{not valid JSON')
+    elif terminal == 'provider':
+        (run / 'agent-error.json').write_bytes(b'{"kind":"capacity","retry":false}')
+    finish_nested(campaign.plan.root, run)
+    target = proof.retain_turn(campaign.plan, run, state)
+    metadata, contents = proof._turn(target, 'consumer')
+    if terminal == 'malformed':
+        assert contents['agent-result.json'] == b'{not valid JSON'
+    elif terminal == 'provider':
+        assert contents['agent-error.json'] == b'{"kind":"capacity","retry":false}'
+    else:
+        assert metadata['result_sha256'] is None
+        assert 'agent-result.json' not in contents
+    assert proof.recover(campaign.plan)['tasks'] == {}
+
+
+@pytest.mark.parametrize('rewrite_manifest', [False, True])
+def test_turn_capture_refuses_unfinished_cleanup_and_changed_source(campaign, rewrite_manifest):
+    run, state, result, _ = campaign.accepted('consumer')
+    with pytest.raises(ValueError, match='cleanup has not finished'):
+        proof.retain_turn(campaign.plan, run, state, result)
+    assert 'evidence_turns' not in state
+    from detached_launcher import finish_nested
+    finish_nested(campaign.plan.root, run)
+    target = proof.retain_turn(campaign.plan, run, state, result)
+    (target / 'agent-commands.log').write_text('changed original command')
+    if rewrite_manifest:
+        # Coordinated edits must not rewrite history under its protected,
+        # content-addressed checkpoint path, even with matching member hashes.
+        manifest = json.loads((target / 'turn.json').read_bytes())
+        manifest['files']['agent-commands.log'] = proof._digest((target / 'agent-commands.log').read_bytes())
+        (target / 'turn.json').write_bytes(bundle.encoded(manifest))
+    before = copy.deepcopy(state)
+    with pytest.raises(ValueError, match='retained turn changed'):
+        proof.carry(campaign.plan, run, state)
+    assert state == before
+
+
+def test_suspended_turn_is_published_with_later_accepted_proof(campaign):
+    run, state, result, _ = campaign.accepted('consumer')
+    from detached_launcher import finish_nested
+    result['status'] = 'continue'
+    result['checks'][0]['result'] = 'failed'
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    finish_nested(campaign.plan.root, run)
+    proof.retain_turn(campaign.plan, run, state, result)
+    next_run, prerequisite, _, _ = campaign.accepted('prerequisite')
+    prerequisite['suspended_tasks'] = {'consumer': state}
+    proof.carry(campaign.plan, next_run, prerequisite)
+    resumed = prerequisite['suspended_tasks']['consumer']
+    captured = Path(resumed['evidence_turns'][0])
+    proof.capture(campaign.plan, next_run, resumed)
+    completed = dict(result, status='task_complete', checks=[dict(result['checks'][0], result='passed')])
+    for name in proof.SOURCE_FILES:
+        if name != 'agent-result.json':
+            (next_run / name).write_bytes((run / name).read_bytes())
+    (next_run / 'agent-result.json').write_bytes(bundle.encoded(completed))
+    accepted = proof.preserve(campaign.plan, next_run, resumed, completed)
+    raw = bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(), accepted['bundle'],
+                         member=str(captured / 'agent-result.json'))
+    assert json.loads(raw) == result
+    assert json.loads(raw)['checks'][0]['result'] == 'failed'
+    assert accepted['tasks']['consumer']['cleanup'] is True
+
+
+@pytest.mark.parametrize('rejected', [False, True])
+def test_working_reports_keep_original_provenance_without_completion_credit(campaign, rejected):
+    run, state, result, report = campaign.accepted('consumer')
+    from detached_launcher import finish_nested
+    result['status'] = 'continue'
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    finish_nested(campaign.plan.root, run)
+    proof.retain_turn(campaign.plan, run, state, None if rejected else result)
+    working = proof.recover(campaign.plan)
+    assert working['tasks'] == {}
+    original = bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(), working['bundle'])
+    provenance = next(entry for entry in original['manifest']['files']
+                      if entry['path'] == str(report / 'result.md'))
+    for number in range(5):
+        next_run, _, _, _ = campaign.accepted('later-' + str(number))
+        proof.carry(campaign.plan, next_run, state)
+    assert not report.exists() and not run.exists()
+    result['status'] = 'task_complete'
+    for name in proof.SOURCE_FILES:
+        if name != 'agent-result.json':
+            (next_run / name).write_bytes((Path(state['evidence_turns'][0]) / name).read_bytes())
+    (next_run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    accepted = proof.preserve(campaign.plan, next_run, state, result)
+    assert set(accepted['tasks']) == {'consumer'}
+    retained = bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(), accepted['bundle'])
+    actual = next(entry for entry in retained['manifest']['files']
+                  if entry['path'] == provenance['path'])
+    assert {key: value for key, value in actual.items() if key != 'member'} == {
+        key: value for key, value in provenance.items() if key != 'member'}
+    assert state['task_sessions'] == 1
+
+
+def _runner_declaration(campaign, monkeypatch, *, status='passed', cleanup='complete',
+                        workflow='regression', check='unit', target=''):
+    import evidence_capture as capture
+    import runner_evidence as runner
+    monkeypatch.setattr(runner.regression_inputs, 'identity', lambda root: 'f' * 64)
+    monkeypatch.setattr(capture, '_authenticated_caller',
+                        lambda: dict(uid=os.geteuid(), gid=os.getegid()))
+    import vm_config
+    monkeypatch.setattr(vm_config, 'registry', lambda: {'guest': {}})
+    store = bundle.retention.Store(bundle.storage.directory('state') / 'retention-host')
+    with store.session():
+        directory = Path(bundle.retention.allocate(tempfile.mkdtemp, prefix='onpc-plan-runner-'))
+        evidence = runner.ReportEvidence(campaign.plan.root, directory, store=store, workflow=workflow)
+        payload = directory / 'report.json'
+        payload.write_bytes(bundle.encoded(dict(original_status=status, scope=['exact-case'])))
+        payload.chmod(0o600)
+        published = evidence.finalize(categories=[dict(name='unit', selected_ids=['exact-case'])],
+            status=status, cleanup=cleanup, members=[dict(path=str(payload), role='result')],
+            sources_sha256='f' * 64, inputs=dict(selector=['unit', 'exact-case']),
+            check=check, target=target)
+    record = published['records'][-1]
+    member = next(item for item in record['members'] if item['original_path'] == str(payload))
+    reference = next(item for item in published['references'] if item['member_id'] == member['member_id'])
+    consumer = next(item for item in published['consumers'] if item['expected_context'] == record['context'])
+    return dict(schema='onpc-plan-evidence', version=1, reference=reference,
+                consumer=consumer, record=record), directory
+
+
+def test_ordinary_consumer_authenticates_exact_runner_closure_after_source_rotation(campaign, monkeypatch):
+    declaration, original = _runner_declaration(campaign, monkeypatch)
+    run, state, result, _ = campaign.accepted('consumer')
+    result['checks'][0]['evidence'] = bundle.encoded(declaration).decode()
+    assert proof._references(campaign.plan, result, state) == []
+    before = copy.deepcopy(state)
+    expected = proof.consume(campaign.plan, state, result, register=False)
+    assert state == before
+    assert proof.consume(campaign.plan, state, result) == expected
+    for _ in range(4):
+        _runner_declaration(campaign, monkeypatch)
+    assert not original.exists()
+    assert proof.consume(campaign.plan, state, result) == expected
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    saved = bundle.decoded(bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+        accepted['bundle'], member=accepted['tasks']['consumer']['result'], count=bundle.MAX_READ))
+    assert saved == result
+    assert state['task']['targets'] == [] and state['task_sessions'] == 1
+
+
+@pytest.mark.parametrize('defect', ['target', 'member', 'closure', 'context', 'failed', 'partial', 'claim'])
+def test_ordinary_structured_consumer_refuses_mismatched_or_nonpassing_proof(campaign, monkeypatch, defect):
+    declaration, _ = _runner_declaration(campaign, monkeypatch,
+        status='failed' if defect == 'failed' else 'passed',
+        cleanup='pending' if defect == 'partial' else 'complete')
+    _, state, result, _ = campaign.accepted('consumer')
+    if defect == 'target':
+        result['checks'][0]['target'] = 'another-target'
+    elif defect == 'member':
+        declaration['reference']['member_id'] = 'a' * 64
+    elif defect == 'closure':
+        declaration['reference']['closure_sha256'] = 'a' * 64
+    elif defect == 'context':
+        declaration['consumer']['expected_context']['sources_sha256'] = 'b' * 64
+    result['checks'][0]['evidence'] = bundle.encoded(declaration).decode()
+    if defect == 'claim':
+        proof.consume(campaign.plan, state, result)
+        result['checks'][0]['kind'] = 'review'
+    before = copy.deepcopy(state)
+    with pytest.raises(ValueError):
+        proof.consume(campaign.plan, state, result)
+    assert state == before
+
+
+def test_structured_handoff_never_downgrades_to_legacy_prose(campaign):
+    _, state, result, _ = campaign.accepted('consumer')
+    result['checks'][0]['evidence'] = '{"schema":"onpc-plan-evidence","version":2}'
+    with pytest.raises(ValueError, match='unsupported structured handoff'):
+        proof._references(campaign.plan, result, state)
+
+
+@pytest.mark.parametrize('workflow, selector, target, accepted', [
+    ('regression', 'unit', '', False),
+    ('regression', 'system', 'guest', False),
+    ('system', 'system', '', False),
+    ('system', 'unit', 'guest', False),
+    ('system', 'system', 'guest', True),
+    ('e2e', 'worker', 'guest', False),
+    ('e2e', 'unit', 'guest', False),
+    ('e2e', 'invocation', 'guest', True),
+])
+def test_installed_acceptance_requires_owning_installed_terminal_controller(
+        campaign, monkeypatch, workflow, selector, target, accepted):
+    declaration, _ = _runner_declaration(campaign, monkeypatch,
+        workflow=workflow, check=selector, target=target)
+    _, state, result, _ = campaign.accepted('consumer')
+    state['task'].update(acceptance='installed', targets=['guest'])
+    result['checks'][0].update(kind='installed', target=target,
+                              evidence=bundle.encoded(declaration).decode())
+    if accepted:
+        assert proof.consume(campaign.plan, state, result)
+    else:
+        with pytest.raises(identities.EvidenceContextError, match='scope or verdict mismatch'):
+            proof.consume(campaign.plan, state, result)
+        assert 'evidence_consumers' not in state
+
+
 def test_command_log_with_quoted_key_fixture_survives_preservation_and_recovery(campaign):
     run, state, result, _ = campaign.accepted('first')
     commands = (b"source read: b'-----BEGIN OPENSSH "

@@ -771,11 +771,11 @@ def resolve_reference(root, reference, *, consumer=None, offset=0, count=None):
             state = publication._read(fd)
             if state is None or state['published'] is None:
                 raise ValueError('runner evidence: missing cumulative publication')
-            matching = [request for request in state['published']['requests']
-                        if request['record']['record_id'] == reference['record_id']]
-            if len(matching) != 1:
-                raise ValueError('runner evidence: exact record is unavailable')
-            publication._validate(state, matching[0])
+            # Authenticate the workflow and its whole publication before
+            # deciding that one exact logical record is missing. A caller's
+            # selector cannot turn a corrupt or foreign journal into renewal.
+            publication._validate(state, dict(record=dict(context=dict(
+                repository=repository, workflow=reference['workflow']))))
             record = state['published']['allocation']
             with bundle.verified_record(record, caller['uid'], checkout=root) as (verified, read):
                 publication._verify_generation(state['published'], verified)

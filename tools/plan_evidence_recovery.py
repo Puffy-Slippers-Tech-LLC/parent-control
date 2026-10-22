@@ -28,6 +28,7 @@ PROTECTED_FIELDS = (
     'pull_intent', 'git_reconciliation', 'result_recovery', 'evidence_inputs', 'evidence_attempt',
     'evidence_capture_requires_brief',
     'evidence_source',
+    'evidence_turns', 'evidence_consumers',
     'evidence_recovery',
 )
 LABEL_SUFFIX = ' — detailed proof unavailable; retained accepted completion'

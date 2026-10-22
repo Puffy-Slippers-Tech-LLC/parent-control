@@ -401,6 +401,102 @@ def test_suspended_inputs_survive_prerequisite_rotations_without_sessions_or_git
     assert not consumer_run.exists() and not nested_run.exists() and not initial_run.exists()
 
 
+@pytest.mark.parametrize('status,completeness,cleanup', [
+    ('passed', 'complete', 'complete'),
+    ('failed', 'complete', 'complete'),
+    ('interrupted', 'partial', 'pending'),
+])
+def test_real_sealed_handoff_survives_suspension_restart_and_source_rotation(
+        campaign, status, completeness, cleanup):
+    import evidence_capture as capture
+    import capture_publication as publication
+
+    consumer_run, consumer, _, report = campaign.accepted('consumer')
+    source_store = bundle.retention.Store(bundle.storage.directory('state') / 'retention-host')
+    source_run = json.loads((source_store.path / 'current.json').read_bytes())['run']
+    expected = {'result.md': (report / 'result.md').read_bytes(),
+                'input.json': b'{"selection":"original inputs"}\n',
+                'command.log': b'original command; exactly one invocation\n',
+                'cleanup.json': json.dumps({'state': cleanup}).encode()}
+    roles = dict(zip(expected, ('result', 'input', 'command', 'cleanup')))
+    for name, data in expected.items():
+        (report / name).write_bytes(data)
+        (report / name).chmod(0o600)
+    consumer_id = 'a' * 64
+    with source_store.session(run=source_run):
+        handle = capture.issue_session(source_store, repository=campaign.plan.root,
+            workflow='suspended-plan-fixture', task='consumer', check='original-check',
+            inputs_sha256=proof._digest(expected['input.json']),
+            sources_sha256='d' * 64,
+            consumers={consumer_id: dict(consumer_id=consumer_id, revision_sha256='b' * 64)})
+        context = capture.session_context(handle)
+        info = report.stat()
+        allocation = dict(path=str(report), device=info.st_dev, inode=info.st_ino,
+                          mode=0o700, journal=str(source_store.path), run=source_run)
+        members = [dict(role=roles[name], original_path=str(report / name),
+                        source_allocation=allocation, bytes=len(data),
+                        sha256=proof._digest(data), required=True)
+                   for name, data in expected.items()]
+        cleanup_member = next(member for member in members if member['role'] == 'cleanup')
+        record = identities.finalize_record(dict(schema=identities.SCHEMA, version=1,
+            context=context, status=status, completeness=completeness,
+            members=members, dependencies=[], cleanup=dict(state=cleanup,
+                record_members=[identities.member_id(identities.record_id(context), cleanup_member)],
+                scope=dict(owner=context['owner'], resources=[]))))
+        identifier = capture.finalize_capture(handle, record=record, consumer_ids=[consumer_id])
+        request = capture.inspect_capture(campaign.plan.root, os.geteuid(), os.getegid(), identifier)
+        with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(),
+                              [], [], [], captures=[identifier]) as selected:
+            receipt = bundle.export(selected, expected=selected.selection_sha256)
+        acknowledgement = capture.acknowledge_capture(campaign.plan.root,
+            os.geteuid(), os.getegid(), identifier, expected=request['request_sha256'],
+            session_handle=handle)
+    # The real task input carries the exact handoff, not a synthetic capture/carry
+    # stub or a path that depends on the producer's disposable run lifetime.
+    handoff = dict(request=request, delivery=acknowledgement['delivery'])
+    brief = json.dumps(handoff, sort_keys=True).encode()
+    (campaign.plan.root / 'docs/Brief.md').write_bytes(brief)
+    proof.capture(campaign.plan, consumer_run, consumer)
+    consumer.update(handoff='Resume original-check with its exact sealed attempt.',
+                    commit_intent={'paths': ['owned.md'], 'commit': 'retained'},
+                    protected_staged=['unrelated.md'])
+    original = copy.deepcopy(consumer)
+    active_run, state, _, _ = campaign.accepted('prerequisite')
+    state['suspended_tasks'] = {'consumer': consumer}
+    proof.carry(campaign.plan, active_run, state)
+    exports = bundle.retention.Store(bundle.storage.directory('exports') / 'retention')
+    for _ in range(5):
+        run = campaign.namespace / uuid.uuid4().hex
+        run.mkdir(mode=0o700)
+        with campaign.runs.session():
+            bundle.retention.retain(run)
+        # Serialize and reload the checkpoint at every fresh-controller boundary.
+        state = json.loads(json.dumps(state))
+        proof.carry(campaign.plan, run, state)
+        carried = state['suspended_tasks']['consumer']
+        assert {key: value for key, value in carried.items() if key != 'evidence_inputs'} == {
+            key: value for key, value in original.items() if key != 'evidence_inputs'}
+        assert len(carried['evidence_inputs']) == len(original['evidence_inputs'])
+        restored = (Path(carried['evidence_inputs'][-1]) / 'input-0002').read_bytes()
+        assert restored == brief
+        selected_handoff = json.loads(restored)
+        with publication.verified_delivery(campaign.plan.root, os.geteuid(), os.getegid(),
+                identifier, selected_handoff['request'], selected_handoff['delivery']) as verified:
+            assert verified['manifest']['records'] == [record]
+        for member in record['members']:
+            assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(), receipt['path'],
+                record_id=record['record_id'], member_id=member['member_id'],
+                closure_sha256=record['closure_sha256']) == expected[Path(member['original_path']).name]
+        with source_store.session():
+            pass
+        with exports.session():
+            bundle.retention.allocate(tempfile.mkdtemp, prefix='onpc-unrelated-export-')
+    assert not report.exists() and not consumer_run.exists() and not active_run.exists()
+    for store in (campaign.runs, source_store, exports):
+        retained = json.loads((store.path / 'current.json').read_bytes())
+        assert len([*retained['history'], retained]) <= bundle.retention.RUNS_TO_KEEP
+
+
 def test_carry_without_legacy_inputs_is_noop_and_missing_originals_refuse(campaign):
     run, state, _, _ = campaign.accepted('first')
     legacy = dict(phase='recover', task_id='legacy', task_sessions=3,

@@ -2461,6 +2461,16 @@ P03 lives in `tests/unit/test_evidence_capture.py`, using private synthetic owne
 and real storage/retention locks. It covers authority, exact context, immutable
 mapping, refusal, bounded capacity and resumable interruption. These are host
 infrastructure checks, with no installed-product or VM acceptance credit.
+Repeated source-owner reopenings recover the same request, seal and publication
+allocation through more than three interrupted transitions. A real failed copy
+or acknowledgement capacity refusal keeps the original bytes and dependency
+registration through oversized startup recovery; only the matching verified
+acknowledgement permits retirement. `tests/unit/test_plan_evidence.py` composes
+that handoff with real input capture/carry and serialized suspended checkpoints:
+five restarts and unrelated export/source rotations preserve the exact result,
+input, command and cleanup bytes, including failed and partial interrupted proof.
+These shared-mechanism checks do not replace the producer/consumer integrations
+assigned to later export tasks.
 
 ### Handling test failures
 

@@ -1552,6 +1552,11 @@ def buckets(nodeids):
 # independent ZIPs, real retention locks and synchronous cancellation/recovery
 # doubles. No credentials switch, live helper, process or shared resource is added;
 # evidence_capture and execution_plan_launcher retain compatible unit scheduling.
+# E03 restart/suspension composition adds only tiny pytest-private Markdown,
+# serialized checkpoints and existing capture/publication/retention locks in
+# evidence_capture and plan_evidence. Oversized-startup checks inject source
+# usage, never large payloads. No process, shared cache or cleanup/UI owner is
+# added; both existing compatible unit classifications remain appropriate.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

@@ -1282,6 +1282,155 @@ def test_reopened_owner_resumes_exact_registered_attempt_with_a_fresh_handle(
         capture.session_context(resumed)
 
 
+def test_same_source_capture_survives_more_than_three_reopened_owners(
+        tmp_path, monkeypatch):
+    import capture_publication as publication
+
+    with producer_session(tmp_path, monkeypatch) as value:
+        identifier = value.finalize()
+        request = value.inspect(identifier)
+        context = copy.deepcopy(value.context)
+        source_state = json.loads((value.store.path / 'current.json').read_bytes())
+        charge = source_state['captures'][0]
+        sealed = Path(request['sealed']['mappings'][0]['sealed_path'])
+        originals = {path: (path.stat().st_dev, path.stat().st_ino, path.read_bytes())
+                     for path in (value.result, sealed)}
+        slot = Path(charge['path'])
+        slot_identity = (slot.stat().st_dev, slot.stat().st_ino)
+
+    stage = None
+    stage_identity = None
+    handles = [value.handle]
+    for boundary in ('publication.registered', 'publication.copied',
+                     'publication.committed', 'publication.locator'):
+        with value.store.session(run=context['run']):
+            resumed = capture.resume_session(value.store, identifier)
+            assert all(resumed is not previous for previous in handles)
+            handles.append(resumed)
+            assert capture.session_context(resumed) == context
+            assert capture.finalize_capture(resumed, record=request['record'],
+                                            consumer_ids=[CONSUMER]) == identifier
+            assert value.inspect(identifier) == request
+
+            def interrupt(point):
+                if point == boundary:
+                    raise SimulatedInterrupt('reopen the same capture owner')
+
+            with bundle.Selection(value.checkout, os.geteuid(), os.getegid(),
+                                  [], [], [], captures=[identifier]) as selected:
+                parent = selected.publication_parent(create=True)
+                with monkeypatch.context() as local:
+                    local.setattr(publication, 'checkpoint', interrupt)
+                    with pytest.raises(SimulatedInterrupt):
+                        bundle.export(selected, expected=selected.selection_sha256)
+            stages = [path for path in parent.iterdir()
+                      if path.name.startswith('onpc-evidence-bundle-')]
+            assert len(stages) == 1
+            if stage is None:
+                stage = stages[0]
+                stage_identity = (stage.stat().st_dev, stage.stat().st_ino)
+            assert stages == [stage]
+            assert (stage.stat().st_dev, stage.stat().st_ino) == stage_identity
+        assert json.loads((value.store.path / 'current.json').read_bytes())['captures'] == [charge]
+        assert (slot.stat().st_dev, slot.stat().st_ino) == slot_identity
+        for path, original in originals.items():
+            assert (path.stat().st_dev, path.stat().st_ino, path.read_bytes()) == original
+        assert value.inspect(identifier) == request
+        with pytest.raises(ValueError):
+            capture.session_context(resumed)
+
+    with value.store.session(run=context['run']):
+        resumed = capture.resume_session(value.store, identifier)
+        assert capture.session_context(resumed) == context
+        receipt = publish_capture(value, identifier)
+        assert Path(receipt['path']).parent == stage
+        acknowledgement = capture.acknowledge_capture(
+            value.checkout, os.geteuid(), os.getegid(), identifier,
+            expected=request['request_sha256'], session_handle=resumed)
+        assert acknowledgement['request'] == request
+        verified = bundle.inspect(value.checkout, os.geteuid(), os.getegid(), receipt['path'])
+        assert verified['manifest']['records'] == [request['record']]
+        state = json.loads((value.store.path / 'current.json').read_bytes())
+        assert state['paths'] == source_state['paths']
+        assert state['history'] == source_state['history']
+        assert len([*state['history'], state]) <= retention.RUNS_TO_KEEP
+        assert len(state['captures']) == 1
+        assert {key: item for key, item in state['captures'][0].items()
+                if key != 'acknowledgement'} == charge
+
+
+@pytest.mark.parametrize('failure', ['publication', 'acknowledgement-capacity'])
+def test_failed_real_capture_blocks_oversized_startup_until_matching_acknowledgement(
+        tmp_path, monkeypatch, failure):
+    import capture_publication as publication
+
+    allocation_bytes = retention.allocation_bytes
+
+    def oversized_source(record, **kwargs):
+        # Inject source usage only: shrinking the global limit also invalidates
+        # the destination manifest's historical source-budget provenance.
+        if Path(record['path']) == value.source:
+            return retention.MAX_RETAINED_BYTES + 1
+        return allocation_bytes(record, **kwargs)
+
+    with producer_session(tmp_path, monkeypatch) as value:
+        identifier = value.finalize()
+        request = value.inspect(identifier)
+        if failure == 'publication':
+            def interrupt(point):
+                if point == 'publication.copied':
+                    raise SimulatedInterrupt('publication reply was interrupted')
+
+            with monkeypatch.context() as local:
+                local.setattr(publication, 'checkpoint', interrupt)
+                with pytest.raises(SimulatedInterrupt):
+                    publish_capture(value, identifier)
+        else:
+            publish_capture(value, identifier)
+            with monkeypatch.context() as local:
+                local.setattr(retention, 'allocation_bytes', oversized_source)
+                with pytest.raises(ValueError, match='capacity|budget'):
+                    acknowledge(value, identifier)
+
+    before = (value.store.path / 'current.json').read_bytes()
+    state = json.loads(before)
+    charge = state['captures'][0]
+    assert not charge.get('acknowledgement')
+    sealed = Path(request['sealed']['mappings'][0]['sealed_path'])
+    originals = {path: (path.stat().st_dev, path.stat().st_ino, path.read_bytes())
+                 for path in (value.result, value.previous_proof, sealed)}
+    audited = []
+    with monkeypatch.context() as local:
+        local.setattr(retention, 'allocation_bytes', oversized_source)
+        with pytest.raises(ValueError, match='capture|acknowledgement'):
+            value.store.reconcile(lambda: None, completed_guard=audited.append)
+    assert not audited
+    assert (value.store.path / 'current.json').read_bytes() == before
+    for path, original in originals.items():
+        assert (path.stat().st_dev, path.stat().st_ino, path.read_bytes()) == original
+    assert value.inspect(identifier) == request
+
+    receipt = publish_capture(value, identifier)
+    acknowledgement = capture.acknowledge_capture(
+        value.checkout, os.geteuid(), os.getegid(), identifier,
+        expected=request['request_sha256'])
+    assert acknowledgement['request'] == request
+    acknowledged = json.loads((value.store.path / 'current.json').read_bytes())['captures'][0]
+    assert {key: item for key, item in acknowledged.items()
+            if key != 'acknowledgement'} == charge
+    with monkeypatch.context() as local:
+        local.setattr(retention, 'allocation_bytes', oversized_source)
+        value.store.reconcile(lambda: None, completed_guard=audited.append)
+    assert audited == [{str(value.source)}]
+    assert not value.source.exists()
+    assert not Path(charge['path']).exists()
+    retired = json.loads((value.store.path / 'current.json').read_bytes())
+    assert not retired['paths']
+    assert not any(entry.get('captures') for entry in [*retired['history'], retired])
+    verified = bundle.inspect(value.checkout, os.geteuid(), os.getegid(), receipt['path'])
+    assert verified['manifest']['records'] == [request['record']]
+
+
 def test_partial_interrupted_record_is_preserved_without_diagnostic_promotion(producer):
     cleanup = copy.deepcopy(producer.record()['cleanup'])
     cleanup['state'] = 'pending'

@@ -114,17 +114,23 @@ sub enter_kiosk_mate_password {
         my $reject = @_ == 2 && defined($wrong) && $wrong eq 'wrong';
         my $chinese = @_ == 2 && defined($wrong) && $wrong =~ /\Achinese-(?:first|second)\z/;
         my $long_request = @_ == 2 && defined($wrong) && $wrong eq 'long-request';
+        my $baseline = ($journey->{prefix} // '') eq 'baseline-journey-kiosk-rejection' && $reject
+            || (($journey->{prefix} // '') eq 'baseline-journey-kiosk-first'
+                || ($journey->{prefix} // '') eq 'baseline-journey-kiosk-final') && $long_request;
+        die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
+            substr($journey->{prefix}, length('baseline-journey-')) . '-');
         my $binding = $chinese ? substr($wrong, 8) . '-approval' : $reject ? 'rejection' : 'approval';
-        my $id = 'kiosk-mate-' . ($chinese || $long_request ? $wrong : $binding);
+        my $id = ($baseline ? $journey->{stage_prefix} : '')
+            . 'kiosk-mate-' . ($chinese || $long_request ? $wrong : $binding);
         die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request)
             && ref($journey) eq 'onpc_journey'
-            && ($long_request ? ($journey->{prefix} // '') eq 'baseline-app-effects' :
+            && ($baseline || ($long_request ? ($journey->{prefix} // '') eq 'baseline-app-effects' :
                 ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
                 || ($journey->{prefix} // '') eq 'kiosk-approval-flow'
                 || (!$reject && ($journey->{prefix} // '') eq 'baseline-auth-pause')
                 || (!$reject && (($journey->{prefix} // '') eq 'package-removal'
                     || ($journey->{prefix} // '') eq 'revoke-cancel'
-                    || ($journey->{prefix} // '') eq 'revocation'))))
+                    || ($journey->{prefix} // '') eq 'revocation')))))
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = 1;
@@ -136,7 +142,7 @@ sub enter_kiosk_mate_password {
         for my $stage ($binding . '-qualified', $binding . '-rechecked') {
             $proof = $journey->seen($stage);
             die 'secret:recipient' unless ref($proof) eq 'HASH' && keys(%$proof) == 1
-                && ($proof->{observed} // '') eq $stage;
+                && ($proof->{observed} // '') eq ($journey->{stage_prefix} // '') . $stage;
         }
         $active_challenge = {journey => $journey, id => $id, role => 'parent',
                              stage => $binding . '-rechecked', proof => $proof, wrong => $reject};
@@ -161,11 +167,16 @@ sub enter_overlay_shell_password {
     my $ok = eval {
         my $reject = (@_ == 2 || @_ == 3) && defined($wrong) && $wrong eq 'wrong';
         $prefix //= $reject ? 'rejection' : 'approval';
-        my $id = 'overlay-shell-' . ($reject ? 'rejection' : 'approval');
+        my $baseline = ($journey->{prefix} // '') eq
+            'baseline-journey-overlay-' . ($reject ? 'rejection' : 'approval');
+        die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
+            'overlay-' . ($reject ? 'rejection' : 'approval') . '-');
+        my $id = ($baseline ? $journey->{stage_prefix} : '')
+            . 'overlay-shell-' . ($reject ? 'rejection' : 'approval');
         die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
             && $prefix =~ /\A[a-z][a-z0-9-]*\z/
             && (($journey->{prefix} // '') eq ($reject ? 'overlay-rejection' : 'overlay-approved-exit')
-                || ($journey->{prefix} // '') eq 'overlay-approval-flow')
+                || ($journey->{prefix} // '') eq 'overlay-approval-flow' || $baseline)
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = $functional_started = $functional_input_started = 1;
@@ -175,7 +186,7 @@ sub enter_overlay_shell_password {
         for my $stage ($prefix . '-qualified', $prefix . '-rechecked') {
             $proof = $journey->seen($stage);
             die 'secret:recipient' unless ref($proof) eq 'HASH' && keys(%$proof) == 1
-                && ($proof->{observed} // '') eq $stage;
+                && ($proof->{observed} // '') eq ($journey->{stage_prefix} // '') . $stage;
         }
         $active_challenge = {journey => $journey, id => $id, role => 'parent',
                              stage => $prefix . '-rechecked', proof => $proof, wrong => $reject};

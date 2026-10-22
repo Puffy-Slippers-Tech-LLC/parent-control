@@ -22,10 +22,10 @@ This finite map is the C04b handoff to C04u/C04f and C04's readiness audit,
 then C05u/C05f on `onpc-Ubuntu26.04` and `onpc-Fedora44`. It implements no
 scenario. The [operation applicability table](E2E-Building-Blocks.md#c04b-baseline-operation-applicability)
 classifies every constituent and records the exact historical scope and gaps.
-**No complete baseline selector is registered yet.** Preserve the existing
-inventory and stable IDs; pending compositions remain pending. C04 must refuse
-readiness until the missing bindings and both-target operation qualifications
-are delivered through its prerequisite route.
+The thin `baseline_journey.PLAN` / `BaselineJourney` composition is registered
+through `check_e2e_baseline_journey`; its installed qualification is pending.
+Preserve the existing inventory and stable IDs; pending broader compositions
+remain pending. C04 must verify the complete both-target results before readiness.
 
 C04j's first passing complete history on each target is also eligible for
 C05u/C05f baseline acceptance under the
@@ -76,7 +76,7 @@ balances, choices and app effects independently through public interfaces.
 | Wrong parent password, then independent password-free Cancel, before any approval | FLOW07(rejection) → observe explicit Request denied, preserved choices, Parent grant = 0 and saved H/S restrictions; normal exit/reentry. FLOW07(cancel) → no error, same choices, grant = 0 and same restrictions. At zero time require the qualified child entry denial rather than inspecting an unavailable desktop. | Changed fixed rejection/Cancel leaves; missing combined no-grant/restriction case B4 (E2E-013 cases 34/36 stay pending). Timeout or prompt disappearance is not denial. |
 | Confinement authentication pause, separately from the core history | `baseline_auth_pause.PLAN` / `check_e2e_baseline_auth_pause` reuses the fixed Riley/Jamie/English/75-second/soft-included request: FLOW04 → REQUEST09/AUTH01 → TIME03(45 seconds) → fresh same-challenge recipient checks → AUTH02 → explicit success/automatic GDM → independent grant read. | [C04w qualified both targets](E2E-Building-Blocks.md#c04w-parent-decision-pause). B3 session-lifetime check only; no new approval arithmetic matrix. Old proof freshness cannot span the wait. Reuse this evidence separately without replay inside C04j. |
 | Fresh correct core request | Reuse qualified FLOW04/AUTH01/02/REQUEST11/12 with the exact approved downstream duration, fresh recipient proofs, explicit success and automatic GDM return. | C04p/313 supply the finite operation; C04j owns ordered confinement entry/reentry. No secret enters product UI. |
-| Downstream child time and app use | Fresh FLOW15(Riley) → TIME01/02 reflects grant-only 75 seconds less real elapsed time; FLOW08(command,S) proves real usable Submit/result, H command is denied, A is usable. Saved rules stay unchanged. | FLOW08 Allowed A and TIME01 are leaves, not this temporary policy result; missing B2/B4. No hidden grant, clock manipulation or root-only probe. |
+| Downstream child time and app use | Fresh FLOW15(Riley) → TIME01/02 reflects the qualified grant-only 600 seconds less real elapsed time; FLOW08(command,S) proves real usable Submit/result, H command is denied, A is usable. Saved rules stay unchanged. | C04p qualified the finite effects; C04j composes them with the negative and repeated requests. No hidden grant, clock manipulation or root-only probe. |
 | Shared overlay on the usable Riley desktop | REQUEST02 fixed-child entry → FLOW04 with Jamie/75/soft true → Shell genuine approval and explicit child-owned success/desktop return. Preserve the same activity and inspect current time, S usable/H denied. Separate wrong-password/Cancel observations retain no additional grant before a fresh correct request. | Shared form/broker changes require B1 renewal on both targets; MATE proof never qualifies Shell. B4 owns the ordered customer effects. |
 | Restore limits, switch and make a fresh request | Public Parent revoke/Confirm → grant 0, original H/S blocks and S no longer usable; observe expected time restriction. Switch to GDM, fresh passwordless kiosk entry, remembered choices and a new correct approval with distinct challenge; child reentry is usable again. Also cover ordinary form Cancel/close and automatic/immediate approved exits through their existing operation bindings. | Missing finite repeated-request/negative/effect composition B4. Case 49's 975-second countdown after a single approval and cases 50–52's desktop/terminal restriction attempts do not prove it. |
 
@@ -108,6 +108,50 @@ the envelope restores the owned baseline. Qualification is pending until E2E
 repeated-baseline or natural-expiry claim.
 
 ### Commands, bounds and restoration
+
+The registered complete core selector is
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_baseline_journey'`.
+Its shared worker is `onpc_baseline_journey::run`; each target has its own
+1800-second bound. The composition owns only the following finite order:
+zero-daily Parent A/H/S setup; 75-second kiosk rejection and separate
+authentication Cancel, each followed by public zero-grant/unchanged-policy
+readback; zero-time child denial; fresh 600-second genuine kiosk approval;
+grant-only countdown and A/S Submit/results with H denied; retained native
+activity across separate overlay rejection, Cancel and genuine 75-second
+approval with immediate exit; S use/H denial; public revoke/Confirm and restored time/S restrictions;
+passwordless kiosk reentry with remembered choices and a distinct 600-second
+approval; usable retained child/S with H denied; public policy/time restoration.
+No baseline reset occurs between these effects. Existing language, request-choice,
+reminder, About and 90/45-second pause evidence remains separate.
+The kiosk approvals use automatic exit, so the complete history covers both
+approved exit modes without another request or a separate exit matrix.
+
+The two added remembered transitions are exactly kiosk 75→600 seconds with soft
+apps included and overlay 600→75 seconds with Jamie explicitly selected.
+Their API operations retain the full child/approver/form guards. A fresh public
+grant-only countdown supplies the elapsed/precision-bounded overlay estimate
+baseline; each negative overlay result independently proves no added time.
+Those negative comparisons refresh the exact unchanged 75-second request via
+equivalent public `1.25` → `1.250` → `1.25` edits. Guest-clock brackets contain
+each calculation; the original 120-second comparison bound remains, each read
+is at most 45 seconds, and total uncertainty must be less than the requested
+75 seconds. Cached label read time cannot stand for calculation time.
+Every positive Parent read binds its own preceding approval estimate.
+The overlay approval uses the same bounded public calculation refresh; its
+lower grant bound dates the calculation from the bracket's start, while the
+600-second freshness limit, displayed precision and upper bound stay unchanged.
+The core setup saves H/S access directly on the unfiltered App Limits page and
+independently reads their precise/version-pattern rules. It verifies A's existing
+Allowed/precise rule in the full saved-policy read before any request, rather
+than rewriting identical rules. Restoration saves H/S Allowed and checks their
+unchanged rules. The final request's initial form read also supplies its
+remembered-choice comparison. The composition also opts out of four duplicate
+same-user Parent desktop reads and five duplicate native-command desktop reads
+through the shared `desktop_observation=False` binding. Retained Parent reads
+still guard the fresh desktop and existing window; native commands still perform
+both fresh preflights around desktop preparation. Default callers are unchanged.
+These shared operations remove 74 redundant observations; the complete history
+has 256 public stages plus two setup observations and retains every core result.
 
 Registered inspection is `tools/run-tests e2e --list`. Existing exact case
 selections are `tools/run-tests e2e --id '47,48,49'` for kiosk exits/countdown,

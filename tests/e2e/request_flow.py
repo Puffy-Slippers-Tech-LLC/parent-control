@@ -113,6 +113,33 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
     return stages
 
 
+def continued_request(*, surface, initial_seconds, duration_seconds):
+    """Prepare only the two finite remembered soft-included transitions.
+
+    The caller enters the station/overlay; account eligibility, explicit custom
+    input and independent estimates retain the shared operation guards.
+    """
+    require(type(initial_seconds) is int and type(duration_seconds) is int
+            and (surface, initial_seconds, duration_seconds) in (
+                ('kiosk', 75, 600), ('overlay', 600, 75)),
+            'request-flow:continuation')
+    if surface == 'kiosk':
+        return {
+            'new-form': 'ui:kiosk-valid-fraction-soft-read',
+            'new-child': 'ui:kiosk-flow-child-select',
+            'new-approver': 'ui:kiosk-flow-approver-select',
+            'new-duration': 'ui:kiosk-long-included-duration-select',
+            'new-estimate': 'ui:kiosk-long-request-soft-read',
+        }
+    return {
+        'open-selections': 'ui:overlay-long-request-read',
+        'open-duration': 'ui:overlay-valid-custom-open',
+        **{'open-text-' + action: 'ui:text-overlay-fraction-' + action
+           for action in ('focus', 'selected', 'read')},
+        'open-estimate': 'ui:overlay-valid-fraction-soft-read',
+    }
+
+
 def daily_station_entry():
     """Save the qualified 15-minute preset, read balance and enter the station.
 
@@ -191,14 +218,18 @@ def overlay_approved_request(*, child, approver, duration_seconds, allow_soft, e
             'returned': 'ui:overlay-desktop'}
 
 
-def overlay_rejected_request(*, outcome, child, approver, duration_seconds, allow_soft):
+def overlay_rejected_request(*, outcome, child, approver, duration_seconds, allow_soft,
+                             fresh_estimate=False):
     """FLOW07: one denial/Cancel and immutable readback; leave the form open."""
     overlay_approved_request(child=child, approver=approver, duration_seconds=duration_seconds,
                              allow_soft=allow_soft, exit='automatic')
     require(outcome in ('rejection', 'cancel'), 'overlay-flow:outcome')
-    return {'flow-before': 'ui:overlay-valid-fraction-soft-read',
+    require(type(fresh_estimate) is bool, 'overlay-flow:estimate-binding')
+    operation = ('ui:overlay-fraction-estimate-refresh' if fresh_estimate else
+                 'ui:overlay-valid-fraction-soft-read')
+    return {'flow-before': operation,
             **overlay_authentication(result=outcome, prefix='rejection' if outcome == 'rejection' else 'shell'),
-            'flow-preserved': 'ui:overlay-valid-fraction-soft-read'}
+            'flow-preserved': operation}
 
 
 CHOICES = dict(child='fixture-child', approver='fixture-parent', duration_seconds=75, allow_soft=True)

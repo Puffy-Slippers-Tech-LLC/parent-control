@@ -240,6 +240,8 @@ def test_child_launch_diagnostic_names_only_its_single_submission(monkeypatch):
     ], stdin=accessible_ui.subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
     ui.timing.assert_called_once_with({'event': 'ui-native-launch', 'unit': unit})
     ui.prepare_launch_desktop.assert_called_once_with()
+    assert ui.desktop_result.call_args_list == [
+        ((accessible_ui.CHILD, 'success'),), ((accessible_ui.CHILD, 'success'),)]
     with pytest.raises(UiError, match='uncertain-input'):
         ui.native_launch_command(child=accessible_ui.CHILD)
     assert submit.call_count == 1

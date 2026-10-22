@@ -396,7 +396,9 @@ sub native_open_command {
     onpc_progress::operation('Launching the declared native fixture as [Child user]');
     my ($journey, $desktop) = @_;
     die 'native:launch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
-    $journey->consume_observation('desktop', $desktop);
+    # With no supplied observation, the command's controller operation still
+    # acquires both fresh session/desktop/prompt preflights before launch.
+    $journey->consume_observation('desktop', $desktop) if defined($desktop);
     $journey->seen('command');
     return $journey->seen('opened');
 }
@@ -419,6 +421,7 @@ sub native_usable_app {
     $child //= 'other-child';
     die 'native:usable-binding' unless (@_ == 3 || @_ == 4 || @_ == 5) && ref($journey) eq 'onpc_journey'
         && defined($route) && ($route eq 'command' || $route eq 'grid')
+        && (defined($desktop) || $route eq 'command')
         && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command')
         && (!defined($role) || $role =~ /\A(?:A|S)\z/ && $child eq 'child' && $route eq 'command');
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
@@ -451,13 +454,17 @@ sub _native_activity_scope {
 # transition. Return the same scope for independent reread and normal closure.
 sub native_activity_entry {
     onpc_progress::operation('Establishing and capturing the original native activity');
-    my ($journey, $prefix, $route, $account) = @_;
+    my ($journey, $prefix, $route, $account, $desktop_observation) = @_;
     $account //= 'other-child';
-    die 'native:activity-entry' unless (@_ == 3 || @_ == 4) && defined($route)
+    $desktop_observation = 1 if @_ < 5;
+    die 'native:activity-entry' unless (@_ == 3 || @_ == 4 || @_ == 5) && defined($route)
         && ($route eq 'command' || $route eq 'grid')
+        && defined($desktop_observation) && $desktop_observation =~ /\A[01]\z/
+        && ($desktop_observation || $route eq 'command')
         && ($account eq 'child' || $account eq 'other-child' || $account eq 'parent' && $route eq 'command');
     my $activity = _native_activity_scope($journey, $prefix);
-    native_usable_app($activity, $route, $activity->seen('desktop'), $account);
+    native_usable_app($activity, $route,
+        $desktop_observation ? $activity->seen('desktop') : undef, $account);
     native_read_activity($activity, 'capture');
     return $activity;
 }

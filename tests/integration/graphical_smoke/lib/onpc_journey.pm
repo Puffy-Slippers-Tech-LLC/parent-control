@@ -23,6 +23,8 @@ sub scope {
         $self->{exchange}->($prefix . '-' . $_[0], @_[1 .. $#_]);
     }, prefix => $self->{prefix} . '-' . $prefix, review => $self->{review});
     $section->{stage_prefix} = ($self->{stage_prefix} // '') . $prefix . '-';
+    $section->{parent_journey} = $self;
+    $section->{local_scope} = $prefix;
     return $section;
 }
 
@@ -95,6 +97,14 @@ sub invoke {
     die 'journey:previous-failure' if $self->{invocation_failed};
     my $reply;
     my $ok = eval {
+        if (exists($self->{parent_journey})) {
+            die 'journey:invocation-stage' unless defined($stage)
+                && $stage =~ /\A[a-z][a-z0-9-]*\z/;
+            delete $self->{last_observation};
+            $reply = $self->{parent_journey}->invoke($self->{local_scope} . '-' . $stage);
+            $self->{last_observation} = {stage => $stage, reply => $reply};
+            return $reply;
+        }
         my $index = $self->{invocation_index};
         die 'journey:invocation-order' unless ref($self->{invocations}) eq 'ARRAY'
             && defined($index) && $index < @{$self->{invocations}}

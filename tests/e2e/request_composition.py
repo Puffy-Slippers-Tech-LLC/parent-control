@@ -5,12 +5,28 @@ The unused-child estimate applies to these fresh fixture entries only.
 """
 from copy import deepcopy
 
+from accessible_ui import countdown_seconds
+
 from countdown import CountdownObservation, check_countdown_balance
 from installed_journey import InstalledJourney
 from journey_checks import check_balances
 from private_artifacts import require
 from ui_observations import RequestObservation
 from access_choices import AccessChoiceJourney
+
+
+def _estimate_read_bounds(choice, error='grant-effects:negative-read-bounds'):
+    """Bracket a calculation forced through the ordinary public change handler."""
+    bounds = choice.get('estimate_read_bounds')
+    require(type(bounds) is list and len(bounds) == 2
+            and all(type(value) is int for value in bounds),
+            error)
+    start, end = bounds
+    require(type(choice.get('observed_monotonic_ns')) is int
+            and 0 < start <= end and end == choice['observed_monotonic_ns']
+            and end - start <= 45_000_000_000,
+            error)
+    return start, end
 
 
 class KioskRequestJourney(InstalledJourney):
@@ -95,7 +111,9 @@ class KioskRequestJourney(InstalledJourney):
         if stage not in checks and stage not in checks.values():
             return
         operation = self.plan.screen_tags[stage].removeprefix('ui:')
-        request = RequestObservation.from_request(observed.get('ui', {}).get('request'), operation=operation)
+        value = observed.get('ui', {})
+        request = RequestObservation.from_request(value.get('request',
+            value.get('valid_choice', {}).get('request')), operation=operation)
         require(stage not in self.transfer_requests, 'request-transfer:replay')
         if stage in checks:
             before = self.transfer_requests.get(checks[stage])
@@ -119,7 +137,8 @@ class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
     """
 
     def __init__(self, context, progress, plan, *, settings, app_rules,
-                 approval_stage, policy_reads, actions=None):
+                 approval_stage, policy_reads, actions=None, approval_stages=None,
+                 negative_estimates=None, countdown_balances=()):
         super().__init__(context, progress, plan, actions=actions)
         stages = list(plan.screen_tags)
         require(approval_stage in stages and type(policy_reads) is dict
@@ -139,12 +158,81 @@ class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
         self.effects_reads = dict(policy_reads)
         self.effects_seen = {}
         self.effects_estimate = None
+        self.effects_approvals = dict(approval_stages or {})
+        self.effects_negative_checks = dict(negative_estimates or {})
+        require(all(stage in policy_reads and policy_reads[stage][1] == 'positive'
+                    and capture in stages and stages.index(capture) < stages.index(stage)
+                    and plan.screen_tags[capture] in (
+                        'ui:kiosk-valid-fraction-soft-read', 'ui:kiosk-long-request-soft-read',
+                        'ui:overlay-valid-fraction-soft-read',
+                        'ui:overlay-fraction-estimate-refresh')
+                    for stage, capture in self.effects_approvals.items()),
+                'grant-effects:approval-plan')
+        require(all(stage in stages and before in stages
+                    and stages.index(before) < stages.index(stage)
+                    and plan.screen_tags[stage] == plan.screen_tags[before]
+                    == 'ui:overlay-fraction-estimate-refresh'
+                    for stage, before in self.effects_negative_checks.items()),
+                'grant-effects:negative-plan')
+        self.effects_estimates = {}
+        self.effects_negative_seen = {}
+        require(type(countdown_balances) is tuple and len(set(countdown_balances)) == len(countdown_balances)
+                and all(stage in plan.countdown_checks for stage in countdown_balances),
+                'grant-effects:countdown-balance-plan')
+        self.effects_countdown_balances = countdown_balances
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
+        if stage in self.effects_countdown_balances:
+            current = self.countdowns[stage]
+            low, high = countdown_seconds(current.text)
+            require(low > 0 and self.balance is not None
+                    and self.balance['daily']['seconds'] == 0,
+                    'grant-effects:positive-countdown')
+            self.balance = {'daily': {'seconds': 0, 'precision_seconds': 1},
+                            'one_time': {'seconds': high, 'precision_seconds': high - low + 1},
+                            'observed_monotonic_ns': current.observed_monotonic_ns}
+            observed.setdefault('comparison', {})['public_grant_only_countdown_baseline'] = True
         if stage == self.effects_approval_stage:
             require(self.effects_estimate is None, 'grant-effects:estimate-replay')
             self.effects_estimate = deepcopy(observed['ui']['valid_choice'])
+        if stage in self.effects_approvals.values():
+            require(stage not in self.effects_estimates, 'grant-effects:estimate-replay')
+            if self.plan.screen_tags[stage] == 'ui:overlay-fraction-estimate-refresh':
+                _estimate_read_bounds(observed['ui']['valid_choice'],
+                                      'grant-effects:approval-read-bounds')
+            self.effects_estimates[stage] = deepcopy(observed['ui']['valid_choice'])
+        if stage in self.effects_negative_checks or stage in self.effects_negative_checks.values():
+            require(stage not in self.effects_negative_seen, 'grant-effects:negative-replay')
+            current = observed['ui']['valid_choice']
+            current_start, current_end = _estimate_read_bounds(current)
+            if stage in self.effects_negative_checks:
+                before = self.effects_negative_seen.get(self.effects_negative_checks[stage])
+                require(before is not None, 'grant-effects:negative-missing')
+                require(current['request'] == before['request'], 'grant-effects:negative-choices')
+                old, new = before['estimate'], current['estimate']
+                require(old['kind'] == new['kind'] == 'fixed'
+                        and old['precision_seconds'] == new['precision_seconds'] == 1,
+                        'grant-effects:negative-precision')
+                before_start, before_end = _estimate_read_bounds(before)
+                elapsed = (current_end - before_end) / 1e9
+                minimum = (current_start - before_end) / 1e9
+                maximum = (current_end - before_start) / 1e9
+                requested = current['request']['duration_seconds']
+                # Each estimate can have been calculated anywhere inside its
+                # guest-clock bracket. Include both whole-second precisions,
+                # while keeping the entire uncertainty narrower than one
+                # requested grant: an accidental extra 75 s must remain
+                # distinguishable from ordinary countdown.
+                lower = old['seconds'] - maximum - 2
+                upper = old['seconds'] - minimum + 2
+                require(0 <= minimum <= elapsed <= 120 and minimum <= maximum
+                        and requested == 75 and upper - lower < requested
+                        and lower > requested and new['seconds'] > requested
+                        and lower <= new['seconds'] <= upper,
+                        'grant-effects:negative-added-time')
+                observed.setdefault('comparison', {})['no_additional_grant_with_elapsed_bounds'] = True
+            self.effects_negative_seen[stage] = deepcopy(current)
         if stage not in self.effects_reads:
             return
         require(stage not in self.effects_seen, 'grant-effects:read-replay')
@@ -168,12 +256,25 @@ class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
                 (grant > 0 if mode == 'positive' else grant == 0),
                 'grant-effects:grant-only-balance')
         if mode == 'positive':
-            require(self.effects_estimate is not None, 'grant-effects:missing-approval')
-            estimate = self.effects_estimate
+            estimate = (self.effects_estimates.get(self.effects_approvals[stage])
+                        if stage in self.effects_approvals else self.effects_estimate)
+            require(estimate is not None, 'grant-effects:missing-approval')
             require(estimate['estimate']['kind'] == 'fixed', 'grant-effects:fixed-estimate')
             elapsed = (balances['observed_monotonic_ns'] - estimate['observed_monotonic_ns']) / 1e9
             precision = balances['one_time']['precision_seconds']
             expected = estimate['estimate']['seconds']
+            capture = self.effects_approvals.get(stage, self.effects_approval_stage)
+            if self.plan.screen_tags[capture] == 'ui:overlay-fraction-estimate-refresh':
+                start, end = _estimate_read_bounds(estimate, 'grant-effects:approval-read-bounds')
+                # The refreshed calculation happened inside this guest-clock
+                # bracket, not at the later label read. Parent reloads status
+                # before reading its balance; its final read is a conservative
+                # endpoint for the largest possible countdown. Keep the old
+                # upper bound (approval cannot add more than the estimate).
+                elapsed = (balances['observed_monotonic_ns'] - start) / 1e9
+                require(balances['observed_monotonic_ns'] >= end
+                        and estimate['estimate']['precision_seconds'] == 1,
+                        'grant-effects:approval-read-bounds')
             require(0 <= elapsed <= 600 and expected - elapsed - precision <= grant
                     <= expected + precision, 'grant-effects:elapsed-grant')
         observed.setdefault('comparison', {}).update(
@@ -182,6 +283,7 @@ class GrantAppEffectsJourney(KioskRequestJourney, AccessChoiceJourney):
             **({'positive_grant_with_elapsed_bounds': True} if mode == 'positive' else
                {'zero_grant': True}))
         self.effects_seen[stage] = deepcopy(value)
+        self.balance = deepcopy(balances)
 
 
 class RevocationJourney(KioskRequestJourney):

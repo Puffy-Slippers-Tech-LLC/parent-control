@@ -2480,7 +2480,7 @@ The final reminder/composition/progress and plan/inventory/coverage selection
 passed **970/970** with `--timeout 180s`. It covers the 795 focused checks and
 313 consistency checks, with 138 shared composition checks executed once.
 Four existing kiosk/overlay reminder and dialog-lifetime UI checks also passed
-with the same timeout. The verified [13-file host/UI evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-2fczy01t/evidence.zip),
+with the same timeout. The verified [13-file host/UI evidence bundle](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json),
 SHA-256 `a15fdd82eb7f31b21f9b5636738e46802112c85a0dbace2549d4fe8548ab918b`,
 retains the complete host report directory
 `output/test-runs/host/reports/20261021T224436Z-96f8c07d` and UI report member
@@ -2506,8 +2506,8 @@ Each attempt retained its 1800-second bound and 90-second kiosk observations.
 
 | Target | Retained result | Stages / duration | Retained report |
 | --- | --- | --- | --- |
-| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-adkqdu2j/result.json` | 41 / 270.349s | [Ubuntu attempt](../../output/test-runs/host/reports/20261021T224921Z-a4f3e123/report.md) |
-| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-ksn6ufa2/result.json` | 41 / 291.048s | [Fedora attempt](../../output/test-runs/host/reports/20261021T224921Z-5684bf17/report.md) |
+| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-adkqdu2j/result.json` | 41 / 270.349s | [Ubuntu attempt](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) |
+| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-ksn6ufa2/result.json` | 41 / 291.048s | [Fedora attempt](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) |
 
 Both histories refused Parent as a kiosk About entry, saved Riley's 15-minute
 allowance and independently read daily/grant/total 900/0/900. Passwordless kiosk
@@ -2565,8 +2565,8 @@ Both attempts retained 1800-second bounds and 90-second kiosk observations.
 
 | Target | Retained result | Stages / duration / real pause | Retained report |
 | --- | --- | --- | --- |
-| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-e24y_u2m/result.json` | 43 / 293.434s / 45.077s | [Ubuntu attempt](../../output/test-runs/host/reports/20261021T233800Z-8a3fcd82/report.md) |
-| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-q59jtc7m/result.json` | 43 / 313.807s / 45.068s | [Fedora attempt](../../output/test-runs/host/reports/20261021T233800Z-e86da13c/report.md) |
+| `onpc-Ubuntu26.04` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-e24y_u2m/result.json` | 43 / 293.434s / 45.077s | [Ubuntu attempt](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) |
+| `onpc-Fedora44` | `output/test-runs/privileged/allocations/onpc-graphical-smoke-q59jtc7m/result.json` | 43 / 313.807s / 45.068s | [Fedora attempt](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json) |
 
 Each public history prepared Riley/Jamie, English, daily/grant/total 0/0/0,
 Custom `1.25` Minutes (75 seconds), soft included and a 75-second estimate.
@@ -2600,9 +2600,12 @@ Fedora package/content is
 `29014e5a66b65705d930576501034a166aed485bdd61493220ec3fa4f53c4fdd`.
 Matching snapshots used `--overwrite false`; maintenance stopped before acceptance.
 
-The original Fedora [stopped attempt](../../output/test-runs/host/reports/20261021T230613Z-adda800e/report.md)
+The original Fedora [stopped attempt](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 retains `session:source-changed` at the Parent return guard and supplies no
-acceptance. Strict whole-session equality remains unchanged; private diagnostic
+acceptance. The original report rotated; the verified C04w accepted command log
+retains the exact original `onpc-graphical-smoke-_zc4b12_/private/command-0562-stderr.txt`
+reader output under command `exec-84795c26-e892-49d7-86d3-314fbe62fb31`.
+Strict whole-session equality remains unchanged; private diagnostic
 logging now retains both observations if it recurs. The maintained
 `reproduce-baseline-auth-pause` route separately reached that original guard
 successfully in `onpc-baseline-auth-pause-diagnosis-tyfpbaxn/boundary-observation.json`.
@@ -2615,7 +2618,7 @@ remain mandatory. This renews the affected fixed C04f approval binding on both
 targets; its default 900/975 comparison and other declared bindings are preserved.
 
 Coordinator protection/usability review found no relaxed recipient, freshness,
-ownership or uncertain-input guard. The [2,518-check host report](../../output/test-runs/host/reports/20261021T233548Z-b62d0a34/report.md)
+ownership or uncertain-input guard. The [2,518-check host report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 passed with `--timeout 180s`, covering real waits, stale/replaced proofs,
 input refusal, grant bounds, Perl order, selector preparation, composition,
 diagnostic ownership and cleanup. Collection, worker shutdown, callback closure,
@@ -2632,7 +2635,283 @@ stable accepted-evidence locator. The verified 4,611-file bundle
 retains the original reports, inputs and cleanup. No predecessor claim changed.
 
 The final plan/inventory/coverage/composition selection passed **313/313** with
-`--timeout 180s` in the [close-out report](../../output/test-runs/host/reports/20261021T234557Z-b5392af9/report.md).
+`--timeout 180s` in the [close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
+
+### C04j complete baseline composition
+
+`baseline_journey.PLAN` / `BaselineJourney` and `onpc_baseline_journey::run`
+register the finite [baseline core history](E2E-Scenario-Recipes.md#commands-bounds-and-restoration)
+through `check_e2e_baseline_journey`. Fedora's complete history is qualified;
+Ubuntu renewal remains pending as detailed below. Registration supplies no
+C04, C05 or broader scenario acceptance. Each complete
+target history retains its 1800-second bound, original observation/freshness
+limits and shared worker/collector/restoration envelope.
+
+The caller declares values, order, comparison endpoints and assertions.
+`request_flow.continued_request` supplies only the exact soft-included 75→600
+kiosk and 600→75 overlay transitions. `GrantAppEffectsJourney` owns immutable
+per-approval captures, public zero/positive policy reads, elapsed-bounded
+negative estimates and the public grant-only countdown baseline. Shared request,
+native app, authentication, desktop entry and revocation operations retain their
+ownership, single-use input and independent-result guards.
+
+The first both-target run stopped at `overlay-rejection-flow-preserved`:
+Ubuntu/Fedora reports `20261022T000653Z-83628dd7` /
+`20261022T000653Z-8ec6b747`, root results `onpc-graphical-smoke-qj8ptol0` /
+`onpc-graphical-smoke-ppw1z8pf`. Owned restoration passed. Ubuntu's cached
+491-second label was unchanged across two reads; a later 435-second estimate
+was incorrectly compared as though the old label had just been calculated.
+This establishes an observer defect, not an added grant or a product defect.
+`overlay-fraction-estimate-refresh` now dates calculations through guarded
+equivalent decimal edits and exact unchanged-form readback. The decoder and
+shared negative comparator retain bounded, nonoverlapping guest-clock brackets,
+positive remaining time and uncertainty below the requested 75-second grant.
+Original history and authentication bounds remain unchanged; installed renewal
+is still required.
+
+The second both-target run stopped before input at
+`overlay-rejection-flow-before`: reports `20261022T003734Z-3c6f7896` /
+`20261022T003734Z-3380f9cb`, root results `onpc-graphical-smoke-oc18pcfq` /
+`onpc-graphical-smoke-tm_fo3el`; restoration passed. The new operation had not
+selected the overlay text-recipient context. Ubuntu's retained
+`private/command-1592-stderr.txt` records `ui:kiosk-valid-entry` at that guard.
+The dispatcher now binds only this exact new operation to the existing overlay
+context, preserving fixed child/session/owner checks. The real dispatcher,
+form reader and text-recipient regression covers successful refresh plus
+wrong-owner/wrong-choice refusal before text input. Independent Sol High
+followup review found the runtime correction sound; its test-constant finding
+was corrected. The existing overlay-valid-choice module passed 792/792 and
+composition checks 140/140 in report `20261022T005817Z-48b08a79`.
+
+The third attempt passed both negative overlay effect comparisons and genuine
+overlay approval with the same usable activity, positive countdown and S/H
+results. It stopped at `overlay-policy` before revocation:
+Ubuntu `20261022T010101Z-ab87c56e` / `onpc-graphical-smoke-9g6psljp`, Fedora
+`20261022T010101Z-ace4c4c5` / `onpc-graphical-smoke-emsp8ncc`.
+Each retains 240 passed observations and supplies no complete acceptance.
+`grant-effects:elapsed-grant` rejected the positive Parent read's lower bound;
+the old preapproval read still observes a cached label. Ubuntu showed 94 seconds
+against a calculated lower bound of 95.490807473; Fedora showed 93 against
+95.393153545. Exact inputs remain in each root result and
+`private/command-2031.txt`. Positive-capture freshness and the remaining complete
+history required repair/qualification; no product defect is established.
+Collection was not run after failure. Restoration, stopped workers, closed
+callbacks and final serial cleanup passed; independent status reads found both
+targets off. C04j remains unchecked, with the master pointer unchanged.
+All six original failed-run report allocations and both latest worker-result
+records are retained in the fully verified 38-member
+[cumulative failure-evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-we9xiqdr/evidence.zip).
+Its manifest retains the original 38-member bundle's SHA-256
+`d462ae94d31aabf32101d2c02e4bce0eb4fd40f5768eb8adc2c5b177406d3240`.
+The reports retain complete original result objects, including the latest
+608-input caller maps and all 240 observed steps, after local report rotation.
+
+The positive overlay capture now uses the existing public
+`overlay-fraction-estimate-refresh`. Its immutable 45-second guest-clock bracket
+dates the lower grant bound from the earliest possible calculation; the
+600-second freshness limit, balance precision and previous upper bound remain.
+Cached-read callers retain their existing comparison. Captured Ubuntu/Fedora
+values now have success/refusal regressions for the calculation interval,
+both grant bounds, missing/overlapping/stale brackets and precision drift.
+Initial H/S and restoration use the qualified access-only saves on an unfiltered
+App Limits page, with independent exact match reads; full saved-policy reads
+still check A Allowed/precise and H/S access/rules before any request.
+The final initial-form read also owns its remembered-choice comparison.
+Removing identical rule rewrites and duplicate reads reduces 330 to 265 stages
+without removing any customer result or safety guard.
+Independent Sol High review found no actionable source defect in the arithmetic,
+default-rule authority, guarded access saves or worker/controller composition.
+The final caller/preflight/refusal/decoder/comparison checks passed 513/513;
+worker, callback and lease safety passed 936/936 in
+[the safety report](../../output/test-runs/host/exports/onpc-evidence-bundle-we9xiqdr/evidence.zip),
+both with `--timeout 180s`. No product/backend or packaged inputs changed.
+The fourth complete installed attempt passed the repaired positive comparison,
+revocation, restored time/S restrictions, a distinct fresh challenge and usable
+child/S access with H denied on both targets. It still failed near the unchanged
+1800-second worker limit, before public restoration finished. Ubuntu retained
+264 passed observations through `restore-disabled`; its `restore-saved` exchange
+failed as `command:failed:ssh` after 1808.137 worker seconds. Fedora retained
+254 through `restore-supplied-parent-retained`; `guard_current_worker` refused
+at `e2e:deadline` before acknowledging `final-policy`, after 1832.936 seconds.
+Private worker titles show that input can precede an unacknowledged result;
+neither title supplies a missing passed observation. No product defect is
+established. The complete plan has 265 public stages plus two setup observations.
+All missing final observations and collection remain required; neither partial
+history supplies C04j/C05 acceptance.
+
+Reports `20261022T014335Z-5c8e454c` (Ubuntu) and
+`20261022T014335Z-50175b75` (Fedora), complete result records
+`onpc-graphical-smoke-t1sfhfxp/result.json` and
+`onpc-graphical-smoke-uwkbsti_/result.json`, both before/after worker records,
+the preceding six failures and focused host reports are retained in the verified
+116-member [cumulative evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-we9xiqdr/evidence.zip),
+SHA-256 `a64debebecaad483cc18ee42e73abeb94821afcedf933d02844fdfaefc53c6d4`.
+Both 608-file caller maps match exactly; source SHA-256 is
+`ea60e28a643cd3952fb8bda2cfd253e2fd0a262921e7a328938dae1a0c8aaadd`.
+The original 1800-second limit and every freshness/assertion bound remain.
+Workers stopped and callbacks closed; envelope restoration, completed leases
+and subsequent serial cleanup passed. Independent status reads found both off.
+C04j stays unchecked and the master pointer stays on it.
+Coverage was regenerated from the changed test collection; scenario bindings
+and statuses are unchanged. The final 315 consistency checks passed with
+`--timeout 180s` in retained report `20261022T022111Z-f0ff01e9`, included in that
+bundle. Both read-only plan checks still select C04j.
+
+Timing work remains within this test composition. The retained worker log shows
+successive `restore-parent-desktop`, `restore-supplied-desktop` and
+`restore-supplied-parent-retained` observations costing roughly 15–16 seconds
+each. All four Parent returns compose an independent desktop entry immediately
+followed by the retained-Parent helper's duplicate desktop read. Inspect their
+complete declaration/worker/guard routes for reuse of an already supplied entry,
+and analogous native-app entry reads, before another complete attempt. Preserve
+fresh input guards, independent policy/effect results and owned restoration;
+do not extend the history limit or omit its final checks.
+
+The shared declaration/worker pairs now accept an opt-in omission of the extra
+desktop observation for same-user retained Parent and command-native entry.
+Only this baseline caller selects `desktop_observation=False`; default callers
+and all `AccessibleUI` input/result guards remain unchanged. Four Parent and
+five native observations were duplicates of the operations' own fresh guards.
+The complete history now has 256 public stages plus two setup observations;
+every comparison endpoint and public restoration result remains. Independent
+Sol High review passed with no actionable findings. The actual complete worker
+order/refusal, decoder, independent comparisons and unchanged entry/guard checks
+passed 1,604/1,604 with `--timeout 180s` in
+[the compact-entry host report](../../output/test-runs/host/exports/onpc-evidence-bundle-l6zzpm8g/evidence.zip).
+Worker/cleanup/lease checks passed 190/190 with the same timeout in
+[the compact-entry safety report](../../output/test-runs/host/exports/onpc-evidence-bundle-l6zzpm8g/evidence.zip).
+Their existing private resource classifications remain applicable. Host/source
+review supplies no installed pass.
+
+The fifth both-target attempt used the exact registered command and passed the
+new compact entry bindings on both targets. **Fedora passed the COMPLETE
+history** in report `20261022T023104Z-df1710e5`, result
+`onpc-graphical-smoke-yj65sgsy/result.json`: all 258 observations (256 public
+stages plus setup), every mapped core assertion, public restoration, collection,
+stopped worker, closed callback and completed lease passed. Worker time was
+1781.690265 seconds within the unchanged 1800-second bound; the full envelope
+including restoration took 1814.878 seconds.
+
+**Ubuntu failed a fresh prompt guard**, rather than the history deadline, in
+report `20261022T023104Z-25ed01e0`, result
+`onpc-graphical-smoke-k1qzalw7/result.json`. It retains 255 passed observations
+through `restore-disabled`; `restore-saved`, `restore-settings`, `restore-balance`
+and collection are missing. Worker time was 1676.921515 seconds. Its retained
+`private/command-2170-stderr.txt` records
+`ui:system-prompt-refused:desktop:unknown` during `parent-save-disabled`:
+a visible modal `alert`, source `other`, missing application/surface IDs, no
+password control and no lock marker. The guard released no further input.
+This establishes neither the alert's owner/cause nor a product defect. Diagnose
+that boundary in the actual Parent desktop through maintained maintenance
+reproduction before another formal attempt; do not bypass prompt refusal or
+remove the final restoration assertions.
+
+Both complete 608-file caller maps are identical, with source SHA-256
+`912be2d442cb60abfd21b3edbf9872ffec2cb5df94515374fdd0352f520af2b7`.
+The package source remains `c605f6015816741e7a6054342a4b24dbc4783e540049d5c3eb1a275cfc2e87f5`
+(347 files), artifact revision `9e343f558e598428ed5074a8c2ee9a35e9fe67b1`;
+the per-target package and baseline identities match the separate feature/pause
+records below. The new opt-in desktop binding leaves every earlier caller's
+default declaration and actual guard route unchanged. The twelve original
+feature/pause results, including C04s's command-log-only remembered reentries,
+were re-inspected in the fully verified 4,660-member accepted bundle. Their
+passed assertions, collection, closed workers/callbacks and restoration remain
+applicable; the new complete core result supplies no broader scenario credit.
+
+All prior failures, both latest complete results, recorder events, input
+manifests, worker records, masked worker logs, Ubuntu's exact alert diagnostic and
+the focused host reports are retained in the verified 683-member
+[cumulative qualification bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-l6zzpm8g/evidence.zip),
+SHA-256 `e6dd9e211dc98dd54a829bba77c550f55c9c1db475a5c93d896cae0711a3c0be`.
+Both envelope restorations and final serial cleanup passed; independent status
+reads confirmed both targets off. C04j remains unchecked and the master pointer
+is unchanged. Reuse Fedora's complete pass only after exact applicability review;
+renew each history invalidated by the Ubuntu repair. No developer decision is pending.
+
+The complete result's ordered endpoints map the baseline and C05 obligations:
+
+| Required outcome | Public result stages in each complete history |
+| --- | --- |
+| Parent zero-daily setup and exact A/H/S rules | `allowance-configured`, `saved-settings`, `hard-final-match`, `soft-final-match`, `saved-policy` (including A Allowed/precise) |
+| Passwordless usable kiosk, wrong password, preserved form and zero effects | `kiosk-rejection-open-form`, `kiosk-rejection-flow-preserved`, `kiosk-rejection-form-returned`, `rejection-policy` |
+| Separate password-free Cancel, preserved choices, exit/reentry and zero effects | `kiosk-cancel-open-estimate`, `kiosk-cancel-flow-preserved`, `kiosk-cancel-form-returned`, `cancel-policy`, `zero-child-denied` |
+| Fresh genuine 600-second approval and usable grant-only child | `kiosk-first-approval-*`, `first-countdown`, `allowed-use-submitted`, `soft-use-submitted`, `hard-denied`, `remaining-countdown` |
+| Overlay rejection/Cancel without added time or lost activity | `overlay-rejection-flow-preserved`, `rejection-activity`, `overlay-cancel-flow-preserved`, `cancel-activity` |
+| Genuine overlay approval, usable original activity and soft access with hard denial | `overlay-approval-approval-*`, `approved-activity-submitted`, `overlay-countdown`, `overlay-soft-use-submitted`, `overlay-hard-denied`, `overlay-policy` |
+| Public revoke/Confirm restores time and app restrictions | `revoke-warning`, `revoke-confirm`, `revoked-policy`, `time-denied`, `soft-denied` |
+| Session switching, remembered reentry and distinct successful fresh request | `denied-returned`, `kiosk-final-new-form`, `kiosk-final-approval-*`, `final-countdown`, `final-soft-use-submitted`, `final-hard-denied`, `final-policy`; the decoder rejects reused challenge identities |
+| Public and owned restoration | `restore-hard-access`, `restore-soft-access`, both `restore-*-final-match`, `restore-settings`, `restore-balance`, complete worker/collection/lease cleanup |
+
+The separate feature/pause records below retain their exact language,
+request-choice, reminder, About and 90/45-second assertions. This map supplies
+no passing result until the complete per-target history and collection pass.
+
+Focused host validation retained the real 330-stage Perl order and refusal
+matrix, decoder, independent effects, replay/immutability, composition and
+worker/callback cleanup checks. The corrected baseline module passed 404/404
+before its local report rotated. The current 265-stage caller, refusal matrix,
+calculation-bracket regressions and composition passed 513/513 in
+[the renewed host report](../../output/test-runs/host/exports/onpc-evidence-bundle-we9xiqdr/evidence.zip).
+The other nine selected modules passed 1,652/1,652 in the
+[focused run](../../output/test-runs/host/exports/onpc-evidence-bundle-we9xiqdr/evidence.zip);
+that run's 11 baseline-example failures were corrected and are covered by the
+404-check rerun. Both commands retained `--timeout 180s`. New private unit
+modules were reviewed under the parallelism inventories; no live resource owner
+was added. Test/documentation-only changes do not enter package build inputs.
+The focused run's 13 original report members were exported and fully verified
+before host report rotation; that original bundle's SHA-256 was
+`c58bf98253da010a8847e4f5564b9557fd4009f977c10deb0e11e9efa3d679b5`.
+Those exact members are carried forward in the cumulative bundle above.
+
+The separate C04l/s/r/i/w evidence was inspected in the verified cumulative
+bundle `onpc-evidence-bundle-3cfm8mok`, SHA-256
+`16cb67828a5bd73272ba60d362477b4909742962bbaeb6658a96af7947cf4614`,
+through the [accepted-evidence locator](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
+All 4,660 members verified. Complete original result records carry matching
+603-file caller maps on each target (605 for C04w), ordered passed outcomes,
+collection, stopped workers, closed callbacks, completed leases and restoration.
+C04s's two remembered-reentry results remain as complete original reader outputs
+in its accepted command log, rather than standalone result members. Package,
+baseline, fixture and snapshot-recipe inputs match; the finite new operation
+branches preserve those existing feature and pause routes. Final applicability
+must include the completed composition and any later shared edits.
+
+The retained feature/pause bindings are the following exact original
+`onpc-graphical-smoke-<suffix>/result.json` members (Ubuntu / Fedora):
+
+| Delivered binding | Result suffixes | Required separate outcomes |
+| --- | --- | --- |
+| C04l language/session | `b4qgcoq2` / `rj9z5pqr` | 89 passed stages each; 90.067674 / 90.066818-second chooser pause, same session/window, existing Jordan language Save/Cancel/reentry and unchanged policy |
+| C04s choices | `wb0rin6f` / `7z8dkxi8` | 44 passed stages each; exact existing request choices |
+| C04s remembered reentry | `knv_w5_c` / `4dwpwrvb` | 53 passed stages each; complete original JSON retained in C04s's accepted command log |
+| C04r reminder | `chvpyywr` / `o1fe03il` | 103 passed stages each; existing reminder history |
+| C04i restricted About | `adkqdu2j` / `ksn6ufa2` | 41 passed stages each; restricted station About and normal return |
+| C04w authentication lifetime | `e24y_u2m` / `q59jtc7m` | 43 passed stages each; 45.076618 / 45.068015 seconds, fresh same challenge and public positive grant |
+
+All share package-source SHA-256
+`c605f6015816741e7a6054342a4b24dbc4783e540049d5c3eb1a275cfc2e87f5`
+and artifact revision `9e343f558e598428ed5074a8c2ee9a35e9fe67b1`.
+All 347 package input hashes and 17 unique auxiliary input files match the current
+candidate. Snapshot recipe SHA-256 is
+`59584a5c20d6c6dc9af94f5ff7ad21fa4f3ece60864f4aef7a81a81860c1cae2`.
+Complete embedded caller maps, per-binding assets and provider identities remain
+inspectable in those records. The new refresh operation is opt-in; earlier
+operations, default compositions and their guards are unchanged. Independent
+Sol High review found no actionable freshness, input, interval or reuse defect.
+Review supplies no installed acceptance. Seven further rotated report links above
+now resolve to the verified locator: C04i retains its exact complete result
+members; the two C04w host reports retain their original report members.
+The two C04w installed reports also retain their original report members.
+
+Ordinary-route handoff: the first attempt observed normal child desktop command
+entry, native A/S use, H execution denial and normal Switch User/GDM paths.
+Those permitted customer actions do not establish protection against alternate
+graphical-session entry from the request station. D01/D02 retain that review and
+its later installed proof. Standalone terminal/TTY, SSH and other deliberate
+non-desktop routes remain C06a/C06 work; neither an absent service nor this
+baseline claims their protection. No deliberate-breach history was added here.
+C04 and the selected C05 consumers still verify their own complete matching
+evidence and external acceptance gates.
 
 ### Kiosk, child overlay and the shared request form
 

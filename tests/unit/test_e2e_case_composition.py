@@ -40,12 +40,12 @@ WORKER_APIS = {
                     'named_management', 'language_presentation_roundtrip', 'language_save',
                     'dialog_visit', 'dialog_close', 'dialog_use'},
     'onpc_request_exit': {'enter_station', 'escape'},
-    'onpc_desktop_session': {'switch_user', 'lock', 'observe_lock', 'enter_desktop'},
+    'onpc_desktop_session': {'switch_user', 'lock', 'observe_lock', 'reveal_lock', 'enter_desktop'},
     'onpc_window': {'close'},
     'onpc_about': {'open_about', 'read_help', 'open_from_help', 'open_license', 'close_information',
                    'check_link', 'return_to_parent', 'overlay_license'},
     'onpc_documentation': {'read'},
-    'onpc_request_flow': {'prepare', 'reject', 'approve', 'obtain_time', 'overlay_entry', 'overlay_to_kiosk', 'kiosk_to_overlay', 'prepare_transfer_allowances', 'daily_station_entry', 'shell_cancel', 'shell_approve', 'shell_reject', 'overlay_approve', 'overlay_reject', 'prepare_chinese', 'approve_chinese'},
+    'onpc_request_flow': {'prepare', 'continued_request', 'reject', 'approve', 'obtain_time', 'overlay_entry', 'overlay_to_kiosk', 'kiosk_to_overlay', 'prepare_transfer_allowances', 'daily_station_entry', 'shell_cancel', 'shell_approve', 'shell_reject', 'overlay_approve', 'overlay_reject', 'prepare_chinese', 'approve_chinese'},
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
     'onpc_customer_reboot': {'chinese_desktop_renewal', 'chinese_initial_notice', 'chinese_initial_form',
@@ -80,6 +80,10 @@ def test_overlay_valid_choices_only_composes_shared_apis():
     assert not composition_errors((ROOT / 'tests/e2e/overlay_approved_exit.py').read_text(), CASE_MODULES)
     assert not composition_errors((ROOT / 'tests/e2e/overlay_rejection.py').read_text(), CASE_MODULES)
     assert not composition_errors((ROOT / 'tests/e2e/overlay_license.py').read_text(), CASE_MODULES)
+
+
+def test_complete_baseline_only_composes_shared_apis():
+    assert not composition_errors((ROOT / 'tests/e2e/baseline_journey.py').read_text(), CASE_MODULES)
 
 
 def test_retained_qualifiers_share_comparisons_without_recipe_inheritance():
@@ -363,6 +367,11 @@ def worker_errors(source):
                    for owner in re.findall(r'\b(\w+)->new\s*\(', code))
             or bool(re.search(r'\bexchange\s*=>\s*sub\b', code))
             or '`' in source)
+
+
+def test_complete_baseline_worker_only_composes_shared_operations():
+    source = (ROOT / 'tests/integration/graphical_smoke/lib/onpc_baseline_journey.pm').read_text()
+    assert not worker_errors(source)
 
 
 @pytest.mark.parametrize('source', [

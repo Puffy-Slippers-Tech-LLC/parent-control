@@ -457,7 +457,7 @@ def test_parent_desktop_identity_is_read_only_and_refuses_wrong_entry(monkeypatc
 @pytest.mark.parametrize('operation', ['retained-parent-read', 'retained-parent-leave'])
 @pytest.mark.parametrize('fault', ['', 'child', 'replaced', 'absent'])
 def test_retained_parent_adapter_never_repairs_selection_and_reads_screen_limits(operation, fault):
-    from accessible_ui import AccessibleUI, CHILD, CHILD_IDENTITIES
+    from accessible_ui import AccessibleUI, CHILD, CHILD_IDENTITIES, PARENT
     ui = AccessibleUI.__new__(AccessibleUI)
     window = {'binding': 'parent', 'pid': 100, 'endpoint': [':1.10', '/window'], 'available': True}
     ui.desktop_result = Mock()
@@ -480,6 +480,7 @@ def test_retained_parent_adapter_never_repairs_selection_and_reads_screen_limits
     if fault in ('child', 'absent'):
         ui.parent_page.assert_not_called()
         ui.set_value.assert_not_called()
+    ui.desktop_result.assert_called_once_with(PARENT, 'success')
 
 
 def test_retained_parent_absence_refuses_without_launch():

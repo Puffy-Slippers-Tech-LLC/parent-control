@@ -567,6 +567,9 @@ class RequestObservation:
                 and (type(observation.duration_seconds) is int or (
                     invalid is not None and observation.duration_seconds is None))
                 and (observation.custom_text is None or observation.custom_text == '1.25'
+                     or operation in ('kiosk-long-included-duration-select',
+                         'overlay-long-approver-select', 'overlay-long-request-read')
+                     and observation.custom_text == '10'
                      or operation in accessible_ui.KIOSK_VALID_REQUESTS
                      and operation.startswith('kiosk-long-request-') and observation.custom_text == '10'
                      or operation in accessible_ui.TRANSFER_REQUESTS and observation.custom_text == '2.5'
@@ -1093,12 +1096,14 @@ class UiObservations:
                 shell_index = getattr(self, 'shell_approval_index', 0)
                 if operation == 'overlay-shell-open' and getattr(self, 'shell_cancel_active', False):
                     require(getattr(self, 'shell_dismissed', False)
-                            and previous_operation == 'overlay-valid-fraction-soft-read',
+                            and previous_operation in ('overlay-valid-fraction-soft-read',
+                                                       'overlay-fraction-estimate-refresh'),
                             'ui:shell-retry-entry')
                     self.shell_cancel_active = False
                 if (operation == 'overlay-shell-open'
                         and getattr(self, 'shell_dismissed', False)
-                        and previous_operation == 'overlay-valid-fraction-soft-read'
+                        and previous_operation in ('overlay-valid-fraction-soft-read',
+                                                   'overlay-fraction-estimate-refresh')
                         and (shell_index == 0 or getattr(self, 'shell_rejection', False)
                              and shell_index == len(accessible_ui.SHELL_REJECTION_ORDER))):
                     # A deliberate retry starts only after independently proved
@@ -1135,9 +1140,11 @@ class UiObservations:
                     index = getattr(self, 'mate_approval_index', 0)
                     # A successful rejection ends its challenge. Only a subsequent,
                     # independently read form permits a deliberately new approval.
-                    if (index == 4 and self.mate_rejection
-                            and operation == 'kiosk-mate-open'
-                            and previous_operation == 'kiosk-valid-fraction-soft-read'):
+                    if (index == 4 and (
+                            operation == 'kiosk-mate-open'
+                            and previous_operation == 'kiosk-valid-fraction-soft-read'
+                            or operation == 'kiosk-long-mate-open'
+                            and previous_operation == 'kiosk-long-request-soft-read')):
                         index = 0
                     if index == 0:
                         self.mate_rejection = operation == accessible_ui.MATE_REJECTION_ORDER[0]
@@ -2457,9 +2464,19 @@ class UiObservations:
         if operation in valid_requests:
             require(type(result) is dict and set(result) == {*expected, 'valid_choice'}, 'ui:response')
             value = result['valid_choice']
-            require(type(value) is dict and set(value) == {'request', 'estimate', 'observed_monotonic_ns'}
+            fresh = operation == 'overlay-fraction-estimate-refresh'
+            require(type(value) is dict and set(value) == {
+                    'request', 'estimate', 'observed_monotonic_ns',
+                    *({'estimate_read_bounds'} if fresh else set())}
                     and type(value['observed_monotonic_ns']) is int
                     and value['observed_monotonic_ns'] > 0, 'ui:kiosk-valid-response')
+            if fresh:
+                bounds = value['estimate_read_bounds']
+                require(type(bounds) is list and len(bounds) == 2
+                        and all(type(endpoint) is int for endpoint in bounds)
+                        and 0 < bounds[0] <= bounds[1] == value['observed_monotonic_ns']
+                        and bounds[1] - bounds[0] <= 45_000_000_000,
+                        'ui:overlay-refresh-bounds')
             RequestObservation.from_request(value['request'], operation=operation)
             estimate = value['estimate']
             if valid_requests[operation][0] == 0:
@@ -2471,6 +2488,8 @@ class UiObservations:
                 require(estimate == {'kind': 'fixed', **accessible_ui.duration_projection(estimate['text'],
                     **({'language': 'zh-Hans'} if operation in accessible_ui.CHINESE_VALID_REQUESTS else {}))},
                         'ui:kiosk-valid-response')
+                if fresh:
+                    require(estimate['precision_seconds'] == 1, 'ui:overlay-refresh-precision')
             expected['valid_choice'] = value
         if (operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS

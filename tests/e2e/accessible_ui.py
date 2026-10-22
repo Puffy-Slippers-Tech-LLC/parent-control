@@ -871,6 +871,7 @@ KIOSK_VALID_REQUESTS['kiosk-diagnostic-retry-estimate'] = (75, '1.25', True)
 KIOSK_VALID_REQUESTS.update({f'kiosk-long-request-{choice}-{action}': (600, '10', soft)
     for choice, soft in (('duration', False), ('soft', True))
     for action in ('select', 'read')})
+KIOSK_VALID_REQUESTS['kiosk-long-included-duration-select'] = (600, '10', True)
 KIOSK_VALID_OPERATIONS = frozenset(KIOSK_VALID_REQUESTS) | {'kiosk-valid-custom-open'}
 CHINESE_VALID_BINDINGS = {
     'chinese-' + suffix: 'kiosk-valid-' + suffix for suffix in
@@ -885,6 +886,9 @@ OVERLAY_VALID_REQUESTS = {
 OVERLAY_VALID_REQUESTS['overlay-valid-approver-select'] = (1800, None, False)
 OVERLAY_VALID_REQUESTS['overlay-valid-approver-read'] = (1800, None, False)
 OVERLAY_VALID_REQUESTS['overlay-flow-approver-select'] = (75, '1.25', True)
+OVERLAY_VALID_REQUESTS['overlay-long-approver-select'] = (600, '10', True)
+OVERLAY_VALID_REQUESTS['overlay-long-request-read'] = (600, '10', True)
+OVERLAY_VALID_REQUESTS['overlay-fraction-estimate-refresh'] = (75, '1.25', True)
 OVERLAY_VALID_REQUESTS['overlay-valid-fraction-excluded-select'] = (75, '1.25', False)
 OVERLAY_VALID_REQUESTS['overlay-valid-fraction-excluded-read'] = (75, '1.25', False)
 OVERLAY_VALID_OPERATIONS = frozenset(OVERLAY_VALID_REQUESTS) | {
@@ -10102,6 +10106,14 @@ class AccessibleUI:
             return None
         seconds, custom, soft = (CHINESE_VALID_REQUESTS if chinese else
                                 OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation]
+        if operation in ('kiosk-long-included-duration-select', 'overlay-long-approver-select'):
+            before = self.kiosk_request_form(enabled=True,
+                expected_selection=None if overlay else ('child', 'fixture-child'),
+                duration_seconds=600 if overlay else 75,
+                custom_text='10' if overlay else '1.25', overlay=overlay)
+            require(before['child'] == 'fixture-child' and before['allow_soft'] is True
+                    and (overlay or before['approver'] == 'fixture-parent'),
+                    'ui:request-continuation-state')
         if operation == 'kiosk-diagnostic-retry-estimate':
             # A native-agent failure leaves the ordinary form at Request
             # denied. Refresh only that exact retained scene through its public
@@ -10124,7 +10136,32 @@ class AccessibleUI:
             value = self._kiosk_valid_choice('kiosk-valid-fraction-soft-read')
             require(value['request'] == before, 'ui:kiosk-retry-final')
             return value
-        if operation in ('overlay-valid-approver-select', 'overlay-flow-approver-select'):
+        if operation == 'overlay-fraction-estimate-refresh':
+            # Reading a cached label does not date its calculation. Equivalent
+            # decimal edits invoke the public changed handler, invalidate any
+            # old response, and leave the complete requested choices intact.
+            before = self.kiosk_request_form(enabled=True,
+                expected_selection=('approver', 'fixture-parent'),
+                duration_seconds=seconds, custom_text=custom, overlay=True)
+            require(before['child'] == 'fixture-child' and before['allow_soft'] is True,
+                    'ui:overlay-refresh-choice')
+            start = time.monotonic_ns()
+            self.set_text('kiosk-custom-duration', '1.250')
+            intermediate = self.kiosk_request_form(enabled=True,
+                expected_selection=('approver', 'fixture-parent'),
+                duration_seconds=seconds, custom_text='1.250', overlay=True)
+            require(intermediate == {**before, 'custom_text': '1.250'},
+                    'ui:overlay-refresh-intermediate')
+            self.set_text('kiosk-custom-duration', custom)
+            value = self._kiosk_valid_choice('overlay-valid-fraction-soft-read')
+            require(value['request'] == before, 'ui:overlay-refresh-final')
+            end = time.monotonic_ns()
+            require(0 < start <= end and end - start <= 45_000_000_000,
+                    'ui:overlay-refresh-bounds')
+            return {**value, 'observed_monotonic_ns': end,
+                    'estimate_read_bounds': [start, end]}
+        if operation in ('overlay-valid-approver-select', 'overlay-flow-approver-select',
+                         'overlay-long-approver-select'):
             self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
                 duration_seconds=seconds, custom_text=custom, overlay=True)
         elif operation == 'kiosk-restored-accounts-select':
@@ -10135,7 +10172,7 @@ class AccessibleUI:
                 duration_seconds=seconds, custom_text=custom)
             self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
                 duration_seconds=seconds, custom_text=custom)
-        elif operation == 'kiosk-long-request-duration-select':
+        elif operation in ('kiosk-long-request-duration-select', 'kiosk-long-included-duration-select'):
             self._invoke_target(self.kiosk_valid_target('kiosk-duration-custom'))
             self.invalidate_observation()
             self.wait(lambda: self.kiosk_valid_target('kiosk-custom-duration', awaiting_custom=True),
@@ -12584,7 +12621,8 @@ class AccessibleUI:
 
     def _run(self, operation, version, *, child=CHILD):
         require(operation in OPERATIONS, 'ui:operation')
-        self.text_overlay = operation.startswith('text-overlay-')
+        self.text_overlay = (operation.startswith('text-overlay-')
+                             or operation == 'overlay-fraction-estimate-refresh')
         if self.text_overlay:
             self.require_child_overlay_session()
         self.prompt_enabled = operation not in GREETER_OPERATIONS and operation not in STATION_BRANCH_OPERATIONS

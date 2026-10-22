@@ -143,15 +143,17 @@ def overlay_license_read(prefix='', *, links='license'):
         ('form-returned', 'overlay-valid-fraction-soft-read'))}
 
 
-def native_usable_app(route, *, child='other-child', role=None):
+def native_usable_app(route, *, child='other-child', role=None, desktop_observation=True):
     """FLOW08 finite native usable scope; caller owns stages and later activity."""
     require(route in ('command', 'grid'), 'journey:native-route')
+    require(type(desktop_observation) is bool and (desktop_observation or route == 'command'),
+            'journey:native-desktop-binding')
     require(child in ('parent', 'child', 'other-child') and
             (child != 'parent' or route == 'command'), 'journey:native-child-binding')
     require(role is None or role in ('A', 'S') and child == 'child' and route == 'command',
             'journey:native-role-binding')
     stages = {
-        'desktop': 'ui:native-desktop',
+        **({'desktop': 'ui:native-desktop'} if desktop_observation else {}),
         **({'command': 'ui:native-command-launch'} if route == 'command' else {
             'search-ready': 'ui:native-search-ready',
             'search-focused': 'ui:native-search-focused',
@@ -168,14 +170,14 @@ def native_usable_app(route, *, child='other-child', role=None):
             for stage, tag in stages.items()}
 
 
-def native_activity_entry(prefix, *, route='command', child='child'):
+def native_activity_entry(prefix, *, route='command', child='child', desktop_observation=True):
     """FLOW08 + APP04 capture; caller owns transition and comparison endpoints."""
     import re
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'journey:native-activity-prefix')
     return {**{f'{prefix}-{stage}': tag.replace('native-command-launch', 'native-activity-launch')
                for stage, tag in
-               native_usable_app(route, child=child).items()},
+               native_usable_app(route, child=child, desktop_observation=desktop_observation).items()},
             f'{prefix}-capture': 'ui:' + {'child': 'overlay-native-',
                 'parent': 'parent-native-', 'other-child': 'native-'}[child] + 'activity'}
 
@@ -371,15 +373,17 @@ def retained_app_activities(users):
     return screens
 
 
-def retained_parent_entry(*, source='desktop'):
+def retained_parent_entry(*, source='desktop', desktop_observation=True):
     """FLOW01 retained window read without launch or child reselection."""
     require(source in ('desktop', 'child-desktop', 'same-user'), 'retained-parent:source')
+    require(type(desktop_observation) is bool and (desktop_observation or source == 'same-user'),
+            'retained-parent:desktop-binding')
     return {
         **({'source-desktop': 'ui:fresh-child-desktop' if source == 'child-desktop' else 'ui:standard-desktop',
             'source-switch': 'system:child-switch-user' if source == 'child-desktop' else 'system:standard-switch-user',
             'source-greeter': 'ui:gdm-returned',
             **fresh_desktop('parent')} if source != 'same-user' else
-           {'desktop': 'ui:desktop'}),
+           {'desktop': 'ui:desktop'} if desktop_observation else {}),
         'parent-retained': 'ui:retained-parent-read',
     }
 
@@ -437,7 +441,8 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
     require(form_operation in ('overlay-request-form', 'overlay-valid-excluded-read',
                                'overlay-valid-fraction-soft-read', 'overlay-language-initial',
-                               'overlay-language-form-de', 'language-history-overlay-he-casey'),
+                               'overlay-language-form-de', 'language-history-overlay-he-casey',
+                               'overlay-long-approver-select'),
             'journey:overlay-form-binding')
     return {
         **({prefix + '-reveal': 'ui:overlay-panel-reveal-ready'} if route == 'panel-reopen' else {}),

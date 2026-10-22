@@ -130,7 +130,8 @@ sub overlay_reject {
     onpc_progress::operation('Rejecting or cancelling the overlay and comparing the preserved form');
     my ($journey, $outcome) = @_;
     die 'overlay-flow:outcome' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && ($journey->{prefix} // '') eq 'overlay-approval-flow'
+        && (($journey->{prefix} // '') eq 'overlay-approval-flow'
+            || ($journey->{prefix} // '') eq 'baseline-journey-overlay-' . ($outcome // ''))
         && defined($outcome) && ($outcome eq 'rejection' || $outcome eq 'cancel');
     die 'overlay-flow:replay' if $journey->{shell_flow_started} || $journey->{invocation_failed};
     $journey->{shell_flow_started} = 1;
@@ -179,7 +180,9 @@ sub shell_approve {
     $exit //= 'automatic';
     die 'shell-approve:binding' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
         && (($journey->{prefix} // '') eq 'overlay-approved-exit'
-            || ($journey->{prefix} // '') eq 'overlay-approval-flow')
+            || ($journey->{prefix} // '') eq 'overlay-approval-flow'
+            || ($journey->{prefix} // '') eq 'baseline-journey-overlay-approval'
+                && $exit eq 'immediate')
         && ($exit eq 'automatic' || $exit eq 'immediate');
     die 'shell-approve:replay' if $journey->{shell_approval_started} || $journey->{invocation_failed};
     $journey->{shell_approval_started} = 1;
@@ -191,7 +194,8 @@ sub shell_approve {
         my $result = $journey->seen('approval-success', sub {
             my ($proof) = @_;
             die 'shell-approve:input-proof' unless !$submitted && ref($proof) eq 'HASH'
-                && keys(%$proof) == 6 && ($proof->{stage} // '') eq 'approval-success'
+                && keys(%$proof) == 6 && ($proof->{stage} // '') eq
+                    ($journey->{stage_prefix} // '') . 'approval-success'
                 && ($proof->{binding} // '') eq 'overlay-approve'
                 && ($proof->{child} // '') eq 'child'
                 && ($proof->{source} // '') =~ /\A[0-9a-f]{64}\z/
@@ -461,6 +465,26 @@ sub prepare {
     for my $suffix ('duration-read', 'apps', 'estimate') {
         my $stage = "$prefix-$suffix";
         $journey->consume_observation($stage, $journey->seen($stage));
+    }
+}
+
+# The caller supplies the open form and immutable preceding choice state.
+# These two finite transitions preserve soft-app inclusion while changing only
+# the declared duration, using the same public operations as other requests.
+sub continued_request {
+    onpc_progress::operation('Preparing the next request from its observed saved choices');
+    my ($journey, $surface, $initial_seconds, $seconds) = @_;
+    die 'request-flow:continued-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
+        && (($surface eq 'kiosk' && $initial_seconds eq '75' && $seconds eq '600')
+            || ($surface eq 'overlay' && $initial_seconds eq '600' && $seconds eq '75'));
+    if ($surface eq 'kiosk') {
+        $journey->consume_observation($_, $journey->seen($_))
+            for qw(new-form new-child new-approver new-duration new-estimate);
+    } else {
+        $journey->consume_observation($_, $journey->seen($_))
+            for qw(open-selections open-duration);
+        onpc_text::replace_text($journey, 'overlay-fraction', 'open-text');
+        $journey->consume_observation('open-estimate', $journey->seen('open-estimate'));
     }
 }
 

@@ -135,10 +135,11 @@ class JourneyPlan:
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
                     and self.screen_tags[binding[0]] in (
                         'ui:kiosk-valid-fraction-soft-read', 'ui:overlay-valid-fraction-soft-read',
-                        'ui:kiosk-long-request-soft-read')
+                        'ui:kiosk-long-request-soft-read', 'ui:overlay-fraction-estimate-refresh')
                     and (type(binding[1]) is int and 0 < binding[1] < 86400
                          or binding[1] == 'estimate'
-                         and self.screen_tags[binding[0]] == 'ui:overlay-valid-fraction-soft-read')
+                         and self.screen_tags[binding[0]] in (
+                             'ui:overlay-valid-fraction-soft-read', 'ui:overlay-fraction-estimate-refresh'))
                     and type(binding[2]) is int and 1 <= binding[2] <= 60
                     and type(binding[3]) is int and 0 < binding[3] <= 300
                     for stage, binding in self.countdown_checks.items()),
@@ -148,10 +149,11 @@ class JourneyPlan:
                     and all(type(value) is str and value for value in binding)
                     for stage, binding in self.request_checks.items()),
                 self.prefix + ':request-plan')
-        from accessible_ui import TRANSFER_REQUESTS
+        from accessible_ui import TRANSFER_REQUESTS, KIOSK_VALID_REQUESTS, OVERLAY_VALID_REQUESTS
+        transfer_reads = {**TRANSFER_REQUESTS, **KIOSK_VALID_REQUESTS, **OVERLAY_VALID_REQUESTS}
         require(all(stage in stages and before in stages and stages.index(before) < stages.index(stage)
-                    and self.screen_tags[stage][3:] in TRANSFER_REQUESTS
-                    and self.screen_tags[before][3:] in TRANSFER_REQUESTS
+                    and self.screen_tags[stage][3:] in transfer_reads
+                    and self.screen_tags[before][3:] in transfer_reads
                     for stage, before in self.request_transfer_checks.items()), self.prefix + ':transfer-plan')
         from accessible_ui import NAMED_CUSTOM_CHILDREN, NAMED_CHILD_OPERATIONS
         require(all(stage in self.screen_tags and child in NAMED_CUSTOM_CHILDREN and

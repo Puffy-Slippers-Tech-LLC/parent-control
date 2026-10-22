@@ -1,5 +1,12 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+e2e_baseline_journey uses pytest-private records, in-memory UI/transport/clock
+doubles and bounded waited Perl children. It owns no VM, display, bus, socket,
+external service, shared cache or fixture build. Its small CPU/I/O load permits
+compatible unit overlap; cleanup and UI inventories gain no resource owner.
+e2e_estimate_freshness uses only private records and in-memory clock/transport
+doubles, with the same compatible unit ownership.
+
 compatible_native_fixtures compiles a finite set of small native identities synchronously
 inside module-private pytest disk scratch, then renders rules in memory. It
 owns no GUI/runtime packaging, display, bus, VM, shared cache or background
@@ -1131,7 +1138,7 @@ e2e_installation_observations e2e_inventory e2e_keyring_fixture_cleanup_safety
 e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_feedback_confinement e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
 e2e_license_viewer
 e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_native_grid_usable e2e_native_app e2e_app_activity
-e2e_baseline_app_bindings e2e_baseline_app_effects e2e_baseline_auth_pause e2e_long_request_binding
+e2e_baseline_app_bindings e2e_baseline_app_effects e2e_baseline_auth_pause e2e_baseline_journey e2e_estimate_freshness e2e_long_request_binding
 compatible_native_fixtures
 e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner

@@ -202,20 +202,26 @@ def test_confirmed_revocation_requires_exact_zero_and_unchanged_saved_rules(tmp_
         assert result['comparison']['zero_grant'] and result['comparison']['unchanged_saved_policy']
 
 
-def test_real_recorder_constructor_owns_fixture_actions_and_finite_worker(tmp_path):
+@pytest.mark.parametrize('complete', [False, True])
+def test_real_recorder_constructor_owns_fixture_actions_and_finite_worker(tmp_path, complete):
+    if complete:
+        from baseline_journey import BaselineJourney, PLAN
+    else:
+        BaselineJourney, PLAN = effects.BaselineAppEffectsJourney, effects.PLAN
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
         verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock())
     context.recorder = recorder = MagicMock(assertion=Mock())
     def worker(**options):
         active = options['guarded_observe'].__self__
-        assert type(active) is effects.BaselineAppEffectsJourney and active.plan is effects.PLAN
-        assert set(active.actions) == {'native-refuse', 'native-verify'}
+        assert type(active) is BaselineJourney and active.plan is PLAN
+        assert set(active.actions) == ({'native-verify'} if complete else {'native-refuse', 'native-verify'})
         assert options['authenticate'] is True and options['timeout'] == 1800
         raise EvidenceError('synthetic-stop')
     context.run_worker = Mock(side_effect=worker)
     with pytest.raises(EvidenceError, match='synthetic-stop'):
-        record_installed_journey(recorder, context, effects.PLAN,
-            actions=effects.fixture_actions(), journey_type=effects.BaselineAppEffectsJourney, timeout=1800)
+        record_installed_journey(recorder, context, PLAN,
+            actions=effects.fixture_actions(include_refusal=not complete),
+            journey_type=BaselineJourney, timeout=1800)
     context.run_worker.assert_called_once()
     recorder.assertion.assert_not_called()
 
@@ -227,24 +233,28 @@ def test_registration_and_required_public_operations():
             assert tag[3:] in accessible_ui.OPERATIONS and tag[3:] in OPERATION_LABELS, stage
 
 
-def test_qualifier_selects_package_and_fixture_source_identity(monkeypatch):
+@pytest.mark.parametrize('mode', ['baseline_app_effects', 'baseline_journey'])
+def test_qualifier_selects_package_and_fixture_source_identity(monkeypatch, mode):
     from tools import test_storage
+    import test_commands
     assets = object()
     named = Mock(return_value=assets)
     execute = Mock(return_value=0)
     monkeypatch.setattr(test_storage, 'named_input', named)
     monkeypatch.setattr(smoke, 'main', execute)
     with pytest.raises(SystemExit) as stopped:
-        runpy.run_path(str(ROOT / 'tests/integration/check_e2e_baseline_app_effects.py'),
+        runpy.run_path(str(ROOT / ('tests/integration/check_e2e_' + mode + '.py')),
                        run_name='__main__')
     assert stopped.value.code == 0
     named.assert_called_once_with(package_source=True, fixture_source=True)
-    execute.assert_called_once_with(assets=assets, provision_credentials=True,
-                                    baseline_app_effects=True)
+    execute.assert_called_once_with(assets=assets, provision_credentials=True, **{mode: True})
+    assert test_commands.qualification_input_options(ROOT, 'check_e2e_' + mode) == {
+        'package_source': True, 'fixture_source': True}
 
 
 @pytest.mark.parametrize('fault', ['', 'setup-detached'])
-def test_real_dispatch_preloads_helper_before_loader_search_path_is_removed(fault):
+@pytest.mark.parametrize('mode', ['baseline_app_effects', 'baseline_journey'])
+def test_real_dispatch_preloads_helper_before_loader_search_path_is_removed(fault, mode):
     source = (ROOT / 'tests/integration/graphical_smoke/tests/smoke.pm').read_text()
     program = r'''
 use strict; use warnings; use JSON::PP;
@@ -277,6 +287,7 @@ my $ok = eval { local @INC = (); DispatchProbe::run(); 1; };
 print encode_json({ok => $ok ? 1 : 0, error => "$@", events => \@events});
 '''
     literal = "'" + json.dumps(source).replace('\\', '\\\\').replace("'", "\\'") + "'"
+    program = program.replace('baseline_app_effects', mode)
     result = json.loads(run_perl(program.replace('SOURCE_JSON', literal), fault).stdout)
     expected = [['stage', 'ready'], ['console', 'sut'], ['disabled'], ['stage', 'setup-detached']]
     if not fault:
@@ -290,3 +301,125 @@ print encode_json({ok => $ok ? 1 : 0, error => "$@", events => \@events});
 def test_dispatcher_refuses_invalid_selection_before_resource_discovery(kwargs):
     with pytest.raises(CommandError, match='baseline-app-effects-prerequisites'):
         smoke.main(**kwargs)
+
+
+@pytest.mark.parametrize('kwargs', [dict(baseline_journey=True),
+    dict(baseline_journey=True, assets='synthetic', provision_credentials=True, kiosk_entry=True),
+    dict(baseline_journey=True, assets='synthetic', provision_credentials=True, baseline_app_effects=True),
+    dict(baseline_journey=True, assets='synthetic', provision_credentials=True, baseline_auth_pause=True)])
+def test_complete_dispatch_refuses_invalid_selection_before_resource_discovery(kwargs):
+    with pytest.raises(CommandError, match='baseline-journey-prerequisites'):
+        smoke.main(**kwargs)
+
+
+def test_complete_qualification_reuses_snapshot_collector_and_worker_envelope(monkeypatch, tmp_path):
+    from baseline_journey import BaselineJourney
+    from parent_setup_qualification import BaselineJourneyQualification, ParentJourneyQualification
+    assert issubclass(BaselineJourneyQualification, KioskEntryQualification)
+    assert BaselineJourneyQualification.execute is ParentJourneyQualification.execute
+    context = SimpleNamespace(directory=tmp_path)
+    active = BaselineJourneyQualification.journey(context, Mock())
+    assert type(active) is BaselineJourney and context.installed_snapshot
+
+
+@pytest.mark.parametrize('fault', ['', 'entry-launch', 'entry-form'])
+def test_scoped_invocations_keep_parent_order_and_original_receipts(fault):
+    program = r'''
+use strict; use warnings; use JSON::PP qw(encode_json);
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi; sub record_info {}
+package main;
+use onpc_journey;
+my $fault = shift @ARGV; my @events;
+my $root = onpc_journey->new(prefix => 'scope-check', review => 0, exchange => sub {
+    push @events, $_[0]; die 'refused' if $_[0] eq $fault; return {observed => $_[0]};
+});
+$root->declare_invocations(['entry-launch', 'entry-form', 'after']);
+my $section = $root->scope('entry');
+my $ok = eval {
+    for my $stage ('launch', 'form') {
+        my $reply = $section->invoke($stage);
+        die 'receipt-renamed' unless $reply->{observed} eq 'entry-' . $stage;
+        $section->consume_observation($stage, $reply);
+    }
+    $root->invoke('after'); 1;
+};
+my $replay = eval { $section->invoke('launch'); 1; };
+print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0, events => \@events,
+    parent_failed => $root->{invocation_failed} ? 1 : 0,
+    scope_failed => $section->{invocation_failed} ? 1 : 0});
+'''
+    result = json.loads(run_perl(program, fault).stdout)
+    assert bool(result['ok']) == (not fault)
+    assert result['events'] == (['entry-launch'] if fault == 'entry-launch' else
+                                ['entry-launch', 'entry-form'] if fault else
+                                ['entry-launch', 'entry-form', 'after'])
+    assert not result['replay'] and result['parent_failed'] and result['scope_failed']
+
+
+@pytest.mark.parametrize('scope,kind', [
+    ('kiosk-rejection', 'wrong'), ('kiosk-first', 'long-request'),
+    ('kiosk-final', 'long-request'), ('overlay-rejection', 'wrong'),
+    ('overlay-approval', 'correct')])
+@pytest.mark.parametrize('fault', ['', 'prefix', 'scope', 'first', 'second', 'receipt'])
+def test_baseline_native_challenges_accept_only_exact_scope_and_two_fresh_receipts(scope, kind, fault):
+    program = r'''
+use strict; use warnings; use JSON::PP qw(encode_json);
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+our $typed = 0;
+sub record_info {} sub current_console { 'sut' } sub get_var { '1' }
+sub get_required_var { 'synthetic-private-fixture-secret' } sub type_password { $typed++ }
+package main;
+use onpc_journey; use onpc_password;
+my ($scope, $kind, $fault) = @ARGV; my @events;
+my $root = onpc_journey->new(prefix => 'baseline-journey', review => 0, exchange => sub {
+    push @events, $_[0];
+    die 'refused' if $fault eq 'first' || $fault eq 'second' && @events == 2;
+    return {observed => $fault eq 'receipt' ? 'stale' : $_[0]};
+});
+my $section = $root->scope($scope);
+$section->{prefix} .= '-unsupported' if $fault eq 'prefix';
+$section->{stage_prefix} = 'wrong-' if $fault eq 'scope';
+my $enter = sub {
+    if ($scope =~ /^kiosk-/) { onpc_password::enter_kiosk_mate_password($section, $kind); }
+    elsif ($kind eq 'wrong') { onpc_password::enter_overlay_shell_password($section, 'wrong', 'rejection'); }
+    else { onpc_password::enter_overlay_shell_password($section); }
+};
+my $ok = eval { $enter->(); 1; };
+my $replay = eval { $enter->(); 1; };
+print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0,
+    events => \@events, typed => $testapi::typed});
+'''
+    result = json.loads(run_perl(program, scope, kind, fault).stdout)
+    assert bool(result['ok']) == (not fault)
+    assert result['typed'] == (0 if fault else 1) and not result['replay']
+    binding = 'rejection' if kind == 'wrong' else 'approval'
+    expected = [scope + '-' + binding + '-' + check for check in ('qualified', 'rechecked')]
+    assert result['events'] == ([] if fault in ('prefix', 'scope') else
+                                expected[:1] if fault in ('first', 'receipt') else expected)
+
+
+@pytest.mark.parametrize('surface,before,after', [
+    ('kiosk', '75', '600'), ('overlay', '600', '75'),
+    ('kiosk', '600', '75'), ('overlay', '75', '600'), ('unknown', '75', '600')])
+def test_continued_request_uses_only_the_two_declared_public_transitions(surface, before, after):
+    program = r'''
+use strict; use warnings; use JSON::PP qw(encode_json);
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi; sub record_info {} sub send_key { die 'native-input' }
+package main;
+use onpc_journey; use onpc_request_flow;
+my @events; my $journey = onpc_journey->new(prefix => 'continued', review => 0,
+    exchange => sub { push @events, $_[0]; return {observed => $_[0]}; });
+my $ok = eval { onpc_request_flow::continued_request($journey, @ARGV); 1; };
+print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
+'''
+    result = json.loads(run_perl(program, surface, before, after).stdout)
+    expected = (['new-form', 'new-child', 'new-approver', 'new-duration', 'new-estimate']
+                if (surface, before, after) == ('kiosk', '75', '600') else
+                ['open-selections', 'open-duration', 'open-text-focus', 'open-text-selected',
+                 'open-text-read', 'open-estimate']
+                if (surface, before, after) == ('overlay', '600', '75') else [])
+    assert bool(result['ok']) == bool(expected), result['error']
+    assert result['events'] == expected

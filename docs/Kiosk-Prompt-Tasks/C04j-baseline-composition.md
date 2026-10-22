@@ -69,3 +69,31 @@ Finish collection, workers,
 callbacks, leases and owned baseline restoration. Update inventory/coverage only
 if their sources change. Close only C04j; C05 rows stay unchecked until their own
 applicability review and installed-evidence acceptance pass.
+
+## Remaining qualification
+
+The compact 256-stage composition passed 1,604 focused host checks, 190 safety
+checks and independent Sol High review. It omits only nine duplicate desktop
+observations through opt-in shared bindings; defaults, fresh input guards,
+independent results and the 1800-second worker limit remain unchanged.
+
+Fedora's COMPLETE history passed all 258 observations including setup, every
+core assertion, public restoration, collection and cleanup. Its worker took
+1781.690 seconds; the full envelope took 1814.878 seconds. Ubuntu retained 255
+observations through `restore-disabled`, then failed at `restore-saved` after
+1676.922 worker seconds. The exact error log is
+`onpc-graphical-smoke-k1qzalw7/private/command-2170-stderr.txt`: the fresh prompt
+guard refused an unknown, visible modal alert without an application/surface ID.
+This was not the history deadline. No product defect or alert owner is established.
+
+Use the [current catalogue record](../TestAutomation/E2E-Building-Blocks.md#c04j-complete-baseline-composition)
+and its verified 683-member cumulative bundle for complete results, the alert
+diagnostic, callers, review, host checks and cleanup. Both targets are restored
+and independently confirmed off; workers/callbacks closed and serial cleanup
+completed. No developer decision is pending. Diagnose the Ubuntu alert in the
+actual Parent desktop through bounded maintained maintenance reproduction before
+another formal attempt. Preserve the unknown-prompt refusal and all final save,
+settings and balance assertions. Renew Ubuntu's COMPLETE history after repair;
+reuse Fedora's pass only if its exact candidate/caller/provider scope remains
+valid. Shared changes require both-target applicability review and renewal of
+invalidated histories. Keep this row unchecked and the pointer on C04j.

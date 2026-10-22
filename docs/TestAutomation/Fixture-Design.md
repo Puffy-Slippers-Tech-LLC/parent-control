@@ -2,8 +2,9 @@
 
 Status: **partially implemented**: producer lifetime, immutable host construction,
 execution-owned reuse, the shared SSH provisioner, Ubuntu/Fedora clean snapshot
-boundaries and Ubuntu provisioning qualification are delivered. Fedora
-provisioning qualification, runner migration and live refresh remain proposed.
+boundaries, both-target provisioning qualification and both-target product-free
+and installed-system preparation are delivered. The remaining five runner
+envelopes and live refresh remain proposed.
 The [execution plan](Fixture-Execution-Plan.md) delivers this design. Current
 VM, storage and preparation rules remain effective until their owning tasks
 deliver and document a replacement.
@@ -89,9 +90,10 @@ and avatar identity; renaming a leaked source tree does not make capture clean.
 Use [artifact_inputs.py](../../tools/artifact_inputs.py),
 [package_inputs.py](../../tools/package_inputs.py) and
 [test_storage.named_input](../../tools/test_storage.py) as the source of current
-identity/declaration behavior. Today named inputs include package sources even
-for fixture consumers, and the complete artifact builder invokes fixtures from
-the live checkout. F02/F03 separate those inputs and freeze fixture sources.
+identity/declaration behavior. F02/F03 delivered a separate frozen
+`NATIVE_RUNTIME_SOURCES` closure and execution-owned native-runtime input.
+Legacy complete artifact and package inputs retain their own provenance;
+do not infer their identity or lifetime from the movable-runtime selection.
 
 Keep the literal Boolean declarations used by
 `test_commands.qualification_input_options` consistent with actual dispatch.
@@ -104,7 +106,7 @@ older nonempty input after a failure.
 F02 delivered the [frozen host bundle contract](../../tests/support/README.md#frozen-native-fixture-bundles)
 and validated fixture build/verify routes. It constructs the complete finite
 runtime union once per target; selection, reuse and guest handoff remain with
-the subsequent tasks below.
+F03/F15 and the target/envelope qualification tasks below.
 
 F02 builds from a frozen source closure with the existing fixture builders and
 host-side target build environments. Record source and builder/toolchain inputs,
@@ -128,11 +130,14 @@ fixture invalidation separate, including genuinely shared product sources.
 
 ### Execution ownership and retention
 
-F03 extends existing named-input/artifact preparation. Each execution owns its
+F03 delivered execution-owned preparation. Each execution owns its
 registered immutable fixture input through its existing retention journal.
-Capture/select it before VM acquisition; hold it until descendants and owned VM
-cleanup finish. Reuse only a verified matching input whose existing journal
-already supplies ownership. Never transfer deletion ownership or let two journals
+Capture/select it before lifecycle-lease acquisition or guest restoration; this
+does not move host work ahead of an enclosing
+[central VM checkout](../Mandates/VM-Mandate.MD#central-vm-checkout), which precedes
+checkout-local activity and controller locks. Hold the input until descendants
+and owned VM cleanup finish. Reuse only a verified matching input whose existing
+journal already supplies ownership. Never transfer deletion ownership or let two journals
 claim one allocation. Independent executions may make independent bounded copies;
 cross-execution deduplication is not a prerequisite.
 
@@ -152,8 +157,9 @@ silent replacement. Source edits during an attempt cannot change its selection.
 ## Owned SSH provisioning and readiness
 
 F15 delivered one shared [provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning)
-for every runner and maintenance caller. Dispatch remains unavailable until the
-later target qualification and runner migration tasks pass.
+for runner and maintenance integration. Both targets' provisioning qualification,
+product-free system/bootstrap and installed-system branches are delivered;
+other dispatch remains unavailable until its target/envelope task passes.
 It runs only under the existing exclusive VM lease and guarded, watched SSH.
 First provision happens after restoration/transport readiness and before any
 fixture launch or scenario input.
@@ -176,8 +182,10 @@ A transfer/placement/native activation failure or uncertain reply makes the
 attempt unusable. Release no scenario input, preserve diagnostics and let the
 existing VM owner restore its recorded snapshot. Do not resume an uncertain
 per-file transaction, claim atomic rollback, or retry an uncertain signal/exec.
-Next attempt restores clean state and provisions afresh. Host regressions inject
-failures at each boundary and prove cleanup ownership.
+Next attempt restores clean state and provisions afresh. Focused host regressions
+protect distinct failure, uncertain-input and cleanup-ownership guarantees under
+the [test-scope mandate](../Mandates/Test-Scope-Mandate.md); ordinary consumers
+reuse those guards without repeating their complete negative matrix.
 
 Fresh attempts start from fixture-free snapshots. Changing subsets uses another
 clean attempt; no arbitrary larger-to-smaller guest contraction is needed.
@@ -240,22 +248,22 @@ target checks. This plan supplies fixture infrastructure acceptance only.
 F09 delivered Ubuntu's [product-free system preparation](../../tests/integration/README.md#ubuntu-product-free-system-preparation),
 including the three Parent bootstrap aliases. Its registered
 `check_fixture_system_product_free` selector qualifies the real product-free
-attempt on Ubuntu. F10 extends that boundary and the three aliases to
+attempt on Ubuntu. F10 delivered that boundary and the three aliases on
 [Fedora 44](../../tests/integration/README.md#fedora-product-free-system-preparation),
 including enforcing SELinux and exact native policy/label readback.
 All other matrix entries retain their separate gates.
 
-F16 adds Ubuntu's [installed-system preparation](../../tests/integration/README.md#ubuntu-installed-system-preparation)
+F16 delivered Ubuntu's [installed-system preparation](../../tests/integration/README.md#ubuntu-installed-system-preparation)
 through explicit offline app restoration, fresh bootstrap and the same hard-only
 readiness boundary. Its `check_fixture_system_installed` selector exercises the
-real installed branch before system input. F17 extends that boundary to
+real installed branch before system input. F17 delivered that boundary on
 [Fedora 44](../../tests/integration/README.md#fedora-installed-system-preparation),
 including enforcing SELinux, exact labels/native policy and read-only readiness
 renewal after a system reboot. Other matrix entries retain their own gates.
 
 ### Runner acceptance matrix
 
-| Envelope | Actual preparation boundary | Planned selector suffix / subset | Ubuntu / Fedora tasks |
+| Envelope | Actual preparation boundary | Selector suffix / subset (status below) | Ubuntu / Fedora tasks |
 | --- | --- | --- | --- |
 | Product-free system | `system_snapshots._run_attempts(installed=False)`, `system_runner.installed_run(already_installed=False)`; also the three Parent setup bootstrap aliases | `system_product_free` / trusted-native hard only | F09 / F10 |
 | Installed system | `_run_attempts(installed=True)` and `Suite.prepare_case`; qualify explicit offline app restore, rather than assuming the online default | `system_installed` / trusted-native hard only | F16 / F17 |
@@ -265,8 +273,10 @@ renewal after a system reboot. Other matrix entries retain their own gates.
 | Standalone serial | Serial `Smoke`, `check_graphical_serial`, authenticated install/refusal aliases; retain credential/getty preboot lifetime | `serial` / native | F25 / F26 |
 | Recorded serial | `controller_qualification.E2E_CASES['gdm-observation']` through `serial_harness.record_serial_journey` / `execution.ScenarioContext` and recorder | `recorded_serial` / native | F27 / F28 |
 
-Selectors are planned `check_fixture_SUFFIX` names, not executable until
-registered/listed. Each invokes the real preparation branch, reads selected bytes
+`check_fixture_system_product_free` and `check_fixture_system_installed` are
+registered and qualified on both targets. The remaining matrix selectors are
+planned `check_fixture_SUFFIX` names, not executable until registered/listed.
+Each invokes the real preparation branch, reads selected bytes
 independently, uses a harmless fixture over owned SSH and cleans up before product
 or worker input. Prove missing/incompatible refusal, a fresh attempt/boot record
 and an unchanged input despite host edits. Product-free branches preserve product
@@ -347,14 +357,15 @@ new catalogue-ID, cache inspect/prune or quiesce option.
 
 `check_fixture_snapshots` is registered and qualified for Ubuntu and Fedora; use
 `tools/run-tests integration --list` for bindings. `check_fixture_provisioning`
-is registered and qualified for Ubuntu's fresh owned attempts. F53 delivered its
-native backend environment prerequisite through the
+is registered and qualified for both targets' fresh owned attempts. F53 delivered
+Ubuntu's native backend environment prerequisite through the
 [clean snapshot owner](../../tests/integration/Environment.md#ubuntu-clean-snapshots);
-F05 delivered installed provisioning acceptance through the
+F05/F06 delivered both-target installed provisioning acceptance through the
 [shared provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning).
-The seven matrix selectors and `check_fixture_live_refresh` remain **planned
-and unimplemented** until their own registration/listing; examples in briefs
-grant no operation. Ordinary runner dispatch remains unavailable.
+The two system matrix selectors are delivered on both targets. The remaining
+five matrix selectors and `check_fixture_live_refresh` remain **planned and
+unimplemented** until their own registration/listing; examples in briefs grant
+no operation. Other runner dispatch remains unavailable.
 
 ## Acceptance and ownership handoff
 
@@ -368,5 +379,8 @@ refresh are independently qualified on both canonical targets.
 Update enduring rules in their existing storage, support, VM, approval,
 environment and runner owners as delivery happens. F13 independently reviews
 the final candidate and exact evidence; it cannot replace missing target checks.
+Apply the master's [mandate routes](Fixture-Execution-Plan.md#applicable-mandates)
+to every remaining integration and review. Preserve valid proof for unchanged
+exact bindings; renew only acceptance invalidated by changed inputs or contracts.
 No customer journey, product behavior, pending fixture capability or E2E queue
 task receives completion credit from this migration.

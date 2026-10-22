@@ -987,6 +987,15 @@ def dispatcher_vm(monkeypatch):
     return name
 
 
+@pytest.fixture
+def retention_vm(tmp_path, monkeypatch):
+    """Keep controller checkout locks away from the host VM coordinator."""
+    import vm_pool
+    monkeypatch.setattr(vm_pool, 'RUNTIME', tmp_path / 'pool')
+    monkeypatch.delenv(vm_pool.VARIABLE, raising=False)
+    return 'f95890e1-88e7-4779-8ae3-53fdcc34330a'
+
+
 @pytest.mark.parametrize('status', [0, 1])
 @pytest.mark.parametrize('selected', ['check_test_recovery', 'check_retained_runs_cleanup'])
 def test_unattended_recovery_does_not_launch_tests(tmp_path, monkeypatch, capsys, status, dispatcher_vm, selected):
@@ -1297,22 +1306,24 @@ def test_explicit_discard_retries_partial_deletion_and_uses_latest_registration(
 
 
 @pytest.mark.parametrize('failed', [False, True])
-def test_discard_keeps_vm_and_compatibility_leases_through_removal(tmp_path, monkeypatch, failed):
+def test_discard_keeps_vm_and_compatibility_leases_through_removal(tmp_path, monkeypatch, failed, retention_vm):
     import prepare_baseline as baseline
+    import vm_pool
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     directory = tmp_path / 'named-vm'
     directory.mkdir(mode=0o700)
     monkeypatch.setattr(baseline, 'BASELINES', directory)
     monkeypatch.setattr(baseline.guest_contract.vm_config, 'STATE_ROOT', tmp_path)
-    (directory / 'phase.json').write_text(json.dumps({
-        'phase': 'finalized', 'source': {'layout': {'uuid': str(uuid.uuid4())}}}))
+    (directory / 'phase.json').write_text(json.dumps(
+        dict(phase='finalized', source=dict(layout=dict(uuid=retention_vm)))))
     (directory / 'phase.json').chmod(0o600)
     store = retention.Store(tmp_path / 'state')
     with store.session():
         evidence = allocated(tmp_path, 'evidence')
+    locks = (directory / '.lock', tmp_path / '.lock', vm_pool.RUNTIME / (retention_vm + '.lock'))
     def guarded(paths):
-        for path in (directory / '.lock', tmp_path / '.lock'):
+        for path in locks:
             with path.open('rb') as lock:
                 with pytest.raises(BlockingIOError):
                     fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -1324,7 +1335,7 @@ def test_discard_keeps_vm_and_compatibility_leases_through_removal(tmp_path, mon
     except ValueError as error:
         assert failed and str(error) == 'guard refused'
     assert evidence.exists() == failed
-    for path in (directory / '.lock', tmp_path / '.lock'):
+    for path in locks:
         with path.open('rb') as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
@@ -2633,13 +2644,12 @@ def test_shell_review_copies_rotate_with_their_aggregate(tmp_path):
 
 
 @pytest.mark.parametrize('phase', ['complete', 'running', 'cleanup-requested'])
-def test_privileged_guard_reads_the_shared_recovery_journal(tmp_path, monkeypatch, phase):
+def test_privileged_guard_reads_the_shared_recovery_journal(tmp_path, monkeypatch, phase, retention_vm):
     import prepare_baseline as baseline
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     monkeypatch.setattr(baseline, 'BASELINES', tmp_path)
-    finalized = json.dumps({'phase': 'finalized',
-                            'source': {'layout': {'uuid': str(uuid.uuid4())}}})
+    finalized = json.dumps(dict(phase='finalized', source=dict(layout=dict(uuid=retention_vm))))
     for name, content in (('.lock', ''), ('phase.json', finalized),
                           ('system-run.json', json.dumps({'phase': phase}))):
         path = tmp_path / name
@@ -2652,16 +2662,16 @@ def test_privileged_guard_reads_the_shared_recovery_journal(tmp_path, monkeypatc
             dispatcher['retention_guard'](root)
 
 
-def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch):
+def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch, retention_vm):
     import prepare_baseline as baseline
+    import vm_pool
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     directory = tmp_path / 'named-vm'
     directory.mkdir(mode=0o700)
     monkeypatch.setattr(baseline, 'BASELINES', directory)
     monkeypatch.setattr(baseline.guest_contract.vm_config, 'STATE_ROOT', tmp_path)
-    finalized = json.dumps({'phase': 'finalized',
-                            'source': {'layout': {'uuid': str(uuid.uuid4())}}})
+    finalized = json.dumps(dict(phase='finalized', source=dict(layout=dict(uuid=retention_vm))))
     for name, content in (('phase.json', finalized),
                           ('system-run.json', '{"phase":"complete"}')):
         path = directory / name
@@ -2674,22 +2684,26 @@ def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch
     dispatcher['retention_guard'](root)
     vm_lock_path = directory / '.lock'
     assert vm_lock_path.is_file()
-    for busy_path in (vm_lock_path, lock_path):
-        started = Event()
-        def guarded():
-            started.set()
+    pool_lock_path = vm_pool.RUNTIME / (retention_vm + '.lock')
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        for busy_path in (vm_lock_path, lock_path, pool_lock_path):
+            reached = Event()
+            name = 'compatibility_lock' if busy_path == lock_path else 'open_controller_lock'
+            acquire = getattr(baseline, name)
+            def observed(*args, **kwargs):
+                reached.set()
+                return acquire(*args, **kwargs)
+            with monkeypatch.context() as patch:
+                patch.setattr(baseline, name, observed)
+                with busy_path.open('rb') as lock:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    pending = worker.submit(dispatcher['retention_guard'], root)
+                    assert reached.wait(5)
+                    # The maintained lease queues until its owner checks in.
+                    with pytest.raises(TimeoutError):
+                        pending.result(timeout=0.1)
+                pending.result(timeout=5)
             dispatcher['retention_guard'](root)
-        with ThreadPoolExecutor(max_workers=1) as worker, busy_path.open('rb') as lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            pending = worker.submit(guarded)
-            try:
-                assert started.wait(timeout=5)
-                with pytest.raises(TimeoutError):
-                    pending.result(timeout=0.1)
-            finally:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
-                assert pending.result(timeout=5) is None
-        dispatcher['retention_guard'](root)
 
     # A newer controller for another VM shares the compatibility lease and
     # owns only its own exclusive lease, so it must not block this VM.
@@ -2702,8 +2716,8 @@ def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch
         fcntl.flock(other.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         dispatcher['retention_guard'](root)
 
-    # Completed guard calls must release every descriptor they acquired.
-    for released_path in (vm_lock_path, lock_path):
+    # Success and refusal must both release every descriptor they acquired.
+    for released_path in (vm_lock_path, lock_path, pool_lock_path):
         with released_path.open('rb') as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     dispatcher['retention_guard'](root)

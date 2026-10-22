@@ -4,6 +4,9 @@ Acceptance: installed
 Targets: onpc-Fedora44
 Requires: F07
 
+Apply the master's [mandate routes](../Fixture-Execution-Plan.md#applicable-mandates)
+and [close-out contract](../Fixture-Execution-Plan.md#close-out) throughout this task.
+
 ## Scope and implementation
 
 Qualify F07's [idle maintenance refresh](../Fixture-Design.md#live-refresh-and-recorded-attempts)

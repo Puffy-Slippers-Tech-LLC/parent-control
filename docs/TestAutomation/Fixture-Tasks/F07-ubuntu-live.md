@@ -4,6 +4,9 @@ Acceptance: installed
 Targets: onpc-Ubuntu26.04
 Requires: F28
 
+Apply the master's [mandate routes](../Fixture-Execution-Plan.md#applicable-mandates)
+and [close-out contract](../Fixture-Execution-Plan.md#close-out) throughout this task.
+
 ## Scope and implementation
 
 Add explicit [idle maintenance refresh](../Fixture-Design.md#live-refresh-and-recorded-attempts)

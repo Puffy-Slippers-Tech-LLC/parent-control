@@ -3,6 +3,9 @@
 Acceptance: review
 Requires: F08
 
+Apply the master's [mandate routes](../Fixture-Execution-Plan.md#applicable-mandates)
+and [close-out contract](../Fixture-Execution-Plan.md#close-out) throughout this task.
+
 ## Scope and review
 
 Independently review the final [design](../Fixture-Design.md) implementation and
@@ -18,12 +21,23 @@ no new cache/pin service, native acknowledgement protocol, supervisor or duplica
 case installer. Keep scenario checkpoints/assertions and pending capabilities
 outside this migration.
 
+Review the test-scope mandate's proportional coverage, VM checkout/lock order,
+intent-before-action and viewer independence, and sealed evidence/recording
+handoffs at their shared owners. Preserve the UI mandate's product API, fixture
+public IDs and recipient guards without adding tool UI or visual acceptance.
+Core product backend changes still require their separate per-change Astra
+xHigh review under AGENTS.md; this Sol infrastructure audit cannot replace it.
+
 ## Acceptance and close-out
 
-Require final-candidate evidence and owned cleanup from both targets for clean
-captures, provisioning, all seven real preparation envelopes and idle same-boot
+Require evidence valid for the final candidate and owned cleanup from both
+targets for clean captures, provisioning, all seven real preparation envelopes and idle same-boot
 refresh. Host failure/interruption/identity tests remain required; review cannot
-substitute for missing or invalidated target proof. Insert a bounded prerequisite
+substitute for missing or invalidated target proof. Reuse valid retained results
+for unchanged exact bindings; renew affected histories when inputs or contracts
+invalidate them. Resolve the master's recorded F17 command/host evidence gap
+through the shared historical-evidence route, without inferring that proof from
+the separate installed results. Insert a bounded prerequisite
 for missing work, resolve actionable findings and renew affected checks.
 
 Check Markdown links, plan structure and affected metadata/launcher regressions.

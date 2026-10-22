@@ -108,7 +108,29 @@ Read the selected brief, relevant design section and complete affected call chai
 Current [approval](../Approval-Tools.md),
 [VM](../Mandates/VM-Mandate.MD) and
 [storage](../Mandates/Test-Storage-Mandate.md) rules apply until their delivered
-owners change. This plan needs no product UI or new provider qualification.
+owners change. Fixture preparation acceptance needs no product UI or new
+provider qualification; changes to a consuming UI route retain its own mandate
+and scoped qualification requirements.
+
+### Applicable mandates
+
+Every unfinished brief follows these owners; its finite acceptance adds no
+exception to them:
+
+| Owner | Application to this migration |
+| --- | --- |
+| [Test scope](../Mandates/Test-Scope-Mandate.md) | Protect core selection, integrity, ownership, recording and recovery guarantees directly. Reuse focused safety coverage; add no fixture-tool UI tests or recursive helper matrices. |
+| [UI automation](../Mandates/UI-Automation-Mandate.MD#route-selection) | Keep preparation and harmless runtime witnesses on guarded SSH. Preserve Application UI API product operations, fixture public IDs, qualified provider bindings and fresh recipient/uncertain-input guards in consumers. Watch images supply observation, not visual acceptance. |
+| [VM operations](../Mandates/VM-Mandate.MD#central-vm-checkout) | Reserve the selected UUID through the central pool before checkout-local activity/controller locks; nested stages borrow that reservation. Select immutable inputs before acquiring the lifecycle lease or restoring a guest. Retain the reservation through diagnosis and owned cleanup. |
+| [VM observation and preparation](../Mandates/VM-Mandate.MD#vm-observation-mandate) | Use shared watch intent before actions, guarded transport and viewer-independent observation. Keep reusable dependencies in baseline preparation and movable payloads attempt-owned under the clean-capture boundary. |
+| [Storage](../Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes) | Use the existing producer, execution-input, scratch and retention owners. Forward inherited descriptors. Required proof/recordings must follow [sealed handoffs](../../tests/README.md#sealed-producer-handoffs) before source retirement; a latest-only replacement is insufficient. |
+
+Use [ordinary delegation](../Execution-Plans.md#execution-and-delegation) for
+infrastructure work. If a task crosses into core product backend code, apply
+[AGENTS.md](../../AGENTS.md#product-boundaries), including its independent Astra
+xHigh review before completion; F13's final infrastructure review does not
+replace that per-change requirement. Missing grants or an incompatible installed
+helper remain blockers under the approval owner, never permission to bypass it.
 
 F02/F03 deliver verified execution-owned host inputs. F15 provides one fail-closed
 SSH provisioner. F11/F12 establish clean target snapshots; F05/F06 qualify
@@ -129,7 +151,17 @@ Publish exact inputs, command/results and cleanup through ordinary-plan evidence
 Update the operational owner only for delivered behavior. Review resource changes
 under [host parallelism](../../tests/README.md#host-test-parallelism-review).
 Check changed Markdown with `tools/read-only links`, this plan with `--check`
-and affected metadata/launcher regressions. Run `make build` after edits affecting
+and the [host consistency selection](E2E-Execution-Contracts.md#completion-and-document-cleanup).
+Run affected metadata/launcher regressions at the lowest effective scope under
+the test-scope mandate. Run `make build` after edits affecting
 package/build inputs; authoring this plan alone needs no build or VM.
 Only accepted execution checks a row, advances the pointer and removes its brief.
 The separate [E2E plan](E2E-Execution-Plan.md) remains unchanged.
+
+F17's queue link labelled “Command evidence, 3,641 affected host checks, 41
+recovery checks and 321 final checks passed” currently points to an unavailable
+bundle. Its separate installed-results bundle remains readable. Preserve the
+completed row and claims; repair the destination only after verifying equivalent
+retained command/host/cleanup proof under the
+[historical evidence contract](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
+This reconciliation supplies none of that missing proof.

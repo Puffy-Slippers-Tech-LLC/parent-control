@@ -9,7 +9,7 @@ No product acceptance or live VM work belongs to this queue.
 | --- | --- | --- | --- | --- | --- |
 | [x] | E01 | [Audit history, producers and retirement paths](Export-Design.md#e01-source-and-history-audit) | Baseline | Verify historical fixes and map finite producer, consumer, retirement and controller-dependency inventories to delivery and regressions | Reviewed 2026-10-21: all 15 histories; producer/consumer, retirement and controller maps with reuse anchors and P01–P12 planned histories. Source cross-check findings resolved; 321 metadata/adapter checks passed ([report](../../output/test-runs/host/plans/643d1e71b404620c98e268576999c6fd3cf8a728c1c844f648f480b1ff2dfb3c/accepted-evidence.json)); links and plan check passed. Helpers finished; no temporary resources remain. |
 | [x] | E01a | [Design identity, capture and lifetime protocols](Export-Design.md#e01a-protocol-proposal) | E01 | Propose concrete versioned schemas, exact helper/reference interfaces, authenticated handoff, lock/budget/recovery and compatibility protocols | Reviewed 2026-10-21: concrete schemas/selectors, sealed capture/ack, all retirement gates, bounded capacity, selective reads and compatibility; three bounded source/correction reviews passed ([findings](Export-Design.md#e01a-review-record)). All 736 metadata/contract checks passed ([report](../../output/test-runs/host/plans/643d1e71b404620c98e268576999c6fd3cf8a728c1c844f648f480b1ff2dfb3c/accepted-evidence.json)); links and plan check passed. Helpers finished; no temporary resources remain. E01b freeze remains required. |
-| [ ] | E01b | [Independently review and freeze delivery](Export-Tasks/E01b-freeze.md) | E01a | Freeze historical failure inventory, all producer/consumer dispositions, interfaces, schemas and independent design review | 45–60 min |
+| [x] | E01b | [Independently review and freeze delivery](Export-Design.md#e01b-delivery-freeze) | E01a | Freeze historical failure inventory, all producer/consumer dispositions, interfaces, schemas and independent design review | Reviewed 2026-10-21: independent Sol xHigh approval; wire/custody/activation/link findings resolved ([review](Export-Design.md#e01b-independent-review-record)). All inventories, versions and estimates frozen; six protected future insertion blocks and 15 host briefs retained. All 759 metadata/guard checks passed ([report](../../output/test-runs/host/plans/643d1e71b404620c98e268576999c6fd3cf8a728c1c844f648f480b1ff2dfb3c/accepted-evidence.json)); links and plan check passed. Helpers finished; owned cleanup complete. Runtime rows remain pending. |
 | [ ] | E02 | [Resolve stable evidence identities](Export-Tasks/E02-identities.md) | E01b | Exact task/check/attempt/target/input/member identities and verified references independent of physical report paths | 45–60 min |
 | [ ] | E03 | [Capture evidence before rotation](Export-Tasks/E03-capture.md) | E02 | Bounded owner-authorized capture of finalized records during active executions with durable interruption recovery | 60–90 min provisional |
 | [ ] | E04 | [Preserve referenced proof within budgets](Export-Tasks/E04-lifetime.md) | E03 | Separate working and accepted lifetimes, preflight capacity, safe publication/compaction and reference-aware retirement | 60–90 min provisional |
@@ -29,11 +29,12 @@ No product acceptance or live VM work belongs to this queue.
 | [ ] | E14a | [Independently review final delivery](Export-Tasks/E14a-review.md) | E14 | Independent final source/evidence review against frozen history, interfaces, producer/consumer coverage and safety regressions | 45–60 min |
 
 Estimates include reading, delivery, applicable regressions and cleanup; they do
-not shorten safety acceptance or change session allowances. E01b must review all
-ranges, including its own review and E14/E14a, and resolve every provisional
-allocation (E03, E04, E07 and E14) before runtime work. The wider ranges cover
-indivisible recovery histories; E01b must freeze concrete prerequisite allocations
-for independent work under its protected-insertion contract. Split independently
-deliverable mechanisms and producer/launcher families before their consumer under the
+not shorten safety acceptance or change session allowances. E01b's
+[frozen allocation](Export-Design.md#frozen-delivery-allocation) resolves all ranges,
+including its review and E14/E14a. Future Estimate cells retain their protected
+earlier planning text; provisional labels there grant no unresolved allocation
+choice. Six consumer briefs hold exact reviewed prerequisite blocks and revised
+ranges, including indivisible recovery reasons. Their selected consumers insert
+independently deliverable mechanisms and producer/launcher families under the
 [shared prerequisite route](../Execution-Plans.md#execution-and-delegation);
 do not weaken acceptance or shift product work into this queue.

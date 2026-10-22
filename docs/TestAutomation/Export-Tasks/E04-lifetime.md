@@ -53,3 +53,38 @@ Assert exact retained bytes, no dangling required references, total budget
 accounting and nondeletion of foreign/replaced resources. Run applicable retention,
 storage, bundle and plan-evidence cleanup-safety selections before protected
 operations. Update their existing owners and follow the master's close-out.
+
+## Frozen prerequisite insertion
+
+E01b allocation: 210–285 min total, with 45–60 min for this consumer's cross-route
+composition and original acceptance. Custody's 60–75 min and retirement's
+60–90 min ranges retain indivisible whole-set prepare/permit/removal/recovery
+and the shared nonnested lock protocol. Splitting individual deletion calls
+would leave alternate retirement routes unguarded. Collection replacement is
+independently deliverable and retains its own full crash/capacity checks.
+
+When E04 is selected, before implementation insert exactly this contiguous block
+immediately before E04, using the existing finite briefs:
+
+Brief navigation: [E04p-custody](E04p-custody.md), [E04p-collections](E04p-collections.md), [E04p-retirement](E04p-retirement.md).
+The literal rows below use queue-relative destinations; copy them unchanged.
+
+```markdown
+| Done | ID | Task | Requires | Scope | Estimate |
+| --- | --- | --- | --- | --- | --- |
+| [ ] | E04p-custody | [Implement dependency and retirement custody](Export-Tasks/E04p-custody.md) | E03 | Implement authoritative consumer custody, reservations and whole-set retirement permit/recovery without lock inversion | 60–75 min |
+| [ ] | E04p-collections | [Implement bounded collection replacement](Export-Tasks/E04p-collections.md) | E04p-custody | Deliver bounded segmented collection replacement and compaction with simultaneous physical and metadata capacity accounting | 45–60 min |
+| [ ] | E04p-retirement | [Gate every existing retirement route](Export-Tasks/E04p-retirement.md) | E04p-collections | Apply dependency and verified replacement gates to every frozen retirement route while preserving existing authority and disposable cleanup | 60–90 min |
+```
+
+Exact E04 Requires before: `E03`; after: `E03, E04p-retirement`.
+At insertion update this brief's top-level Requires to that same after field.
+New briefs declare `Acceptance: host`, no Targets. Keep every original E04
+assertion and Scope, including both privileged startup calls, failed/stale ack
+and disposable oversized controls; prerequisite passes alone cannot close E04.
+Use the [shared insertion route](../../Execution-Plans.md#execution-and-delegation)
+and [frozen guards](../Export-Design.md#frozen-insertion-guard-review).
+Preserve other queue rows, finish owned cleanup, point to E04p-custody and return
+`prerequisite_required` or valid `continue` with exact unfinished consumer work.
+Do not adopt checkpoints or execute prerequisites during insertion. On resumption
+compose the complete capture-to-retirement history and all inherited assertions.

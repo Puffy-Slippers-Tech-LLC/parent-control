@@ -311,8 +311,13 @@ Extend the existing ZIP format, not its compression/extraction policy. Bundle
 manifest schema `2` has exactly the v1 keys `schema`, `files`, `inherited`,
 `source_budgets` plus `records` and `member_map`. Physical `files` keep v1
 provenance and generated `files/NNNNNNNN` names. `records` contains the logical
-records above; `member_map` maps each `(record_id,member_id)` to a physical member
-and original provenance. Equal bytes may share one physical member only when all
+records above, sorted by record ID. `member_map` is a JSON list of objects with
+exactly `record_id`, `member_id`, `physical_member`, `original_provenance`, sorted
+lexicographically by `(record_id, member_id)`, with each pair unique. Physical
+member names select exactly one `files[].member`; original provenance contains
+exactly `original_path`, `source_allocation`, `identity`, using the shapes below.
+Require exactly one mapping for every logical member and no orphan mappings or
+physical members. Equal bytes may share one physical member only when all
 logical origins remain explicit; unequal bytes or conflicting provenance refuse.
 Metadata, logical entries and dependencies all count toward finite limits; byte
 deduplication cannot evade the 60,000-file/logical-member bound. Verify logical
@@ -347,6 +352,61 @@ shape; records map record IDs to segment/member/closure selectors and consumers
 map IDs to exact revisions. It is published after segment verification and before
 acknowledgement, using the same private atomic index/publication recovery route.
 It never supplies an acceptance verdict or replaces the accepted ledger.
+
+### Frozen nested wire shapes
+
+E01b removes implicit tuple keys and implementation-specific nested dictionaries.
+The following are reusable strict JSON shapes, not Python object representations.
+Every object has exactly its listed keys. Hashes/IDs are lowercase 64-hex;
+run/attempt/nonce/generation tokens are 32-hex unless a generation is explicitly
+a monotonic integer. Integers reject booleans, sizes/counts are nonnegative and
+device/inode values are positive. All paths use the existing validated absolute
+provenance shape or the explicitly declared checkout-relative document shape;
+none grants permission to open a path. Map keys are strings; finite lists with
+set semantics are sorted by their identifying fields and reject duplicates.
+
+| Shape | Exact keys, representation and checks |
+| --- | --- |
+| Repository | `root`, `device`, `inode`, `uid`; validated checkout root and pinned directory identity, authenticated owner UID. Relocated report storage does not change it; another checkout cannot adopt it. |
+| Caller | `uid`, `gid`; derived authenticated nonnegative integers, never request-supplied authority. |
+| Directory identity | `device`, `inode`, `mode`, `uid`, `gid`; exact pinned stat values, existing private directory/mount guards apply. |
+| Owner | `repository_sha256`, `caller`, `journal`, `identity`; hash of Repository, Caller object, trusted journal directory provenance and Directory identity. Revalidate against its held owner descriptor; a JSON copy is no authority. |
+| Allocation | Existing v1 bundle allocation: `path`, `device`, `inode`, `mode`, `journal`, `run`; mode is integer `448` (0700), valid journal run token, existing allocator/ownership/identity checks. |
+| File identity | Existing `evidence_bundle.fingerprint` ten-integer list in exact order: device, inode, full mode, UID, GID, link count, byte length, mtime_ns, ctime_ns, blocks. Regular single-link file, allocated bytes = blocks × 512. |
+| Record reference | `record_id`, `closure_sha256`; sorted unique list by record ID. `dependencies` uses these objects, not tuple keys. |
+| Member selector | `record_id`, `member_id`, `closure_sha256`; exact immutable logical closure. |
+| Consumer revision | `consumer_id`, `revision_sha256`; consumer ID hashes owner plus its stable workflow/document/check key, revision binds exact claim/role/assertions. |
+| Capture producer | `repository`, `caller`, `owner`, `run`, `attempt`, `nonce`; the reusable objects above plus issued tokens. Target is bound in the record context and authenticated registration. |
+| Sealed request | `owner`, `allocation`, `mappings`; independent finished Owner and Allocation, mappings are the exact sealed mapping objects specified in the capture protocol, sorted by member ID. Their `identity` is the sealed File identity; original File identity is retained in `member_map.original_provenance`. |
+| Destination custody | `owner`, `allocation`, `segments`, `index_sha256`, `reservation_id`, `record_refs`; exact committed collection Owner/Allocation, external segment entries, index digest, catalogue reservation ID and Record reference list. Ack `destination` uses this shape. |
+| Segment entries | External entries retain exactly `id`, `bundle`, `sha256`, `selection_sha256`, `allocation`; ID is `00`, `01` or `02`, bundle is exact segment directory provenance, allocation uses Allocation. Ledger entries retain only `id`, `record_ids` (sorted unique). |
+| Working record selector | `segment_id`, `member_id`, `closure_sha256`; working index `records` is keyed by record ID and selects that record's result member. All supporting members remain in the verified segment manifest. |
+| Cleanup scope | `owner`, `resources`; resources are sorted unique objects `kind`, `id`, `disposition`, with kind the registered resource type, ID its owning contract's exact selector, disposition `cleaned`, `preserved` or `not_owned`. Explicitly preserved maintenance scenes cannot imply restored/off state. `record_members` is a sorted unique member-ID list. |
+
+Context `repository` and `owner` use Repository and Owner above. Capture
+`consumers`, retirement `consumers` and working-index `consumers` values use
+Consumer revision; maps key by that same consumer ID. Retirement `sources` is a
+list of exact objects `allocation`, `members`; each member has `original_path`,
+`identity`, `sha256`, `record_refs`. Retirement `replacements` uses Destination
+custody objects. `entry_revisions` maps transaction/consumer/reservation IDs to
+their canonical current-entry hashes. `source_allocation` and `sealed_allocation`
+always use Allocation. Record members use File identity from their manifest
+mapping without duplicating mutable stat fields into logical content identity.
+
+Catalogue `schema` is integer `1`, `generation` a monotonic integer. `consumers`
+maps IDs to full Consumer declarations; `captures` maps IDs to objects exactly
+`request`, `state`, `ack` (ack is null before acknowledgement); `reservations`
+maps IDs to objects exactly `transaction`, `state`, `destination`, `consumers`
+(destination null while provisional); `retirements` maps IDs to objects exactly
+`request`, `permit`, `removed`, `remaining` (permit null before permission).
+Requests/ack/permits use their versioned shapes; removed/remaining use exact
+retirement source entries. Reservation state is `provisional` or `durable`;
+capture states are the transition table's states. Index maps and catalogue rows
+must agree on IDs, owner, exact revision and complete closure; mismatch refuses.
+No cyclic self-hash: destination custody names reservation ID, whose entry binds
+that destination, rather than recursively embedding its own catalogue entry.
+These formats freeze interoperability; delivery still registers validators and
+refusal tests before any new writer or helper command runs.
 
 ### Exact references and planned interfaces
 
@@ -848,6 +908,191 @@ matrix above records the normal/refusal/missing/capacity/cancellation/crash walk
 This is source/design review only; P01–P12 remain unimplemented and unexecuted.
 E01b's independent freeze and concrete prerequisite allocation remain required.
 Helpers completed without writes or resources; no live journal was mutated.
+
+## E01b delivery freeze
+
+Freeze baseline: 2026-10-21. This freezes the proposed versioned protocols and
+delivery allocation above; it implements no runtime behavior. E01's fifteen
+history rows, every producer/consumer row, every retirement row, the explicit
+controller inventory and P01–P12 remain required. Existing fixes and named
+regressions are reused; planned histories are still unimplemented/unregistered
+until their delivery registers actual selectors. Current owning runtime contracts
+continue to govern execution until each delivery is accepted.
+
+### Frozen delivery allocation
+
+The following resolves **all** reviewed estimates, including the design gates
+and independent final review. Queue Estimate cells of future rows remain protected
+and retain their earlier planning text; this table and the affected briefs are
+the authoritative reviewed allocation. No provisional delivery choice remains.
+No session allowance, acceptance scope or completion is changed by an estimate.
+Ranges include reading, implementation, safety coverage, review where required,
+validation and owned cleanup. Independently deliverable mechanisms and producer/
+consumer families use the exact insertion blocks in their consumer briefs.
+
+| Existing row | Reviewed delivery range | Allocation and retained acceptance |
+| --- | --- | --- |
+| E01 | 45–60 min audit allocation, completed | Fifteen histories and finite maps retained; no new execution claim. |
+| E01a | 60–90 min protocol/review allocation, completed | Schemas, helper trust and full recovery proposal retained; E01b closes only its own gate. |
+| E01b | 90–120 min | Independent xHigh source/design review, concrete schemas, all allocations/briefs and guard/metadata validation; no runtime delivery. |
+| E02 | 60–90 min | Strict v1/v2 reader/selector/helper capability compatibility and real-file guards form one versioned admission boundary; reader-before-writer and wrong-context refusal cannot be split into a permissive partial reader. |
+| E03 | 165–225 min total | E03p-auth 45–60; E03p-capture 90–120; E03 composition 30–45. Initial working writer, all-route fail-closed bridge and full publish/reserve/ack/release recovery stay together; none may expose required proof to old rotation. |
+| E04 | 210–285 min total | E04p-custody 60–75; E04p-collections 45–60; E04p-retirement 60–90; E04 composition 45–60. Whole-set retirement and recovery remain indivisible across alternate entry points. |
+| E05 | 45–60 min | One export key/publication/read-scope concurrency protocol, P04 and bounds; no separate cache trust mechanism. |
+| E05a | 30–45 min | Authenticated selective archived load with real locks and all P05 controls. |
+| E06 | 60–90 min | Shared aggregate/category/worker/standalone report lifecycle, late writes and startup rotation P01 are one producer contract; splitting shared report finalization would create premature seals. E06a separately owns qualification/collector families. |
+| E06a | 150–210 min total | E06ap-qualification 30–45; E06ap-diagnostics 45–60; E06ap-collector 45–60; E06a composition 30–45. |
+| E07 | 135–180 min total | E07p-lifecycle 45–60; E07p-recovery 60–75; E07 all-adapter/active-target composition 30–45. |
+| E07a | 120–165 min total | E07ap-repair 45–60; E07ap-e2e 45–60; E07a cross-family compatibility 30–45. |
+| E08 | 45–60 min | Shared bounded parser plus protected-comparison controls, P09. |
+| E09 | 60–75 min | Shared generator/context verification and finite document-consumer adoption use one preview/apply identity boundary; wrong-but-existing and changed-claim controls remain together. |
+| E10 | 45–60 min | Typed severity and lifecycle precedence with exact claim-revision tests, P09. |
+| E11 | 30–45 min | Read-only finite tracked catalogue and retained real inventory, P10. |
+| E12 | 45–60 min | One guarded preview/apply/retry transaction, exact recoverable destinations and pending protected dispositions, P10. |
+| E13 | 30–45 min | Explicit unavailable history, retained authorization and no new pass, P10. |
+| E14 | 165–225 min total | E14p-rotation 45–60; E14p-active 30–45; E14p-restart 45–60; E14 remaining composition/resource/consumer review 45–60. |
+| E14a | 60–90 min | Independent xHigh final source/evidence review of the whole frozen matrix plus bounded correction review; cross-boundary completeness is one final decision, not separate partial approvals. |
+
+E03p-auth owns the root safety witness and sealed authority registration.
+E03p-capture owns the **minimal canonical catalogue, provisional/durable
+reservations and authenticated custody CAS required by the complete capture/ack
+transaction**, plus the initial single-segment v2 working publication writer and
+working index after E02's readers. E04p-collections extends that writer to bounded
+segmentation/compaction and adds accepted ledger/locator writers; no working
+capture depends on a future E04 writer. E03p-capture also owns the **all-route
+fail-closed bridge before activation**, not just E03's later composition.
+It cannot defer these to E04. Until a retirement integration is
+delivered, an ever-required source fails closed at every eligibility route;
+introducing capture must not expose unguarded required data to old rotation.
+E04p-custody extends that same catalogue with consumer lifetime and whole-set
+retirement, rather than introducing a competing store. E04p-retirement applies
+it to the complete finite route list. E03p-capture's acceptance exercises the full
+bridge before activation, including direct count deletion and both startup calls;
+E03 then composes those results.
+
+All original table dispositions remain binding; these refinements name exact
+mechanism/family owners rather than remove the original consumer's obligations:
+
+| Frozen inventory/history | Exact delivery and regression owner |
+| --- | --- |
+| Logical identities, v2 wire readers, helper negotiation and existing missing source closure | E02/P09/P11; preserve every E01 history anchor and v1 strict behavior. |
+| Authentication, immutable finalized subset and failed sealing | E03p-auth/P03; full initial working writer/index/reservation/ack/CAS/crash path and all-route fail-closed bridge E03p-capture/P03/P12; suspension/restart and bridge composition E03. |
+| Every retirement map row, including explicit discard, input transfer, legacy and media overwrite | E04p-custody generic protocol/P02; E04p-retirement actual finite callers/P02; E04 cross-route stale/failed-ack and disposable controls. Required-media seal disposition also E06ap-collector/E09. |
+| Physical/metadata capacity, bounded segmentation and old+new replacement | E04p-collections/P12; capture peak/sealed charges E03p-capture; idempotent exports/read scopes E05/P04. |
+| Actual archived helper selection under unrelated same-target producer | E05a/P05, E07 consumer composition, E14p-active/P05/P08. Two absent paths and no unrelated inspection are mandatory at all three owners. |
+| Aggregate/category/worker/standalone report producers | E06/P01; late failure/session cleanup and actual path removal after startup rotation, invocation count one. |
+| Standalone qualification and system result/JUnit/TAP/input/command closure | E06ap-qualification/P06; E06a all-family composition. |
+| All twelve direct vm_probe diagnostic producers plus shared wrapper callers and baseline_guest | E06ap-diagnostics/P06, exact E01 list and partial/native-log/cleanup limits; E06a composition. |
+| E2E collector candidate plus outer post-close authoritative closure | E06ap-collector/P06; E06a producer composition and E07ap-e2e consumer/P07. |
+| Reconnect/workflow ordinary capture/carry and all seven derived adapters | E07p-lifecycle/P08; E07 adapter disposition. No adapter-specific duplicate evidence engine. |
+| Scoped renewal, protected history, capacity partial queue edits and accepted Git retry | E07p-recovery/P08/P11; E07 composition; historical migration E12/E13 under exact prior authority. |
+| Repair snapshots, original selectors and specialized policies | E07ap-repair/P07/P08/P11; E07a cross-family check. |
+| Specialized E2E failures, diagnosis/promotion and acceptance recovery | E07ap-e2e/P07/P08/P11; E07a cross-family check. |
+| checks evidence, queue cells, briefs/master/handoffs, catalogue/design/specification/report prose | E08 parsing/P09, E09 exact generation and each finite consumer/P09, E10 relevance/severity/P09, E11 inventory → E12 migration → E13 unavailable/P10. Queue normalization remains narrow. |
+| Required instruction links, code/examples/operational paths and optional presentation | E08 parser/P09; E09 typed declaration validation; E10 strict precedence/P09; E11–E13 revision-bound nonpassing history/P10. |
+| Actual-file source inventory and installed helper identity | E02 baseline closure/P11; every introducing task registers actual decision modules and repeats P11; E07 composition; E14p-restart full matrix/P11. Source-map mocks give no composed credit. |
+| Three required regression histories and remaining composed matrix | E14p-rotation/P01/P02/P12; E14p-active/P05/P08; E14p-restart/P11; E14 other finite cases, resource and all-consumer dispositions; E14a independent final review. |
+| Scratch/runtime, credentials, VM/product operations and separate media policy | Preserve existing owner exceptions; no capture of scratch/credentials, no live VM/product task or acceptance credit. E04/E06a/E09/E11 retain these explicit compatibility exclusions. |
+
+### Frozen compatibility and recovery matrix
+
+The capture transition table and lock order above are frozen unchanged except
+for the concrete wire shapes and E03 custody allocation. No catalogue lock may
+perform payload I/O or acquire another owner, writer or helper. Prepared writer
+intent precedes nonnested CAS; durable destination reservation precedes release
+of its verification scope; revalidation precedes source removal. Lost reply
+reuses the same transaction. Failed ack/capacity/cancellation preserves original
+requirements and prior proof. The existing finished-owner and identity checks
+are never replaced by a catalogue snapshot or caller JSON.
+
+| Boundary | Frozen compatibility/recovery decision | First owner |
+| --- | --- | --- |
+| v1 archive/receipt/accepted locator/ledger | Strict legacy read and unchanged legacy output for unmigrated consumers; no in-place rewrite or inferred identity. | E02 reader, E03p-capture initial working writer, E04p-collections accepted/segmented writers, E07 consumers |
+| v2 record/member/closure and v1 structured fragment | Reader and exact context verification before writer; unsupported versions/fields, duplicate map entries or wrong context refuse. | E02; E03 capture, E09 generation |
+| Helper installed rendered bytes and capability response | Pin authenticated installed descriptor and deterministic render identity; stale/older capability refuses before mutation. Existing setup only; no self-reported trust. | E02; each helper-changing task/P11 |
+| Active parent / sealed finished subowner | Only owner-issued registered sealed allowlist is readable; arbitrary active source remains refused. Incomplete seal retries exact slot. | E03p-auth/E03p-capture |
+| Publish / index / custody / ack | Independent publication; verify payload then index before retirement; source release only after durable exact custody and source-owner ack. Recover same transaction, not a new attempt. | E03p-capture; E04 full lifetime |
+| Legacy checkpoint / new versioned references | Inactive controller owns durable migration, exact original retained, targets/inputs/counters/suspension/Git preserved. Missing fields do not imply ack. | E07p-lifecycle/E07p-recovery; E07a specialized equivalents |
+| Missing proof / denial / corruption / busy active owner | Only exact renewable absence enters existing renewal. Mandatory absent bundle, access/identity/integrity or active-source refusal never becomes expiry. | E02/E05a/E07p-recovery |
+| Controller source change / immutable old execution context | Actual changed validation bytes stop next retained decision at supported boundary. Reassess only affected proof applicability; do not force old proof's execution digest to equal new validator code. | Each introducing row/P11; E07/E14p-restart |
+| Protected claims / optional or unavailable history | Claims and retained authorization stay strict; declared revision-bound historical debt is nonpassing, optional presentation advisory cannot suppress required proof/instruction errors. | E09/E10/E12/E13 |
+
+### Frozen insertion guard review
+
+Only the selected future consumer performs its frozen insertion, after creating/
+verifying the linked finite briefs and before implementation. E01b creates the
+briefs and blocks but changes no future queue row. Each consumer block gives
+stable IDs, complete ordered rows, backward Requires, host acceptance with no
+Targets, exact before/after consumer Requires, range and retained assertions.
+Follow [execution/delegation](../Execution-Plans.md#execution-and-delegation):
+finish owned cleanup, preserve the unfinished consumer and its exact inputs,
+advance the sole pointer to the first inserted prerequisite and return supported
+`prerequisite_required` or valid `continue`. Do not edit/adopt checkpoints or run
+the inserted task in that session. Broader replanning still needs explicit
+reviewed reconciliation, not this freeze.
+
+Source review of `tools/execution_plan.py::Plan.prerequisite_repair()` confirms
+each block preserves original direct dependencies, consists only of contiguous
+new unchecked ancestor rows before the selected unfinished consumer, and leaves
+all existing completion/order/Scope and future fields unchanged. The last new
+dependency transitively includes every inserted row. New briefs retain exact
+Acceptance/Targets metadata. `plan_launcher.validate_result` additionally requires
+owned cleanup and rejects suspension during unresolved Git reconciliation.
+Retained executable guards in `tests/unit/test_execution_plan_launcher.py` are
+`test_prerequisite_repair_recognizes_exact_multilevel_block_without_accepting_consumer`,
+`test_prerequisite_repair_refuses_unsafe_queue_mutations`,
+`test_prerequisite_insertion_cannot_drop_existing_consumer_dependency`,
+`test_prerequisite_repair_refuses_accepted_or_unverifiable_checkpoint`,
+`test_automatic_prerequisite_reconciliation_requires_completed_cleanup`, and
+`test_prerequisite_suspension_resumes_original_consumer_across_task_limited_runs`.
+`test_export_frozen_blocks_use_real_prerequisite_and_cleanup_guards` additionally
+applies each actual frozen block and linked brief to a private copy of the plan,
+checks queue-relative destinations and matching dependency/acceptance metadata,
+and proves both supported handoffs reject incomplete cleanup without accepting
+the consumer. It skips activated or accepted consumers whose temporary briefs
+are legitimately retired; normal retained-state regressions then own that state.
+The future-row mutation and missing/invalid-brief controls are real existing
+tests; these are not P-history implementations or acceptance for inserted tasks.
+
+### E01b independent review record
+
+GPT-6.1 Sol xHigh reviewed the audit maps, complete relevant source boundaries,
+protocols and frozen allocations in a self-contained `fork_turns="none"` review.
+Correction review approved the final candidate with no remaining actionable
+findings. Resolved findings: canonical JSON member mapping and strict nested wire
+shapes; E03's minimal catalogue/reservation/witness dependency; initial working
+writer and all-route fail-closed bridge before capture activation; and queue-relative
+literal insertion destinations with separate brief-relative navigation. All six
+blocks, fifteen finite briefs and every estimate, including E01b/E14a, were
+independently checked. Existing history, authority, exact cleanup, P01–P12 and
+consumer obligations remain binding. The review grants no runtime acceptance.
+
+Validation on 2026-10-21: `tools/run-tests unit` with exactly
+`tests/unit/test_execution_plan_launcher.py`, `tests/unit/test_e2e_plan.py`,
+`tests/unit/test_e2e_inventory.py`, `tests/unit/test_coverage_generation.py`,
+`tests/unit/test_e2e_case_composition.py`, `tests/unit/test_regression_unit.py`
+and `--timeout 180s`: **759 passed** in four maintained buckets
+([retained report](../../output/test-runs/host/reports/20261022T035225Z-30f98d1c/report.md)).
+This includes all twelve actual frozen-block/status combinations and existing
+dropped-dependency, future-row, invalid-brief, cleanup and suspension guards.
+Plan `--check` passed and changed links had no missing destinations. The new
+metadata check reads bounded checkout Markdown and writes only private fixture
+text; reviewed compatible unit classification remains, with no cleanup/UI
+inventory resource. These checks are not implementations of planned P histories.
+After close-out, the exact same frozen-block selector with `-k
+'export_frozen_blocks_use_real_prerequisite_and_cleanup_guards'` and
+`--timeout 180s` passed all **12** cases again against the final queue/pointer
+([report](../../output/test-runs/host/reports/20261022T035426Z-61e9715f/report.md)).
+Final plan `--check` selected E02 with 17 unfinished runtime/review rows; final
+master/queue/design link checks and `git diff --check` passed.
+
+Both helpers finished and owned no external resources. The maintained test run
+finished successfully; no owned process, VM, live journal mutation, export or
+temporary allocation needs manual cleanup. Only documentation, a private metadata
+regression and its resource-review comment changed. `Makefile` package source
+allowlist excludes these inputs, so no build is required. The controller retains
+commands, result and cleanup through normal accepted publication; no agent Git
+close-out, installation or other queue execution occurred.
 
 ## Scope and quality boundary
 

@@ -10,6 +10,7 @@ from dataclasses import replace
 import json
 import os
 from pathlib import Path
+import re
 import runpy
 import shutil
 import subprocess
@@ -3727,6 +3728,96 @@ def test_prerequisite_insertion_cannot_drop_existing_consumer_dependency(tmp_pat
     queue = tmp_path / plan.queue
     queue.write_text(queue.read_text().replace('| pre-b, 001 |', '| pre-b |'))
     assert plan.prerequisite_repair(state) is None
+
+
+@pytest.mark.parametrize('consumer', ['E03', 'E04', 'E06a', 'E07', 'E07a', 'E14'])
+@pytest.mark.parametrize('handoff_status', ['prerequisite_required', 'continue'])
+def test_export_frozen_blocks_use_real_prerequisite_and_cleanup_guards(
+        tmp_path, consumer, handoff_status):
+    """Exercise authored insertion rows, linked briefs and metadata, not P histories.
+
+    All edits stay in tmp_path; checkout documents are read-only inputs. Once a
+    block is activated or its consumer accepted, normal retained-state guards own
+    it and the temporary freeze brief may be retired.
+    """
+    checkout = Path(workflow.__file__).resolve().parent.parent
+    source = Plan.load(checkout, 'docs/TestAutomation/Export-Execution-Plan.md')
+    tasks = source.tasks()
+    task = next(item for item in tasks if item.id == consumer)
+    if task.complete:
+        pytest.skip('accepted consumer no longer needs its temporary freeze brief')
+    text = task.brief.read_text()
+    frozen = text.split('## Frozen prerequisite insertion\n', 1)[1]
+    additions = [line for line in frozen.splitlines() if line.startswith('| [ ] |')]
+    assert additions, 'freeze must contain executable queue rows'
+    fields = [[part.strip() for part in line.split('|')] for line in additions]
+    assert all(len(row) == 8 for row in fields)
+    added_ids = [row[2] for row in fields]
+    if any(item.id in added_ids for item in tasks):
+        pytest.skip('activated block is governed by retained execution-state guards')
+    declaration = re.search(
+        rf'Exact {re.escape(consumer)} Requires before: `([^`]+)`; after: `([^`]+)`\.', frozen)
+    assert declaration is not None
+    before, after = declaration.groups()
+    assert ', '.join(task.requires) == before
+    assert re.search(r'^Requires: (.+)$', text, re.M)[1] == before
+
+    for relative in (source.path, source.queue):
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((checkout / relative).read_bytes())
+    for item in tasks:
+        if item.brief is not None:
+            destination = tmp_path / item.brief.relative_to(checkout)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(item.brief.read_bytes())
+    for row in fields:
+        link = re.fullmatch(r'\[[^\]]+\]\(([^)]+)\)', row[3])
+        assert link is not None
+        brief = local_file(checkout, link[1], base=(checkout / source.queue).parent)
+        # Use the public Task metadata reader after insertion below; here also
+        # require the authored dependency declaration to match its queue row.
+        assert re.search(r'^Requires: (.+)$', brief.read_text(), re.M)[1] == row[4]
+        destination = tmp_path / brief.relative_to(checkout)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(brief.read_bytes())
+
+    queue = tmp_path / source.queue
+    lines = queue.read_text().splitlines()
+    position = next(index for index, line in enumerate(lines)
+                    if line.startswith(f'| [ ] | {consumer} |'))
+    for index in range(position):
+        if lines[index].startswith('| [ ] |'):
+            lines[index] = lines[index].replace('| [ ] |', '| [x] |', 1)
+    queue.write_text('\n'.join(lines) + '\n')
+    master = tmp_path / source.path
+    master.write_text(re.sub(r'^Next task: .+$', f'Next task: **{consumer} — Selected**.',
+                             master.read_text(), flags=re.M))
+    plan = Plan.load(tmp_path, source.path)
+    state = state_for(plan, handoff='Retain all original consumer assertions.')
+    saved = json.dumps(state, sort_keys=True)
+    original = lines[position].split('|')
+    original[4] = f' {after} '
+    lines[position] = '|'.join(original)
+    lines[position:position] = additions
+    queue.write_text('\n'.join(lines) + '\n')
+    master.write_text(re.sub(r'^Next task: .+$', f'Next task: **{added_ids[0]} — Prerequisite**.',
+                             master.read_text(), flags=re.M))
+    private_brief = tmp_path / task.brief.relative_to(checkout)
+    private_brief.write_text(re.sub(r'^Requires: .+$', f'Requires: {after}', text, flags=re.M))
+    selected = plan.prerequisite_repair(state)
+    assert selected.id == added_ids[0]
+    for item in plan.tasks():
+        if item.id in added_ids:
+            assert item.acceptance_metadata() == dict(acceptance='host', targets=[])
+    result = response(state, handoff_status)
+    result.update(checks=[], stage_paths=[], cleanup_complete=False)
+    with pytest.raises(ValueError):
+        workflow.validate_result(plan, state, result)
+    result['cleanup_complete'] = True
+    workflow.validate_result(plan, state, result)
+    assert plan.state()[consumer] is False
+    assert json.dumps(state, sort_keys=True) == saved
 
 
 @pytest.mark.parametrize('declaration', ['Acceptance: review\n', 'Acceptance: host\nTargets: newly-required-target\n'])

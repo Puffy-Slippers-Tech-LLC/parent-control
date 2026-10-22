@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Engineering qualification of Ubuntu's fixture-independent saved captures."""
+"""Engineering qualification of fixture-independent saved captures."""
 import sys
 
 from fixture_snapshot_qualification import main

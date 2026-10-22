@@ -61,7 +61,7 @@ LEGACY_SCRIPT_FILES = (
     "common/oh_no_parent_control_ui/test_identities.py",
 )
 
-# Movable fixture sources never enter Ubuntu's preparation checkout or identity.
+# Movable fixture sources never enter clean preparation identities.
 # gtk_automation remains a shared product input, even though it is no longer
 # copied into that checkout for the old fixture compiler.
 FIXTURE_SOURCE_FILES = (
@@ -75,15 +75,14 @@ FIXTURE_SOURCE_FILES = (
 )
 SCRIPT_FILES = tuple(path for path in LEGACY_SCRIPT_FILES
                      if path not in FIXTURE_SOURCE_FILES or path in (
-                         'tests/integration/baseline_fixtures.py', 'tests/fixtures/native_trust.py')) + (
+                         'tests/integration/baseline_fixtures.py', 'tests/fixtures/native_trust.py',
+                         'tests/fixtures/native_assets.py')) + (
     'tests/integration/baseline_guest.py', 'tests/integration/prepare_baseline.py',
     'tests/fixtures/baseline_environment.py')
 
 
 def preparation_files(os_id=None):
-    if os_id is None:
-        os_id = 'fedora' if VM and VM.package_format == 'rpm' else 'ubuntu'
-    return (*LEGACY_SCRIPT_FILES, 'tests/fixtures/baseline_environment.py') if os_id == 'fedora' else SCRIPT_FILES
+    return SCRIPT_FILES
 
 
 SNAPSHOT_SOURCE_SYMBOLS = {
@@ -94,9 +93,13 @@ SNAPSHOT_SOURCE_SYMBOLS = {
         'native_trust_provenance', 'verify_foreign_trust', 'preflight_backend', 'reconcile_backend',
         'NATIVE_RULES_RECORD', 'NATIVE_RULES_PURPOSE', 'NATIVE_RULES_ROOT',
         'NATIVE_RULES_FILE', 'NATIVE_RULES_PENDING', 'NATIVE_RULES_LEGACY',
-        'NATIVE_RULES_COMPILED', 'NATIVE_RULES_SOURCE_PATTERN', '_native_open_rule',
+        'NATIVE_RULES_COMPILED', 'NATIVE_RULES_BACKUP', 'NATIVE_RULES_COMPILER', 'NATIVE_RULES_HEADER',
+        'native_compiled_rules', '_compiled_retirement_record', 'verify_native_compiled',
+        'verify_clean_compiled', 'refresh_clean_compiled',
+        'NATIVE_RULES_SOURCE_PATTERN', '_native_open_rule',
         '_native_rules_source', '_native_rules_record', '_preflight_native_rules',
-        'reconcile_native_rules', 'verify_native_rules'),
+        'reconcile_native_rules', 'verify_native_rules', 'fixture_accounts',
+        'verify_native_policy_sources'),
     'tests/fixtures/native_trust.py': (
         'TRUST_RECORD', 'TRUST_FILE', 'TRUST_PENDING', 'TRUST_PURPOSE', 'FIXTURE_RECORD',
         'BACKEND_CONFIG', 'BACKEND_RECORD', 'BACKEND_PENDING', 'BACKEND_PURPOSE',
@@ -104,6 +107,8 @@ SNAPSHOT_SOURCE_SYMBOLS = {
         'file_backend_config', 'validate_backend_record', 'validate_backend_shape',
         'validate_backend_provenance', '_metadata_diagnostic',
         'ForeignTrustMetadataError', 'OwnedTrustMetadataError'),
+    'tests/fixtures/native_assets.py': (
+        'NATIVE_POLICY_PATHS', 'NATIVE_RULE_MANIFEST', 'NATIVE_STOCK_RULE_NAMES', 'native_stock_rules'),
 }
 
 
@@ -742,13 +747,12 @@ def marker_document(
     if set(accounts) != expected_users or not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise PreparationError("marker:schema", "verified preparation data is incomplete")
     document: dict[str, object] = {
-        "schema_version": CLEAN_MARKER_VERSION if guest.os_id == 'ubuntu' else 3,
+        "schema_version": CLEAN_MARKER_VERSION,
         "purpose": MARKER_PURPOSE,
         "guest": {
             "hostname": guest.hostname,
             "machine_id": guest.machine_id,
-            **({'ubuntu_version': guest.version} if guest.os_id == 'ubuntu' else
-               {'os_id': guest.os_id, 'version': guest.version}),
+            'os_id': guest.os_id, 'version': guest.version,
             "virtualization": guest.virtualization,
         },
         "preparation_script_sha256": digest,
@@ -765,13 +769,17 @@ def validate_marker(document: dict[str, object], *, os_id=None) -> None:
     if type(document['schema_version']) is not int or document["schema_version"] not in (MARKER_VERSION, 3, CLEAN_MARKER_VERSION) or document["purpose"] != MARKER_PURPOSE:
         raise PreparationError("marker:schema", "preparation record identity is invalid")
     guest = document["guest"]
-    platform = 'fedora' if document['schema_version'] == 3 else 'ubuntu'
+    explicit = (document['schema_version'] in (3, CLEAN_MARKER_VERSION)
+                and isinstance(guest, dict) and 'os_id' in guest)
+    platform = guest.get('os_id') if explicit else 'ubuntu'
     fields = {'hostname', 'machine_id', 'virtualization'} | (
-        {'ubuntu_version'} if platform == 'ubuntu' else {'os_id', 'version'})
+        {'os_id', 'version'} if explicit else {'ubuntu_version'})
     if not isinstance(guest, dict) or set(guest) != fields:
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
-    if (guest['hostname'] != HOSTNAME or (os_id is not None and os_id != platform) or
-            (platform == 'ubuntu' and guest['ubuntu_version'] != UBUNTU_VERSION) or
+    if (platform not in ('ubuntu', 'fedora')
+            or (document['schema_version'] == 3 and platform != 'fedora')
+            or guest['hostname'] != HOSTNAME or (os_id is not None and os_id != platform) or
+            (platform == 'ubuntu' and guest['version' if explicit else 'ubuntu_version'] != UBUNTU_VERSION) or
             (platform == 'fedora' and (guest['os_id'], guest['version']) != ('fedora', '44'))):
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
     if document['test_dependencies'] != guest_tools.versions(platform):

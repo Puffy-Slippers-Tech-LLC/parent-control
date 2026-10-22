@@ -169,8 +169,9 @@ def recover_source_staging(g):
     require(type(record) is dict and set(record) == {'purpose', 'files', 'pending'}
             and record['purpose'] == 'onpc-preparation-source-staging-v1'
             and type(record['files']) is dict
-            and set(record['files']) == set(STAGED_MOVABLE_SOURCES)
-            and record['pending'] in (None, *STAGED_MOVABLE_SOURCES),
+            and set(record['files']) in (set(STAGED_MOVABLE_SOURCES),
+                set(STAGED_MOVABLE_SOURCES) - {'tests/fixtures/native_assets.py'})
+            and record['pending'] in (None, *record['files']),
             'guest:source-staging-record')
     for relative, digest in record['files'].items():
         require(type(digest) is str and re.fullmatch('[0-9a-f]{64}', digest) is not None,
@@ -209,13 +210,21 @@ def prepare_source_retirement(g):
         regular(g, marker_path, 0, 0, 0o600)
         marker = json.loads(g.read_file(marker_path))
         require(prepare_vm.fixture_boundary(marker) == 'legacy', 'guest:source-retirement-marker')
-        for relative in prepare_vm.LEGACY_SCRIPT_FILES:
+        # Fedora's schema-3 sources also had a later environment declaration.
+        # Select only these two known complete legacy shapes; the original
+        # marker digest still proves every retained byte before any deletion.
+        sources = prepare_vm.LEGACY_SCRIPT_FILES
+        environment = 'tests/fixtures/baseline_environment.py'
+        if marker['schema_version'] == 3 and (g.exists(STAGE + '/checkout/' + environment)
+                                               or g.is_symlink(STAGE + '/checkout/' + environment)):
+            sources = (*sources, environment)
+        for relative in sources:
             path = STAGE + '/checkout/' + relative
             directory(g, str(Path(path).parent))
             regular(g, path, 0, 0, 0o600)
         actual = prepare_vm.preparation_source_digest(
             lambda relative: g.read_file(STAGE + '/checkout/' + relative),
-            prepare_vm.LEGACY_SCRIPT_FILES)
+            sources)
         require(actual == marker['preparation_script_sha256'], 'guest:source-retirement-digest')
         plan = {'purpose': 'onpc-preparation-source-retirement-v1',
                 'files': {relative: g.checksum('sha256', STAGE + '/checkout/' + relative)
@@ -282,35 +291,47 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         require(g.lstatns(STAGE)['st_mode'] & 0o077 == 0, 'guest:preparation-private')
         os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
             g.read_file('/etc/os-release').decode()))
-        if os_id == 'ubuntu':
-            prepare_source_retirement(g)
-            from baseline_fixtures import reconcile_clean
-            marker = (json.loads(g.read_file(str(prepare_vm.MARKER)))
-                      if g.exists(str(prepare_vm.MARKER)) else None)
-            # Legacy retirement must precede new writers. A fresh guest has no
-            # fixed accounts/native tools yet; its environment is reconciled
-            # only after the guest setup below establishes those dependencies.
-            if marker and prepare_vm.fixture_boundary(marker) == 'legacy':
-                reconcile_clean(g, marker['preparation_script_sha256'])
+        from baseline_fixtures import (
+            RECORD, PURPOSE, reconcile_clean, _retirement_plan, refresh_clean_compiled)
+        marker = (json.loads(g.read_file(str(prepare_vm.MARKER)))
+                  if g.exists(str(prepare_vm.MARKER)) else None)
+        legacy = marker and prepare_vm.fixture_boundary(marker) == 'legacy'
+        if legacy:
+            # Compiler outputs can archive fixture admissions. Refuse ambiguous
+            # policy before retiring even the copied preparation sources.
+            require(g.exists(RECORD), 'guest:retirement-fixture-record')
+            if json.loads(g.read_file(RECORD)).get('purpose') == PURPOSE:
+                _retirement_plan(g, marker['preparation_script_sha256'], publish=False)
+            else:
+                # A prior interrupted pass may already have committed the clean
+                # record while the guest still retains its old marker.
+                refresh_clean_compiled(g)
+        elif marker:
+            refresh_clean_compiled(g)
+        prepare_source_retirement(g)
+        # Legacy retirement must precede new writers. A fresh guest has no
+        # fixed accounts/native tools yet; its environment is reconciled
+        # only after the guest setup below establishes those dependencies.
+        if legacy:
+            reconcile_clean(g, marker['preparation_script_sha256'])
         files = set(prepare_vm.preparation_files(os_id)) | set(prepare_vm.REQUIRED_CHECKOUT_ENTRIES)
         files.update({'tests/integration/baseline_guest_entry.py',
                       'tests/integration/test_account_password.py'})
         files.update(str(Path(account.icon_file).relative_to(prepare_vm.CHECKOUT))
                      for account in prepare_vm.IDENTITIES)
-        if os_id == 'ubuntu':
-            from baseline_fixtures import write_record
-            stage = {'purpose': 'onpc-preparation-source-staging-v1', 'pending': None,
-                     'files': {relative: hashlib.sha256(
-                         (prepare_vm.CHECKOUT / relative).read_bytes()).hexdigest()
-                               for relative in STAGED_MOVABLE_SOURCES}}
-            write_record(g, stage, SOURCE_STAGING)
+        from baseline_fixtures import write_record
+        stage = {'purpose': 'onpc-preparation-source-staging-v1', 'pending': None,
+                 'files': {relative: hashlib.sha256(
+                     (prepare_vm.CHECKOUT / relative).read_bytes()).hexdigest()
+                           for relative in STAGED_MOVABLE_SOURCES}}
+        write_record(g, stage, SOURCE_STAGING)
         for relative in sorted(files):
-            if os_id == 'ubuntu' and relative in stage['files']:
+            if relative in stage['files']:
                 stage['pending'] = relative
                 write_record(g, stage, SOURCE_STAGING)
             write(g, STAGE + '/checkout/' + relative,
                   (prepare_vm.CHECKOUT / relative).read_bytes())
-            if os_id == 'ubuntu' and relative in stage['files']:
+            if relative in stage['files']:
                 require(g.checksum('sha256', STAGE + '/checkout/' + relative) == stage['files'][relative],
                         'guest:preparation-source-changed')
                 stage['pending'] = None
@@ -361,15 +382,23 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         require(g.is_symlink(LINK) and g.readlink(LINK) == UNIT, 'guest:preparation-unit')
         g.rm(LINK)
         g.rm(UNIT)
-    if os_id == 'ubuntu':
+    if os_id in ('ubuntu', 'fedora'):
         with mounted(guestfs, capture) as g:
             from baseline_fixtures import (
                 verify_clean, reconcile_clean, reconcile_native_rules, verify_native_rules)
-            reconcile_clean(g)
-            reconcile_native_rules(g)
+            declared = reconcile_clean(g)
+            if os_id == 'ubuntu':
+                reconcile_native_rules(g)
+            else:
+                refresh_clean_compiled(g)
+                from baseline_fixtures import RECORD, BACKEND_RECORD, BACKEND_CONFIG, RETIRE_RECORD
+                paths = sorted(set(declared) | {str(Path(path).parent) for path in declared})
+                records = [path for path in (RECORD, BACKEND_RECORD, BACKEND_CONFIG, RETIRE_RECORD)
+                           if g.exists(path)]
+                label_preparation(g, [*records, *paths])
             recover_source_staging(g)
             verify_clean_sources(g)
-            verify_clean(g)
+            verify_clean(g, compiled=False)
             # The final native configuration is reconciled offline, after all
             # package work. A fresh boot lets the packaged daemon initialize
             # and load its own database before any snapshot can be accepted.
@@ -390,18 +419,9 @@ def prepare(capture, guestfs, password, *, mode='manual'):
             g.rm(UNIT)
             verify_clean_sources(g)
             verify_clean(g)
-            verify_native_rules(g)
+            if os_id == 'ubuntu':
+                verify_native_rules(g)
         return
-    from baseline_fixtures import build_payload, reconcile
-    with operation('Reconciling reusable baseline application fixtures'):
-        payload = build_payload()
-        with mounted(guestfs, capture) as g:
-            declared = reconcile(g, payload)
-            from baseline_fixtures import RECORD, TRUST_RECORD, TRUST_FILE, BACKEND_RECORD, BACKEND_CONFIG
-            # Offline-created files and their enclosing fixture directories need
-            # the distribution's standard contexts before enforcing SELinux boots.
-            paths = sorted(set(declared) | {str(Path(path).parent) for path in declared})
-            label_preparation(g, [RECORD, TRUST_RECORD, TRUST_FILE, BACKEND_RECORD, BACKEND_CONFIG, *paths])
 
 
 def configure_clipboard(root):

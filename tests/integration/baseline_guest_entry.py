@@ -13,14 +13,16 @@ ROOT = Path('/var/lib/onpc-baseline-preparation')
 BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
 
 
-def prepare_native():
+def prepare_native(os_id='ubuntu'):
     """Let the packaged daemon initialize its database after offline reconciliation.
 
     This runs in a separate, fresh boot after package updates and the final
     backend configuration. No fixture or test attempt may initialize this state.
     """
     runner = prepare_vm.Runner()
-    cli = '/usr/sbin/fapolicyd-cli'
+    # Movable source modules have already been retired before this boot.
+    cli = {'ubuntu': '/usr/sbin/fapolicyd-cli', 'fedora': '/usr/bin/fapolicyd-cli'}[os_id]
+    vendor = {'ubuntu': 'debdb', 'fedora': 'rpmdb'}[os_id]
     runner.run([cli, '--check-config'])
     runner.run(['systemctl', 'enable', 'fapolicyd.service'])
     try:
@@ -43,32 +45,71 @@ def prepare_native():
     if enabled.stdout.strip() != 'enabled':
         raise ValueError('baseline:native-not-ready')
     # This packaged Type=forking daemon exits its parent before loading trust.
-    # Wait only for its read-only database inspection; never repair or create
-    # database files. Its public status request is answered after initialization
-    # and fanotify setup, so the final dump cannot accept a partially loaded DB.
+    # An old readable database can precede native initialization. Require the
+    # public status handshake in the same bounded wait before the fresh dump;
+    # never repair or create database files.
     deadline = time.monotonic() + 180
+    last_status_error = None
+    ready = False
+    rows = []
     while True:
-        active = runner.run(['systemctl', 'is-active', 'fapolicyd.service'])
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        active = runner.run(['systemctl', 'is-active', 'fapolicyd.service'], timeout=min(30, remaining))
         if active.stdout.strip() != 'active':
             raise ValueError('baseline:native-not-ready')
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
         try:
-            database = runner.run([cli, '--dump-db'], timeout=30)
+            database = runner.run([cli, '--dump-db'], timeout=min(30, remaining))
         except subprocess.CalledProcessError as error:
             if 'mdb_env_open failed, error 2 ' not in (error.stderr or ''):
                 raise
             database = subprocess.CompletedProcess([cli, '--dump-db'], 0, stdout='')
         rows = [line.split() for line in database.stdout.splitlines() if line.strip()]
-        if any(row[0] == 'debdb' for row in rows):
+        remaining = deadline - time.monotonic()
+        if any(row[0] == vendor for row in rows) and remaining > 0:
+            try:
+                runner.run([cli, '--check-status'], timeout=min(60, remaining))
+            except subprocess.TimeoutExpired as error:
+                if last_status_error is None or time.monotonic() < deadline:
+                    raise
+                # A final deadline-clipped request can outlive the remaining
+                # native polling window. Diagnose it without retrying it.
+                print(last_status_error.stdout, flush=True)
+                last_status_error = error
+                break
+            except subprocess.CalledProcessError as error:
+                if (error.returncode != 1 or error.stderr not in (None, '')
+                        or error.stdout not in ("Can't find fapolicyd: timed out waiting for report",
+                                                "Can't find fapolicyd: timed out waiting for report\n")):
+                    raise
+                last_status_error = error
+            else:
+                ready = time.monotonic() < deadline
+                break
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             break
-        if time.monotonic() >= deadline:
-            print(f'baseline: [native:inspection] enabled=1 active=1 '
-                  f'database_rows={len(rows)} vendor_rows=0', flush=True)
-            raise ValueError('baseline:native-readiness-timeout')
-        time.sleep(1)
-    runner.run([cli, '--check-status'], timeout=60)
+        time.sleep(min(1, remaining))
+    if not ready:
+        print(f'baseline: [native:inspection] enabled=1 active=1 '
+              f'database_rows={len(rows)} vendor_rows={sum(row[0] == vendor for row in rows)}', flush=True)
+        print('baseline: [native:readiness-timeout]', flush=True)
+        if last_status_error is not None:
+            try:
+                journal = runner.run(['journalctl', '--boot', '--unit=fapolicyd.service',
+                                      '--no-pager', '--lines=80'], check=False, timeout=30)
+                print(journal.stdout, flush=True)
+            except (OSError, subprocess.SubprocessError):
+                print('baseline: [native:journal-unavailable]', flush=True)
+            raise last_status_error
+        raise ValueError('baseline:native-readiness-timeout')
     database = runner.run([cli, '--dump-db'], timeout=120)
     rows = [line.split() for line in database.stdout.splitlines() if line.strip()]
-    vendor_rows = sum(row[0] == 'debdb' for row in rows)
+    vendor_rows = sum(row[0] == vendor for row in rows)
     print(f'baseline: [native:inspection] enabled=1 active=1 '
           f'database_rows={len(rows)} vendor_rows={vendor_rows}', flush=True)
     if not vendor_rows:
@@ -105,12 +146,12 @@ def main(argv=None):
         return 1
     if args == ['--prepare-native']:
         os_id, _ = prepare_vm.release_identity(prepare_vm._read_os_release(Path('/etc/os-release')))
-        if os_id != 'ubuntu':
-            raise ValueError('baseline:native-unsupported-os')
         prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'))
         try:
-            prepare_native()
+            prepare_native(os_id)
         except subprocess.SubprocessError as error:
+            if getattr(error, 'stdout', None):
+                print(error.stdout, flush=True)
             if getattr(error, 'stderr', None):
                 print(error.stderr, file=sys.stderr, flush=True)
             raise

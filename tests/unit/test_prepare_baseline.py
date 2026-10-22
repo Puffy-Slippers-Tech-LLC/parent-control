@@ -990,6 +990,8 @@ def guest_fixture(*, os_id='ubuntu'):
                                    accounts, SCRIPT_DIGEST)
     # This fixture deliberately exercises the legacy recovery reader.
     marker['schema_version'] = guest.MARKER_VERSION
+    marker['guest']['ubuntu_version'] = marker['guest'].pop('version')
+    marker['guest'].pop('os_id')
     files = {str(guest.MARKER): host.encode(marker), "/etc/hostname": (guest.HOSTNAME + '\n').encode(),
              "/etc/machine-id": b"a" * 32, "/var/lib/dpkg/status": b"Package: bash\nStatus: install ok installed\n"}
     files['/etc/os-release'] = (b'ID=ubuntu\nVERSION_ID=26.04\n' if os_id == 'ubuntu' else
@@ -1213,6 +1215,7 @@ def test_fedora_offline_acceptance_checks_release_tools_roles_and_product_residu
     files['/etc/group'] = b'wheel:x:10:onpc-parent-jamie,onpc-parent-casey\nfapolicyd:x:987:\n'
     marker = guest.marker_document(guest.GuestIdentity(guest.HOSTNAME, 'a' * 32, '44', 'kvm', 'fedora'),
                                    fixture.marker['accounts'], SCRIPT_DIGEST)
+    marker['schema_version'] = 3  # Exercise recorded legacy Fedora restoration.
     files[str(guest.MARKER)] = host.encode(marker)
     applications = [{'app2_name': name, 'app2_version': version}
                     for name, version in guest.guest_tools.FEDORA_VERSIONS.items()]

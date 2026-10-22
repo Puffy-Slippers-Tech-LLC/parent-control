@@ -1,6 +1,6 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
-Ubuntu native-readiness checks in baseline_guest_cleanup_safety,
+Ubuntu/Fedora native-readiness and clean-snapshot checks in baseline_guest_cleanup_safety,
 baseline_fixtures_cleanup_safety and fixture_snapshots use pytest-private files and in-memory service, transport and
 guestfs doubles. No live daemon, VM, display, socket, bus, shared cache or new
 subprocess owner is added; their compatible unit classifications remain valid.

@@ -160,12 +160,11 @@ execution until recovered; evidence is never discarded to enable parallelism.
   Attempt-specific SSH identities, evidence/transport state, product packages
   under test and deliberate scenario mutations remain attempt-owned. Do not
   preseed product policy, grants, usage or a scenario's expected result.
-  Ubuntu 26.04's schema-4 baseline and app captures exclude movable fixture
+  Ubuntu 26.04 and Fedora 44 schema-4 baseline and app captures exclude movable fixture
   payloads, admissions and copied fixture sources. Their host-owned inputs use
   the [shared SSH provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning)
   only after target/envelope qualification; unqualified runners refuse clean
-  captures before input. Fedora retains its legacy baseline fixture ownership
-  until its own snapshot task passes. Reusable native, Snap, Flatpak and game
+  captures before input. Reusable native, Snap, Flatpak and game
   dependencies remain environment-owned; pending capabilities still require
   shared preparation and read-only verification before use. A package
   change explicitly exercised by a catalogue/update/removal case remains a
@@ -176,8 +175,9 @@ execution until recovered; evidence is never discarded to enable parallelism.
   Refuse links, foreign ownership, ambiguous state and unexpected collisions.
   Verify bytes, modes, owners and configuration before capture; bind environment,
   runtime dependency and shared lifecycle sources to baseline identity. Legacy
-  captures additionally bind their embedded fixture sources. Ubuntu's
-  [clean boundary](../../tests/integration/Environment.md#ubuntu-clean-snapshots)
+  captures additionally bind their embedded fixture sources. The shared
+  [clean boundary](../../tests/integration/Environment.md#ubuntu-clean-snapshots),
+  including [Fedora policy verification](../../tests/integration/Environment.md#fedora-clean-snapshots),
   preserves fixture-only independence, exact legacy retirement and old recovery.
   Cover first run, repeat, update and interrupted retry.
   Auto mode still applies available system updates and replaces snapshots as

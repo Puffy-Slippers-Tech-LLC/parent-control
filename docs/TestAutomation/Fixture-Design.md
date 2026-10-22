@@ -1,9 +1,9 @@
 # Host-owned fixture lifecycle: target design
 
 Status: **partially implemented**: producer lifetime, immutable host construction,
-execution-owned reuse, the shared SSH provisioner, Ubuntu's clean snapshot
-boundary and Ubuntu provisioning qualification are delivered. Fedora snapshots
-and provisioning qualification, runner migration and live refresh remain proposed.
+execution-owned reuse, the shared SSH provisioner, Ubuntu/Fedora clean snapshot
+boundaries and Ubuntu provisioning qualification are delivered. Fedora
+provisioning qualification, runner migration and live refresh remain proposed.
 The [execution plan](Fixture-Execution-Plan.md) delivers this design. Current
 VM, storage and preparation rules remain effective until their owning tasks
 deliver and document a replacement.
@@ -226,7 +226,10 @@ Snapshot preparation itself needs no movable fixture runtime.
 F11 delivered Ubuntu's schema-4
 [clean snapshot boundary](../../tests/integration/Environment.md#ubuntu-clean-snapshots),
 including actual baseline/app capture, standalone reuse, legacy retirement and
-fixture-independent identities. Fedora stays on its legacy boundary until F12.
+fixture-independent identities. F12 delivered the same
+[Fedora boundary](../../tests/integration/Environment.md#fedora-clean-snapshots),
+including enforcing SELinux, authenticated native policy/compiler backups,
+standalone reuse and renewed Ubuntu qualification.
 
 Qualify each runner branch once against these clean captures. Unmigrated branches
 refuse clean captures before input; an implementation task enables only its
@@ -326,7 +329,7 @@ targets and finite subsets; accept no arbitrary destination or guest command.
 Expose exact validated options/help in their implementation tasks. There is no
 new catalogue-ID, cache inspect/prune or quiesce option.
 
-`check_fixture_snapshots` is registered and qualified for Ubuntu only; use
+`check_fixture_snapshots` is registered and qualified for Ubuntu and Fedora; use
 `tools/run-tests integration --list` for bindings. `check_fixture_provisioning`
 is registered and qualified for Ubuntu's fresh owned attempts. F53 delivered its
 native backend environment prerequisite through the

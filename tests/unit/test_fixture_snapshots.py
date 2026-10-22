@@ -1,5 +1,6 @@
 """Snapshot qualification boundaries with private records and VM doubles only."""
 from collections import Counter
+import grp
 import hashlib
 import io
 import json
@@ -92,6 +93,42 @@ def test_complete_runtime_inventory_preserves_clean_environment_record():
     assert not any('apt-daily' in path or 'xdg-user-dirs' in path for path in paths)
 
 
+@pytest.mark.parametrize('fault', [None, 'missing', 'duplicate', 'malformed', 'zero', 'overflow',
+                                 'link', 'owner', 'writable', 'oversized', 'changed', 'size'])
+def test_broker_group_uses_unique_fixed_group_from_safe_baseline_database(fault):
+    raw = b'root:x:0:\nwheel:x:10:admin\nother:x:991:\n'
+    if fault == 'missing':
+        raw = b'root:x:0:\n'
+    elif fault == 'duplicate':
+        raw += b'wheel:x:11:\n'
+    elif fault == 'malformed':
+        raw = b'wheel:x:10\n'
+    elif fault == 'zero':
+        raw = b'wheel:x:0:\n'
+    elif fault == 'overflow':
+        raw = b'wheel:x:4294967295:\n'
+    info = {'st_mode': stat.S_IFREG | 0o644, 'st_uid': 0,
+            'st_nlink': 1, 'st_size': len(raw)}
+    if fault == 'owner':
+        info['st_uid'] = 1000
+    elif fault == 'writable':
+        info['st_mode'] |= 0o020
+    elif fault == 'oversized':
+        info['st_size'] = 1024 * 1024 + 1
+    elif fault == 'size':
+        info['st_size'] += 1
+    guest = Mock()
+    guest.realpath.return_value = '/elsewhere' if fault == 'link' else '/etc/group'
+    guest.lstatns.side_effect = [info, info | ({'st_ino': 123} if fault == 'changed' else {})]
+    guest.read_file.return_value = raw
+    if fault:
+        with pytest.raises(Exception, match='broker-group-database'):
+            qualification.broker_group(guest)
+    else:
+        assert qualification.broker_group(guest) == 10
+        guest.read_file.assert_called_once_with('/etc/group')
+
+
 def test_native_readiness_requires_active_service_and_readable_database():
     transport = Mock()
     vendor = 'debdb /usr/bin/vendor-tool 17 ' + 'a' * 64
@@ -152,7 +189,8 @@ def test_live_policy_reader_checks_actual_bytes_metadata_and_inventory(tmp_path,
         path.symlink_to(tmp_path / '1')
     elif change == 'inventory':
         expected.pop(str(path))
-    monkeypatch.setattr(sys, 'stdin', io.StringIO(json.dumps(expected)))
+    monkeypatch.setattr(sys, 'stdin', io.StringIO(json.dumps({
+        'os_id': 'ubuntu', 'files': expected, 'product': {}, 'previous': None})))
     if change is None:
         exec(compile(program, '<native-policy-read-only-probe>', 'exec'), {})
     else:
@@ -177,6 +215,324 @@ def test_package_inventory_uses_native_binary_package_identities_and_ignores_rem
     transport.call.return_value = b'libvendor:amd64\t1:2.3-1\tinstalled\nold\t1\tconfig-files\n'
     assert qualification.package_inventory(transport) == {'libvendor:amd64': '1:2.3-1'}
     assert transport.call.call_args.args[0][:2] == ['/usr/bin/dpkg-query', '-W']
+
+
+def test_rpm_inventory_preserves_installonly_versions_and_epoch():
+    transport = Mock()
+    transport.call.return_value = (b'kernel-core-0:6.19-1.fc44.x86_64\t0:6.19-1.fc44\tinstalled\n'
+        b'kernel-core-0:6.19-2.fc44.x86_64\t0:6.19-2.fc44\tinstalled\n'
+        b'Vendor-1:2.3-1.fc44.x86_64\t1:2.3-1.fc44\tinstalled\n')
+    packages = qualification.package_inventory(transport, 'fedora')
+    assert len(packages) == 3
+    assert packages['Vendor-1:2.3-1.fc44.x86_64'] == '1:2.3-1.fc44'
+    assert transport.call.call_args.args[0][:3] == ['/usr/bin/rpm', '-qa', '--queryformat']
+
+
+def test_rpm_inventory_accepts_native_caret_versions_without_changing_deb_validation():
+    transport = Mock()
+    identity = 'example-0:2.0^20250611-1.fc44.x86_64'
+    version = '0:2.0^20250611-1.fc44'
+    transport.call.return_value = f'{identity}\t{version}\tinstalled\n'.encode()
+    assert qualification.package_inventory(transport, 'fedora') == {identity: version}
+    transport.call.return_value = f'example\t{version}\tinstalled\n'.encode()
+    with pytest.raises(Exception, match='package-inventory'):
+        qualification.package_inventory(transport, 'ubuntu')
+
+
+@pytest.mark.parametrize('source', ['rpmdb', 'debdb', 'filedb'])
+def test_fedora_vendor_additions_require_exact_changed_native_package_files(source):
+    original = 'rpmdb /usr/bin/vendor 17 ' + 'a' * 64
+    addition = source + ' /usr/bin/dependency 23 ' + 'b' * 64
+    before, after = Counter({original: 2}), Counter({original: 2, addition: 1})
+    installed = {'vendor-0:1-1.fc44.x86_64': '0:1-1.fc44'}
+    changed = {'dependency-1:2-1.fc44.x86_64': '1:2-1.fc44'}
+    transport = Mock()
+    transport.call.return_value = b'/usr/bin/dependency\n'
+    if source == 'rpmdb':
+        result = qualification.verify_vendor_preservation(
+            transport, before, after, installed, installed | changed, 'fedora')
+        assert result['original_vendor_rows'] == 2
+        assert result['installed_or_updated_packages'] == changed
+        assert transport.call.call_args.args[0] == [
+            '/usr/bin/rpm', '-ql', '--', 'dependency-1:2-1.fc44.x86_64']
+    else:
+        with pytest.raises(Exception, match='unowned-vendor-trust-added'):
+            qualification.verify_vendor_preservation(
+                transport, before, after, installed, installed | changed, 'fedora')
+
+
+@pytest.mark.parametrize('state', [b'Enforcing\n', b'Permissive\n', b'Disabled\n'])
+def test_fedora_native_audit_requires_enforcing_and_uses_merged_native_tool_path(state):
+    transport = Mock()
+    vendor = 'rpmdb /usr/bin/vendor 17 ' + 'a' * 64
+    transport.call.side_effect = [state, b'active\n', (vendor + '\n').encode()]
+    if state == b'Enforcing\n':
+        result, rows = qualification.audit_native(transport, set(), os_id='fedora')
+        assert result['selinux_enforcing'] is True
+        assert rows == Counter({vendor: 1})
+        assert transport.call.call_args.args[0] == ['/usr/bin/fapolicyd-cli', '--dump-db']
+    else:
+        with pytest.raises(Exception, match='selinux-not-enforcing'):
+            qualification.audit_native(transport, set(), os_id='fedora')
+        assert transport.call.call_count == 1
+    assert transport.call.call_args_list[0].args[0] == ['/usr/sbin/getenforce']
+
+
+def test_native_database_refuses_foreign_platform_backend():
+    for os_id, source in [('fedora', 'debdb'), ('ubuntu', 'rpmdb')]:
+        with pytest.raises(Exception, match='native-database-row'):
+            qualification.native_rows((source + ' /usr/bin/vendor 1 ' + 'a' * 64).encode(),
+                                      set(), set(), os_id)
+
+
+@pytest.mark.parametrize(('change', 'installed'), [(change, installed) for change in [
+    None, 'bytes', 'mode', 'symlink', 'extra', 'legacy',
+    'compiled', 'compiled-mode', 'previous', 'previous-stock', 'previous-private',
+    'previous-legacy', 'previous-comment', 'previous-mode', 'previous-symlink',
+    'previous-older-stock', 'previous-unproven-stock'] for installed in [False, True]] + [
+    (change, True) for change in ['fallback-bytes', 'fallback-missing', 'original-allow',
+                                'product-inventory', 'product-group', 'generated-bytes',
+                                'generated-absent', 'broker-group', 'actual-group',
+                                'broker-missing', 'broker-duplicate']])
+def test_fedora_stock_policy_preserves_exact_files_metadata_and_inventory(
+        tmp_path, monkeypatch, capsys, change, installed):
+    root = tmp_path / 'rules.d'
+    root.mkdir()
+    path = root / '95-vendor.rules'
+    path.write_bytes(b'allow perm=open all : all\n')
+    info = path.stat()
+    expected = {str(path): {'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+        'mode': stat.S_IMODE(info.st_mode), 'uid': os.getuid(), 'gid': os.getgid()}}
+    product = {}
+    monkeypatch.setattr(grp, 'getgrall', lambda: [
+        SimpleNamespace(gr_name='wheel', gr_gid=os.getgid())])
+    if installed:
+        for name, content in [
+                ('00-oh-no-parent-control-canary.rules', b'deny perm=execute uid=0 : path=/usr/libexec/probe\n'),
+                ('01-oh-no-parent-control-deny.rules', b'# Generated by Oh No! Parent Control. Do not edit.\n'),
+                ('89-oh-no-parent-control.rules', b'# Generated by Oh No! Parent Control. Do not edit.\n'),
+                ('99-oh-no-parent-control-allow.rules', b'allow perm=any uid=0 : all\n')]:
+            member = root / name
+            member.write_bytes(content)
+            member.chmod(0o644)
+            product[str(member)] = {'sha256': hashlib.sha256(content).hexdigest(),
+                'mode': 0o644, 'uid': os.getuid(),
+                'gid': os.getgid() if name.startswith(('00-', '99-')) else [os.getgid(), os.getgid()]}
+    legacy = tmp_path / 'fapolicyd.rules'
+    receipt = tmp_path / 'receipt.json'
+    compiled = tmp_path / 'compiled.rules'
+    header = f'## This file is automatically generated from {root}\n'.encode()
+    stock = header + b'allow perm=open all : all\n'
+    current = header + (b'deny perm=execute uid=0 : path=/usr/libexec/probe\n'
+                        if installed else b'') + b'allow perm=open all : all\n' + (
+                            b'allow perm=any uid=0 : all\n' if installed else b'')
+    compiled.write_bytes(current)
+    compiled.chmod(0o644)
+    previous = compiled.with_name('compiled.rules.prev')
+    prior = None
+    if change and change.startswith('previous'):
+        previous.write_bytes(stock if change == 'previous-stock' else current)
+        previous.chmod(0o640 if change == 'previous-private' else 0o644)
+        if change in ('previous-older-stock', 'previous-unproven-stock'):
+            previous.write_bytes(header + b'allow perm=open all : ftype=text/plain\n')
+            if change == 'previous-older-stock':
+                prior = {'sha256': hashlib.sha256(previous.read_bytes()).hexdigest(),
+                         'mode': 0o644, 'uid': 0, 'gid': os.getgid()}
+    program = qualification.NATIVE_POLICY_AUDIT.replace('/etc/fapolicyd/rules.d', str(root)).replace(
+        '/etc/fapolicyd/fapolicyd.rules', str(legacy)).replace(
+        '/var/lib/onpc-baseline-native-rules.json', str(receipt)).replace(
+        '/etc/fapolicyd/compiled.rules', str(compiled)).replace('info.st_uid==0', 'info.st_uid==os.getuid()')
+    if change == 'bytes':
+        path.write_bytes(b'changed stock policy')
+    elif change == 'mode':
+        path.chmod(0o400)
+    elif change == 'symlink':
+        path.unlink()
+        path.symlink_to(legacy)
+    elif change == 'extra':
+        (root / '96-foreign.rules').write_bytes(b'allow all')
+    elif change == 'legacy':
+        legacy.write_bytes(b'allow all')
+    elif change == 'fallback-bytes':
+        (root / '99-oh-no-parent-control-allow.rules').write_bytes(b'allow perm=any all : all\n')
+    elif change == 'fallback-missing':
+        (root / '99-oh-no-parent-control-allow.rules').unlink()
+    elif change == 'original-allow':
+        (root / '02-oh-no-parent-control-original-allow.rules').write_bytes(b'allow perm=any all : all\n')
+    elif change == 'product-inventory':
+        product.pop(str(root / '99-oh-no-parent-control-allow.rules'))
+    elif change == 'product-group':
+        product[str(root / '99-oh-no-parent-control-allow.rules')]['gid'] = [0, os.getgid()]
+    elif change == 'broker-group':
+        product[str(root / '01-oh-no-parent-control-deny.rules')]['gid'] = [0, os.getgid()]
+    elif change == 'actual-group':
+        inode = (root / '01-oh-no-parent-control-deny.rules').stat().st_ino
+        original_fstat, original_lstat = os.fstat, type(root).lstat
+        def foreign_group(info):
+            if info.st_ino != inode:
+                return info
+            fields = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
+                      'st_size', 'st_mtime_ns', 'st_ctime_ns')
+            return SimpleNamespace(**({name: getattr(info, name) for name in fields} |
+                                      {'st_gid': os.getgid() + 1}))
+        monkeypatch.setattr(os, 'fstat', lambda fd: foreign_group(original_fstat(fd)))
+        monkeypatch.setattr(type(root), 'lstat',
+                            lambda path: foreign_group(original_lstat(path)))
+    elif change == 'broker-missing':
+        monkeypatch.setattr(grp, 'getgrall', lambda: [])
+    elif change == 'broker-duplicate':
+        monkeypatch.setattr(grp, 'getgrall', lambda: [
+            SimpleNamespace(gr_name='wheel', gr_gid=os.getgid())] * 2)
+    elif change == 'generated-bytes':
+        (root / '01-oh-no-parent-control-deny.rules').write_bytes(b'deny perm=any all : all\n')
+    elif change == 'generated-absent':
+        (root / '01-oh-no-parent-control-deny.rules').unlink()
+        (root / '89-oh-no-parent-control.rules').unlink()
+    elif change == 'compiled':
+        compiled.write_bytes(compiled.read_bytes() + b'allow perm=execute uid=1001 : sha256hash=' + b'a' * 64 + b' trust=0\n')
+    elif change == 'compiled-mode':
+        compiled.chmod(0o666)
+    elif change == 'previous-legacy':
+        previous.write_bytes(current + b'allow perm=execute uid=1001 : sha256hash=' + b'a' * 64 + b' trust=0\n')
+    elif change == 'previous-comment':
+        previous.write_bytes(current + b'# archived fixture source bytes\n')
+    elif change == 'previous-mode':
+        previous.chmod(0o666)
+    elif change == 'previous-symlink':
+        previous.unlink()
+        previous.symlink_to(compiled)
+    monkeypatch.setattr(sys, 'stdin', io.StringIO(json.dumps({
+        'os_id': 'fedora', 'files': expected, 'product': product, 'previous': prior})))
+    if change in (None, 'previous', 'previous-stock', 'previous-private', 'previous-older-stock',
+                  'generated-absent'):
+        exec(compile(program, '<fedora-stock-read-only-probe>', 'exec'), {})
+        result = json.loads(capsys.readouterr().out)
+        assert result['compiled_sha256'] == hashlib.sha256(current).hexdigest()
+        if change in (None, 'generated-absent'):
+            assert result['compiled_previous'] is None
+        else:
+            assert result['compiled_previous']['sha256'] == hashlib.sha256(previous.read_bytes()).hexdigest()
+            assert result['compiled_previous']['mode'] == (0o640 if change == 'previous-private' else 0o644)
+    else:
+        with pytest.raises(AssertionError, match=(
+                r'native-policy-product-group path=.*01-oh-no-parent-control-deny.rules actual_gid=.* expected_gids='
+                if change == 'actual-group' else
+                'native-policy-compiled-substituted' if change == 'compiled' else
+                'native-policy-previous-substituted' if change in (
+                    'previous-legacy', 'previous-comment', 'previous-unproven-stock')
+                else 'native-policy-')):
+            exec(compile(program, '<fedora-stock-read-only-probe>', 'exec'), {})
+
+
+@pytest.mark.parametrize('name', ['00-oh-no-parent-control-canary.rules',
+                                 '99-oh-no-parent-control-allow.rules'])
+@pytest.mark.parametrize('fault', [None, 'algorithm', 'digest', 'mode', 'kind', 'owner', 'group',
+                                 'duplicate', 'missing', 'substituted', 'columns'])
+def test_fedora_product_policy_is_bound_to_exact_rpm_manifest(tmp_path, name, fault):
+    sources = {'/usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules': 'a' * 64,
+               '/usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules': 'b' * 64}
+    source = '/usr/share/oh-no-parent-control/' + name
+    (tmp_path / 'installed-files.json').write_text(json.dumps([
+        {'path': path, 'kind': 'file', 'mode': 0o644} for path in sources]))
+    rows = {path: '\t'.join([path, digest, str(stat.S_IFREG | 0o644), 'root', 'root'])
+            for path, digest in sources.items()}
+    row = rows[source]
+    if fault == 'digest':
+        rows[source] = row.replace(sources[source], 'invalid')
+    elif fault == 'mode':
+        rows[source] = row.replace(str(stat.S_IFREG | 0o644), str(stat.S_IFREG | 0o666))
+    elif fault == 'kind':
+        rows[source] = row.replace(str(stat.S_IFREG | 0o644), str(stat.S_IFLNK | 0o644))
+    elif fault == 'owner':
+        rows[source] = row.replace('\troot\t', '\tforeign\t')
+    elif fault == 'group':
+        rows[source] = row.removesuffix('root') + 'foreign'
+    elif fault == 'duplicate':
+        rows[source] = row + '\n' + row
+    elif fault == 'missing':
+        del rows[source]
+    elif fault == 'substituted':
+        rows[source] = row.replace(source, '/usr/share/oh-no-parent-control/substituted.rules')
+    elif fault == 'columns':
+        rows[source] = row + '\textra'
+    raw = ('10' if fault == 'algorithm' else '8') + '\n' + '\n'.join(rows.values()) + '\n'
+    commands = Mock()
+    commands.run.return_value = raw.encode()
+    if fault:
+        with pytest.raises(Exception, match='product-policy-package'):
+            qualification.installed_product_policy(tmp_path, commands, 991, 10)
+    else:
+        expected = qualification.installed_product_policy(tmp_path, commands, 991, 10)
+        assert expected['/etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules'] == {
+            'sha256': 'a' * 64, 'mode': 0o644, 'uid': 0, 'gid': 991}
+        assert expected['/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules'] == {
+            'sha256': 'b' * 64, 'mode': 0o644, 'uid': 0, 'gid': 991}
+        assert expected['/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules']['gid'] == [10, 991]
+        assert len(expected) == 4
+        commands.run.assert_called_once()
+        assert commands.run.call_args.args[0][-1] == str(tmp_path / 'package.rpm')
+
+
+@pytest.mark.parametrize('name', ['00-oh-no-parent-control-canary.rules',
+                                 '99-oh-no-parent-control-allow.rules'])
+@pytest.mark.parametrize('fault', ['missing', 'duplicate', 'duplicate-invalid', 'kind', 'mode'])
+def test_fedora_product_policy_requires_unique_regular_manifest_sources(tmp_path, name, fault):
+    sources = ['/usr/share/oh-no-parent-control/' + member for member in (
+        '00-oh-no-parent-control-canary.rules', '99-oh-no-parent-control-allow.rules')]
+    selected = {'path': '/usr/share/oh-no-parent-control/' + name, 'kind': 'file', 'mode': 0o644}
+    manifest = [dict(selected) if source == selected['path'] else
+                {'path': source, 'kind': 'file', 'mode': 0o644} for source in sources]
+    if fault == 'missing':
+        manifest.remove(selected)
+    elif fault.startswith('duplicate'):
+        manifest.append(selected | ({'kind': 'symlink'} if fault == 'duplicate-invalid' else {}))
+    else:
+        next(entry for entry in manifest if entry['path'] == selected['path']).update(
+            {'kind': 'symlink'} if fault == 'kind' else {'mode': 0o666})
+    (tmp_path / 'installed-files.json').write_text(json.dumps(manifest))
+    commands = Mock()
+    with pytest.raises(Exception, match='product-policy-manifest'):
+        qualification.installed_product_policy(tmp_path, commands, 991, 10)
+    commands.run.assert_not_called()
+
+
+def test_public_native_rule_list_must_match_compiled_rule_order_and_bytes():
+    compiled = b'# generated\n%languages=text/x-python\nallow perm=open all : all\ndeny perm=execute all : all\n'
+    public = b'-> %languages=text/x-python\n1. allow perm=open all : all\n2. deny perm=execute all : all\n'
+    assert qualification.policy_rules(public, numbered=True) == qualification.policy_rules(compiled)
+    changed = public + b'3. allow perm=execute uid=1001 : sha256hash=' + b'a' * 64 + b' trust=0\n'
+    assert qualification.policy_rules(changed, numbered=True) != qualification.policy_rules(compiled)
+    with pytest.raises(Exception, match='native-policy-rule'):
+        qualification.policy_rules(b'not a policy row\n', numbered=True)
+    with pytest.raises(Exception, match='native-policy-rule'):
+        qualification.policy_rules(b'-> allow perm=open all : all\n', numbered=True)
+
+
+@pytest.mark.parametrize('stale_list', [False, True])
+def test_native_audit_carries_baseline_proven_backup_and_checks_public_rule_file(stale_list):
+    previous = {'sha256': 'b' * 64, 'mode': 0o640, 'uid': 0, 'gid': 991}
+    rules = 'allow perm=open all : all\n'
+    policy = {'compiled_rules': rules, 'compiled_sha256': hashlib.sha256(rules.encode()).hexdigest(),
+              'compiled_previous': previous}
+    public = b'1. allow perm=open all : all\n'
+    if stale_list:
+        public += b'2. allow perm=execute uid=1003 : sha256hash=' + b'a' * 64 + b' trust=0\n'
+    vendor = 'rpmdb /usr/bin/vendor 17 ' + 'a' * 64
+    transport = Mock()
+    transport.call.side_effect = [json.dumps(policy).encode(), public, b'Enforcing\n',
+                                  b'active\n', (vendor + '\n').encode()]
+    if stale_list:
+        with pytest.raises(Exception, match='native-policy-list-changed'):
+            qualification.audit_native(transport, set(), native_policy={}, os_id='fedora',
+                                       native_previous=previous)
+        assert transport.call.call_count == 2
+    else:
+        result, _ = qualification.audit_native(transport, set(), native_policy={}, os_id='fedora',
+                                             native_previous=previous)
+        assert result['compiled_previous'] == previous
+        assert result['compiled_and_public_rule_list_match_sources'] is True
+    request = json.loads(transport.call.call_args_list[0].kwargs['input'])
+    assert request['previous'] == previous
 
 
 @pytest.mark.parametrize('raw', [b'', b'bad row\n', b'a\t1\tunpacked\n',
@@ -312,8 +668,26 @@ def test_product_probe_refuses_non_regular_manifest_before_package_commands(tmp_
     commands.run.assert_not_called()
 
 
-@pytest.fixture
-def capture(tmp_path, monkeypatch):
+def test_rpm_identity_probe_changes_only_private_archive_bytes(tmp_path):
+    import package_content
+    assets = tmp_path / 'original'
+    assets.mkdir()
+    package = assets / 'package.rpm'
+    original = b'actual frozen package bytes\x12'
+    package.write_bytes(original)
+    before = package.stat()
+    commands = Mock()
+    changed = qualification.changed_product(tmp_path, assets, commands, 'fedora')
+    assert (changed / 'package.rpm').read_bytes() == original[:-1] + b'\x13'
+    assert package.read_bytes() == original
+    after = package.stat()
+    assert (before.st_ino, before.st_size, before.st_mtime_ns) == (after.st_ino, after.st_size, after.st_mtime_ns)
+    assert package_content.digest(package, commands) != package_content.digest(changed / 'package.rpm', commands)
+    commands.run.assert_not_called()
+
+
+@pytest.fixture(params=['onpc-Ubuntu26.04', 'onpc-Fedora44'])
+def capture(tmp_path, monkeypatch, request):
     events = []
     lease = MagicMock()
     lease.state = {'baseline_sha256': 'c' * 64}
@@ -324,7 +698,10 @@ def capture(tmp_path, monkeypatch):
     lease.stop.side_effect = lambda: events.append('stop')
     suite = Mock(lease=lease)
     source = Mock()
-    source.domain.name.return_value = 'onpc-Ubuntu26.04'
+    source.domain.name.return_value = request.param
+    lease.source = source
+    monkeypatch.setattr(qualification.prepare_vm.vm_config, 'selected',
+                        lambda: SimpleNamespace(name=request.param))
     suite.acquire.return_value = source, Mock(), lease
     suite.prepare_installed.side_effect = lambda *a, **kw: events.append('capture') or True
     suite.close.side_effect = lambda: events.append('close')
@@ -336,7 +713,8 @@ def capture(tmp_path, monkeypatch):
     monkeypatch.setattr(qualification.installed_setup, 'snapshot_inputs',
                         lambda _: SimpleNamespace(files={'system_guest.py': b'helper'}))
     monkeypatch.setattr(qualification, 'audit_baseline',
-                        lambda *_: events.append('baseline-audit') or {'clean': True, 'native_policy': {}})
+                        lambda *_: events.append('baseline-audit') or {'clean': True,
+                            'native_policy': {'stock': {'gid': 991}}, 'broker_gid': 10})
     monkeypatch.setattr(qualification, 'baseline_transport',
                         lambda *_: events.append('baseline-ssh') or Mock())
     monkeypatch.setattr(qualification, 'audit_native',
@@ -344,7 +722,8 @@ def capture(tmp_path, monkeypatch):
                                       ({'service_active': True, 'database_readable': True,
                                         'product_rows': 0}, Counter({'vendor-row': 1}))))
     monkeypatch.setattr(qualification, 'installed_product_paths', lambda _: set())
-    monkeypatch.setattr(qualification, 'package_inventory', lambda _: {'vendor': '1'})
+    monkeypatch.setattr(qualification, 'installed_product_policy', Mock(return_value={}))
+    monkeypatch.setattr(qualification, 'package_inventory', lambda *_: {'vendor': '1'})
     monkeypatch.setattr(qualification, 'qualify_identities', lambda *_: {'identities': True})
     monkeypatch.setattr(qualification.online_snapshot, 'load', lambda *_: {'run': 'b' * 32})
     monkeypatch.setattr(qualification.online_snapshot, 'restore',
@@ -368,6 +747,11 @@ def test_real_shared_capture_and_restore_branches_precede_owned_close(tmp_path, 
     assert result['online_app']['snapshot'] == 'onpc-v9.8.7'
     assert result['baseline']['native']['service_active'] is True
     assert result['online_app']['native']['database_readable'] is True
+    if result['os_id'] == 'fedora':
+        qualification.installed_product_policy.assert_called_once_with(
+            tmp_path / 'assets', suite.commands, 991, 10)
+    else:
+        qualification.installed_product_policy.assert_not_called()
     lease.__exit__.assert_called_once()
     suite.close.assert_called_once_with()
 
@@ -410,7 +794,7 @@ def test_vendor_database_drift_refuses_app_capture_and_closes_owned_lease(
 
 def test_other_target_refuses_before_any_vm_mutation(tmp_path, capture):
     suite, lease, events = capture
-    suite.acquire.return_value[0].domain.name.return_value = 'onpc-Fedora44'
+    suite.acquire.return_value[0].domain.name.return_value = 'unqualified-target'
     with pytest.raises(Exception, match='target-not-qualified'):
         qualification.qualify(tmp_path, tmp_path / 'input')
     lease.__enter__.assert_not_called()
@@ -421,7 +805,7 @@ def test_other_target_refuses_before_any_vm_mutation(tmp_path, capture):
 def test_main_requires_canonical_target_before_allocation(monkeypatch):
     monkeypatch.setattr(qualification.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(qualification.prepare_vm.vm_config, 'selected',
-                        lambda: SimpleNamespace(name='onpc-Fedora44'))
+                        lambda: SimpleNamespace(name='unqualified-target'))
     allocate = Mock(side_effect=AssertionError('allocation should not happen'))
     monkeypatch.setattr(qualification, 'allocate', allocate)
     assert qualification.main(assets='unused') == 1

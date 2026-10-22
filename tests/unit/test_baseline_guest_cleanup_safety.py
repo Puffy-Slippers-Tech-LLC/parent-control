@@ -24,6 +24,7 @@ def preparation(monkeypatch):
     monkeypatch.setattr(baseline_fixtures, 'verify_clean', Mock())
     monkeypatch.setattr(baseline_fixtures, 'reconcile_native_rules', Mock())
     monkeypatch.setattr(baseline_fixtures, 'verify_native_rules', Mock())
+    monkeypatch.setattr(baseline_fixtures, 'refresh_clean_compiled', Mock())
     monkeypatch.setattr(baseline_console, 'reconcile', Mock())
     files, links = {}, {}
     files['/etc/os-release'] = b'ID=ubuntu\nVERSION_ID=26.04\n'
@@ -94,22 +95,62 @@ def test_repeat_stages_only_maintained_code_and_never_the_host_envrc(preparation
     p.capture.source.shutdown.assert_not_called()
 
 
-def test_clean_preparation_never_builds_fixtures_and_removes_shared_module_copy(preparation):
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+def test_clean_preparation_never_builds_fixtures_and_removes_shared_module_copy(preparation, os_id):
     import baseline_fixtures
     p = preparation
+    if os_id == 'fedora':
+        p.files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
+        p.files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
     def environment_after_guest_setup(*args):
         assert p.capture.source.domain.create.call_count == 1
+        return {}
     baseline_fixtures.reconcile_clean.side_effect = environment_after_guest_setup
     guest.prepare(p.capture, Mock(), 'fixture-password')
     baseline_fixtures.build_payload.assert_not_called()
     baseline_fixtures.reconcile.assert_not_called()
     baseline_fixtures.reconcile_clean.assert_called_once()
-    baseline_fixtures.reconcile_native_rules.assert_called_once()
-    baseline_fixtures.verify_native_rules.assert_called_once()
+    assert baseline_fixtures.reconcile_native_rules.call_count == int(os_id == 'ubuntu')
+    assert baseline_fixtures.verify_native_rules.call_count == int(os_id == 'ubuntu')
     guest.verify_clean_sources(p.g)
     for identity in guest.prepare_vm.IDENTITIES:
         relative = Path(identity.icon_file).relative_to(guest.prepare_vm.CHECKOUT)
         assert p.files[guest.STAGE + '/checkout/' + str(relative)] == Path(identity.icon_file).read_bytes()
+
+
+@pytest.mark.parametrize('completed_retirement', [False, True])
+def test_legacy_native_preflight_precedes_source_retirement_and_all_guest_boots(
+        preparation, monkeypatch, completed_retirement):
+    import baseline_fixtures
+    p = preparation
+    p.files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
+    accounts = {identity.username: {'uid': 1000 + index, 'role': identity.role}
+                for index, identity in enumerate(guest.prepare_vm.IDENTITIES)}
+    marker = guest.prepare_vm.marker_document(
+        guest.prepare_vm.GuestIdentity(guest.prepare_vm.HOSTNAME, 'a' * 32, '44', 'kvm', 'fedora'),
+        accounts, 'b' * 64)
+    marker['schema_version'] = 3
+    guest.write(p.g, str(guest.prepare_vm.MARKER), json.dumps(marker).encode())
+    guest.write(p.g, baseline_fixtures.RECORD, json.dumps({
+        'purpose': baseline_fixtures.CLEAN_PURPOSE if completed_retirement else baseline_fixtures.PURPOSE
+    }).encode())
+    preflight = Mock(side_effect=ValueError('native compiler ambiguity'))
+    monkeypatch.setattr(baseline_fixtures, '_retirement_plan', preflight)
+    if completed_retirement:
+        baseline_fixtures.refresh_clean_compiled.side_effect = ValueError('native compiler ambiguity')
+    sources = Mock()
+    monkeypatch.setattr(guest, 'prepare_source_retirement', sources)
+    before = dict(p.files)
+    with pytest.raises(ValueError, match='native compiler ambiguity'):
+        guest.prepare(p.capture, Mock(), 'fixture-password')
+    assert p.files == before
+    sources.assert_not_called()
+    p.capture.source.domain.create.assert_not_called()
+    if completed_retirement:
+        preflight.assert_not_called()
+        baseline_fixtures.refresh_clean_compiled.assert_called_once_with(p.g)
+    else:
+        preflight.assert_called_once_with(p.g, 'b' * 64, publish=False)
 
 
 @pytest.mark.parametrize('failure', ['boot', 'readiness'])
@@ -184,19 +225,29 @@ def test_clean_preparation_retry_owns_new_sources_after_staging_and_partial_remo
     guest.verify_clean_sources(p.g)
 
 
-@pytest.mark.parametrize('fault', [None, 'tampered', 'symlink'])
-def test_source_retirement_requires_complete_old_digest_and_preserves_avatar_and_unrelated(preparation, monkeypatch, fault):
+@pytest.mark.parametrize('fault', [None, 'tampered', 'symlink', 'interrupted', 'substituted-retry'])
+@pytest.mark.parametrize('os_id,extra_environment', [('ubuntu', False), ('fedora', False), ('fedora', True)])
+def test_source_retirement_requires_complete_old_digest_and_preserves_avatar_and_unrelated(
+        preparation, monkeypatch, fault, os_id, extra_environment):
     p = preparation
     # This test exercises source retirement itself rather than full preparation.
-    for relative in guest.prepare_vm.LEGACY_SCRIPT_FILES:
+    sources = guest.prepare_vm.LEGACY_SCRIPT_FILES
+    if extra_environment:
+        sources = (*sources, 'tests/fixtures/baseline_environment.py')
+    for relative in sources:
         guest.write(p.g, guest.STAGE + '/checkout/' + relative,
                     (guest.prepare_vm.CHECKOUT / relative).read_bytes())
     identities = {item.username: {'uid': 1000 + index, 'role': item.role}
                   for index, item in enumerate(guest.prepare_vm.IDENTITIES)}
     marker = guest.prepare_vm.marker_document(
-        guest.prepare_vm.GuestIdentity(guest.prepare_vm.HOSTNAME, 'a' * 32, '26.04', 'kvm'),
-        identities, guest.prepare_vm.preparation_digest(legacy=True))
-    marker['schema_version'] = guest.prepare_vm.MARKER_VERSION
+        guest.prepare_vm.GuestIdentity(guest.prepare_vm.HOSTNAME, 'a' * 32,
+                                      '26.04' if os_id == 'ubuntu' else '44', 'kvm', os_id),
+        identities, guest.prepare_vm.preparation_source_digest(
+            lambda relative: (guest.prepare_vm.CHECKOUT / relative).read_bytes(), sources))
+    marker['schema_version'] = guest.prepare_vm.MARKER_VERSION if os_id == 'ubuntu' else 3
+    if os_id == 'ubuntu':
+        marker['guest']['ubuntu_version'] = marker['guest'].pop('version')
+        marker['guest'].pop('os_id')
     guest.write(p.g, str(guest.prepare_vm.MARKER), json.dumps(marker).encode())
     p.g.checksum.side_effect = lambda algorithm, path: hashlib.new(algorithm, p.files[path]).hexdigest()
     target = guest.STAGE + '/checkout/tests/fixtures/onpc_test_application.c'
@@ -212,6 +263,23 @@ def test_source_retirement_requires_complete_old_digest_and_preserves_avatar_and
             guest.prepare_source_retirement(p.g)
         assert p.files == before
         return
+    if fault in ('interrupted', 'substituted-retry'):
+        remove = p.g.rm.side_effect
+        def interrupted(path):
+            remove(path)
+            raise RuntimeError('interrupted source removal')
+        p.g.rm.side_effect = interrupted
+        with pytest.raises(RuntimeError, match='interrupted source removal'):
+            guest.prepare_source_retirement(p.g)
+        assert guest.SOURCE_RETIREMENT in p.files
+        p.g.rm.side_effect = remove
+        if fault == 'substituted-retry':
+            p.files[target] = b'substituted'
+            before = dict(p.files)
+            with pytest.raises(host.CaptureError, match='source-retirement-substituted'):
+                guest.prepare_source_retirement(p.g)
+            assert p.files == before
+            return
     guest.prepare_source_retirement(p.g)
     assert not any(guest.STAGE + '/checkout/' + relative in p.files
                    for relative in guest.prepare_vm.FIXTURE_SOURCE_FILES)
@@ -331,13 +399,19 @@ def test_guest_update_failure_never_marks_success(guest_entry, monkeypatch):
 
 
 @pytest.mark.parametrize('failure', [None, 'tabs', 0, 1, 2, 3, 4, 5, 6, 7, 'static', 'inactive', 'empty'])
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
 def test_native_preparation_uses_packaged_service_and_gates_success(
-        guest_entry, monkeypatch, failure):
+        guest_entry, monkeypatch, failure, os_id):
     import subprocess
     entry, root = guest_entry
+    if os_id == 'fedora':
+        monkeypatch.setattr(entry.prepare_vm, '_read_os_release', lambda path:
+                            {'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'})
+    cli = '/usr/sbin/fapolicyd-cli' if os_id == 'ubuntu' else '/usr/bin/fapolicyd-cli'
+    vendor = 'debdb' if os_id == 'ubuntu' else 'rpmdb'
     calls = []
     clock = Mock()
-    clock.monotonic.side_effect = range(0, 10000, 90)
+    clock.monotonic.side_effect = range(0, 10000, 10)
     monkeypatch.setattr(entry, 'time', clock)
     def run(command, **kwargs):
         calls.append(command)
@@ -345,7 +419,7 @@ def test_native_preparation_uses_packaged_service_and_gates_success(
             raise subprocess.CalledProcessError(1, command)
         output = 'active\n'
         if command[-1] == '--dump-db':
-            output = '' if failure == 'empty' else 'debdb /usr/bin/vendor 12 ' + 'a' * 64 + '\n'
+            output = '' if failure == 'empty' else vendor + ' /usr/bin/vendor 12 ' + 'a' * 64 + '\n'
             if failure == 'tabs':
                 output = output.replace(' ', '\t')
         elif command[1:2] == ['is-enabled']:
@@ -363,14 +437,14 @@ def test_native_preparation_uses_packaged_service_and_gates_success(
         assert entry.main(['--prepare-native', '--vm', vm_name()]) == 0
         assert calls == first * 2
         assert first == [
-            ['/usr/sbin/fapolicyd-cli', '--check-config'],
+            [cli, '--check-config'],
             ['systemctl', 'enable', 'fapolicyd.service'],
             ['systemctl', 'start', 'fapolicyd.service'],
             ['systemctl', 'is-enabled', 'fapolicyd.service'],
             ['systemctl', 'is-active', 'fapolicyd.service'],
-            ['/usr/sbin/fapolicyd-cli', '--dump-db'],
-            ['/usr/sbin/fapolicyd-cli', '--check-status'],
-            ['/usr/sbin/fapolicyd-cli', '--dump-db']]
+            [cli, '--dump-db'],
+            [cli, '--check-status'],
+            [cli, '--dump-db']]
     else:
         with pytest.raises((subprocess.CalledProcessError, ValueError)):
             entry.main(['--prepare-native', '--vm', vm_name()])
@@ -406,6 +480,108 @@ def test_native_preparation_waits_for_database_and_native_initialization(guest_e
     assert events[-2:] == ['--check-status', '--dump-db']
     assert 'database_rows=2 vendor_rows=2' in capsys.readouterr().out
     assert (root / 'success').read_text() == 'success\n'
+
+
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('outcome', ['success', 'exhausted', 'journal-failure', 'clipped-deadline',
+                                    'inactive', 'unknown-output', 'unknown-stderr', 'unknown-exit'])
+def test_native_status_readiness_retries_only_exact_report_timeout(
+        guest_entry, monkeypatch, capsys, os_id, outcome):
+    import subprocess
+    entry, root = guest_entry
+    if os_id == 'fedora':
+        monkeypatch.setattr(entry.prepare_vm, '_read_os_release', lambda path:
+                            {'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'})
+    cli = '/usr/sbin/fapolicyd-cli' if os_id == 'ubuntu' else '/usr/bin/fapolicyd-cli'
+    vendor = 'debdb' if os_id == 'ubuntu' else 'rpmdb'
+    row = vendor + ' /usr/bin/vendor 12 ' + 'a' * 64 + '\n'
+    transient = "Can't find fapolicyd: timed out waiting for report\n"
+    now = [0.0]
+    clock = Mock()
+    clock.monotonic.side_effect = lambda: now[0]
+    clock.sleep.side_effect = lambda seconds: now.__setitem__(0, now[0] + seconds)
+    monkeypatch.setattr(entry, 'time', clock)
+    calls, failures = [], []
+    status_calls = 0
+    successful_handshake = False
+    fresh_dump = False
+    def run(command, **kwargs):
+        nonlocal status_calls, successful_handshake, fresh_dump
+        calls.append(command)
+        if command[0] == 'journalctl':
+            assert command == ['journalctl', '--boot', '--unit=fapolicyd.service', '--no-pager', '--lines=80']
+            assert kwargs == {'check': False, 'timeout': 30}
+            if outcome == 'journal-failure':
+                raise subprocess.CalledProcessError(1, command, output='journal refused')
+            return Mock(stdout='bounded native startup diagnostics\n')
+        if command[1:2] == ['is-active']:
+            if outcome == 'inactive' and status_calls:
+                return Mock(stdout='inactive\n')
+            return Mock(stdout='active\n')
+        if command[-1] == '--dump-db':
+            if successful_handshake:
+                fresh_dump = True
+                assert kwargs['timeout'] == 120
+                return Mock(stdout=row * 2)
+            return Mock(stdout=row)  # A readable old LMDB does not prove readiness.
+        if command[-1] == '--check-status':
+            status_calls += 1
+            assert calls[-3:-1] == [['systemctl', 'is-active', 'fapolicyd.service'], [cli, '--dump-db']]
+            assert 0 < kwargs['timeout'] <= min(60, 180 - now[0])
+            if outcome == 'success' and status_calls == 2:
+                successful_handshake = True
+                return Mock(stdout='native status report\n')
+            if outcome == 'clipped-deadline' and kwargs['timeout'] < 26:
+                now[0] += kwargs['timeout']
+                failure = subprocess.TimeoutExpired(command, kwargs['timeout'])
+            else:
+                now[0] += min(26, kwargs['timeout'])
+                failure = subprocess.CalledProcessError(
+                    2 if outcome == 'unknown-exit' else 1, command,
+                    output='unexpected report failure\n' if outcome == 'unknown-output' else transient,
+                    stderr='unexpected stderr\n' if outcome == 'unknown-stderr' else '')
+            failures.append(failure)
+            raise failure
+        return Mock(stdout='enabled\n' if command[1:2] == ['is-enabled'] else '')
+    monkeypatch.setattr(entry.prepare_vm, 'Runner', lambda: Mock(run=run))
+    if outcome == 'success':
+        assert entry.main(['--prepare-native', '--vm', vm_name()]) == 0
+        assert status_calls == 2 and clock.sleep.call_count == 1
+        assert fresh_dump and calls[-1] == [cli, '--dump-db']
+        assert (root / 'success').read_text() == 'success\n'
+        assert 'database_rows=2 vendor_rows=2' in capsys.readouterr().out
+    else:
+        with pytest.raises((subprocess.SubprocessError, ValueError)) as raised:
+            entry.main(['--prepare-native', '--vm', vm_name()])
+        assert not fresh_dump and not (root / 'success').exists()
+        if outcome.startswith('unknown'):
+            assert raised.value is failures[0]
+            assert status_calls == 1 and clock.sleep.call_count == 0
+        elif outcome == 'inactive':
+            assert 'native-not-ready' in str(raised.value)
+            assert status_calls == 1
+        else:
+            assert now[0] == 180
+            assert raised.value is failures[-1]
+            assert status_calls > 1
+            output = capsys.readouterr().out
+            assert 'native:readiness-timeout' in output
+            assert ('native:journal-unavailable' if outcome == 'journal-failure'
+                    else 'bounded native startup diagnostics') in output
+
+
+def test_native_preparation_failure_retains_both_diagnostic_streams(guest_entry, monkeypatch, capsys):
+    import subprocess
+    entry, root = guest_entry
+    failure = subprocess.CalledProcessError(1, ['fapolicyd-cli', '--check-status'],
+        output="Can't find fapolicyd: timed out waiting for report\n", stderr='native error\n')
+    monkeypatch.setattr(entry, 'prepare_native', Mock(side_effect=failure))
+    with pytest.raises(subprocess.CalledProcessError):
+        entry.main(['--prepare-native', '--vm', vm_name()])
+    captured = capsys.readouterr()
+    assert failure.stdout in captured.out
+    assert failure.stderr in captured.err
+    assert not (root / 'success').exists()
 
 
 def test_auto_guest_records_reboot_before_success(guest_entry, monkeypatch):
@@ -769,14 +945,10 @@ def test_fedora_staging_labels_owned_paths_without_weakening_selinux(preparation
     p.g.feature_available.return_value = appliance_support
     p.g.is_file.return_value = True
     guest.prepare(p.capture, Mock(), 'fixture-password')
-    assert p.g.feature_available.call_args_list == [call(['selinuxrelabel'])] * 2
+    assert p.g.feature_available.call_args_list == [call(['selinuxrelabel'])] * 3
     policy = '/etc/selinux/targeted/contexts/files/file_contexts'
-    groups = [[guest.STAGE, guest.UNIT, guest.LINK],
-              ['/var/lib/onpc-baseline-fixtures.json', '/var/lib/onpc-baseline-native-trust.json',
-               '/etc/fapolicyd/trust.d/onpc-baseline-native.trust',
-               '/var/lib/onpc-baseline-native-backend.json', '/etc/fapolicyd/fapolicyd.conf',
-               '/opt/onpc-baseline-assets',
-               '/opt/onpc-baseline-assets/test']]
+    groups = [[guest.STAGE, guest.UNIT, guest.LINK], [],
+              [guest.STAGE, guest.UNIT, guest.LINK]]
     if appliance_support:
         assert p.g.setfiles.call_args_list == [call(policy, paths) for paths in groups]
         p.g.command.assert_not_called()

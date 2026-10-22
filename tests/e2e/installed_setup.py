@@ -41,13 +41,17 @@ def stage(directory, assets, selection, *, bundle=None, snapshot=False):
     require(not destination.exists(), 'setup:input-exists')
     bundle = bundle if bundle is not None else inputs(system.ROOT)
     if snapshot:
-        # Clean Ubuntu captures retain the package and installation metadata,
+        # Clean captures retain the package and installation metadata,
         # never artifact fixtures, their build sources or unused guest helpers.
-        require((assets / 'package.deb').is_file() and not (assets / 'package.rpm').exists(),
-                'setup:snapshot-platform')
+        packages = [name for name in ('package.deb', 'package.rpm')
+                    if (assets / name).is_file() and not (assets / name).is_symlink()]
+        require(len(packages) == 1 and not any(
+            (assets / name).exists() or (assets / name).is_symlink()
+            for name in {'package.deb', 'package.rpm'} - set(packages)),
+            'setup:snapshot-platform')
         bundle = snapshot_inputs(bundle)
         destination.mkdir(mode=0o700)
-        for name in ('package.deb', 'installed-files.json'):
+        for name in (*packages, 'installed-files.json'):
             shutil.copyfile(assets / name, destination / name)
     elif assets == directory / 'assets':
         # This is the attempt's already frozen private copy. Transfer ownership

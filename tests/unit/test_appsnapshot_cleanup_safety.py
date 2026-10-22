@@ -23,7 +23,8 @@ from tests.support.vm_runner import UUID, xml as domain_xml
 VM_ARGS = ['--vm', vm_name()]
 
 
-def test_clean_snapshot_stages_only_frozen_installation_closure(tmp_path, monkeypatch):
+@pytest.mark.parametrize('package', ['package.deb', 'package.rpm'])
+def test_clean_snapshot_stages_only_frozen_installation_closure(tmp_path, monkeypatch, package):
     import installed_setup
     bundle = installed_setup.inputs(ROOT)
     expected = {'install-source/Makefile', 'system_guest.py', 'owned_commands.py',
@@ -36,7 +37,7 @@ def test_clean_snapshot_stages_only_frozen_installation_closure(tmp_path, monkey
     monkeypatch.setattr(guest_inputs, 'read', Mock(side_effect=AssertionError('checkout read')))
     assets = tmp_path / 'assets'
     assets.mkdir(mode=0o700)
-    (assets / 'package.deb').write_bytes(b'product package')
+    (assets / package).write_bytes(b'product package')
     (assets / 'installed-files.json').write_text('[]')
     fixtures = assets / 'fixtures'
     fixtures.mkdir()
@@ -46,7 +47,7 @@ def test_clean_snapshot_stages_only_frozen_installation_closure(tmp_path, monkey
                                    bundle=bundle, snapshot=True)
     payload = tmp_path / 'input'
     files = {p.relative_to(payload).as_posix() for p in payload.rglob('*') if p.is_file()}
-    assert files == expected | {'package.deb', 'installed-files.json',
+    assert files == expected | {package, 'installed-files.json',
                                 'selected-inputs.json', 'transfer-sha256.json'}
     identity = json.loads((payload / 'selected-inputs.json').read_bytes())
     assert set(identity['files']) == expected
@@ -57,6 +58,24 @@ def test_clean_snapshot_stages_only_frozen_installation_closure(tmp_path, monkey
         assert (payload / target).read_bytes() == data
     assert (assets / 'frozen-source.tar').read_bytes() == b'fixture sources'
     assert (fixtures / 'native-fixture').read_bytes() == b'movable fixture'
+
+
+@pytest.mark.parametrize('fault', ['missing', 'both', 'link', 'directory', 'dangling'])
+def test_clean_snapshot_refuses_ambiguous_or_unsafe_package_before_staging(tmp_path, fault):
+    import installed_setup
+    assets = tmp_path / 'assets'
+    assets.mkdir()
+    if fault != 'missing':
+        (assets / 'package.rpm').write_bytes(b'package')
+    if fault == 'both':
+        (assets / 'package.deb').write_bytes(b'package')
+    elif fault in ('link', 'dangling'):
+        (assets / 'package.deb').symlink_to(assets / ('package.rpm' if fault == 'link' else 'absent'))
+    elif fault == 'directory':
+        (assets / 'package.deb').mkdir()
+    with pytest.raises(Exception, match='setup:snapshot-platform'):
+        installed_setup.stage(tmp_path, assets, {}, snapshot=True)
+    assert not (tmp_path / 'input').exists()
 
 
 def test_clean_snapshot_refuses_missing_frozen_installation_helper(tmp_path):
@@ -70,6 +89,7 @@ def test_clean_snapshot_refuses_missing_frozen_installation_helper(tmp_path):
 
 @pytest.mark.parametrize('guest', [
     {'ubuntu_version': '26.04', 'fixture_boundary': 'clean'},
+    {'os_id': 'fedora', 'version': '44', 'fixture_boundary': 'clean'},
     {'ubuntu_version': '26.04'}, {'os_id': 'fedora', 'version': '44'}])
 @pytest.mark.parametrize('mode', ['online', 'offline'])
 def test_app_capture_selects_clean_payload_without_changing_install_sequence(

@@ -155,10 +155,10 @@ pinning is refreshed by host preparation); no product activation or data migrati
 `tools/prepare-vm` owns all reusable one-time guest preparation. Tests,
 qualification workers and app-snapshot preparation verify readiness and refuse
 missing or stale inputs with baseline-refresh guidance. They must not install,
-repair or recreate environment inputs during an attempt. Ubuntu's delivered
-[clean snapshot boundary](#ubuntu-clean-snapshots) keeps movable fixture payloads
-on the host; Fedora's legacy fixture inventory below remains unchanged until
-its own migration passes. Future native, Snap, Flatpak and game dependencies
+repair or recreate environment inputs during an attempt. Ubuntu and Fedora's
+[shared clean snapshot boundary](#ubuntu-clean-snapshots) keeps movable fixture
+payloads on the host, with [Fedora-specific policy checks](#fedora-clean-snapshots).
+The legacy inventory below remains a recovery contract. Future native, Snap, Flatpak and game dependencies
 still require shared environment preparation before use.
 
 | Input | Owner and lifetime |
@@ -167,10 +167,10 @@ still require shared environment preparation before use.
 | Stable fixture folder names across desktop-language changes | `baseline_environment.desktop_settings_files`: per-fixture `Hidden=true` XDG autostart override and empty regular systemd user-unit mask for the optional GTK folder renamer; the baseline reconciler owns placement and read-only verification |
 | Stable Ubuntu package inputs during execution | `baseline_environment.automatic_update_files`: empty regular system-unit masks for `apt-daily.service`, `apt-daily.timer`, `apt-daily-upgrade.service` and `apt-daily-upgrade.timer`; the baseline reconciler owns placement and read-only verification. Fedora has no APT masks. |
 | Serial getty and the 600-second console login window | [baseline_console.py](baseline_console.py); attempts only verify |
-| A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | Legacy Fedora: [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py). Clean Ubuntu: host-owned, pending runner qualification. |
+| A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | Legacy captures: [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py). Clean Ubuntu/Fedora: host-owned, pending runner qualification. |
 | Static native enforcement binaries and catalogue precedence/path witnesses | The same target-specific movable fixture ownership; engineering checks only verify |
-| Trusted hard/soft native witnesses | Legacy Fedora: `baseline_assets.TRUSTED_NATIVE`, fixture reconciler and `native_trust` provenance. Clean Ubuntu captures contain neither payload nor exact fixture admission. |
-| Supporting screen-time and retained activity | Legacy Fedora: `native_assets.ACTIVITY_EXECUTABLE` and its two private GUI modules retain exact file-trust identities. Clean Ubuntu keeps these movable inputs on the host. |
+| Trusted hard/soft native witnesses | Legacy captures: `baseline_assets.TRUSTED_NATIVE`, fixture reconciler and `native_trust` provenance. Clean Ubuntu/Fedora captures contain neither payload nor exact fixture admission. |
+| Supporting screen-time and retained activity | Legacy captures: `native_assets.ACTIVITY_EXECUTABLE` and its two private GUI modules retain exact file-trust identities. Clean Ubuntu/Fedora keep these movable inputs on the host. |
 | Product package and installed app snapshot | Existing product-installation lifecycle; the baseline stays product-free |
 | Private SSH identity, worker transport and evidence | Per-attempt ownership and cleanup |
 | Synthetic attachment/copy/rename/save-error inputs, future binaries and launcher removal | Deliberate scenario mutations at their declared checkpoints; preserve independent-entry and cleanup checks |
@@ -254,7 +254,7 @@ Ubuntu 26.04 preparation writes marker schema 4. Its baseline and derived app
 captures contain environment dependencies and settings, without movable fixture
 binaries, launchers, exact fixture trust entries or copied fixture sources.
 The native file backend, account pictures and recovery records remain intact.
-Fedora retains schema 3 and its legacy inventory until F12 is accepted.
+Fedora uses the same clean boundary, with its platform-specific checks below.
 
 Ubuntu preparation verifies native readiness in a fresh watched boot after
 package updates and the final offline backend reconciliation. It uses the
@@ -265,8 +265,12 @@ database files or adds fixture admissions. First preparation, unchanged repeat,
 updates and interrupted retries use the same baseline-owned step; qualification
 and app preparation only verify the prerequisite.
 The packaged daemon reports service startup before finishing trust loading.
-Preparation uses a bounded read-only wait, then the native status handshake and
-a fresh database dump before recording success.
+Preparation uses a bounded read-only wait that requires the native status
+handshake, followed by a fresh database dump before recording success. An old
+readable database does not establish readiness. Only the native tool's exact
+report-wait timeout is retried within that window; other failures stop immediately.
+Native failures retain both output streams; service-start and readiness-timeout
+failures also retain bounded journal diagnostics.
 
 The Debian native package requires administrator-supplied rule units, as
 documented by its [native policy owner](https://github.com/linux-application-whitelisting/fapolicyd/blob/main/README.md#policies).
@@ -321,6 +325,49 @@ the [shared provisioning boundary](../support/README.md#attempt-owned-fixture-pr
 The completed history restores the baseline and independently leaves the VM off.
 This Ubuntu infrastructure qualification enables no ordinary runner envelope
 and supplies no customer or Fedora acceptance.
+
+### Fedora clean snapshots
+
+Fedora 44 preparation and derived app captures now use schema 4 with explicit
+platform identity. They share the fixture-independent source projection, lean
+product installation closure, exact legacy retirement and recovery boundary
+above. Legacy Fedora schema-3 records remain readable for recovery. Preparation
+preserves accounts, credentials, desktop settings, native dependencies and
+enforcing SELinux; unmigrated runner envelopes still refuse clean captures.
+
+Fedora retains its RPM-authenticated stock native policy rather than Ubuntu's
+open-only bootstrap. The packaged compiler and fresh-boot service initialize
+the clean baseline. Both current compiler output and its previous-output backup
+are audited. Only complete receipt-bound legacy fixture admissions and their
+proven generated outputs may be retired before compilation; ambiguous files
+refuse. A bounded clean-output witness in the existing retirement record preserves
+authenticated stock backups across package updates and interrupted retries.
+
+`tools/run-tests integration --vm onpc-Fedora44 check_fixture_snapshots`
+qualifies actual clean baseline/app captures, retained source and archived input
+trees, fixture-only identity independence, genuine dependency/shared lifecycle
+invalidation, product-package identity and watched restoration. It verifies
+enforcing SELinux, active native service, readable `rpmdb` trust, every original
+vendor row and exact package-owned additions. Native source bytes, metadata,
+compiled output and the public rule-file listing must agree. The listing supplies
+no daemon-generation acknowledgement.
+
+For the installed capture, the required canary and final fallback are bound to
+the actual RPM's file metadata. Optional generated rule units must contain only
+the exact empty-policy header and use the independently resolved broker `wheel`
+group or native service group. The early originally-unenforced fallback remains
+absent for this active baseline; see the
+[product policy owner](../../docs/SystemDesign/Applications.md#live-filter-and-execution-rules).
+The RPM identity probe changes a private actual archive byte, matching its
+conservative exact-archive identity; that copy is never installed. Ubuntu uses
+a valid private DEB repack containing changed product-file bytes.
+
+Fedora and renewed Ubuntu snapshot qualification passed, together with separate
+auto-mode refresh, standalone Fedora reuse/stop and owned cleanup. The old Fedora
+baseline was restored by auto preparation; no pending legacy execution owner
+needed live stop recovery. Host regressions retain legacy stop/restoration coverage.
+This supplies snapshot infrastructure acceptance only; Fedora provisioning and
+ordinary runner qualification remain separate tasks.
 
 ### Verified finite native transaction inputs
 
@@ -560,8 +607,10 @@ Installed NSS libraries alone do not
 create remote users. Product installation and its dependencies, run markers, policy mutations, assertions and real installation/
 expiry reboots remain runtime work.
 
-The preparation record uses Ubuntu schema **2** or Fedora schema **3**, including the expected tool inventory;
-its source digest includes the shared inventory module. Offline inspection
+Current preparation records use schema **4** with explicit platform identity and
+the expected tool inventory. Readers retain legacy Ubuntu schema **2**, Fedora
+schema **3** and earlier Ubuntu schema-4 records for recovery. The source digest
+includes the shared inventory module and clean lifecycle/environment projection. Offline inspection
 independently verifies the platform's dpkg/RPM installed status and refuses existing LDAP/SSSD
 fixture configuration. Missing/wrong-version tools and schema-1 account-only
 baselines are refused; lease acquisition checks the preparation source digest

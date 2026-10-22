@@ -131,8 +131,8 @@ work includes `--y`, while manual work omits it to retain confirmation. See
 Reusable guest dependencies, fixed fixture apps/launchers and persistent harness
 settings belong to this baseline route under the target-specific
 [baseline mandate](Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
-Ubuntu's schema-4 captures exclude movable fixture apps, launchers, admissions
-and copied fixture sources; Fedora retains the legacy inventory until qualified.
+Ubuntu and Fedora schema-4 captures exclude movable fixture apps, launchers,
+admissions and copied fixture sources.
 Test runners and app-snapshot
 preparation verify them and report missing or stale state; they never install or
 repair them implicitly. Invoke authorized baseline refresh separately. Its finite

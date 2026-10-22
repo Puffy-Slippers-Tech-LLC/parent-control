@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F12 — [Decouple Fedora snapshots from fixture payloads](Fixture-Tasks/F12-fedora-snapshots.md)**.
+Next task: **F06 — [Qualify Fedora fixture provisioning](Fixture-Tasks/F06-fedora-provision.md)**.
 
 ## Outcome and status
 
@@ -26,6 +26,10 @@ readiness step. Restored Ubuntu baseline/app captures passed active-service,
 read-only database, vendor preservation and complete fixture-absence checks.
 F05 qualified Ubuntu's shared provisioning on clean baseline/app attempts,
 including exact activation, runtime use, no-write repeats and failure recovery.
+F12 delivered Fedora's fixture-independent baseline/app captures, authenticated
+native policy and compiler-backup retirement, enforcing SELinux, standalone
+reuse/stop and renewed Ubuntu snapshot acceptance. Owned restoration and cleanup
+passed on both targets.
 Later tasks remain unimplemented;
 runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

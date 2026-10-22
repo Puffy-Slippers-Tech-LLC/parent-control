@@ -490,12 +490,14 @@ def test_marker_schema_is_exact_versioned_and_secret_free():
         prepare.validate_marker(changed)
 
 
-def test_clean_ubuntu_digest_separates_fixture_payloads_from_environment_and_shared_sources(tmp_path):
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+def test_clean_digest_separates_fixture_payloads_from_environment_and_shared_sources(tmp_path, os_id):
     for relative in set(prepare.LEGACY_SCRIPT_FILES) | set(prepare.SCRIPT_FILES):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / relative).read_bytes())
-    original = prepare.preparation_digest(tmp_path, os_id='ubuntu')
+    original = prepare.preparation_digest(tmp_path, os_id=os_id)
+    assert prepare.preparation_files(os_id) == prepare.SCRIPT_FILES
     fixture_path = tmp_path / 'tests/fixtures/onpc_test_application.c'
     fixture_path.write_bytes(fixture_path.read_bytes() + b'\n/* fixture-only edit */\n')
     assert prepare.preparation_digest(tmp_path, os_id='ubuntu') == original
@@ -517,6 +519,13 @@ def test_clean_ubuntu_digest_separates_fixture_payloads_from_environment_and_sha
     lifecycle.write_text(source.replace("'native-rules-semantics'", "'changed-native-rules-semantics'"))
     assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original
     lifecycle.write_text(source)
+    native_policy = tmp_path / 'tests/fixtures/native_assets.py'
+    native_source = native_policy.read_text()
+    native_policy.write_text(native_source.replace("'Exact Fixture.AppImage'", "'Changed Fixture.AppImage'"))
+    assert prepare.preparation_digest(tmp_path, os_id=os_id) == original
+    native_policy.write_text(native_source.replace("'native:stock-policy-source'", "'changed:stock-policy-source'"))
+    assert prepare.preparation_digest(tmp_path, os_id=os_id) != original
+    native_policy.write_text(native_source)
     environment = tmp_path / 'tests/fixtures/baseline_environment.py'
     environment.write_bytes(environment.read_bytes() + b'\n# changed persistent settings\n')
     assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original
@@ -530,7 +539,11 @@ def test_clean_and_legacy_marker_discriminators_preserve_old_readers():
     marker = valid_marker()
     assert prepare.fixture_boundary(marker) == 'clean'
     marker['schema_version'] = prepare.MARKER_VERSION
+    marker['guest']['ubuntu_version'] = marker['guest'].pop('version')
+    marker['guest'].pop('os_id')
     assert prepare.fixture_boundary(marker) == 'legacy'
+    marker['schema_version'] = prepare.CLEAN_MARKER_VERSION
+    assert prepare.fixture_boundary(marker) == 'clean'  # Existing F11 captures.
 
 
 def test_marker_permission_contract_requires_root_owned_0600_regular_file():
@@ -756,13 +769,17 @@ def test_fedora_marker_is_distinct_and_cannot_pass_as_ubuntu():
                 for index, item in enumerate(prepare.IDENTITIES)}
     document = prepare.marker_document(
         prepare.GuestIdentity(prepare.HOSTNAME, 'b' * 32, '44', 'kvm', 'fedora'), accounts, 'c' * 64)
-    assert document['schema_version'] == 3
+    assert document['schema_version'] == prepare.CLEAN_MARKER_VERSION
+    assert prepare.fixture_boundary(document) == 'clean'
     assert document['guest']['os_id'] == 'fedora'
     assert 'ubuntu_version' not in document['guest']
     assert document['test_dependencies'] == prepare.guest_tools.FEDORA_VERSIONS
     prepare.validate_marker(document, os_id='fedora')
     with pytest.raises(prepare.PreparationError, match='marker:schema'):
         prepare.validate_marker(document, os_id='ubuntu')
+    document['schema_version'] = 3
+    assert prepare.fixture_boundary(document) == 'legacy'
+    prepare.validate_marker(document, os_id='fedora')
 
 
 @pytest.mark.parametrize('failure', [None, 'install', 'verify', 'duplicate'])

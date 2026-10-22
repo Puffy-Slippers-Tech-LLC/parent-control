@@ -10,18 +10,27 @@ import fixture_system_qualification as qualification
 from tools import fixture_execution
 
 
-@pytest.fixture
-def selection():
-    return fixture_execution.Selection('ubuntu', 'a' * 64,
-        '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
+@pytest.fixture(params=['ubuntu', 'fedora'])
+def selection(request):
+    return fixture_execution.Selection(request.param, 'a' * 64,
+        '/tmp/onpc-native-runtime-' + request.param + '-' + 'a' * 64 + '-private',
         1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64)
+
+
+def guest_for(target):
+    return {'fixture_boundary': 'clean', **({'ubuntu_version': '26.04'}
+        if target == 'ubuntu' else {'os_id': 'fedora', 'version': '44'})}
+
+
+def target_name(target):
+    return {'ubuntu': 'onpc-Ubuntu26.04', 'fedora': 'onpc-Fedora44'}[target]
 
 
 def test_missing_and_incompatible_refuse_the_live_shared_boundary_before_staging(
         tmp_path, selection):
     vm = Mock()
     lease = SimpleNamespace(capture=SimpleNamespace(state={
-        'guest': {'ubuntu_version': '26.04', 'fixture_boundary': 'clean'}}))
+        'guest': guest_for(selection.target)}))
     context = {'vm': vm, 'lease': lease, 'directory': tmp_path}
     assert qualification.refused_inputs(context, selection) == {
         'missing': 'fixtures:execution-selection-required',
@@ -31,7 +40,7 @@ def test_missing_and_incompatible_refuse_the_live_shared_boundary_before_staging
     assert not hasattr(lease, '_fixture_provision_state')
 
 
-@pytest.mark.parametrize('target', ['onpc-Fedora44', 'onpc-Ubuntu24.04'])
+@pytest.mark.parametrize('target', ['onpc-Fedora43', 'onpc-Ubuntu24.04', 'unknown'])
 def test_unqualified_target_never_opens_an_input_or_suite(monkeypatch, tmp_path, selection, target):
     monkeypatch.setattr(qualification.proof.prepare_vm.vm_config, 'selected',
                         lambda: SimpleNamespace(name=target))
@@ -44,9 +53,51 @@ def test_unqualified_target_never_opens_an_input_or_suite(monkeypatch, tmp_path,
     suite.assert_not_called()
 
 
+def test_selected_target_accepts_both_canonical_targets(monkeypatch, selection):
+    name = target_name(selection.target)
+    monkeypatch.setattr(qualification.proof.prepare_vm.vm_config, 'selected',
+                        lambda: SimpleNamespace(name=name))
+    assert qualification.selected_target() == name
+
+
+def test_qualification_target_mismatch_never_pins_input_or_acquires_suite(
+        monkeypatch, tmp_path, selection):
+    other = 'fedora' if selection.target == 'ubuntu' else 'ubuntu'
+    monkeypatch.setattr(qualification, 'selected_target', lambda: target_name(other))
+    pin, suite = Mock(), Mock()
+    monkeypatch.setattr(qualification, 'authenticated_input', pin)
+    monkeypatch.setattr(qualification, 'Suite', suite)
+    with pytest.raises(ValueError, match='fixtures:system-product-free-target-not-qualified'):
+        qualification.qualify(tmp_path, tmp_path / 'assets', selection.record(), None)
+    pin.assert_not_called()
+    suite.assert_not_called()
+
+
+@pytest.mark.parametrize('invalid', ['opposite', 'unknown'])
+def test_selection_target_refuses_before_authentication_or_staging(
+        monkeypatch, tmp_path, selection, invalid):
+    preparation = qualification.preparation
+    record = selection.record()
+    other = 'fedora' if selection.target == 'ubuntu' else 'ubuntu'
+    record['target'] = other if invalid == 'opposite' else 'unknown'
+    record['allocation'] = record['allocation'].replace(
+        'runtime-' + selection.target + '-', 'runtime-' + record['target'] + '-')
+    verify, factory, vm = Mock(), Mock(), Mock()
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
+    monkeypatch.setattr(preparation.fixture_provision, 'Provisioner', factory)
+    lease = SimpleNamespace(capture=SimpleNamespace(state={'guest': guest_for(selection.target)}))
+    reason = ('fixtures:system-product-free-target-not-qualified' if invalid == 'opposite'
+              else 'fixture execution: invalid selection identity')
+    with pytest.raises(ValueError, match=reason):
+        preparation.prepare(vm, lease, tmp_path, record)
+    verify.assert_not_called()
+    factory.assert_not_called()
+    assert not vm.mock_calls and not list(tmp_path.iterdir())
+
+
 @pytest.mark.parametrize('failure', ['verify', 'bundle'])
 def test_input_refusal_precedes_vm_acquisition(monkeypatch, tmp_path, selection, failure):
-    monkeypatch.setattr(qualification, 'selected_target', lambda: qualification.TARGET)
+    monkeypatch.setattr(qualification, 'selected_target', lambda: target_name(selection.target))
     monkeypatch.setattr(qualification.fixture_execution, 'validate_source_selection', lambda *args: {})
     monkeypatch.setattr(qualification, 'authenticated_input', lambda _: nullcontext())
     verify, bundle = Mock(return_value={}), Mock()
@@ -103,14 +154,16 @@ def test_real_runner_seam_owns_two_restorations_and_suite_closes_on_failure(
     import fixture_system_qualification as q
     lease = SimpleNamespace(state={'phase': 'complete'},
         view=SimpleNamespace(domain_id=None, snapshot=lambda: (None, True)))
-    source = SimpleNamespace(domain=SimpleNamespace(name=lambda: q.TARGET))
+    source = SimpleNamespace(domain=SimpleNamespace(name=lambda: target_name(selection.target)))
+    monkeypatch.setattr(q, 'selected_target', lambda: target_name(selection.target))
     suite = Mock()
     suite.acquire.return_value = (source, None, lease)
     monkeypatch.setattr(q, 'Suite', Mock(return_value=suite))
     monkeypatch.setattr(q.system, 'artifact_source', lambda _: 'private-artifacts')
     monkeypatch.setattr(q.proof, 'preflight_source', Mock())
     selected = object()
-    monkeypatch.setattr(q.system, 'resolve_selection', Mock(return_value=selected))
+    resolve = Mock(return_value=selected)
+    monkeypatch.setattr(q.system, 'resolve_selection', resolve)
     staged = []
 
     def stage(assets, destination, commands, **kwargs):
@@ -148,6 +201,8 @@ def test_real_runner_seam_owns_two_restorations_and_suite_closes_on_failure(
         assert runs == ['history-1', 'history-2']
         verify.assert_called_once_with(selection)
     suite.close.assert_called_once_with()
+    resolve.assert_called_once_with('package', q.system.FIRST_CONFIGURE_CASE,
+        target_package_format='deb' if selection.target == 'ubuntu' else 'rpm')
     assert staged[0] == tmp_path / 'history-1/input'
 
 
@@ -161,7 +216,7 @@ def test_authenticated_pin_outlives_all_runner_cleanup(monkeypatch, tmp_path, se
         yield 17
         events.append('unpin-runtime' if record == selection.record() else 'unpin-source')
 
-    monkeypatch.setattr(qualification, 'selected_target', lambda: qualification.TARGET)
+    monkeypatch.setattr(qualification, 'selected_target', lambda: target_name(selection.target))
     monkeypatch.setattr(qualification.fixture_execution, 'validate_source_selection', lambda *args: {})
     monkeypatch.setattr(qualification, 'authenticated_input', pin)
     monkeypatch.setattr(qualification.fixture_execution, 'verify', lambda _: {'private': 'manifest'})

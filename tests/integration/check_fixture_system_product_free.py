@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify Ubuntu's real product-free system preparation before input."""
+"""Qualify Ubuntu/Fedora product-free system preparation before input."""
 import argparse
 import json
 import sys

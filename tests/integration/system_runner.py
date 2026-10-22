@@ -1769,7 +1769,7 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
     lease.save('ssh-bootstrap')
     with mounted_guest(guestfs, lease, with_root=True) as (g, root):
         os_id, version = baseline.guest_contract.inspected_release(g, root)
-        require(not system_product_free or (os_id, version) == ('ubuntu', '26.04'),
+        require(not system_product_free or (os_id, version) in (('ubuntu', '26.04'), ('fedora', '44')),
                 'fixtures:system-product-free-target-not-qualified')
         package = directory / 'input' / ('package.rpm' if os_id == 'fedora' else 'package.deb')
         if not observation_only:

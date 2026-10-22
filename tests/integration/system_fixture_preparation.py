@@ -23,17 +23,25 @@ def attempt_id(directory):
         os.fsencode(directory.resolve())).hexdigest()[:16]
 
 
+def guest_target(guest):
+    if guest.get('fixture_boundary') == 'clean':
+        if guest.get('ubuntu_version') == '26.04':
+            return 'ubuntu'
+        if (guest.get('os_id'), guest.get('version')) == ('fedora', '44'):
+            return 'fedora'
+    return None
+
+
 def qualified_guest(guest):
-    return (guest.get('fixture_boundary') == 'clean'
-            and guest.get('ubuntu_version') == '26.04')
+    return guest_target(guest) is not None
 
 
-def selection_record(value):
+def selection_record(value, target=None):
     if value is None:
         raise ValueError('fixtures:execution-selection-required')
     selection = fixture_execution.Selection.from_record(
         value.record() if isinstance(value, fixture_execution.Selection) else value)
-    if selection.target != 'ubuntu':
+    if selection.target not in ('ubuntu', 'fedora') or (target is not None and selection.target != target):
         raise ValueError('fixtures:system-product-free-target-not-qualified')
     return selection.record()
 
@@ -47,9 +55,9 @@ def command_selection(value=None):
     return selection_record(value)
 
 
-def validate_input(value):
+def validate_input(value, target=None):
     """Authenticate frozen input without writes or poisoning a VM attempt."""
-    record = selection_record(value)
+    record = selection_record(value, target=target)
     fixture_execution.verify(record)
     return record
 
@@ -71,7 +79,7 @@ def register_staging(directory, lease, attempt_id, path):
 def prepare(vm, lease, directory, selection):
     if not qualified_guest(lease.capture.state['guest']):
         raise ValueError('fixtures:system-product-free-target-not-qualified')
-    selection = validate_input(selection)
+    selection = validate_input(selection, target=guest_target(lease.capture.state['guest']))
     identity = attempt_id(directory)
     controller = fixture_provision.Provisioner(lease, vm,
         register_staging=lambda path: register_staging(directory, lease, identity, path))

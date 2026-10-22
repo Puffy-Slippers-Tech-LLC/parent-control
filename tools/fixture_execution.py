@@ -299,8 +299,8 @@ def prepare_source_edit(*, target, root=ROOT):
     This finite host qualification proof is registered before its first write.
     Runtime bytes keep their ordinary separate input allocation and schema.
     """
-    if target != 'ubuntu' or os.geteuid() == 0:
-        raise ValueError('fixture execution: source edit qualification requires Ubuntu and an unprivileged owner')
+    if target not in bundle.TARGETS or os.geteuid() == 0:
+        raise ValueError('fixture execution: source edit qualification requires a supported target and an unprivileged owner')
     allocation = None
     try:
         with _activity() as (store, fd, run):

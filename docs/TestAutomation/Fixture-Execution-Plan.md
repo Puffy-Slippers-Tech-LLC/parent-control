@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F10 — [Integrate Fedora product-free system preparation](Fixture-Tasks/F10-fedora-runners.md)**.
+Next task: **F16 — [Integrate Ubuntu installed-system preparation](Fixture-Tasks/F16-ubuntu-installed-system.md)**.
 
 ## Outcome and status
 
@@ -41,6 +41,15 @@ unchanged selection after producer-source edits and prior-generation refusal,
 without installation input or phase execution. Package-only provenance retains
 finite scenario comparison inputs. Independent review findings were resolved;
 baseline, producer, transport and retention cleanup passed, with Ubuntu off.
+F10 delivered the same product-free system boundary and Parent bootstrap aliases
+on Fedora 44. Two restored Fedora boots passed independent hard-only byte/runtime
+checks, enforcing SELinux and exact native policy/labels, input refusals, fresh
+readiness and immutable selection after actual producer-source edits. The source-edit
+proof helper now supports both targets; its Ubuntu-only guard and a new test's
+incorrect error expectation were repaired while preserving behavior assertions.
+Ubuntu product-free preparation proof was renewed. Independent Sol High review found
+no remaining issues; host composition/provenance/ownership checks and watched
+owned cleanup passed, with both VMs independently off.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

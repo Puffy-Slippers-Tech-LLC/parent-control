@@ -10,19 +10,26 @@ import system_snapshots as snapshots
 from tests.support.vm_runner import INVENTORIES, RECOVERY_INVENTORIES, RUN, write_junit_results, legacy_lease
 
 
+@pytest.fixture(params=[{'fixture_boundary': 'clean', 'ubuntu_version': '26.04'},
+                        {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}],
+                ids=['ubuntu', 'fedora'])
+def qualified_guest(request):
+    return dict(request.param)
+
+
 @pytest.mark.parametrize('failure', [None, 'provision', 'readiness'])
 def test_product_free_preparation_precedes_all_input_and_never_collects_engineering_probe(
-        tmp_path, monkeypatch, failure):
+        tmp_path, monkeypatch, failure, qualified_guest):
     import system_fixture_preparation as preparation
     events = []
     selection = system.resolve_selection('package', 'test_first_install_requests_reboot',
                                          inventories=INVENTORIES)
     lease = Mock(state={'run': RUN})
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     vm = Mock()
     vm.probe_ready.side_effect = lambda: events.append('ssh-ready')
     record = {'frozen': 'caller-input'}
-    monkeypatch.setattr(preparation, 'selection_record', lambda value: value)
+    monkeypatch.setattr(preparation, 'selection_record', lambda value, target=None: value)
     controller = Mock()
     controller.require_ready.side_effect = lambda receipt: events.append('guard-ready')
     if failure == 'readiness':
@@ -60,7 +67,8 @@ def test_product_free_preparation_precedes_all_input_and_never_collects_engineer
 
 @pytest.mark.parametrize('installed,guest', [
     (True, {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}),
-    (False, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}),
+    (True, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}),
+    (False, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '43'}),
     (False, {'fixture_boundary': 'clean', 'ubuntu_version': '26.10'}),
 ])
 def test_unqualified_clean_system_routes_refuse_before_input(tmp_path, installed, guest):
@@ -73,9 +81,9 @@ def test_unqualified_clean_system_routes_refuse_before_input(tmp_path, installed
     assert vm.mock_calls == []
 
 
-def test_clean_system_missing_selection_refuses_before_transport(tmp_path):
+def test_clean_system_missing_selection_refuses_before_transport(tmp_path, qualified_guest):
     vm, lease = Mock(), legacy_lease(state={'run': RUN})
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     selection = system.resolve_selection('package', 'test_first_install_requests_reboot',
                                          inventories=INVENTORIES)
     with pytest.raises(ValueError, match='execution-selection-required'):
@@ -84,13 +92,17 @@ def test_clean_system_missing_selection_refuses_before_transport(tmp_path):
 
 
 def test_shared_system_adapter_authenticates_before_provision_and_uses_only_hard_subset(
-        tmp_path, monkeypatch):
+        tmp_path, monkeypatch, qualified_guest):
     import system_fixture_preparation as preparation
     record = {'frozen': 'caller-input'}
     lease, vm = legacy_lease(), Mock()
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     events = []
-    monkeypatch.setattr(preparation, 'selection_record', lambda value: value)
+    expected_target = qualified_guest.get('os_id', 'ubuntu')
+    def selection_record(value, target=None):
+        assert target == expected_target
+        return value
+    monkeypatch.setattr(preparation, 'selection_record', selection_record)
     monkeypatch.setattr(preparation.fixture_execution, 'verify',
                         lambda value: events.append(('verify', value)))
     controller = Mock()
@@ -107,11 +119,12 @@ def test_shared_system_adapter_authenticates_before_provision_and_uses_only_hard
     vm.call.assert_not_called()
 
 
-def test_shared_system_adapter_missing_input_never_constructs_mutating_controller(tmp_path, monkeypatch):
+def test_shared_system_adapter_missing_input_never_constructs_mutating_controller(
+        tmp_path, monkeypatch, qualified_guest):
     import system_fixture_preparation as preparation
     lease, vm = legacy_lease(), Mock()
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
-    monkeypatch.setattr(preparation, 'selection_record', lambda value: value)
+    lease.capture.state = {'guest': qualified_guest}
+    monkeypatch.setattr(preparation, 'selection_record', lambda value, target=None: value)
     def missing(_):
         raise ValueError('registered input missing')
     monkeypatch.setattr(preparation.fixture_execution, 'verify', missing)
@@ -143,7 +156,8 @@ def test_system_staging_intent_is_private_exact_and_never_overwritten(tmp_path):
         tmp_path / 'another-history' / 'same-phase')
 
 
-def test_clean_attempt_uses_actual_installed_run_and_observes_under_lease(tmp_path, monkeypatch):
+def test_clean_attempt_uses_actual_installed_run_and_observes_under_lease(
+        tmp_path, monkeypatch, qualified_guest):
     import guest_inputs
     import vm_transport
     import system_fixture_preparation as preparation
@@ -158,7 +172,7 @@ def test_clean_attempt_uses_actual_installed_run_and_observes_under_lease(tmp_pa
     suite = Mock(verified=None)
     lease = suite.lease
     lease.state = {'run': RUN}
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     active = []
     @contextmanager
     def owned():
@@ -175,7 +189,7 @@ def test_clean_attempt_uses_actual_installed_run_and_observes_under_lease(tmp_pa
     monkeypatch.setattr(system, 'address', lambda _: 'guest')
     vm = Mock()
     monkeypatch.setattr(vm_transport, 'Transport', Mock(return_value=vm))
-    monkeypatch.setattr(preparation, 'selection_record', lambda value: value)
+    monkeypatch.setattr(preparation, 'selection_record', lambda value, target=None: value)
     controller = Mock()
     monkeypatch.setattr(preparation, 'prepare', lambda transport, owned_lease, path, frozen:
         {'vm': transport, 'lease': owned_lease, 'directory': path,
@@ -200,14 +214,15 @@ def test_clean_attempt_uses_actual_installed_run_and_observes_under_lease(tmp_pa
     vm.call.assert_not_called()
 
 
-def test_clean_installed_attempt_refuses_before_snapshot_preparation_or_boot(tmp_path, monkeypatch):
+def test_clean_installed_attempt_refuses_before_snapshot_preparation_or_boot(
+        tmp_path, monkeypatch, qualified_guest):
     import guest_inputs
     selection = system.resolve_selection('authorization', inventories=INVENTORIES)
     (tmp_path / 'input').mkdir()
     monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
     suite = Mock(verified=None, lease=legacy_lease(state={'run': RUN}))
     lease = suite.lease
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     lease.__enter__ = Mock(return_value=lease)
     lease.__exit__ = Mock(return_value=False)
     bootstrap = Mock()

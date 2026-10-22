@@ -105,14 +105,14 @@ coordinates host results and VM artifacts for the same source content.
 
 ### Ubuntu product-free system preparation
 
-On clean Ubuntu 26.04 captures, `system_snapshots._run_attempts(installed=False)`
+On clean Ubuntu 26.04 and Fedora 44 captures, `system_snapshots._run_attempts(installed=False)`
 and `system_runner.installed_run(already_installed=False)` use the
 [shared fixture provisioner](../support/README.md#attempt-owned-fixture-provisioning)
 after guarded SSH readiness, before uploading installation inputs or running a
 system phase. The launcher selects the execution-owned immutable input before
 VM acquisition. Only `trusted-hard` is provisioned; readiness binds the selected
 manifest, VM UUID, actual boot and unique attempt. Missing or incompatible
-selections release no input. Clean installed-system, Fedora and other unmigrated
+selections release no input. Clean installed-system and other unmigrated
 envelopes retain their refusal.
 
 `check_parent_setup`, `check_parent_input` and `check_parent_standard_input`
@@ -128,6 +128,7 @@ first-configuration/PAM dispatch and `fresh_install` grouping remain enforced.
 
 ```sh
 tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_system_product_free
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_system_product_free
 ```
 
 This engineering selector executes the actual product-free system preparation
@@ -140,6 +141,13 @@ source proof and runtime inputs stay pinned through VM cleanup. Both boots
 preserve product absence, selected bytes and unrelated native policy. Watched
 baseline restoration, producer and transport cleanup are required. This grants
 no system-phase, customer or E2E acceptance.
+
+### Fedora product-free system preparation
+
+Fedora 44 uses the same product-free boundary and engineering selector above.
+Its selection must match the restored Fedora guest and RPM package format.
+Independent readback additionally checks enforcing SELinux, exact labels and
+unchanged native admission sources, compiled rules and public rule listing.
 
 ## Retained-session native dependency update
 

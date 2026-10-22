@@ -218,6 +218,14 @@ from regression_ui import Bucket
 # evidence and process-local doubles; unit and cleanup compatibility is unchanged.
 from regression_resources import HOST_WORKERS
 
+# Fedora product-free Parent composition extends only private files and
+# in-memory lease/transport/setup doubles in parent_setup_cleanup_safety.
+# No new cleanup owner or shared resource; compatible cleanup/unit scheduling
+# remains appropriate, and the UI inventory gains no resource.
+# Dual-target fixture_execution source-edit proof retains private journal/bundle
+# state and its existing bounded waited descendant; no new resource owner is
+# added, so existing compatible cleanup/unit classifications remain valid.
+
 
 # DESK13 shares those private doubles/evidence and waited Perl lifetimes; its
 # installed attempt adds no cleanup owner beyond the product-free envelope.

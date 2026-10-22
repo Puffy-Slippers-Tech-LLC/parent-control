@@ -111,7 +111,8 @@ def test_product_edits_do_not_invalidate_fixture_but_fixture_edits_freeze_select
 
 
 @pytest.mark.parametrize('reuse', [False, True])
-def test_source_edit_proof_uses_actual_private_origin_and_edits_after_selection(rig, monkeypatch, reuse):
+@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
+def test_source_edit_proof_uses_actual_private_origin_and_edits_after_selection(rig, monkeypatch, reuse, target):
     source, store, calls, _ = rig
     original, _ = bundle.source_snapshot(source)
     real_prepare, real_freeze = execution.prepare, bundle.freeze
@@ -138,14 +139,14 @@ def test_source_edit_proof_uses_actual_private_origin_and_edits_after_selection(
         return result
 
     with store.session():
-        earlier = prepare(rig) if reuse else None
+        earlier = prepare(rig, target) if reuse else None
         monkeypatch.setattr(execution, 'prepare', selected)
         monkeypatch.setattr(bundle, 'freeze', freeze)
-        fixture, proof_record = execution.prepare_source_edit(target='ubuntu', root=source)
+        fixture, proof_record = execution.prepare_source_edit(target=target, root=source)
         proof_root = Path(proof_record['allocation'])
         assert roots == [proof_root / 'source']
         assert events == ['registered-before-freeze', 'select-original-source', 'selection-returned-before-edit']
-        assert calls == ['ubuntu']
+        assert calls == [target]
         if reuse:
             assert fixture == earlier
         assert bundle.source_snapshot(source)[0] == original
@@ -159,20 +160,25 @@ def test_source_edit_proof_uses_actual_private_origin_and_edits_after_selection(
         assert proof['before'] == execution.verify(fixture)['inputs']['source'] == original
         assert proof['after'] == edited and proof['edited'] == SOURCE
         assert {name for name in original if original[name] != edited[name]} == {SOURCE}
-        assert proof['environment'] == environment_record('ubuntu')
+        assert proof['environment'] == environment_record(target)
         assert set(path.name for path in Path(fixture.allocation).iterdir()) == {'native-runtime'}
         assert execution.validate_source_selection(proof_record, fixture) == proof_record
         with pytest.raises(ValueError, match='allocation locator'):
             execution.Selection.from_record(proof_record)
 
 
-def test_source_edit_qualification_refuses_without_owner_or_on_other_target(rig):
+@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
+def test_source_edit_qualification_refuses_without_owner_or_on_other_target(rig, monkeypatch, target):
     source, store, calls, _ = rig
     with pytest.raises(ValueError):
-        execution.prepare_source_edit(target='ubuntu', root=source)
+        execution.prepare_source_edit(target=target, root=source)
     with store.session(), store.opened() as fd:
-        with pytest.raises(ValueError, match='requires Ubuntu'):
-            execution.prepare_source_edit(target='fedora', root=source)
+        with pytest.raises(ValueError, match='requires a supported target'):
+            execution.prepare_source_edit(target='unknown', root=source)
+        with monkeypatch.context() as denied:
+            denied.setattr(execution.os, 'geteuid', lambda: 0)
+            with pytest.raises(ValueError, match='unprivileged owner'):
+                execution.prepare_source_edit(target=target, root=source)
         assert store.read(fd)['paths'] == [] and calls == []
 
 

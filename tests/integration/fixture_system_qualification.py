@@ -24,21 +24,21 @@ import fixture_provision_qualification as proof
 from tools import fixture_bundle, fixture_execution, fixture_manifest, fixture_provision
 from tools.test_storage import authenticated_input
 
-TARGET = 'onpc-Ubuntu26.04'
+TARGETS = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
 
 
 def selected_target():
-    system.require(proof.prepare_vm.vm_config.selected().name == TARGET,
-                   'fixture-system:target-not-qualified')
-    return TARGET
+    target = proof.prepare_vm.vm_config.selected().name
+    system.require(target in TARGETS, 'fixture-system:target-not-qualified')
+    return target
 
 
 def refused_inputs(context, selection):
     """Exercise the same live input boundary without releasing installation input."""
     wrong = deepcopy(selection.record())
-    wrong['target'] = 'fedora'
-    wrong['allocation'] = wrong['allocation'].replace('onpc-native-runtime-ubuntu-',
-                                                     'onpc-native-runtime-fedora-')
+    wrong['target'] = 'fedora' if selection.target == 'ubuntu' else 'ubuntu'
+    wrong['allocation'] = wrong['allocation'].replace('onpc-native-runtime-' + selection.target + '-',
+                                                     'onpc-native-runtime-' + wrong['target'] + '-')
     refusals = {}
     for label, record, reason in (
             ('missing', None, 'fixtures:execution-selection-required'),
@@ -115,7 +115,7 @@ def observer(selection, manifest, result, previous=None, source_allocation=None)
         system.require(len(members) == 1 and receipt.binding['attempt_id'] == preparation.attempt_id(directory),
                        'fixture-system:nonminimal-or-unbound-readiness')
         proof.unchanged_policy(state['before'], observed)
-        witnesses = proof.runtime_witnesses(vm, members, observed['accounts'], 'ubuntu')
+        witnesses = proof.runtime_witnesses(vm, members, observed['accounts'], selection.target)
         before_repeat = proof.audit(vm, manifest, preparation.SUBSETS)
         edit = source_edit_proof(source_allocation, selection, manifest)
         # Reuse the exact original record. Source edits cannot cause a new
@@ -152,8 +152,9 @@ def observer(selection, manifest, result, previous=None, source_allocation=None)
 
 
 def qualify(directory, assets, selection, source_selection):
-    selected_target()
-    selection = fixture_execution.Selection.from_record(preparation.selection_record(selection))
+    target = selected_target()
+    selection = fixture_execution.Selection.from_record(
+        preparation.selection_record(selection, target=TARGETS[target]))
     source_selection = fixture_execution.validate_source_selection(source_selection, selection)
     with authenticated_input(selection.record()):
         with authenticated_input(source_selection) as source_allocation:
@@ -164,10 +165,13 @@ def qualify(directory, assets, selection, source_selection):
 
 
 def qualify_pinned(directory, assets, selection, manifest, source_allocation):
+    target = selected_target()
+    os_id = TARGETS[target]
+    system.require(selection.target == os_id, 'fixture-system:target-not-qualified')
     private = directory / 'private'
     private.mkdir(mode=0o700)
     suite = Suite(open_source)
-    result = {'target': TARGET, 'selection': selection.record(), 'attempts': []}
+    result = {'target': target, 'selection': selection.record(), 'attempts': []}
     try:
         suite.commands.directory = private
         source_assets = system.artifact_source(assets)
@@ -175,10 +179,10 @@ def qualify_pinned(directory, assets, selection, manifest, source_allocation):
         # into this preparation-only result allocation.
         proof.preflight_source(source_assets)
         selected = system.resolve_selection('package', system.FIRST_CONFIGURE_CASE,
-                                            target_package_format='deb')
+                                            target_package_format='rpm' if os_id == 'fedora' else 'deb')
         ledger = system.RunLedger()
         source, _, lease = suite.acquire(ledger)
-        system.require(source.domain.name() == TARGET, 'fixture-system:target-not-qualified')
+        system.require(source.domain.name() == target, 'fixture-system:target-not-qualified')
         previous = {}
         for index in range(2):
             history = directory / ('history-' + str(index + 1))

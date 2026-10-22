@@ -1244,10 +1244,13 @@ Signed-By:
 @pytest.mark.parametrize('enabled,guest,accepted', [
     (True, {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}, True),
     (False, {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}, False),
-    (True, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}, False),
+    (True, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}, True),
+    (False, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}, False),
+    (True, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '43'}, False),
     (True, {'fixture_boundary': 'clean', 'ubuntu_version': '26.10'}, False),
+    (True, {'fixture_boundary': 'clean', 'os_id': 'unknown', 'version': '44'}, False),
 ])
-def test_clean_bootstrap_requires_explicit_qualified_ubuntu_branch(
+def test_clean_bootstrap_requires_explicit_qualified_target_branch(
         tmp_path, enabled, guest, accepted):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
@@ -1261,13 +1264,45 @@ def test_clean_bootstrap_requires_explicit_qualified_ubuntu_branch(
         guestfs.GuestFS.assert_not_called()
         return
     (tmp_path / 'input').mkdir()
-    (tmp_path / 'input/package.deb').write_bytes(b'package')
+    fedora = guest.get('os_id') == 'fedora'
+    (tmp_path / ('input/package.rpm' if fedora else 'input/package.deb')).write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     (tmp_path / 'ssh-key.pub').write_bytes(b'ssh-ed25519 QUFB onpc-system-test\n')
-    guestfs.GuestFS.return_value = bootstrap_guest()[0]
+    g, files = bootstrap_guest('fedora' if fedora else 'ubuntu')
+    if fedora:
+        from guest_test_dependencies import FEDORA_VERSIONS
+        g.inspect_get_distro.return_value = 'fedora'
+        g.inspect_get_major_version.return_value = 44
+        g.inspect_get_minor_version.return_value = 0
+        files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
+        files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
+        g.inspect_list_applications2.return_value = [
+            {'app2_name': name, 'app2_version': version} for name, version in FEDORA_VERSIONS.items()]
+        g.feature_available.return_value = False
+        g.is_file.return_value = True
+    guestfs.GuestFS.return_value = g
     with patch.object(runner, 'retire_snapshot_payload'):
         assert runner.bootstrap(commands, lease, tmp_path, guestfs,
                                 system_product_free=True) == 'ssh-ed25519 public-test-key'
+
+
+@pytest.mark.parametrize('os_id,major,minor', [('ubuntu', 26, 10), ('fedora', 43, 0)])
+def test_clean_bootstrap_rejects_unqualified_inspected_release_before_guest_writes(
+        tmp_path, os_id, major, minor):
+    commands, lease, guestfs = Mock(), Mock(), Mock()
+    lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
+        'guest': {'fixture_boundary': 'clean', **({'ubuntu_version': '26.04'}
+            if os_id == 'ubuntu' else {'os_id': 'fedora', 'version': '44'})}}
+    lease.state = {'run': RUN}
+    g, _ = bootstrap_guest()
+    g.inspect_get_distro.return_value = os_id
+    g.inspect_get_major_version.return_value = major
+    g.inspect_get_minor_version.return_value = minor
+    guestfs.GuestFS.return_value = g
+    with pytest.raises(runner.baseline.guest_contract.PreparationError, match=r'\[guard:os\]'):
+        runner.bootstrap(commands, lease, tmp_path, guestfs, system_product_free=True)
+    g.write.assert_not_called()
+    g.command.assert_not_called()
 
 
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])

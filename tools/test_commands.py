@@ -532,10 +532,10 @@ def fixture_execution_target(category, args):
         if target is None:
             raise ValueError('fixture provisioning qualification target is unavailable')
         return target
-    if bootstrap and target != 'ubuntu':
+    if bootstrap and target is None:
         raise ValueError('fixture product-free system target is unavailable')
     # Other system targets keep their existing preparation/refusal boundaries.
-    return target if target == 'ubuntu' else None
+    return target
 
 
 def qualification_fixture_options(root, category, args, *, control=None, environment=None):

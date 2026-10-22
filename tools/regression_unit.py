@@ -1,5 +1,15 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Fedora product-free system coverage extends fixture_system_qualification,
+system_snapshots, system_runner, parent_setup_cleanup_safety,
+privileged_test_runner and test_launchers using pytest-private source/results
+and process-local guestfs/transport/lease/command doubles. No new subprocess,
+VM, display, bus, socket, shared cache or external service is owned; existing
+compatible unit classifications and cleanup/UI inventories remain valid.
+The dual-target source-edit proof in fixture_execution_cleanup_safety keeps
+its existing tiny private bundles/journals and bounded waited descendant;
+target/reuse/owner parametrization adds no compiler, container or shared owner.
+
 Ubuntu/Fedora native-readiness and clean-snapshot checks in baseline_guest_cleanup_safety,
 baseline_fixtures_cleanup_safety and fixture_snapshots use pytest-private files and in-memory service, transport and
 guestfs doubles. No live daemon, VM, display, socket, bus, shared cache or new

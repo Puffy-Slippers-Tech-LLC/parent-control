@@ -157,7 +157,8 @@ admissions, source/compiled/public-rule agreement, and actual denial of the
 untrusted mechanical control without an admission. Compiled-file and CLI checks
 complement runtime outcomes; they grant no concurrent-updater qualification.
 Ubuntu's [product-free system preparation](../integration/README.md#ubuntu-product-free-system-preparation)
-is qualified through the real system attempt and all three Parent bootstrap
+and the same [Fedora boundary](../integration/README.md#fedora-product-free-system-preparation)
+are qualified through the real system attempt and all three Parent bootstrap
 alias compositions. It selects only trusted-hard after SSH readiness and before
 installation input. Its dedicated engineering selector also verifies immutable
 selection after edits to the actual private producer source checkout, across

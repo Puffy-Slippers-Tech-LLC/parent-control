@@ -2519,8 +2519,13 @@ def test_dispatcher_groups_privileged_categories_by_aggregate(tmp_path, monkeypa
         if command == ['selected-controller']:
             assert kwargs['env']['TMPDIR'] == str(tmp_path)
             assert kwargs['env']['ONPC_TEST_VM'] == dispatcher_vm
-            assert kwargs['env'][retention.VARIABLE] == os.environ[retention.VARIABLE]
-            owned.append(allocated(tmp_path, f'vm-{len(owned)}'))
+            assert retention.VARIABLE not in kwargs['env']
+            assert retention.OWNER_VARIABLE not in kwargs['env']
+            # The selected child opens its own producer session; the dispatcher
+            # forwards only the validated run used to group aggregate evidence.
+            store = retention.Store(test_storage.privileged_state(caller.pw_uid))
+            with store.session(run=kwargs['env']['ONPC_QUALIFICATION_RETENTION_RUN']):
+                owned.append(allocated(tmp_path, f'vm-{len(owned)}'))
         return 0
     control = SimpleNamespace(run=execute, installed=lambda **kw: nullcontext(control))
     monkeypatch.setattr(dispatcher['runpy'], 'run_path', lambda path: {

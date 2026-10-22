@@ -118,6 +118,28 @@ refuse renewal.
 Continuations, blocked decisions and prerequisite suspension retain the exact
 renewal source across controller restarts until renewed proof is published and
 verified; a non-completion handoff never releases that evidence.
+Ordinary turns also retain version-1 `onpc-plan-turn` manifests binding their
+original response or provider error, prompt, commands, selected inputs and closed
+nested-owner inventory. Valid handoffs and readable rejected responses preserve
+their explicit reports through the same cumulative publication transaction before
+another turn can replace them. Working publication leaves the accepted task set
+unchanged; an empty set, a locator or a closed turn grants no acceptance. Startup
+carries active and suspended turn records forward without resetting counters.
+Missing exact proof retains the response for the existing renewal route; authority,
+integrity and conflicting live-source failures still refuse.
+
+An ordinary result can carry a JSON string in `checks[].evidence` with exactly
+`schema: "onpc-plan-evidence"`, `version: 1`, `reference`, `consumer` and `record`.
+The last three values are the original runner-issued member reference, consumer
+declaration and full logical record. The controller authenticates the member
+through the runner's current cumulative publication and verifies the complete
+context, original verdict, target and cleanup before registering the claim against
+this plan task, attempt and check. It never infers those identities from prose.
+Passed checks require complete, cleaned required evidence; diagnostic proof cannot
+replace installed acceptance. Legacy exact paths and schema-1 accepted ledgers
+remain supported. All ordinary adapters use this shared route, including
+`execute-plan`, `reliability-plan`, `kiosk-prompt`, `kiosk-desktop`,
+`kiosk-prompt-new`, `fixture` and `export`, with their existing policies unchanged.
 The shared bundle reader resolves explicit plan references under its authorized
 identity, including root-private target sources through the authenticated helper.
 It reports exact missing references separately from ownership, permission and

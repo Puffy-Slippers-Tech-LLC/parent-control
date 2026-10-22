@@ -180,7 +180,7 @@ def test_removed_brief_during_ordinary_result_recovery_has_no_evidence_request(s
                                  'stage_baseline', 'protected_staged', 'suspended_tasks',
                                  'commit_intent', 'pull_intent', 'pending_completion', 'evidence_inputs',
                                  'evidence_attempt', 'evidence_capture_requires_brief', 'evidence_recovery',
-                                 'evidence_source'])
+                                 'evidence_source', 'evidence_turns', 'evidence_consumers'])
 def test_material_checkpoint_changes_refuse(scene, field):
     scene.state[field] = {'changed': True}
     (scene.run / 'checkpoint.json').write_text(json.dumps(scene.state))

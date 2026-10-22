@@ -1549,7 +1549,10 @@ ESTIMATES = {
     'test_evidence_bundle.py': 85,
     'test_e2e_evidence.py': 90,
     'test_system_runner.py': 55,
-    'test_execution_plan_launcher.py': 35,
+    # E07's real publication/restart histories take roughly seven minutes;
+    # keep their unchanged module fixtures together without packing other
+    # filesystem-heavy modules into the same timed worker.
+    'test_execution_plan_launcher.py': 450,
 }
 
 
@@ -1681,6 +1684,12 @@ def buckets(nodeids):
 # socket, display, service or shared cache is acquired; bundle, artifact, capture
 # and controller modules retain compatible overlap. Cleanup/UI inventories gain
 # no module or resource owner.
+# E07 ordinary consumer histories use those same private journals, finite ZIPs,
+# real local descriptor locks and synchronous helper/controller doubles. Repeated
+# restart, suspended work and Git retry add no real model, remote, VM, socket,
+# display, service, cache or shared path. Existing compatible classifications for
+# execution_plan_launcher, plan_evidence, plan_evidence_recovery and test_artifacts
+# remain appropriate; cleanup and UI inventories gain no module or resource.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

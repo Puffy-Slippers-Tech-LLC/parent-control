@@ -240,7 +240,7 @@ class Selection:
         if self.targets and os.geteuid() != 0:
             raise ValueError('bundle: target evidence requires the installed helper')
 
-    def catalogue(self, *, archives=None):
+    def catalogue(self, *, archives=None, plan_sources=False):
         # Only fixed shared journals and registered canonical targets are read.
         self.validate_targets()
         def present(path):
@@ -266,6 +266,11 @@ class Selection:
                 except FileNotFoundError:
                     pass
                 selected = set()
+                if plan_sources:
+                    # Local controller capsules have one fixed authenticated
+                    # owner. They do not require opening unrelated producers
+                    # merely to combine them with already archived proof.
+                    selected.add(self.publication_parent().parent / 'retention')
                 for value in archives:
                     path = path_text(value)
                     if (path.name != 'evidence.zip'
@@ -336,7 +341,15 @@ class Selection:
             path = path_text(value)
             privacy(path)
             present[value] = self.reference_present(path)
-        archive_only = (not self.sources and not self.captures
+        plan_sources = False
+        if self.sources and self.plan_namespace is not None:
+            parent = self.publication_parent().parent
+            relatives = [path_text(value).relative_to(parent).parts
+                         if path_text(value).is_relative_to(parent) else ()
+                         for value in self.sources]
+            plan_sources = all(parts and re.fullmatch(r'[0-9a-f]{32}', parts[0])
+                               for parts in relatives)
+        archive_only = ((not self.sources or plan_sources) and not self.captures
                         and all(not exists or Path(value).name == 'evidence.zip'
                                 for value, exists in present.items()))
         if archive_only:
@@ -346,7 +359,8 @@ class Selection:
         if self.sources or self.bundles or self.references:
             archives = [*self.bundles, *(value for value, exists in present.items()
                                        if exists and Path(value).name == 'evidence.zip')]
-            journals = self.catalogue(archives=archives) if archive_only else self.catalogue()
+            journals = (self.catalogue(archives=archives, plan_sources=plan_sources)
+                        if archive_only else self.catalogue())
         else:
             journals = ()
         if self.captures and not journals:

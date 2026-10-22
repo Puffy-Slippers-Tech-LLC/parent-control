@@ -321,6 +321,17 @@ Each introducing task registers its relevant dependencies and runs the guard's
 affected private regressions before completion; E07 is the integration check, not the
 first opportunity to add restart protection.
 
+E07's ordinary-consumer audit retains that explicit inventory, including the
+already registered `runner_evidence.py` reader used by structured handoffs.
+`test_input_transfer.py` remains required by the retention writer's mutation
+guard. `test_activity.py` stays outside the in-process retained-decision closure:
+it coordinates runner ownership rather than authenticating the controller's
+selected proof. Recording recovery opens `recording_storage.Store(create=False)`,
+so legacy relocation in `recording_control.py` is outside that route. Rendering
+modules and thin ordinary adapters add no separate evidence decision engine.
+The ordinary adapters share capture, working publication, structured consumption
+and accepted Git retry; specialized repair/E2E consumers remain assigned to E07a.
+
 Change actual dependency-file bytes in fixtures, including an extracted module
 while the original eight guarded files remain unchanged. Assert session-boundary
 stop before another task, corrective session or blocked-answer continuation,

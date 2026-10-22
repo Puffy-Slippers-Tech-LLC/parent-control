@@ -260,6 +260,28 @@ def test_late_outer_files_are_separate_and_stale_reference_refuses(environment):
         runner.resolve_reference(root, reference)
 
 
+@pytest.mark.parametrize('missing', ['record', 'member'])
+@pytest.mark.parametrize('corrupt', [False, True])
+def test_exact_absence_requires_verified_publication_before_renewal(environment, missing, corrupt):
+    root, store = environment
+    with store.session():
+        directory = allocate()
+        report = closed_file(directory, 'report.md', b'exact original proof')
+        producer = runner.ReportEvidence(root, directory)
+        result = finish(producer, members=[dict(path=report, role='result')])
+    reference = dict(result['references'][0], **{missing + '_id': '0' * 64})
+    if corrupt:
+        with Path(result['receipt']['path']).open('ab') as stream:
+            stream.write(b'corrupt archive')
+        with pytest.raises(ValueError):
+            runner.resolve_reference(root, reference)
+    else:
+        with pytest.raises(bundle.LogicalEvidenceUnavailable) as refused:
+            runner.resolve_reference(root, reference)
+        assert refused.value.references == [{key: reference[key]
+            for key in ('record_id', 'member_id', 'closure_sha256')}]
+
+
 @pytest.mark.parametrize('cleanup', ['complete', 'pending', 'failed'])
 def test_batch_join_verifies_real_worker_selection_attempt_and_cleanup(environment, monkeypatch, cleanup):
     root, store = environment

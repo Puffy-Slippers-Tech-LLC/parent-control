@@ -2475,6 +2475,12 @@ and closure digest. `runner_evidence.resolve_reference` derives the workflow's
 existing publication journal and verifies the current cumulative archive under
 its reader lock; original report paths and superseded export paths can retire.
 A denied publication is attempted once and preserves the required original.
+Ordinary plan consumers use the same cumulative proof for closed handoffs and
+exact runner references under the [plan evidence contract](../docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
+Working publication preserves original reports and verdicts without adding an
+accepted task or retry allowance. Its narrowly selected controller capsules and
+already archived target references do not require inspecting unrelated active
+producers; live selected sources retain the normal ownership and conflict checks.
 The library's `Selection(..., include_host_captures=True)` explicitly admits
 host records alongside an exact named-target capture selection. Its default and
 the artifact helper retain the existing refusal of a host capture selected as a

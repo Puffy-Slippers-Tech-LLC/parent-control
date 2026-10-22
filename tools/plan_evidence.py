@@ -77,9 +77,166 @@ def locator(plan):
 
 SOURCE_FILES = ('agent-result.json', 'prompt.txt', 'agent-commands.log', 'checkpoint.json',
                 'nested.json', 'nested-closed')
+TURN_FILES = (*SOURCE_FILES, 'agent-error.json', 'rejected-agent-result.json')
 
 
 EvidenceUnavailable = bundle.EvidenceUnavailable
+
+
+def _turn(path, task_id, *, plan=None):
+    """Verify a closed turn before trusting or moving any of its members."""
+    path = Path(path)
+    if plan is not None and (path.parent.name != 'plan-turns'
+            or path.parent.parent.parent != _parent(plan).parent
+            or re.fullmatch(r'[0-9a-f]{32}', path.parent.parent.name) is None
+            or re.fullmatch(r'[0-9a-f]{64}', path.name) is None):
+        raise ValueError('plan evidence: retained turn belongs to another run owner')
+    raw = _read(path / 'turn.json')
+    value = bundle.decoded(raw)
+    if (not isinstance(value, dict) or set(value) != {
+            'schema', 'version', 'task_id', 'attempt', 'session', 'files', 'result_sha256'}
+            or value['schema'] != 'onpc-plan-turn' or type(value['version']) is not int
+            or value['version'] != 1 or value['task_id'] != task_id
+            or value['attempt'] is not None and not isinstance(value['attempt'], str)
+            or value['session'] is not None and (type(value['session']) is not int or value['session'] < 0)
+            or not isinstance(value['files'], dict) or not value['files']
+            or any(name not in TURN_FILES for name in value['files'])
+            or any(not _hash(hashed) for hashed in value['files'].values())
+            or value['result_sha256'] is not None and not _hash(value['result_sha256'])):
+        raise ValueError('plan evidence: invalid retained turn')
+    contents = {name: _read(path / name) for name in value['files']}
+    if any(_digest(contents[name]) != hashed for name, hashed in value['files'].items()):
+        raise ValueError('plan evidence: retained turn changed')
+    if value['result_sha256'] is not None and value['files'].get('agent-result.json') != value['result_sha256']:
+        raise ValueError('plan evidence: retained turn result changed')
+    return value, dict(contents, **{'turn.json': raw})
+
+
+def retain_turn(plan, run, state, result=None):
+    """Keep a closed response/error before the next session replaces its files.
+
+    This records history, never acceptance. Malformed responses and provider
+    failures retain their original bytes without manufacturing a valid result.
+    The caller finishes nested owners before this handoff; failed cleanup must
+    not be converted into a closed turn by this routine.
+    """
+    run = Path(run)
+    contents = {}
+    for name in TURN_FILES:
+        try:
+            contents[name] = _read(run / name)
+        except FileNotFoundError:
+            continue
+    # Older checkpoints and interrupted-before-execution turns may have no
+    # response, but still retain prompt, command and cleanup provenance.
+    if not contents:
+        return None
+    if 'nested-closed' not in contents:
+        raise ValueError('plan evidence: turn cleanup has not finished')
+    if result is not None:
+        if ('agent-result.json' not in contents
+                or bundle.decoded(contents['agent-result.json']) != result
+                or result.get('task_id') != state['task_id']):
+            raise ValueError('plan evidence: exact terminal result is missing or changed')
+    value = dict(schema='onpc-plan-turn', version=1, task_id=state['task_id'],
+        attempt=state.get('evidence_attempt'), session=state.get('task_sessions'),
+        files={name: _digest(data) for name, data in contents.items()},
+        result_sha256=_digest(contents['agent-result.json']) if 'agent-result.json' in contents else None)
+    key = _digest(bundle.encoded(value))
+    for previous in state.get('evidence_turns', []):
+        saved, _ = _turn(previous, state['task_id'], plan=plan)
+        # Controller checkpoints evolve after the closed turn is recorded.
+        # Retrying that handoff keeps its first checkpoint, while changes to
+        # response/command/cleanup bytes remain a distinct exact turn.
+        if (saved['attempt'] == value['attempt'] and saved['session'] == value['session']
+                and {name: hashed for name, hashed in saved['files'].items() if name != 'checkpoint.json'}
+                    == {name: hashed for name, hashed in value['files'].items() if name != 'checkpoint.json'}):
+            _publish_turn(plan, run, state, result, Path(previous))
+            return Path(previous)
+    parent = run / 'plan-turns'
+    bundle.retention.ensure_directory(parent)
+    target = parent / key
+    # An interrupted copy is deliberately not adopted. The published state only
+    # names fully written manifests, and an existing identical manifest verifies.
+    if target.exists():
+        saved, _ = _turn(target, state['task_id'], plan=plan)
+        if saved != value:
+            raise ValueError('plan evidence: retained turn identity conflicts')
+    else:
+        staging = parent / uuid.uuid4().hex
+        bundle.retention.ensure_directory(staging)
+        for name, data in contents.items():
+            _write(staging / name, data)
+        _write(staging / 'turn.json', bundle.encoded(value))
+        with bundle.retention.directory_descriptor(staging) as fd:
+            os.fsync(fd)
+        os.rename(staging, target)
+        with bundle.retention.directory_descriptor(parent) as fd:
+            os.fsync(fd)
+    state.setdefault('evidence_turns', []).append(str(target))
+    _publish_turn(plan, run, state, result, target)
+    return target
+
+
+def _publish_turn(plan, run, state, result, target):
+    """Extend existing bounded plan proof without accepting the terminal turn."""
+    if result is not None:
+        try:
+            consume(plan, state, result)
+        except EvidenceUnavailable:
+            return recover(plan)
+    previous = recover(plan)
+    if previous is not None:
+        if previous['schema'] != 1:
+            raise ValueError('plan evidence: schema 2 publication requires the versioned producer')
+        # Lost replies reuse their already verified publication, even when its
+        # original report and this turn's first raw directory have rotated.
+        manifest = bundle.inspect(plan.root, os.geteuid(), os.getegid(), previous['bundle'])['manifest']
+        raw = str(target / 'turn.json')
+        if any(entry['path'] == raw and entry['sha256'] == _digest(_read(raw))
+               for entry in manifest['files']):
+            return previous
+    metadata = Path(run) / 'working-proof' / uuid.uuid4().hex
+    bundle.retention.ensure_directory(metadata)
+    old_raw = _read(locator(plan)) if previous else b''
+    generation = 1
+    if previous:
+        ledger = bundle.decoded(bundle.inspect(plan.root, os.geteuid(), os.getegid(), previous['bundle'],
+                                member=previous['ledger'], count=bundle.MAX_READ))
+        generation = ledger['generation'] + 1
+    _write(metadata / 'accepted-ledger.json', bundle.encoded(dict(schema=1, plan=plan.path,
+        generation=generation, previous_index_sha256=_digest(old_raw),
+        tasks=previous['tasks'] if previous else {})))
+    sources = [str(target), str(metadata), *state.get('evidence_inputs', [])]
+    references = _references(plan, result, state) if result is not None else []
+    if result is None:
+        # Queue/acceptance validation can reject an otherwise readable response.
+        # Preserve its finite legacy selections without registering claims or
+        # letting malformed structured declarations acquire reader authority.
+        try:
+            rejected = bundle.decoded(_read(target / 'agent-result.json'))
+        except (FileNotFoundError, ValueError):
+            rejected = None
+        if (isinstance(rejected, dict) and rejected.get('task_id') == state['task_id']
+                and isinstance(rejected.get('checks'), list) and len(rejected['checks']) <= 256):
+            checks = []
+            for check in rejected['checks']:
+                if not isinstance(check, dict) or not isinstance(check.get('evidence'), str):
+                    continue
+                try:
+                    structured = _structured(check['evidence'])
+                except ValueError:
+                    continue
+                if structured is None:
+                    checks.append(check)
+            references = _references(plan, dict(checks=checks), state)
+    try:
+        _export(plan, run, state, sources, [previous['bundle']] if previous else [], references)
+    except EvidenceUnavailable:
+        # A rejected turn with expired proof remains truthful history. Only
+        # accepted preservation enters the existing exact-reference renewal.
+        return previous
+    return recover(plan)
 
 
 def _source(plan, run, state, result):
@@ -142,6 +299,30 @@ def carry(plan, run, state):
     Git ownership. Legacy checkpoints without captured inputs remain untouched.
     """
     parent = Path(run) / 'plan-inputs'
+    turns = []
+    for previous in state.get('evidence_turns', []):
+        source = Path(previous)
+        value, contents = _turn(source, state['task_id'], plan=plan)
+        turn_parent = Path(run) / 'plan-turns'
+        target = turn_parent / _digest(bundle.encoded(value))
+        if source != target:
+            bundle.retention.ensure_directory(turn_parent)
+            if target.exists():
+                if _turn(target, state['task_id'], plan=plan)[0] != value:
+                    raise ValueError('plan evidence: retained turn identity conflicts')
+            else:
+                staging = turn_parent / uuid.uuid4().hex
+                bundle.retention.ensure_directory(staging)
+                for name, data in contents.items():
+                    _write(staging / name, data)
+                with bundle.retention.directory_descriptor(staging) as fd:
+                    os.fsync(fd)
+                os.rename(staging, target)
+                with bundle.retention.directory_descriptor(turn_parent) as fd:
+                    os.fsync(fd)
+        turns.append(str(target))
+    if 'evidence_turns' in state:
+        state['evidence_turns'] = turns
     if state.get('evidence_inputs'):
         bundle.retention.ensure_directory(parent)
     # Each restart moves its exact prior selections into the current registered
@@ -723,7 +904,8 @@ def recover(plan):
 
 def _references(plan, result, state):
     """Only explicit checkout-storage references are inputs to proof publication."""
-    texts = [check['evidence'] for check in result['checks']]
+    texts = [check['evidence'] for check in result['checks']
+             if _structured(check['evidence']) is None]
     queue = (plan.root / plan.queue).read_text()
     texts += [line for line in queue.splitlines()
               if re.match(r'^\| \[[ x]\] \| ' + re.escape(state['task_id']) + r' \|', line)]
@@ -751,6 +933,81 @@ def _references(plan, result, state):
             if source != locator(plan):
                 found.add(str(source))
     return sorted(found)
+
+
+def _structured(text):
+    """Recognize the explicit versioned handoff; ordinary prose stays legacy."""
+    if not isinstance(text, str) or not text.lstrip().startswith('{'):
+        return None
+    try:
+        value = bundle.decoded(text)
+    except ValueError:
+        if 'onpc-plan-evidence' in text:
+            raise ValueError('plan evidence: malformed structured handoff') from None
+        return None
+    if not isinstance(value, dict) or value.get('schema') != 'onpc-plan-evidence':
+        return None
+    if (set(value) != {'schema', 'version', 'reference', 'consumer', 'record'}
+            or type(value['version']) is not int or value['version'] != 1):
+        raise ValueError('plan evidence: unsupported structured handoff')
+    return value
+
+
+def consume(plan, state, result, *, register=True):
+    """Register exact producer-issued references through authenticated readers.
+
+    Producer declarations select context; they gain authority only after the
+    runner's verified cumulative publication matches that complete context and
+    closure. Registration also binds the ordinary task, attempt and check claim.
+    """
+    import evidence_identity as identities
+    import runner_evidence
+    registrations = dict(state.get('evidence_consumers', {}))
+    for number, check in enumerate(result.get('checks', [])):
+        declaration = _structured(check['evidence'])
+        if declaration is None:
+            continue
+        consumer = declaration['consumer']
+        identities.validate_consumer(consumer)
+        reference = declaration['reference']
+        if (not isinstance(reference, dict) or set(reference) != {
+                'schema', 'workflow', 'record_id', 'member_id', 'closure_sha256'}):
+            raise ValueError('plan evidence: invalid runner reference')
+        context = consumer['expected_context']
+        record = identities.finalize_record(declaration['record'])
+        # Only the installed controllers' own post-cleanup terminal captures
+        # establish installed acceptance. The generic regression command is a
+        # supporting invocation record, including harness qualification runs.
+        installed = (context is not None and context['target'] and (
+            context['workflow'] == 'system' and context['check'] == 'system'
+            or context['workflow'] == 'e2e' and context['check'] == 'invocation'))
+        selected = dict(kind='evidence', **{key: reference[key]
+            for key in ('record_id', 'member_id', 'closure_sha256')})
+        if (not isinstance(context, dict) or context['target'] != check['target']
+                or reference['workflow'] != context['workflow']
+                or selected not in consumer['references']
+                or record['record_id'] != reference['record_id']
+                or record['closure_sha256'] != reference['closure_sha256']
+                or record['context'] != context
+                or record['status'] != check['result']
+                or check['kind'] == 'installed' and not installed
+                or consumer['state'] not in ('working', 'suspended', 'accepted')
+                or check['result'] == 'passed' and consumer['role'] != 'required_evidence'):
+            raise identities.EvidenceContextError('plan evidence: structured check scope or verdict mismatch')
+        binding = dict(task_id=state['task_id'], task=state['task'],
+            attempt=state.get('evidence_attempt'), check=number)
+        key = identities.digest(binding)
+        registered = dict(binding=binding, claim_sha256=_digest(bundle.encoded(check)),
+                          reference=reference, consumer=consumer)
+        if key in registrations and registrations[key] != registered:
+            raise identities.EvidenceContextError('plan evidence: registered check claim changed')
+        # count=0 verifies the complete archive/closure without materializing a
+        # potentially large required-media member into the controller's memory.
+        runner_evidence.resolve_reference(plan.root, reference, consumer=consumer, count=0)
+        registrations[key] = registered
+    if register and registrations:
+        state['evidence_consumers'] = registrations
+    return registrations
 
 
 def _targets(run, state):
@@ -787,6 +1044,7 @@ def preserve(plan, run, state, result):
     if (result.get('status') != 'task_complete' or result.get('cleanup_complete') is not True
             or result.get('task_id') != state['task_id']):
         raise ValueError('plan evidence: preservation requires accepted completion and cleanup')
+    consume(plan, state, result)
     if previous and state['task_id'] in previous['tasks']:
         proof = previous['tasks'][state['task_id']]
         saved = bundle.inspect(plan.root, os.geteuid(), os.getegid(), previous['bundle'],
@@ -843,10 +1101,20 @@ def preserve(plan, run, state, result):
         generation = old['generation'] + 1
     _write(capsule / 'accepted-ledger.json', bundle.encoded(dict(schema=1, plan=plan.path,
         generation=generation, previous_index_sha256=_digest(old_raw), tasks=tasks)))
-    sources, bundles = [str(capsule), *inputs], ([previous['bundle']] if previous else [])
+    turns = state.get('evidence_turns', [])
+    for value in turns:
+        _turn(value, state['task_id'], plan=plan)
+    sources, bundles = [str(capsule), *inputs, *turns], ([previous['bundle']] if previous else [])
     references = [path for path in _references(plan, result, state)
                   if path not in sources and path not in bundles]
+    _export(plan, run, state, sources, bundles, references)
+    return recover(plan)
+
+
+def _export(plan, run, state, sources, bundles, references):
+    """Share authenticated selection/publication for working and accepted proof."""
     _parent(plan, create=True)
+    targets = _targets(run, state)
     sources, bundles = list(dict.fromkeys(sources)), list(dict.fromkeys(bundles))
     if targets and os.geteuid() != 0:
         # Privileged target journals remain behind the maintained authenticated
@@ -883,7 +1151,6 @@ def preserve(plan, run, state, result):
                               sources, bundles, plan_namespace=plan_namespace(plan.path),
                               references=references) as selected:
             bundle.export(selected, expected=selected.selection_sha256, defer_cleanup=True)
-    return recover(plan)
 
 
 def rewrite_references(plan, state, index):

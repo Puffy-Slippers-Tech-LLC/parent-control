@@ -111,6 +111,12 @@ def validate_result(plan, state, result):
         raise ValueError('master plan queue changed since its checkpoint; reconcile the retained handoff')
     validate_result_payload(state, result)
     validate_task_metadata(plan, state)
+    try:
+        plan_evidence.consume(plan, state, result, register=False)
+    except plan_evidence.EvidenceUnavailable:
+        # Exact absence is renewed by closeout; context, integrity and authority
+        # failures remain ordinary response refusals, never missing proof.
+        pass
     complete = result['status'] == 'task_complete'
     if prerequisite_handoff(plan, state, result):
         if state.get('git_reconciliation'):
@@ -189,8 +195,15 @@ Return the required JSON response.
 Each checks item names kind, one declared canonical target (empty only when the
 brief declares no Targets), actual
 passed/failed/not_run result and exact retained evidence or review findings.
+For a runner-issued structured handoff, use a JSON string as checks[].evidence:
+schema "onpc-plan-evidence", version 1, and the exact reference, consumer and
+record objects returned by the producer. Select one declared member and retain
+its original target, inputs, attempt, verdict and cleanup. Do not invent those
+objects or replace installed acceptance with diagnostic proof. Legacy exact
+report paths remain supported when no structured handoff is available.
 Never report task_complete unless every required check passed and cleanup ended.
 Previous handoff/recovery: {state.get('handoff', 'No prior session.')}
+Verified closed-turn records: {json.dumps(state.get('evidence_turns', []))}
 {('The preceding turn ended because the provider was at capacity. Reconcile partial '
   'work and retained command/test results after owned cleanup, then continue this '
   'same task and session. No acceptance or extra task-session allowance was granted. Failure: '
@@ -944,6 +957,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 state.update(phase='recover', in_flight=False, capacity_recovery={
                     'message': str(error), 'retry_after': time.time() + delay,
                     'session': state['total_sessions'], 'failures': failures, 'exhausted': exhausted})
+                plan_evidence.retain_turn(plan, run, state)
                 launcher.atomic(run / 'checkpoint.json', state)
                 if exhausted:
                     status, reason = 1, f'model capacity recovery exhausted: {error}'
@@ -960,7 +974,14 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 state.pop('capacity_recovery', None)
                 state.update(phase='recover', in_flight=False, plan_queue=plan.queue)
                 retain_result_rejection(run, error, label=spec.name, checkpoint=state)
+                plan_evidence.retain_turn(plan, run, state)
+                launcher.atomic(run / 'checkpoint.json', state)
                 continue
+            # A continuation, answer or prerequisite can outlive this response's
+            # run. Freeze its closed proof before another turn replaces the
+            # result, prompt and nested-owner inventory.
+            launcher.finish_nested(root, run)
+            plan_evidence.retain_turn(plan, run, state, result)
             state.pop('result_recovery', None)
             state.pop('capacity_recovery', None)
             state.update(summary=result['summary'], handoff=result['handoff'], in_flight=False)

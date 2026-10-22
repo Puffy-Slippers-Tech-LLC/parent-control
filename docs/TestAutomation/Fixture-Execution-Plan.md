@@ -72,11 +72,16 @@ verification; preparation also recovers pending evidence before opening a newer
 retention run. Affected Ubuntu installed acceptance was renewed after automatic
 baseline refresh. Host checks and independent Sol High review passed. Watched
 restoration, fresh exact-domain off-state audits and owned cleanup passed on both
-targets. The [installed results](../../output/test-runs/host/exports/onpc-evidence-bundle-7ccxwyqp/evidence.zip)
-retain both histories; the queue links their command and host evidence. A later
-shared-helper replacement prevented the extra status command and its standard
-refresh; the completed installed audits already observed each owned VM off.
-This supplies no customer/E2E acceptance.
+targets. After the shared lifecycle merge, both baselines were refreshed through
+the maintained auto route and both installed histories passed again. The
+[verified recovery bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-lrtvdhbg/evidence.zip)
+retains the original installed results, fresh Fedora/Ubuntu results, exact
+command/input records, renewed host selections (3,641, 45 and 321 checks) and
+315 passing close-out consistency checks.
+No implementation changes were needed during renewal; the independent Sol High
+review remains retained. Watched restoration and owned cleanup passed, and the
+public status route independently confirmed both VMs off. This supplies no
+customer/E2E acceptance.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.
@@ -157,11 +162,3 @@ the test-scope mandate. Run `make build` after edits affecting
 package/build inputs; authoring this plan alone needs no build or VM.
 Only accepted execution checks a row, advances the pointer and removes its brief.
 The separate [E2E plan](E2E-Execution-Plan.md) remains unchanged.
-
-F17's queue link labelled “Command evidence, 3,641 affected host checks, 41
-recovery checks and 321 final checks passed” currently points to an unavailable
-bundle. Its separate installed-results bundle remains readable. Preserve the
-completed row and claims; repair the destination only after verifying equivalent
-retained command/host/cleanup proof under the
-[historical evidence contract](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
-This reconciliation supplies none of that missing proof.

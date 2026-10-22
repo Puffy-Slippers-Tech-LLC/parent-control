@@ -265,6 +265,590 @@ E01b must independently review these maps and proposed answers, freeze P01–P12
 concrete coverage/allocation and resolve provisional ranges before runtime work.
 No E01 source finding supplies that gate or acceptance for another task.
 
+## E01a protocol proposal
+
+Proposal date: 2026-10-21. The following answers the six E01 questions. These
+schemas, library names and helper options are **proposed and unimplemented**;
+E01b must independently freeze them and their delivery allocation. Current
+runtime contracts remain authoritative until the owning delivery passes. This
+section records design review, not execution of P01–P12 or product acceptance.
+
+### Canonical identities and wire records
+
+Use `evidence_bundle.encoded` canonical JSON (sorted keys, compact separators,
+ASCII escapes), SHA-256 lowercase hex and duplicate-key rejection. Versioned
+objects have exactly the keys specified below; reject unknown versions, fields,
+duplicate IDs, nonfinite numbers and integer/boolean confusion. Strings are
+UTF-8 values of at most 4,096 bytes without control characters; paths retain the existing
+no-link, no-traversal, privacy and mount checks. IDs are 64 hex characters;
+run/attempt tokens are fresh 32-hex tokens issued by the owning controller, never
+derived from a title, timestamp or basename. Empty target means a declared
+host-only check; it cannot match a named target. Lists of sets are sorted and
+unique before hashing; command arguments and ordered input selections retain
+their order. Every digest below hashes canonical bytes, except file digests,
+which hash the exact original bytes.
+
+The proposed logical record schema is `onpc-evidence-record`, version 1:
+
+| Exact field | Meaning and validation |
+| --- | --- |
+| `schema`, `version` | Literal schema name above and integer `1`. |
+| `context` | Exactly `repository`, `workflow`, `owner`, `run`, `task`, `check`, `attempt`, `target`, `inputs_sha256`, `sources_sha256`. Repository is the validated checkout identity, workflow the checkout-relative master or registered runner name, owner the authenticated journal identity, run its token. Task/check are exact registered IDs/selectors, attempt is issued before execution. Input digest binds role, original name, length and digest of each finite input, including selected target configuration; source digest binds the declared executable dependency inventory and bytes. |
+| `record_id` | Hash of `{schema,version,context}`. Relocating storage never changes it. A retry, changed input/source or different target produces another record. |
+| `status`, `completeness` | Status is `passed`, `failed`, `interrupted`, `not_run` or `diagnostic`; completeness is `complete` or `partial`. Neither an archived diagnostic nor a partial candidate can supply a passing check. |
+| `members` | Finite entries with exactly `member_id`, `role`, `original_path`, `source_allocation`, `bytes`, `sha256`, `required`. Role is result, input, command, junit, tap, cleanup, diagnostic or media. Source allocation preserves the existing journal/run/device/inode/mode provenance; original path is provenance, never permission to open it. Member ID hashes record ID, role, original path and byte digest. |
+| `dependencies` | Sorted exact `(record_id,closure_sha256)` pairs, never an unqualified latest result. No cycles; validate the finite transitive closure before acceptance. |
+| `cleanup` | Exactly `state`, `record_members`, `scope`. State is `complete`, `failed`, `pending` or `not_applicable`; members name exact cleanup records and scope names the resources actually owned. `not_applicable` needs an owning contract declaration. Producer execution cleanup is separate from capture-publication retirement cleanup. |
+| `closure_sha256` | Hash of the entire record excluding only this field. It binds status, completeness, every member, dependencies and cleanup. Same record ID with differing closure is a conflict, not a newer pass. |
+
+Keep command/result/input/cleanup records independently addressable. Required
+JUnit/TAP or media cannot disappear through deduplication or a diagnostic size
+limit. A required media member uses a verified captured copy, or an exact external
+dependency with its owner's explicit lifetime; latest-only recordings alone
+cannot promise durable proof. No credential directory is a capture selection.
+
+Extend the existing ZIP format, not its compression/extraction policy. Bundle
+manifest schema `2` has exactly the v1 keys `schema`, `files`, `inherited`,
+`source_budgets` plus `records` and `member_map`. Physical `files` keep v1
+provenance and generated `files/NNNNNNNN` names. `records` contains the logical
+records above; `member_map` maps each `(record_id,member_id)` to a physical member
+and original provenance. Equal bytes may share one physical member only when all
+logical origins remain explicit; unequal bytes or conflicting provenance refuse.
+Metadata, logical entries and dependencies all count toward finite limits; byte
+deduplication cannot evade the 60,000-file/logical-member bound. Verify logical
+closure against stored bytes before returning any result. Schema 2 receipt has
+exactly `schema:2` plus the existing `sha256`, `bytes`, `selection_sha256`,
+`identity`; `selection_sha256` binds the whole manifest. Never silently add fields
+to v1's strict reader.
+
+Accepted ledger schema `2` has exactly `schema`, `plan`, `generation`,
+`previous_index_sha256`, `tasks`, `records`, `segments`. Preserve each task's v1
+result, inputs, records, attempt and complete-cleanup assertions; add exact logical
+record/closure pairs in a new `record_refs` field of each task proof. `records`
+maps record IDs to complete logical records. The stable locator schema `2` has exactly
+`schema`, `plan`, `generation`, `ledger`, `ledger_sha256`, `segments`, `tasks`.
+Ledger segment entries contain exactly `id` and `record_ids`; external locator
+segment entries contain exactly `id`, `bundle`, `sha256`, `selection_sha256`,
+`allocation`. The archived ledger never contains its own segment's archive or
+manifest hash: receipts and the external locator bind those physical hashes.
+Locator `ledger` has exactly `segment_id` and `original_path`, selecting an exact
+original member whose digest equals `ledger_sha256`. Locator `tasks` repeats the
+verified ledger task proofs; it cannot override them. Ledger is an exact original
+member in one segment, not a second archive format.
+Task lookup cannot substitute for verifying the requested
+record/member and dependency closure. A missing segment refuses its dependents;
+it does not invalidate unrelated verified proof. Locator generation replacement
+uses the existing previous-index digest compare-and-replace.
+
+The external working collection index is `onpc-evidence-collection`, version `1`,
+with exactly `schema`, `version`, `owner`, `generation`, `previous_index_sha256`,
+`segments`, `records`, `consumers`. Its segments use the external locator entry
+shape; records map record IDs to segment/member/closure selectors and consumers
+map IDs to exact revisions. It is published after segment verification and before
+acknowledgement, using the same private atomic index/publication recovery route.
+It never supplies an acceptance verdict or replaces the accepted ledger.
+
+### Exact references and planned interfaces
+
+Canonical generated Markdown destinations are relative to the containing file:
+`RELATIVE-LOCATOR#onpc-evidence-v1:RECORD_ID:MEMBER_ID:CLOSURE_SHA256`.
+The three fields are lowercase 64-hex values with no optional components. The
+reserved fragment is a structured selector, not a Markdown heading. Resolve
+the locator lexically inside the validated checkout, pin its identity and verify
+the ledger/segment/member plus the consumer's expected context. Do not strip the
+fragment before semantic checking. Ordinary anchors retain normal Markdown
+semantics. The destination may change after relocation; the selector must not.
+Links choose a specific result or supporting member; a generic locator remains
+legacy navigation and supplies no new exact-check proof.
+
+The consumer declaration schema `onpc-evidence-consumer`, version `1`, contains
+exactly `schema`, `version`, `consumer_id`, `owner`, `revision_sha256`, `role`,
+`expected_context`, `references`, `state`. Revision hashes the original claim
+bytes, role and required assertions; expected context fixes task/check/attempt/
+target/input/source requirements for evidence. Each reference is discriminated:
+`{kind:evidence,record_id,member_id,closure_sha256}` or
+`{kind:document,destination,fragment}`. Document destinations resolve relative to
+the declaring document inside the checkout; their context is the instruction or
+presentation contract, not an invented check attempt. Document references confer
+no evidence acceptance. Role is `required_evidence`, `required_instruction`,
+`optional_presentation`, `historical_information`, `example` or `operational_path`;
+state is `working`, `suspended`, `accepted` or `released`. Declaration owner is the
+validated plan/check/catalogue owner, never arbitrary prose. Existing required
+instructions/evidence stay required when no valid declaration exists. Queue
+claim bytes and protected checkpoint fields retain their stronger existing guard.
+
+Proposed library interfaces (names to register in E02–E10 before use):
+
+| Interface | Exact request/result contract and delivery |
+| --- | --- |
+| `resolve_reference(reference, *, consumer, read_scope)` | E02: parse the selector, prove expected context, return record, exact member and verified closure; typed refusal otherwise. No latest-attempt fallback. |
+| `finalize_capture(session_handle, *, record, consumer_ids)` | E03: only a live producer-owned session handle may issue a finite sealed request; returns a durable capture ID, not acceptance. No path/environment-only authority. |
+| `capture_finalized(request, *, destination_owner)` / `acknowledge_capture(session_handle, ack)` | E03: independent verified publication, then exact source-owner acknowledgement; return the transaction state/receipt described below. No arbitrary active-source reader. |
+| `dependency_gate(records, *, operation, catalogue_generation)` | E04: called under the existing deletion/mutation owner; returns exact safe release/replacement or refuses, never deletes by itself. |
+| `resolve_archived(references, *, bundles, consumer, read_scope)` | E05a: selected finished publication scope only; validate both requested originals without inspecting an unrelated active producer. |
+| `generate_reference(record, member, *, consumer, document)` | E09: emits the canonical relative destination only after exact closure/context verification. E08 owns parsing; E10 owns typed classification. |
+
+Planned helper additions extend `onpc-test-artifacts`, not `tools/export`:
+`bundle-plan` and `bundle-export` gain repeatable `--record-reference` destinations
+and exactly one `--consumer` canonical JSON declaration for that structured mode.
+They also gain repeatable `--capture` IDs, resolved only through trusted finished
+sealed-subowner registrations. Capture IDs and structured references count in
+the same finite selection limit; they never authorize reading the active parent.
+Existing `--plan`, repeated `--target`, `--source`, `--bundle`, `--reference`,
+`--summary`, `--expect` and `--defer-cleanup` retain their meanings. The helper
+validates consumer ownership and exact plan/task inputs; a caller-authored JSON
+role cannot relax a required contract. Legacy and structured selections may be
+combined within the existing 256-selection total; mandatory sources/bundles are
+always strict. `bundle-read` gains paired `--record-id` and `--member-id` with
+required `--closure-sha256`, mutually exclusive with legacy `--path`; existing
+offset/read limits apply. No new command is runnable until its parser,
+documentation, installation and refusal regressions are registered.
+
+The planned privilege-crossing custody action is `bundle-custody --transaction
+ID --expect REQUEST_SHA256 --operation OP`, where OP is `inspect`, `reserve`,
+`acknowledge`, `retire-permit` or `retire-finish`. It accepts no UID, journal path,
+output destination or arbitrary source. Derive its one registered immutable
+capture/retirement request from authenticated caller, repository and transaction;
+validate the expected digest, owner-issued authority and operation's durable
+predecessor. Return canonical transaction state/receipt or a typed refusal.
+`reserve` is callable only inside verified publication, before releasing the
+destination read scope; other operations use the nonnested protocols below.
+Host-only code calls the same library directly. E03 registers capture operations;
+E04 registers retirement operations with finite prepared-set/permit schemas
+binding transaction, source identities, consumer revisions and replacement
+digests. This scoped action supplies no source/VM cleanup or discard authority.
+
+Exit 3 remains only exact absent renewable references, with existing legacy
+`error: evidence_unavailable, paths` payload preserved. Structured mode returns
+versioned `error: evidence_unavailable, schema:1, references` and exact selectors;
+controllers opt in before consuming it. Mandatory absent source/bundle, denial,
+unsafe identity, corruption, active source and wrong context remain exit 2 with
+distinct typed reasons. Do not parse free-form stderr as a missing-proof signal.
+Legacy `read`/`tail` diagnostic slices never establish complete capture.
+
+### Finalized capture authority and durable transitions
+
+The producer session API issues an in-process opaque handle from its held owner
+descriptor, private journal identity, run and issued attempt. Validate all four
+against current locked state when sealing and acknowledging. `ONPC_TEST_RETENTION`
+contains only path/run and inherited activity FDs coordinate exclusion; neither
+authenticates a record. Only trusted producer code holding that session handle
+can issue a request. An independent helper derives caller UID/GID through its
+existing authenticated entry; it never accepts supplied UID or environment as
+authority. Bind repository, journal identity, allocation identities and registered
+target to the request. Cross-process callers can consume an issued sealed request,
+but cannot mint a producer handle through the public reader.
+
+Use a registered sealed snapshot allocation with its own retention subowner,
+separate from the active producer journal. Its owner issues a fresh nonce, records
+the exact finite allowlist and request digest privately, copies closed final files
+under pinned descriptors, verifies before/after identity/digests, then fsyncs and
+finishes that subowner. The parent records the subowner/allocation and durable
+dependency intent before copying; it remains responsible for interruption and
+budgets. A missing seal or active subowner refuses. General selection still
+requires finished owners: the collector reads only this independently finished
+snapshot, never the parent journal or its mutable siblings. The nonce is a replay
+binding, not a bearer secret or substitute for private owner validation. Reuse
+shared storage/retention allocation; no caller-selected output root.
+
+The shared allocator derives one bounded sealed-subowner slot from validated
+repository/caller/parent-owner identity and capture ID under shared capture state;
+the helper accepts an ID, never a caller-supplied journal path. Its durable slot
+registration contains parent owner/run/attempt, capture/request digests and exact
+subowner/allocation identities. Publish registration before sealing, and mark it
+readable only after its independent finished-owner commit. Helpers consult this
+finite registration without opening the active parent journal. Missing, pending,
+foreign or replaced registration refuses. Parent and sealed allocations are
+disjoint, never nested cleanup claims. Parent recovery owns subowner cleanup;
+subowner rotation cannot bypass parent budget/dependency gates. Capture ID hashes
+producer binding and its fresh 32-hex nonce, so retries reuse the same slot.
+
+Capture request schema `onpc-finalized-capture`, version `1`, has exactly
+`schema`, `version`, `capture_id`, `producer`, `record`, `consumers`, `sealed`,
+`request_sha256`. Producer binds repository, caller, journal/device/inode, run,
+attempt and nonce; sealed binds the finished subowner and exact allocation/file
+identities. Each sealed mapping has exactly `member_id`, `original_path`,
+`source_allocation`, `sealed_path`, `sealed_allocation`, `identity`, `sha256`.
+Keep original provenance distinct from the physical sealed copy; verify both
+identities and their exact byte/digest mapping before archive capture.
+Consumers are the authoritative owner-issued consumer IDs/revisions.
+Request hash excludes only itself. Ack schema `onpc-capture-ack`, version `1`, has
+exactly `schema`, `version`, `capture_id`, `request_sha256`, `record_id`,
+`closure_sha256`, `destination`, `catalogue_generation`, `cleanup_complete`.
+Destination binds the committed publication allocation, receipt/manifest digests
+and exact logical member mapping. Ack cleanup means capture transaction cleanup;
+producer cleanup is already bound in the record. A receiver independently verifies
+the destination before recording the ack; ack JSON alone never authorizes deletion.
+
+| Durable state | Required action and interruption/cancellation outcome |
+| --- | --- |
+| `required` | Owner registers the finite consumer dependency before the producer can become rotation-eligible. Persist capture intent and source identities. Failure leaves original required and diagnoses admission/capacity refusal. |
+| `sealing` | Register empty snapshot before payload. Copy only the finalized allowlist. Interrupted partial stage remains identity-recorded; recover that exact stage or retry from the unchanged required source. No acknowledgement. |
+| `sealed` | Finish and verify immutable subowner, fsync request and parent intent. Collector may now inspect this finite source while parent runs. Changed source/seal refuses; prior proof and original remain. |
+| `publishing` | Independent destination owner preflights all simultaneous usage; existing `Publication` preparing/committed transaction owns recovery. A preparing failure removes only its exact stage; prior proof and sealed source survive. |
+| `durable` | Verify committed payload and manifest; publish working collection index by digest compare-and-replace, then finish recorded publication retirement. A crash after commit recovers the exact index before retirement. No source release yet. |
+| `acknowledged` | Source owner revalidates producer/request/attempt/closure, verified destination reservation and consumer revisions, then commits ack and dependency replacement. Lost reply repeats the same capture ID idempotently. Pending/stale/foreign ack cannot release anything. |
+| `released` | Existing retention can retire source only after its ordinary finished-owner/identity/lifecycle guards and the dependency gate agree. Required working/accepted destination stays reserved until owner release or verified replacement. |
+
+Cancellation before acknowledgement preserves required source and recoverable
+intent; after acknowledgement it preserves the durable destination and exact
+consumer bindings. Cancellation supplies no pass. Resume the same transaction,
+not a new attempt or retention slot. An owner may explicitly abandon a never-used
+consumer through its normal cancellation/cleanup contract; it cannot release an
+accepted or suspended consumer or erase failed-attempt diagnostics by implication.
+
+Finalization hooks must respect current late writes. `Report.close` is not the
+aggregate seal: `regression.retained_main` may append `failure.json`, and
+`regression_session.owned_worker` appends recordings and result after `_main`.
+Category/worker captures use closed dedicated records while the shared aggregate
+report remains mutable. Standalone short report registration must occur inside a
+live owned session before finalization. Complete qualification seals after owned
+cleanup; closed immutable diagnostic subsets may seal with cleanup failed/pending
+and completeness partial. Never copy still-written files. Later recovery issues
+a distinct linked cleanup/recovery record with a fresh attempt, preserving the
+original failure rather than changing its immutable closure under the same ID.
+Failed/interrupted diagnostics retain finite/truncated/native-log availability.
+E2E terminal candidates precede outer/collector cleanup: the outer owner writes
+the authoritative post-close returned ledger into a separate registered closure
+allocation, links candidate digests and preserves collector exact-list checks.
+`PrivateCollector.close()` only closes its descriptor. Recovery probes can leave
+a deliberately live maintenance scene: their diagnostic cleanup scope must say
+so, never claim restored/off VM state. Transport credentials remain excluded.
+Only passed, complete records whose required closure and declared execution
+cleanup passed can satisfy a passing check. Declared no-resource cleanup is
+vacuous only under its owning contract; failed/pending cleanup is never promoted.
+
+### Lock order, dependencies and retirement
+
+Keep existing checkout activity, nonblocking journal owner, applicable VM
+compatibility/named lease, then journal writer order. Multiple source owners and
+writers use trusted absolute journal-path order as in input transfer; never
+upgrade a shared read lock in place. All dependency catalogue operations take a
+short catalogue lock **last**. While holding it, acquire no other owner/writer/
+lease, perform no payload I/O, helper/VM call or publication. There is no wait
+cycle through destination and source journals: seal under source ownership,
+release source writer, publish/verify under independent destination ownership,
+release destination locks, then acknowledge through prepared intent and exact
+catalogue compare-and-replace. Ordinary read scopes hold only needed shared owners.
+
+The authoritative dependency catalogue is version `1`, with exactly `schema`,
+`generation`, `consumers`, `captures`, `reservations`, `retirements`. One canonical
+catalogue per authenticated caller and validated checkout lives in caller-private
+shared host state; trusted host library code mutates it directly. A privileged
+producer/helper switches to its derived caller identity for that same catalogue,
+never maintains an independent mirror or trusts supplied UID/path/ack JSON.
+For every ever-required privileged source, retain an authoritative root-private
+safety witness in its source state **before** catalogue registration: exact caller,
+checkout, transaction, source identities, consumer revisions and required closure.
+Absent/changed caller entries never make that source disposable. Release needs
+the validated lifecycle's root-issued witness too; caller-authored role/release
+changes cannot discharge privileged requirements. Source private state is a
+safety witness, not a second mutable dependency catalogue. Host-only capture and
+retirement need no new privileged operation. Entries identify repository, owner,
+exact allocation/record/closure, consumer revision and transaction ID.
+Reservations are finite persistent references to verified replacement receipts;
+they are not new payload copies. A destination reservation is durable before
+verification locks are released; retirement respects it. Source acknowledgement
+CAS replaces its original dependency with that reservation, so there is no gap
+between verification and deletion. Failed CAS keeps both copies reserved until
+exact recovery; it never releases the original. A retirement intent under the
+catalogue lock blocks new dependencies on that allocation until deletion commits
+or exact recovery aborts it. New consumers either bind the durable replacement
+or refuse; no late claim can resurrect deleted proof. Catalogue snapshots alone
+grant no deletion authority, and missing/corrupt required catalogue state refuses.
+
+Separate provisional capacity/staging reservations from verified durable custody.
+A provisional reservation cannot satisfy a consumer or acknowledgement. Preparing
+publication recovery removes only its exact stage plus provisional reservation,
+leaving all required source dependencies intact. Promote to durable reservation
+only after committed payload verification, before releasing its verification
+locks. Outstanding source transactions prohibit unilateral reservation release.
+
+Acknowledgement protocol is source-writer prepare/fsync, release writer,
+catalogue CAS (direct library call for host, authenticated helper for privilege
+crossing), then reacquire writer and mirror the result. The helper reads only
+the sealed registration/prepared immutable request, never reacquires caller-held
+source owner/writer/VM leases or runs recovery. Same transaction with a lost reply
+returns its canonical result. If final source revalidation fails after catalogue
+CAS, preserve the reservation and refuse; never silently undo durable custody.
+Use exact-entry revisions for CAS, tolerating unrelated catalogue generation
+increments while rejecting changes to this transaction/consumer.
+
+Retirement request schema `onpc-retirement-intent`, version `1`, has exactly
+`schema`, `version`, `transaction`, `owner`, `operation`, `sources`, `consumers`,
+`replacements`, `request_sha256`. Sources contain exact recorded allocation and
+member identities; consumers contain exact IDs/revisions; replacements contain
+verified record/closure/receipt/reservation bindings. Operation names the existing
+owning retirement route, never a general delete command. Hash excludes only
+itself. Permit schema `onpc-retirement-permit`, version `1`, has exactly `schema`,
+`version`, `transaction`, `request_sha256`, `entry_revisions`, `state`,
+`permit_sha256`; state is `permitted`, `removing`, `finished` or `aborted`, and its
+hash excludes only itself. Bind every permit to the full immutable request and
+owner; one-use progress records retain exact removed/remaining identities.
+
+Retirement uses the analogous prepare/permit/remove/finish protocol. Audit the
+**whole** proposed set of identities, dependencies, replacement closures and
+capacity before the first destructive action. Under existing owner/lifecycle
+guards and writer, fsync that exact prepared set; release writer, obtain durable
+catalogue retirement intents/permit for the whole set, then reacquire writer and
+repeat identity/lifecycle/entry checks before deleting only approved identities.
+Report completion outside writer. Hold existing owners/VM leases throughout;
+helper must not reacquire them. Interrupted removal keeps permit and all original
+identities for exact retry; changed source refuses rather than using a stale
+permit. Abort is allowed only before any deletion; after partial removal retain
+the permit and all remaining/original identities for exact retry or refusal.
+Private privileged witness persists until exact retirement completes.
+Immediately before privileged deletion, independently reverify replacement
+allocation/receipt/complete closure in a pinned read scope protected by its
+catalogue reservation; a historical root ack alone is insufficient. Missing or
+changed replacement refuses even when old ack JSON matches. Payload verification
+occurs outside catalogue locking, with entry revalidation under that lock.
+Acquire destination read ownership only while source writer is released; the
+deletion owner retains that preacquired pinned scope through source removal.
+Never acquire a destination lock from inside source writer or a catalogue lock.
+
+Consumer creation/release is owned by the existing plan/check lifecycle, with
+exact revisions and CAS generations, not a Markdown scan. Continuation,
+prerequisite suspension, rejected responses, capacity recovery and accepted Git
+retry keep dependencies. Acceptance atomically promotes working references to
+accepted only after full proof/cleanup verification; Git failure keeps that
+accepted closure. Superseding a result retains the old attempt whenever any
+consumer still references it. Explicit tracked-document inventory may register
+historical information through its owning reviewed migration; it supplies no pass.
+
+Apply the gate at every E01 retirement route:
+
+| Existing boundary | Additional decision, without replacing current guards |
+| --- | --- |
+| `Store.session` direct count deletion and `prune` | Check exact dependencies/reservations before **both** direct old-run removal and pruning. If a fourth required generation cannot be carried within the three-run limit, refuse admission before deleting; do not silently keep an unbounded fourth run. |
+| `Store.reconcile` and host startup | Oversized completed execution is disposable only with no required original or a verified matching acknowledged replacement. Failed capture, pending/stale ack and capacity errors preserve it. Recovery archives markers and validates recorded ownership as today. |
+| Privileged startup | Gate both `reconcile` and the later independent `prune(keep=2)` under existing VM leases/live-reference audits. No helper path bypasses either decision. |
+| `Publication.commit`, finish and recovery | Preflight the full superseded set; provisional stage reservations cannot release sources. Preparing cleanup removes only its exact stage/provisional reservation; after commit verify complete replacement, publish index and promote durable reservation before retirement. |
+| Plan `preserve/recover` | Verify ledger and exact prior index, replace locator durably, then retire only allocations whose complete dependency mappings moved. Foreign locator/owner or corrupt payload preserves the transaction and refuses. |
+| Explicit completed discard | Retain specific developer authority and full existing audits. Required proof must first have a verified replacement or explicit consumer-owner release permitted by that authority; a generic discard cannot erase accepted claims. No workflow/diagnostic scope expansion. |
+| Unpublished-input discard | Keep exact derived selector, absent completion manifest and recorded identity. A published input is still refused. An input actually required by a captured closure needs verified replacement/release first. |
+| Input cleanup-claim transfer | Payload is unchanged. Transfer dependency ownership with the same two-owner durable intent/identity; block ordinary mutation on either pending half, never resurrect an older allocation claim. |
+| Explicit legacy cleanup/migration | Existing finite authority and full audit remain; verify copied exact required closure before originals retire. Diagnostic migration deliberately skips input/assets/package and credential names; its success alone is no complete-proof ack. No filesystem/name sweep or adoption of unknown legacy data. |
+| Scratch/runtime, recordings, screenshots | Retain their separate owner/FD/latest-only/explicit cleanup contracts. Copy/ack required recordings before same-name rename replacement as well as unlink; a gate only at `_remove` misses overwrite. Do not pin scratch, sockets or screenshot exports as durable proof. |
+
+### Bounded collections, capacity and reuse
+
+Working and accepted collections each use their existing owning bounded journal,
+not one journal per record/segment. All sealed subowners and recovery stages are
+charged to the parent admission budget; creating a subowner cannot multiply
+capacity. Keep at most three generations and 4 GiB allocated blocks per journal,
+1 GiB projected bytes per ZIP, 60,000 logical/physical files, 64-MiB manifest,
+depth 32, 256 selections and existing 16-MiB read slices. Control JSON adds no
+unbounded exception: catalogue/ledger/request manifests must fit 64 MiB and
+60,000 total logical entries per collection. Receipts are at most 4,096 bytes;
+each manifest has at most 256 inherited-bundle and 64 source-budget entries.
+New limits do not enlarge legacy recovery/checkpoint readers' existing bounds;
+fail admission if metadata alone cannot fit. Stream larger allowed records in
+bounded read slices, never truncate metadata to fit a single read.
+
+Use at most three immutable ZIP segments in the **same** generation/allocation;
+each uses the existing verified manifest/receipt format. A logical record and
+its required closure must fit one segment; cross-record dependencies may name
+other segments. Deterministically pack by record ID, deduplicate only equal
+verified payload bytes while retaining every origin, and refuse a fourth segment.
+The generation's aggregate logical-member/manifest limits remain the collection
+limits above. On append, copy/repack only the finite required closure, remove
+only explicitly released metadata/payload and superseded unreferenced control
+records, and publish a complete replacement generation. No references depend
+on old segment paths; preserve record/member/closure IDs. No hardlinks or shared
+writable payload, recursive ZIP nesting, external hosting or new archive format.
+This is a bounded compaction strategy, not a promise that any campaign can fit.
+Schema 2 collection layout is exactly `segments/00/`, optionally `01/` and `02/`,
+each containing only `evidence.zip` and `receipt.json`; the external index binds
+the registered collection allocation and each segment's pinned identity. Extend
+the existing verifier to this finite layout; ordinary v1 two-file roots retain
+their strict listing and verification. No extra segment/journal allocation occurs.
+
+Preflight an explicit allocation ledger before creating any new stage:
+`peak = live_old + sealed_sources + preparing_new + committed_unretired +
+receipts_and_indexes + recovery_allocations + projected_copy_overhead`.
+Measure allocated blocks and conservative projected ZIP/directory overhead;
+account every unique allocation identity exactly once in its owner and show
+parent subowner charges. Cross-owner copies count on both sides physically;
+do not subtract superseded bytes before verified retirement. Reserve projected
+bytes/files/metadata first, compare actual use before commit and recover any
+interruption with its original reservation. Capture, compaction and reuse cannot
+spend another slot while a recorded transaction is pending. If old+new cannot
+fit, preserve old and refuse before destructive rotation, model retry or queue
+mutation; in-place compaction is prohibited.
+
+Capacity diagnostics give the exact required closure, current/projected/limit
+bytes and entries, held consumers and one supported next action. Routes are:
+reuse a matching verified existing export; finish/recover the exact recorded
+publication; release obsolete consumers through their owning lifecycle; or
+group a smaller independent selection and materialize it with existing
+`bundle-plan`/`bundle-export` under unchanged budgets. An ordinary export remains
+bounded, so it is not a durable archive/release receipt by itself. No external
+archive/import service is introduced here. If required old+new still cannot fit
+after permitted release/repacking, refuse and request an explicit separately
+reviewed storage requirement; preserve required proof. Never propose discarding
+required evidence, raising limits silently or rerunning unrelated acceptance.
+
+E05's reusable export key is the hash of authenticated repository/caller,
+destination owner, exact selection/context/closure and format version. In one
+pinned read scope verify the recorded allocation, archive/receipt identities,
+all bytes and authority; return the existing receipt without session allocation.
+Missing/replaced/corrupt export refuses reuse, rather than success or an
+unannounced fresh export. A deliberate fresh publication needs a fresh plan and
+normal capacity checks. Same basenames or bytes with different provenance retain
+different logical references. Group related records in one atomic publication;
+shared readers exclude mutation and cached verification ends with its pinned
+descriptor scope.
+
+### Selective authenticated archived reads
+
+For P05 retain the actual `bundle-plan --plan --target --bundle --reference`
+shape. First authenticate caller, validate the plan and canonical target registry,
+and derive only trusted possible journal names without inspecting them. Open
+explicit finished publication journals/bundles first under sorted shared locks;
+verify each archive once. Build an exact original-member index and check both
+requested old members/context/digests. An absent original with an exact archived
+match depends only on that finished publication, not the current target journal.
+Probe original path existence safely without traversing links; access/unsafe
+path is a refusal, not absence. If a live original exists, select its exact
+recorded journal and perform normal finished-owner, identity, conflict and budget
+checks even when an archive has a copy. Never prefer an archived member to hide
+a changed or active existing source. Revalidate absence and archive identities
+before returning; if the path appears, restart finite selection with normal live
+guards or refuse. Do not wait on or read an unrelated active journal.
+
+Map an explicit bundle to its one trusted publication journal; do not eagerly
+inspect target/shared execution journals to discover it. For explicit live
+sources use only the deterministic candidate journals needed to prove unique
+allocation ownership, refusing ambiguity. Absent optional shared diagnostic
+storage remains optional; denied/corrupt storage actually needed by the selection
+does not. Discovery performs no rotation, allocation, checkpoint write or active
+mutable read. Before export, release destination read leases and reacquire its
+independent writer through the existing publication route; repeat identities and
+selection digest checks to close that transition. Direct `bundle-read` controls
+alone do not pass P05.
+
+### Severity, compatibility and restart decisions
+
+Typed diagnostics carry `class`, `severity`, `consumer_id`, `revision_sha256`,
+`document`, `line`, `expected`, `actual`, `recovery`. Use finite redacted values.
+Precedence is authority/integrity/identity or protected-claim refusal, then
+required-closure absence/new broken required reference, then declared historical
+availability debt, then optional presentation advisory/normalization. Apply all
+relevant errors; a harmless anchor cannot suppress a wrong target or changed
+claim. Missing/changed/unauthorized role declarations never downgrade a required
+reference. Debt keys hash owner/reference/claim revision and reason; changing
+claim or destination invalidates the advisory. Examples and operational paths
+are excluded only by their owning declaration; legacy evidence code spans still
+use the evidence reader's role. Shared parsing does not broaden protected queue
+normalization beyond proven simple inline destinations or permit label changes.
+
+Offline `--check` validates syntax/schema/queue/brief structure without old
+output, models, VM or Git. Selected semantic preflight verifies required closure
+early; publication revalidates at mutation. Repository-wide historical inventory
+is explicit read-only work. A revision-stable unavailable informational reference
+is nonpassing debt, not a repeated unrelated repair or acceptance obligation.
+
+Deploy readers before writers. Keep strict v1 ZIP/receipt/index/ledger/helper
+and checkpoint reading and existing missing-reference payloads. V1 exact
+original-path verification remains valid for its original claim; it cannot invent
+missing task/attempt/input identity. E11–E13 migrate only provable context or
+record unavailable history through existing authorization. V1 consumers continue
+receiving v1 publications until explicitly migrated; a v2-required selection
+refuses on an older helper instead of silently downgrading. Never rewrite old
+archives/checkpoints in place or adopt unknown owners. New checkpoint fields
+are versioned controller-owned capture/dependency references; legacy checkpoints
+retain exact original inputs, targets, attempts and counters. Startup validates
+and migrates only under inactive owner with identity-bound durable intent,
+original checkpoint retained and exact retry after interruption. Missing fields
+cannot imply acknowledged capture. Pending Git transactions cannot renew proof.
+
+Freeze the eight existing fingerprint sources plus the E01 additions:
+`test_retention.py`, `test_storage.py`, `test_input_transfer.py`,
+`launcher_git.py`, `onpc-test-artifacts`, `launcher_question.py`,
+`plan_reconciliation.py`, `vm_selection.py`, `tests/integration/vm_config.py`.
+Also register `dev_checkout.py` and `install_test_runner.py` for helper trust and
+rendered dispatch compatibility. Fingerprint checkout-relative actual source
+bytes, not mtime/import name. A helper protocol query (planned `bundle-protocol`)
+returns exactly `schema:1`, `bundle_versions`, `reference_versions`,
+`capture_versions`, `custody_versions`, `installed_sha256`, binding the SHA-256
+of its **installed rendered bytes**; compare to deterministic
+`install_test_runner.render_helper` output for the invoking validated checkout
+through a pure rendering call, without executing installation. The artifact
+template embeds the resolver but has no VM UUID substitution. Pin the installed
+root-owned regular singly linked executable without symlink traversal, and
+verify descriptor/path identity and byte digest before/after capability querying
+and again before mutation; a self-reported digest alone is insufficient.
+Refuse stale/mismatched helper capabilities
+before mutation; refresh only through authorized setup. Hash source and rendered
+identity separately, since an unchanged checkout cannot prove installed helper
+bytes. Register a changed retained-decision module in its introducing row.
+
+Selected target configuration is captured as exact input identity (canonical
+entry/UUID and relevant fields), distinct from the source fingerprint of its
+parser. A changed unrelated target entry alone does not invalidate an unchanged
+selected proof. A change to parser/helper/controller source stops a running
+controller at the existing safe boundary and revalidates applicability after
+restart; it never spends another session under old imports. Historical proof's
+recorded executable/input context stays immutable: a new validation-code
+fingerprint does not require equality with that old execution context or force
+a check rerun. Reassess applicability against the owning acceptance contract;
+changed actual acceptance inputs invalidate only their dependent proof.
+Keep `test_activity`
+conditional until ordinary controller decisions depend on it; E03 registers it
+when the handoff does. Rendering-only modules remain excluded, but provenance
+transport/supervisor code becomes guarded if it supplies retained decisions.
+Specialized repair/E2E controllers use equivalent source/capability snapshots at
+their own supported boundary, retaining selectors, formal failed attempts,
+diagnostic limits, promotion rules, counters and Git ownership; no new retry
+allowance. No filesystem/import watcher or broad product-source fingerprint.
+
+### Transition review and delivery allocation
+
+The source walk above and E01's existing regression anchors imply this finite
+review matrix; planned P histories remain unexecuted:
+
+| Case | Expected transition / preserved assertion | Delivery and histories |
+| --- | --- | --- |
+| Normal complete/failed/interrupted check | Seal authoritative final closure, or an explicitly partial closed diagnostic subset with failed/pending cleanup; publish independently and acknowledge exact bytes without promoting verdict or original attempt. | E02/E03, E06/E06a; P01/P03/P06 |
+| Denied, foreign/active, unsafe or corrupt source/destination | Typed refusal, no renewal/ack/deletion or authentication retry; previous proof and exact transaction survive. | E03/E04/E05a; P02/P03/P05 |
+| Missing original, two archived members, unrelated active target | Actual authenticated selection resolves both exact members without inspecting active journal; absent archive member alone uses scoped renewal. | E05a/E07/E14; P05/P08 |
+| Capacity before seal, copy, commit or compaction | Preserve required original/old generation, exact reserved attempt and inputs; no partial queue adoption or silent extra segment/slot. | E03/E04/E07; P02/P08/P12 |
+| Cancellation and crash at every durable state | Retry same intent/request/receipt/locator CAS; no source release before exact verified ack, no old retirement before locator. | E03/E04/E07; P03/P08/P12 |
+| Fourth-run ordinary and oversized startup retirement | Real removal only after matching durable replacement; failed/stale/unacknowledged capture holds source. Disposable oversized output still retires. | E04/E06/E14; P01/P02 |
+| Reuse, concurrent readers and same basename | One verified export/slot reused; distinct provenance retained, changed receipt refuses; no verification trust beyond pinned scope. | E05; P04/P12 |
+| Continuation/suspension/capacity fallback/Git retry | Exact inputs, response/commands/cleanup, counters, protected claims and original selectors survive. No diagnostic promotion. | E07/E07a; P07/P08 |
+| Wrong existing destination, changed claim or role | Identity/claim refusal outranks optional anchor advice; unchanged nonrequired historical loss is explicit nonpassing debt. | E02/E08–E13; P09/P10 |
+| Actual dependency/helper byte change | Real fingerprint reader reaches worker; stop before next task, corrective session or blocked-answer continuation; unchanged bytes do not restart. | Each introducing row, E07/E14; P11 |
+
+Proposed independently deliverable allocations for E01b to review are E03's
+session/sealed-request authentication and working-capture/ack recovery; E04's
+catalogue/reservation gates, bounded segmentation/compaction and finite
+host/privileged retirement integrations; E07's ordinary adapter/recovery/Git
+composition; and E14's startup-rotation, active-target and real-dependency-change
+families. E06/E06a already separate runner and qualification/diagnostic producers;
+E07/E07a separate ordinary and specialized consumers. Keep indivisible
+reservation/ack/release and publication/index/retirement transitions together;
+independent safety regressions belong with each delivery, not postponed to E14.
+E01b must freeze explicit prerequisite IDs, backward dependencies, valid briefs,
+retained assertions, estimates and exact insertion blocks before any runtime
+consumer starts. This proposal changes no future row, scope, Requires or status.
+
+### E01a review record
+
+Three bounded GPT-6.1 Sol High source audits and correction reviews covered
+producer/capture, retirement/lock/capacity and reference/helper/compatibility
+boundaries. Findings resolved: late finalization and partial cleanup, trusted
+sealed-slot lookup and provenance mapping, canonical catalogue with privileged
+safety witnesses, provisional versus durable reservations, whole-set retirement
+and nonnested recovery, acyclic ledger hashes, document/evidence reference types,
+finite metadata bounds, historical versus current source context and pinned
+installed-helper identity. All three correction reviews passed. The transition
+matrix above records the normal/refusal/missing/capacity/cancellation/crash walk.
+This is source/design review only; P01–P12 remain unimplemented and unexecuted.
+E01b's independent freeze and concrete prerequisite allocation remain required.
+Helpers completed without writes or resources; no live journal was mutated.
+
 ## Scope and quality boundary
 
 Change test tools, support, launchers, metadata and their documentation only.

@@ -1085,7 +1085,7 @@ from regression_ui import Bucket
 # other unit work. Its cleanup inventory has the same ownership boundaries.
 REVIEWED = frozenset("""
 fixture_producer_cleanup_safety
-evidence_identity plan_evidence plan_evidence_recovery
+evidence_capture evidence_identity plan_evidence plan_evidence_recovery
 native_history_routes native_update_runner
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures
@@ -1548,6 +1548,10 @@ def buckets(nodeids):
 # bundle/locator and controller byte-change checks use tiny pytest-private
 # files, journals and synchronous doubles. No VM, service, display, process,
 # shared cache or new cleanup owner is acquired; compatible unit overlap applies.
+# Sealed producer handoffs use tiny pytest-private source, slot and independent
+# retention trees with real descriptor locks and synchronous interruption doubles.
+# No live parent, service, VM, process, display, socket or shared cache is acquired;
+# evidence_capture is compatible unit work and adds no cleanup/UI inventory owner.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

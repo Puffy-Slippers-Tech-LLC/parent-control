@@ -2397,6 +2397,45 @@ SHA-256 `fdbf8cf7e9732308ceee22a720fdaf5df6d0d1b6c0f4b2d5e1916beacbe37df1`.
 These receipts describe historical acceptance; later candidates require matching
 evidence or the affected complete history again.
 
+### Sealed producer handoffs
+
+`tools/evidence_capture.py` owns authenticated finalized subsets for evidence
+producers. A producer obtains an opaque in-process handle only inside its live
+`Store.session`; the held owner descriptor, journal identity, run and newly issued
+attempt bind its exact context. Paths, inherited activity descriptors,
+`ONPC_TEST_RETENTION`, caller JSON and a nonce cannot issue that authority.
+The activity lock remains coordination only.
+`issue_session` issues a fresh attempt; `resume_session(store, capture_id)` instead
+rebinds an exact retained intent to the same run's newly held owner. A handle
+expires with its issuing process/session and cannot turn a retry into the old
+attempt.
+
+The producer registers a bounded `required` intent and disjoint sealed slot
+before copying its finite finalized allowlist. `sealing` retains the original
+identities and exact stage across interruption. Only a separately committed,
+finished snapshot owner permits `sealed` inspection while its parent continues
+writing other files. Producer-side pinned before/after identities and hashes bind
+original provenance to sealed bytes; readers open only the registered snapshot.
+Every slot and its recovery metadata count against the parent's existing budget.
+Outstanding handoffs prevent source retirement, including ordinary count/size
+rotation; creating another subowner grants no additional retention allowance.
+Privileged sources commit their private safety witness before caller registration.
+
+The artifact helper registers repeated `--capture` IDs for `bundle-plan` and
+`bundle-export`, within the existing 256-selection total. Capture-only planning
+opens only those independently finished owners and does not catalogue an active
+parent. `bundle-custody --transaction ID --expect REQUEST_SHA256 --operation inspect`
+authenticates one exact request without a supplied journal, UID or destination.
+Missing, pending, active, foreign, replaced or changed registrations and snapshots
+refuse. Capture export and custody mutations remain unavailable until the working
+publication/acknowledgement transaction is delivered; a successful seal or plan
+supplies no acceptance or source-release permission.
+
+P03 lives in `tests/unit/test_evidence_capture.py`, using private synthetic owners
+and real storage/retention locks. It covers authority, exact context, immutable
+mapping, refusal, bounded capacity and resumable interruption. These are host
+infrastructure checks, with no installed-product or VM acceptance credit.
+
 ### Handling test failures
 
 On resume, reconcile the current working tree, the active runner's actual

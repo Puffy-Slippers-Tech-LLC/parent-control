@@ -142,6 +142,7 @@ def main(argv=None):
         command.add_argument('--source', action='append', default=[])
         command.add_argument('--bundle', action='append', default=[])
         command.add_argument('--reference', action='append', default=[])
+        command.add_argument('--capture', action='append', default=[])
         command.add_argument('--record-reference', action='append', default=[])
         command.add_argument('--consumer', action='append', default=[])
         if action == 'bundle-plan':
@@ -165,6 +166,10 @@ def main(argv=None):
             command.add_argument('--offset', type=nonnegative, default=0)
     actions.add_parser('bundle-finish', allow_abbrev=False)
     actions.add_parser('bundle-recover', allow_abbrev=False)
+    custody = actions.add_parser('bundle-custody', allow_abbrev=False)
+    custody.add_argument('--transaction', required=True)
+    custody.add_argument('--expect', required=True)
+    custody.add_argument('--operation', required=True, choices=('inspect',))
     args = parser.parse_args(argv)
     if args.action == 'bundle-read':
         structured = (args.record_id, args.member_id, args.closure_sha256)
@@ -175,8 +180,16 @@ def main(argv=None):
                 re.fullmatch(r'[0-9a-f]{64}', value) is None for value in structured):
             parser.error('record, member and closure identities must be lowercase SHA-256 values')
     if args.action in ('bundle-plan', 'bundle-export'):
+        if len(args.capture) > 256 or len(set(args.capture)) != len(args.capture) or any(
+                re.fullmatch(r'[0-9a-f]{64}', value) is None for value in args.capture):
+            parser.error('--capture requires unique lowercase SHA-256 identities, at most 256')
+        if args.action == 'bundle-export' and args.capture:
+            parser.error('capture publication is pending; only authenticated bundle-plan inspection is available')
         if bool(args.record_reference) != bool(args.consumer) or len(args.consumer) > 1:
             parser.error('--record-reference requires exactly one --consumer, and conversely')
+    if args.action == 'bundle-custody' and any(re.fullmatch(r'[0-9a-f]{64}', value) is None
+            for value in (args.transaction, args.expect)):
+        parser.error('transaction and expected request must be lowercase SHA-256 identities')
     try:
         if CHECKOUT is None:
             raise ValueError('installation required')
@@ -200,7 +213,9 @@ def main(argv=None):
                     with evidence_bundle.Selection(CHECKOUT, uid, gid, args.target,
                                                    args.source, args.bundle,
                                                    plan_namespace=namespace,
-                                                   references=args.reference, **structured) as selection:
+                                                   references=args.reference,
+                                                   **({'captures': args.capture} if args.capture else {}),
+                                                   **structured) as selection:
                         result = (selection.plan() if args.action == 'bundle-plan' else
                                   evidence_bundle.export(selection, expected=args.expect,
                                                          defer_cleanup=args.defer_cleanup))
@@ -209,6 +224,10 @@ def main(argv=None):
                         raise
                     print(json.dumps(error.payload(), sort_keys=True), file=sys.stderr)
                     return 3
+            elif args.action == 'bundle-custody':
+                import evidence_capture
+                result = evidence_capture.inspect_capture(CHECKOUT, uid, gid, args.transaction,
+                                                         expected=args.expect)
             elif args.action == 'bundle-finish':
                 result = {'cleanup_complete': True,
                           'retirement_finished': evidence_bundle.finish(CHECKOUT, uid, gid)}

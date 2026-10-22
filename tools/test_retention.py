@@ -23,6 +23,7 @@ RUNS_TO_KEEP = 3
 MAX_RETAINED_BYTES = 4 * 1024 ** 3
 PUBLICATION = 'publication.json'
 _locks = set()
+_sessions = {}
 
 
 def latest_allocations(entries):
@@ -106,8 +107,8 @@ def ensure_directory(path):
 
 def validate_state(value):
     if (not isinstance(value, dict)
-            or set(value) not in ({'run', 'finished', 'paths'},
-                                  {'run', 'finished', 'paths', 'history'})
+            or not {'run', 'finished', 'paths'} <= set(value)
+            or set(value) - {'run', 'finished', 'paths', 'history', 'captures'}
             or not isinstance(value['paths'], list) or type(value['finished']) is not bool):
         raise ValueError('retention: invalid journal')
     uuid.UUID(hex=value['run'])
@@ -115,13 +116,54 @@ def validate_state(value):
     if not isinstance(history, list) or len(history) >= RUNS_TO_KEEP:
         raise ValueError('retention: invalid history')
     tokens = {value['run']}
+    validate_captures(value.get('captures', []))
     for entry in history:
-        if (not isinstance(entry, dict) or set(entry) != {'run', 'paths'}
+        if (not isinstance(entry, dict) or not {'run', 'paths'} <= set(entry)
+                or set(entry) - {'run', 'paths', 'captures'}
                 or not isinstance(entry['paths'], list) or entry['run'] in tokens):
             raise ValueError('retention: invalid history')
         uuid.UUID(hex=entry['run'])
+        validate_captures(entry.get('captures', []))
         tokens.add(entry['run'])
     return value
+
+
+def validate_captures(values):
+    """Parent charges are dependencies, never nested allocation cleanup claims."""
+    if not isinstance(values, list) or len(values) > 256:
+        raise ValueError('retention: invalid sealed capture charges')
+    ids = set()
+    for item in values:
+        if (type(item) is not dict or set(item) != {
+                'capture_id', 'path', 'device', 'inode', 'mode', 'reserved_bytes', 'intent'}
+                or not isinstance(item['capture_id'], str) or len(item['capture_id']) != 64
+                or any(c not in '0123456789abcdef' for c in item['capture_id'])
+                or item['capture_id'] in ids or type(item['mode']) is not int or item['mode'] != 0o700
+                or type(item['reserved_bytes']) is not int or item['reserved_bytes'] < 0
+                or type(item['intent']) is not dict):
+            raise ValueError('retention: invalid sealed capture charge')
+        for key in ('device', 'inode'):
+            if type(item[key]) is not int or item[key] <= 0:
+                raise ValueError('retention: invalid sealed capture identity')
+        if not isinstance(item['path'], str) or not Path(item['path']).is_absolute() or '..' in Path(item['path']).parts:
+            raise ValueError('retention: invalid sealed capture path')
+        ids.add(item['capture_id'])
+    if values:
+        if __package__:
+            from .evidence_identity import encoded
+        else:
+            from evidence_identity import encoded
+        encoded(values)
+
+
+def capture_bytes(entry):
+    return sum(max(item['reserved_bytes'], allocation_bytes(item))
+               for item in entry.get('captures', []))
+
+
+def require_no_captures(entries):
+    if any(entry.get('captures') for entry in entries):
+        raise ValueError('retention: required sealed captures preserve this owner; finish the recorded capture')
 
 
 class Store:
@@ -156,6 +198,9 @@ class Store:
         """Finish only a committed output's recorded, deferred retirement."""
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
             with self.locked(fd, 'writer.lock', publication=True):
+                current = self.read(fd)
+                if current is not None:
+                    require_no_captures([*current['history'], current])
                 intent = read_publication(self, fd)
                 if intent is None:
                     return False
@@ -180,6 +225,9 @@ class Store:
         ensure_directory(self.path)
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
             with self.locked(fd, 'writer.lock', publication=True):
+                current = self.read(fd)
+                if current is not None:
+                    require_no_captures([*current['history'], current])
                 recover_publication(self, fd, verify=verify)
                 state = self.read(fd)
                 finished_owner(fd, state)
@@ -252,6 +300,7 @@ class Store:
                 if state is None:
                     return 0
                 records = [record for _, record in latest_allocations([*state['history'], state])]
+                require_no_captures([*state['history'], state])
                 guard({record['path'] for record in records})
                 for record in records:
                     remove(record, validate_only=True)
@@ -330,7 +379,7 @@ class Store:
                 else:
                     from test_input_transfer import mutation_guard
                 mutation_guard(self, fd)
-            yield
+            yield lock
         finally:
             _locks.discard(lock)
             os.close(lock)
@@ -369,9 +418,12 @@ class Store:
         for index, record in allocations:
             remove(record, validate_only=True)
             sizes[index] += allocation_bytes(record)
+        for index, entry in enumerate(entries):
+            sizes[index] += capture_bytes(entry)
         expire = max(0, len(entries) - keep)
         while sum(sizes[expire:]) > MAX_RETAINED_BYTES and expire < len(entries) - 1:
             expire += 1
+        require_no_captures(entries[:expire])
         for index, record in allocations:
             if index < expire:
                 remove(record)
@@ -389,6 +441,7 @@ class Store:
         if sizes[-1] > MAX_RETAINED_BYTES:
             if (completed_guard is not None and state['finished']
                     and 'recovery-required' not in os.listdir(fd)):
+                require_no_captures([state])
                 records = [record for index, record in allocations
                            if index == len(entries) - 1]
                 completed_guard({record['path'] for record in records})
@@ -418,7 +471,7 @@ class Store:
         if len(run) != 32 or uuid.UUID(hex=run).hex != run:
             raise ValueError('retention: invalid run token')
         previous = os.environ.get(VARIABLE)
-        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
+        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False) as owner:
             if guard is not None:
                 guard()
             with self.locked(fd, 'writer.lock'):
@@ -442,10 +495,12 @@ class Store:
                     # for eviction. An oversized run must remain the owner until
                     # its evidence has been explicitly reduced or removed.
                     self.prune(fd, state)
-                    history = state['history'] + [dict(run=state['run'], paths=state['paths'])]
+                    history = state['history'] + [dict(run=state['run'], paths=state['paths'],
+                        **({'captures': state['captures']} if state.get('captures') else {}))]
                     # prune audited all identities before any eviction, including
                     # inaccessible sbuild trees and their earlier reports/logs.
                     allocations = latest_allocations(history)
+                    require_no_captures(history[:max(0, len(history) - (RUNS_TO_KEEP - 1))])
                     for index, record in allocations:
                         if index < len(history) - (RUNS_TO_KEEP - 1):
                             remove(record)
@@ -457,9 +512,16 @@ class Store:
                 self.save(fd, state)
                 self.prune(fd, state)
             os.environ[VARIABLE] = json.dumps([str(self.path), run])
+            previous_session = _sessions.get(str(self.path))
+            binding = (os.getpid(), fd, owner, run, os.fstat(fd), os.fstat(owner))
+            _sessions[str(self.path)] = binding
             try:
                 yield run
             finally:
+                if previous_session is None:
+                    _sessions.pop(str(self.path), None)
+                else:
+                    _sessions[str(self.path)] = previous_session
                 if previous is None:
                     os.environ.pop(VARIABLE, None)
                 else:
@@ -472,6 +534,31 @@ class Store:
                     self.save(fd, state)
                     if state['finished']:
                         self.prune(fd, state)
+
+    def producer_binding(self):
+        """Return only this process's live, descriptor-held producer capability."""
+        binding = _sessions.get(str(self.path))
+        if binding is None or binding[0] != os.getpid():
+            raise ValueError('capture: a live producer session is required')
+        _, fd, owner, run, directory_info, lock_info = binding
+        for descriptor, saved in ((fd, directory_info), (owner, lock_info)):
+            current = os.fstat(descriptor)
+            private(current, regular=descriptor == owner)
+            if (current.st_dev, current.st_ino) != (saved.st_dev, saved.st_ino):
+                raise ValueError('capture: producer descriptor changed')
+        with self.opened() as current:
+            info = os.fstat(current)
+            if (info.st_dev, info.st_ino) != (directory_info.st_dev, directory_info.st_ino):
+                raise ValueError('capture: producer journal was replaced')
+            current_lock = os.stat('owner.lock', dir_fd=current, follow_symlinks=False)
+            private(current_lock, regular=True)
+            if (current_lock.st_dev, current_lock.st_ino) != (lock_info.st_dev, lock_info.st_ino):
+                raise ValueError('capture: producer owner lock was replaced')
+        with self.locked(fd, 'writer.lock'):
+            state = self.read(fd)
+            if state is None or state['run'] != run or state['finished']:
+                raise ValueError('capture: producer run changed')
+        return binding
 
 
 def finished_owner(fd, state):

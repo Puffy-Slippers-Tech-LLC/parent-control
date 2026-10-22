@@ -107,7 +107,10 @@ def checkout_allocation(checkout, record):
             and ((len(parts) == 4 and re.fullmatch(r'[0-9a-f]{32}', parts[3]))
                  or (len(parts) == 5 and parts[3] == 'evidence'
                      and parts[4].startswith('onpc-evidence-bundle-'))))
-    if not ordinary and not plan:
+    capture = (len(parts) == 4 and parts[0] in ('host', 'privileged')
+               and parts[1] == 'captures' and re.fullmatch(r'[0-9a-f]{64}', parts[2])
+               and parts[3] == 'snapshot')
+    if not ordinary and not plan and not capture:
         raise ValueError('bundle: allocation is outside the trusted checkout storage')
 
 
@@ -170,12 +173,13 @@ def stream_bytes(stream, size, output=None):
 
 class Selection:
     def __init__(self, checkout, uid, gid, targets, sources, bundles, *, plan_namespace=None,
-                 references=(), logical_records=(), record_references=(), consumer=None):
+                 references=(), logical_records=(), record_references=(), consumer=None, captures=()):
         self.checkout, self.uid, self.gid = Path(checkout), uid, gid
         self.targets, self.sources, self.bundles = targets, sources, bundles
         self.references = list(references)
         self.logical_records = list(logical_records)
         self.record_references, self.consumer = list(record_references), consumer
+        self.captures = list(captures)
         self.logical_origins = {}
         self.logical_storage = {}
         self.stack = ExitStack()
@@ -261,7 +265,7 @@ class Selection:
         return result
 
     def load(self):
-        values = [*self.sources, *self.bundles, *self.references, *self.record_references]
+        values = [*self.sources, *self.bundles, *self.references, *self.record_references, *self.captures]
         if not values or len(values) > 256:
             raise ValueError('bundle: select between one and 256 explicit sources')
         if len(set(values)) != len(values):
@@ -269,7 +273,13 @@ class Selection:
         if self.references and self.plan_namespace is None:
             raise ValueError('bundle: renewable references require a validated plan')
         self.structured_references()
-        for journal, uid, gid in self.catalogue():
+        # Capture-only reads consult finite finished-slot registrations. Opening
+        # the producer catalogue here would inspect an unrelated active parent.
+        journals = self.catalogue() if self.sources or self.bundles or self.references else ()
+        if self.captures and not journals:
+            import evidence_capture
+            evidence_capture.validate_targets(self.checkout, self.targets)
+        for journal, uid, gid in journals:
             with identity(uid, gid):
                 publication = (journal.parent.name == 'exports' if self.plan_namespace is None else
                                journal == self.publication_parent() / 'retention')
@@ -289,6 +299,34 @@ class Selection:
                 if measured > retention.MAX_RETAINED_BYTES:
                     raise ValueError('bundle: source journal exceeds its existing budget')
                 self.source_budgets.append(dict(journal=str(journal), allocated_bytes=measured))
+        if self.captures:
+            import evidence_capture
+            for capture_id in self.captures:
+                metadata = {}
+                request = self.stack.enter_context(evidence_capture.capture_scope(
+                    self.checkout, self.uid, self.gid, capture_id, metadata=metadata))
+                target = request['record']['context']['target']
+                if (target and target not in self.targets) or (not target and self.targets):
+                    raise ValueError('bundle: capture target does not match explicit selection')
+                allocation = request['sealed']['allocation']
+                if allocation['path'] in self.records:
+                    raise ValueError('bundle: duplicate capture allocation')
+                self.records[allocation['path']] = allocation
+                self.logical_records.append(request['record'])
+                # Original identity is authenticated by the same pinned private
+                # registration, never recovered by reopening a live original.
+                producer_uid = request['producer']['owner']['identity']['uid']
+                with identity(producer_uid, 0 if producer_uid == 0 else self.gid):
+                    originals = {item['member_id']: item['identity'] for item in metadata['originals']}
+                    for mapping in request['sealed']['mappings']:
+                        path = Path(mapping['sealed_path'])
+                        self.load_source(path)
+                        key = request['record']['record_id'], mapping['member_id']
+                        self.logical_storage[key] = str(path)
+                        self.logical_origins[key] = dict(original_path=mapping['original_path'],
+                            source_allocation=mapping['source_allocation'], identity=originals[mapping['member_id']])
+                measured = retention.allocation_bytes(allocation)
+                self.source_budgets.append(dict(journal=allocation['journal'], allocated_bytes=measured))
         missing, archived = [], []
         for value in self.references:
             path = path_text(value)
@@ -787,6 +825,8 @@ def verify_stream(stream):
 
 
 def export(selection, *, expected, defer_cleanup=False):
+    if selection.captures:
+        raise ValueError('bundle: capture publication is pending; sealed inspection supplies no custody acknowledgement')
     if expected != selection.selection_sha256:
         raise ValueError('bundle: selection changed; inspect a fresh plan before exporting')
     # Release only the export read lease; other source owners stay pinned.

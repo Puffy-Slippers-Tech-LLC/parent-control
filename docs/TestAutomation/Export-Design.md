@@ -1277,6 +1277,14 @@ the existing controller-owned recovery contract.
 
 ### Controller compatibility guard
 
+E03p-auth registers `tools/evidence_capture.py` in the explicit retained-decision
+closure, alongside the previously registered retention, storage, bundle and
+authenticated-helper sources. The existing actual-file-byte worker histories
+cover the added module with the original eight sources unchanged, including
+continuation, rejected-result recovery and answered blockers. `test_activity.py`
+remains unchanged advisory coordination and is not imported by the capture
+authority or ordinary controller; its prior conditional exclusion still applies.
+
 Extend `plan_launcher.response_validator_sources()` and its existing content-change
 regressions as shared dependencies are changed or introduced. E01 inventories
 the controller's relevant validation/storage dependency closure, including

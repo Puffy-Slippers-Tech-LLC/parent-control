@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F09 — [Integrate Ubuntu product-free system preparation](Fixture-Tasks/F09-ubuntu-runners.md)**.
+Next task: **F10 — [Integrate Fedora product-free system preparation](Fixture-Tasks/F10-fedora-runners.md)**.
 
 ## Outcome and status
 
@@ -34,8 +34,15 @@ F06 qualified Fedora's shared provisioning with enforcing SELinux, exact finite
 admissions, trusted/untrusted runtime outcomes, no-write repeats and real staged
 lost-reply recovery. The shared four-attempt history also renewed Ubuntu proof;
 both targets restored their baselines and ended off after owned cleanup.
+F09 delivered Ubuntu's product-free system preparation and the three Parent
+bootstrap aliases. The actual system attempt passed two clean restored boots:
+hard-only independent readback/runtime use, selection refusals, no-write repeats,
+unchanged selection after producer-source edits and prior-generation refusal,
+without installation input or phase execution. Package-only provenance retains
+finite scenario comparison inputs. Independent review findings were resolved;
+baseline, producer, transport and retention cleanup passed, with Ubuntu off.
 Later tasks remain unimplemented;
-runner dispatch stays unavailable until target and envelope qualification. Host inputs and
+other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.
 
 ## Launcher

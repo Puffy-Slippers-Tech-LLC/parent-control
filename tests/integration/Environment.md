@@ -326,6 +326,12 @@ The completed history restores the baseline and independently leaves the VM off.
 This Ubuntu infrastructure qualification enables no ordinary runner envelope
 and supplies no customer or Fedora acceptance.
 
+Ubuntu's delivered [product-free system preparation](README.md#ubuntu-product-free-system-preparation)
+now provisions its selected trusted-hard witness over owned SSH after a clean
+baseline boot. The three Parent bootstrap aliases share that boundary.
+Installed-system and other envelopes remain separately gated; snapshot checks
+and provisioning checks do not substitute for their runner qualifications.
+
 ### Fedora clean snapshots
 
 Fedora 44 preparation and derived app captures now use schema 4 with explicit

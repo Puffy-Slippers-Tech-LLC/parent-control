@@ -103,6 +103,44 @@ current source/package inputs; previous acceptance artifacts are not defaults.
 Future `test-system`/`test-e2e` prepare inputs automatically, and `test-all`
 coordinates host results and VM artifacts for the same source content.
 
+### Ubuntu product-free system preparation
+
+On clean Ubuntu 26.04 captures, `system_snapshots._run_attempts(installed=False)`
+and `system_runner.installed_run(already_installed=False)` use the
+[shared fixture provisioner](../support/README.md#attempt-owned-fixture-provisioning)
+after guarded SSH readiness, before uploading installation inputs or running a
+system phase. The launcher selects the execution-owned immutable input before
+VM acquisition. Only `trusted-hard` is provisioned; readiness binds the selected
+manifest, VM UUID, actual boot and unique attempt. Missing or incompatible
+selections release no input. Clean installed-system, Fedora and other unmigrated
+envelopes retain their refusal.
+
+`check_parent_setup`, `check_parent_input` and `check_parent_standard_input`
+use that same boundary after `Transport.probe_ready` and before
+`InstalledSetup.run`. Their explicit package-only staging and provenance retain
+the package, installation metadata and frozen helpers, without the legacy
+fixture collection. `package-input.json` has its own schema and verifier;
+it never claims to be a full artifact manifest. System histories retain only
+their finite scenario comparison inputs: the mechanical file, or six files for
+trusted histories. Each attempt drops comparison files needed only by other
+histories. Exact package, prior-release, source, version and architecture checks,
+first-configuration/PAM dispatch and `fresh_install` grouping remain enforced.
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_system_product_free
+```
+
+This engineering selector executes the actual product-free system preparation
+twice, stopping before installation input or any phase. It independently reads
+the single manifest member, runs the headless hard witness as Riley without a
+desktop file, verifies no-write repeats, and rejects the prior restored
+generation's readiness. Its host producer selects from a registered private
+source checkout and edits that same checkout after selection; authenticated
+source proof and runtime inputs stay pinned through VM cleanup. Both boots
+preserve product absence, selected bytes and unrelated native policy. Watched
+baseline restoration, producer and transport cleanup are required. This grants
+no system-phase, customer or E2E acceptance.
+
 ## Retained-session native dependency update
 
 Stable ID **289** is pending and has no executable binding for the rebuilt

@@ -267,13 +267,105 @@ def verify(selection):
         return manifest
 
 
+def validate_source_selection(record, selection):
+    """Validate a proof locator; authenticated_input still owns authority.
+
+    The source allocation is deliberately separate from the immutable runtime
+    input. Its schema and owner fields are the same authenticated handoff, but
+    it is not a Selection and must never be interpreted as a runtime bundle.
+    """
+    selection = Selection.from_record(selection.record() if isinstance(selection, Selection)
+                                      else selection)
+    expected = selection.record()
+    locators = {'allocation', 'device', 'inode'}
+    if (type(record) is not dict or set(record) != set(expected)
+            or any(type(record[key]) is not type(expected[key]) or record[key] != expected[key]
+                   for key in set(expected) - locators)
+            or type(record['allocation']) is not str
+            or any(type(record[key]) is not int or record[key] <= 0
+                   for key in ('device', 'inode'))):
+        raise ValueError('fixture execution: invalid source proof selection')
+    path = Path(record['allocation'])
+    if (not path.is_absolute() or '..' in path.parts
+            or path.parent != Path(selection.allocation).parent
+            or re.fullmatch(r'onpc-fixture-source-edit-[A-Za-z0-9_.-]+', path.name) is None):
+        raise ValueError('fixture execution: invalid source proof allocation')
+    return dict(record)
+
+
+def prepare_source_edit(*, target, root=ROOT):
+    """Select from a private actual source origin, then edit only that origin.
+
+    This finite host qualification proof is registered before its first write.
+    Runtime bytes keep their ordinary separate input allocation and schema.
+    """
+    if target != 'ubuntu' or os.geteuid() == 0:
+        raise ValueError('fixture execution: source edit qualification requires Ubuntu and an unprivileged owner')
+    allocation = None
+    try:
+        with _activity() as (store, fd, run):
+            path = Path(retention.allocate(tempfile.mkdtemp, prefix='onpc-fixture-source-edit-',
+                                           dir=str(storage.allocation_parent())))
+            records = [item for item in _state(store, fd, run)['paths']
+                       if item['path'] == str(path)]
+            if len(records) != 1:
+                raise ValueError('fixture execution: source proof was not registered')
+            record = records[0]
+            _publication_allocation(record)
+            allocation = retention.directory(path)
+            info = os.fstat(allocation)
+            if (info.st_dev, info.st_ino) != (record['device'], record['inode']):
+                raise ValueError('fixture execution: source proof allocation replaced')
+            os.mkdir('source', mode=0o700, dir_fd=allocation)
+            # All writes and prepare's source reads use the pinned allocation,
+            # including if its public locator is replaced during a failed run.
+            source = Path('/proc/self/fd/' + str(allocation)) / 'source'
+            original, environment = bundle.freeze(Path(root), source, target)
+            _publication_allocation(record)
+        selected = prepare(target=target, root=source)
+        if verify(selected)['inputs']['source'] != original:
+            raise ValueError('fixture execution: source proof does not match selected build')
+        _publication_allocation(record)
+        changed = 'tests/fixtures/onpc_test_application.c'
+        origin = source / changed
+        origin.write_bytes(origin.read_bytes() + b'\n/* qualification edit after fixture selection */\n')
+        edited, _ = bundle.source_snapshot(source)
+        if (set(edited) != set(original) or edited[changed] == original[changed]
+                or any(edited[name] != original[name] for name in original if name != changed)):
+            raise ValueError('fixture execution: source proof changed unexpected inputs')
+        proof = {'schema': 'onpc-fixture-source-edit-v1', 'selection': selected.record(),
+                 'before': original, 'after': edited, 'environment': environment,
+                 'edited': changed}
+        output = os.open('source-edit.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                         0o600, dir_fd=allocation)
+        with os.fdopen(output, 'wb') as stream:
+            stream.write(bundle.encoded(proof) + b'\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.fsync(allocation)
+        _publication_allocation(record)
+        handoff = selected.record() | {'allocation': str(path),
+                                      'device': info.st_dev, 'inode': info.st_ino}
+        return selected, validate_source_selection(handoff, selected)
+    finally:
+        if allocation is not None:
+            os.close(allocation)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--target', choices=tuple(bundle.TARGETS), required=True)
+    parser.add_argument('--qualify-source-edit', action='store_true')
     args = parser.parse_args()
     try:
-        selection = prepare(target=args.target)
+        source = None
+        if args.qualify_source_edit:
+            selection, source = prepare_source_edit(target=args.target)
+        else:
+            selection = prepare(target=args.target)
         print('fixture-execution: selection=' + bundle.encoded(selection.record()).decode())
+        if source is not None:
+            print('fixture-execution: source-edit=' + bundle.encoded(source).decode())
         print('fixture-execution: output=' + str(selection.path))
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         if isinstance(error, subprocess.CalledProcessError):

@@ -156,9 +156,15 @@ Fedora additionally proves enforcing SELinux and exact labels, finite content/UI
 admissions, source/compiled/public-rule agreement, and actual denial of the
 untrusted mechanical control without an admission. Compiled-file and CLI checks
 complement runtime outcomes; they grant no concurrent-updater qualification.
-Ordinary runner dispatch and runner engineering selectors remain unavailable until the
+Ubuntu's [product-free system preparation](../integration/README.md#ubuntu-product-free-system-preparation)
+is qualified through the real system attempt and all three Parent bootstrap
+alias compositions. It selects only trusted-hard after SSH readiness and before
+installation input. Its dedicated engineering selector also verifies immutable
+selection after edits to the actual private producer source checkout, across
+two restored boots. Other ordinary runner branches and engineering selectors
+remain unavailable until the
 [fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies
-the actual target and preparation envelope. Host doubles supply no installed
+their actual target and preparation envelope. Host doubles supply no installed
 or customer acceptance. Ubuntu's delivered
 [clean-capture check](../integration/Environment.md#ubuntu-clean-snapshots)
 supplies snapshot infrastructure acceptance only.

@@ -79,6 +79,20 @@ def inputs():
     return result
 
 
+def stage_qualification_assets(assets, staged, commands, *, dual_packages=False,
+                               package_only=False):
+    """Keep the Parent bootstrap's package-only provenance distinct."""
+    require(not (dual_packages and package_only), 'smoke:package-only-upgrade')
+    if dual_packages:
+        runner.stage_upgrade_assets(assets, staged, commands)
+    else:
+        runner.stage_assets(runner.artifact_source(assets), staged, commands,
+                            **({'package_only': True} if package_only else {}))
+    staged.chmod(0o700)
+    return preflight_source(staged, upgrade=dual_packages,
+                            **({'package_only': True} if package_only else {}))
+
+
 def schedule_preflight(directory, commands):
     """Public schedule-only option: no backend constructed or lease acquired."""
     target = directory / 'schedule-preflight'
@@ -725,7 +739,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          reminder_fullscreen_preference=False,
          chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
-         unrelated_reboot_request=False, lock_surface=None, parent_entry=None):
+         unrelated_reboot_request=False, lock_surface=None, parent_entry=None,
+         fixture_selection=None):
     require(type(baseline_journey) is bool and (not baseline_journey or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and parent_entry is None and approval_flow is None
@@ -1463,6 +1478,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             and (not (install or install_refusal) or (assets is not None and serial
             and provision_credentials)), 'smoke:installation-prerequisites')
     require(type(serial) is bool and (not serial or provision_credentials), 'smoke:serial-credentials')
+    if parent_setup:
+        from system_fixture_preparation import command_selection
+        fixture_selection = command_selection(fixture_selection)
     credentials = FixtureCredentials() if provision_credentials else None
     require(assets is not None or len(sys.argv) == 1, 'smoke:invalid-arguments')
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
@@ -1786,12 +1804,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 staged = None
                 if assets is not None:
                     staged = directory / 'assets'
-                    if dual_packages:
-                        runner.stage_upgrade_assets(assets, staged, commands)
-                    else:
-                        runner.stage_assets(runner.artifact_source(assets), staged, commands)
-                    staged.chmod(0o700)
-                    result['source_preflight'] = preflight_source(staged, upgrade=dual_packages)
+                    result['source_preflight'] = stage_qualification_assets(
+                        assets, staged, commands, dual_packages=dual_packages,
+                        package_only=parent_setup)
                 if (parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey
@@ -1799,7 +1814,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
-                    installed_setup.stage(directory, staged, result['inputs_sha256'])
+                    installed_setup.stage(directory, staged, result['inputs_sha256'],
+                        **({'package_only': True} if parent_setup else {}))
                     staged = directory / 'input'
                 else:
                     (directory / 'input').mkdir(mode=0o700)
@@ -2256,6 +2272,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 qualification = qualification_class(directory, commands, ledger, collector, result, host_before,
                                               staged, credentials, serial, install, install_refusal, vt6_prompt,
                                               vt6_auth)
+                if parent_setup:
+                    qualification.fixture_selection = fixture_selection
                 lease.finalize = qualification.finalize
                 with lease:
                     result['baseline_sha256'] = lease.state['baseline_sha256']

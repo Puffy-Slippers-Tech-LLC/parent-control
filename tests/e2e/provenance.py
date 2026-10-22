@@ -183,11 +183,11 @@ def baseline_inputs(lease):
             'environment_id': ('ubuntu26-04-' if ubuntu else 'fedora44-') + digest(guest)}
 
 
-def preflight_source(assets, *, root=ROOT, upgrade=False):
+def preflight_source(assets, *, root=ROOT, upgrade=False, package_only=False):
     """Record source provenance and verify supplied artifacts before the lease."""
     try:
         captured = snapshot(root, source=True)
-        build_test_artifacts.verify(assets)
+        build_test_artifacts.verify(assets, **({'package_only': True} if package_only else {}))
         if upgrade:
             build_test_artifacts.verify_upgrade(assets, staged=True, repository=root)
     except Exception as error:
@@ -206,7 +206,8 @@ class VerifiedInputs:
     that exception against the selected category.
     """
 
-    def __init__(self, *, lease, assets=None, root=ROOT, plan=None, upgrade=False):
+    def __init__(self, *, lease, assets=None, root=ROOT, plan=None, upgrade=False,
+                 package_only=False):
         self.root, self.lease = Path(root), lease
         self.assets = Path(assets) if assets is not None else None
         self._failure = None
@@ -214,6 +215,8 @@ class VerifiedInputs:
         self._plan = copy.deepcopy(plan)
         self._upgrade = None
         try:
+            require(not package_only or (assets is not None and not upgrade and plan is None),
+                    'provenance:package-only-scope')
             self._source = snapshot(self.root, source=True)
             self._baseline = baseline_inputs(lease)
             if self._plan is not None:
@@ -229,11 +232,18 @@ class VerifiedInputs:
                 info = self.assets.stat()
                 require(info.st_uid == os.geteuid() and stat.S_IMODE(info.st_mode) == 0o700,
                         'provenance:assets-not-private')
-                manifest = build_test_artifacts.verify(self.assets)
-                fixtures = self.assets / manifest['artifacts']['fixtures']['path']
-                build_test_applications.verify(fixtures)
-                require((fixtures / 'onpc-test-application.flatpak').is_file(),
-                        'provenance:fixture-bundle-missing')
+                manifest = build_test_artifacts.verify(self.assets,
+                    **({'package_only': True} if package_only else {}))
+                if package_only:
+                    # The Parent bootstrap consumes package/helpers only. This
+                    # separate schema carries no claim about artifact fixtures.
+                    require(not any(name.startswith('fixtures/') for name in self._assets['files']),
+                            'provenance:package-only-fixtures')
+                else:
+                    fixtures = self.assets / manifest['artifacts']['fixtures']['path']
+                    build_test_applications.verify(fixtures)
+                    require((fixtures / 'onpc-test-application.flatpak').is_file(),
+                            'provenance:fixture-bundle-missing')
                 package_sha256 = manifest['artifacts']['package']['sha256']
                 filename = package_filename(self._assets['files'])
                 require(Path(manifest['artifacts']['package']['path']).suffix == Path(filename).suffix,

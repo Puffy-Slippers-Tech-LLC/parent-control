@@ -110,6 +110,95 @@ def test_product_edits_do_not_invalidate_fixture_but_fixture_edits_freeze_select
         assert calls == ['ubuntu', 'ubuntu']
 
 
+@pytest.mark.parametrize('reuse', [False, True])
+def test_source_edit_proof_uses_actual_private_origin_and_edits_after_selection(rig, monkeypatch, reuse):
+    source, store, calls, _ = rig
+    original, _ = bundle.source_snapshot(source)
+    real_prepare, real_freeze = execution.prepare, bundle.freeze
+    events = []
+    roots = []
+
+    def freeze(root, destination, target):
+        if Path(root) == source:
+            with store.opened() as fd:
+                registered = store.read(fd)['paths']
+            allocated = Path(destination).parent.resolve()
+            assert any(item['path'] == str(allocated) for item in registered)
+            assert not list(Path(destination).iterdir())
+            events.append('registered-before-freeze')
+        return real_freeze(root, destination, target)
+
+    def selected(*, target, root):
+        roots.append(Path(root).resolve())
+        assert bundle.source_snapshot(root)[0] == original
+        events.append('select-original-source')
+        result = real_prepare(target=target, root=root)
+        assert bundle.source_snapshot(root)[0] == original
+        events.append('selection-returned-before-edit')
+        return result
+
+    with store.session():
+        earlier = prepare(rig) if reuse else None
+        monkeypatch.setattr(execution, 'prepare', selected)
+        monkeypatch.setattr(bundle, 'freeze', freeze)
+        fixture, proof_record = execution.prepare_source_edit(target='ubuntu', root=source)
+        proof_root = Path(proof_record['allocation'])
+        assert roots == [proof_root / 'source']
+        assert events == ['registered-before-freeze', 'select-original-source', 'selection-returned-before-edit']
+        assert calls == ['ubuntu']
+        if reuse:
+            assert fixture == earlier
+        assert bundle.source_snapshot(source)[0] == original
+        with storage.authenticated_input(proof_record, root=storage.ROOT) as descriptor:
+            with os.fdopen(os.open('source-edit.json', os.O_RDONLY | os.O_NOFOLLOW, dir_fd=descriptor), 'rb') as stream:
+                proof = json.load(stream)
+            edited, _ = bundle.source_snapshot(Path('/proc/self/fd/' + str(descriptor)) / 'source')
+        assert set(proof) == {'schema', 'selection', 'before', 'after', 'environment', 'edited'}
+        assert proof['schema'] == 'onpc-fixture-source-edit-v1'
+        assert proof['selection'] == fixture.record()
+        assert proof['before'] == execution.verify(fixture)['inputs']['source'] == original
+        assert proof['after'] == edited and proof['edited'] == SOURCE
+        assert {name for name in original if original[name] != edited[name]} == {SOURCE}
+        assert proof['environment'] == environment_record('ubuntu')
+        assert set(path.name for path in Path(fixture.allocation).iterdir()) == {'native-runtime'}
+        assert execution.validate_source_selection(proof_record, fixture) == proof_record
+        with pytest.raises(ValueError, match='allocation locator'):
+            execution.Selection.from_record(proof_record)
+
+
+def test_source_edit_qualification_refuses_without_owner_or_on_other_target(rig):
+    source, store, calls, _ = rig
+    with pytest.raises(ValueError):
+        execution.prepare_source_edit(target='ubuntu', root=source)
+    with store.session(), store.opened() as fd:
+        with pytest.raises(ValueError, match='requires Ubuntu'):
+            execution.prepare_source_edit(target='fedora', root=source)
+        assert store.read(fd)['paths'] == [] and calls == []
+
+
+@pytest.mark.parametrize('fault', ['foreign-build', 'foreign-owner', 'wrong-prefix', 'foreign-parent',
+                                 'boolean-identity', 'extra-field'])
+def test_source_proof_locator_refuses_unbound_or_malformed_identity(rig, fault):
+    source, store, _, _ = rig
+    with store.session():
+        fixture, record = execution.prepare_source_edit(target='ubuntu', root=source)
+        bad = dict(record)
+        if fault == 'foreign-build':
+            bad['build_identity'] = 'f' * 64
+        elif fault == 'foreign-owner':
+            bad['run'] = 'f' * 32
+        elif fault == 'wrong-prefix':
+            bad['allocation'] = fixture.allocation
+        elif fault == 'foreign-parent':
+            bad['allocation'] = str(Path(record['allocation']).parent.parent / Path(record['allocation']).name)
+        elif fault == 'boolean-identity':
+            bad['device'] = True
+        else:
+            bad['extra'] = 'untrusted'
+        with pytest.raises(ValueError, match='source proof'):
+            execution.validate_source_selection(bad, fixture)
+
+
 @pytest.mark.parametrize('fault', ['empty', 'incomplete', 'corrupt', 'extra', 'replaced', 'missing'])
 def test_matching_registered_invalid_input_is_preserved_and_refused(rig, fault):
     _, store, calls, _ = rig

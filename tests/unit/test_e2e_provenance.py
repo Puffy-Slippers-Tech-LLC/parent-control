@@ -18,6 +18,85 @@ import provenance
 from tests.support.e2e_provenance import git, lease, source, assets
 
 
+@pytest.mark.parametrize('change', [None, 'package', 'installation-metadata', 'extra-fixture',
+                                   'manifest', 'extra-after-capture'])
+def test_parent_package_only_provenance_keeps_all_staged_byte_and_baseline_guards(
+        source, assets, lease, tmp_path, change):
+    import shutil
+    builder = provenance.build_test_artifacts
+    staged = tmp_path / 'parent-input'
+    staged.mkdir(mode=0o700)
+    shutil.copyfile(assets / 'package.deb', staged / 'package.deb')
+    (staged / 'installed-files.json').write_text('[]\n')
+    (staged / 'frozen-helper.py').write_text('frozen helper\n')
+    manifest = {'schema': builder.PACKAGE_INPUT_SCHEMA,
+        'source': json.loads((assets / 'artifact-manifest.json').read_bytes())['source'],
+        'artifacts': {'package': {'path': 'package.deb',
+                                  'sha256': builder._sha256(staged / 'package.deb')}},
+        'installed_files_sha256': builder._sha256(staged / 'installed-files.json')}
+    (staged / builder.PACKAGE_INPUT_NAME).write_text(json.dumps(manifest))
+    if change == 'extra-fixture':
+        (staged / 'fixtures').mkdir()
+        (staged / 'fixtures/legacy-collection').write_text('unrequested bytes')
+        with pytest.raises(provenance.EvidenceError, match='package-only-fixtures'):
+            provenance.VerifiedInputs(root=source, assets=staged, lease=lease, package_only=True)
+        return
+    before = provenance.preflight_source(staged, root=source, package_only=True)
+    captured = provenance.VerifiedInputs(root=source, assets=staged, lease=lease, package_only=True)
+    assert captured.inputs['package_sha256'] == builder._sha256(staged / 'package.deb')
+    assert before['scope'] == 'before-lease-diagnostic'
+    assert not (staged / 'fixtures').exists()
+    with pytest.raises(provenance.EvidenceError, match='capture-failed'):
+        provenance.VerifiedInputs(root=source, assets=staged, lease=lease)
+    if change:
+        target = {'package': 'package.deb', 'installation-metadata': 'installed-files.json',
+                  'manifest': builder.PACKAGE_INPUT_NAME, 'extra-after-capture': 'extra.py'}[change]
+        (staged / target).write_text('changed input')
+        with pytest.raises(provenance.EvidenceError, match='assets-changed'):
+            captured.recheck()
+    else:
+        captured.recheck()
+        lease.fd = None
+        with pytest.raises(provenance.EvidenceError, match='lease-required'):
+            captured.recheck()
+
+
+def test_parent_bootstrap_stages_package_and_real_helpers_without_fixture_collection(
+        source, assets, lease, tmp_path, monkeypatch):
+    import io
+    import tarfile
+    import check_graphical_smoke as smoke
+    import installed_setup
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode='w') as stream:
+        entry = tarfile.TarInfo('./usr/bin/product')
+        entry.mode = 0o755
+        stream.addfile(entry)
+    commands = Mock()
+    commands.run.side_effect = [b'oh-no-parent-control', archive.getvalue()]
+    preflight = provenance.preflight_source
+    monkeypatch.setattr(smoke, 'preflight_source', lambda path, **options:
+        preflight(path, root=source, **options))
+    execution = tmp_path / 'parent-run'
+    execution.mkdir(mode=0o700)
+    staged = execution / 'assets'
+    smoke.stage_qualification_assets(assets, staged, commands, package_only=True)
+    assert set(path.name for path in staged.iterdir()) == {
+        'package.deb', 'installed-files.json', 'package-input.json', 'transfer-sha256.json'}
+    installed_setup.stage(execution, staged, {'consumer': 'Parent-bootstrap'}, package_only=True)
+    assert not staged.exists()
+    inputs = execution / 'input'
+    captured = provenance.VerifiedInputs(root=source, assets=inputs, lease=lease, package_only=True)
+    declared = json.loads((inputs / 'selected-inputs.json').read_bytes())['files']
+    assert declared and all(captured.asset_files[name] == record['sha256']
+                            for name, record in declared.items())
+    assert not (inputs / 'fixtures').exists()
+    assert not (inputs / 'artifact-manifest.json').exists()
+    (inputs / 'system_guest.py').write_text('changed helper')
+    with pytest.raises(provenance.EvidenceError, match='assets-changed'):
+        captured.recheck()
+
+
 def test_source_git_trust_is_scoped_to_the_selected_checkout(tmp_path):
     from unittest.mock import patch, Mock
     (tmp_path / 'file').write_text('source input')

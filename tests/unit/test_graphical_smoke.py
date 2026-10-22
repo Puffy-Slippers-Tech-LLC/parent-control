@@ -14,6 +14,86 @@ from tests.support.screens import png
 from tests.support.e2e_evidence import worker_evidence
 
 
+@pytest.mark.parametrize('wrapper,scope,flags', [
+    ('check_parent_setup.py', 'installed-parent-setup-qualification', {}),
+    ('check_parent_input.py', 'installed-parent-input-qualification', {'parent_input': True}),
+    ('check_parent_standard_input.py', 'installed-standard-input-qualification',
+     {'parent_standard_input': True}),
+])
+@pytest.mark.parametrize('refused', [False, True])
+def test_parent_bootstrap_aliases_share_preparation_before_installed_setup(
+        tmp_path, monkeypatch, wrapper, scope, flags, refused):
+    import runpy
+    import parent_setup_qualification as qualification
+    import system_fixture_preparation as preparation
+    from tools import test_storage
+
+    # Execute each actual wrapper, preserving its flags and named artifact input.
+    captured = []
+    monkeypatch.setattr(test_storage, 'named_input', lambda: tmp_path / 'assets')
+    monkeypatch.setattr(smoke, 'main', lambda **kwargs: captured.append(kwargs) or 0)
+    with pytest.raises(SystemExit) as stopped:
+        runpy.run_path(str(smoke.ROOT / 'tests/integration' / wrapper), run_name='__main__')
+    assert stopped.value.code == 0
+    assert captured == [{'assets': tmp_path / 'assets', 'provision_credentials': True,
+                         'parent_setup': True, **flags}]
+
+    # All wrappers select this exact baseline class. Exercise its real detached
+    # worker callback, with only VM, producer and installation operations doubled.
+    controller = qualification.ParentSetupQualification(tmp_path, Mock(), Mock(), Mock(),
+        {'scope': scope}, {}, assets=tmp_path / 'assets', credentials=Mock())
+    controller.fixture_selection = {'frozen': 'execution-owner'}
+    controller.checkpoint = Mock()
+    verified = Mock(inputs={}, source_files={})
+    monkeypatch.setattr(smoke, 'VerifiedInputs', Mock(return_value=verified))
+    bootstrap = Mock(return_value='host-key')
+    monkeypatch.setattr(smoke.runner, 'bootstrap', bootstrap)
+    monkeypatch.setattr(smoke.runner, 'address', lambda *args, **kwargs: 'guest')
+    events = []
+    vm = Mock()
+    vm.probe_ready.side_effect = lambda **kwargs: events.append('ssh-ready')
+    monkeypatch.setattr(smoke, 'Transport', Mock(return_value=vm))
+    provisioner = Mock()
+    provisioner.require_ready.side_effect = lambda receipt: events.append('guard-ready')
+    setup = Mock()
+    setup.run.side_effect = lambda guard: events.append('setup-input') or {'package_verified': True}
+    monkeypatch.setattr(smoke.installed_setup, 'InstalledSetup', Mock(return_value=setup))
+
+    def prepare(transport, lease, directory, record):
+        assert transport is vm and directory == tmp_path
+        assert record == {'frozen': 'execution-owner'}
+        events.append('provision')
+        if refused:
+            raise ValueError('fixture-input-refused')
+        return {'controller': provisioner, 'receipt': 'fresh'}
+
+    monkeypatch.setattr(preparation, 'prepare', prepare)
+
+    def worker(*args, **kwargs):
+        for stage in ('ready', 'setup-detached'):
+            (tmp_path / (stage + '.request.json')).write_text(json.dumps(
+                {'stage': stage, 'screenshot': None}))
+            kwargs['guarded_observe'](Mock())
+        return {'outcome': 'passed'}
+
+    monkeypatch.setattr(smoke.e2e_worker, 'run_distribution', worker)
+    lease = Mock(state={'run': 'owned-run'})
+    if refused:
+        with pytest.raises(ValueError, match='fixture-input-refused'):
+            controller.execute(lease, Mock())
+        assert events == ['ssh-ready', 'provision']
+        setup.run.assert_not_called()
+        assert not (tmp_path / 'setup-detached.reply.json').exists()
+    else:
+        controller.execute(lease, Mock())
+        assert events == ['ssh-ready', 'provision', 'guard-ready', 'setup-input']
+    assert bootstrap.call_args.kwargs == {'system_product_free': True}
+    smoke.VerifiedInputs.assert_called_once_with(lease=lease, assets=tmp_path / 'assets',
+                                                 package_only=True)
+    vm.copy.assert_not_called()
+    vm.call.assert_not_called()
+
+
 def test_standalone_qualification_imports_without_inherited_checkout_path(tmp_path):
     program = ('import sys; sys.path.insert(0, ' + repr(str(smoke.ROOT / 'tests/integration')) +
                '); import check_graphical_smoke')

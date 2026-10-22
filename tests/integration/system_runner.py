@@ -1309,22 +1309,96 @@ def artifact_source(path):
     return source
 
 
-def stage_assets(source, destination, commands):
+def scenario_fixture_files(selection):
+    """Finite comparison inputs still owned by installed engineering scenarios.
+
+    Enforcement/removal compare prepared mechanical bytes. Trusted histories
+    additionally audit hard/soft and activity provenance, including its modules.
+    These are scenario oracles, not the reusable fixture collection.
+    """
+    trusted = any(item.case_id in (TRUSTED_FIXTURES_CASE, PREVIOUS_POLICY_CASE)
+                  for item in selection.executions)
+    mechanical = trusted or any(item.area in ('enforcement', 'removal')
+                                for item in selection.executions)
+    files = ['fixtures/mechanical/onpc-test-application'] if mechanical else []
+    if trusted:
+        from tests.fixtures.native_assets import activity_sources
+        files.extend(('fixtures/mechanical/identity-trusted-hard',
+                      'fixtures/mechanical/identity-trusted-soft', *activity_sources()))
+    return tuple(files)
+
+
+def stage_asset_inventory(destination, manifest, *, package_only=False):
+    if package_only:
+        from build_test_artifacts import PACKAGE_INPUT_NAME, PACKAGE_INPUT_SCHEMA
+        package = manifest['artifacts']['package']
+        (destination / PACKAGE_INPUT_NAME).write_bytes(baseline.encode({
+            'schema': PACKAGE_INPUT_SCHEMA, 'source': manifest['source'],
+            'artifacts': {'package': {'path': 'package' + Path(package['path']).suffix,
+                                      'sha256': package['sha256']}},
+            'installed_files_sha256': baseline.digest(destination / 'installed-files.json')}))
+    inventory = {str(p.relative_to(destination)): baseline.digest(p)
+                 for p in sorted(destination.rglob('*')) if p.is_file()
+                 and p != destination / 'transfer-sha256.json'}
+    (destination / 'transfer-sha256.json').write_bytes(baseline.encode(inventory))
+    if package_only:
+        # These are newly owned staging files. Privacy and upgrade admission
+        # must not depend on the launcher's ambient umask.
+        destination.chmod(0o700)
+        for path in destination.rglob('*'):
+            path.chmod(0o700 if path.is_dir() else 0o600)
+
+
+def stage_assets(source, destination, commands, *, package_only=False, fixture_files=()):
     """Freeze user-built artifacts in root-private storage, then recheck all bytes."""
     sys.path.insert(0, str(ROOT / 'tools'))
     sys.path.insert(0, str(ROOT / 'tests/fixtures'))
     from build_test_artifacts import verify
     from build_test_applications import verify as verify_fixtures
     check_tree(source)
-    shutil.copytree(source, destination)
+    if package_only:
+        # Authenticate the original bundle, retaining package metadata and only
+        # explicit scenario comparison inputs. Never retain the full collection.
+        manifest = verify(source)
+        fixtures = source / manifest['artifacts']['fixtures']['path']
+        verify_fixtures(fixtures)
+        package = source / manifest['artifacts']['package']['path']
+        require(package.suffix in ('.deb', '.rpm'), 'assets:package-format')
+        destination.mkdir(mode=0o700)
+        shutil.copyfile(package, destination / ('package' + package.suffix))
+        require(baseline.digest(destination / ('package' + package.suffix)) ==
+                manifest['artifacts']['package']['sha256'], 'assets:package-changed')
+        if fixture_files:
+            fixture_inventory = json.loads((fixtures / 'SHA256SUMS.json').read_bytes())
+            expected = fixture_inventory['files']
+            require(fixture_inventory.get('algorithm') == 'sha256'
+                    and isinstance(expected, dict)
+                    and hashlib.sha256(json.dumps(expected, sort_keys=True,
+                        separators=(',', ':')).encode('utf-8')).hexdigest() ==
+                    manifest['artifacts']['fixtures']['sha256'],
+                    'assets:fixture-inventory-changed')
+            for relative in fixture_files:
+                require(relative.startswith('fixtures/') and '..' not in Path(relative).parts,
+                        'assets:fixture-selection')
+                name = relative.removeprefix('fixtures/')
+                require(name in expected, 'assets:fixture-selection')
+                target = destination / relative
+                target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                shutil.copyfile(fixtures / name, target)
+                require(baseline.digest(target) == expected[name], 'assets:fixture-changed')
+    else:
+        shutil.copytree(source, destination)
     check_tree(destination)
-    manifest = verify(destination)
-    package = destination / manifest['artifacts']['package']['path']
-    fixtures = destination / manifest['artifacts']['fixtures']['path']
-    verify_fixtures(fixtures)
-    require((fixtures / 'onpc-test-application.flatpak').is_file(), 'assets:fixture-bundle-missing')
-    require(package.suffix in ('.deb', '.rpm'), 'assets:package-format')
-    shutil.copyfile(package, destination / ('package' + package.suffix))
+    if package_only:
+        package = destination / ('package' + package.suffix)
+    else:
+        manifest = verify(destination)
+        package = destination / manifest['artifacts']['package']['path']
+        fixtures = destination / manifest['artifacts']['fixtures']['path']
+        verify_fixtures(fixtures)
+        require((fixtures / 'onpc-test-application.flatpak').is_file(), 'assets:fixture-bundle-missing')
+        require(package.suffix in ('.deb', '.rpm'), 'assets:package-format')
+        shutil.copyfile(package, destination / ('package' + package.suffix))
     if package.suffix == '.rpm':
         require(commands.run(['rpm', '-qp', '--queryformat', '%{NAME}', str(package)],
                              merge_stderr=False).decode().strip() ==
@@ -1343,9 +1417,7 @@ def stage_assets(source, destination, commands):
                 require(stat.S_ISDIR(mode), 'assets:package-special-file')
         require(entries, 'assets:empty-package')
         (destination / 'installed-files.json').write_bytes(baseline.encode(entries))
-        inventory = {str(p.relative_to(destination)): baseline.digest(p)
-                     for p in sorted(destination.rglob('*')) if p.is_file()}
-        (destination / 'transfer-sha256.json').write_bytes(baseline.encode(inventory))
+        stage_asset_inventory(destination, manifest, package_only=package_only)
         return manifest
     require(commands.run(['dpkg-deb', '-f', str(package), 'Package']).decode().strip() ==
             'oh-no-parent-control', 'assets:package-name')
@@ -1362,17 +1434,15 @@ def stage_assets(source, destination, commands):
             else:
                 require(entry.isdir(), 'assets:package-special-file')
     (destination / 'installed-files.json').write_bytes(baseline.encode(entries))
-    # Every transferred file, including Flatpak's varying delivery container,
-    # receives an exact run digest in addition to the stable payload digest.
-    inventory = {str(p.relative_to(destination)): baseline.digest(p)
-                 for p in sorted(destination.rglob('*')) if p.is_file()}
-    (destination / 'transfer-sha256.json').write_bytes(baseline.encode(inventory))
+    stage_asset_inventory(destination, manifest, package_only=package_only)
     return manifest
 
 
-def stage_previous_assets(source, destination, commands, current, *, genuine=False):
+def stage_previous_assets(source, destination, commands, current, *, genuine=False,
+                          package_only=False):
     """Bind an explicit prior package to the same platform as the current one."""
-    previous = stage_assets(source, destination, commands)
+    options = {'package_only': True} if package_only else {}
+    previous = stage_assets(source, destination, commands, **options)
     old_format = Path(previous['artifacts']['package']['path']).suffix
     new_format = Path(current['artifacts']['package']['path']).suffix
     require(old_format == new_format, 'assets:previous-package-format')
@@ -1383,7 +1453,8 @@ def stage_previous_assets(source, destination, commands, current, *, genuine=Fal
         from build_test_artifacts import verify_upgrade
         # Reuse the independently verified release/current pair validator after
         # freezing both inputs. No mutable input-parent layout is trusted.
-        upgrade_identity = verify_upgrade(destination.parent, staged=True, repository=ROOT)
+        upgrade_identity = verify_upgrade(destination.parent, staged=True, repository=ROOT,
+                                           **options)
     payload = destination.parent if genuine else destination.parent / 'input'
     shutil.copyfile(destination / ('package' + old_format),
                     payload / ('previous-package' + old_format))
@@ -1392,6 +1463,9 @@ def stage_previous_assets(source, destination, commands, current, *, genuine=Fal
     if upgrade_identity is not None:
         current['previous_package']['upgrade_identity'] = upgrade_identity
     (payload / 'previous-inputs.json').write_bytes(baseline.encode(current['previous_package']))
+    if package_only:
+        for name in ('previous-package' + old_format, 'previous-inputs.json'):
+            (payload / name).chmod(0o600)
 
 
 def stage_upgrade_assets(source, destination, commands):
@@ -1673,12 +1747,16 @@ def retire_snapshot_payload(g, run):
 
 @observed('Preparing the VM SSH transport and guest inputs')
 def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
-              snapshot_capture=False, environment_only=False):
+              snapshot_capture=False, environment_only=False, system_product_free=False):
     """Prepare SSH only on the reset, powered-off active disk via libguestfs."""
     require(type(snapshot_capture) is bool, 'fixtures:invalid-snapshot-capture')
+    require(type(system_product_free) is bool, 'fixtures:invalid-system-product-free')
+    from system_fixture_preparation import qualified_guest
+    require(not system_product_free or qualified_guest(lease.capture.state['guest']),
+            'fixtures:system-product-free-target-not-qualified')
     require(type(environment_only) is bool and (not environment_only or observation_only),
             'fixtures:invalid-environment-observation')
-    require(environment_only or snapshot_capture or
+    require(environment_only or snapshot_capture or system_product_free or
             lease.capture.state['guest'].get('fixture_boundary') != 'clean',
             'fixtures:runner-not-qualified-for-clean-snapshot')
     if getattr(lease, 'online_pending', False) is True:
@@ -1691,6 +1769,8 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
     lease.save('ssh-bootstrap')
     with mounted_guest(guestfs, lease, with_root=True) as (g, root):
         os_id, version = baseline.guest_contract.inspected_release(g, root)
+        require(not system_product_free or (os_id, version) == ('ubuntu', '26.04'),
+                'fixtures:system-product-free-target-not-qualified')
         package = directory / 'input' / ('package.rpm' if os_id == 'fedora' else 'package.deb')
         if not observation_only:
             require(package.is_file(), 'assets:package-platform-mismatch:' + os_id)
@@ -1952,14 +2032,39 @@ def run_pytest(vm, run, phase, selection):
         vm.commands.progress = previous
 
 
-def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False):
+def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False,
+                  fixture_selection=None, preparation_only=False, preparation_observer=None):
     ledger = ledger or RunLedger()
+    # This engineering seam executes the real bootstrap boundary and returns
+    # before payload upload, package input, phase execution or guest collection.
+    # Its observer runs under the caller's live lease for independent audits.
+    guest = lease.capture.state['guest']
+    clean = isinstance(guest, dict) and guest.get('fixture_boundary') == 'clean'
+    if clean or preparation_only:
+        from system_fixture_preparation import prepare, selection_record, qualified_guest
+        require(not already_installed and qualified_guest(guest),
+                'fixtures:system-product-free-target-not-qualified')
+        fixture_selection = selection_record(fixture_selection)
+        with ledger.measure('bootstrap'):
+            vm.probe_ready()
+            context = {'vm': vm, 'lease': lease, 'directory': directory}
+            if preparation_observer is not None:
+                preparation_observer('before', context)
+            context = prepare(vm, lease, directory, fixture_selection)
+            if preparation_observer is not None:
+                observed = preparation_observer('ready', context)
+            else:
+                observed = None
+            context['controller'].require_ready(context['receipt'])
+        if preparation_only:
+            return observed
     run = lease.state['run']
     outcome = 'failed'
     qualification_pending = False
     try:
         with ledger.measure('bootstrap'):
-            vm.ready()
+            if not clean:
+                vm.ready()
             vm.copy(False, str(directory / 'input') + '/', PAYLOAD + '/')
         previous = [directory / 'input' / ('previous-package.' + extension)
                     for extension in ('deb', 'rpm')]
@@ -2256,6 +2361,7 @@ def main(argv=None):
                         help='verified prior package to install and reboot before upgrade or fixture qualification')
     parser.add_argument('--native-artifacts', type=Path,
                         help='reserved native input interface; dependency-update case 289 is pending')
+    parser.add_argument('--fixture-selection', help='immutable execution-owned fixture handoff')
     parser.add_argument('--area')
     parser.add_argument('--test')
     parser.add_argument('--id', help='comma-separated persistent numeric system case IDs')
@@ -2334,13 +2440,17 @@ def main(argv=None):
         commands = Commands()
         commands.directory = private
         with ledger.measure('preparation'):
-            manifest = stage_assets(assets, directory / 'input', commands)
+            minimal = args.fixture_selection is not None
+            options = ({'package_only': True, 'fixture_files': scenario_fixture_files(selection)}
+                       if minimal else {})
+            manifest = stage_assets(assets, directory / 'input', commands, **options)
             if previous_assets is not None:
                 genuine = any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
                               for item in selection.executions)
                 stage_previous_assets(previous_assets,
                     directory / 'input/previous' if genuine else directory / 'previous',
-                    commands, manifest, genuine=genuine)
+                    commands, manifest, genuine=genuine,
+                    **({'package_only': True} if minimal else {}))
             host_before = host_fingerprint(commands)
             selected_inputs_sha256 = stage_selected_inputs(selection, directory / 'input')
             # Include the exact test/helper bytes as well as package and fixtures.
@@ -2362,7 +2472,9 @@ def main(argv=None):
             raise KeyboardInterrupt
         signal.signal(signal.SIGTERM, interrupted)
         run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
-                     fresh_install=args.previous_artifacts is not None)
+                     fresh_install=args.previous_artifacts is not None,
+                     fixture_selection=(json.loads(args.fixture_selection)
+                                        if args.fixture_selection is not None else None))
         ledger.pass_outcome('infrastructure')
         passed = True
         category = 'all-checks-passed'

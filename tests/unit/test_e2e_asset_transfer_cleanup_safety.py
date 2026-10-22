@@ -59,6 +59,21 @@ def test_real_staged_bytes_copied_before_readonly_observation(attempt):
 
 
 @pytest.mark.parametrize('installed', [False, True])
+def test_missing_lease_refuses_without_metadata_or_guest_access(attempt, installed):
+    control, lease, guest, api = attempt
+    transport = Mock()
+    with pytest.raises(transfer.EvidenceError, match='transfer:outside-provisioning'):
+        if installed:
+            control.provision_installed(None, transport)
+        else:
+            control.provision(None, api)
+    api.GuestFS.assert_not_called()
+    transport.call.assert_not_called()
+    with pytest.raises(transfer.EvidenceError, match='already-attempted'):
+        control.provision(lease, api)
+
+
+@pytest.mark.parametrize('installed', [False, True])
 def test_unqualified_transfer_refuses_clean_capture_before_guest_input(attempt, installed):
     control, lease, guest, api = attempt
     lease.capture.state['guest']['fixture_boundary'] = 'clean'

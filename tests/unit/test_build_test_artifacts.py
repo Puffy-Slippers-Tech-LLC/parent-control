@@ -15,6 +15,41 @@ MODULE_PATH = ROOT / "tools/build_test_artifacts.py"
 artifacts = load_module('onpc_test_build_artifacts', MODULE_PATH)
 
 
+@pytest.mark.parametrize('fault', [None, 'package', 'installed-files', 'schema', 'extra-field',
+                                  'full-manifest', 'alternate-package', 'symlink', 'hardlink'])
+def test_package_only_input_binds_package_and_installation_metadata_without_fixture_claims(
+        tmp_path, fault):
+    import os
+    package = tmp_path / 'package.deb'
+    package.write_bytes(b'exact package')
+    installed = tmp_path / 'installed-files.json'
+    installed.write_text('[]\n')
+    manifest = {'schema': artifacts.PACKAGE_INPUT_SCHEMA,
+        'source': {'scope': 'package', 'digest_sha256': 'a' * 64},
+        'artifacts': {'package': {'path': package.name, 'sha256': artifacts._sha256(package)}},
+        'installed_files_sha256': artifacts._sha256(installed)}
+    if fault == 'package': package.write_bytes(b'changed package')
+    if fault == 'installed-files': installed.write_text('[{}]\n')
+    if fault == 'schema': manifest['schema'] = 'artifact-manifest-v1'
+    if fault == 'extra-field': manifest['fixtures'] = {'claim': 'complete'}
+    if fault == 'full-manifest': (tmp_path / artifacts.MANIFEST_NAME).write_text('{}')
+    if fault == 'alternate-package': (tmp_path / 'package.rpm').write_bytes(b'ambiguous')
+    if fault in ('symlink', 'hardlink'):
+        target = tmp_path / 'other'
+        package.rename(target)
+        if fault == 'symlink': package.symlink_to(target)
+        else: os.link(target, package)
+    (tmp_path / artifacts.PACKAGE_INPUT_NAME).write_text(json.dumps(manifest))
+    if fault:
+        with pytest.raises(artifacts.ArtifactError, match='package input verification failed'):
+            artifacts.verify(tmp_path, package_only=True)
+    else:
+        assert artifacts.verify(tmp_path, package_only=True) == manifest
+        with pytest.raises(artifacts.ArtifactError, match='artifact manifest is invalid'):
+            artifacts.verify(tmp_path)
+    assert not (tmp_path / 'fixtures').exists()
+
+
 @pytest.mark.parametrize('flags', [[], ['--reuse'], ['--upgrade-inputs']])
 def test_build_cli_requires_explicit_format_before_writing(tmp_path, monkeypatch, capsys, flags):
     output = tmp_path / 'must-not-exist'

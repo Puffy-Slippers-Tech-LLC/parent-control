@@ -237,6 +237,11 @@ qualified branch/target. No second legacy qualification pass or runtime
 qualification-receipt service is required. Shared changes renew affected prior
 target checks. This plan supplies fixture infrastructure acceptance only.
 
+F09 delivered Ubuntu's [product-free system preparation](../../tests/integration/README.md#ubuntu-product-free-system-preparation),
+including the three Parent bootstrap aliases. Its registered
+`check_fixture_system_product_free` selector qualifies the real product-free
+attempt on Ubuntu only. All other matrix entries retain their separate gates.
+
 ### Runner acceptance matrix
 
 | Envelope | Actual preparation boundary | Planned selector suffix / subset | Ubuntu / Fedora tasks |

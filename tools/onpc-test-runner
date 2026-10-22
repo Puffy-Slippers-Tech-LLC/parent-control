@@ -97,6 +97,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     integration.add_argument('test', nargs='?', help='check_* basename, with optional .py suffix')
     integration.add_argument('--list', action='store_true')
     integration.add_argument('--fixture-selection', help=argparse.SUPPRESS)
+    integration.add_argument('--fixture-source-selection', help=argparse.SUPPRESS)
     system = categories.add_parser('system', allow_abbrev=False)
     system.add_argument('--artifacts', type=Path)
     system.add_argument('--previous-artifacts', type=Path)
@@ -106,6 +107,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     system.add_argument('--id', help='comma-separated persistent numeric system case IDs')
     system.add_argument('--completed-cases', help='JSON case IDs from the runner resume checkpoint')
     system.add_argument('--list', action='store_true')
+    system.add_argument('--fixture-selection', help=argparse.SUPPRESS)
     system.add_argument('--qualification-failure', action='store_true')
     system.add_argument('--skip-backing-verification', action='store_true')
     e2e = categories.add_parser('e2e', allow_abbrev=False)
@@ -206,8 +208,17 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 *(['--new-name', args.new_name] if args.new_name is not None else [])]
     if args.category == 'integration':
         fixture_options = []
+        name = args.test.removesuffix('.py') if args.test is not None else None
+        bootstrap = name in ('check_fixture_system_product_free', 'check_parent_setup',
+                             'check_parent_input', 'check_parent_standard_input')
+        if bootstrap and not args.list and configured.name != 'onpc-Ubuntu26.04':
+            raise ValueError('test-runner:fixture-target-not-qualified')
+        if args.fixture_source_selection is not None and (
+                args.list or name != 'check_fixture_system_product_free'
+                or args.fixture_selection is None):
+            raise ValueError('test-runner:unexpected-fixture-source-selection')
         if args.fixture_selection is not None:
-            if args.list or args.test is None or args.test.removesuffix('.py') != 'check_fixture_provisioning':
+            if args.list or not (bootstrap or name == 'check_fixture_provisioning'):
                 raise ValueError('test-runner:unexpected-fixture-selection')
             if len(args.fixture_selection) > 8192:
                 raise ValueError('test-runner:invalid-fixture-selection')
@@ -221,6 +232,12 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             if targets.get(configured.name) != selected.target:
                 raise ValueError('test-runner:fixture-target-not-qualified')
             fixture_options = ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
+            if args.fixture_source_selection is not None:
+                if len(args.fixture_source_selection) > 8192:
+                    raise ValueError('test-runner:invalid-fixture-source-selection')
+                from tools.fixture_execution import validate_source_selection
+                source = validate_source_selection(json.loads(args.fixture_source_selection), selected)
+                fixture_options += ['--fixture-source-selection', json.dumps(source, sort_keys=True)]
         if args.list:
             if args.test is not None:
                 raise ValueError('test-runner:list-does-not-select-test')
@@ -272,6 +289,20 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         finally:
             sys.path.pop(0)
     command = ['/usr/bin/python3', '-B', str(target), *vm_args]
+    if args.fixture_selection is not None:
+        if args.list or configured.name != 'onpc-Ubuntu26.04':
+            raise ValueError('test-runner:fixture-target-not-qualified')
+        if len(args.fixture_selection) > 8192:
+            raise ValueError('test-runner:invalid-fixture-selection')
+        sys.path.insert(0, str(root))
+        try:
+            from tools.fixture_execution import Selection
+        finally:
+            sys.path.pop(0)
+        selected = Selection.from_record(json.loads(args.fixture_selection))
+        if selected.target != 'ubuntu':
+            raise ValueError('test-runner:fixture-target-not-qualified')
+        command += ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
     if not args.list and args.artifacts is None and not allow_missing_artifacts:
         parser.error('system requires --artifacts unless --list is supplied')
     for option in ('artifacts', 'previous_artifacts', 'native_artifacts'):

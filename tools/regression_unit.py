@@ -1119,7 +1119,12 @@ from regression_ui import Bucket
 # compatible overlap; it introduces no cleanup or UI inventory owner.
 # Baseline, app-snapshot and transfer safety additions retain their existing
 # private filesystem/double ownership in both unit and cleanup inventories.
+# fixture_system_qualification owns tiny pytest-private source/result trees and
+# process-local runner/lease/transport doubles. No VM, subprocess, service,
+# fixture build, display, socket, shared cache or cleanup/UI owner is added;
+# bounded CPU and disk work is compatible with ordinary unit overlap.
 REVIEWED = frozenset("""
+fixture_system_qualification
 fixture_provision_qualification
 fixture_snapshots
 fixture_provision_cleanup_safety

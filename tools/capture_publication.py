@@ -11,10 +11,13 @@ from pathlib import Path
 import signal
 import tempfile
 
-import evidence_bundle as bundle
-import evidence_capture as capture
-import evidence_identity as logical
-import test_retention as retention
+if __package__:
+    from . import evidence_bundle as bundle, evidence_capture as capture, evidence_identity as logical, test_retention as retention
+else:
+    import evidence_bundle as bundle
+    import evidence_capture as capture
+    import evidence_identity as logical
+    import test_retention as retention
 
 JOURNAL = 'capture-publication.json'
 

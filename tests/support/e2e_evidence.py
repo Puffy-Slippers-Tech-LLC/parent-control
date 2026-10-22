@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 
 import pytest
 import evidence
@@ -13,9 +14,41 @@ SECRET = 'fixture-only-password-9!'
 
 
 @pytest.fixture
+def capture_owner(tmp_path, monkeypatch):
+    """Real private retained collector/seal/publication, with no live guest."""
+    from tools import evidence_capture, runner_evidence, test_retention, test_storage
+    root = tmp_path
+    monkeypatch.setattr(test_storage, 'ROOT', root)
+    monkeypatch.setattr(test_storage, 'BASE', root / 'output/test-runs')
+    monkeypatch.delenv(test_retention.VARIABLE, raising=False)
+    monkeypatch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+    monkeypatch.delenv('ONPC_RUNNER_INVOCATION', raising=False)
+    monkeypatch.setattr(evidence_capture, '_authenticated_caller',
+        lambda: dict(uid=os.geteuid(), gid=os.getegid()))
+    monkeypatch.setattr(evidence_capture, 'validate_targets', lambda *args: None)
+    monkeypatch.setattr(runner_evidence.regression_inputs, 'identity', lambda root: 'f' * 64)
+    store = test_retention.Store(test_storage.directory('state') / 'retention-host')
+    return root, store
+
+
+def captured_bytes(root, result):
+    from tools.runner_evidence import resolve_reference
+    return {member['original_path']: resolve_reference(root, next(
+        reference for reference in result['references']
+        if reference['member_id'] == member['member_id']))
+        for record in result['records'] for member in record['members']}
+
+
+@pytest.fixture
 def worker_evidence(tmp_path, monkeypatch):
     """Keep real worker reports from controller doubles inside pytest storage."""
     import e2e_worker
+    # These worker fixtures have disposable pytest ownership. Dedicated retained
+    # capture tests exercise the actual publication methods under a live Store.
+    monkeypatch.setattr(private_artifacts.PrivateCollector, 'start_capture',
+                        lambda *args, **kwargs: None)
+    monkeypatch.setattr(private_artifacts.PrivateCollector, 'capture_terminal',
+                        lambda *args, **kwargs: dict(receipt={}, references=[], consumers=[], records=[]))
     def collect(**options):
         return private_artifacts.PrivateCollector(**options, parent=tmp_path)
     monkeypatch.setattr(e2e_worker, 'PrivateCollector', collect)

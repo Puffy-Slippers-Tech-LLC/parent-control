@@ -4,6 +4,7 @@ from tests.support.vm_registry import vm_name
 from pathlib import Path
 from contextlib import nullcontext
 import json
+import os
 import runpy
 import shutil
 import subprocess
@@ -339,3 +340,177 @@ def test_recovery_dispatch_preserves_unfinished_vm_journal(checkout, monkeypatch
     assert calls[0].args[0][-1] == str(checkout / 'tests/integration' / (name + '.py'))
     guard.assert_not_called()
     assert journal.read_bytes() == before
+
+
+@pytest.mark.parametrize('unattended', [False, True])
+@pytest.mark.parametrize('arguments', [
+    ['system', '--artifacts', '/tmp/onpc-selected', '--area', 'session'],
+    ['integration', 'check_graphical_smoke'], ['integration', 'check_e2e_watch.py'],
+])
+def test_selected_producer_dispatch_keeps_command_without_parent_owner(
+        checkout, monkeypatch, unattended, arguments):
+    import test_retention
+    for name in ('check_graphical_smoke.py', 'check_e2e_watch.py'):
+        (checkout / 'tests/integration' / name).touch()
+    owner = Mock(side_effect=AssertionError('dispatcher opened a producer owner'))
+    monkeypatch.setattr(test_retention.Store, 'session', owner)
+    inherited = Mock(side_effect=AssertionError('dispatcher forwarded producer authority'))
+    monkeypatch.setattr(test_retention, 'environment', inherited)
+    execute = Mock(return_value=SimpleNamespace(returncode=7))
+    monkeypatch.setattr(runner['subprocess'], 'run', execute)
+    control = SimpleNamespace(run=Mock(return_value=7))
+    control.installed = Mock(return_value=nullcontext(control))
+    monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: {'Control': lambda: control})
+    caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
+    selected = [*arguments, *VM_ARGS]
+    expected = runner['selection'](checkout, selected)
+    assert runner['run'](checkout, (['--unattended'] if unattended else []) + selected, caller) == 7
+    invocation = (control.run if unattended else execute).call_args
+    assert invocation.args == (expected,)
+    assert invocation.kwargs['cwd'] == checkout
+    assert invocation.kwargs['env']['PKEXEC_UID'] == '1000'
+    assert not {'ONPC_TEST_RETENTION', 'ONPC_TEST_RETENTION_FD',
+                'ONPC_QUALIFICATION_RETENTION_RUN'} & invocation.kwargs['env'].keys()
+    if unattended:
+        control.installed.assert_called_once_with(pipe=True)
+    else:
+        from test_storage import scratch_descriptors
+        assert invocation.kwargs['pass_fds'] == scratch_descriptors()
+    owner.assert_not_called()
+    inherited.assert_not_called()
+
+
+@pytest.mark.parametrize('unattended', [False, True])
+@pytest.mark.parametrize('mode', ['execution-preflight', 'asset-transfer-qualification'])
+def test_e2e_child_owns_capture_across_real_subprocess_boundary(
+        checkout, monkeypatch, unattended, mode):
+    """Use the real entry point, session and mint; double only guest dispatch."""
+    from tools import test_retention as retention, test_storage as storage
+    root = Path(__file__).resolve().parents[2]
+    e2e = checkout / 'tests/e2e'
+    e2e.mkdir()
+    child = e2e / 'runner.py'
+    child.write_text(textwrap.dedent('''\
+        def preflight(argv, **kwargs):
+            return dict(mode=MODE_LITERAL, artifacts='/tmp/onpc-selected', cases=[])
+        if __name__ != '__main__':
+            # Declaration preflight must not initialize any producer machinery.
+            pass
+        else:
+            exec(CHILD_LITERAL)
+        ''').replace('MODE_LITERAL', repr(mode)).replace('CHILD_LITERAL', repr(textwrap.dedent('''\
+        import json, os, runpy, sys
+        from pathlib import Path
+        from types import SimpleNamespace
+        SOURCE = Path(SOURCE_LITERAL)
+        CHECKOUT = Path(__file__).resolve().parents[2]
+        sys.path[:0] = [str(SOURCE), str(SOURCE / 'tests/integration')]
+        from tools import evidence_capture as capture, test_retention as retention, test_storage as storage
+        import qualification_storage
+        storage.ROOT = CHECKOUT
+        storage.BASE = CHECKOUT / 'output/test-runs'
+        journal = storage.directory('state') / 'retention-selected-child'
+        storage.privileged_state = lambda uid: journal
+        capture._authenticated_caller = lambda: dict(uid=os.geteuid(), gid=os.getegid())
+        def mint(store):
+            return capture.issue_session(store, repository=CHECKOUT,
+                workflow='child-owner-fixture', task='E06a', check='selected-child',
+                inputs_sha256='a' * 64, sources_sha256='b' * 64,
+                consumers={'c' * 64: dict(consumer_id='c' * 64, revision_sha256='d' * 64)})
+        if sys.argv[1:] == ['--inherited-only']:
+            inherited = retention.Store(json.loads(os.environ[retention.VARIABLE])[0])
+            try:
+                mint(inherited)
+            except ValueError as error:
+                assert 'live producer session' in str(error)
+                print('inherited-only refused')
+                raise SystemExit(0)
+            raise AssertionError('inherited authority minted a capture')
+        if __name__ == '__main__':
+            assert retention.VARIABLE not in os.environ
+            assert retention.OWNER_VARIABLE not in os.environ
+            qualification_storage.ROOT = CHECKOUT
+            qualification_storage.os = SimpleNamespace(**{**vars(os), 'geteuid': lambda: 0})
+            qualification_storage.recover_pending = lambda *args: None
+            load = qualification_storage.runpy.run_path
+            qualification_storage.runpy.run_path = lambda path: (
+                {'retention_guard': lambda root: None} if Path(path).name == 'onpc-test-runner'
+                else load(path))
+            def execute(*args, **kwargs):
+                store = retention.Store(journal)
+                binding = store.producer_binding()
+                context = capture.session_context(mint(store))
+                assert context['run'] == binding[3]
+                requested = os.environ.get('ONPC_QUALIFICATION_RETENTION_RUN')
+                assert requested is None or context['run'] == requested
+                print('child live owner ' + context['run'])
+                return 7
+            sys.modules['execution'] = SimpleNamespace(main=execute)
+            sys.modules['check_graphical_smoke'] = SimpleNamespace(main=execute)
+            namespace = load(str(SOURCE / 'tests/e2e/runner.py'))
+            namespace['main'].__globals__['preflight'] = preflight
+            raise SystemExit(namespace['main']())
+        ''').replace('SOURCE_LITERAL', repr(str(root))))))
+    monkeypatch.setattr(storage, 'ROOT', checkout)
+    monkeypatch.setattr(storage, 'BASE', checkout / 'output/test-runs')
+    monkeypatch.delenv(retention.VARIABLE, raising=False)
+    monkeypatch.delenv(retention.OWNER_VARIABLE, raising=False)
+    monkeypatch.delenv('ONPC_QUALIFICATION_RETENTION_RUN', raising=False)
+    original_run = subprocess.run
+    # Deliberately pass a real parent's environment and descriptor to a fresh
+    # interpreter: this transfers coordination, never minting authority.
+    parent = retention.Store(storage.directory('state') / 'retention-parent-fixture')
+    with parent.session():
+        before = (parent.path / 'current.json').read_bytes()
+        inherited = original_run(['/usr/bin/python3', '-B', str(child), '--inherited-only'],
+            env={**os.environ, **retention.environment()},
+            pass_fds=(int(os.environ[retention.OWNER_VARIABLE]),),
+            capture_output=True, text=True, timeout=15, check=False)
+        assert inherited.returncode == 0, inherited.stdout + inherited.stderr
+        assert inherited.stdout.strip() == 'inherited-only refused'
+        assert (parent.path / 'current.json').read_bytes() == before
+    expected_run = 'e' * 32
+    journal = storage.directory('state') / 'retention-selected-child'
+    if unattended:
+        with retention.Store(journal).session(run=expected_run):
+            pass
+    output = []
+    invocations = []
+    def execute(command, **kwargs):
+        invocations.append((command, kwargs))
+        result = original_run(command, **kwargs, capture_output=True, text=True, timeout=15)
+        output.append(result.stdout + result.stderr)
+        return result
+    monkeypatch.setattr(runner['subprocess'], 'run', execute)
+    load = runpy.run_path
+    controls = []
+    def modules(path):
+        module = load(path)
+        if Path(path).name == 'regression_process.py':
+            control = module['Control']()
+            control.installed = Mock(return_value=nullcontext(control))
+            run = control.run
+            def controlled(command, **kwargs):
+                invocations.append((command, kwargs))
+                return run(command, **kwargs, output=lambda data: output.append(data.decode()), timeout=15)
+            control.run = controlled
+            controls.append(control)
+            return {'Control': lambda: control}
+        return module
+    monkeypatch.setattr(runner['runpy'], 'run_path', modules)
+    selection = ['e2e', '--artifacts', '/tmp/onpc-selected',
+                 '--qualify-transfer' if mode == 'asset-transfer-qualification' else '--ready', *VM_ARGS]
+    command = runner['selection'](checkout, selection)
+    caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
+    arguments = ([f'--retention-run={expected_run}', '--unattended'] if unattended else []) + selection
+    assert runner['run'](checkout, arguments, caller) == 7, ''.join(output)
+    assert len(invocations) == 1 and invocations[0][0] == command
+    assert 'child live owner ' in ''.join(output)
+    state = json.loads((journal / 'current.json').read_text())
+    assert state['finished'] is True
+    if unattended:
+        assert state['run'] == expected_run and state['history'] == []
+        controls[0].installed.assert_called_once_with(pipe=True)
+    assert not {'ONPC_TEST_RETENTION', 'ONPC_TEST_RETENTION_FD'} & invocations[0][1]['env'].keys()
+    assert retention.VARIABLE not in os.environ and retention.OWNER_VARIABLE not in os.environ
+    assert 'ONPC_QUALIFICATION_RETENTION_RUN' not in os.environ

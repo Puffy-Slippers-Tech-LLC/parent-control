@@ -18,7 +18,8 @@ import tempfile
 import threading
 import time
 import uuid
-from qualification_storage import allocate, session as storage_session
+from qualification_storage import (allocate, session as storage_session,
+                                   start_collector, finish_collector, checkpoint_inputs)
 from tools.vm_recording import protect_capture
 
 import graphical_backend
@@ -1486,13 +1487,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
     require(Path.cwd() == ROOT == runner.baseline.guest_contract.CHECKOUT, 'smoke:checkout')
     os.umask(0o077)
-    with storage_session():
+    with storage_session(check='check_graphical_smoke'):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-graphical-smoke-', dir='/tmp'))
         commands, ledger = Commands(), runner.RunLedger()
         private = directory / 'private'
         private.mkdir(mode=0o700)
         commands.directory = private
-        source = lease = host_before = None
+        source = lease = host_before = collector = None
         result = {'scope': 'credential-free-graphical-feasibility', 'outcome': 'failed',
                   'raw_capture': 'root-private-not-approved-for-export',
                   'evidence_directory': str(directory), 'steps': []}
@@ -1820,6 +1821,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 else:
                     (directory / 'input').mkdir(mode=0o700)
                     (directory / 'input/selected-inputs.json').write_text(json.dumps(result['inputs_sha256'], sort_keys=True))
+                checkpoint_inputs(directory)
                 host_before = runner.host_fingerprint(commands)
                 api, guestfs = importlib.import_module('libvirt'), importlib.import_module('guestfs')
                 api.virEventRegisterDefaultImpl()
@@ -1834,6 +1836,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             with PrivateCollector(run_id='qualification-' + uuid.uuid4().hex,
                                   secrets=credentials.variables.registered_secrets
                                   if credentials is not None else []) as collector:
+                start_collector(collector)
                 result['qualification_evidence'] = str(collector.path)
                 qualification_class = Qualification
                 if parent_entry is not None:
@@ -2306,6 +2309,16 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['duration_seconds'] = round(time.monotonic() - started, 3)
             result['lease_phase'] = lease.state['phase'] if lease and lease.state else None
             (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+            if collector is not None and collector._capture is not None:
+                try:
+                    finish_collector(collector, result, cleanup='failed' if
+                        ledger.outcomes.get('cleanup', {}).get('outcome') == 'failed' else 'complete')
+                except BaseException as error:
+                    ledger.fail_outcome('collection', 'smoke:terminal-capture-failed')
+                    result.update(outcome='failed', **ledger.data())
+                    result.setdefault('category', 'smoke:terminal-capture-failed')
+                    result.setdefault('exception_type', type(error).__name__)
+                    (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             print(json.dumps(result, sort_keys=True))
         return 0 if result['outcome'] == 'passed' else 1
 

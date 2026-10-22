@@ -2475,8 +2475,40 @@ failure leaves the startup requirement in place without an authentication retry.
 It does not adopt the workers' allocations. `regression_process.host_run` and
 `category_run` stream into the owning execution; `test_commands` retains its
 existing aggregate, focused and inspection routing. Qualification, system/E2E
-collector and recovery-diagnostic closures have their separate delivery owner.
+collector and recovery-diagnostic closures use the producer boundaries below.
 The latest-only watch recording policy is unchanged.
+
+Named `qualification_storage.session` and `recovery_session` scopes capture only
+their finite approved result, input, command and diagnostic members. Shared and
+selected-target recovery journals remain separate from unfinished VM execution
+state. Diagnostic records never become passing acceptance; deliberately live
+maintenance records retain pending cleanup and the original VM run identity.
+Later cleanup is a distinct record with that identity. Preparation diagnostics
+retain their original 16-KiB tail bound and explicit native-log availability.
+Raw worker settings, credentials, authentication material and unreviewed captures
+stay outside the selected proof.
+
+The selected system/E2E/smoke/watch child holds its own live retention owner.
+The dispatcher keeps its existing selected command, cancellation and scratch
+descriptor route, forwarding only an explicitly validated requested run. That
+run chooses provenance and grants no capture authority. Named scopes and
+controller reuse require a matching in-process owner; the legacy unnamed
+allocation-only route issues no capture handle. Package and standalone imports
+keep each caller's storage, capture and publication state together.
+
+System capture follows outer suite, source and host cleanup, including partial
+staging failures. Its immutable selected-input checkpoint comes from the same
+verified manifest as terminal capture, including files without an extension.
+Command ledgers exclude stdin and raw transport payloads. Original result,
+JUnit/TAP and collected guest bytes remain the original verdict's proof.
+
+Each E2E collector checkpoints its exact synced, registered immutable inventory
+outside the collector directory before returning a successful registration.
+Recovery verifies original hashes and file identities and refuses unregistered
+files. The outer terminal record follows suite, progress and collector cleanup
+and binds the original candidate digest; a passing candidate cannot hide a late
+failure. Worker, attempt and invocation records retain their dependency closure.
+Capture supplies no qualification of a VM, UI provider or product behavior.
 
 `tools/evidence_capture.py` owns authenticated finalized subsets for evidence
 producers. A producer obtains an opaque in-process handle only inside its live

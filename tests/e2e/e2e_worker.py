@@ -234,6 +234,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
     failures = FailureLedger()
     server = worker = None
     first_error = None
+    staged_inputs = {}
     result = {'schema_version': 1, 'run_id': run_id, 'scope': 'credential-free-worker',
               'outcome': 'failed', 'distribution_sha256': None,
               'raw_capture': 'private-not-approved-for-export',
@@ -251,7 +252,8 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
         result['scope'] = 'fixture-secret-worker'
     if maintenance:
         result['scope'] = 'maintenance-diagnostic-not-acceptance'
-    with PrivateCollector(run_id=run_id, secrets=secrets.registered_secrets) as collector:
+    collector = PrivateCollector(run_id=run_id, secrets=secrets.registered_secrets)
+    try:
         result['evidence_directory'] = str(collector.path)
         def fail(category, code, error):
             nonlocal first_error
@@ -285,7 +287,9 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
             collector.save_report(name, result)
 
         try:
-            staged_inputs = {}
+            import vm_config
+            collector.start_capture(ROOT, target=vm_config.selected().name, check='worker',
+                                    inputs=dict(expected_sources=expected_inputs))
             result['distribution_sha256'] = stage_distribution(directory, staged_inputs)
             server = CallbackServer(adapter, directory)
             if serial:
@@ -389,6 +393,34 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                 fail('collection', 'worker-report-failed', error)
             # Fixed codes only. The path is a generated private artifact locator.
             print('e2e-worker: evidence=' + str(collector.path), file=sys.stderr, flush=True)
+    finally:
+        try:
+            collector.close()
+        except BaseException as error:
+            fail('collection', 'worker-collector-close-failed', error)
+            result.update(outcome='failed', failures=failures.snapshot(),
+                          first_failure=failures.first_failure)
+    try:
+        import vm_config
+        captured = collector.capture_terminal(result, target=vm_config.selected().name,
+            check='worker', candidate=('worker-result.json' if
+                'worker-result.json' in collector._reports else None),
+            inputs=dict(expected_sources=expected_inputs, staged_sources=staged_inputs,
+                        distribution_sha256=result['distribution_sha256']),
+            commands=[dict(argv=list(COMMAND), serial=serial, maintenance=maintenance)],
+            status='diagnostic',
+            cleanup='complete' if result['worker_stopped'] and result['callback_closed'] else 'failed',
+            cleanup_resources=[dict(kind='process', id='owned-worker',
+                disposition='cleaned' if result['worker_stopped'] else 'preserved'),
+                dict(kind='socket', id='owned-callback',
+                disposition='cleaned' if result['callback_closed'] else 'preserved')])
+        result['_capture_records'] = captured['records']
+        result['evidence_capture'] = {key: captured[key]
+            for key in ('receipt', 'references', 'consumers')}
+    except BaseException as error:
+        fail('collection', 'worker-terminal-capture-failed', error)
+        result.update(outcome='failed', failures=failures.snapshot(),
+                      first_failure=failures.first_failure)
     if first_error is not None:
         # ScenarioContext preserves the owned-resource cleanup result while
         # propagating the original exception and failure ordering unchanged.

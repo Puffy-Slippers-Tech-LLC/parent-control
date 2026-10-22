@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E06a — [Capture qualification and E2E collector records](Export-Tasks/E06a-qualifications.md)**.
+Next task: **E07 — [Integrate ordinary-plan evidence consumers](Export-Tasks/E07-launchers.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

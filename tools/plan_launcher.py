@@ -714,6 +714,17 @@ RESPONSE_VALIDATOR_SOURCES = (
     'regression_events.py', 'test_commands.py', 'vm_test_queue.py',
     'regression_inputs.py',
     'test_recovery.py',
+    # Qualification and collector producers determine the retained result,
+    # candidate and true outer cleanup provenance.
+    '../tests/integration/qualification_storage.py',
+    '../tests/integration/system_runner.py', '../tests/integration/vm_probe.py',
+    '../tests/integration/baseline_guest.py',
+    '../tests/integration/check_graphical_recovery.py',
+    '../tests/integration/check_graphical_smoke.py', '../tests/integration/check_e2e_watch.py',
+    '../tests/e2e/private_artifacts.py', '../tests/e2e/execution.py', '../tests/e2e/e2e_worker.py',
+    'onpc-test-runner', '../tests/e2e/runner.py',
+    '../tests/integration/guest_inputs.py', '../tests/integration/owned_commands.py',
+    '../tests/e2e/evidence.py', '../tests/e2e/secret_variables.py',
 )
 
 

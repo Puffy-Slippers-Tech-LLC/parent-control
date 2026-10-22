@@ -567,6 +567,89 @@ def test_lost_publication_reply_recovers_same_capture_attempts_and_stage(environ
                json.loads((store.path / 'current.json').read_bytes())['captures'])
 
 
+def test_targeted_terminal_retains_original_attempt_dependency_and_live_cleanup_scope(environment):
+    root, store = environment
+    resources = [dict(kind='maintenance', id='selected-target', disposition='preserved')]
+    commands = [dict(argv=['fixed-probe', '--samples', '2'], timeout=60,
+                     check=False, exit_status=1)]
+    with store.session():
+        first = runner.ReportEvidence(root, allocate(), workflow='qualification')
+        original = finish(first, target='ubuntu', check='original-attempt',
+                          status='diagnostic', cleanup='pending', cleanup_resources=resources,
+                          command_log=commands)
+        later = runner.ReportEvidence(root, allocate(), workflow='qualification')
+        recovered = finish(later, target='ubuntu', check='recovery',
+                           dependencies=original['records'], cleanup_resources=[
+                               dict(kind='maintenance', id='selected-target', disposition='cleaned')])
+    terminal = original['records'][-1]
+    assert terminal['context']['target'] == 'ubuntu'
+    assert terminal['context']['check'] == 'original-attempt'
+    assert terminal['status'] == 'diagnostic'
+    assert terminal['cleanup']['scope']['resources'] == resources
+    command_member = next(member for member in terminal['members'] if member['role'] == 'command')
+    assert json.loads(runner.resolve_reference(root, exact_reference(original, command_member))) == {
+        'commands': commands}
+    final = recovered['records'][-1]
+    assert final['context']['check'] == 'recovery'
+    assert {item['record_id'] for item in final['dependencies']} == {
+        original['records'][-1]['record_id'], recovered['records'][0]['record_id']}
+    for _ in range(5):
+        with store.session():
+            pass
+    for result in (original, recovered):
+        for record in result['records']:
+            for member in record['members']:
+                saved = runner.resolve_reference(root, exact_reference(result, member))
+                assert hashlib.sha256(saved).hexdigest() == member['sha256']
+
+
+def test_targeted_terminal_recovery_keeps_exact_context_and_cleanup_resources(environment, monkeypatch):
+    root, store = environment
+    resources = [dict(kind='maintenance', id='selected-target', disposition='preserved')]
+    with store.session():
+        evidence = runner.ReportEvidence(root, allocate(), workflow='qualification')
+        def interrupted(stage):
+            if stage == 'publication.copied':
+                raise KeyboardInterrupt('targeted publication interrupted')
+        with monkeypatch.context() as local:
+            local.setattr(runner.publication, 'checkpoint', interrupted)
+            with pytest.raises(KeyboardInterrupt, match='targeted publication'):
+                finish(evidence, target='fedora', check='diagnostic-check', status='diagnostic',
+                       cleanup='pending', cleanup_resources=resources)
+        original = evidence._prepared[-1]['record']
+    recovered, = runner.recover_pending(root, store)
+    assert recovered['records'][-1] == original
+    assert original['context']['target'] == 'fedora'
+    assert original['context']['check'] == 'diagnostic-check'
+    assert original['cleanup']['scope']['resources'] == resources
+
+
+def test_checkpoint_identity_is_rechecked_after_sealing_before_publication(environment, monkeypatch):
+    root, store = environment
+    with store.session():
+        directory = allocate()
+        original = closed_file(directory, 'proof.json', b'original immutable proof')
+        evidence = runner.ReportEvidence(root, directory)
+        evidence.checkpoint_members([dict(path=original, role='result')])
+        member = evidence._member
+        swapped = False
+        def replace_after_hash(path, role):
+            nonlocal swapped
+            result = member(path, role)
+            if Path(path) == original and not swapped:
+                swapped = True
+                replacement = closed_file(directory, 'replacement.json', original.read_bytes())
+                replacement.replace(original)
+            return result
+        monkeypatch.setattr(evidence, '_member', replace_after_hash)
+        monkeypatch.setattr(bundle, 'export', lambda *args, **kwargs: pytest.fail('changed proof published'))
+        with pytest.raises(ValueError, match='checkpointed source identity changed'):
+            finish(evidence, members=[dict(path=original, role='result')])
+        assert original.read_bytes() == b'original immutable proof'
+        state = json.loads((store.path / 'current.json').read_bytes())
+        assert state['captures'] and all(not item.get('acknowledgement') for item in state['captures'])
+
+
 def test_recovery_without_terminal_declaration_preserves_closed_coverage_outputs(environment):
     root, store = environment
     with store.session():

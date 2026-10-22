@@ -2,7 +2,8 @@
 """Bounded commands; cleanup signals only a pidfd opened for the spawned child."""
 
 import json
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
+from contextvars import ContextVar
 import os
 from pathlib import Path
 import signal
@@ -10,6 +11,18 @@ import subprocess
 import tempfile
 import termios
 import time
+
+_command_observer = ContextVar('owned_command_observer', default=None)
+
+
+@contextmanager
+def observe_commands(callback):
+    """Observe invocation metadata only; input and output stay private."""
+    token = _command_observer.set(callback)
+    try:
+        yield
+    finally:
+        _command_observer.reset(token)
 
 
 class CommandError(RuntimeError):
@@ -41,14 +54,31 @@ class Commands:
             watch_activity = None
         watch = watch_activity.command(args, self.watch_command) if watch_activity else None
         self.last_returncode = None
+        observer = _command_observer.get()
+        record = dict(argv=[str(value) for value in args], timeout=timeout,
+                      check=check, command_sequence=self.sequence + 1)
+        error = None
         try:
+            if observer is not None:
+                observer(dict(record, phase='start', exit_status=None))
             return self._run(args, timeout=timeout, check=check, input=input,
                              merge_stderr=merge_stderr, on_output=on_output,
                              terminal=terminal, watch=watch,
                              diagnostic_stdout=diagnostic_stdout, pass_fds=pass_fds)
+        except BaseException as caught:
+            error = caught
+            raise
         finally:
-            if watch is not None:
-                watch.finish(self.last_returncode)
+            try:
+                if observer is not None:
+                    observer(dict(record, phase='end', exit_status=self.last_returncode))
+            except BaseException as observed_error:
+                if error is None:
+                    raise
+                error.add_note('command:invocation-ledger-failed:' + type(observed_error).__name__)
+            finally:
+                if watch is not None:
+                    watch.finish(self.last_returncode)
 
     def _run(self, args, *, timeout, check, input, merge_stderr, on_output, terminal, watch,
              diagnostic_stdout, pass_fds):

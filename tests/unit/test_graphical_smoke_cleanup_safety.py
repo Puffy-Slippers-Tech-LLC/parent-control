@@ -200,7 +200,7 @@ def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
     def stage(_source, destination, _commands):
         destination.mkdir()
     with patch.object(smoke.os, 'geteuid', return_value=0), \
-            patch.object(smoke, 'storage_session', side_effect=nullcontext), \
+            patch.object(smoke, 'storage_session', side_effect=lambda **kwargs: nullcontext()), \
             patch.object(smoke.os, 'getegid', return_value=0), \
             patch.object(smoke.runner.baseline.guest_contract, 'CHECKOUT', smoke.ROOT), \
             patch.object(smoke.os, 'umask'), patch.object(smoke.signal, 'signal'), \
@@ -242,7 +242,8 @@ def test_native_approval_stages_complete_installed_payload_before_vm(tmp_path, m
 
     monkeypatch.setattr(smoke.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(smoke.os, 'getegid', lambda: 0)
-    monkeypatch.setattr(smoke, 'storage_session', nullcontext)
+    monkeypatch.setattr(smoke, 'storage_session', lambda **kwargs: nullcontext())
+    monkeypatch.setattr(smoke, 'checkpoint_inputs', lambda directory: None)
     monkeypatch.setattr(smoke.runner.baseline.guest_contract, 'CHECKOUT', smoke.ROOT)
     monkeypatch.setattr(smoke.os, 'umask', Mock())
     monkeypatch.setattr(smoke.signal, 'signal', Mock())

@@ -150,7 +150,7 @@ def main():
     require(len(sys.argv) == 1 and os.geteuid() == os.getegid() == 0, 'watch:invocation')
     require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT, 'watch:checkout')
     os.umask(0o077)
-    with storage_session():
+    with storage_session(check='check_e2e_watch'):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-e2e-watch-check-', dir='/tmp'))
         print('watch-check: evidence=' + str(directory), flush=True)
         commands, ledger = Commands(), runner.RunLedger()

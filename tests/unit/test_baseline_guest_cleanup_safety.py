@@ -734,7 +734,10 @@ def test_guest_failure_cannot_reuse_success_from_previous_run(preparation):
 def failure_retention(tmp_path, monkeypatch):
     state = Mock(active=False, allocated=False, fail=None, artifact=tmp_path / 'evidence' / 'preparation.log')
     @contextmanager
-    def session():
+    def session(**options):
+        assert options['check'] == 'baseline_guest.preparation_failure'
+        assert options['live'] is True
+        assert options['inputs']['tail_limit'] == 16384
         if state.fail == 'session':
             raise RuntimeError('private retention failure fixture-password')
         state.active = True
@@ -800,12 +803,16 @@ def test_preparation_failure_retains_only_the_last_16_kib(preparation, failure_r
     assert guest.preparation_failure(p.g) == 'no-stage; artifact:' + str(failure_retention.artifact)
     p.g.pread.assert_called_once_with(path, 16384, len(log) - 16384)
     assert failure_retention.artifact.read_bytes() == log[-16384:]
+    availability = json.loads((failure_retention.artifact.parent / 'native-log-result.json').read_text())
+    assert availability == dict(purpose='diagnostic-only', availability='tail', tail_limit=16384,
+                                original_bytes=len(log), captured_bytes=16384, may_be_truncated=True)
 
 
 def test_missing_preparation_log_keeps_original_failure(preparation, failure_retention):
     assert guest.preparation_failure(preparation.g) == 'no-log; inspect guest preparation.log'
     preparation.g.pread.assert_not_called()
-    assert not failure_retention.allocated
+    assert failure_retention.allocated and not failure_retention.artifact.exists()
+    assert json.loads((failure_retention.artifact.parent / 'native-log-result.json').read_text())['availability'] == 'no-log'
 
 
 @pytest.mark.parametrize('unsafe', ['symlink', 'ancestor-link', 'directory', 'owner', 'hardlink'])
@@ -834,7 +841,8 @@ def test_unsafe_preparation_log_is_never_read_or_retained(preparation, failure_r
     p.g.filesize.assert_not_called()
     p.g.pread.assert_not_called()
     p.g.read_file.assert_not_called()
-    assert not failure_retention.allocated
+    assert failure_retention.allocated and not failure_retention.artifact.exists()
+    assert json.loads((failure_retention.artifact.parent / 'native-log-result.json').read_text())['availability'] == 'unsafe-log'
 
 
 @pytest.mark.parametrize('failure', ['session', 'allocate', 'write', 'finalize'])
@@ -862,7 +870,8 @@ def test_preparation_log_read_failure_preserves_failure_category(preparation, fa
     p.g.filesize.side_effect = RuntimeError('private fixture-password')
     assert guest.preparation_failure(p.g) == 'log-read-failed; inspect guest preparation.log'
     p.g.pread.assert_not_called()
-    assert not failure_retention.allocated
+    assert failure_retention.allocated and not failure_retention.artifact.exists()
+    assert json.loads((failure_retention.artifact.parent / 'native-log-result.json').read_text())['availability'] == 'log-read-failed'
 
 
 def test_guard_failure_prevents_staging_and_boot(preparation):

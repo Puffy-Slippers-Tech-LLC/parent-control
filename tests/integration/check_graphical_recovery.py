@@ -31,11 +31,16 @@ def main(*, graphics_type='vnc', maintenance=False):
     runner.require(os.geteuid() == os.getegid() == 0, 'recovery:root-required')
     runner.require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT,
                    'recovery:checkout')
-    with recovery_session():
-        return recover(graphics_type, maintenance=maintenance)
+    return recover(graphics_type, maintenance=maintenance)
 
 
 def recover(graphics_type, *, maintenance=False):
+    with recovery_session(check='check_graphical_recovery',
+                          inputs=dict(graphics_type=graphics_type, maintenance=maintenance)):
+        return _recover(graphics_type, maintenance=maintenance)
+
+
+def _recover(graphics_type, *, maintenance=False):
     os.umask(0o077)
     requested_graphics_type = graphics_type
     kind = 'graphical' if graphics_type == 'vnc' else 'system'
@@ -89,6 +94,7 @@ def recover(graphics_type, *, maintenance=False):
             lease.recover_system_cleanup()
         result['outcome'] = 'passed'
         result['lease_phase'] = lease.state['phase']
+        result['recovered_attempt'] = lease.state['run']
     except (Exception, KeyboardInterrupt) as error:
         result['category'] = runner.error_category(error)
         result['exception_type'] = type(error).__name__

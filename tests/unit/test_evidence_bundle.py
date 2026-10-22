@@ -62,7 +62,10 @@ def test_catalogue_includes_only_selected_targets_host_and_guest_journals(
         bundle.Selection(tmp_path, uid, gid, ['unregistered'], [], []).catalogue()
 
 
-def test_inaccessible_selected_target_journal_remains_a_refusal(tmp_path, monkeypatch):
+@pytest.mark.parametrize('journal', ['retention-{uid}-guest',
+                                    'recovery-diagnostics-{uid}-guest',
+                                    'recovery-diagnostics-{uid}'])
+def test_inaccessible_selected_target_journal_remains_a_refusal(tmp_path, monkeypatch, journal):
     from contextlib import nullcontext
     import vm_config
 
@@ -70,20 +73,28 @@ def test_inaccessible_selected_target_journal_remains_a_refusal(tmp_path, monkey
     monkeypatch.setattr(bundle, 'identity', lambda *_: nullcontext())
     monkeypatch.setattr(bundle.storage, 'directory', lambda *_args, **_kwargs: tmp_path)
     monkeypatch.setattr(vm_config, 'registry', lambda: {'guest': None})
-    target = tmp_path / f'retention-{os.geteuid()}-guest'
+    target = tmp_path / journal.format(uid=os.geteuid())
     original = Path.lstat
+    original_stat = Path.stat
     def lstat(path, *args, **kwargs):
         if path == target:
             raise PermissionError('target journal inaccessible')
         return original(path, *args, **kwargs)
     monkeypatch.setattr(Path, 'lstat', lstat)
+    def stat_path(path, *args, **kwargs):
+        if path == target:
+            raise PermissionError('target journal inaccessible')
+        return original_stat(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'stat', stat_path)
     with pytest.raises(PermissionError, match='target journal inaccessible'):
         bundle.Selection(tmp_path, os.geteuid(), os.getegid(), ['guest'], [], []).catalogue()
 
 
 @pytest.mark.parametrize('missing_error', [FileNotFoundError, PermissionError])
+@pytest.mark.parametrize('export_error', [FileNotFoundError, PermissionError])
 @pytest.mark.parametrize('targets', [[], ['unused']])
-def test_host_only_catalogue_without_privileged_storage(tmp_path, monkeypatch, missing_error, targets):
+def test_host_only_catalogue_without_privileged_storage(
+        tmp_path, monkeypatch, missing_error, export_error, targets):
     import vm_config
 
     state = tmp_path / 'state'
@@ -100,12 +111,12 @@ def test_host_only_catalogue_without_privileged_storage(tmp_path, monkeypatch, m
         if len(reads) == 1:
             raise missing_error('privileged state unavailable')
         if kind == 'exports':
-            raise FileNotFoundError('no exports yet')
+            raise export_error('exports unavailable')
         return state
 
     monkeypatch.setattr(bundle.storage, 'directory', directory)
     selection = bundle.Selection(tmp_path, uid, gid, targets, [], [])
-    if missing_error is PermissionError:
+    if PermissionError in (missing_error, export_error):
         with pytest.raises(PermissionError):
             selection.catalogue()
     else:
@@ -335,13 +346,23 @@ def test_cumulative_bundle_survives_source_and_export_rotation(evidence):
 def test_recovery_diagnostic_samples_survive_rotation(evidence, suffix):
     evidence.sources.path = evidence.sources.path.with_name(
         f'recovery-diagnostics-{os.geteuid()}{suffix}')
-    previous, expected = [], {}
+    previous, expected, roots = [], {}, []
     for index in range(4):
-        data = f'[{index}]\n'.encode()
-        root = evidence.allocate({'observed.json': data})
-        expected[str(root / 'observed.json')] = data
-        result = evidence.publish([root / 'observed.json'], previous)
+        # Diagnostics retain original nonpassing verdicts and the complete
+        # command/input/cleanup/native-availability closure, not a summary.
+        files = {'observed.json': f'[{index}]\n'.encode(),
+                 'result.json': b'{"outcome":"diagnostic","complete":false}',
+                 'commands.json': b'[{"argv":["fixed-probe"],"exit_status":1}]',
+                 'input.json': f'{{"attempt":{index}}}'.encode(),
+                 'cleanup.json': b'{"state":"pending","vm_preserved":true}',
+                 'native-status.json': b'{"available":false}'}
+        root = evidence.allocate(files)
+        roots.append(root)
+        expected.update({str(root / name): data for name, data in files.items()})
+        result = evidence.publish([root], previous)
         previous = [Path(result['path'])]
+    assert not roots[0].exists()
+    assert len(evidence.inspect(previous[0])['files']) == len(expected)
     for path, data in expected.items():
         assert evidence.inspect(previous[0], member=path) == data
 

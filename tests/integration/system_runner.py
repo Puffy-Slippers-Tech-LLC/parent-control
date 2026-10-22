@@ -8,7 +8,7 @@ All VM/storage operations are injectable; imports have no machine side effects.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext, ExitStack
 from dataclasses import dataclass, replace
 import fcntl
 import hashlib
@@ -201,6 +201,31 @@ require = baseline.require
 Error = baseline.CaptureError
 
 from owned_commands import Commands, CommandError
+
+
+class EvidenceCommands(Commands):
+    """Retain exact command provenance, excluding stdin and transport secrets."""
+
+    def __init__(self, directory):
+        super().__init__()
+        self.evidence_path = Path(directory) / 'commands.json'
+        self.records = []
+        self._save()
+
+    def _save(self):
+        self.evidence_path.write_bytes(baseline.encode(self.records))
+
+    def run(self, args, **kwargs):
+        record = dict(sequence=len(self.records) + 1, argv=[str(item) for item in args],
+                      timeout=kwargs.get('timeout', 120), check=kwargs.get('check', True),
+                      exit_status=None)
+        self.records.append(record)
+        self._save()
+        try:
+            return super().run(args, **kwargs)
+        finally:
+            record['exit_status'] = self.last_returncode
+            self._save()
 
 
 watch_progress = None
@@ -2325,15 +2350,18 @@ def evidence(directory, manifest, lease, passed, category, selection,
             if passed:
                 category = collection_category
             passed = False
+    artifacts = manifest.get('artifacts', {}) if manifest else {}
+    state = lease.state if lease is not None and lease.state else {}
     data = {'schema_version': 1, 'test': 'install-smoke', 'outcome': 'passed' if passed else 'failed',
-            'category': category, 'package_sha256': manifest['artifacts']['package']['sha256'],
-            'fixture_sha256': manifest['artifacts']['fixtures']['sha256'],
+            'category': category, 'package_sha256': artifacts.get('package', {}).get('sha256'),
+            'fixture_sha256': artifacts.get('fixtures', {}).get('sha256'),
             'selected_inputs_sha256': selected_inputs_sha256,
-            'baseline_provenance_sha256': lease.state['baseline_sha256'],
-            'source': manifest['source'], 'cleanup_phase': lease.state['phase'],
-            'previous_package': manifest.get('previous_package'),
+            'baseline_provenance_sha256': state.get('baseline_sha256'),
+            'source': manifest.get('source') if manifest else None,
+            'cleanup_phase': state.get('phase'),
+            'previous_package': manifest.get('previous_package') if manifest else None,
             'transport': 'guarded-ssh-pytest', 'virtualization': 'libvirt-qemu-snapshot',
-            'baseline_verification': dict(lease.capture.verification_totals),
+            'baseline_verification': dict(lease.capture.verification_totals) if lease else {},
             'selection': selection_evidence(directory, selection), **ledger.data()}
     (output / 'result.json').write_bytes(baseline.encode(data))
     suite = ET.Element('testsuite', name='onpc-system', tests='1', failures='0' if passed else '1')
@@ -2349,6 +2377,63 @@ def evidence(directory, manifest, lease, passed, category, selection,
     # Keep the registered allocation private. The installed artifact reader
     # provides access without invalidating retention's ownership/mode proof.
     return passed, category
+
+
+def capture_inputs(directory):
+    """Use the same finite verified input closure for terminal and recovery proof."""
+    members = []
+    for prefix in ('input', 'input/previous', 'previous'):
+        for name in ('artifact-manifest.json', 'installed-files.json', 'transfer-sha256.json',
+                     'selected-inputs.json', 'previous-inputs.json'):
+            path = directory / prefix / name
+            if path.exists():
+                members.append(dict(path=path, role='input'))
+    selected = directory / 'input/selected-inputs.json'
+    if selected.is_file():
+        from guest_inputs import Bundle
+        frozen = Bundle.from_staged(ROOT, selected.parent)
+        for name in sorted(frozen.files):
+            members.append(dict(path=selected.parent / name, role='input'))
+    return members
+
+
+def capture_evidence(producer, directory, selection, ledger, passed, category, *, target, argv,
+                     interrupted=False, lease=None):
+    """Close only known proof trees and manifests after the outer cleanup ledger."""
+    members = capture_inputs(directory)
+    for name, role in (('result.json', 'result'), ('results.xml', 'junit'),
+                       ('results.tap', 'tap')):
+        path = directory / 'evidence' / name
+        if path.exists():
+            members.append(dict(path=path, role=role))
+    # Never select the attempt root: it also owns SSH private keys and native
+    # command diagnostics, including binary package archives.
+    collected = directory / 'guest-results'
+    if collected.is_dir():
+        try:
+            check_tree(collected)
+        except Exception:
+            pass  # evidence() already records the unsafe collection failure.
+        else:
+            for path in sorted(collected.rglob('*')):
+                if path.is_file():
+                    role = {'.xml': 'junit', '.tap': 'tap', '.png': 'media'}.get(
+                        path.suffix, 'diagnostic')
+                    members.append(dict(path=path, role=role))
+    path = directory / 'commands.json'
+    if path.exists():
+        members.append(dict(path=path, role='command'))
+    cleanup = ledger.outcomes['cleanup']['outcome']
+    cleanup = {'passed': 'complete', 'failed': 'failed'}.get(cleanup, 'pending')
+    purpose = 'harness-qualification' if selection.qualification_failure else 'product-tests'
+    return producer.finalize(categories=[dict(name='system', selection=selection_evidence(
+        directory, selection), category=category)],
+        status='diagnostic' if selection.qualification_failure else 'interrupted' if interrupted
+            else 'passed' if passed else 'failed',
+        cleanup=cleanup, members=members, target=target, check='system',
+        cleanup_resources=[dict(kind='vm', id=target, disposition='not_owned' if lease is None
+                                else 'cleaned' if cleanup == 'complete' else 'preserved')],
+        inputs=dict(argv=argv, purpose=purpose))
 
 
 def main(argv=None):
@@ -2385,6 +2470,9 @@ def main(argv=None):
     category = 'runner-failed'
     selection = None
     selected_inputs_sha256 = None
+    producer = None
+    was_interrupted = False
+    producer_owner = ExitStack()
     ledger = RunLedger()
     try:
         require(sum(argument == '--id' or argument.startswith('--id=')
@@ -2433,11 +2521,25 @@ def main(argv=None):
             assets = artifact_source(args.artifacts)
             previous_assets = artifact_source(args.previous_artifacts) if args.previous_artifacts else None
         os.umask(0o077)
+        from qualification_storage import session as qualification_session
+        producer_owner.enter_context(qualification_session(
+            run=os.environ.get('ONPC_QUALIFICATION_RETENTION_RUN'), require_owner=True))
         from tools.test_retention import allocate
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-system-'))
+        from tools.runner_evidence import ReportEvidence
+        producer = ReportEvidence(ROOT, directory, workflow='system',
+            terminal_context=dict(target=configured.name, check='system',
+                inputs=dict(argv=argv, purpose='harness-qualification' if selection.qualification_failure
+                            else 'product-tests'),
+                cleanup_resources=[dict(kind='vm', id=configured.name, disposition='preserved')]),
+            recovery_allowlist=[dict(pattern=pattern, role=role) for pattern, role in (
+                ('evidence/result.json', 'result'), ('evidence/results.xml', 'junit'),
+                ('evidence/results.tap', 'tap'), ('commands.json', 'command'),
+                ('guest-results/*', 'diagnostic'), ('input/*.json', 'input'),
+                ('input/*.py', 'input'), ('previous/*.json', 'input'))])
         private = directory / 'private'
         private.mkdir(mode=0o700)
-        commands = Commands()
+        commands = EvidenceCommands(directory)
         commands.directory = private
         with ledger.measure('preparation'):
             minimal = args.fixture_selection is not None
@@ -2458,6 +2560,9 @@ def main(argv=None):
                          for p in sorted((directory / 'input').rglob('*'))
                          if p.is_file() and p.name != 'transfer-sha256.json'}
             (directory / 'input/transfer-sha256.json').write_bytes(baseline.encode(inventory))
+            # These source bytes are now immutable. Persist the exact manifest
+            # closure before acquiring a guest or producing mutable results.
+            producer.checkpoint_members(capture_inputs(directory))
         api.virEventRegisterDefaultImpl()
         def events():
             while True:
@@ -2479,6 +2584,7 @@ def main(argv=None):
         passed = True
         category = 'all-checks-passed'
     except (Exception, KeyboardInterrupt) as error:
+        was_interrupted = isinstance(error, KeyboardInterrupt)
         # A remote pytest exits through ssh's generic CommandError boundary.
         # Retain the first classified runner failure instead of replacing it
         # with that transport wrapper in the aggregate result.
@@ -2522,12 +2628,31 @@ def main(argv=None):
                 if passed:
                     category = cleanup_category
                 passed = False
-        if (directory and manifest and lease and lease.state and selection and
-                selected_inputs_sha256):
-            passed, category = evidence(
-                directory, manifest, lease, passed, category, selection,
-                selected_inputs_sha256, ledger)
-            log('evidence:' + str(directory / 'evidence'))
+        if directory and producer is not None:
+            # No suite/source means staging failed before acquiring a VM. Its
+            # cleanup has no resources; all other paths retain the outer audit.
+            if suite is None and source is None and host_before is None:
+                ledger.pass_outcome('cleanup')
+            try:
+                passed, category = evidence(
+                    directory, manifest, lease, passed, category, selection,
+                    selected_inputs_sha256, ledger)
+                capture_evidence(producer, directory, selection, ledger, passed, category,
+                                 target=configured.name, argv=argv, interrupted=was_interrupted,
+                                 lease=lease)
+                log('evidence:' + str(directory / 'evidence'))
+            except (Exception, KeyboardInterrupt) as error:
+                # No retry after denied publication; startup keeps originals
+                # required. A capture failure never turns a failed test into a pass.
+                record_caught_failure(ledger, error)
+                passed = False
+                log('evidence:finalization-failed')
+        try:
+            producer_owner.close()
+        except (Exception, KeyboardInterrupt) as error:
+            record_caught_failure(ledger, error)
+            passed = False
+            log('evidence:owner-finalization-failed')
     return 0 if passed else 1
 
 

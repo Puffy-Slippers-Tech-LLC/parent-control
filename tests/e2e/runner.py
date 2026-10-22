@@ -133,24 +133,30 @@ def main(argv=None):
             return 0
         argv, _ = vm_config.extract(argv, required='--list' not in argv)
         plan = preflight(argv)
-        if plan['mode'] in ('asset-transfer-qualification', 'authenticated-installation-qualification',
-                            'deliberate-installation-refusal-qualification'):
-            sys.path.insert(0, str(ROOT / 'tests/integration'))
-            import check_graphical_smoke
-            if plan['mode'] == 'authenticated-installation-qualification':
-                return check_graphical_smoke.main(assets=Path(plan['artifacts']),
-                                                 provision_credentials=True, serial=True, install=True)
-            if plan['mode'] == 'deliberate-installation-refusal-qualification':
-                return check_graphical_smoke.main(assets=Path(plan['artifacts']),
-                                                 provision_credentials=True, serial=True,
-                                                 install_refusal=True)
-            return check_graphical_smoke.main(assets=Path(plan['artifacts']))
-        if plan['mode'] == 'execution-preflight':
-            sys.path.insert(0, str(ROOT / 'tests/e2e'))
-            import execution
-            return execution.main(plan)
-        print(json.dumps(plan, indent=2))
-        return 0
+        if plan['mode'] == 'list-only':
+            print(json.dumps(plan, indent=2))
+            return 0
+        requested_run = os.environ.get('ONPC_QUALIFICATION_RETENTION_RUN')
+        if requested_run is not None and not re.fullmatch('[0-9a-f]{32}', requested_run):
+            raise ValueError('retention: invalid qualification run')
+        sys.path.insert(0, str(ROOT / 'tests/integration'))
+        import qualification_storage
+        with qualification_storage.session(run=requested_run, require_owner=True):
+            if plan['mode'] in ('asset-transfer-qualification', 'authenticated-installation-qualification',
+                                'deliberate-installation-refusal-qualification'):
+                import check_graphical_smoke
+                if plan['mode'] == 'authenticated-installation-qualification':
+                    return check_graphical_smoke.main(assets=Path(plan['artifacts']),
+                                                     provision_credentials=True, serial=True, install=True)
+                if plan['mode'] == 'deliberate-installation-refusal-qualification':
+                    return check_graphical_smoke.main(assets=Path(plan['artifacts']),
+                                                     provision_credentials=True, serial=True,
+                                                     install_refusal=True)
+                return check_graphical_smoke.main(assets=Path(plan['artifacts']))
+            if plan['mode'] == 'execution-preflight':
+                sys.path.insert(0, str(ROOT / 'tests/e2e'))
+                import execution
+                return execution.main(plan)
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'e2e:input-or-execution-failure'
         print(detail, file=sys.stderr)

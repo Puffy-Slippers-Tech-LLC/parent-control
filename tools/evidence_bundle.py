@@ -17,9 +17,12 @@ import struct
 import tempfile
 import zipfile
 
-import evidence_identity as logical
-import test_retention as retention
-import test_storage as storage
+if __package__:
+    from . import evidence_identity as logical, test_retention as retention, test_storage as storage
+else:
+    import evidence_identity as logical
+    import test_retention as retention
+    import test_storage as storage
 
 MAX_FILES = 60000
 MAX_SOURCE_BUDGETS = 64
@@ -240,6 +243,14 @@ class Selection:
     def catalogue(self, *, archives=None):
         # Only fixed shared journals and registered canonical targets are read.
         self.validate_targets()
+        def present(path):
+            # Path.exists may suppress access errors. Only actual absence is
+            # optional; denied journal discovery must remain a refusal.
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                return False
+            return True
         result = []
         if archives is not None:
             # Finished archives authenticate their own recorded allocation. An
@@ -264,7 +275,7 @@ class Selection:
                     selected.add(path.parent.parent / 'retention')
                 # Preserve the destination budget snapshot when it exists.
                 destination = self.publication_parent() / 'retention'
-                if destination.exists():
+                if present(destination):
                     selected.add(destination)
                 return [(path, self.uid, self.gid) for path in sorted(selected)]
         if os.geteuid() == 0:
@@ -282,9 +293,9 @@ class Selection:
                     result.append((journal, 0, 0))
                 result += [(parent / f'recovery-diagnostics-{self.uid}-{target}', 0, 0)
                            for target in sorted(self.targets)
-                           if (parent / f'recovery-diagnostics-{self.uid}-{target}').exists()]
+                           if present(parent / f'recovery-diagnostics-{self.uid}-{target}')]
                 diagnostics = parent / f'recovery-diagnostics-{self.uid}'
-                if diagnostics.exists():
+                if present(diagnostics):
                     result.append((diagnostics, 0, 0))
         with identity(self.uid, self.gid):
             try:
@@ -294,18 +305,18 @@ class Selection:
             names = ('retention-host', 'retention-batch', 'retention', 'standalone-reports',
                      *(f'retention-{target}' for target in sorted(self.targets)))
             for name in names:
-                if parent is not None and (parent / name).exists():
+                if parent is not None and present(parent / name):
                     result.append((parent / name, self.uid, self.gid))
             if self.plan_namespace is not None:
                 proof = self.publication_parent()
                 result.append((proof.parent / 'retention', self.uid, self.gid))
-                if (proof / 'retention').exists():
+                if present(proof / 'retention'):
                     result.append((proof / 'retention', self.uid, self.gid))
             try:
                 exports = storage.directory('exports', root=self.checkout, create=False)
             except FileNotFoundError:
                 return result  # The first bundle has no existing export journal.
-            if (exports / 'retention').exists():
+            if present(exports / 'retention'):
                 result.append((exports / 'retention', self.uid, self.gid))
         return result
 
@@ -339,7 +350,10 @@ class Selection:
         else:
             journals = ()
         if self.captures and not journals:
-            import evidence_capture
+            if __package__:
+                from . import evidence_capture
+            else:
+                import evidence_capture
             evidence_capture.validate_targets(self.checkout, self.targets)
         for journal, uid, gid in sorted(journals):
             with identity(uid, gid):
@@ -364,7 +378,10 @@ class Selection:
                 if len(self.source_budgets) > MAX_SOURCE_BUDGETS:
                     raise ValueError('bundle: source budget entry limit exceeded')
         if self.captures:
-            import evidence_capture
+            if __package__:
+                from . import evidence_capture
+            else:
+                import evidence_capture
             for capture_id in self.captures:
                 metadata = {}
                 request = self.stack.enter_context(evidence_capture.capture_scope(
@@ -395,7 +412,10 @@ class Selection:
                 self.source_budgets.append(dict(journal=allocation['journal'], allocated_bytes=measured))
                 if len(self.source_budgets) > MAX_SOURCE_BUDGETS:
                     raise ValueError('bundle: source budget entry limit exceeded')
-            import capture_publication
+            if __package__:
+                from . import capture_publication
+            else:
+                import capture_publication
             capture_publication.prepare_selection(self)
         missing, archived = [], []
         for value in self.references:
@@ -959,7 +979,10 @@ def verify_stream(stream):
 
 def export(selection, *, expected, defer_cleanup=False):
     if selection.captures:
-        import capture_publication
+        if __package__:
+            from . import capture_publication
+        else:
+            import capture_publication
         return capture_publication.publish(selection, expected=expected, defer_cleanup=defer_cleanup)
     if expected != selection.selection_sha256:
         raise ValueError('bundle: selection changed; inspect a fresh plan before exporting')

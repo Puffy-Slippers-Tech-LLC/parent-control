@@ -4,6 +4,7 @@ Callers choose closed files explicitly. Mutable outer handoffs are separate
 records, and publication never changes a runner verdict or executes a check.
 """
 import copy
+import fnmatch
 import hashlib
 import json
 import os
@@ -32,7 +33,8 @@ def _json(value):
 
 
 class ReportEvidence:
-    def __init__(self, root, directory, *, store=None, workflow='regression'):
+    def __init__(self, root, directory, *, store=None, workflow='regression',
+                 terminal_context=None, recovery_allowlist=None):
         self.root, self.directory = Path(root), Path(directory)
         if store is None:
             token = os.environ.get(retention.VARIABLE)
@@ -55,6 +57,25 @@ class ReportEvidence:
         # authenticated by producer_binding and is issued again by capture.
         self.invocation = json.loads(_json(self.invocation))
         self.commands, self._prepared, self._result = [], None, None
+        self.terminal_context = copy.deepcopy(terminal_context)
+        if terminal_context is not None:
+            logical._object(terminal_context, {'target', 'check', 'inputs', 'cleanup_resources'},
+                            'producer terminal context')
+            logical._text(terminal_context['check'])
+            if terminal_context['target']:
+                logical._text(terminal_context['target'])
+        self.recovery_allowlist = copy.deepcopy(recovery_allowlist)
+        if recovery_allowlist is not None:
+            if type(recovery_allowlist) is not list or len(recovery_allowlist) > 256:
+                raise ValueError('runner evidence: invalid recovery allowlist')
+            for item in recovery_allowlist:
+                logical._object(item, {'pattern', 'role'}, 'recovery selection')
+                pattern = item['pattern']
+                if (type(pattern) is not str or not pattern or pattern.startswith('/')
+                        or '..' in pattern.split('/') or '\\' in pattern):
+                    raise ValueError('runner evidence: invalid relative recovery pattern')
+                logical._choice(item['role'], {'result', 'input', 'command', 'junit', 'tap',
+                                              'cleanup', 'diagnostic', 'media'})
         self._start = self._start_record(allocation)
 
     def _start_record(self, allocation):
@@ -72,6 +93,9 @@ class ReportEvidence:
         payload = dict(schema='onpc-runner-lifecycle', version=1, phase='started',
                        workflow=self.workflow, owner=owner, run=self.binding[3],
                        report_allocation=allocation, invocation=self.invocation)
+        if self.terminal_context is not None or self.recovery_allowlist is not None:
+            payload.update(terminal_context=self.terminal_context,
+                           recovery_allowlist=self.recovery_allowlist)
         with path.open('xb') as stream:
             os.chmod(path, 0o600)
             stream.write(_json(payload))
@@ -85,6 +109,7 @@ class ReportEvidence:
             directory=str(self.directory), phase='started', input_sha256=checksum))
         handle = capture.issue_session(self.store, repository=self.root,
             workflow=self.workflow, task='runner-start', check='report-start',
+            target='' if self.terminal_context is None else self.terminal_context['target'],
             inputs_sha256=checksum, sources_sha256=self.sources_sha256,
             consumers={consumer_id: dict(consumer_id=consumer_id, revision_sha256=checksum)})
         context = capture.session_context(handle)
@@ -177,8 +202,61 @@ class ReportEvidence:
             os.fsync(fd)
         return path
 
+    def checkpoint_members(self, members):
+        """Persist the producer's growing finite inventory after file sync.
+
+        This owner-local recovery input lives outside the exact-list collector.
+        It cannot remove or replace an already registered immutable member.
+        """
+        if self._prepared is not None:
+            raise ValueError('runner evidence: terminal inventory is already closed')
+        if len(members) > 4096:
+            raise ValueError('runner evidence: checkpoint inventory exceeds bound')
+        saved = []
+        with self.store.locked(self.binding[1], 'writer.lock'):
+            state = self.store.read(self.binding[1])
+        for item in members:
+            member = self._member(item['path'], item['role'])
+            with capture._source(member, state, self.store, self.binding[3]) as (fd, info):
+                identity = capture._fingerprint(info)
+                if capture._hash(fd, info.st_size) != member['sha256']:
+                    raise ValueError('runner evidence: checkpoint member changed')
+            saved.append(dict(member=member, identity=identity))
+        saved.sort(key=lambda item: item['member']['original_path'])
+        if len({item['member']['original_path'] for item in saved}) != len(saved):
+            raise ValueError('runner evidence: duplicate checkpoint member')
+        source = self._start['record']['members'][0]
+        path = Path(source['original_path']).parent / 'producer-inventory.json'
+        try:
+            previous = json.loads(self._read_owned(self._member(path, 'input')))
+        except FileNotFoundError:
+            previous = None
+        if previous is not None:
+            if (previous.get('start_record_id') != self._start['record']['record_id']
+                    or any(item not in saved for item in previous['members'])):
+                raise ValueError('runner evidence: checkpoint replaced registered proof')
+        data = _json(dict(schema=1, start_record_id=self._start['record']['record_id'], members=saved))
+        if len(data) > logical.MAX_METADATA:
+            raise ValueError('runner evidence: checkpoint metadata exceeds bound')
+        with retention.directory_descriptor(path.parent) as fd:
+            allocation = source['source_allocation']
+            if (os.fstat(fd).st_dev, os.fstat(fd).st_ino) != (allocation['device'], allocation['inode']):
+                raise ValueError('runner evidence: checkpoint allocation changed')
+            output = os.open(path.name + '.tmp', os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600, dir_fd=fd)
+            with os.fdopen(output, 'wb') as stream:
+                retention.private(os.fstat(stream.fileno()), regular=True)
+                stream.truncate(0)
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(path.name + '.tmp', path.name, src_dir_fd=fd, dst_dir_fd=fd)
+            os.fsync(fd)
+        self._checkpoint_expected = {item['member']['original_path']: item['identity'] for item in saved}
+        return path
+
     def finalize(self, *, categories, status=None, cleanup='pending', members=(),
-                 sources_sha256=None, inputs=None):
+                 sources_sha256=None, inputs=None, target='', check='report',
+                 cleanup_resources=(), dependencies=(), command_log=None):
         """Seal, publish and acknowledge a finite closed terminal inventory.
 
         Retry on this object resumes its exact handles/records after a lost
@@ -193,25 +271,44 @@ class ReportEvidence:
             logical._choice(cleanup, {'complete', 'failed', 'pending', 'not_applicable'})
             status = status or 'diagnostic'
             logical._choice(status, {'passed', 'failed', 'interrupted', 'not_run', 'diagnostic'})
+            logical._text(check)
+            if target:
+                logical._text(target)
+            cleanup_resources = sorted(copy.deepcopy(list(cleanup_resources)),
+                                       key=lambda item: (item['kind'], item['id']))
+            dependencies = copy.deepcopy(list(dependencies))
+            for dependency in dependencies:
+                logical._record(dependency)
+            if command_log is not None:
+                if type(command_log) is not list or len(command_log) > 4096:
+                    raise ValueError('runner evidence: command ledger exceeds bound')
+                command_log = json.loads(_json(command_log))
+                if any(type(command) is not dict for command in command_log):
+                    raise ValueError('runner evidence: invalid command ledger')
             self.store.producer_binding()
             members = [dict(path=str(item['path']), role=item['role']) for item in members]
             if not getattr(self, '_recovering', False):
                 declaration = self._declare_preparation(dict(schema=1,
                     start_record_id=self._start['record']['record_id'], members=members,
                     commands=self.commands, categories=categories, status=status,
-                    cleanup=cleanup, inputs=inputs, sources_sha256=sources_sha256))
+                    cleanup=cleanup, inputs=inputs, sources_sha256=sources_sha256,
+                    target=target, check=check, cleanup_resources=cleanup_resources,
+                    dependencies=dependencies, command_log=command_log))
                 members.append(dict(path=str(declaration), role='input'))
             directory = Path(retention.allocate(tempfile.mkdtemp, prefix='onpc-runner-evidence-'))
             external = [self._member(item['path'], item['role']) for item in members]
             if len({(item['original_path'], item['role']) for item in external}) != len(external):
                 raise ValueError('runner evidence: duplicate finalized member')
             prepared = [self._start, *getattr(self, '_recovery_dependencies', [])]
-            records = [item['record'] for item in prepared]
+            records = [*dependencies, *[item['record'] for item in prepared]]
             # A command binds its exact selection/target separately from the
             # aggregate, which owns only its original explicit file inventory.
             items = [(command, False) for command in self.commands]
-            aggregate_commands = getattr(self, '_recovered_commands', self.commands)
-            items.append((dict(check='report', target='', status=status, cleanup=cleanup,
+            aggregate_commands = getattr(self, '_recovered_commands',
+                                         self.commands if command_log is None else command_log)
+            items.append((dict(check=check, target=target, status=status, cleanup=cleanup,
+                               cleanup_resources=cleanup_resources,
+                               lifecycle_record_id=self._start['record']['record_id'],
                                categories=categories, commands=aggregate_commands), True))
             if len(items) + len(prepared) > capture.MAX_SELECTIONS:
                 raise ValueError('runner evidence: too many terminal records')
@@ -241,6 +338,10 @@ class ReportEvidence:
                 consumer_id = logical.digest(dict(workflow=self.workflow, run=self.binding[3],
                     directory=str(self.directory), index=index, input_sha256=input_sha))
                 consumers = {consumer_id: dict(consumer_id=consumer_id, revision_sha256=input_sha)}
+                referenced = {reference['record_id'] for dependency in records
+                              for reference in dependency['dependencies']}
+                dependency_roots = [dependency for dependency in records
+                                    if dependency['record_id'] not in referenced]
                 handle = capture.issue_session(self.store, repository=self.root,
                     workflow=self.workflow, task='runner-terminal', check=item.get('check') or 'report',
                     target=item.get('target') or '', inputs_sha256=input_sha,
@@ -261,19 +362,35 @@ class ReportEvidence:
                         ('interrupted', 'diagnostic', 'not_run') else 'partial',
                     members=record_members,
                     dependencies=[dict(record_id=dep['record_id'], closure_sha256=dep['closure_sha256'])
-                                  for dep in records] if aggregate else [],
+                                  for dep in dependency_roots] if aggregate else [],
                     cleanup=dict(state=cleanup_state, record_members=cleanup_ids,
-                                 scope=dict(owner=context['owner'], resources=[]))))
+                                 scope=dict(owner=context['owner'],
+                                            resources=item.get('cleanup_resources', [])))))
                 records.append(record)
                 prepared.append(dict(handle=handle, record=record, consumer_id=consumer_id))
             with retention.directory_descriptor(directory) as fd:
                 os.fsync(fd)
             self._prepared = prepared
         identifiers = []
+        expected = getattr(self, '_checkpoint_expected', {})
+        selected_paths = {member['original_path'] for item in self._prepared
+                          for member in item['record']['members']}
+        if not expected.keys() <= selected_paths:
+            raise ValueError('runner evidence: terminal omitted checkpointed proof')
         for item in self._prepared:
             identifier = capture.finalize_capture(item['handle'], record=item['record'],
                                                  consumer_ids=[item['consumer_id']])
             item['capture_id'] = identifier
+            if expected:
+                with self.store.locked(self.binding[1], 'writer.lock'):
+                    state = self.store.read(self.binding[1])
+                charge, = [charge for charge in state['captures'] if charge['capture_id'] == identifier]
+                originals = {original['member_id']: original['identity']
+                             for original in charge['intent']['originals']}
+                for member in item['record']['members']:
+                    if (member['original_path'] in expected
+                            and originals[member['member_id']] != expected[member['original_path']]):
+                        raise ValueError('runner evidence: checkpointed source identity changed during sealing')
             identifiers.append(identifier)
         caller = capture._authenticated_caller()
         targets = sorted({item['record']['context']['target'] for item in self._prepared
@@ -335,6 +452,44 @@ def _recovery_inventory(evidence, allocation, declaration):
             raise ValueError('runner evidence: recovery inventory exceeds capture bounds')
         members[str(path)] = dict(path=str(path), role=role)
 
+    checkpoint = Path(evidence._start['record']['members'][0]['original_path']).parent / 'producer-inventory.json'
+    try:
+        checkpoint_member = evidence._member(checkpoint, 'input')
+    except FileNotFoundError:
+        if getattr(evidence, 'recovery_allowlist', None) == [] and declaration is None:
+            raise ValueError('runner evidence: exact producer recovery inventory is unavailable')
+    else:
+        saved = json.loads(evidence._read_owned(checkpoint_member))
+        logical._object(saved, {'schema', 'start_record_id', 'members'}, 'producer inventory')
+        if (saved['schema'] != 1 or saved['start_record_id'] != evidence._start['record']['record_id']
+                or type(saved['members']) is not list or len(saved['members']) > 4096):
+            raise ValueError('runner evidence: invalid producer recovery inventory')
+        for item in saved['members']:
+            logical._object(item, {'member', 'identity'}, 'producer inventory member')
+            member = item['member']
+            current = evidence._member(member['original_path'], member['role'])
+            if current != member:
+                raise ValueError('runner evidence: registered recovery proof changed')
+            with evidence.store.locked(evidence.binding[1], 'writer.lock'):
+                state = evidence.store.read(evidence.binding[1])
+            with capture._source(member, state, evidence.store, evidence.binding[3]) as (_, info):
+                if capture._fingerprint(info) != item['identity']:
+                    raise ValueError('runner evidence: registered recovery identity changed')
+            add(Path(member['original_path']), member['role'])
+        evidence._checkpoint_expected = {
+            item['member']['original_path']: item['identity'] for item in saved['members']}
+        if getattr(evidence, 'recovery_allowlist', None) == []:
+            with retention.directory_descriptor(root) as fd:
+                expected = {str(Path(path).relative_to(root)) for path in members
+                            if Path(path).is_relative_to(root)}
+                if set(os.listdir(fd)) != expected:
+                    raise ValueError('runner evidence: unregistered producer recovery file')
+        add(checkpoint, 'input')
+        for path, role in declared.items():
+            add(Path(path), role)
+        if getattr(evidence, 'recovery_allowlist', None) == []:
+            return list(members.values()), []
+
     def walk(directory, fd, depth):
         nonlocal entries
         if depth > 32:
@@ -345,6 +500,9 @@ def _recovery_inventory(evidence, allocation, declaration):
         if entries > 4096:
             raise ValueError('runner evidence: recovery directory entry bound exceeded')
         for name in sorted(names):
+            if name in {'ssh-key', 'ssh-key.pub', 'known-hosts', 'password', 'vars.json',
+                        'credentials', 'redaction-identities'} or name.endswith('.password'):
+                continue
             path = directory / name
             info = os.stat(name, dir_fd=fd, follow_symlinks=False)
             if stat.S_ISDIR(info.st_mode):
@@ -359,6 +517,17 @@ def _recovery_inventory(evidence, allocation, declaration):
                 finally:
                     os.close(child)
             elif stat.S_ISREG(info.st_mode):
+                if str(path) in members:
+                    continue  # Already verified against the immutable checkpoint.
+                allowlist = getattr(evidence, 'recovery_allowlist', None)
+                if allowlist is not None and str(path) not in declared:
+                    matches = [item['role'] for item in allowlist
+                        if fnmatch.fnmatchcase(str(path.relative_to(root)), item['pattern'])]
+                    if not matches:
+                        continue
+                    role = matches[0]
+                    add(path, role)
+                    continue
                 role = declared.get(str(path), 'input' if name.startswith('inventory-') else
                     'command' if name.startswith('command-') or path.suffix == '.log' or name == 'schedule.jsonl' else
                     'result' if name in ('report.md', 'progress.json', 'failure.json', 'results.json') else 'diagnostic')
@@ -466,14 +635,19 @@ def recover_pending(root, store):
             evidence._start, evidence._prepared, evidence._result = start, None, None
             evidence.commands, evidence._recovering = [], True
             payload = json.loads(evidence._read_owned(source[0]))
-            logical._object(payload, {'schema', 'version', 'phase', 'workflow', 'owner', 'run',
-                                     'report_allocation', 'invocation'}, 'runner startup')
+            startup_fields = {'schema', 'version', 'phase', 'workflow', 'owner', 'run',
+                              'report_allocation', 'invocation'}
+            if set(payload) != startup_fields:
+                startup_fields |= {'terminal_context', 'recovery_allowlist'}
+            logical._object(payload, startup_fields, 'runner startup')
             if (payload['schema'] != 'onpc-runner-lifecycle' or payload['version'] != 1
                     or payload['phase'] != 'started' or payload['workflow'] != context['workflow']
                     or payload['owner'] != context['owner'] or payload['run'] != original_run
                     or type(payload['invocation']) is not dict):
                 raise ValueError('runner evidence: startup provenance changed')
             allocation = payload['report_allocation']
+            evidence.terminal_context = payload.get('terminal_context')
+            evidence.recovery_allowlist = payload.get('recovery_allowlist')
             logical.validate_allocation(allocation)
             evidence.directory, evidence.invocation = Path(allocation['path']), payload['invocation']
             if evidence._allocation(evidence.directory) != allocation:
@@ -482,11 +656,17 @@ def recover_pending(root, store):
                              closure_sha256=start['record']['closure_sha256'])
             terminals = [item for item in charges
                 if item['intent']['record']['context']['task'] == 'runner-terminal'
-                and item['intent']['record']['context']['check'] == 'report'
                 and reference in item['intent']['record']['dependencies']]
             if len(terminals) > 1:
                 raise ValueError('runner evidence: ambiguous retained terminal closure')
             if terminals:
+                checkpoint = Path(source[0]['original_path']).parent / 'producer-inventory.json'
+                try:
+                    evidence._member(checkpoint, 'input')
+                except FileNotFoundError:
+                    pass
+                else:
+                    _recovery_inventory(evidence, allocation, None)
                 closure, waiting = {}, [terminals[0]]
                 while waiting:
                     item = waiting.pop()
@@ -506,12 +686,13 @@ def recover_pending(root, store):
                 continue
             peers = [item for item in starts
                      if item['intent']['record']['context']['workflow'] == context['workflow']]
-            if len(peers) != 1:
+            exact_producer = evidence.terminal_context is not None and evidence.recovery_allowlist is not None
+            if len(peers) != 1 and not exact_producer:
                 raise ValueError('runner evidence: ambiguous unfinished report allocations')
             evidence._recovery_dependencies = [resume(item) for item in charges
                 if item['capture_id'] != charge['capture_id'] and not item.get('acknowledgement')
                 and item['intent']['record']['context']['workflow'] == context['workflow']
-                and item['intent']['record']['context']['task'] == 'runner-terminal']
+                and item['intent']['record']['context']['task'] == 'runner-terminal'] if not exact_producer else []
             declaration_path = Path(source[0]['original_path']).parent / 'terminal-preparation.json'
             try:
                 declared_member = evidence._member(declaration_path, 'input')
@@ -519,8 +700,15 @@ def recover_pending(root, store):
                 declared_member, declaration = None, None
             else:
                 declaration = json.loads(evidence._read_owned(declared_member))
-                logical._object(declaration, {'schema', 'start_record_id', 'members', 'commands',
-                    'categories', 'status', 'cleanup', 'inputs', 'sources_sha256'}, 'runner preparation')
+                preparation_fields = {'schema', 'start_record_id', 'members', 'commands',
+                    'categories', 'status', 'cleanup', 'inputs', 'sources_sha256'}
+                # Retained runner preparations predate target-specific producer
+                # closures. Their original host/report context remains valid.
+                if set(declaration) != preparation_fields:
+                    preparation_fields |= {'target', 'check', 'cleanup_resources', 'dependencies'}
+                    if 'command_log' in declaration:
+                        preparation_fields.add('command_log')
+                logical._object(declaration, preparation_fields, 'runner preparation')
                 if declaration['schema'] != 1 or declaration['start_record_id'] != reference['record_id']:
                     raise ValueError('runner evidence: foreign terminal preparation')
                 if (type(declaration['members']) is not list or len(declaration['members']) > 4096
@@ -539,10 +727,18 @@ def recover_pending(root, store):
             members, commands = _recovery_inventory(evidence, allocation, declaration)
             if declared_member is not None:
                 members.append(dict(path=str(declaration_path), role='input'))
-            evidence._recovered_commands = commands if declaration is None else declaration['commands']
+            evidence._recovered_commands = commands if declaration is None else (
+                declaration.get('command_log') if declaration.get('command_log') is not None
+                else declaration['commands'])
+            terminal_context = evidence.terminal_context or {}
             results.append(evidence.finalize(categories=[] if declaration is None else declaration['categories'],
                 status='interrupted', cleanup='pending', members=members,
-                inputs=None if declaration is None else declaration['inputs']))
+                inputs=terminal_context.get('inputs') if declaration is None else declaration['inputs'],
+                target=terminal_context.get('target', '') if declaration is None else declaration.get('target', ''),
+                check=terminal_context.get('check', 'report') if declaration is None else declaration.get('check', 'report'),
+                cleanup_resources=terminal_context.get('cleanup_resources', ()) if declaration is None
+                    else declaration.get('cleanup_resources', ()),
+                dependencies=() if declaration is None else declaration.get('dependencies', ())))
         with store.locked(binding[1], 'writer.lock'):
             remaining = store.read(binding[1])
         if any(not charge.get('acknowledgement') for charge in remaining.get('captures', [])):

@@ -9,8 +9,10 @@ import copy
 import hashlib
 import json
 import os
+from pathlib import Path
 import stat
 import sys
+import tempfile
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
@@ -2739,6 +2741,226 @@ def test_unsafe_guest_evidence_fails_collection_without_replacing_product_catego
     assert result['outcomes']['collection'] == {
         'outcome': 'failed', 'category': 'collection:unsafe-or-unavailable-evidence'}
     assert not (tmp_path / 'evidence/guest').exists()
+
+
+@pytest.fixture
+def system_capture_environment(tmp_path, monkeypatch):
+    """Real private retention/publication; no VM or installed product."""
+    from tools import evidence_capture, runner_evidence, test_retention, test_storage
+    root = tmp_path / 'checkout'
+    root.mkdir(mode=0o700)
+    monkeypatch.setattr(test_storage, 'ROOT', root)
+    monkeypatch.setattr(test_storage, 'BASE', root / 'output/test-runs')
+    monkeypatch.delenv(test_retention.VARIABLE, raising=False)
+    monkeypatch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+    monkeypatch.delenv('ONPC_RUNNER_INVOCATION', raising=False)
+    monkeypatch.setattr(evidence_capture, '_authenticated_caller',
+                        lambda: dict(uid=root.stat().st_uid, gid=root.stat().st_gid))
+    monkeypatch.setattr(evidence_capture, 'validate_targets', lambda root, targets: None)
+    monkeypatch.setattr(runner_evidence.regression_inputs, 'identity', lambda root: 'f' * 64)
+    return root, test_retention.Store(test_storage.directory('state') / 'retention-host')
+
+
+def system_controller_capture(monkeypatch, root, store, *, fault=None):
+    """Exercise main's real outer writer and retained producer lifecycle."""
+    from tools import runner_evidence
+    import system_snapshots
+    receipts, directories = [], []
+    real_report = runner_evidence.ReportEvidence
+    def report(checkout, directory, **kwargs):
+        directories.append(directory)
+        return real_report(root, directory, **kwargs)
+    monkeypatch.setattr(runner_evidence, 'ReportEvidence', report)
+    real_capture = runner.capture_evidence
+    def capture(*args, **kwargs):
+        result = real_capture(*args, **kwargs)
+        receipts.append(result)
+        return result
+    monkeypatch.setattr(runner, 'capture_evidence', capture)
+    monkeypatch.setattr(runner.baseline.guest_contract, 'CHECKOUT', runner.ROOT)
+    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: INVENTORIES[name])
+    monkeypatch.setattr(runner.shutil, 'which', lambda name: '/usr/bin/' + name)
+    real_import = runner.importlib.import_module
+    monkeypatch.setattr(runner.importlib, 'import_module',
+                        lambda name: Mock() if name in ('libvirt', 'guestfs') else real_import(name))
+    monkeypatch.setattr(runner.threading.Thread, 'start', lambda self: None)
+    monkeypatch.setattr(runner.signal, 'signal', lambda *args: None)
+    real_require = runner.require
+    monkeypatch.setattr(runner, 'require', lambda value, category:
+                        None if category.startswith('guard:root;') else real_require(value, category))
+    monkeypatch.setattr(runner, 'artifact_source', lambda path: path)
+    monkeypatch.setattr(runner, 'host_fingerprint', lambda commands: {})
+    monkeypatch.setattr(runner.baseline, 'LibvirtSource', lambda api: Mock())
+    def command(self, args, **kwargs):
+        self.last_returncode = 0
+        return b'package inspection only'
+    monkeypatch.setattr(runner.Commands, 'run', command)
+    def stage(assets, destination, commands):
+        destination.mkdir()
+        manifest = dict(artifacts=dict(package=dict(sha256='a' * 64),
+                                       fixtures=dict(sha256='b' * 64)), source=dict(commit='test'))
+        (destination / 'artifact-manifest.json').write_bytes(runner.baseline.encode(manifest))
+        commands.run(['fake-inspect', '--exact'], input=b'never retain this secret')
+        if fault == 'pre-lease':
+            raise runner.Error('assets:fixture-bundle-missing')
+        return manifest
+    monkeypatch.setattr(runner, 'stage_assets', stage)
+    def selected(selection, destination):
+        (destination / 'probe.py').write_bytes(b'EXACT_INPUT = 17\n')
+        payload = dict(files={'probe.py': dict(source='tests/system/probe.py',
+            sha256=hashlib.sha256(b'EXACT_INPUT = 17\n').hexdigest())})
+        (destination / 'selected-inputs.json').write_bytes(runner.baseline.encode(payload))
+        return 'd' * 64
+    monkeypatch.setattr(runner, 'stage_selected_inputs', selected)
+    lease = SimpleNamespace(state=dict(baseline_sha256='c' * 64, phase='complete'),
+                            capture=SimpleNamespace(verification_totals={}))
+    class Suite:
+        source = True
+        def acquire(self, ledger):
+            self.ledger = ledger
+            return None, None, lease
+        def close(self):
+            self.ledger.durations['cleanup'] += 1.75
+            if fault == 'cleanup':
+                raise runner.Error('cleanup:late-audit-failed')
+            self.ledger.pass_outcome('cleanup')
+    monkeypatch.setattr(system_snapshots, 'create_suite', lambda *args: Suite())
+    def attempts(suite, directory, selection, manifest, digest, ledger, **kwargs):
+        write_junit_results(directory, selection)
+        (directory / 'guest-results/exact.txt').write_bytes(b'original guest proof\n')
+        (directory / 'ssh-key').write_bytes(b'NEVER CAPTURE PRIVATE KEY')
+        ledger.pass_outcome('product')
+        ledger.pass_outcome('collection')
+        if fault == 'product':
+            ledger.fail_outcome('product', 'pytest:failed:installed')
+            raise runner.Error('pytest:failed:installed')
+        if fault == 'interrupted':
+            raise KeyboardInterrupt
+    monkeypatch.setattr(system_snapshots, 'run_attempts', attempts)
+    argv = ['--vm', vm_name(), '--artifacts', str(root), '--area', 'package',
+            '--test', 'test_first_install_requests_reboot']
+    with store.session():
+        result = runner.main(argv)
+    return result, directories[0], receipts
+
+
+@pytest.mark.parametrize('fault', [None, 'pre-lease', 'product', 'cleanup', 'interrupted'])
+def test_system_outer_capture_preserves_original_proof_and_late_cleanup(
+        system_capture_environment, monkeypatch, fault):
+    from tools import runner_evidence
+    root, store = system_capture_environment
+    result, directory, receipts = system_controller_capture(monkeypatch, root, store, fault=fault)
+    assert result == (0 if fault is None else 1)
+    assert len(receipts) == 1
+    closure = receipts[0]['records'][-1]
+    assert closure['context']['target'] == vm_name()
+    assert closure['status'] == ('passed' if fault is None else 'interrupted'
+                                 if fault == 'interrupted' else 'failed')
+    assert closure['cleanup']['state'] == ('failed' if fault == 'cleanup' else 'complete')
+    members = {Path(member['original_path']).relative_to(directory).as_posix(): member
+               for member in closure['members'] if Path(member['original_path']).is_relative_to(directory)}
+    assert {'evidence/result.json', 'evidence/results.xml', 'evidence/results.tap',
+            'input/artifact-manifest.json', 'commands.json'} <= members.keys()
+    assert not any('ssh-key' in name or name.startswith('private/') for name in members)
+    expected = {name: Path(member['original_path']).read_bytes() for name, member in members.items()}
+    original = json.loads(expected['evidence/result.json'])
+    assert original['outcome'] == ('passed' if fault is None else 'failed')
+    assert original['outcomes']['cleanup']['outcome'] == ('failed' if fault == 'cleanup' else 'passed')
+    assert original['stage_durations_seconds']['cleanup'] >= (0 if fault == 'pre-lease' else 1.75)
+    assert json.loads(expected['commands.json']) == [dict(sequence=1,
+        argv=['fake-inspect', '--exact'], timeout=120, check=True, exit_status=0)]
+    assert b'never retain this secret' not in b''.join(expected.values())
+    if fault == 'pre-lease':
+        assert original['package_sha256'] is None
+        assert original['baseline_provenance_sha256'] is None
+    else:
+        assert expected['input/probe.py'] == b'EXACT_INPUT = 17\n'
+        assert expected['guest-results/exact.txt'] == b'original guest proof\n'
+        assert 'guest-results/installed.xml' in members
+    for _ in range(4):
+        with store.session():
+            pass
+    assert not directory.exists()
+    for name, member in members.items():
+        reference = next(item for item in receipts[0]['references']
+                         if item['member_id'] == member['member_id'])
+        assert runner_evidence.resolve_reference(root, reference) == expected[name]
+
+
+def test_system_denied_publication_preserves_startup_and_original_without_retry(
+        system_capture_environment, monkeypatch):
+    from tools import evidence_bundle
+    root, store = system_capture_environment
+    attempts = []
+    def denied(*args, **kwargs):
+        attempts.append(1)
+        raise PermissionError('synthetic publication denial')
+    monkeypatch.setattr(evidence_bundle, 'export', denied)
+    result, directory, receipts = system_controller_capture(monkeypatch, root, store)
+    assert result == 1
+    assert attempts == [1]
+    assert receipts == []
+    original = directory / 'evidence/result.json'
+    assert json.loads(original.read_bytes())['outcome'] == 'passed'
+    state = json.loads((store.path / 'current.json').read_bytes())
+    assert state['captures'] and all(not item.get('acknowledgement') for item in state['captures'])
+    with store.session():
+        pass
+    with store.session():
+        pass
+    with pytest.raises(ValueError, match='capture|budget|retire|required'):
+        with store.session():
+            pass
+    assert original.exists()
+
+
+def test_lost_system_owner_preserves_real_selected_makefile_and_later_partial_proof(
+        system_capture_environment, monkeypatch):
+    from tools import runner_evidence, test_retention
+    root, store = system_capture_environment
+    monkeypatch.setattr(runner, 'COMMON_SELECTED_INPUTS', ())
+    selection = SimpleNamespace(scope='partial', area=None, test=None,
+        qualification_failure=False, phases=(), executions=())
+    with store.session() as original_run:
+        directory = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-system-loss-'))
+        producer = runner_evidence.ReportEvidence(root, directory, workflow='system',
+            terminal_context=dict(target=vm_name(), check='system', inputs=dict(selector='exact'),
+                                  cleanup_resources=[]),
+            recovery_allowlist=[dict(pattern=pattern, role=role) for pattern, role in (
+                ('input/*.json', 'input'), ('commands.json', 'command'),
+                ('guest-results/*', 'diagnostic'))])
+        previous_umask = os.umask(0o077)
+        try:
+            runner.stage_selected_inputs(selection, directory / 'input')
+            producer.checkpoint_members(runner.capture_inputs(directory))
+            (directory / 'guest-results').mkdir(mode=0o700)
+            partial = directory / 'guest-results/partial.txt'
+            partial.write_bytes(b'original unfinished guest result')
+            (directory / 'commands.json').write_bytes(b'[{"exit_status":null}]')
+        finally:
+            os.umask(previous_umask)
+        makefile = directory / 'input/install-source/Makefile'
+        assert makefile.read_bytes() == (runner.ROOT / 'Makefile').read_bytes()
+        expected = {str(item['path']): item['path'].read_bytes()
+                    for item in runner.capture_inputs(directory)}
+        expected[str(partial)] = partial.read_bytes()
+        del producer
+    recovered, = runner_evidence.recover_pending(root, store)
+    terminal = recovered['records'][-1]
+    assert terminal['context']['run'] == original_run
+    assert terminal['context']['target'] == vm_name()
+    assert terminal['status'] == 'interrupted'
+    assert terminal['cleanup']['state'] == 'pending'
+    originals = {member['original_path']: member for member in terminal['members']}
+    assert set(expected) <= originals.keys()
+    for _ in range(5):
+        with store.session():
+            pass
+    assert not directory.exists()
+    for path, value in expected.items():
+        reference = next(item for item in recovered['references']
+                         if item['member_id'] == originals[path]['member_id'])
+        assert runner_evidence.resolve_reference(root, reference) == value
 
 
 @pytest.mark.parametrize('name', runner.baseline.SNAPSHOT_NAMES)

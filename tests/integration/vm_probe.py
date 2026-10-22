@@ -232,7 +232,8 @@ def reproduce_kiosk_refusal(lease):
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
     import time
-    with operation('Reproducing refused request-station entry'), recovery_session():
+    with operation('Reproducing refused request-station entry'), recovery_session(
+            check='reproduce_kiosk_refusal', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-refusal-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -296,7 +297,8 @@ def probe_kiosk_latency(lease, samples=10, cold=False):
     from qualification_storage import recovery_session, allocate
     system.require(type(samples) is int and 1 <= samples <= 10, 'kiosk-latency:samples')
     system.require(type(cold) is bool, 'kiosk-latency:cold')
-    with operation('Measuring request-station entry and Cancel cycles'), recovery_session():
+    with operation('Measuring request-station entry and Cancel cycles'), recovery_session(
+            check='probe_kiosk_latency', inputs=dict(samples=samples, cold=cold), lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-latency-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -415,7 +417,8 @@ def probe_kiosk_prompt_latency(lease, samples=10, cold=False):
     system.require(type(samples) is int and 1 <= samples <= 10, 'kiosk-prompt-latency:samples')
     system.require(type(cold) is bool, 'kiosk-prompt-latency:cold')
     reproduce_denial(lease, RequestFlowJourney, PLAN, 'open-mate', 'kiosk-prompt-latency')
-    with operation('Measuring Request to native approval prompt'), recovery_session():
+    with operation('Measuring Request to native approval prompt'), recovery_session(
+            check='probe_kiosk_prompt_latency', inputs=dict(samples=samples, cold=cold), lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-prompt-latency-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -498,7 +501,8 @@ def probe_kiosk_approval(lease):
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
-    with operation('Opening the retained kiosk approval prompt'), recovery_session():
+    with operation('Opening the retained kiosk approval prompt'), recovery_session(
+            check='probe_kiosk_approval', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-approval-probe-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -693,7 +697,8 @@ def probe_revoke_balances(lease):
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
-    with operation('Reading fresh balances in the retained Parent window'), recovery_session():
+    with operation('Reading fresh balances in the retained Parent window'), recovery_session(
+            check='probe_revoke_balances', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-revoke-balance-probe-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -721,7 +726,8 @@ def probe_retained_app_launch(lease):
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
-    with operation('Probing the retained Riley native launch'), recovery_session():
+    with operation('Probing the retained Riley native launch'), recovery_session(
+            check='probe_retained_app_launch', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-retained-app-launch-probe-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -769,7 +775,8 @@ def probe_riley_native_grid(lease):
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
-    with operation('Probing Riley second native grid refusal'), recovery_session():
+    with operation('Probing Riley second native grid refusal'), recovery_session(
+            check='probe_riley_native_grid', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-riley-native-grid-probe-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -796,7 +803,8 @@ def probe_remembered_return(lease):
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
-    with operation('Reading the retained Jordan desktop'), recovery_session():
+    with operation('Reading the retained Jordan desktop'), recovery_session(
+            check='probe_remembered_return', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-remembered-return-probe-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -855,7 +863,8 @@ def probe_transfer_refusal(lease):
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
-    with operation('Reading the retained overlay wrong-surface refusal'), recovery_session():
+    with operation('Reading the retained overlay wrong-surface refusal'), recovery_session(
+            check='probe_transfer_refusal', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-transfer-refusal-probe-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -872,7 +881,8 @@ def probe_lock_curtain(lease):
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
-    with operation('Reading the locked child surface for engineering diagnosis'), recovery_session():
+    with operation('Reading the locked child surface for engineering diagnosis'), recovery_session(
+            check='probe_lock_curtain', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-lock-probe-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -906,7 +916,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and plan is not None and plan.screen_tags.get(boundary) == boundary_operation,
             'diagnosis:system-boundary-binding')
 
-    with operation('Reproducing the child ' + surface + ' boundary for live diagnosis'), recovery_session():
+    with operation('Reproducing the child ' + surface + ' boundary for live diagnosis'), recovery_session(
+            check='reproduce_denial', inputs=dict(surface=surface, boundary=boundary,
+                boundary_operation=boundary_operation, native_log=native_log,
+                unlock_capture=unlock_capture), lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + surface + '-diagnosis-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
@@ -1041,9 +1054,13 @@ def prepare_maintenance_transport(lease):
     """Reuse offline SSH bootstrap without installing a product or fixture."""
     from qualification_storage import recovery_session, allocate
     from online_snapshot import publish_maintenance
-    with operation('Preparing SSH access for the owned baseline maintenance VM'), recovery_session():
-        lease.guard(off=True)
+    with operation('Preparing SSH access for the owned baseline maintenance VM'), recovery_session(
+            check='prepare_maintenance_transport', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-maintenance-ssh-'))
+        lease.guard(off=True)
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
         (directory / 'input').mkdir(mode=0o700)
         (directory / 'input/selected-inputs.json').write_bytes(system.baseline.encode({
             'schema_version': 1, 'scope': 'maintenance-ssh', 'run': lease.state['run']}))

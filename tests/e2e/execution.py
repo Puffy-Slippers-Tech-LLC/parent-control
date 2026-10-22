@@ -130,26 +130,39 @@ class ScenarioContext:
         self.lease = verified.lease
         self.worker = None
         self._worker_started = False
+        self.capture_dependencies = []
+
+    def _retain_worker(self, result):
+        if isinstance(result, dict):
+            result = copy.deepcopy(result)
+            self.capture_dependencies.extend(result.pop('_capture_records', []))
+        return result
 
     def run_worker(self, *, observe, validate, authenticate=False, serial=False, timeout=600,
                    guarded_observe=None):
         require(not self._worker_started, 'execution:worker-already-attempted')
         self._worker_started = True
         try:
-            self.worker = self.recorder.run_worker(
+            self.worker = self._retain_worker(self.recorder.run_worker(
                 self.verified, self.directory, self.lease, self.lease.ledger,
                 observe=observe, validate=validate, timeout=timeout,
                 credentials=self.credentials if authenticate else None, serial=serial,
-                **({'guarded_observe': guarded_observe} if guarded_observe is not None else {}))
+                **({'guarded_observe': guarded_observe} if guarded_observe is not None else {})))
         except BaseException as error:
             retained = getattr(error, 'onpc_worker_result', None)
             if isinstance(retained, dict):
-                self.worker = copy.deepcopy(retained)
+                self.worker = self._retain_worker(retained)
             raise
         return copy.deepcopy(self.worker)
 
 
-def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite=None):
+def capture_summary(result):
+    """Public locators; full dependency records stay in the live controller."""
+    return {key: result[key] for key in ('receipt', 'references', 'consumers')}
+
+
+def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite=None,
+            capture_records=None):
     """Retain preparation failures even when no ScenarioRecorder can exist yet."""
     run_id = 'scenario-' + uuid.uuid4().hex
     ledger = system.RunLedger()
@@ -162,6 +175,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
     if suite is not None:
         report['verification_scope'] = 'suite-boundaries'
     sequence = 0
+    input_members = []
+    candidate = None
     progress = progress if progress is not None else Progress(plan['cases'])
     progress.prepare(case['case_id'])
 
@@ -185,6 +200,9 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
         credentials = FixtureCredentials()
         collector = PrivateCollector(run_id=run_id,
                                      secrets=credentials.variables.registered_secrets)
+        import vm_config
+        collector.start_capture(root, target=vm_config.selected().name,
+                                check=case['case_id'], inputs=dict(selected_case=case))
         report['evidence_directory'] = str(collector.path)
         checkpoint('preparation-started')
         with ledger.measure('preparation'):
@@ -232,6 +250,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     stream.write(system.baseline.encode(bootstrap_inputs))
                     stream.flush()
                     os.fsync(stream.fileno())
+            input_members.append(dict(path=input_directory / 'selected-inputs.json', role='input'))
             print('e2e:bootstrap-inputs-staged', file=sys.stderr, flush=True)
             if suite is None:
                 host_before = system.host_fingerprint(commands)
@@ -345,6 +364,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
         if collector is not None:
             try:
                 checkpoint('attempt-terminal-candidate')
+                candidate = f'invocation-{sequence:06d}.json'
                 collector.verify([artifact for record in context.recorder.records
                                   for artifact in record['artifacts']] if context else [])
             except BaseException:
@@ -355,6 +375,28 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                 except BaseException:
                     fail('collection', 'execution:collector-close-failed')
         report.update(ledger.data())
+        if collector is not None:
+            try:
+                import vm_config
+                # Suite attempts remain candidates until the invocation's own
+                # final audit and release. Their exact bytes remain dependencies.
+                cleanup = ('pending' if suite is not None else
+                    'complete' if report['lease_phase'] == 'complete' and
+                        ledger.outcomes['cleanup']['outcome'] == 'passed' else 'failed')
+                captured = collector.capture_terminal(report,
+                    target=vm_config.selected().name, check=case['case_id'], candidate=candidate,
+                    inputs=dict(verified=report['inputs'], selected_case=case),
+                    commands=[dict(argv=list(sys.argv), case_id=case['case_id'])],
+                    cleanup=cleanup, members=input_members,
+                    dependencies=context.capture_dependencies if context else ())
+                if capture_records is not None:
+                    if context is not None:
+                        capture_records.extend(context.capture_dependencies)
+                    capture_records.extend(captured['records'])
+                report['evidence_capture'] = capture_summary(captured)
+            except BaseException:
+                fail('collection', 'execution:terminal-capture-failed')
+                report.update(ledger.data())
     return report
 
 
@@ -383,6 +425,7 @@ def main(plan):
               'excluded_pending_cases': plan.get('excluded_pending_cases', []),
               'expected_cases': [c['case_id'] for c in plan['cases']], 'attempts': []}
     collector = None
+    capture_records = []
     progress = Progress(plan['cases'])
     progress.suite_preparation('Checking prerequisites')
     from e2e_watch import ProgressPublication
@@ -395,6 +438,10 @@ def main(plan):
         # This final report owns the invocation outcome. Per-case acceptance
         # files are candidates until release, close and report validation pass.
         collector = PrivateCollector(run_id='invocation-' + uuid.uuid4().hex, secrets=[password])
+        import vm_config
+        collector.start_capture(ROOT, target=vm_config.selected().name, check='invocation',
+            inputs=dict(inventory_sha256=plan['inventory_sha256'],
+                        selected_cases=report['expected_cases']))
         try:
             report['evidence_directory'] = str(collector.path)
             collector.save_report('invocation-started', report)
@@ -407,6 +454,7 @@ def main(plan):
                         if index + 1 < len(plan['cases']) else None)
                     emit_progress('started', nodeid=case['case_id'])
                     result = attempt(plan, case, expected_inputs=expected_inputs, progress=progress,
+                                     capture_records=capture_records,
                                      **({'suite': suite} if suite is not None else {}))
                     report['attempts'].append(result)
                     collector.save_report(f'attempt-{len(report["attempts"]):06d}', result)
@@ -445,7 +493,11 @@ def main(plan):
         report['failure'] = 'execution:invocation-report-failed'
     finally:
         system.watch_progress = previous_progress
-        publication.close()
+        try:
+            publication.close()
+        except BaseException:
+            report['outcome'] = 'failed'
+            report['failure'] = 'execution:invocation-progress-close-failed'
         if collector is not None:
             try:
                 collector.close()
@@ -453,6 +505,27 @@ def main(plan):
                 report['outcome'] = 'failed'
                 report['failure'] = 'execution:invocation-close-failed'
         signal.signal(signal.SIGTERM, previous)
+    if collector is not None:
+        try:
+            import vm_config
+            dependencies = {record['record_id']: record for record in capture_records}
+            captured = collector.capture_terminal(report,
+                target=vm_config.selected().name, check='invocation',
+                candidate=('invocation-terminal-candidate.json' if
+                    'invocation-terminal-candidate.json' in collector._reports else None),
+                inputs=dict(inventory_sha256=plan['inventory_sha256'],
+                    selected_cases=report['expected_cases'],
+                    attempts=[attempt.get('inputs') for attempt in report['attempts']]),
+                commands=[dict(argv=list(sys.argv),
+                    selected_cases=report['expected_cases'])],
+                cleanup='complete' if report.get('suite_cleanup', {}).get('outcome') == 'passed'
+                    and report.get('failure') not in ('execution:invocation-close-failed',
+                        'execution:invocation-progress-close-failed')
+                    else 'failed', dependencies=list(dependencies.values()))
+            report['evidence_capture'] = capture_summary(captured)
+        except BaseException:
+            report['outcome'] = 'failed'
+            report['failure'] = 'execution:invocation-capture-failed'
     # Caller exit status and this post-close result are the terminal authority.
     print(json.dumps(report, sort_keys=True))
     return 0 if report['outcome'] == 'passed' else 1

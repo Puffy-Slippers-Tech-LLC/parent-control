@@ -286,6 +286,18 @@ The same actual-byte histories cover them, with the original eight guarded
 sources unchanged. Rendering-only modules and advisory activity coordination
 remain outside this closure.
 
+Qualification and collector capture additionally register the explicit producer
+sources `qualification_storage.py`, `system_runner.py`, `vm_probe.py`,
+`baseline_guest.py`, `check_graphical_recovery.py`, `check_graphical_smoke.py` and
+`check_e2e_watch.py` under `tests/integration`, and `private_artifacts.py`,
+`execution.py`, `e2e_worker.py`, `runner.py`, `evidence.py` and `secret_variables.py`
+under `tests/e2e`. They determine the exact selected proof, terminal verdict,
+candidate binding and cleanup provenance. `tools/onpc-test-runner` now determines
+which selected child owns capture; `tests/integration/guest_inputs.py` validates
+the retained input closure and `owned_commands.py` supplies command provenance.
+Their actual bytes join the same restart histories; fixture-only support and
+rendering-only sources remain outside this explicit inventory.
+
 Extend `plan_launcher.response_validator_sources()` and its existing content-change
 regressions as shared dependencies are changed or introduced. E01 inventories
 the controller's relevant validation/storage dependency closure, including

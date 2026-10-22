@@ -123,37 +123,50 @@ def label_preparation(g, paths=None):
                 g.selinux_relabel(policy, path)
 
 
-def preparation_failure(g):
+def preparation_failure(g, *, attempt=None):
     """Keep a bounded private log while exposing only diagnostic categories."""
     path = STAGE + '/preparation.log'
     diagnostics = 'no-log'
     evidence = '; inspect guest preparation.log'
+    tail = None
+    size = None
     try:
-        if not (g.exists(path) or g.is_symlink(path)):
-            return diagnostics + evidence
-        info = g.lstatns(path)
-        if (g.is_symlink(path) or g.realpath(path) != path
-                or not stat.S_ISREG(info['st_mode']) or info['st_uid'] != 0
-                or info['st_nlink'] != 1):
-            return 'unsafe-log' + evidence
-        size = g.filesize(path)
-        if size < 0:
-            return 'unsafe-log' + evidence
-        tail = g.pread(path, min(size, 16384), max(0, size - 16384))[-16384:]
+        if g.exists(path) or g.is_symlink(path):
+            info = g.lstatns(path)
+            if (g.is_symlink(path) or g.realpath(path) != path
+                    or not stat.S_ISREG(info['st_mode']) or info['st_uid'] != 0
+                    or info['st_nlink'] != 1):
+                diagnostics = 'unsafe-log'
+            else:
+                size = g.filesize(path)
+                if size < 0:
+                    diagnostics = 'unsafe-log'
+                else:
+                    tail = g.pread(path, min(size, 16384), max(0, size - 16384))[-16384:]
     except Exception:
-        return 'log-read-failed' + evidence
-    text = tail.decode('utf-8', 'replace')
-    tokens = re.findall(r'(?:prepare-vm|baseline): \[([a-z][a-z0-9:-]*)\]', text)
-    exceptions = re.findall(r'^([A-Za-z]+Error):', text, re.MULTILINE)
-    diagnostics = ','.join((tokens + exceptions)[-12:]) or 'no-stage'
+        diagnostics = 'log-read-failed'
+    if tail is not None:
+        text = tail.decode('utf-8', 'replace')
+        tokens = re.findall(r'(?:prepare-vm|baseline): \[([a-z][a-z0-9:-]*)\]', text)
+        exceptions = re.findall(r'^([A-Za-z]+Error):', text, re.MULTILINE)
+        diagnostics = ','.join((tokens + exceptions)[-12:]) or 'no-stage'
     try:
-        with recovery_session():
+        with recovery_session(check='baseline_guest.preparation_failure', live=True,
+                              inputs=dict(source=path, tail_limit=16384, original_attempt=attempt)):
             directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-baseline-preparation-failure-'))
-            artifact = directory / 'preparation.log'
-            descriptor = os.open(artifact, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(descriptor, 'wb') as stream:
-                stream.write(tail)
-        evidence = '; artifact:' + str(artifact)
+            status = dict(purpose='diagnostic-only', availability=diagnostics if tail is None else 'tail',
+                          tail_limit=16384, original_bytes=size, captured_bytes=0 if tail is None else len(tail),
+                          may_be_truncated=tail is not None and size > len(tail))
+            status_path = directory / 'native-log-result.json'
+            status_path.write_text(json.dumps(status) + '\n')
+            status_path.chmod(0o600)
+            if tail is not None:
+                artifact = directory / 'preparation.log'
+                descriptor = os.open(artifact, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(descriptor, 'wb') as stream:
+                    stream.write(tail)
+        if tail is not None:
+            evidence = '; artifact:' + str(artifact)
     except Exception:
         evidence += '; retention:failed'
     return diagnostics + evidence
@@ -372,7 +385,8 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         success = g.exists(STAGE + '/success') and g.read_file(STAGE + '/success') == b'success\n'
         if not success:
             # Emit only fixed diagnostic tokens, never package output or secrets.
-            require(False, 'guest:preparation-failed; diagnostics:' + preparation_failure(g))
+            require(False, 'guest:preparation-failed; diagnostics:' + preparation_failure(
+                g, attempt=capture.state.get('operation')))
         require(not g.exists(STAGE + '/password'), 'guest:preparation-secret-retained')
         hashes = [line.split(':') for line in g.read_file('/etc/shadow').decode('ascii').splitlines()]
         for account in prepare_vm.IDENTITIES:
@@ -413,7 +427,8 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         with mounted(guestfs, capture) as g:
             if not (g.exists(STAGE + '/success') and
                     g.read_file(STAGE + '/success') == b'success\n'):
-                require(False, 'guest:native-preparation-failed; diagnostics:' + preparation_failure(g))
+                require(False, 'guest:native-preparation-failed; diagnostics:' + preparation_failure(
+                    g, attempt=capture.state.get('operation')))
             require(g.is_symlink(LINK) and g.readlink(LINK) == UNIT, 'guest:preparation-unit')
             g.rm(LINK)
             g.rm(UNIT)

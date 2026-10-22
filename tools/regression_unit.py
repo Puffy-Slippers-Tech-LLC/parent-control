@@ -1519,6 +1519,14 @@ ESTIMATES = {
     'test_broker_state_machine.py': 20,
     'test_package_payload.py': 15,
     'test_test_applications.py': 60,
+    # Real private sealing/publication and recovery dominate these modules;
+    # case counts alone substantially underweight their filesystem work.
+    'test_runner_evidence.py': 100,
+    'test_evidence_capture.py': 100,
+    'test_evidence_bundle.py': 85,
+    'test_e2e_evidence.py': 90,
+    'test_system_runner.py': 55,
+    'test_execution_plan_launcher.py': 35,
 }
 
 
@@ -1615,6 +1623,15 @@ def buckets(nodeids):
 # real shared retention locks and synchronous denial/registry doubles. No VM,
 # process, display, socket, bus, service, shared cache or new cleanup owner is
 # acquired; compatible unit overlap applies and cleanup/UI gain no module.
+# E06a qualification/system/collector producer histories add tiny private
+# journals, finite immutable proof and synchronous VM/command/identity doubles.
+# Existing qualification_storage, baseline_guest, system_runner, e2e_evidence,
+# e2e_execution and e2e_worker modules retain their compatible classifications.
+# No live helper, VM, socket, display, bus, cache or additional process is owned;
+# actual-byte controller histories likewise stay within their private checkout.
+# Child-owner dispatcher qualification adds bounded, waited Python children and
+# private generated entrypoints. Control subprocess/cancellation mechanics stay
+# in their existing inventory; no real helper, VM, account or shared state is used.
 # Capture publication/acknowledgement extends those same private trees with tiny
 # independent ZIPs, real retention locks and synchronous cancellation/recovery
 # doubles. No credentials switch, live helper, process or shared resource is added;

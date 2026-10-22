@@ -1202,7 +1202,6 @@ def _destination_originals(charge, verified):
         reference = dict(record_id=record['record_id'], closure_sha256=record['closure_sha256'])
         terminals = [candidate for candidate in verified['manifest']['records']
             if candidate['context']['task'] == 'runner-terminal'
-            and candidate['context']['check'] == 'report'
             and all(candidate['context'][key] == context[key]
                     for key in ('repository', 'workflow', 'owner', 'run'))
             and reference in candidate['dependencies']]

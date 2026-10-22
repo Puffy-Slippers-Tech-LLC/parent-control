@@ -442,6 +442,11 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # cleanup resource is shared, so the existing compatible classification applies.
 
 # Online snapshot, baseline CPU and maintenance recovery/rollback regressions
+# E06a qualification/collector cleanup histories use only their pytest-private
+# retained files, descriptor locks and synchronous command/VM/identity doubles.
+# Qualification storage, baseline guest and E2E execution/worker keep compatible
+# unit and cleanup classifications; no live guest, helper, bus, display, socket,
+# shared cache or additional process/cleanup owner is introduced.
 # Per-VM spectator publication cleanup uses private tmp_path registrations and
 # mocked servers; it touches no live sockets, processes, VM leases or displays.
 # retain private tmp_path journals and VM/transport doubles. No new shared
@@ -568,6 +573,9 @@ ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_e2e_suite_cleanup_safety.py': 21,
              'test_graphical_lease.py': 8.5,
              'test_e2e_execution_cleanup_safety.py': 20,
+             # Private qualification capture/recovery performs real sealing and
+             # publication; retain compatible scheduling with realistic weight.
+             'test_qualification_storage_cleanup_safety.py': 100,
              'test_e2e_recording_cleanup_safety.py': 10,
              # Output-ancestor/handoff checks mutate pytest-private metadata
              # only; no shared output, process or new cleanup owner is acquired.

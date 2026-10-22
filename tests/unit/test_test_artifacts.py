@@ -442,8 +442,11 @@ def test_bundle_plan_resolves_two_retired_reports_during_unrelated_active_target
 def test_plan_completion_with_fresh_records_does_not_open_unrelated_active_owner(
         retained_plan_helper, monkeypatch, capsys, action):
     """Close-out mixes finished controller records with already archived proof."""
+    from contextlib import contextmanager
+    import tempfile
     import evidence_bundle
     import test_retention
+    import test_storage
     fixture = retained_plan_helper
     workflow = test_retention.Store(fixture.archive_owner.path.parent.parent / 'retention')
     with workflow.session():
@@ -453,20 +456,66 @@ def test_plan_completion_with_fresh_records_does_not_open_unrelated_active_owner
         completion = run / 'accepted-proof'
         completion.mkdir(mode=0o700)
         (completion / 'result.json').write_bytes(b'{"cleanup_complete":true}')
-    arguments = fixture.arguments(sources=[completion])
+    host_owner = test_retention.Store(test_storage.directory('state') / 'retention-host')
+    host_bytes = b'finished host report: passed\n'
+    with host_owner.session():
+        host_report = Path(test_retention.allocate(tempfile.mkdtemp,
+            prefix='onpc-host-report-', dir=test_storage.directory('reports')))
+        host_result = host_report / 'result.json'
+        host_result.write_bytes(host_bytes)
+        host_result.chmod(0o600)
+    # A source outside the plan forces the general journal catalogue rather
+    # than the archive-only route for plan completion records.
+    assert not host_report.is_relative_to(workflow.path.parent)
+    sources = [completion, host_report]
+    arguments = fixture.arguments(sources=sources)
+    metadata, inspected, opened = [], [], []
+    read = test_retention.Store.read
+    inspection = test_retention.Store.inspection
+    open_selected = evidence_bundle.Selection.open
+
+    def observe_read(store, fd):
+        state = read(store, fd)
+        metadata.append(store.path)
+        return state
+
+    @contextmanager
+    def observe_inspection(store, **options):
+        inspected.append(store.path)
+        with inspection(store, **options) as state:
+            yield state
+
+    @contextmanager
+    def observe_open(selection, path):
+        opened.append(Path(path))
+        with open_selected(selection, path) as value:
+            yield value
+
     with fixture.active() as live, monkeypatch.context() as patch:
         patch.delenv(test_retention.VARIABLE, raising=False)
         patch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+        patch.setattr(test_retention.Store, 'read', observe_read)
+        patch.setattr(test_retention.Store, 'inspection', observe_inspection)
+        patch.setattr(evidence_bundle.Selection, 'open', observe_open)
+        selection = evidence_bundle.Selection(fixture.checkout, os.geteuid(), os.getegid(),
+            ['synthetic-target'], list(map(str, sources)), [str(fixture.bundle)],
+            plan_namespace=workflow.path.parent.name,
+            references=list(map(str, fixture.originals)))
+        assert fixture.owner.path in {journal for journal, *_ in selection.catalogue()}
         # Registration remains writable for the unrelated live producer.
-        with evidence_bundle.Selection(fixture.checkout, os.geteuid(), os.getegid(),
-                ['synthetic-target'], [str(completion)], [str(fixture.bundle)],
-                plan_namespace=fixture.archive_owner.path.parent.parent.name,
-                references=list(map(str, fixture.originals))) as selection:
+        with selection:
             selected = selection.selection_sha256
             assert str(completion / 'result.json') in selection.files
+            assert str(host_result) in selection.files
             assert str(live) not in selection.files
+            assert fixture.owner.path in metadata
+            assert fixture.owner.path not in inspected
+            assert not any(path.is_relative_to(live.parent) for path in opened)
             with fixture.owner.opened() as fd, fixture.owner.locked(fd, 'writer.lock', blocking=False):
                 pass
+        metadata.clear()
+        inspected.clear()
+        opened.clear()
         if action == 'bundle-export':
             arguments[0] = action
             arguments += ['--expect', selected]
@@ -474,11 +523,24 @@ def test_plan_completion_with_fresh_records_does_not_open_unrelated_active_owner
         captured = capsys.readouterr()
         assert not captured.err
         result = json.loads(captured.out)
+        assert fixture.owner.path in metadata
+        assert fixture.owner.path not in inspected
+        assert not any(path.is_relative_to(live.parent) for path in opened)
+        assert host_result.read_bytes() == host_bytes
+        assert all(not path.exists() for path in fixture.originals)
+        with fixture.owner.opened() as fd, fixture.owner.locked(fd, 'writer.lock', blocking=False):
+            pass
         if action == 'bundle-plan':
             assert result['selection_sha256'] == selected
+            entries = {entry['path']: entry for entry in result['manifest']['files']}
+            assert entries[str(host_result)]['sha256'] == evidence_bundle.digest(host_bytes)
+            assert entries[str(host_result)]['bytes'] == len(host_bytes)
+            assert entries[str(host_result)]['allocation']['journal'] == str(host_owner.path)
         else:
             assert evidence_bundle.inspect(fixture.checkout, os.geteuid(), os.getegid(),
                 result['path'], member=str(completion / 'result.json')) == b'{"cleanup_complete":true}'
+            assert evidence_bundle.inspect(fixture.checkout, os.geteuid(), os.getegid(),
+                result['path'], member=str(host_result)) == host_bytes
 
 
 def test_ordinary_plan_preserves_two_retired_reports_through_authenticated_helper(
@@ -628,7 +690,9 @@ def test_plan_sources_do_not_bypass_active_target_refusals(
         assert HELPER['main'](fixture.arguments(references, sources=[source])) == 2
         captured = capsys.readouterr()
         assert not captured.out
-        assert 'another owner is active' in captured.err
+        expected = ('another owner is active' if defect == 'live-reference' else
+                    'bundle: source must belong to one recorded allocation')
+        assert expected in captured.err
         assert 'evidence_unavailable' not in captured.err
         after = {path: (path.read_bytes(), path.stat().st_mtime_ns)
                  for path in fixture.checkout.rglob('*') if path.is_file()}

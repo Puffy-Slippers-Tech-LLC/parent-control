@@ -1,4 +1,4 @@
-"""Qualify the shared provisioner on Ubuntu's clean, watched owned attempts.
+"""Qualify the shared provisioner on clean, watched Ubuntu/Fedora attempts.
 
 This engineering selector does not enable any ordinary fixture consumer. The
 unprivileged launcher selects the immutable input before this controller exists.
@@ -31,8 +31,11 @@ from vm_transport import Transport
 from tools import fixture_execution, fixture_manifest, fixture_provision
 from tools.test_storage import authenticated_input
 from tests.fixtures import baseline_assets, native_assets
+from fixture_snapshot_qualification import policy_rules
 
-TARGET = 'onpc-Ubuntu26.04'
+TARGETS = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+TRUST = '/etc/fapolicyd/trust.d/onpc-fixture-runtime.trust'
+COMPILED = '/etc/fapolicyd/compiled.rules'
 COMBINED = ['native', 'activity', 'trusted-hard', 'trusted-soft', 'mechanical']
 NATIVE_DIAGNOSTIC = r'''import json,pathlib,subprocess
 def command(argv):
@@ -47,9 +50,83 @@ config={}
 for line in pathlib.Path('/etc/fapolicyd/fapolicyd.conf').read_text().splitlines():
  key,separator,value=line.partition('=')
  if separator and key.strip() in ('uid','gid','trust'):config[key.strip()]=value.strip()
+release=dict(line.split('=',1) for line in pathlib.Path('/etc/os-release').read_text().splitlines() if '=' in line)
+package=(['/usr/bin/rpm','-q','fapolicyd'] if release['ID'].strip('"')=='fedora' else
+ ['/usr/bin/dpkg-query','-W','-f=${Package} ${Version}\n','fapolicyd'])
 print(json.dumps({'pid':pid,'status':status,'config':config,
- 'package':command(['/usr/bin/dpkg-query','-W','-f=${Package} ${Version}\n','fapolicyd']).strip()},sort_keys=True))
+ 'package':command(package).strip()},sort_keys=True))
 '''
+
+
+def selected_target():
+    target = prepare_vm.vm_config.selected().name
+    system.require(target in TARGETS, 'fixture-provisioning:target-not-qualified')
+    return target, TARGETS[target]
+
+
+def expected_admissions(members, accounts, os_id):
+    """Independent finite rule text, without the guest's native policy builder."""
+    if os_id != 'fedora' or not any(m['native_action'] in ('native-open', 'native-execute')
+                                     for m in members.values()):
+        return {}
+    by_path = {m['destination']: m for m in members.values()}
+    executables = [by_path[native_assets.executable_path(role)]['sha256']
+                   for role in ('A', 'H', 'S', 'N')]
+    gui = [by_path[native_assets.PREFIX + '/' + name]['sha256']
+           for name in native_assets.GUI_FILES]
+    for name, digest in zip(native_assets.GUI_FILES, gui):
+        system.require(by_path[native_assets.PREFIX + '/Versioned/' + name]['sha256'] == digest,
+                       'fixture-provisioning:runtime-alias')
+    subject = ','.join(str(uid) for uid in sorted(accounts[role]['uid'] for role in ('child', 'other')))
+    return {path: '# Finite reusable fixture admission; inputs remain untrusted.\n' + ''.join(
+        f'allow perm={permission} uid={subject} : sha256hash={digest} trust=0\n' for digest in hashes)
+        for path, permission, hashes in zip(native_assets.NATIVE_POLICY_PATHS,
+                                            ('open', 'execute'), (gui, executables))}
+
+
+def validate_native_policy(observed, members):
+    os_id = observed['platform']['os']
+    expected = expected_admissions(members, observed['accounts'], os_id)
+    system.require(set(observed['admissions']) == set(expected),
+                   'fixture-provisioning:admission-inventory')
+    for path, text in expected.items():
+        entry = observed['admissions'][path]
+        system.require(entry['text'] == text and entry['sha256'] == hashlib.sha256(text.encode()).hexdigest()
+                       and entry['length'] == len(text.encode()) and entry['uid'] == 0
+                       and entry['gid'] == observed['native_gid'] and entry['mode'] == 0o644
+                       and entry['regular'] is True and entry['nlink'] == 1,
+                       'fixture-provisioning:exact-native-admission')
+    if os_id == 'fedora':
+        system.require(observed['selinux_enforcing'] is True, 'fixture-provisioning:selinux-not-enforcing')
+        paths = {m['destination'] for m in members.values()} | set(expected)
+        if observed['trust_entries']:
+            paths.add(TRUST)
+        labels = observed['labels']
+        system.require(set(labels) == paths and all(
+            type(entry) is dict and set(entry) == {'actual', 'expected'}
+            and type(entry['actual']) is str and entry['actual'] == entry['expected']
+            and re.fullmatch(r'[^:]+:[^:]+:[^:]+:s0(?:[:\-].*)?', entry['actual'])
+            for entry in labels.values()), 'fixture-provisioning:selinux-labels')
+        compiled = observed['compiled']
+        sources = observed['rule_sources']
+        system.require(set(expected) <= set(sources) and all(sources[p] == t for p, t in expected.items()),
+                       'fixture-provisioning:admission-source')
+        text = '## This file is automatically generated from /etc/fapolicyd/rules.d\n' + ''.join(
+            line + '\n' for path in sorted(sources) for line in sources[path].splitlines()
+            if line and not re.match(r'^\s*#', line))
+        system.require(compiled['text'] == text and compiled['sha256'] == hashlib.sha256(text.encode()).hexdigest()
+                       and compiled['uid'] == 0 and compiled['gid'] == observed['native_gid']
+                       and compiled['mode'] == 0o644 and compiled['regular'] is True
+                       and compiled['nlink'] == 1
+                       and policy_rules(observed['public_rules'].encode(), numbered=True) == policy_rules(text.encode())
+                       and '/usr/sbin/fagenrules: No change' in observed['rules_check'].splitlines(),
+                       'fixture-provisioning:compiled-native-policy')
+    else:
+        system.require(observed['selinux_enforcing'] is None and observed['labels'] == {}
+                       and observed['rule_sources'] == {} and observed['compiled'] is None
+                       and observed['compiled_previous'] is None and observed['public_rules'] is None
+                       and observed['rules_check'] is None,
+                       'fixture-provisioning:platform-native-audit')
 
 
 def selected_members(manifest, subsets, accounts):
@@ -70,8 +147,12 @@ def validate_readback(observed, manifest, subsets, binding, *, installed):
     system.require(type(observed) is dict and set(observed) == {
         'accounts', 'files', 'unselected_present', 'boot_sha256', 'vm_uuid', 'run',
         'native_rows', 'native_gid', 'native_active', 'trust_entries',
-        'vendor_database_sha256', 'preserved', 'staging', 'installed'},
+        'vendor_database_sha256', 'preserved', 'staging', 'installed', 'platform',
+        'selinux_enforcing', 'labels', 'admissions', 'rule_sources', 'compiled',
+        'compiled_previous', 'public_rules', 'rules_check'},
         'fixture-provisioning:audit-schema')
+    system.require(observed['platform'] == manifest['inputs']['target'],
+                   'fixture-provisioning:platform-identity')
     accounts = fixture_provision.accepted_accounts(observed['accounts'])
     expected = selected_members(manifest, subsets, accounts)
     system.require(set(observed['files']) == set(expected) and not observed['unselected_present']
@@ -100,6 +181,7 @@ def validate_readback(observed, manifest, subsets, binding, *, installed):
                    'fixture-provisioning:trust-metadata')
     system.require(all(observed[name] == binding[name] for name in ('boot_sha256', 'vm_uuid', 'run')),
                    'fixture-provisioning:actual-attempt')
+    validate_native_policy(observed, expected)
     return expected
 
 
@@ -124,10 +206,35 @@ class RecordingBoundary:
         return self.delegate.call(action, request, payloads)
 
 
+class LostReply(TimeoutError):
+    """Engineering-only transport uncertainty after a completed real action."""
+
+
+class InterruptedBoundary(RecordingBoundary):
+    def call(self, action, request, payloads=None):
+        reply = super().call(action, request, payloads)
+        if action == 'stage':
+            self.interrupted_request = deepcopy(request)
+            self.stage_reply = deepcopy(reply)
+            raise LostReply('fixture-provisioning:deliberate-lost-stage-reply')
+        return reply
+
+
 # A separate reader: no guest fixture module, provisioner receipt or native
 # verifier participates. Only the frozen finite declaration supplies paths.
-AUDIT = r'''import grp,hashlib,json,os,pathlib,pwd,stat,subprocess,sys
+AUDIT = r'''import grp,hashlib,json,os,pathlib,pwd,re,stat,subprocess,sys
 data=json.load(sys.stdin)
+release=dict(line.split('=',1) for line in pathlib.Path('/etc/os-release').read_text().splitlines() if '=' in line)
+platform={'os':release['ID'].strip('"'),'release':release['VERSION_ID'].strip('"'),'architecture':os.uname().machine}
+assert platform in ({'os':'ubuntu','release':'26.04','architecture':'x86_64'},
+ {'os':'fedora','release':'44','architecture':'x86_64'}),'audit-platform'
+fedora=platform['os']=='fedora'
+cli=('/usr/bin' if fedora else '/usr/sbin')+'/fapolicyd-cli'
+def command(argv):
+ raw=subprocess.run(argv,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                    check=True,timeout=60).stdout
+ assert len(raw)<=33554432,'audit-command-size'
+ return raw.decode()
 accounts={'system':{'uid':0,'gid':0,'home':'/root'}}
 for role,name in (('child','onpc-child-riley'),('other','onpc-child-jordan'),('parent','onpc-parent-jamie')):
  p=pwd.getpwnam(name);accounts[role]={'uid':p.pw_uid,'gid':p.pw_gid,'home':p.pw_dir}
@@ -135,7 +242,7 @@ def path_for(member):
  path=member['destination']
  for role,account in accounts.items():path=path.replace('@'+role+'@',account['home'])
  return path
-def read(path):
+def read(path,text=False):
  p=pathlib.Path(path);assert p.resolve()==p,'audit-path-link'
  signature=lambda s:(s.st_dev,s.st_ino,s.st_mode,s.st_uid,s.st_gid,s.st_nlink,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
  fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW)
@@ -143,9 +250,11 @@ def read(path):
   s=os.fstat(f.fileno());assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s.st_size<=16777216,'audit-file'
   raw=f.read(16777217);assert len(raw)==s.st_size and signature(os.fstat(f.fileno()))==signature(s),'audit-file-changed'
  assert signature(p.lstat())==signature(s),'audit-file-replaced'
- return {'sha256':hashlib.sha256(raw).hexdigest(),'length':len(raw),'mode':stat.S_IMODE(s.st_mode),
+ result={'sha256':hashlib.sha256(raw).hexdigest(),'length':len(raw),'mode':stat.S_IMODE(s.st_mode),
          'uid':s.st_uid,'gid':s.st_gid,'device':s.st_dev,'inode':s.st_ino,'mtime_ns':s.st_mtime_ns,
          'ctime_ns':s.st_ctime_ns,'nlink':s.st_nlink,'regular':True}
+ if text:result['text']=raw.decode()
+ return result
 selected=set(data['selected']);files={};unselected=[]
 for key,m in data['members'].items():
  path=path_for(m)
@@ -154,8 +263,7 @@ for key,m in data['members'].items():
   else:unselected.append(key)
 for item in data['absences']:assert not os.path.lexists(item['destination']),'required-absence'
 native_rows={key:[] for key in selected};by_path={path_for(m):k for k,m in data['members'].items()};vendor=[]
-raw=subprocess.run(['/usr/sbin/fapolicyd-cli','--dump-db'],stdin=subprocess.DEVNULL,
- stdout=subprocess.PIPE,check=True,timeout=60).stdout
+raw=command([cli,'--dump-db']).encode()
 assert len(raw)<=33554432,'native-database-size'
 for line in raw.decode().splitlines():
  first=line.split(None,1)
@@ -189,20 +297,41 @@ active=subprocess.run(['/usr/bin/systemctl','is-active','fapolicyd.service'],std
  stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30)
 marker=json.loads(pathlib.Path('/etc/onpc-system-test.json').read_text())
 boot=pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()
+admissions={};sources={};compiled=None;previous=None;public=None;check=None;labels={};enforcing=None
+if fedora:
+ enforcing=command(['/usr/sbin/getenforce'])=='Enforcing\n'
+ for name in data['admission_paths']:
+  if os.path.lexists(name):admissions[name]=read(name,text=True)
+ for path in pathlib.Path('/etc/fapolicyd/rules.d').iterdir():
+  assert path.suffix=='.rules','audit-rule-source'
+  sources[str(path)]=read(str(path),text=True)['text']
+ compiled=read('/etc/fapolicyd/compiled.rules',text=True)
+ if os.path.lexists('/etc/fapolicyd/compiled.rules.prev'):
+  previous=read('/etc/fapolicyd/compiled.rules.prev',text=True)
+ public=command([cli,'--list'])
+ check=command(['/usr/sbin/fagenrules','--check'])
+ label_paths={path_for(data['members'][key]) for key in files if key!='@trust'}|set(admissions)
+ if trust.exists():label_paths.add(str(trust))
+ for path in sorted(label_paths):
+  labels[path]={'actual':os.getxattr(path,'security.selinux',follow_symlinks=False).rstrip(b'\0').decode(),
+                'expected':command(['/usr/sbin/matchpathcon','-n',path]).strip()}
 print(json.dumps({'accounts':accounts,'files':files,'unselected_present':sorted(unselected),
  'boot_sha256':hashlib.sha256(boot).hexdigest(),'vm_uuid':pathlib.Path('/sys/class/dmi/id/product_uuid').read_text().strip().lower(),
  'run':marker['run'],'native_rows':native_rows,'native_gid':grp.getgrnam('fapolicyd').gr_gid,
  'native_active':active.returncode==0 and active.stdout==b'active\n','trust_entries':trust_entries,
  'vendor_database_sha256':hashlib.sha256(('\n'.join(sorted(vendor))+'\n').encode()).hexdigest(),
  'preserved':preserved,'staging':sorted(p.name for p in pathlib.Path('/run').iterdir() if p.name.startswith('onpc-fixture-')),
- 'installed':pathlib.Path('/usr/lib/oh-no-parent-control').is_dir()},sort_keys=True))
+ 'installed':pathlib.Path('/usr/lib/oh-no-parent-control').is_dir(),'platform':platform,
+ 'selinux_enforcing':enforcing,'labels':labels,'admissions':admissions,'rule_sources':sources,
+ 'compiled':compiled,'compiled_previous':previous,'public_rules':public,'rules_check':check},sort_keys=True))
 '''
 
 
 def audit(transport, manifest, subsets):
     raw = transport.call(['/usr/bin/python3', '-I', '-c', AUDIT],
         input=system.baseline.encode({'members': manifest['members'],
-             'selected': list(fixture_manifest.select(subsets)), 'absences': manifest['absences']}),
+             'selected': list(fixture_manifest.select(subsets)), 'absences': manifest['absences'],
+             'admission_paths': list(native_assets.NATIVE_POLICY_PATHS)}),
         timeout=120, attempts=1)
     system.require(type(raw) is bytes and len(raw) <= 2 * 1024 * 1024,
                    'fixture-provisioning:audit-size')
@@ -215,17 +344,31 @@ def audit(transport, manifest, subsets):
 
 
 def unchanged_policy(before, after):
-    original = {key: value for key, value in before['preserved'].items() if key != '@attempt-trust'}
-    current = {key: value for key, value in after['preserved'].items() if key != '@attempt-trust'}
+    ignored = {'@attempt-trust'}
+    if after['admissions']:
+        # The new finite admissions were independently proved by readback.
+        # Only their two exact sources and compiler outputs may change; vendor
+        # and product sources (including other files with similar names) stay pinned.
+        system.require(not before['admissions'] and set(after['admissions']) == set(native_assets.NATIVE_POLICY_PATHS),
+                       'fixture-provisioning:unexpected-policy-transition')
+        previous = after['compiled_previous']
+        system.require(previous is not None and previous['sha256'] == before['compiled']['sha256']
+                       and previous['text'] == before['compiled']['text'] and previous['uid'] == 0
+                       and previous['gid'] in (0, after['native_gid']) and previous['mode'] in (0o640, 0o644)
+                       and previous['regular'] is True and previous['nlink'] == 1,
+                       'fixture-provisioning:compiled-previous-preservation')
+        ignored.update((*native_assets.NATIVE_POLICY_PATHS, COMPILED, COMPILED + '.prev'))
+    original = {key: value for key, value in before['preserved'].items() if key not in ignored}
+    current = {key: value for key, value in after['preserved'].items() if key not in ignored}
     system.require(original == current and before['vendor_database_sha256'] == after['vendor_database_sha256'],
                    'fixture-provisioning:unrelated-native-or-product-state-changed')
 
 
-def runtime_witnesses(transport, members, accounts):
+def runtime_witnesses(transport, members, accounts, os_id):
     """Use the existing recorded Popen/termination owner for each runtime family."""
     from tests.fixtures import build_test_applications as processes
     source = ('from __future__ import annotations\n'
-              'import json,os,pwd,select,signal,subprocess,sys\nfrom pathlib import Path\n'
+              'import errno,json,os,pwd,select,signal,subprocess,sys\nfrom pathlib import Path\n'
               'READY_MARKER="ONPC_TEST_APPLICATION_READY"\n')
     for name in ('FixtureError', '_log', '_preexec_for_uid', 'launch_native', '_read_readiness', 'terminate'):
         source += inspect.getsource(getattr(processes, name)) + '\n'
@@ -234,18 +377,31 @@ for path in data['paths']:
  process=launch_native(Path(path),data['uid'])
  terminate(process)
  assert process.returncode==0,'runtime-witness-exit'
-print(json.dumps({'paths':data['paths'],'ready':True}))
+for path in data['denied']:
+ try:
+  process=launch_native(Path(path),data['uid'])
+ except PermissionError as error:
+  assert error.errno in (errno.EACCES,errno.EPERM),'runtime-control-error'
+ else:
+  terminate(process)
+  raise AssertionError('untrusted-control-executed')
+print(json.dumps({'paths':data['paths'],'denied':data['denied'],'ready':True}))
 '''
     paths = {member['destination'] for member in members.values() if member['mode'] == 0o755}
-    witnesses = [path for path in (native_assets.executable_path('A'), native_assets.ACTIVITY_EXECUTABLE,
+    witnesses = [path for path in (*(native_assets.executable_path(role) for role in ('A', 'H', 'S', 'N')),
+        native_assets.ACTIVITY_EXECUTABLE,
         *(value[0] for value in native_assets.TRUSTED_NATIVE.values()), baseline_assets.MECHANICAL)
         if path in paths]
+    # Fedora's stock 90-deny-execute precedes the product's 99 fallback.
+    # Mechanical remains trust=0 and has no finite fixture admission.
+    denied = [baseline_assets.MECHANICAL] if os_id == 'fedora' and baseline_assets.MECHANICAL in paths else []
+    witnesses = [path for path in witnesses if path not in denied]
     system.require(witnesses, 'fixture-provisioning:no-runtime-witness')
     value = json.loads(transport.call(['/usr/bin/python3', '-I', '-c', source],
-        input=system.baseline.encode({'paths': witnesses, 'uid': accounts['child']['uid']}),
+        input=system.baseline.encode({'paths': witnesses, 'denied': denied, 'uid': accounts['child']['uid']}),
         timeout=120, attempts=1))
-    system.require(value == {'paths': witnesses, 'ready': True}, 'fixture-provisioning:runtime-witness')
-    return witnesses
+    system.require(value == {'paths': witnesses, 'denied': denied, 'ready': True}, 'fixture-provisioning:runtime-witness')
+    return {'allowed': witnesses, 'denied_untrusted': denied}
 
 
 def register_staging(directory, lease, attempt_id, path):
@@ -279,7 +435,7 @@ def baseline_transport(suite, directory):
 
 def installed_transport(suite, directory, assets):
     lease = suite.lease
-    package = assets / 'package.deb'
+    package = assets / ('package.' + system.package_format(lease.capture.state['guest']))
     name = app_snapshot.snapshot_name(system.package_version(suite.commands, package))
     system.require(name in suite.source.domain.snapshotListNames(0),
                    'fixture-provisioning:app-snapshot-missing; run tools/prepare-appsnapshot')
@@ -293,7 +449,7 @@ def installed_transport(suite, directory, assets):
     (directory / 'input').mkdir(mode=0o700)
     # Existing online rebind reads these host identities; no product/fixture
     # payload is uploaded by this qualification before the provisioner runs.
-    shutil.copyfile(package, directory / 'input/package.deb')
+    shutil.copyfile(package, directory / 'input' / package.name)
     (directory / 'input/selected-inputs.json').write_bytes(system.baseline.encode({
         'schema_version': 1, 'scope': 'fixture-provisioning-engineering'}))
     lease.online_pending = True
@@ -364,7 +520,7 @@ def successful_attempt(suite, directory, selection, manifest, subsets, *, instal
                                             'activate', 'readback', 'witness', 'clean'],
                    'fixture-provisioning:nonminimal-transfer')
     controller.require_ready(readiness)
-    witnesses = runtime_witnesses(transport, members, observed['accounts'])
+    witnesses = runtime_witnesses(transport, members, observed['accounts'], observed['platform']['os'])
     first = audit(transport, manifest, subsets)
     start = len(boundary.actions)
     repeated = controller.provision(selection, subsets, attempt_id=attempt_id)
@@ -376,7 +532,86 @@ def successful_attempt(suite, directory, selection, manifest, subsets, *, instal
     controller.require_ready(repeated)
     unchanged_policy(before, final)
     return {'binding': readiness.binding, 'readback': final, 'runtime_witnesses': witnesses,
+            'untrusted_runtime_controls': [member['destination'] for member in members.values()
+                if member['native_action'] == 'native-execute' and member['destination'] in witnesses['allowed']],
             'first_transfer': expected_transfer, 'repeat_without_writes': True}
+
+
+def require_terminal(controller):
+    system.require(controller.failed and controller._receipt is None,
+                   'fixture-provisioning:failed-receipt')
+    try:
+        controller.require_ready(None)
+    except ValueError as error:
+        system.require(str(error) == 'fixture-provision:terminal-attempt',
+                       'fixture-provisioning:failed-input-boundary')
+    else:
+        raise ValueError('fixture-provisioning:failed-attempt-released-input')
+
+
+STAGING_AUDIT = r'''import hashlib,json,os,pathlib,stat,sys
+data=json.load(sys.stdin);path=pathlib.Path(data['staging'])
+assert path.resolve()==path,'stage-link'
+fd=os.open(path,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+try:
+ info=os.fstat(fd)
+ assert stat.S_ISDIR(info.st_mode) and info.st_uid==info.st_gid==0 and stat.S_IMODE(info.st_mode)==0o700,'stage-metadata'
+ assert [info.st_dev,info.st_ino]==data['stage_identity'] and set(os.listdir(fd))==set(data['members']),'stage-inventory'
+ for key,m in data['members'].items():
+  with os.fdopen(os.open(key,os.O_RDONLY|os.O_NOFOLLOW,dir_fd=fd),'rb') as stream:
+   before=os.fstat(stream.fileno());raw=stream.read(8388609);after=os.fstat(stream.fileno())
+   signature=lambda s:(s.st_dev,s.st_ino,s.st_mode,s.st_uid,s.st_gid,s.st_nlink,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+   assert signature(before)==signature(after)==signature(os.stat(key,dir_fd=fd,follow_symlinks=False)) and stat.S_ISREG(before.st_mode) and before.st_nlink==1,'stage-file'
+   assert before.st_uid==before.st_gid==0 and stat.S_IMODE(before.st_mode)==0o600,'stage-owner'
+   assert [before.st_dev,before.st_ino]==data['stage_files'][key],'stage-file-identity'
+   assert len(raw)==m['length'] and hashlib.sha256(raw).hexdigest()==m['sha256'],'stage-bytes'
+ print(json.dumps({'staging':str(path),'selected':sorted(data['members']),'retained':True}))
+finally:os.close(fd)
+'''
+
+
+def interrupted_attempt(suite, directory, selection, manifest):
+    """Lose a reply after real SSH staging; the VM owner alone recovers it."""
+    subsets = ['trusted-hard']
+    transport = baseline_transport(suite, directory)
+    controller = fixture_provision.Provisioner(suite.lease, transport,
+        register_staging=lambda path: register_staging(directory, suite.lease, directory.name, path))
+    controller.wait_environment()
+    before = audit(transport, manifest, subsets)
+    system.require(not before['files'] and not before['unselected_present'] and not before['staging']
+                   and before['preserved']['@attempt-trust'] is None and not before['admissions'],
+                   'fixture-provisioning:capture-not-clean')
+    boundary = InterruptedBoundary(transport)
+    controller = fixture_provision.Provisioner(suite.lease, transport, boundary=boundary,
+        register_staging=lambda path: register_staging(directory, suite.lease, directory.name, path))
+    try:
+        controller.provision(selection, subsets, attempt_id=directory.name)
+    except LostReply:
+        require_terminal(controller)
+    else:
+        raise ValueError('fixture-provisioning:interruption-not-exercised')
+    request = boundary.interrupted_request
+    expected = selected_members(manifest, subsets, before['accounts'])
+    transfer = {key: {field: member[field] for field in ('length', 'sha256')} for key, member in expected.items()}
+    system.require(boundary.actions == ['inspect', 'preflight', 'reserve', 'stage']
+                   and boundary.transfers == [transfer], 'fixture-provisioning:interruption-boundary')
+    after = audit(transport, manifest, subsets)
+    system.require(after['staging'] == [Path(request['staging']).name],
+                   'fixture-provisioning:interrupted-staging-missing')
+    verify_repeat(before, {**after, 'staging': []})
+    proof = json.loads(transport.call(['/usr/bin/python3', '-I', '-c', STAGING_AUDIT],
+        input=system.baseline.encode({'staging': request['staging'], 'stage_identity': request['stage_identity'],
+            'stage_files': boundary.stage_reply['identities'], 'members': expected}), timeout=60, attempts=1))
+    system.require(proof == {'staging': request['staging'], 'selected': sorted(expected), 'retained': True},
+                   'fixture-provisioning:interrupted-stage-proof')
+    # A replacement facade shares the terminal generation and cannot release input.
+    replacement = fixture_provision.Provisioner(suite.lease, transport, boundary=boundary,
+        register_staging=lambda _: (_ for _ in ()).throw(AssertionError('terminal mutation')))
+    require_terminal(replacement)
+    system.require(boundary.actions == ['inspect', 'preflight', 'reserve', 'stage'],
+                   'fixture-provisioning:interruption-retried')
+    return {'binding': request['binding'], 'staging_retained_for_vm_recovery': proof,
+            'terminal_attempt': True, 'scenario_input_released': False, 'readback': after}
 
 
 def foreign_attempt(suite, directory, selection, manifest):
@@ -434,33 +669,41 @@ def qualify(directory, assets, selection):
 def _qualify_pinned(directory, assets, selection):
     # Every immutable source read and its compatibility refusal precedes acquire.
     selection = fixture_execution.Selection.from_record(selection)
-    system.require(selection.target == 'ubuntu', 'fixture-provisioning:input-target')
+    target, os_id = selected_target()
+    system.require(selection.target == os_id, 'fixture-provisioning:input-target')
     manifest = fixture_execution.verify(selection)
     fixture_provision.authenticated_bundle(selection)
     private = directory / 'private'
     private.mkdir(mode=0o700)
     suite = Suite(open_source)
-    result = {'selection': selection.record(), 'attempts': {}}
+    result = {'target': target, 'selection': selection.record(), 'attempts': {}}
     try:
         suite.commands.directory = private
         system.stage_assets(system.artifact_source(assets), directory / 'assets', suite.commands)
         preflight_source(directory / 'assets')
         suite.input_bundle(ROOT)
         source, _, lease = suite.acquire(system.RunLedger())
-        system.require(source.domain.name() == TARGET, 'fixture-provisioning:target-not-qualified')
+        system.require(source.domain.name() == target, 'fixture-provisioning:target-not-qualified')
         with lease:
+            system.require(system.package_format(lease.capture.state['guest']) ==
+                           ('rpm' if os_id == 'fedora' else 'deb'),
+                           'fixture-provisioning:target-not-qualified')
             system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
                            'fixture-provisioning:clean-baseline-required')
-            cases = [('foreign', None, False), ('fresh-minimal', ['trusted-hard'], False),
+            cases = [('foreign', None, False), ('interrupted', None, False),
+                     ('fresh-minimal', ['trusted-hard'], False),
                      ('installed-union', COMBINED, True)]
             for number, (name, subsets, installed) in enumerate(cases):
                 if number:
                     lease.stop()
                     fixture_provision.reset_after_restore(lease)
+                    if name == 'fresh-minimal':
+                        result['attempts']['interrupted']['owned_restoration_verified_before_fresh_attempt'] = True
                 lease.prepare()
                 attempt_directory = directory / name
                 attempt_directory.mkdir(mode=0o700)
-                result['attempts'][name] = (foreign_attempt(suite, attempt_directory, selection, manifest)
+                result['attempts'][name] = (interrupted_attempt(suite, attempt_directory, selection, manifest)
+                    if name == 'interrupted' else foreign_attempt(suite, attempt_directory, selection, manifest)
                     if subsets is None else successful_attempt(suite, attempt_directory, selection,
                                                                manifest, subsets, installed=installed))
                 (directory / 'attempt-results.json').write_bytes(system.baseline.encode(result))
@@ -468,8 +711,9 @@ def _qualify_pinned(directory, assets, selection):
             foreign_boot = attempts['foreign']['actual_boot_sha256']
             minimal = attempts['fresh-minimal']['binding']
             union = attempts['installed-union']['binding']
-            system.require(len({foreign_boot, minimal['boot_sha256'], union['boot_sha256']}) == 3
-                           and minimal['attempt_id'] != union['attempt_id'],
+            interrupted = attempts['interrupted']['binding']
+            system.require(len({foreign_boot, interrupted['boot_sha256'], minimal['boot_sha256'], union['boot_sha256']}) == 4
+                           and len({interrupted['attempt_id'], minimal['attempt_id'], union['attempt_id']}) == 3,
                            'fixture-provisioning:fresh-attempt-required')
             fixture_execution.verify(selection)
     except BaseException:
@@ -485,8 +729,7 @@ def main(*, assets, selection):
     directory = None
     try:
         system.require(os.geteuid() == 0, 'fixture-provisioning:root-required')
-        system.require(prepare_vm.vm_config.selected().name == TARGET,
-                       'fixture-provisioning:target-not-qualified')
+        selected_target()
         os.umask(0o077)
         with session():
             directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-fixture-provisioning-'))

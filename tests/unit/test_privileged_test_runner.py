@@ -15,6 +15,8 @@ import pytest
 
 runner = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
 VM_ARGS = ['--vm', vm_name()]
+FIXTURE_WRAPPERS = ('check_fixture_provisioning', 'check_fixture_system_product_free',
+                    'check_parent_setup', 'check_parent_input', 'check_parent_standard_input')
 
 
 def select(root, argv):
@@ -70,12 +72,17 @@ def fixture_selection(checkout):
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selection, suffix):
+@pytest.mark.parametrize('selector', FIXTURE_WRAPPERS)
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selection, suffix, selector, vm, target):
+    (checkout / 'tests/integration' / (selector + '.py')).touch()
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     command = runner['selection'](checkout, ['integration',
-        'check_fixture_provisioning' + suffix, '--vm', 'onpc-Ubuntu26.04',
+        selector + suffix, '--vm', vm,
         '--fixture-selection', json.dumps(fixture_selection)])
     assert command == ['/usr/bin/python3', '-B',
-        str(checkout / 'tests/integration/check_fixture_provisioning.py'),
+        str(checkout / 'tests/integration' / (selector + '.py')),
         '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
 
 
@@ -103,21 +110,44 @@ def test_fixture_selection_rejects_foreign_identity(checkout, fixture_selection,
 @pytest.mark.parametrize('args', [
     ['check_future_feature'], ['--list'], ['check_fixture_provisioning', '--list'],
 ])
-def test_fixture_selection_refuses_other_selector_or_listing(checkout, fixture_selection, args):
+@pytest.mark.parametrize('vm', ['onpc-Ubuntu26.04', 'onpc-Fedora44'])
+def test_fixture_selection_refuses_other_selector_or_listing(checkout, fixture_selection, args, vm):
     with pytest.raises(ValueError, match='unexpected-fixture-selection'):
-        runner['selection'](checkout, ['integration', *args, '--vm', 'onpc-Ubuntu26.04',
+        runner['selection'](checkout, ['integration', *args, '--vm', vm,
             '--fixture-selection', json.dumps(fixture_selection)])
 
 
 @pytest.mark.parametrize(('target', 'vm'), [
     ('fedora', 'onpc-Ubuntu26.04'), ('ubuntu', vm_name(1)),
 ])
-def test_fixture_selection_refuses_unqualified_target(checkout, fixture_selection, target, vm):
+@pytest.mark.parametrize('selector', FIXTURE_WRAPPERS)
+def test_fixture_selection_refuses_unqualified_target(checkout, fixture_selection, target, vm, selector):
     fixture_selection['target'] = target
     fixture_selection['allocation'] = '/tmp/onpc-native-runtime-' + target + '-' + 'a' * 64 + '-private'
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-        runner['selection'](checkout, ['integration', 'check_fixture_provisioning',
+        runner['selection'](checkout, ['integration', selector,
             '--vm', vm, '--fixture-selection', json.dumps(fixture_selection)])
+
+
+@pytest.mark.parametrize('category,arguments', [
+    *(('integration', [selector]) for selector in FIXTURE_WRAPPERS),
+    ('system', ['--artifacts', '/tmp/onpc-current']),
+])
+def test_fixture_selection_refuses_unknown_vm(checkout, fixture_selection, category, arguments):
+    with pytest.raises(ValueError):
+        runner['selection'](checkout, [category, *arguments, '--vm', 'unqualified-target',
+            '--fixture-selection', json.dumps(fixture_selection)])
+
+
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_system_fixture_selection_preserves_exact_record(checkout, fixture_selection, vm, target):
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
+    command = runner['selection'](checkout, ['system', '--vm', vm,
+        '--artifacts', '/tmp/onpc-current', '--fixture-selection', json.dumps(fixture_selection)])
+    assert command == ['/usr/bin/python3', '-B', str(checkout / 'tests/integration/system_runner.py'),
+        '--vm', vm, '--fixture-selection', json.dumps(fixture_selection, sort_keys=True),
+        '--artifacts', '/tmp/onpc-current']
 
 
 def test_rejects_symlink(checkout, tmp_path):

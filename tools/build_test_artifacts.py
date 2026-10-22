@@ -33,6 +33,8 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 FIXTURE_BUILDER = REPOSITORY / "tests/fixtures/build_test_applications.py"
 MANIFEST_NAME = "artifact-manifest.json"
 SCHEMA_VERSION = 1
+PACKAGE_INPUT_NAME = 'package-input.json'
+PACKAGE_INPUT_SCHEMA = 'onpc-package-input-v1'
 # Published annotated v1.2 tag and its peeled commit, independently matched to
 # the public GitHub tag object. The published tag is unsigned. Qualification
 # never substitutes the working tree or rewrites its version for this input.
@@ -352,7 +354,7 @@ def _require_newer_version(new, old, *, package_format):
     raise ArtifactError('RPM upgrade version is not newer')
 
 
-def verify_upgrade(output, *, staged=False, repository=None):
+def verify_upgrade(output, *, staged=False, repository=None, package_only=False):
     """Independently bind both manifests, source identities and exact package bytes."""
     output = Path(output)
     if output.resolve() != output or not output.is_dir():
@@ -374,7 +376,8 @@ def verify_upgrade(output, *, staged=False, repository=None):
                     'package.deb', 'package.rpm', 'installed-files.json', 'transfer-sha256.json', 'previous')):
                 raise ArtifactError('upgrade staging name collision')
     current_root = output if staged else output / 'current'
-    current, previous = verify(current_root), verify(output / 'previous')
+    options = {'package_only': True} if package_only else {}
+    current, previous = verify(current_root, **options), verify(output / 'previous', **options)
     formats = {Path(manifest['artifacts']['package']['path']).suffix
                for manifest in (current, previous)}
     if len(formats) != 1:
@@ -415,7 +418,45 @@ def verify_upgrade(output, *, staged=False, repository=None):
     return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']}}
 
 
-def verify(output: Path) -> dict[str, Any]:
+def verify_package_input(output: Path) -> dict[str, Any]:
+    """Verify a controller-staged package without claiming a fixture collection.
+
+    This distinct schema carries the original verified source identity, exact
+    package alias and installation metadata. It is never a full artifact input.
+    """
+    try:
+        manifest = json.loads((output / PACKAGE_INPUT_NAME).read_text(encoding='utf-8'))
+        if (type(manifest) is not dict or set(manifest) != {
+                'schema', 'source', 'artifacts', 'installed_files_sha256'}
+                or manifest['schema'] != PACKAGE_INPUT_SCHEMA
+                or type(manifest['source']) is not dict
+                or type(manifest['artifacts']) is not dict
+                or set(manifest['artifacts']) != {'package'}):
+            raise ValueError('fields')
+        package = manifest['artifacts']['package']
+        if (type(package) is not dict or set(package) != {'path', 'sha256'}
+                or package['path'] not in ('package.deb', 'package.rpm')
+                or any(type(value) is not str or re.fullmatch(r'[0-9a-f]{64}', value) is None
+                       for value in (package['sha256'], manifest['installed_files_sha256']))):
+            raise ValueError('package')
+        for name, expected in ((package['path'], package['sha256']),
+                               ('installed-files.json', manifest['installed_files_sha256'])):
+            path = output / name
+            info = path.lstat()
+            if (path.resolve() != path or not stat.S_ISREG(info.st_mode)
+                    or info.st_nlink != 1 or _sha256(path) != expected):
+                raise ValueError('bytes')
+        alternate = 'package.rpm' if package['path'] == 'package.deb' else 'package.deb'
+        if os.path.lexists(output / alternate) or os.path.lexists(output / MANIFEST_NAME):
+            raise ValueError('ambiguous input')
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise ArtifactError('package input verification failed') from error
+    return manifest
+
+
+def verify(output: Path, *, package_only=False) -> dict[str, Any]:
+    if package_only:
+        return verify_package_input(output)
     try:
         manifest = json.loads((output / MANIFEST_NAME).read_text(encoding="utf-8"))
         package = manifest["artifacts"]["package"]

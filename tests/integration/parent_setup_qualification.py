@@ -12,10 +12,11 @@ class ParentSetupQualification(smoke.Qualification):
         self.checkpoint('attempt-started')
         try:
             lease.prepare()
-            host_key = smoke.runner.bootstrap(self.commands, lease, self.directory, guestfs)
+            host_key = smoke.runner.bootstrap(self.commands, lease, self.directory, guestfs,
+                                              system_product_free=True)
             lease.guard(off=True)
             lease.save('isolated')
-            self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets)
+            self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets, package_only=True)
             self.result['provenance'] = self.verified.inputs
             self.result['fixture_credentials'] = self.credentials.provision(
                 lease, self.verified, self.directory, guestfs, self.commands)
@@ -62,7 +63,10 @@ class ParentSetupQualification(smoke.Qualification):
                               'run': lease.state['run']}
                     vm = smoke.Transport(config, self.commands, guard=lambda _: lease.guard(), lease=lease)
                     vm.probe_ready(timeout=180)
+                    from system_fixture_preparation import prepare
+                    prepared = prepare(vm, lease, self.directory, self.fixture_selection)
                     setup = smoke.installed_setup.InstalledSetup(self.directory, self.verified, vm)
+                    prepared['controller'].require_ready(prepared['receipt'])
                     reply = setup.run(guard)
                     self.result['installed_setup'] = reply
                 else:

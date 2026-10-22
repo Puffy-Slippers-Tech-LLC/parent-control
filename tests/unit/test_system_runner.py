@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 from tests.support.vm_baseline import rig, local_preparation_source
-from tests.support.vm_runner import UUID, RUN, INVENTORIES, xml, write_junit_results, lease_rig, bootstrap_guest
+from tests.support.vm_runner import UUID, RUN, INVENTORIES, xml, write_junit_results, lease_rig, bootstrap_guest, legacy_lease
 
 import system_runner as runner
 import system_guest as guest
@@ -383,7 +383,7 @@ def test_trusted_fixture_controller_installs_and_boots_only_previous_package(
                                         inventories=trusted_fixture_inventories, fresh_install=True)
     (tmp_path / 'input').mkdir()
     (tmp_path / 'input/previous-package.rpm').write_bytes(b'pinned previous package')
-    vm, lease = Mock(), Mock(state={'run': RUN})
+    vm, lease = Mock(), legacy_lease(state={'run': RUN})
     events = []
     def step(name):
         events.append(name)
@@ -437,7 +437,7 @@ def test_trusted_fixture_controller_refuses_incompatible_starting_state(
         (tmp_path / 'input/previous-package.deb').write_bytes(b'pinned previous package')
     if invalid == 'candidate-phase':
         selected = replace(selected, phases=(*selected.phases, 'installed'))
-    vm, lease = Mock(), Mock(state={'run': RUN})
+    vm, lease = Mock(), legacy_lease(state={'run': RUN})
     with pytest.raises(runner.Error, match='trusted-fixtures-requires-isolated-old-package'):
         runner.installed_run(vm, lease, tmp_path, selected,
                              already_installed=invalid == 'installed-snapshot')
@@ -480,7 +480,7 @@ def test_previous_policy_controller_keeps_old_boot_policy_update_and_recovery_in
                                         inventories=previous_policy_inventories, fresh_install=True)
     (tmp_path / 'input').mkdir()
     (tmp_path / 'input/previous-package.rpm').write_bytes(b'earlier package')
-    vm, lease = Mock(), Mock(state={'run': RUN})
+    vm, lease = Mock(), legacy_lease(state={'run': RUN})
     events = []
     def execute(command, **options):
         for operation in ('install-previous', 'upgrade'):
@@ -521,7 +521,7 @@ def test_previous_policy_refuses_missing_inputs_before_any_installation(
         tmp_path, previous_policy_inventories):
     selected = runner.resolve_selection('package', runner.PREVIOUS_POLICY_CASE,
                                         inventories=previous_policy_inventories)
-    vm, lease = Mock(), Mock(state={'run': RUN})
+    vm, lease = Mock(), legacy_lease(state={'run': RUN})
     with pytest.raises(runner.Error, match='previous-policy-requires-isolated-upgrade'):
         runner.installed_run(vm, lease, tmp_path, selected)
     vm.reboot.assert_not_called()
@@ -1089,7 +1089,7 @@ def test_recovery_installed_activation_calls_guest_and_observer_with_installed_s
     (tmp_path / 'input/selected-inputs.json').write_text(json.dumps({'host_files': identity}))
     monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', Mock(return_value=identity))
     state = {'phase': 'installed', 'boot_sha256': 'a' * 64, 'execution_rules': {}}
-    vm, lease = Mock(), Mock(state={'run': RUN})
+    vm, lease = Mock(), legacy_lease(state={'run': RUN})
     vm.call.side_effect = [json.dumps(state).encode(), b'', json.dumps(state).encode()]
     observer = Mock(return_value={'boot_sha256': 'a' * 64})
     monkeypatch.setattr(kiosk_entry, 'observe_activation', observer)
@@ -1239,6 +1239,193 @@ Signed-By:
             ' http://security.ubuntu.com/ubuntu\n', ' https://archive.ubuntu.com/ubuntu/\n')
     assert ubuntu_archive_sources(sources) == expected
     assert ubuntu_archive_sources(expected) == expected
+
+
+@pytest.mark.parametrize('enabled,guest,accepted', [
+    (True, {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}, True),
+    (False, {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}, False),
+    (True, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}, True),
+    (False, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}, False),
+    (True, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '43'}, False),
+    (True, {'fixture_boundary': 'clean', 'ubuntu_version': '26.10'}, False),
+    (True, {'fixture_boundary': 'clean', 'os_id': 'unknown', 'version': '44'}, False),
+])
+def test_clean_bootstrap_requires_explicit_qualified_target_branch(
+        tmp_path, enabled, guest, accepted):
+    commands, lease, guestfs = Mock(), Mock(), Mock()
+    lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
+                           'guest': {**guest, 'preparation_record_sha256': 'e' * 64}}
+    lease.state = {'run': RUN, 'baseline_sha256': 'd' * 64}
+    lease.source.uuid = UUID
+    if not accepted:
+        with pytest.raises(runner.Error, match='fixtures:'):
+            runner.bootstrap(commands, lease, tmp_path, guestfs, system_product_free=enabled)
+        commands.run.assert_not_called()
+        guestfs.GuestFS.assert_not_called()
+        return
+    (tmp_path / 'input').mkdir()
+    fedora = guest.get('os_id') == 'fedora'
+    (tmp_path / ('input/package.rpm' if fedora else 'input/package.deb')).write_bytes(b'package')
+    (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
+    (tmp_path / 'ssh-key.pub').write_bytes(b'ssh-ed25519 QUFB onpc-system-test\n')
+    g, files = bootstrap_guest('fedora' if fedora else 'ubuntu')
+    if fedora:
+        from guest_test_dependencies import FEDORA_VERSIONS
+        g.inspect_get_distro.return_value = 'fedora'
+        g.inspect_get_major_version.return_value = 44
+        g.inspect_get_minor_version.return_value = 0
+        files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
+        files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
+        g.inspect_list_applications2.return_value = [
+            {'app2_name': name, 'app2_version': version} for name, version in FEDORA_VERSIONS.items()]
+        g.feature_available.return_value = False
+        g.is_file.return_value = True
+    guestfs.GuestFS.return_value = g
+    with patch.object(runner, 'retire_snapshot_payload'):
+        assert runner.bootstrap(commands, lease, tmp_path, guestfs,
+                                system_product_free=True) == 'ssh-ed25519 public-test-key'
+
+
+@pytest.mark.parametrize('os_id,major,minor', [('ubuntu', 26, 10), ('fedora', 43, 0)])
+def test_clean_bootstrap_rejects_unqualified_inspected_release_before_guest_writes(
+        tmp_path, os_id, major, minor):
+    commands, lease, guestfs = Mock(), Mock(), Mock()
+    lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
+        'guest': {'fixture_boundary': 'clean', **({'ubuntu_version': '26.04'}
+            if os_id == 'ubuntu' else {'os_id': 'fedora', 'version': '44'})}}
+    lease.state = {'run': RUN}
+    g, _ = bootstrap_guest()
+    g.inspect_get_distro.return_value = os_id
+    g.inspect_get_major_version.return_value = major
+    g.inspect_get_minor_version.return_value = minor
+    guestfs.GuestFS.return_value = g
+    with pytest.raises(runner.baseline.guest_contract.PreparationError, match=r'\[guard:os\]'):
+        runner.bootstrap(commands, lease, tmp_path, guestfs, system_product_free=True)
+    g.write.assert_not_called()
+    g.command.assert_not_called()
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('scenario', [False, True])
+def test_package_only_engineering_stage_keeps_no_fixture_collection(
+        tmp_path, monkeypatch, package_format, scenario):
+    import io
+    import tarfile
+    source = tmp_path / 'source'
+    (source / 'fixtures').mkdir(parents=True)
+    (source / 'fixtures/movable-runtime').write_bytes(b'never copied')
+    (source / 'fixtures/mechanical').mkdir()
+    (source / 'fixtures/mechanical/onpc-test-application').write_bytes(b'scenario comparison')
+    fixture_files = {'mechanical/onpc-test-application': hashlib.sha256(b'scenario comparison').hexdigest()}
+    (source / 'fixtures/SHA256SUMS.json').write_text(json.dumps({'algorithm': 'sha256',
+                                                               'files': fixture_files}))
+    package = source / ('product.' + package_format)
+    package.write_bytes(b'package')
+    manifest = {'source': {'digest_sha256': 'a' * 64},
+        'artifacts': {'package': {'path': package.name,
+        'sha256': hashlib.sha256(b'package').hexdigest()}, 'fixtures': {'path': 'fixtures',
+        'sha256': hashlib.sha256(json.dumps(fixture_files, sort_keys=True,
+            separators=(',', ':')).encode()).hexdigest()}}}
+    verify = Mock(return_value=manifest)
+    verify_fixtures = Mock()
+    monkeypatch.setitem(sys.modules, 'build_test_artifacts', Mock(verify=verify,
+        PACKAGE_INPUT_NAME='package-input.json', PACKAGE_INPUT_SCHEMA='onpc-package-input-v1'))
+    monkeypatch.setitem(sys.modules, 'build_test_applications', Mock(verify=verify_fixtures))
+    commands = Mock()
+    if package_format == 'rpm':
+        commands.run.side_effect = [b'oh-no-parent-control',
+            f'/usr/bin/app\t{stat.S_IFREG | 0o755}\t\n'.encode()]
+    else:
+        archive = io.BytesIO()
+        with tarfile.open(fileobj=archive, mode='w') as stream:
+            entry = tarfile.TarInfo('./usr/bin/app')
+            entry.mode = 0o755
+            stream.addfile(entry)
+        commands.run.side_effect = [b'oh-no-parent-control', archive.getvalue()]
+    destination = tmp_path / 'staged'
+    selected = ('fixtures/mechanical/onpc-test-application',) if scenario else ()
+    assert runner.stage_assets(source, destination, commands,
+                               package_only=True, fixture_files=selected) == manifest
+    assert {path.name for path in destination.iterdir()} == {
+        'package.' + package_format, 'installed-files.json', 'transfer-sha256.json', 'package-input.json',
+        *({'fixtures'} if scenario else set())}
+    if scenario:
+        assert (destination / 'fixtures/mechanical/onpc-test-application').read_bytes() == b'scenario comparison'
+    assert not (destination / 'fixtures/movable-runtime').exists()
+    assert not (destination / 'fixtures/SHA256SUMS.json').exists()
+    verify.assert_called_once_with(source)
+    verify_fixtures.assert_called_once_with(source / 'fixtures')
+    assert (source / 'fixtures/movable-runtime').read_bytes() == b'never copied'
+    package_input = json.loads((destination / 'package-input.json').read_bytes())
+    assert set(package_input['artifacts']) == {'package'}
+    assert package_input['source'] == manifest['source']
+    assert package_input['installed_files_sha256'] == runner.baseline.digest(destination / 'installed-files.json')
+    assert stat.S_IMODE(destination.stat().st_mode) == 0o700
+    assert all(stat.S_IMODE(path.stat().st_mode) == (0o700 if path.is_dir() else 0o600)
+               for path in destination.rglob('*'))
+
+
+@pytest.mark.parametrize('mutation', ['after-verify', 'at-copy'])
+def test_selected_scenario_bytes_cannot_switch_with_mutated_source_digest_map(
+        tmp_path, monkeypatch, mutation):
+    source = tmp_path / 'source'
+    fixture = source / 'fixtures/mechanical/onpc-test-application'
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes(b'original comparison')
+    sums = source / 'fixtures/SHA256SUMS.json'
+    files = {'mechanical/onpc-test-application': hashlib.sha256(fixture.read_bytes()).hexdigest()}
+    sums.write_text(json.dumps({'algorithm': 'sha256', 'files': files}))
+    (source / 'product.deb').write_bytes(b'package')
+    manifest = {'source': {'digest_sha256': 'a' * 64}, 'artifacts': {
+        'package': {'path': 'product.deb', 'sha256': hashlib.sha256(b'package').hexdigest()},
+        'fixtures': {'path': 'fixtures', 'sha256': hashlib.sha256(json.dumps(files,
+            sort_keys=True, separators=(',', ':')).encode()).hexdigest()}}}
+    original_digest = manifest['artifacts']['fixtures']['sha256']
+    def replace():
+        fixture.write_bytes(b'replacement comparison')
+        sums.write_text(json.dumps({'algorithm': 'sha256', 'files': {
+            'mechanical/onpc-test-application': hashlib.sha256(fixture.read_bytes()).hexdigest()}}))
+    monkeypatch.setitem(sys.modules, 'build_test_artifacts', Mock(verify=Mock(return_value=manifest)))
+    monkeypatch.setitem(sys.modules, 'build_test_applications', Mock(
+        verify=Mock(side_effect=lambda _: replace() if mutation == 'after-verify' else None)))
+    copy = runner.shutil.copyfile
+    def copy_with_mutation(origin, destination, **options):
+        if origin == fixture:
+            assert mutation == 'at-copy'
+            replace()
+        return copy(origin, destination, **options)
+    monkeypatch.setattr(runner.shutil, 'copyfile', copy_with_mutation)
+    commands = Mock()
+    expected = 'fixture-inventory-changed' if mutation == 'after-verify' else 'fixture-changed'
+    with pytest.raises(runner.Error, match=expected):
+        runner.stage_assets(source, tmp_path / 'staged', commands, package_only=True,
+                            fixture_files=('fixtures/mechanical/onpc-test-application',))
+    commands.run.assert_not_called()
+    assert manifest['artifacts']['fixtures']['sha256'] == original_digest
+
+
+@pytest.mark.parametrize('area,test,expected', [
+    ('package', 'test_first_install_requests_reboot', ()),
+    ('package', runner.FIRST_CONFIGURE_CASE, ()),
+    ('package', runner.PAM_HISTORIES[0].case_id, ()),
+    ('enforcement', 'test_native_command_policy_is_uid_scoped',
+     ('fixtures/mechanical/onpc-test-application',)),
+    ('removal', 'test_remove_reboot_reinstall', ('fixtures/mechanical/onpc-test-application',)),
+    ('package', runner.TRUSTED_FIXTURES_CASE, (
+        'fixtures/mechanical/onpc-test-application', 'fixtures/mechanical/identity-trusted-hard',
+        'fixtures/mechanical/identity-trusted-soft', 'fixtures/native/identity-trusted-activity',
+        'fixtures/native/onpc-test-gui.py', 'fixtures/native/gtk_automation.py')),
+    ('package', runner.PREVIOUS_POLICY_CASE, (
+        'fixtures/mechanical/onpc-test-application', 'fixtures/mechanical/identity-trusted-hard',
+        'fixtures/mechanical/identity-trusted-soft', 'fixtures/native/identity-trusted-activity',
+        'fixtures/native/onpc-test-gui.py', 'fixtures/native/gtk_automation.py')),
+])
+def test_minimal_system_inputs_keep_only_actual_scenario_comparison_files(area, test, expected):
+    inventories = {**RECOVERY_INVENTORIES, 'package': (*RECOVERY_INVENTORIES['package'],
+        runner.FIRST_CONFIGURE_CASE, runner.TRUSTED_FIXTURES_CASE, runner.PREVIOUS_POLICY_CASE,
+        *(history.case_id for history in runner.PAM_HISTORIES))}
+    selected = runner.resolve_selection(area, test, inventories=inventories)
+    assert runner.scenario_fixture_files(selected) == expected
 
 
 @pytest.mark.parametrize('failure', [None, 'write', 'readback', 'missing-tools', 'symlink', 'wrong-package'])
@@ -1631,7 +1818,7 @@ def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monke
     monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', inputs)
     before = {'phase': 'rebooted', 'boot_sha256': 'b' * 64, 'execution_rules': {}}
     after = {**before, 'execution_rules': {'changed': True}} if fault == 'policy' else before
-    vm, lease = Mock(), Mock()
+    vm, lease = Mock(), legacy_lease()
     lease.state = {'run': RUN}
     vm.call.side_effect = [json.dumps(before).encode(), json.dumps(after).encode()]
     observation = {'phase': 'rebooted', 'boot_sha256': ('c' if fault == 'boot' else 'b') * 64,
@@ -1686,7 +1873,7 @@ def test_full_selection_activation_verifies_entire_frozen_host_manifest(tmp_path
 
     monkeypatch.setattr(guest_inputs, 'read', read)
     before = {'boot_sha256': 'a' * 64}
-    vm, lease = Mock(), Mock(state={'run': RUN})
+    vm, lease = Mock(), legacy_lease(state={'run': RUN})
     vm.call.side_effect = [json.dumps(before).encode(), b'', json.dumps(before).encode()]
     entry = Mock(return_value={'boot_sha256': 'a' * 64})
     monkeypatch.setattr(kiosk_entry, 'observe_activation', entry)
@@ -1712,7 +1899,7 @@ def test_real_gdm_stays_in_the_native_install_reboot_attempt(tmp_path, monkeypat
     inventories = {**INVENTORIES, 'package': (*INVENTORIES['package'], case)}
     selection = runner.resolve_selection('package', case, inventories=inventories)
     write_junit_results(tmp_path, selection)
-    vm, lease = Mock(), Mock()
+    vm, lease = Mock(), legacy_lease()
     lease.state = {'run': RUN}
     events = []
     monkeypatch.setattr(runner, 'run_pytest', lambda _vm, _run, phase, _selection:
@@ -1738,7 +1925,7 @@ def test_real_gdm_stays_in_the_native_install_reboot_attempt(tmp_path, monkeypat
 def test_unselected_package_case_never_enters_gdm(tmp_path):
     selection = runner.resolve_selection('package', 'test_first_install_requests_reboot',
                                          inventories=INVENTORIES)
-    vm, lease = Mock(), Mock()
+    vm, lease = Mock(), legacy_lease()
     runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'installed')
     vm.call.assert_not_called()
     lease.save.assert_not_called()
@@ -2225,7 +2412,7 @@ def test_address_waits_for_one_valid_lease_after_initial_absence(monkeypatch):
 
 
 def test_install_assertion_failure_collects_evidence_without_reboot_or_retry(tmp_path):
-    vm, lease = Mock(), Mock()
+    vm, lease = Mock(), legacy_lease()
     lease.state = {'run': RUN}
     failure = runner.CommandError('test-assertion-failed')
     vm.call.side_effect = [b'', failure, b'']
@@ -2239,7 +2426,7 @@ def test_install_assertion_failure_collects_evidence_without_reboot_or_retry(tmp
 
 
 def test_collection_failure_does_not_hide_original_connection_failure(tmp_path):
-    vm, lease = Mock(), Mock()
+    vm, lease = Mock(), legacy_lease()
     lease.state = {'run': RUN}
     vm.ready.side_effect = runner.CommandError('original-connection-failed')
     vm.call.side_effect = runner.CommandError('collection-failed')
@@ -2255,7 +2442,7 @@ def test_collection_failure_does_not_hide_original_connection_failure(tmp_path):
 
 
 def test_collection_failure_does_not_hide_original_pytest_failure_or_its_domain(tmp_path):
-    vm, lease = Mock(), Mock()
+    vm, lease = Mock(), legacy_lease()
     lease.state = {'run': RUN}
     vm.commands.last_returncode = 1
     original = runner.CommandError('command:failed:ssh')
@@ -2282,7 +2469,7 @@ def test_collection_failure_does_not_hide_original_pytest_failure_or_its_domain(
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 @pytest.mark.parametrize('update', [False, True])
 def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update, monkeypatch, package_format):
-    vm, lease = Mock(), Mock()
+    vm, lease = Mock(), legacy_lease()
     lease.state = {'run': RUN}
     capture = Mock()
     monkeypatch.setattr(runner, 'capture_session_screen', capture)
@@ -2417,7 +2604,7 @@ def test_enforcement_results_must_match_executed_case(tmp_path, fault):
 ])
 def test_runtime_failure_keeps_product_attribution_and_collects(
         tmp_path, monkeypatch, area, capture_failure):
-    vm, lease = Mock(), Mock()
+    vm, lease = Mock(), legacy_lease()
     lease.state = {'run': RUN}
     vm.commands.last_returncode = 1
     capture = Mock(side_effect=runner.Error('capture:failed') if capture_failure else None)
@@ -2444,7 +2631,7 @@ def test_runtime_failure_keeps_product_attribution_and_collects(
 
 
 def test_selected_pre_reboot_execution_omits_reboot_and_later_phases(tmp_path):
-    vm, lease = Mock(), Mock()
+    vm, lease = Mock(), legacy_lease()
     lease.state = {'run': RUN}
     selection = runner.resolve_selection(
         'package', 'test_first_install_requests_reboot', inventories=INVENTORIES)

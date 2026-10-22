@@ -47,19 +47,25 @@ def installed_case(installed):
 
 
 def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
-                 *, fresh_install=False):
+                 *, fresh_install=False, fixture_selection=None, preparation_only=False,
+                 preparation_observer=None):
     from system_progress import watching
     planned = attempts(selection, fresh_install=fresh_install)
     # Lifecycle histories can run in a different order from the phase registry.
     # Count every selected/prerequisite execution in its actual attempt order.
     executions = tuple(item for selected, _ in planned for item in selected.executions)
     with watching(executions, suite.lease) as progress:
+        options = ({'fixture_selection': fixture_selection,
+                    'preparation_only': preparation_only,
+                    'preparation_observer': preparation_observer}
+                   if fixture_selection is not None or preparation_only else {})
         return _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
-                             ledger, planned=planned, progress=progress)
+                             ledger, planned=planned, progress=progress, **options)
 
 
 def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
-                  *, planned, progress):
+                  *, planned, progress, fixture_selection=None, preparation_only=False,
+                  preparation_observer=None):
     from vm_transport import Transport
     from guest_inputs import Bundle
 
@@ -69,18 +75,41 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
     suite._input_bundle = Bundle.from_staged(system.ROOT, directory / 'input')
     results = directory / 'guest-results'
     results.mkdir(mode=0o700)
+    prepared = []
     for index, (selected, installed) in enumerate(planned):
         progress.prepare_execution(selected.executions[0])
         attempt = directory / ('attempt-' + selected.phases[0])
         attempt.mkdir(mode=0o700)
-        shutil.copytree(directory / 'input', attempt / 'input')
+        inputs = directory / 'input'
+        if (inputs / 'package-input.json').is_file():
+            # Broad runs stage a small union once; each restored attempt keeps
+            # only its own scenario's comparison bytes, never another history's.
+            required = set(system.scenario_fixture_files(selected))
+            def excluded(parent, names):
+                from pathlib import Path
+                return [name for name in names
+                        if (path := Path(parent) / name).is_file()
+                        and (relative := path.relative_to(inputs).as_posix()).startswith('fixtures/')
+                        and relative not in required]
+            shutil.copytree(inputs, attempt / 'input', ignore=excluded)
+            inventory = {p.relative_to(attempt / 'input').as_posix(): system.baseline.digest(p)
+                         for p in sorted((attempt / 'input').rglob('*'))
+                         if p.is_file() and p.name != 'transfer-sha256.json'}
+            (attempt / 'input/transfer-sha256.json').write_bytes(system.baseline.encode(inventory))
+        else:
+            shutil.copytree(inputs, attempt / 'input')
         suite.next_case = (installed_case(planned[index + 1][1])
                            if index + 1 < len(planned) else None)
         try:
             with lease:
                 with ledger.measure('preparation'):
+                    if lease.__dict__.get('_fixture_provision_state') is not None:
+                        from tools.fixture_provision import reset_after_restore
+                        reset_after_restore(lease)
                     system.verify_history_target(selected, lease.capture)
                     if installed:
+                        system.require(lease.capture.state['guest'].get('fixture_boundary') != 'clean',
+                                       'fixtures:system-installed-target-not-qualified')
                         # prepare_case calls the shared preparation with overwrite=False
                         # and keeps the completed version snapshot across invocations.
                         suite.prepare_case(installed_case(True), directory, directory / 'input',
@@ -88,7 +117,10 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                     else:
                         lease.prepare()
                 with ledger.measure('bootstrap'):
-                    host_key = system.bootstrap(suite.commands, lease, attempt, suite.guestfs)
+                    clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
+                    options = {'system_product_free': True} if clean and not installed else {}
+                    host_key = system.bootstrap(suite.commands, lease, attempt, suite.guestfs,
+                                                **options)
                     lease.start()
                     hostname = system.address(source)
                 (attempt / 'known-hosts').write_text(f'{hostname} {host_key}\n')
@@ -96,9 +128,16 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                           'domain_uuid': source.uuid, 'domain_id': lease.view.domain_id}
                 vm = Transport(config, suite.commands, guard=lambda _: lease.guard(), lease=lease)
                 lease.guard()
-                system.installed_run(vm, lease, attempt, selected, ledger,
-                                     already_installed=installed)
-                verify_result(attempt, manifest, selected_inputs_sha256, ledger)
+                options = ({'fixture_selection': fixture_selection,
+                            'preparation_only': preparation_only,
+                            'preparation_observer': preparation_observer}
+                           if fixture_selection is not None or preparation_only else {})
+                result = system.installed_run(vm, lease, attempt, selected, ledger,
+                                             already_installed=installed, **options)
+                if preparation_only:
+                    prepared.append(result)
+                else:
+                    verify_result(attempt, manifest, selected_inputs_sha256, ledger)
                 lease.guard()
         finally:
             # Each phase has its own JUnit filename. Keep all diagnostics under
@@ -112,6 +151,7 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                         shutil.copyfile(path, results / path.name)
         if suite.verified is not None:
             suite.verified.recheck()
+    return prepared if preparation_only else None
 
 
 def verify_result(directory, manifest, selected_inputs_sha256, ledger):

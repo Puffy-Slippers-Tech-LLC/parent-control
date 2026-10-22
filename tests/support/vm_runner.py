@@ -16,6 +16,11 @@ UUID = 'f95890e1-88e7-4779-8ae3-53fdcc34330a'
 RUN = 'a' * 32
 
 
+def legacy_lease(**options):
+    """Declare pre-migration guest metadata for isolated controller doubles."""
+    return Mock(capture=Mock(state={'guest': {'fixture_boundary': 'legacy'}}), **options)
+
+
 def bootstrap_guest(os_id='ubuntu'):
     """Offline guest file behavior shared by bootstrap and controller tests."""
     from guest_test_dependencies import VERSIONS

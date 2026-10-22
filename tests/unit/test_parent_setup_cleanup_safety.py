@@ -369,6 +369,102 @@ def test_kiosk_failure_checkpoint_precedes_engineering_collection():
     assert order == ['checkpoint', 'logs']
 
 
+@pytest.mark.parametrize('scope,ready_reply', [
+    ('installed-parent-setup-qualification', {'parent_setup': True}),
+    ('installed-parent-input-qualification', {'parent_setup': True, 'parent_input': True}),
+    ('installed-standard-input-qualification', {'parent_setup': True, 'parent_standard_input': True}),
+])
+@pytest.mark.parametrize('failure', [None, 'provision', 'readiness'])
+def test_fedora_parent_alias_scopes_prepare_after_probe_before_installed_setup(
+        tmp_path, monkeypatch, scope, ready_reply, failure):
+    import parent_setup_qualification as qualification
+    import system_fixture_preparation as preparation
+    from tools import fixture_execution
+
+    controller = object.__new__(qualification.ParentSetupQualification)
+    controller.directory = tmp_path
+    controller.commands = Mock()
+    controller.ledger = Mock()
+    controller.assets = tmp_path / 'assets'
+    controller.credentials = SimpleNamespace(provision=Mock(return_value={}))
+    controller.result = {'scope': scope}
+    controller.checkpoint = Mock()
+    controller.fixture_selection = fixture_execution.Selection('fedora', 'a' * 64,
+        '/tmp/onpc-native-runtime-fedora-' + 'a' * 64 + '-private',
+        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
+    lease = Mock(state={'run': 'a' * 32})
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}}
+    verified = SimpleNamespace(inputs={}, source_files={})
+    events = []
+    vm = Mock()
+    vm.probe_ready.side_effect = lambda **_: events.append('ssh-ready')
+    monkeypatch.setattr(qualification.smoke, 'VerifiedInputs', Mock(return_value=verified))
+    bootstrap = Mock(return_value='fixture-key')
+    monkeypatch.setattr(qualification.smoke.runner, 'bootstrap', bootstrap)
+    monkeypatch.setattr(qualification.smoke.runner, 'address', Mock(return_value='fixture-host'))
+    monkeypatch.setattr(qualification.smoke, 'Transport', Mock(return_value=vm))
+
+    def verify(record):
+        assert record == controller.fixture_selection and events == ['ssh-ready']
+        events.append('verified')
+
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
+    provisioner = Mock()
+
+    def provision(record, subsets, **kwargs):
+        assert record == controller.fixture_selection and subsets == ('trusted-hard',)
+        assert kwargs == {'attempt_id': preparation.attempt_id(tmp_path)}
+        events.append('provision')
+        if failure == 'provision':
+            raise ValueError('fixture-provision-failed')
+        return 'current-boot'
+
+    def ready(receipt):
+        assert receipt == 'current-boot'
+        events.append('ready')
+        if failure == 'readiness':
+            raise ValueError('fixture-readiness-failed')
+
+    provisioner.provision.side_effect = provision
+    provisioner.require_ready.side_effect = ready
+    monkeypatch.setattr(preparation.fixture_provision, 'Provisioner', Mock(return_value=provisioner))
+    setup = Mock()
+    setup.run.side_effect = lambda _: events.append('install') or {'setup_complete': True}
+
+    def installed(directory, actual_verified, transport):
+        assert (directory, actual_verified, transport) == (tmp_path, verified, vm)
+        events.append('installed-setup')
+        return setup
+
+    factory = Mock(side_effect=installed)
+    monkeypatch.setattr(qualification.smoke.installed_setup, 'InstalledSetup', factory)
+
+    def worker(*_args, **kwargs):
+        for stage in ('ready', 'setup-detached'):
+            (tmp_path / (stage + '.request.json')).write_text(
+                json.dumps({'stage': stage, 'screenshot': None}))
+            kwargs['guarded_observe'](Mock())
+            if stage == 'ready':
+                assert json.loads((tmp_path / 'ready.reply.json').read_text()) == ready_reply
+        return {'outcome': 'passed'}
+
+    monkeypatch.setattr(qualification.smoke.e2e_worker, 'run_distribution', worker)
+    if failure:
+        with pytest.raises(ValueError, match='fixture-.*-failed'):
+            controller.execute(lease, Mock())
+        factory.assert_not_called()
+        setup.run.assert_not_called()
+        assert not (tmp_path / 'setup-detached.reply.json').exists()
+        assert events == ['ssh-ready', 'verified', 'provision'] + (['ready'] if failure == 'readiness' else [])
+    else:
+        controller.execute(lease, Mock())
+        assert events == ['ssh-ready', 'verified', 'provision', 'ready', 'installed-setup', 'ready', 'install']
+        assert json.loads((tmp_path / 'setup-detached.reply.json').read_text()) == {'setup_complete': True}
+    assert bootstrap.call_args.kwargs == {'system_product_free': True}
+    vm.copy.assert_not_called()
+    vm.call.assert_not_called()
+
+
 def test_guest_selection_mismatch_refuses_install(monkeypatch):
     monkeypatch.setattr(system_guest, 'guard', lambda: {'selected_inputs_sha256': 'a' * 64})
     monkeypatch.setattr(system_guest, 'sha', lambda _: 'b' * 64)

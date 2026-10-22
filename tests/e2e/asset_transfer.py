@@ -189,9 +189,10 @@ class AssetTransfer:
         require(not self._attempted, 'transfer:already-attempted')
         self._attempted = True
         try:
+            require(lease is not None and lease is self.verified.lease, 'transfer:outside-provisioning')
             require(lease.capture.state['guest'].get('fixture_boundary') != 'clean',
                     'fixtures:runner-not-qualified-for-clean-snapshot')
-            require(lease is self.verified.lease and lease.fd is not None
+            require(lease.fd is not None
                     and lease.state['phase'] == 'running' and lease.state['domain_id'] is not None
                     and transport.config['domain_uuid'] == lease.state['domain_uuid']
                     and transport.config['domain_id'] == lease.state['domain_id']
@@ -220,9 +221,10 @@ class AssetTransfer:
         require(not self._attempted, 'transfer:already-attempted')
         self._attempted = True
         try:
+            require(lease is not None and lease is self.verified.lease, 'transfer:outside-provisioning')
             require(lease.capture.state['guest'].get('fixture_boundary') != 'clean',
                     'fixtures:runner-not-qualified-for-clean-snapshot')
-            require(lease is self.verified.lease and lease.fd is not None
+            require(lease.fd is not None
                     and lease.state['phase'] == 'isolated'
                     and lease.state['domain_id'] is None, 'transfer:outside-provisioning')
             lease.guard(off=True)

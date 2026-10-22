@@ -494,6 +494,7 @@ def qualification_artifact_command(root, category, args):
     if (category != 'integration' or len(args) != 1
             or args[0] in INSPECTION_FLAGS):
         return None
+    fixture_execution_target(category, args)
     options = qualification_input_options(root, args[0])
     if options is None:
         return None
@@ -512,19 +513,45 @@ def qualification_artifact_command(root, category, args):
     return python_file(root, 'tools/vm_artifacts.py', *flags, '--output', directory, *arguments())
 
 
+def fixture_execution_target(category, args):
+    """Resolve only delivered fixture envelopes, without preparing any input."""
+    if any(argument in INSPECTION_FLAGS for argument in args):
+        return None
+    provisioning = (category == 'integration' and len(args) == 1
+                    and args[0].removesuffix('.py') == 'check_fixture_provisioning')
+    bootstrap = (category == 'integration' and len(args) == 1
+                 and args[0].removesuffix('.py') in (
+                     'check_fixture_system_product_free', 'check_parent_setup',
+                     'check_parent_input', 'check_parent_standard_input'))
+    if not provisioning and not bootstrap and category != 'system':
+        return None
+    from vm_selection import selected
+    targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+    target = targets.get(selected().name)
+    if provisioning:
+        if target is None:
+            raise ValueError('fixture provisioning qualification target is unavailable')
+        return target
+    if bootstrap and target is None:
+        raise ValueError('fixture product-free system target is unavailable')
+    # Other system targets keep their existing preparation/refusal boundaries.
+    return target
+
+
 def qualification_fixture_options(root, category, args, *, control=None, environment=None):
-    """Freeze F05's caller-owned fixture input before the privileged VM lease.
+    """Freeze the qualified target's caller-owned input before the VM lease.
 
     The selection is a locator, not authority: the privileged consumer repeats
     the authenticated journal and complete bundle checks before acquiring a VM.
-    Ordinary runners remain unavailable on clean captures.
+    Only delivered preparation envelopes receive this handoff. Installed and
+    other unmigrated branches retain their own refusal before fixture input.
     """
-    if category != 'integration' or len(args) != 1 or args[0].removesuffix('.py') != 'check_fixture_provisioning':
+    target = fixture_execution_target(category, args)
+    if target is None:
         return []
-    from vm_selection import selected
-    if selected().name != 'onpc-Ubuntu26.04':
-        raise ValueError('fixture provisioning qualification is Ubuntu-only')
-    from fixture_execution import Selection
+    from fixture_execution import Selection, validate_source_selection
+    source_edit = (category == 'integration' and len(args) == 1
+                   and args[0].removesuffix('.py') == 'check_fixture_system_product_free')
     if control is None:
         from regression_process import Control
         with Control().installed() as owned:
@@ -533,8 +560,9 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
     # Build in an owned child: STOP must reach cold compilers/containers too.
     # Control forwards the caller retention/producer descriptors and waits for
     # its recorded child before the privileged consumer can acquire the VM.
-    pending, records, invalid = b'', [], False
+    pending, records, source_records, invalid = b'', [], [], False
     prefix = b'fixture-execution: selection='
+    source_prefix = b'fixture-execution: source-edit='
     def output(data):
         nonlocal pending, invalid
         sys.stdout.write(data.decode('utf-8', errors='replace'))
@@ -542,23 +570,32 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
         pending += data
         while b'\n' in pending:
             line, pending = pending.split(b'\n', 1)
-            if line.startswith(prefix):
+            selected_prefix = (prefix if line.startswith(prefix) else
+                               source_prefix if line.startswith(source_prefix) else None)
+            if selected_prefix is not None:
                 if len(line) > 8192:
                     invalid = True
                 else:
-                    records.append(line[len(prefix):])
+                    (records if selected_prefix == prefix else source_records).append(line[len(selected_prefix):])
         if len(pending) > 65536:
             invalid, pending = True, b''
-    status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', 'ubuntu'),
+    status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', target,
+                                   *(['--qualify-source-edit'] if source_edit else [])),
                          cwd=root, env=environment, output=output, timeout=600.0)
     if status:
         raise ValueError('fixture preparation failed; status=' + str(status))
     if invalid or len(records) != 1:
         raise ValueError('fixture preparation returned no unique selection')
     selection = Selection.from_record(json.loads(records[0]))
-    if selection.target != 'ubuntu':
+    if selection.target != target:
         raise ValueError('fixture preparation returned an incompatible selection')
-    return ['--fixture-selection', json.dumps(selection.record(), sort_keys=True)]
+    if len(source_records) != (1 if source_edit else 0):
+        raise ValueError('fixture preparation returned no unique source proof')
+    options = ['--fixture-selection', json.dumps(selection.record(), sort_keys=True)]
+    if source_edit:
+        source = validate_source_selection(json.loads(source_records[0]), selection)
+        options += ['--fixture-source-selection', json.dumps(source, sort_keys=True)]
+    return options
 
 
 def make_command(root, target, assignments=()):
@@ -576,6 +613,7 @@ def plan(root, category, argv):
         from vm_selection import extract_execution as extract
         argv, _ = extract(argv, required=False)
         argv, _ = vm_input_options(category, argv)
+        fixture_execution_target(category, argv)
     if category == 'publish':
         if argv:
             raise ValueError('publishing tests accept no arguments')

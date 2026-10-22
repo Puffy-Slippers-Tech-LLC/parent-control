@@ -1,5 +1,15 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Fedora product-free system coverage extends fixture_system_qualification,
+system_snapshots, system_runner, parent_setup_cleanup_safety,
+privileged_test_runner and test_launchers using pytest-private source/results
+and process-local guestfs/transport/lease/command doubles. No new subprocess,
+VM, display, bus, socket, shared cache or external service is owned; existing
+compatible unit classifications and cleanup/UI inventories remain valid.
+The dual-target source-edit proof in fixture_execution_cleanup_safety keeps
+its existing tiny private bundles/journals and bounded waited descendant;
+target/reuse/owner parametrization adds no compiler, container or shared owner.
+
 Ubuntu/Fedora native-readiness and clean-snapshot checks in baseline_guest_cleanup_safety,
 baseline_fixtures_cleanup_safety and fixture_snapshots use pytest-private files and in-memory service, transport and
 guestfs doubles. No live daemon, VM, display, socket, bus, shared cache or new
@@ -1104,8 +1114,12 @@ from regression_ui import Bucket
 # compatible in both unit and cleanup inventories.
 # Fixture provisioning qualification checks finite in-memory audit records and
 # pytest-private result files with process-local suite/lease/transport doubles.
+# Fedora policy/SELinux and lost-reply checks retain those same private owners.
 # No VM, process, fixture build, socket, display, service or shared cache is used;
 # compatible unit overlap, with no cleanup inventory or resource owner added.
+# Dual-target dispatcher checks use private checkout records; launcher checks
+# retain bounded waited isolated Python children and inherited scratch leases.
+# They add no shared cache, live guest/service, or cleanup/UI inventory owner.
 # Output-ancestor reconciliation uses pytest-private directories, metadata and
 # descriptor/ownership doubles in storage/handoff cleanup tests. No shared
 # output is touched; both modules retain compatible unit/cleanup scheduling.
@@ -1115,7 +1129,12 @@ from regression_ui import Bucket
 # compatible overlap; it introduces no cleanup or UI inventory owner.
 # Baseline, app-snapshot and transfer safety additions retain their existing
 # private filesystem/double ownership in both unit and cleanup inventories.
+# fixture_system_qualification owns tiny pytest-private source/result trees and
+# process-local runner/lease/transport doubles. No VM, subprocess, service,
+# fixture build, display, socket, shared cache or cleanup/UI owner is added;
+# bounded CPU and disk work is compatible with ordinary unit overlap.
 REVIEWED = frozenset("""
+fixture_system_qualification
 fixture_provision_qualification
 fixture_snapshots
 fixture_provision_cleanup_safety

@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F06 — [Qualify Fedora fixture provisioning](Fixture-Tasks/F06-fedora-provision.md)**.
+Next task: **F16 — [Integrate Ubuntu installed-system preparation](Fixture-Tasks/F16-ubuntu-installed-system.md)**.
 
 ## Outcome and status
 
@@ -30,8 +30,28 @@ F12 delivered Fedora's fixture-independent baseline/app captures, authenticated
 native policy and compiler-backup retirement, enforcing SELinux, standalone
 reuse/stop and renewed Ubuntu snapshot acceptance. Owned restoration and cleanup
 passed on both targets.
+F06 qualified Fedora's shared provisioning with enforcing SELinux, exact finite
+admissions, trusted/untrusted runtime outcomes, no-write repeats and real staged
+lost-reply recovery. The shared four-attempt history also renewed Ubuntu proof;
+both targets restored their baselines and ended off after owned cleanup.
+F09 delivered Ubuntu's product-free system preparation and the three Parent
+bootstrap aliases. The actual system attempt passed two clean restored boots:
+hard-only independent readback/runtime use, selection refusals, no-write repeats,
+unchanged selection after producer-source edits and prior-generation refusal,
+without installation input or phase execution. Package-only provenance retains
+finite scenario comparison inputs. Independent review findings were resolved;
+baseline, producer, transport and retention cleanup passed, with Ubuntu off.
+F10 delivered the same product-free system boundary and Parent bootstrap aliases
+on Fedora 44. Two restored Fedora boots passed independent hard-only byte/runtime
+checks, enforcing SELinux and exact native policy/labels, input refusals, fresh
+readiness and immutable selection after actual producer-source edits. The source-edit
+proof helper now supports both targets; its Ubuntu-only guard and a new test's
+incorrect error expectation were repaired while preserving behavior assertions.
+Ubuntu product-free preparation proof was renewed. Independent Sol High review found
+no remaining issues; host composition/provenance/ownership checks and watched
+owned cleanup passed, with both VMs independently off.
 Later tasks remain unimplemented;
-runner dispatch stays unavailable until target and envelope qualification. Host inputs and
+other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.
 
 ## Launcher

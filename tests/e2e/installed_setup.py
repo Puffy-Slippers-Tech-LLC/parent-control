@@ -35,10 +35,14 @@ def snapshot_inputs(bundle):
         frozen={bundle.sources[target]: data for target, data in bundle.files.items()})
 
 
-def stage(directory, assets, selection, *, bundle=None, snapshot=False):
+def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_only=False):
     """Bind the existing installed payload and fixed helper bytes before bootstrap."""
     destination = directory / 'input'
     require(not destination.exists(), 'setup:input-exists')
+    if package_only:
+        from build_test_artifacts import verify
+        require(not snapshot and not (assets / 'fixtures').exists(), 'setup:package-only-scope')
+        verify(assets, package_only=True)
     bundle = bundle if bundle is not None else inputs(system.ROOT)
     if snapshot:
         # Clean captures retain the package and installation metadata,

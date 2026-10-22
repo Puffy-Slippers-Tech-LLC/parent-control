@@ -99,6 +99,43 @@ def captured(upgrade):
     return verified, asset_transfer.AssetTransfer(verified), SimpleNamespace(GuestFS=Mock(return_value=guest))
 
 
+@pytest.mark.parametrize('fault', [None, 'source', 'package', 'installation-metadata', 'version'])
+def test_minimal_system_upgrade_preserves_exact_release_and_package_guards(
+        upgrade, tmp_path, monkeypatch, fault):
+    assets, source, lease, guest = upgrade
+    commands = SimpleNamespace(run=lambda argv, **options:
+        subprocess.run(argv, check=True, capture_output=True).stdout)
+    monkeypatch.setattr(system_runner, 'ROOT', source)
+    staged = tmp_path / 'minimal-system-input'
+    current = system_runner.stage_assets(assets, staged, commands, package_only=True)
+    system_runner.stage_previous_assets(assets / 'previous', staged / 'previous', commands,
+        current, genuine=True, package_only=True)
+    for root in (staged, staged / 'previous'):
+        assert not (root / 'fixtures').exists()
+        assert not (root / 'artifact-manifest.json').exists()
+        builder.verify(root, package_only=True)
+    manifest_path = staged / 'previous' / builder.PACKAGE_INPUT_NAME
+    manifest = json.loads(manifest_path.read_bytes())
+    if fault == 'source':
+        manifest['source']['revision'] = '0' * 40
+    if fault == 'package':
+        (staged / 'previous/package.deb').write_bytes(b'changed')
+    if fault == 'installation-metadata':
+        (staged / 'previous/installed-files.json').write_text('[{}]')
+    if fault == 'version':
+        package(tmp_path / 'wrong-previous-version', staged / 'previous/package.deb',
+                '1.3+ppa1~ubuntu26.04.1')
+        manifest['artifacts']['package']['sha256'] = builder._sha256(staged / 'previous/package.deb')
+    manifest_path.write_text(json.dumps(manifest))
+    if fault:
+        with pytest.raises(builder.ArtifactError):
+            builder.verify_upgrade(staged, staged=True, repository=source, package_only=True)
+    else:
+        identity = builder.verify_upgrade(staged, staged=True, repository=source, package_only=True)
+        assert identity == current['previous_package']['upgrade_identity']
+        assert identity['packages']['previous']['sha256'] == builder._sha256(staged / 'previous-package.deb')
+
+
 def test_two_packages_keep_separate_sources_bytes_and_single_use_cleanup(upgrade):
     assets, source, lease, guest = upgrade
     verified, transfer, api = captured(upgrade)

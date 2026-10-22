@@ -71,6 +71,12 @@ checks each own a bounded, waited Python child without model inference.
 No VM, bus, display, network, shared mutable path
 or cache, heavy build or cleanup-inventory resource is acquired; compatible unit
 scheduling is appropriate. Cleanup and UI inventories gain no module.
+Automatic controller-reload checks keep the same private records and lock trees,
+with process-local exec/descriptor doubles. Public detached checks also exercise
+real interpreter replacement, bounded local app-server doubles and private Git
+remotes; they retain the recorded worker owner through cancellation and wait for
+release. No VM, external service, shared cache or new cleanup resource is added;
+the existing compatible classification remains appropriate.
 Committed-baseline close-out checks reuse pytest-private checkouts and bare
 remotes with finite, synchronously waited Git commands. They cover binary/link/
 deletion fingerprints, executable-mode ownership and two-task push/advance/restart

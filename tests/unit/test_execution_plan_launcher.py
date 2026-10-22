@@ -27,6 +27,7 @@ from launcher_runtime import TaskBudget, task_limit, task_progress, warn_remaini
 from launcher_view import WorkflowView, plan_totals, view_for
 import plan_launcher as workflow
 from plan_launcher import execute as execute_session
+from plan_launcher import reload_controller as replace_controller_process
 from tests.support.terminal_screen import Terminal
 
 
@@ -176,6 +177,10 @@ def response(state, status='task_complete'):
                 checks=[dict(kind='host', target='', result='passed', evidence='Private scoped check passed.')])
 
 
+class ControllerReplaced(BaseException):
+    """Stand in for successful exec without replacing the pytest process."""
+
+
 @pytest.fixture
 def rig(tmp_path, monkeypatch):
     plan = prepare(tmp_path)
@@ -200,17 +205,31 @@ def rig(tmp_path, monkeypatch):
         return response(state)
 
     monkeypatch.setattr(workflow, 'execute', execute)
+    reloads = []
 
-    def worker(state=None):
+    def reload(root, selected, owner, selected_spec):
+        os.fstat(owner)  # Ownership must still be held at replacement.
+        assert not TaskBudget(selected).read().get('closed')
+        assert not (selected / 'result.json').exists()
+        reloads.append((root, selected, selected_spec))
+        raise ControllerReplaced()
+
+    monkeypatch.setattr(workflow, 'reload_controller', reload)
+
+    def worker(state=None, **options):
         owner = os.open(run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
-        status = workflow.worker(tmp_path, run, owner, spec,
-                                 state or dict(phase='complete', task_sessions=0, total_sessions=0))
+        try:
+            status = workflow.worker(tmp_path, run, owner, spec,
+                                     state or dict(phase='complete', task_sessions=0, total_sessions=0),
+                                     **options)
+        except ControllerReplaced:
+            status = 'reloaded'
         with pytest.raises(OSError):
             os.fstat(owner)
         return status
 
     return SimpleNamespace(root=tmp_path, plan=plan, run=run, spec=spec, calls=calls,
-                           worker=worker, cleanups=cleanups)
+                           worker=worker, cleanups=cleanups, reloads=reloads)
 
 
 ORIGINAL_VALIDATOR_SOURCES = (
@@ -355,7 +374,7 @@ def test_rejected_result_retries_are_bounded_and_retain_original_baseline(rig, m
     assert TaskBudget(rig.run).read()['completed'] == 0
 
 
-def test_rejected_result_stops_before_retrying_with_stale_validation_code(rig, monkeypatch, validator_checkout):
+def test_rejected_result_reloads_before_retrying_with_stale_validation_code(rig, monkeypatch, validator_checkout):
     attempts = []
 
     def execute(root, spec, run, owner):
@@ -367,11 +386,12 @@ def test_rejected_result_stops_before_retrying_with_stale_validation_code(rig, m
     monkeypatch.setattr(workflow, 'execute', execute)
     monkeypatch.setattr(workflow, 'closeout', lambda *_: pytest.fail('rejected completion reached Git'))
     original = rig.plan.state()
-    assert rig.worker() == 1
+    assert rig.worker() == 'reloaded'
     assert attempts == [1]
     state = json.loads((rig.run / 'checkpoint.json').read_text())
     assert 'validation code changed' in state['reason']
-    assert 'fresh run' in state['reason'] and 'session limit reached' not in state['reason']
+    assert 'reloading controller' in state['reason'] and 'session limit reached' not in state['reason']
+    assert rig.reloads == [(rig.root, rig.run, rig.spec)]
     assert state['task_sessions'] == 1 and state['session_limit'] == 5
     assert state['queue_before'] == original and rig.plan.state() == original
     assert state['result_recovery']['reason']
@@ -381,7 +401,7 @@ def test_rejected_result_stops_before_retrying_with_stale_validation_code(rig, m
 
 
 @pytest.mark.parametrize('status', ['continue', 'blocked', 'task_complete'])
-def test_valid_result_source_change_stops_before_next_admission_or_blocked_wait(
+def test_valid_result_source_change_reloads_before_next_admission_or_blocked_wait(
         rig, monkeypatch, status, validator_checkout):
     original = rig.plan.state()
     attempts, admissions, results = [], [], []
@@ -409,16 +429,16 @@ def test_valid_result_source_change_stops_before_next_admission_or_blocked_wait(
     monkeypatch.setattr(workflow, 'execute', execute)
     monkeypatch.setattr(workflow, 'wait_for_answer',
                         lambda *_args, **_kwargs: pytest.fail('stale controller waited for an answer'))
-    assert rig.worker() == 1
+    assert rig.worker() == 'reloaded'
     assert attempts == [1] and admissions == [rig.run]
     state = json.loads((rig.run / 'checkpoint.json').read_text())
-    assert 'validation code changed' in state['reason'] and 'fresh run' in state['reason']
+    assert 'validation code changed' in state['reason'] and 'reloading controller' in state['reason']
     assert state['task_id'] == '001' and state['task_sessions'] == state['total_sessions'] == 1
     assert state['queue_before'] == original and not state['in_flight']
     assert 'result_recovery' not in state
     assert state['phase'] == {'continue': 'recover', 'blocked': 'blocked', 'task_complete': 'complete'}[status]
     assert json.loads((rig.run / 'agent-result.json').read_text()) == results[0]
-    assert 'fresh run' in (rig.run / 'handoff.txt').read_text()
+    assert 'reloading controller' in (rig.run / 'handoff.txt').read_text()
     assert rig.plan.state() == dict(original, **{'001': status == 'task_complete'})
     assert TaskBudget(rig.run).read()['completed'] == int(status == 'task_complete')
     assert rig.cleanups[-1] == rig.run
@@ -437,7 +457,7 @@ def test_valid_continuation_source_change_reaches_fresh_startup_recovery(rig, mo
         return result
 
     monkeypatch.setattr(workflow, 'execute', execute)
-    assert rig.worker() == 1
+    assert rig.worker() == 'reloaded'
     retained = (rig.run / 'checkpoint.json').read_bytes()
 
     def recover(plan, state, previous, **callbacks):
@@ -481,14 +501,173 @@ def test_source_change_while_blocked_retains_answer_before_new_session(rig, monk
     retained_response = response(state, 'blocked')
     retained_response['blocker'] = blocker
     workflow.launcher.atomic(rig.run / 'agent-result.json', retained_response)
-    assert rig.worker(state) == 1
+    assert rig.worker(state) == 'reloaded'
     checkpoint = json.loads((rig.run / 'checkpoint.json').read_text())
     assert checkpoint['phase'] == 'recover' and checkpoint['answer'] == answer
     assert checkpoint['task_sessions'] == checkpoint['total_sessions'] == 1
-    assert 'fresh run' in checkpoint['reason']
+    assert 'reloading controller' in checkpoint['reason']
     assert rig.calls == [] and rig.cleanups == [rig.run]
     assert TaskBudget(rig.run).read()['completed'] == 0
     assert json.loads((rig.run / 'agent-result.json').read_text()) == retained_response
+
+
+@pytest.mark.parametrize('phase', ['recover', 'blocked', 'complete'])
+def test_automatic_reload_revalidates_same_run_without_renewing_allowances(rig, monkeypatch, phase):
+    state = state_for(rig.plan, phase=phase, task_sessions=4, total_sessions=9, session_limit=5,
+                      handoff='Exact retained handoff.', started_at=123.0)
+    if phase == 'complete':
+        complete(rig.plan, '001')
+        TaskBudget(rig.run).complete()
+    workflow.launcher.atomic(rig.run / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    seen = []
+
+    def recover(plan, saved, previous, **callbacks):
+        assert callbacks['verify_only'] is True
+        seen.append((saved.copy(), previous))
+        return saved
+
+    monkeypatch.setattr(workflow.plan_evidence_recovery, 'recover_evidence', recover)
+    budget = TaskBudget(rig.run).read()
+    owner = os.open(rig.run.parent / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        restored = workflow.reload_state(rig.root, rig.run, owner, rig.spec, state)
+    finally:
+        os.close(owner)
+    assert len(seen) == 1 and seen[0] == (state, rig.run)
+    for key, value in state.items():
+        assert restored[key] == value
+    assert TaskBudget(rig.run).read() == budget
+    assert not (rig.run / 'result.json').exists()
+
+
+@pytest.mark.parametrize('change', ['acceptance', 'queue', 'owner', 'active', 'result', 'evidence-request'])
+def test_automatic_reload_refuses_invalid_startup_state(rig, monkeypatch, change):
+    state = state_for(rig.plan, phase='recover', task_sessions=1, total_sessions=1)
+    workflow.launcher.atomic(rig.run / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    owner = os.open(rig.run.parent / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    if change == 'acceptance':
+        Path(state['task']['brief']).write_text('Acceptance: installed\nTargets: altered\n')
+    elif change == 'queue':
+        path = rig.root / rig.plan.queue
+        path.write_text(path.read_text().replace('finite scope 002', 'changed protected scope'))
+    elif change == 'owner':
+        monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: None)
+    elif change == 'active':
+        state['in_flight'] = True
+    elif change == 'result':
+        workflow.launcher.atomic(rig.run / 'result.json', dict(status=0))
+    else:
+        write_evidence_recovery_request(rig.plan, state)
+        monkeypatch.setattr(workflow.plan_evidence_recovery, 'recover_evidence',
+                            lambda *_args, **_kwargs: pytest.fail('live reload applied evidence request'))
+    before = (rig.run / 'checkpoint.json').read_bytes()
+    try:
+        with pytest.raises(ValueError):
+            workflow.reload_state(rig.root, rig.run, owner, rig.spec, state)
+    finally:
+        os.close(owner)
+    assert (rig.run / 'checkpoint.json').read_bytes() == before
+    assert TaskBudget(rig.run).read()['completed'] == 0
+
+
+def test_automatic_reload_preserves_capacity_attempt_and_suspended_session_limits(rig, monkeypatch):
+    original = state_for(rig.plan, task_sessions=3, total_sessions=7, session_limit=5)
+    insert_unlinked_prerequisite(rig.plan, '001')
+    queue = rig.root / rig.plan.queue
+    queue.write_text(queue.read_text().replace('| — | finite scope 001', '| pre | finite scope 001'))
+    deferred = workflow.defer_to_prerequisite(rig.plan, original)
+    task = workflow.task_record(rig.plan.next_task())
+    recovery = dict(message='capacity', session=8, failures=6, retry_after=123.0, exhausted=False)
+    state = dict(deferred, **task, task=task, phase='recover', in_flight=False,
+                 task_sessions=1, total_sessions=8, session_limit=5, capacity_recovery=recovery)
+    workflow.launcher.atomic(rig.run / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    restored = workflow.initial_state(rig.plan, rig.spec, rig.run.parent, reloading=True)
+    assert restored['capacity_recovery'] == recovery
+    assert restored['session_limit'] == 5
+    assert restored['suspended_tasks'] == deferred['suspended_tasks']
+    assert workflow.capacity_session_spec(rig.spec, restored).model == 'gpt-6-astra'
+
+
+def test_reload_exec_preserves_owner_and_scratch_descriptors_and_restores_on_failure(rig, monkeypatch):
+    owner = os.open(rig.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    scratch = os.open(rig.run / 'scratch-lease', os.O_CREAT | os.O_RDWR, 0o600)
+    monkeypatch.setattr(workflow.launcher, 'scratch_descriptors', lambda: (scratch,))
+    calls = []
+
+    def execv(program, command):
+        assert os.get_inheritable(owner) and os.get_inheritable(scratch)
+        calls.append((program, command))
+        raise OSError('synthetic exec failure')
+
+    monkeypatch.setattr(workflow.os, 'execv', execv)
+    try:
+        with pytest.raises(OSError, match='synthetic exec failure'):
+            replace_controller_process(rig.root, rig.run, owner, rig.spec)
+        assert not os.get_inheritable(owner) and not os.get_inheritable(scratch)
+    finally:
+        os.close(owner)
+        os.close(scratch)
+    program, command = calls[0]
+    assert program == command[0] == '/usr/bin/python3'
+    assert command[3:7] == ['--reload-worker', str(rig.root), str(rig.run), str(owner)]
+    assert json.loads(command[7]) == workflow.asdict(rig.spec)
+
+
+def test_failed_reload_publishes_resumable_failure(rig, monkeypatch):
+    sources = workflow.response_validator_sources()
+    reads = iter([sources, {}])
+    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: next(reads))
+    def fail(*_):
+        raise OSError('synthetic exec failure')
+    monkeypatch.setattr(workflow, 'reload_controller', fail)
+    assert rig.worker() == 1
+    state = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert 'controller reload failed: synthetic exec failure' in state['reason']
+    assert 'resume with a fresh run' in (rig.run / 'handoff.txt').read_text()
+    assert json.loads((rig.run / 'result.json').read_text()) == dict(status=1, tasks=0)
+    assert TaskBudget(rig.run).read()['closed'] is True
+
+
+@pytest.mark.parametrize('marker', ['stop', 'cancel'])
+def test_stop_during_reload_cleanup_finishes_without_replacement(rig, monkeypatch, marker):
+    sources = workflow.response_validator_sources()
+    reads = iter([sources, {}])
+    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: next(reads))
+    monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda *_: (rig.run / marker).touch())
+    assert rig.worker() == (130 if marker == 'cancel' else 0)
+    assert rig.reloads == []
+    assert TaskBudget(rig.run).read()['closed'] is True
+
+
+@pytest.mark.parametrize('marker', ['stop', 'cancel'])
+def test_stop_during_fresh_reload_preserves_recovered_completion_before_git(rig, monkeypatch, marker):
+    state = state_for(rig.plan, phase='recover', task_sessions=1, total_sessions=1)
+    complete(rig.plan, state['task_id'])
+    result = response(state)
+    workflow.launcher.atomic(rig.run / 'agent-result.json', result)
+    state['result_recovery'] = workflow.result_rejection(
+        workflow.SessionResultRejected('old guard rejected completion', result), rig.run / 'agent-result.json')
+    workflow.launcher.atomic(rig.run / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    recover = workflow.initial_state
+
+    def reload(root, run, owner, spec, saved):
+        restored = recover(rig.plan, spec, run.parent, reloading=True)
+        assert restored['pending_completion'] == result
+        (run / marker).touch()
+        return restored
+
+    monkeypatch.setattr(workflow, 'reload_state', reload)
+    monkeypatch.setattr(workflow, 'closeout', lambda *_: pytest.fail('stopped reload reached Git close-out'))
+    assert rig.worker(state, reloading=True) == (130 if marker == 'cancel' else 0)
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert saved['pending_completion'] == result
+    assert saved['task_sessions'] == 1 and saved['session_limit'] == 5
+    assert TaskBudget(rig.run).read()['completed'] == 0
+    assert rig.calls == []
 
 
 def write_evidence_recovery_request(plan, state):
@@ -778,7 +957,8 @@ def test_capacity_recovery_preserves_prerequisite_and_suspended_consumer(rig, mo
         complete(rig.plan, 'pre')
         return response(state)
     monkeypatch.setattr(workflow, 'execute', execute)
-    expected = 130 if outcome == 'cancel' else 0 if outcome in ('complete', 'stop', 'delay-stop') else 1
+    expected = ('reloaded' if outcome == 'source-change' else 130 if outcome == 'cancel'
+                else 0 if outcome in ('complete', 'stop', 'delay-stop') else 1)
     assert rig.worker(deferred) == expected
     saved = json.loads((rig.run / 'checkpoint.json').read_text())
     assert saved['suspended_tasks']['001'] == deferred['suspended_tasks']['001']
@@ -3558,8 +3738,8 @@ def test_nonresumable_caller_cannot_ignore_a_pending_start(pending_plan_start):
     assert len(set(scene.attempts)) == 1
 
 
-@pytest.mark.parametrize('limit', [0, -3, 8])
-def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(tmp_path, limit):
+@pytest.mark.parametrize('limit,source_change', [(0, False), (-3, False), (8, False), (0, True), (1, True)])
+def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(tmp_path, limit, source_change):
     """Exercise real worker serialization and supervision without a model or VM."""
     import time
     import detached_launcher as launcher
@@ -3619,6 +3799,9 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
             plan.queue: updated_queue,
             plan.path: 'Task queue: [Queue](queue.md).\n' + pointer + '\n',
         }))
+    if source_change:
+        dependency = 'tools/launcher_runtime.py'
+        steps[0]['writes'][dependency] = (tmp_path / dependency).read_text() + '\n# Upstream controller change.\n'
     (tmp_path / 'script.json').write_text(json.dumps(steps))
     environment = {name: value for name, value in os.environ.items()
                    if not name.startswith(('CODEX_', 'ONPC_TEST_', 'ONPC_WORKFLOW_'))}
@@ -3656,20 +3839,27 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     assert owner_released, 'recorded detached worker did not finish owned cancellation'
     assert observer.returncode == 0, output + errors
     assert run is not None
-    assert json.loads((run / 'result.json').read_text()) == dict(status=0, tasks=2)
-    assert 'queue complete' in (run / 'handoff.txt').read_text()
+    completed = 1 if limit == 1 else 2
+    assert json.loads((run / 'result.json').read_text()) == dict(status=0, tasks=completed)
+    reason = 'task limit reached' if limit == 1 else 'queue complete'
+    assert reason in (run / 'handoff.txt').read_text()
+    if source_change:
+        assert 'reloading controller and revalidating the retained handoff' in (run / 'output').read_text()
+        assert TaskBudget(run).read()['completed'] == completed
+        assert json.loads((run / 'checkpoint.json').read_text())['total_sessions'] == completed
     calls = [json.loads(line) for line in (tmp_path / 'calls.jsonl').read_text().splitlines()]
-    assert len(calls) == 2
+    assert len(calls) == completed
     assert [call['turn_start']['input'][0]['text'].splitlines()[0] for call in calls] == [
-        'Implement only task 001: Task 001.', 'Implement only task 002: Task 002.']
+        'Implement only task 001: Task 001.', 'Implement only task 002: Task 002.'][:completed]
     assert all(call['thread'] is None for call in calls)
     assert all(call['thread_start']['model'] == 'gpt-6.1-sol' for call in calls)
-    assert Plan.load(tmp_path, plan.path).next_task() is None
+    next_task = Plan.load(tmp_path, plan.path).next_task()
+    assert (next_task.id if next_task else None) == ('002' if limit == 1 else None)
     with launcher.lock(namespace / 'owner') as owner:
         assert not launcher.busy(owner)
-    commits = subprocess.run(['git', 'log', '-2', '--format=%s'], cwd=tmp_path,
+    commits = subprocess.run(['git', 'log', f'-{completed}', '--format=%s'], cwd=tmp_path,
                              capture_output=True, text=True, check=True, timeout=10).stdout.splitlines()
-    assert commits == ['TA: Completed task 002', 'TA: Completed task 001']
+    assert commits == ['TA: Completed task ' + f'{number:03}' for number in range(completed, 0, -1)]
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=tmp_path,
                           capture_output=True, text=True, check=True, timeout=10).stdout
     pushed = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=remote,

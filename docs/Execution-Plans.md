@@ -299,13 +299,21 @@ session allowance; it grants no completion credit, promotion or extra sessions.
 Stop/cancellation remain effective between attempts. Repeated rejection ends at
 the normal session cap with a resumable checkpoint and diagnostic handoff.
 If ordinary-plan controller or validation sources change during any session, the
-controller stops at the next session boundary with the result and handoff retained,
+controller reloads automatically at the next session boundary with the result and handoff retained,
 before admitting another task, waiting for an answer or spending another session
 under stale code. This includes a valid `continue` response: another coordinator
-session in the same controller cannot load startup recovery changes. A fresh run
-loads the repair and applies any exact evidence-recovery request before execution.
+session in the same controller cannot load startup recovery changes. After owned
+cleanup, a fresh interpreter replaces the controller under the same ownership
+lock, run identity, observer connection and scratch leases. Startup revalidates
+the retained task, queue, acceptance and rejected result before continuation.
+Reload preserves task/session counts, session caps, suspended consumers, answers,
+capacity retry state and live task limits; it allocates no new retention slot and
+grants no extra work. Stop and cancellation still take precedence. A failed reload
+or startup validation retains a resumable failure instead of retrying unchecked.
 An unapplied request prepared during a session also stops the controller at that
-boundary, even when no source file changed. Matching an applied request's identity
+boundary, even when source files also changed; automatic reload cannot apply this
+administrative transaction. Resume with a fresh run for inactive verification.
+Matching an applied request's identity
 only avoids an unnecessary restart; startup still owns its full proof and
 checkpoint verification.
 An explicit `serverOverloaded` failed turn in an ordinary plan returns to the
@@ -322,9 +330,10 @@ they do not exhaust or renew the task's normal session allowance. Each attempt
 reconciles partial work and retained results against the original queue,
 suspended consumers, targets and protected work, and grants no completion.
 The checkpoint retains failure details for recovery of partial task edits.
-Every launcher restart starts a new session on the configured default model
+Every manually resumed launcher starts a new session on the configured default model
 and effort, with a fresh capacity retry sequence; it never resumes an old
-fallback model or waits for the previous controller's retry deadline.
+fallback model or waits for the previous controller's retry deadline. Automatic
+controller reload preserves the current logical session and capacity retry sequence.
 Stop, cancellation and controller-source changes remain effective during the
 delay. The exact structured provider code and successful supervisor cleanup
 are required; message text or an unexplained process exit cannot trigger retry.

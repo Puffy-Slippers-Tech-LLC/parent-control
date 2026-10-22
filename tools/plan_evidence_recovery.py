@@ -420,7 +420,7 @@ def _applied_request(plan, state, previous, request):
     return True
 
 
-def recover_evidence(plan, state, previous, *, verify_proof, read_authorization=None):
+def recover_evidence(plan, state, previous, *, verify_proof, read_authorization=None, verify_only=False):
     """Apply or recover a reviewed transaction; caller holds launcher ownership.
 
     ``verify_proof(correction, request)`` must verify the exact replacement
@@ -431,6 +431,8 @@ def recover_evidence(plan, state, previous, *, verify_proof, read_authorization=
     file. Authorization bytes are retained in the transaction before publication.
     No request means no operation. The returned state changes only the reviewed
     Estimate cells in retained queue structures.
+    ``verify_only`` permits automatic controller reload to verify an already
+    applied request, but never start or finish an administrative transaction.
     """
     request = request_from_brief(plan, state)
     if request is None:
@@ -450,6 +452,9 @@ def recover_evidence(plan, state, previous, *, verify_proof, read_authorization=
     launcher.finish_nested(plan.root, previous)
     if _applied_request(plan, state, previous, request):
         return state
+    if verify_only:
+        raise ValueError('selected task has an unapplied evidence recovery request; '
+                         'resume with a fresh run for inactive controller verification')
     queue_path = local_file(plan.root, plan.queue)
     queue = _read(queue_path)
     if receipt.exists():

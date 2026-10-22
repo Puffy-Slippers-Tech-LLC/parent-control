@@ -286,18 +286,19 @@ def recover_rejected_completion(plan, state, previous):
                  summary=result['summary'], handoff=result['handoff'])
 
 
-def initial_state(plan, spec, directory):
+def initial_state(plan, spec, directory, *, reloading=False):
     plan_evidence.recover(plan)
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
-        if capacity_session_recovery(state):
+        if capacity_session_recovery(state) and not reloading:
             state['capacity_recovery']['restart'] = True
         state = plan_evidence_recovery.recover_evidence(
             plan, state, previous,
             verify_proof=lambda correction, request: plan_evidence_recovery.verify_proof(
                 plan, correction, request),
-            read_authorization=lambda request: plan_evidence_recovery.read_authorization(plan, request))
+            read_authorization=lambda request: plan_evidence_recovery.read_authorization(plan, request),
+            verify_only=reloading)
         if (state.get('consolidation_obligations') and not any(
                 state.get(key) for key in ('in_flight', 'pending_completion',
                                           'git_reconciliation', 'pull_intent', 'result_recovery',
@@ -325,7 +326,8 @@ def initial_state(plan, spec, directory):
                 if not any(saved.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery',
                                                      'evidence_renewal')):
                     validate_task_metadata(plan, saved)
-                saved['session_limit'] = saved.get('task_sessions', 0) + spec.max_sessions
+                if not reloading:
+                    saved['session_limit'] = saved.get('task_sessions', 0) + spec.max_sessions
         if state.get('phase') != 'complete':
             if not any(state.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery',
                                                  'evidence_renewal')):
@@ -356,6 +358,10 @@ def initial_state(plan, spec, directory):
         if state.get('suspended_tasks') or state.get('consolidation_obligations'):
             plan.validate_recovery(state)
             state['recovery_run'] = str(previous)
+            return state
+        if reloading:
+            if state.get('queue_before'):
+                plan.validate_recovery(state)
             return state
     return {'phase': 'complete', 'task_sessions': 0, 'total_sessions': 0}
 
@@ -725,25 +731,64 @@ def evidence_recovery_pending(plan, state):
             != plan_evidence_recovery.digest(plan_evidence_recovery.encoded(request)))
 
 
-def worker(root, run, owner, spec, state):
+def reload_controller(root, run, owner, spec):
+    """Replace imports without releasing ownership, scratch leases or the run."""
+    descriptors = (owner, *launcher.scratch_descriptors())
+    inherited = {fd: os.get_inheritable(fd) for fd in descriptors}
+    try:
+        for fd in descriptors:
+            os.set_inheritable(fd, True)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                 '--reload-worker', str(root), str(run), str(owner), json.dumps(asdict(spec))])
+    finally:
+        # exec only returns on failure. Preserve the ordinary finalization path.
+        for fd, value in inherited.items():
+            os.set_inheritable(fd, value)
+
+
+def reload_state(root, run, owner, spec, state):
+    """Reapply startup guards at a child-free boundary under the same owner."""
+    with launcher.lock(run.parent / 'gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        identity = os.fstat(owner)
+        recorded = (run.parent / 'owner').lstat()
+        if (launcher.current_run(run.parent) != run
+                or (identity.st_dev, identity.st_ino) != (recorded.st_dev, recorded.st_ino)
+                or state.get('in_flight') or (run / 'result.json').exists()):
+            raise ValueError('controller reload requires the current idle session boundary and owner')
+        plan = load_plan(root, spec.plan, state)
+        if evidence_recovery_pending(plan, state):
+            raise ValueError('selected task has an unapplied evidence recovery request; '
+                             'resume with a fresh run for inactive controller verification')
+        launcher.finish_nested(root, run)
+        return initial_state(plan, spec, run.parent, reloading=True)
+
+
+def worker(root, run, owner, spec, state, *, reloading=False):
     from launcher_chat import task_info_instructions
     from launcher_display import clock_duration
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: (run / 'cancel').touch(mode=0o600))
-    plan = load_plan(root, spec.plan, state)
     budget = TaskBudget(run)
     status, reason = 0, 'queue complete'
+    reload = False
     try:
+        if reloading:
+            state = reload_state(root, run, owner, spec, state)
+        plan = load_plan(root, spec.plan, state)
         validator_sources = response_validator_sources()
         reload_reason = ('launcher validation code changed during the session; '
-                         'resume with a fresh run to reload controller startup '
-                         'and revalidate the retained handoff')
+                         'reloading controller and revalidating the retained handoff')
         evidence_recovery_reason = ('selected task has an unapplied evidence recovery request; '
                                     'resume with a fresh run for inactive controller verification')
         if state.get('recovery_run'):
             launcher.finish_nested(root, Path(state['recovery_run']))
-        if state.get('pending_completion'):
+        if reloading and (run / 'cancel').exists():
+            raise launcher.Stopped()
+        if state.get('pending_completion') and not (reloading and (run / 'stop').exists()):
             if closeout(plan, spec, run, state):
                 budget.complete()
                 print(f"{spec.name}: recovered task {state['task_id']} close-out.", flush=True)
@@ -757,7 +802,7 @@ def worker(root, run, owner, spec, state):
             # rejected response can need repaired guards. Never spend another
             # session, select another task or wait for an answer under old code.
             if response_validator_sources() != validator_sources:
-                status, reason = 1, reload_reason
+                reload, reason = True, reload_reason
                 break
             recovery = state.get('capacity_recovery')
             if capacity_retry(state):
@@ -820,7 +865,7 @@ def worker(root, run, owner, spec, state):
                 # Waiting can outlive a repair; retain the answer for the fresh
                 # controller instead of starting a turn under the old imports.
                 if response_validator_sources() != validator_sources:
-                    status, reason = 1, reload_reason
+                    reload, reason = True, reload_reason
                     break
                 if evidence_recovery_pending(plan, state):
                     status, reason = 1, evidence_recovery_reason
@@ -924,12 +969,26 @@ def worker(root, run, owner, spec, state):
     finally:
         try:
             launcher.finish_nested(root, run)
+            if reload and (run / 'cancel').exists():
+                reload, status, reason = False, 130, 'cancelled after owned cleanup'
+            elif reload and (run / 'stop').exists():
+                reload, reason = False, 'stopped at a session boundary'
             state['reason'] = reason
             launcher.atomic(run / 'checkpoint.json', state)
             (run / 'handoff.txt').write_text(state.get('handoff', '') + '\n' + reason + '\n'
                                            + result_recovery_instructions(state.get('result_recovery')))
-            budget.close()
             print(f'{spec.name}: {reason}.', flush=True)
+            if reload:
+                try:
+                    reload_controller(root, run, owner, spec)
+                except OSError as error:
+                    status, reason = 1, f'controller reload failed: {error}; resume with a fresh run'
+                    state['reason'] = reason
+                    launcher.atomic(run / 'checkpoint.json', state)
+                    with (run / 'handoff.txt').open('a') as handoff:
+                        handoff.write(reason + '\n')
+                    print(f'{spec.name}: {reason}.', flush=True)
+            budget.close()
             launcher.atomic(run / 'result.json', {'status': status, 'tasks': budget.read()['completed']})
         finally:
             os.close(owner)
@@ -1098,12 +1157,13 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
 if __name__ == '__main__':
     mode, root, run, owner, spec, *options = sys.argv[1:]
     root, run, owner, spec = Path(root), Path(run), int(owner), PlanWorkflow(**json.loads(spec))
-    if mode == '--worker':
+    if mode in ('--worker', '--reload-worker'):
         # on_start may have moved exact active/suspended proof into this newly
         # registered run after command construction. Its published checkpoint,
         # rather than the earlier argv snapshot, is the worker's input.
         initial = json.loads(plan_evidence_recovery._read(run / 'checkpoint.json'))
-        sys.exit(worker(root, run, owner, spec, initial))
+        sys.exit(worker(root, run, owner, spec, initial, **(
+            {'reloading': True} if mode == '--reload-worker' else {})))
     if mode == '--supervise':
         try:
             status = launcher.supervise(root, run, owner, 'agent', session_command(root, spec, run),

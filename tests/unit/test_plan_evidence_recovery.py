@@ -125,6 +125,40 @@ def test_no_request_leaves_checkpoint_and_queue_unchanged(scene):
     assert not (scene.run / 'evidence-recovery.json').exists()
 
 
+def test_reload_cannot_apply_request_introduced_after_boundary_check(scene):
+    queue = scene.queue.read_bytes()
+    with pytest.raises(ValueError, match='unapplied evidence recovery request'):
+        scene.recover(verify_only=True)
+    assert scene.verified == []
+    assert scene.queue.read_bytes() == queue
+    assert (scene.run / 'checkpoint.json').read_bytes() == scene.raw
+    assert not (scene.run / 'evidence-recovery.json').exists()
+    assert not list(scene.run.glob('checkpoint-before-evidence-*.json'))
+
+
+def test_reload_verifies_applied_request_without_reapplying_it(scene):
+    scene.state = scene.recover()
+    before = (scene.run / 'checkpoint.json').read_bytes()
+    queue = scene.queue.read_bytes()
+    scene.verify = lambda *_: pytest.fail('reload reapplied the committed request')
+    assert scene.recover(verify_only=True) == scene.state
+    assert (scene.run / 'checkpoint.json').read_bytes() == before
+    assert scene.queue.read_bytes() == queue
+
+
+def test_reload_cannot_finish_interrupted_administrative_publication(scene):
+    scene.state = scene.recover()
+    receipt = scene.run / 'evidence-recovery.json'
+    pending = dict(json.loads(receipt.read_text()), complete=False)
+    receipt.write_text(json.dumps(pending))
+    before, queue = (scene.run / 'checkpoint.json').read_bytes(), scene.queue.read_bytes()
+    with pytest.raises(ValueError, match='unapplied evidence recovery request'):
+        scene.recover(verify_only=True)
+    assert json.loads(receipt.read_text()) == pending
+    assert (scene.run / 'checkpoint.json').read_bytes() == before
+    assert scene.queue.read_bytes() == queue
+
+
 def test_completed_task_with_removed_temporary_brief_has_no_recovery_request(scene):
     Path(scene.state['task']['brief']).unlink()
     scene.state.update(phase='complete', in_flight=False)

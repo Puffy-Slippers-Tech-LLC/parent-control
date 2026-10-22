@@ -848,8 +848,10 @@ class Run:
             if item.retry_category == 'system' and self.checkpoint is not None:
                 # The controller announces the remaining resolved inventory.
                 item.total = None
-        if not collect and len(command) > 1 and command[1] in ('publish', 'artifacts', 'system', 'e2e'):
-            self.wait_for_resources(item, command[1])
+        if not collect and len(command) > 1 and command[1] in ('publish', 'artifacts', 'fixtures', 'system', 'e2e'):
+            # Fixture construction shares artifact admission: two CPU slots,
+            # 4 GiB memory and the build I/O threshold, including target images.
+            self.wait_for_resources(item, 'artifacts' if command[1] == 'fixtures' else command[1])
             if self.control.stopped.is_set():
                 item.state = 'Interrupted'
                 return 130, ''

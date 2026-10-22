@@ -407,6 +407,7 @@ def category_run(root, category, argv, *, pipe=True):
         print('run-tests: output=' + directory, flush=True)
     if (category in ('fixtures', 'artifacts') and
             (not argv or argv in (['build'], ['prepare']) or
+             category == 'fixtures' and argv[:3] == ['build', '--kind', 'native-runtime'] or
              category == 'artifacts' and argv[:3] ==
              ['prepare', '--native-inputs', '--package-format'])):
         directory = test_retention.allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-', dir='/tmp')

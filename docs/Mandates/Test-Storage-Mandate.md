@@ -107,9 +107,10 @@ record, `producer.json`, is outside those trees and carries the frozen unfinishe
 slot fields with checkout, process and lease identities. It neither replaces an active execution's
 retention token nor uses evidence rotation for fixture versions.
 
-This delivered lifetime API owns unfinished production only. Immutable bundle
-construction and execution-owned input publication remain the separate
-[fixture-plan](../TestAutomation/Fixture-Execution-Plan.md) tasks F02/F03.
+This lifetime API owns unfinished production only. Immutable host construction
+uses the [frozen bundle contract](../../tests/support/README.md#frozen-native-fixture-bundles);
+execution-owned input reuse/publication remains the separate
+[fixture-plan](../TestAutomation/Fixture-Execution-Plan.md) task F03.
 The current proposal reuses ordinary input retention; it adds no shared version
 catalogue, cross-journal pins or six-slot policy. There is no byte quota, quota
 setup or product installation in producer recovery.

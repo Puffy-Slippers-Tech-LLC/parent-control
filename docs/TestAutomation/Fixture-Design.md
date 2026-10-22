@@ -1,6 +1,7 @@
 # Host-owned fixture lifecycle: target design
 
-Status: **proposed; not implemented**, except for the existing producer lifetime.
+Status: **partially implemented**: producer lifetime and immutable host construction
+are delivered. Input reuse and guest lifecycle work remain proposed.
 The [execution plan](Fixture-Execution-Plan.md) delivers this design. Current
 VM, storage and preparation rules remain effective until their owning tasks
 deliver and document a replacement.
@@ -97,6 +98,11 @@ dormant branches. A current source digest never repairs or silently replaces an
 older nonempty input after a failure.
 
 ## Identity and build publication
+
+F02 delivered the [frozen host bundle contract](../../tests/support/README.md#frozen-native-fixture-bundles)
+and validated fixture build/verify routes. It constructs the complete finite
+runtime union once per target; selection, reuse and guest handoff remain with
+the subsequent tasks below.
 
 F02 builds from a frozen source closure with the existing fixture builders and
 host-side target build environments. Record source and builder/toolchain inputs,

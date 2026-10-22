@@ -15,7 +15,8 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Need | Reuse | Contract |
 | --- | --- | --- |
 | Temporary storage and retained evidence | [test_storage.py](../../tools/test_storage.py), [test_retention.py](../../tools/test_retention.py) | Launchers configure disk scratch for pytest fixtures. Retained evidence uses a registered allocation in its owning journal; short sockets use `short_runtime` or `runtime_directory`. |
-| Fixture producer lifetime | [fixture_producer.py](../../tools/fixture_producer.py) | `Store.producer(transaction_id=..., compatibility_key=..., build_key=...)` owns one unfinished slot. Allocate scratch/staging before writes, pass `Producer.environment()` to build commands and forward `scratch_descriptors()` through every subprocess layer. `Producer.verifying()` records the verification phase. Context exit cleans only recorded allocations after every descendant lease closes; failed cleanup requires exact `Store.recover(transaction_id)` before another reservation. Bundle construction and execution-owned input publication remain to be delivered by the fixture plan. |
+| Fixture producer lifetime | [fixture_producer.py](../../tools/fixture_producer.py) | `Store.producer(transaction_id=..., compatibility_key=..., build_key=...)` owns one unfinished slot. Allocate scratch/staging before writes, pass `Producer.environment()` to build commands and forward `scratch_descriptors()` through every subprocess layer. `Producer.verifying()` records the verification phase. Context exit cleans only recorded allocations after every descendant lease closes; failed cleanup requires exact `Store.recover(transaction_id)` before another reservation. |
+| Immutable native fixture construction | [fixture_bundle.py](../../tools/fixture_bundle.py), [fixture_manifest.py](../../tools/fixture_manifest.py) | Use the [frozen bundle contract](#frozen-native-fixture-bundles). Existing full fixture/package callers remain on their current route until the fixture plan migrates them. |
 | Checkout paths and script imports | [paths.py](paths.py), [modules.py](modules.py) | Normal imports use `pyproject.toml`'s `pythonpath`. `load_module(name, path)` loads a fresh standalone script with a unique test-only name; failures restore the registry. |
 | Broker configuration and recording adapters | [configuration.py](configuration.py), [broker.py](broker.py) | Fresh mutable state, explicit clocks/callbacks/failures and no OS calls. |
 | Unit orchestration without GTK construction | [objects.py](objects.py) | Bind actual class methods to explicit state instead of copying method source. |
@@ -39,6 +40,48 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Catalog scope and screenshot metadata | [installed_catalog.py](installed_catalog.py), [screens.py](screens.py) | Temporary real catalog discovery; synthetic PNG headers for metadata validation, not pixel acceptance. |
 | Child indicator unit adapter | [indicator.mjs](../child/support/indicator.mjs) | Fresh Node VM context and explicit platform doubles; nested-Shell tests retain real lifecycle/input coverage. |
 | External desktop input delivery | [mutter_input.py](../ui/mutter_input.py) | Supporting desktop/provider operations retain their qualified input transport and owned session cleanup. Product panel and GTK controls use the Application UI API facade. |
+
+## Frozen native fixture bundles
+
+`tools/run-tests fixtures build --kind native-runtime --target ubuntu|fedora`
+allocates retained host output and constructs one complete movable runtime per
+target. Use the returned `native-runtime` path with
+`tools/run-tests fixtures verify 'RETURNED-PATH' --kind native-runtime --target ubuntu|fedora`.
+The target is Ubuntu 26.04 or Fedora 44 on x86_64. The exact local distribution
+or the existing offline rootless target builder supplies compilation; this
+route never builds product packages, prepares images or touches a guest.
+
+Construction freezes the finite `artifact_inputs.NATIVE_RUNTIME_SOURCES`, compiles
+eight identities with the existing native compiler helper, and assembles in a
+fresh interpreter loading only the frozen declarations. Original and frozen
+sources are rechecked before atomic publication of the completed child directory.
+Producer registration, inherited compiler/container leases and exact cleanup
+remain with the [storage owner](../../docs/Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes).
+An isolated [container helper](../../tools/fixture_container.py) compacts only
+the inherited leases and uses Podman's standard `--preserve-fds` route. Build
+admission uses the artifact category's two CPU slots, 4 GiB and I/O limits.
+Final source, output and both compiler scratch sizes are logged and bounded by
+128 MiB; this is final allocation accounting, not a measured peak or byte quota.
+
+Schema 1 contains `fixture-manifest.json`, deterministic `payload.tar` and
+`complete.json`. Build identity hashes source, target, toolchain and dependency
+inputs. Content identity hashes exact manifest/archive bytes, including the
+separately recorded and independently recomputed native ABI proofs. Verification
+checks all 67 movable destinations, aliases, literal launchers, symbolic roles,
+modes, finite native actions and absence controls without extracting the archive.
+It rejects duplicate/unknown fields, unsafe archives, extra/missing bytes and
+incompatible ELF64 loader/library/GLIBC requirements. System Python/GTK supplies
+the GUI runtime; bundles carry only the two adjacent modules.
+
+`fixture_manifest.select()` returns finite subset unions. Native and Riley-grid
+contain 12 and nine files; activity three; trusted-hard/soft one executable each,
+with separate optional launcher subsets. Mechanical, command, whitespace,
+pattern, retention and catalogue retain their exact comparisons; compatibility
+selects the separate legacy S runtime. `legacy` selects the complete declaration.
+No subset has a separate build version. Account homes remain symbolic until an
+accepted guest account mapping exists. Input reuse, authenticated handoff and
+guest provisioning remain later fixture-plan tasks; a constructed bundle alone
+does not authorize those operations.
 
 ## Host and guest boundaries
 

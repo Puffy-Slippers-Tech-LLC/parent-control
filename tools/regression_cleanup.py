@@ -317,8 +317,11 @@ from regression_resources import HOST_WORKERS
 # Fixture producer safety owns only tiny pytest-private storage/locks and small
 # bounded, waited Python descendants. No shared fixture cache, VM, bus, display,
 # socket or external service; compatible in cleanup and unit inventories.
+# Bundle failure/publication checks use the same relocated producer roots,
+# tiny inert payloads, synchronous target doubles and bounded waited Python
+# lease/assembly children; no shared producer, container, VM or display.
 REVIEWED = frozenset('''
-fixture_producer
+fixture_producer fixture_bundle
 recording_storage
 e2e_natural_expiry
 kiosk_reminder_journey

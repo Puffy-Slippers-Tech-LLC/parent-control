@@ -103,10 +103,13 @@ def _digest(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _copy_gui_runtime(destination: Path) -> None:
+def _copy_gui_runtime(destination: Path, *, source_root: Path | None = None) -> None:
     """Copy the complete standalone GTK fixture runtime into one payload."""
-    shutil.copyfile(GUI_SOURCE, destination / "onpc-test-gui.py")
-    shutil.copyfile(GTK_AUTOMATION_SOURCE, destination / "gtk_automation.py")
+    gui = GUI_SOURCE if source_root is None else source_root / 'tests/fixtures/gui_application.py'
+    automation = (GTK_AUTOMATION_SOURCE if source_root is None else
+                  source_root / 'common/oh_no_parent_control_ui/gtk_automation.py')
+    shutil.copyfile(gui, destination / "onpc-test-gui.py")
+    shutil.copyfile(automation, destination / "gtk_automation.py")
     for filename in ("onpc-test-gui.py", "gtk_automation.py"):
         (destination / filename).chmod(0o644)
 
@@ -162,18 +165,21 @@ def verify(output: Path) -> None:
     _log("verify-digests", "passed")
 
 
-def _compile_native(output: Path, *, kind="native", headless=False, identity="default") -> Path:
+def _compile_native(output: Path, *, kind="native", headless=False, identity="default",
+                    source_root: Path | None = None, linker_flags=("-static",), run=None) -> Path:
     compiler = os.environ.get("CC", "cc")
     native = output / ("mechanical" if headless else kind) / (
         "onpc-test-application" if identity == 'default' else 'identity-' + identity)
     native.parent.mkdir(parents=True, exist_ok=True)
-    _run([compiler, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-static",
+    source = SOURCE if source_root is None else source_root / 'tests/fixtures/onpc_test_application.c'
+    execute = _run if run is None else run
+    execute([compiler, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", *linker_flags,
           f'-DFIXTURE_KIND="{kind}"', f'-DFIXTURE_GUI_DEFAULT={0 if headless else 1}',
           f'-DFIXTURE_IDENTITY="{identity}"',
-          "-o", str(native), str(SOURCE)])
+          "-o", str(native), str(source)])
     native.chmod(0o755)
     if not headless:
-        _copy_gui_runtime(native.parent)
+        _copy_gui_runtime(native.parent, source_root=source_root)
     return native
 
 

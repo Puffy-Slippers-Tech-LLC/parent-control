@@ -22,6 +22,19 @@ FIXTURE_SOURCES = (
 )
 FIXTURE_IMPORTS = ('tests/__init__.py', 'tests/fixtures/__init__.py',
                    'tests/fixtures/gui_runtime.py', 'tests/fixtures/native_assets.py')
+# The movable native runtime has no product, Flatpak, Snap or copied Python
+# dependency. Keep this finite closure separate from the legacy full builder.
+NATIVE_RUNTIME_SOURCES = (
+    'tests/__init__.py', 'tests/fixtures/__init__.py',
+    'tests/fixtures/build_test_applications.py',
+    'tests/fixtures/baseline_assets.py', 'tests/fixtures/native_assets.py',
+    'tests/fixtures/gui_application.py', 'tests/fixtures/onpc_test_application.c',
+    'common/oh_no_parent_control_ui/gtk_automation.py',
+    'tools/fixture_target_build.py', 'tools/fixture_manifest.py',
+    'tools/fixture_bundle.py', 'tools/fixture_assembly.py', 'tools/fixture_provenance.py',
+    'tools/fixture_container.py',
+    'tools/artifact_inputs.py',
+)
 PACKAGE_TOOLS = ('make', 'cc', 'dpkg-buildpackage', 'dpkg-deb', 'dpkg-architecture',
                  'glib-compile-schemas', 'git')
 FIXTURE_TOOLS = ('cc', 'flatpak', 'snap', 'mksquashfs', 'ldd')

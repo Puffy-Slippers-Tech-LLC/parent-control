@@ -1079,7 +1079,12 @@ from regression_ui import Bucket
 # leases, bounded waited Python children and process-local failure injection.
 # No live cache, VM, service, socket, bus or display is shared; compatible with
 # other unit work. Its cleanup inventory has the same ownership boundaries.
+# Fixture bundle construction/codec checks use tiny private files and real
+# relocated producer locks with target/compiler doubles and bounded waited
+# Python lease/assembly children. No shared producer, container, VM or display
+# is acquired; compatible in both inventories.
 REVIEWED = frozenset("""
+fixture_manifest fixture_container fixture_bundle_cleanup_safety
 fixture_producer_cleanup_safety
 evidence_capture evidence_identity plan_evidence plan_evidence_recovery
 native_history_routes native_update_runner

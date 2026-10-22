@@ -87,6 +87,48 @@ def test_preparation_can_reuse_but_explicit_build_remains_fresh():
     assert reusable == [[*fresh[0], '--reuse']]
 
 
+@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
+def test_native_fixture_build_and_verify_have_finite_target_options(target, tmp_path, monkeypatch):
+    import test_storage
+    monkeypatch.setattr(test_storage, 'BASE', tmp_path)
+    flags = ['--kind', 'native-runtime', '--target', target]
+    planned, safety = commands.plan(ROOT, 'fixtures', ['build', *flags])
+    assert planned == [commands.python_file(ROOT, 'tools/fixture_bundle.py', '--target', target)]
+    assert not safety
+    path = tmp_path / 'host/allocations/onpc-native-fixture/native-runtime'
+    path.mkdir(parents=True)
+    path = str(path)
+    planned, _ = commands.plan(ROOT, 'fixtures', ['verify', path, *flags])
+    assert planned == [commands.python_file(ROOT, 'tools/fixture_bundle.py',
+        '--target', target, '--verify', '--output', path)]
+
+
+@pytest.mark.parametrize('options', [
+    ['build', '--kind', 'native-runtime'],
+    ['build', '--kind', 'native-runtime', '--target', 'other'],
+    ['build', '--kind', 'native-runtime', '--target', 'ubuntu', '--output', '/elsewhere'],
+    ['verify', '--kind', 'native-runtime', '--target', 'ubuntu'],
+    ['build', '--target', 'ubuntu', '--kind', 'native-runtime'],
+])
+def test_native_fixture_options_refuse_before_allocating(options):
+    with pytest.raises(ValueError):
+        commands.plan(ROOT, 'fixtures', options)
+
+
+def test_native_fixture_category_registers_build_output_before_execution(monkeypatch, tmp_path):
+    import regression_process
+    output = str(tmp_path)
+    allocation = Mock(return_value=output)
+    monkeypatch.setattr(regression_process.Control, 'run', Mock(return_value=0))
+    import test_retention
+    monkeypatch.setattr(test_retention, 'allocate', allocation)
+    assert regression_process.category_run(ROOT, 'fixtures',
+        ['build', '--kind', 'native-runtime', '--target', 'ubuntu'], pipe=False) == 0
+    assert allocation.call_count == 1
+    assert regression_process.Control.run.call_args.args[0] == commands.python_file(
+        ROOT, 'tools/fixture_bundle.py', '--target', 'ubuntu', '--output', output)
+
+
 @pytest.mark.parametrize('status,package_format', [(3, 'deb'), (5, 'rpm'), (6, None), (0, None), (130, None)])
 @pytest.mark.parametrize('candidate_format', [None, 'deb', 'rpm'])
 def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(

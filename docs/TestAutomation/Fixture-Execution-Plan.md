@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F02 — [Build immutable host fixture bundles](Fixture-Tasks/F02-build.md)**.
+Next task: **F03 — [Reuse execution-owned fixture inputs](Fixture-Tasks/F03-publication.md)**.
 
 ## Outcome and status
 
@@ -14,8 +14,10 @@ The [target design](Fixture-Design.md) now reuses existing execution-owned input
 retention and VM recovery. It replaces the earlier shared cache, cross-owner pin,
 guest rollback, process-supervisor and native acknowledgement proposals.
 F01/F51/F52 remain completed historical inventory/design reviews. F29 delivered
-the existing single-producer lifetime and safety checks. Remaining tasks are
-unimplemented; this simplification supplies no execution or installed acceptance.
+the existing single-producer lifetime and safety checks. F02 delivered frozen
+host construction, complete runtime manifests and independent verification for
+both target ABIs. F03 and later tasks remain unimplemented; host construction
+supplies no guest provisioning or installed acceptance.
 
 ## Launcher
 

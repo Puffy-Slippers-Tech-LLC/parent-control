@@ -43,7 +43,7 @@ CATEGORIES = {
     'coverage': CategorySpec('unit and private-D-Bus Python coverage in a new private directory', leaf=False),
     'check': CategorySpec('the current make check aggregate', leaf=False),
     'component-all': CategorySpec('the current make check-component aggregate', leaf=False),
-    'fixtures': CategorySpec('build, verify PATH; generated build output', leaf=False),
+    'fixtures': CategorySpec('build, verify PATH; optional --kind native-runtime --target ubuntu|fedora; generated build output', leaf=False),
     'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
     'integration': CategorySpec('installed dispatcher for check_* basenames; no script arguments', leaf=False, scope='vm'),
     'system': CategorySpec('sequential tests per VM; stable numeric --id N[,N...] or --area/--test selectors; optional --artifacts (otherwise prepare each VM\'s declared package format); --previous-artifacts, --list', scope='vm'),
@@ -654,6 +654,16 @@ def plan(root, category, argv):
                  '--cov-report=term-missing', '--', *targets]], True
     if category in ('fixtures', 'artifacts'):
         action = argv[0] if argv else 'build'
+        if category == 'fixtures' and '--kind' in argv:
+            options = argv[1:] if action == 'build' else argv[2:]
+            if (action not in ('build', 'verify') or len(options) != 4
+                    or options[:3] != ['--kind', 'native-runtime', '--target']
+                    or options[3] not in ('ubuntu', 'fedora')):
+                raise ValueError('invalid native-runtime fixture operation')
+            arguments = ['--target', options[3]]
+            if action == 'verify':
+                arguments += ['--verify', '--output', artifact_path(argv[1])]
+            return [python_file(root, 'tools/fixture_bundle.py', *arguments)], False
         path = ('tests/fixtures/build_test_applications.py' if category == 'fixtures'
                 else 'tools/build_test_artifacts.py')
         command = python_file(root, path)
@@ -789,6 +799,7 @@ def _main(argv=None, *, detached=False, checkpoint=None):
             env = host.test_environment(root)
         if (category in ('fixtures', 'artifacts') and
                 (not args or args in (['build'], ['prepare']) or
+                 category == 'fixtures' and args[:3] == ['build', '--kind', 'native-runtime'] or
                  category == 'artifacts' and args[:3] ==
                  ['prepare', '--native-inputs', '--package-format'])):
             from test_retention import allocate

@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E05 — [Reuse exports and verified reads](Export-Tasks/E05-reuse.md)**.
+Next task: **E05a — [Read retained proof during unrelated active runs](Export-Tasks/E05a-active-readers.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

@@ -96,6 +96,43 @@ def publication_allocation(transaction, tmp_path):
     return path
 
 
+def test_verified_publication_reuse_keeps_journal_and_refuses_allocation(tmp_path, monkeypatch):
+    store, paths = export_fixture(tmp_path)
+    before = (store.path / 'current.json').read_bytes()
+    seen = []
+
+    def reuse(state):
+        seen.append(state['run'])
+        with pytest.raises(ValueError, match='another owner'):
+            with retention.Store(store.path).inspection():
+                pytest.fail('reuse released its owner lock')
+        return {'path': str(paths[0])}
+
+    # Reuse needs no projected staging capacity, while existing usage stays strict.
+    with store.publication(projected_bytes=retention.MAX_RETAINED_BYTES,
+                           reuse=reuse, wait=True) as transaction:
+        assert transaction.reused == {'path': str(paths[0])}
+        with pytest.raises(ValueError, match='reused publication'):
+            transaction.allocate(tempfile.mkdtemp, dir=tmp_path)
+        with pytest.raises(ValueError, match='no uncommitted'):
+            transaction.commit()
+    assert len(seen) == 1
+    assert (store.path / 'current.json').read_bytes() == before
+    assert all(path.exists() for path in paths)
+
+
+def test_publication_reuse_cannot_bypass_replaced_owner_audit(tmp_path):
+    store, paths = export_fixture(tmp_path)
+    paths[0].rename(tmp_path / 'original')
+    paths[0].mkdir(mode=0o700)
+    before = (store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='replaced'):
+        with store.publication(projected_bytes=0,
+                reuse=lambda _: pytest.fail('reuse ran before identity audit')):
+            pytest.fail('replaced export was adopted')
+    assert (store.path / 'current.json').read_bytes() == before
+
+
 def pending_capture(store, tmp_path, *, oldest=False):
     """A valid parent charge remains required even if its controls are absent."""
     slot = tmp_path / 'capture-slot'

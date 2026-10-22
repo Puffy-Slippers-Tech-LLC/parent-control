@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import stat
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from types import SimpleNamespace
 import zipfile
@@ -180,6 +182,106 @@ def test_multiple_allocations_preserve_exact_bytes_manifest_and_sources(evidence
         assert (source.read_bytes(), bundle.fingerprint(source.stat())) == before[str(source)]
 
 
+def test_repeated_export_reuses_verified_copy_without_allocating_or_evicting(evidence, monkeypatch):
+    root = evidence.allocate({'result.json': b'exact proof', 'other.json': b'other report'})
+    source = root / 'result.json'
+    original = (source.read_bytes(), bundle.fingerprint(source.stat()))
+    first = evidence.publish([source])
+    other = evidence.publish([root / 'other.json'])
+    journal = (evidence.exports.path / 'current.json').read_bytes()
+    monkeypatch.setattr(bundle.retention.Publication, 'allocate',
+                        lambda *_args, **_options: pytest.fail('identical export allocated'))
+    verify = bundle.verify_stream
+    verifications = []
+    def counted(stream):
+        verifications.append(stream)
+        return verify(stream)
+    monkeypatch.setattr(bundle, 'verify_stream', counted)
+    for _ in range(5):
+        assert evidence.publish([source]) == first
+    assert len(verifications) == 10  # At most the two retained candidate bundles per request.
+    assert (evidence.exports.path / 'current.json').read_bytes() == journal
+    assert Path(other['path']).exists()
+    assert (source.read_bytes(), bundle.fingerprint(source.stat())) == original
+
+
+def test_concurrent_identical_exports_commit_one_private_copy(evidence, monkeypatch):
+    root = evidence.allocate({'result.json': b'concurrent proof'})
+    ready = threading.Barrier(2)
+    allocate = bundle.retention.Publication.allocate
+    allocations = []
+    def counted(transaction, *args, **options):
+        path = allocate(transaction, *args, **options)
+        allocations.append(path)
+        return path
+    monkeypatch.setattr(bundle.retention.Publication, 'allocate', counted)
+    def publish():
+        with evidence.select([root]) as selection:
+            ready.wait(timeout=10)
+            return bundle.export(selection, expected=selection.selection_sha256)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: publish(), range(2)))
+    assert results[0] == results[1]
+    assert len(allocations) == 1
+    output = Path(results[0]['path'])
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
+    assert stat.S_IMODE(output.parent.stat().st_mode) == 0o700
+    assert output.stat().st_uid == output.parent.stat().st_uid == os.geteuid()
+    assert evidence.inspect(output, member=str(root / 'result.json')) == b'concurrent proof'
+    with evidence.exports.inspection() as state:
+        assert state['history'] == [] and len(state['paths']) == 1
+
+
+def test_changed_source_recaptures_without_mutating_existing_copy(evidence):
+    root = evidence.allocate({'result.json': b'first proof'})
+    source = root / 'result.json'
+    first = evidence.publish([source])
+    source.write_bytes(b'changed proof')
+    changed = (source.read_bytes(), bundle.fingerprint(source.stat()))
+    second = evidence.publish([source])
+    assert first['path'] != second['path']
+    assert evidence.inspect(first['path'], member=str(source)) == b'first proof'
+    assert evidence.inspect(second['path'], member=str(source)) == b'changed proof'
+    assert evidence.publish([source]) == second
+    assert (source.read_bytes(), bundle.fingerprint(source.stat())) == changed
+
+
+@pytest.mark.parametrize('defect', ['missing', 'replaced', 'corrupt', 'receipt', 'public-mode'])
+def test_stale_reuse_refuses_without_allocating_or_mutating_journal(evidence, monkeypatch, defect):
+    root = evidence.allocate({'result.json': b'exact proof'})
+    first = evidence.publish([root])
+    output = Path(first['path'])
+    journal = (evidence.exports.path / 'current.json').read_bytes()
+    if defect == 'missing':
+        output.unlink()
+    elif defect == 'replaced':
+        contents = output.read_bytes()
+        output.unlink()
+        output.write_bytes(contents)
+        output.chmod(0o600)
+    elif defect == 'corrupt':
+        output.write_bytes(b'corrupt')
+    elif defect == 'receipt':
+        (output.parent / 'receipt.json').write_bytes(b'{}')
+    else:
+        output.chmod(0o644)
+    monkeypatch.setattr(bundle.retention.Publication, 'allocate',
+                        lambda *_args, **_options: pytest.fail('stale copy allocated'))
+    with pytest.raises((ValueError, OSError)):
+        evidence.publish([root])
+    assert (evidence.exports.path / 'current.json').read_bytes() == journal
+    assert (root / 'result.json').read_bytes() == b'exact proof'
+
+
+def test_identical_reuse_does_not_require_staging_capacity(evidence, monkeypatch):
+    root = evidence.allocate({'result.json': b'exact proof'})
+    first = evidence.publish([root])
+    with evidence.exports.inspection() as state:
+        usage = bundle.retention.publication_usage(state['paths'])
+    monkeypatch.setattr(bundle.retention, 'MAX_RETAINED_BYTES', usage + 4096)
+    assert evidence.publish([root]) == first
+
+
 def test_cumulative_bundle_survives_source_and_export_rotation(evidence):
     expected, roots, outputs = {}, [], []
     previous = []
@@ -219,8 +321,9 @@ def test_recovery_diagnostic_samples_survive_rotation(evidence, suffix):
 
 
 def test_failed_publication_preserves_all_exports_and_allows_retry(evidence, monkeypatch):
-    root = evidence.allocate({'result.json': b'original proof'})
-    outputs = [Path(evidence.publish([root])['path']) for _ in range(3)]
+    root = evidence.allocate({'result.json': b'original proof',
+                              **{f'old-{index}.json': str(index).encode() for index in range(3)}})
+    outputs = [Path(evidence.publish([root / f'old-{index}.json'])['path']) for index in range(3)]
     journal = (evidence.exports.path / 'current.json').read_bytes()
     write = bundle.Selection.write
 
@@ -239,6 +342,33 @@ def test_failed_publication_preserves_all_exports_and_allows_retry(evidence, mon
     latest = Path(evidence.publish([root])['path'])
     assert latest.is_file() and not outputs[0].exists()
     assert all(path.is_file() for path in outputs[1:])
+
+
+def test_group_failure_after_first_member_never_publishes_partial_bundle(evidence, monkeypatch):
+    root = evidence.allocate({'first.json': b'first proof', 'second.json': b'second proof'})
+    previous = evidence.publish([root / 'first.json'])
+    journal = (evidence.exports.path / 'current.json').read_bytes()
+    stream_bytes = bundle.stream_bytes
+    copied = []
+    def interrupted(source, size, output=None):
+        if output is not None:
+            copied.append(size)
+            if len(copied) == 2:
+                raise OSError('fixture second-member interruption')
+        return stream_bytes(source, size, output)
+    with monkeypatch.context() as patch:
+        patch.setattr(bundle, 'stream_bytes', interrupted)
+        with pytest.raises(OSError, match='second-member interruption'):
+            evidence.publish([root])
+    assert len(copied) == 2
+    assert (evidence.exports.path / 'current.json').read_bytes() == journal
+    assert Path(previous['path']).exists()
+    assert not (evidence.exports.path / bundle.retention.PUBLICATION).exists()
+    result = evidence.publish([root])
+    assert evidence.inspect(result['path'], member=str(root / 'first.json')) == b'first proof'
+    assert evidence.inspect(result['path'], member=str(root / 'second.json')) == b'second proof'
+    assert {path.name: path.read_bytes() for path in root.iterdir()} == {
+        'first.json': b'first proof', 'second.json': b'second proof'}
 
 
 @pytest.mark.parametrize('fault', ['mode', 'symlink', 'hardlink', 'fifo', 'parent-link',
@@ -474,9 +604,27 @@ def test_verified_record_reuses_one_open_archive_for_bounded_reads(evidence, mon
         assert len(calls) == 1
         with pytest.raises(ValueError):
             read(str(root / 'first.json'))
+        with bundle.verified_record(record, os.geteuid(), checkout=evidence.checkout) as (_, reread):
+            assert reread(str(root / 'first.json')) == b'first proof'
+        assert len(calls) == 2  # Trust never survives the pinned scope.
 
 
-@pytest.mark.parametrize('change', ['between-reads', 'scope-exit', 'receipt', 'replacement'])
+def test_verified_reader_excludes_publication_until_scope_released(evidence):
+    root = evidence.allocate({'result.json': b'exact proof'})
+    output = Path(evidence.publish([root])['path'])
+    with evidence.exports.inspection() as state:
+        record = next(item for item in state['paths'] if item['path'] == str(output.parent))
+        with bundle.verified_record(record, os.geteuid(), checkout=evidence.checkout) as (_, read):
+            with pytest.raises(ValueError, match='another owner is active'):
+                with evidence.exports.publication(projected_bytes=0):
+                    pytest.fail('writer entered a pinned read scope')
+            assert read(str(root / 'result.json')) == b'exact proof'
+    with evidence.exports.publication(projected_bytes=0):
+        pass
+
+
+@pytest.mark.parametrize('change', ['between-reads', 'scope-exit', 'receipt', 'receipt-between-reads',
+                                  'replacement'])
 def test_verified_record_refuses_mutation_during_read_scope(evidence, change):
     root = evidence.allocate({'result.json': b'exact proof'})
     output = Path(evidence.publish([root])['path'])
@@ -485,7 +633,7 @@ def test_verified_record_refuses_mutation_during_read_scope(evidence, change):
         with pytest.raises(ValueError, match='changed during inspection'):
             with bundle.verified_record(record, os.geteuid(), checkout=evidence.checkout) as (_, read):
                 assert read(str(root / 'result.json')) == b'exact proof'
-                if change == 'receipt':
+                if change in ('receipt', 'receipt-between-reads'):
                     receipt = output.parent / 'receipt.json'
                     receipt.write_bytes(receipt.read_bytes() + b' ')
                 elif change == 'replacement':
@@ -496,7 +644,7 @@ def test_verified_record_refuses_mutation_during_read_scope(evidence, change):
                 else:
                     with output.open('ab') as stream:
                         stream.write(b'changed')
-                if change == 'between-reads':
+                if change in ('between-reads', 'receipt-between-reads'):
                     read(str(root / 'result.json'))
                     pytest.fail('changed archive returned a member')
 
@@ -573,8 +721,9 @@ def test_private_group_metadata_is_preserved_and_foreign_group_refused(evidence,
 
 @pytest.mark.parametrize('substitute', ['missing', 'same-bytes', 'extra-file'])
 def test_destination_substitution_cannot_commit_or_rotate(evidence, monkeypatch, substitute):
-    root = evidence.allocate({'result.json': b'proof'})
-    previous = [Path(evidence.publish([root])['path']) for _ in range(3)]
+    root = evidence.allocate({'result.json': b'proof',
+                              **{f'old-{index}.json': str(index).encode() for index in range(3)}})
+    previous = [Path(evidence.publish([root / f'old-{index}.json'])['path']) for index in range(3)]
     before = (evidence.exports.path / 'current.json').read_bytes()
     write = bundle.Selection.write
     def changed(self, destination):
@@ -600,8 +749,9 @@ def test_destination_substitution_cannot_commit_or_rotate(evidence, monkeypatch,
 
 
 def test_deferred_corruption_preserves_old_exports_until_verified(evidence):
-    root = evidence.allocate({'result.json': b'proof'})
-    previous = [Path(evidence.publish([root])['path']) for _ in range(3)]
+    root = evidence.allocate({'result.json': b'proof',
+                              **{f'old-{index}.json': str(index).encode() for index in range(3)}})
+    previous = [Path(evidence.publish([root / f'old-{index}.json'])['path']) for index in range(3)]
     with evidence.select([root]) as selection:
         result = bundle.export(selection, expected=selection.selection_sha256, defer_cleanup=True)
     output = Path(result['path'])

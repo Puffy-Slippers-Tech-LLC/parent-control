@@ -17,6 +17,10 @@ compile in the guest or borrow a host binary with an unverified target label.
 The fixed probe supports only finite open/exec witness operations, private nonce
 executable identity and selected UID. Drop credentials before descriptor-based
 exec; keep the unique executable identity through the observed syscall.
+Support the design's selected-UID descriptor reopen/exec witnesses against
+privately staged added/replacement bytes. Preserve pinned object identity and
+exclude unrecorded access/writers; a permission failure before native evaluation
+cannot supply a barrier denial. Target event/hash semantics remain F05/F06 proof.
 
 Close new host fixture actions before inspection. Explicit quiescence stops only
 recorded fixture owners and proven descendants, observes actual exit and rechecks

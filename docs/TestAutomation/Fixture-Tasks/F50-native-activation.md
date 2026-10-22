@@ -13,6 +13,13 @@ Bind nonce, phase, input/rule maps, journal cursor and daemon invocation through
 Require attributed allow plus actual positive execution/readback and attributed
 deny plus actual refusal. Prove retiring trust at original paths before unlink;
 retain shared digest admissions needed by surviving identical runtimes.
+Follow the design's phase order for same-path replacements too: old trusted bytes
+remain present until their revocation witness is durable. Pre-prove absent-path
+additions and different-byte replacements through exact staged-content hash guards
+and require their canonical
+denies again after guarded placement, before final new-set trust activation.
+Canonical rules precede temporary hash guards; unrepresentable final paths still
+need distinct final-object proof even when sharing the staged rule's ordinal.
 
 Observers require the unique private executable as well as PID/UID. Settle all
 tracees/descendants and close descriptors before removing that executable;
@@ -29,6 +36,9 @@ Use independent file/rule/compiled/daemon/process doubles for every before/after
 transition, stale generation, partial parsing, queue-overflow denial, permissive
 mode, log loss, wrong attribution, daemon restart, observer removal delay/PID reuse
 and trust retirement. Failed barrier activation must prevent payload mutation.
+Cover first provisioning/disjoint additions with absent destinations, staged
+descriptor/hash proof refusal and interruption between old-trust retirement,
+replacement, canonical-path denial and new trust activation.
 Prove unavailable readiness and exact recovery until all witnesses settle.
 Run exact safety selectors and resource review; no live native policy or VM.
 F05/F06 must establish the complete protocol independently on each target before

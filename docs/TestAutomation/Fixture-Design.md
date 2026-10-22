@@ -590,7 +590,8 @@ including launchers/admissions and the imported legacy movable set. Every change
 has preflight identity, planned action, rollback identity and independent readback
 or absence result. Staging/rollback are the sole recorded extra generation,
 not guest cache versions. Phases are `preflight, staged, barrier-requested,
-barrier-proven, quiesced, placement-pending, payload-verified, trust-proven,
+barrier-proven, quiesced, trust-retirement-intent, trust-retirement-proven,
+placement-pending, payload-verified, placed-paths-intent, placed-paths-proven, trust-proven,
 barrier-removal-pending, witnesses-proven, observers-retired, receipt-committed,
 cleanup-complete`; intent precedes each action. Failure after mutation retains
 unavailable readiness, barrier and exact rollback/recovery phase. Before mutation,
@@ -679,10 +680,16 @@ needed by the legacy guest preparation digest or change its writer early.
 F24 preserves original baseline/fixture decoding; F30 preserves snapshot/owner
 decoding; F33 owns this import/removal algorithm before F15 composes provisioning.
 
-Journal bounded rollback identities for the complete set, then replace/remove
-under the launch barrier below. Reconcile trust to the exact new set, prove that
-removed inputs are absent from loaded admission, and independently read all new
-outputs and removed destinations. Publish the new generation only after that
+Journal bounded rollback identities for the complete set. Under the proven
+launch barrier and after quiescence, revoke each retiring old trusted identity
+and prove `trust=0` at its still-present original path before unlinking it or
+replacing its bytes at that same path. Persist trust-retirement intent and proof
+before placement; interruption retains those old-path coordinates and unavailable
+readiness. Unchanged trusted identities are not revoked. Then replace/remove,
+prove the added/replaced canonical contents remain blocked, and reconcile trust to the exact
+new set after payload verification. Prove that removed inputs are absent from
+loaded admission, and independently read all new outputs and removed destinations.
+Publish the new generation only after that
 verification. Finish recorded rollback retirement before another update; an
 interruption remains unavailable and resumes its exact transaction. A larger to
 smaller to disjoint subset history on each target must leave only the requested
@@ -709,6 +716,26 @@ interpreted-runtime paths for every declared non-root fixture account. Generate
 only fixed finite rules through the supported native compile/reload interfaces;
 do not edit product policy or restart its services. Independently prove the
 loaded barrier blocks fresh fixture launches and runtime opens before mutation.
+An absent destination cannot supply a denial: ENOENT is never native proof.
+For each new content identity without a present canonical witness (an absent
+destination or replacement with different bytes), install a
+temporary hash-only guard, including for otherwise representable final paths.
+Prove its attributed open/execute denial for every applicable UID/permission
+against the exact privately staged, descriptor-pinned bytes before placement.
+The fixed supervisor must make the actual syscall reachable by that UID through
+qualified descriptor reopen/exec interfaces, excluding an unrelated directory/
+file-permission failure, unrecorded access and input writers. Target qualification
+must establish the watched-object/hash semantics; otherwise refuse before placement.
+The hash guard blocks identical copies for those UIDs and stays active throughout
+placement. Journal the staged/final identities and proofs; immediately after
+placement require the canonical-path deny witnesses too, before new-set trust
+activation or any barrier removal. No placeholder at the destination, generic
+failure or prefix marker substitutes for either attributed-denial proof.
+Place representable canonical path/hash rules before their temporary hash-only
+guards so the latter cannot shadow final canonical-rule attribution. For an
+unrepresentable canonical path, the hash-rule ordinal may be shared, but require
+a separate post-placement witness bound to that exact final path and independent
+object readback; its staged witness never substitutes.
 Root fixture launches belong exclusively to the closed host action scheduler;
 the fixed root provisioner retains readback access. If either barrier or ownership
 cannot be proven, refuse live mutation and require normal owned restoration.
@@ -744,7 +771,8 @@ per rule. Barriers use `deny_syslog perm=PERM uid=U : OBJECT`; observers use
 or `trust=1` for the separately enumerated trust witnesses. `U`/`P` are resolved
 decimal identities, `E` is the unique private probe executable's safe absolute
 nonce pathname, and `OBJECT` is exact `path=PATH`, optionally combined with
-`sha256hash=HASH`, or hash alone for unrepresentable paths. `HASH` is exactly
+`sha256hash=HASH`, or hash alone for unrepresentable paths and the temporary
+added-content guards above. `HASH` is exactly
 64 lowercase hex characters. Do not interpolate whitespace/comma/control
 characters into rule tokens, use globs/directories/sets, infer quoting support,
 or accept arbitrary predicates/commands. Fixture admission retains its recognized
@@ -814,8 +842,15 @@ Tracee startup allowances are finite dependencies of that probe executable;
 they cannot authorize scenario processes or shadow any barrier rule. Readiness
 needs every class/UID/permission result, not merely one representative nonce.
 
-Native phases are `barrier-intent → barrier-proven → trust-intent → trust-proven
+Native phases are `barrier-intent → barrier-proven → trust-retirement-intent →
+trust-retirement-proven → placed-paths-intent → placed-paths-proven → trust-intent → trust-proven
 → removal-intent → removal-proven → tracees-settled → observers-retired`.
+Barrier proof includes existing-path and staged added-content denies before
+placement. Trust-retirement proof precedes removal or same-path replacement of
+old trusted bytes; placed-path proof follows guarded placement/payload readback
+and includes both additions and same-path replacements.
+Each empty phase records its verified empty change set rather than implying an
+unperformed witness. F15 binds these native phases to its placement journal.
 Persist intent and unique probe identity before syscall admission; record native
 outcome and correlated decision before replying. Lost replies read these durable
 coordinates; uncertain starts/execs/signals must settle through F32 before any
@@ -870,6 +905,10 @@ and have the matching attributed allow decision. For every barrier rule class,
 UID and permission require its attributed deny decision **and** actual syscall
 refusal/no executed witness. A generic failure, another rule's denial, queue
 overflow, missing/stale log or permissive daemon cannot satisfy that pair.
+Existing canonical paths and staged added-content guards are witnessed before
+placement; added/replaced canonical contents are additionally witnessed immediately
+after guarded placement, with the same hash guard still held. Neither proof credits
+the other phase or a different content identity.
 
 Hold the fixture barrier through trust changes. Before unlinking a retiring
 trusted file, remove only its exact owned admission and use an exact root tracee
@@ -1263,7 +1302,7 @@ planned offline binding, standalone online preparation and the serial execution
 owner. Witnesses specify exact bytes, account and supervised termination.
 Markdown links and plan structure passed; the maintained consistency and
 side-effect-free adapter selection passed
-[321 host checks](../../output/test-runs/host/reports/20261022T035137Z-f77c5cbd/report.md).
+[321 host checks](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json).
 Both read-only helpers finished; no VM, build, setup or product/runtime operation
 was performed and no owned live resources remain. This is F01 review evidence,
 not F51 schema completion, F52 independent review or installed qualification.
@@ -1281,10 +1320,41 @@ remain planned and none of these reviews supplies runtime acceptance:
 
 The bounded F51 helper review identified and resolved all-key lowered-limit
 checking, durable admission-state/enable-proof recovery and the unchanged-sync
-control-write distinction. Full independent design review remains F52. This task
+control-write distinction. F52 records the subsequent independent review below. F51
 changes documentation only; no VM, fixture build, setup, installation or product
 code is involved. All read-only helpers finished and no owned live resources
 remain. Final link/plan and metadata-check evidence is recorded in the queue.
+
+### F52 independent design review
+
+An independent GPT-6.1 Sol xHigh reviewer, with a fresh bounded read-only
+assignment, reviewed the frozen design against the applicable contracts and
+complete affected source. Coverage included caller/cache authentication,
+oldest-build admission, durable pins/lock ordering, original preparation/native/
+app/credential/VM-owner recovery, complete legacy payload/source import, native
+witness/process lifetimes, observer retirement/PID reuse and each target's
+seven-envelope clean-schema gate.
+
+| Finding | Accepted correction and focused re-review |
+| --- | --- |
+| P1: nonexistent canonical paths cannot produce an attributed native denial; this affects first clean provisioning, disjoint additions and different-byte replacements | Prove staged pinned bytes under temporary hash guards before placement, then separately prove the final canonical content remains denied. Canonical path/hash rules precede temporary guards; a shared hash ordinal still needs distinct final-object readback. Unsupported descriptor/event/hash semantics refuse before placement. |
+| P2: unlink/replacement could destroy the old-path trust witness before its phase was proven | Durable trust-retirement intent/proof precedes removal or same-path replacement; final new-set trust activation follows guarded placement and payload verification. Lost replies retain the exact old-path proof and unavailable readiness. |
+
+The reviewer accepted both corrections and the corresponding F15/F31/F32/F50
+brief guidance, with no unresolved actionable findings in this scope. Unique-exe
+observers require settled tracees/descendants, closed mappings/descriptors and
+removal of the private executable before retirement can make PID reuse harmless.
+These remain implementation and target-qualification obligations. The review
+checked distinct preparation branches, not every wrapper alternative; the
+existing alias-composition requirements remain with their implementation tasks.
+
+The coordinator verified the expired F01 report's exact original member, passing
+321-case result and cleanup in its retained accepted bundle before changing only
+the design's evidence-link destination. F52's 417 private launcher checks passed;
+Markdown/plan validation is recorded in the queue. The reviewer finished and no
+owned live resources remain. No runtime source, VM, fixture build, setup or
+installation changed. This accepts only the design review, with no implemented
+activation, measured reliability or installed/customer acceptance credit.
 
 Qualify Ubuntu 26.04 and Fedora 44 independently: first stage, repeat/no writes,
 version update, corrupt/missing inputs, interrupted transaction/retry, foreign

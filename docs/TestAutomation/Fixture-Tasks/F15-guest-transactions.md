@@ -17,8 +17,10 @@ Read the complete F31/F32/F50 native/process APIs and F33 import/removal API wit
 their shared fixture/guest-file callers. Preflight the old/new union, classify
 additions/replacements/removals and preserve still-required shared runtime files.
 Journal payload/rollback identities before mutations. Compose the verified
-launch barrier, explicit owned quiescence, atomic placement/removal, exact trust
-transition, independent readback, barrier release and readiness receipt in one
+launch barrier (including staged added-content denies), explicit owned quiescence,
+old-path trust retirement before removal or same-path replacement, atomic
+placement/removal, canonical added-path deny proof, final new-set trust transition,
+independent readback, barrier release and readiness receipt in one
 recoverable state machine. Use F50's finite fixture proof, not a claim of complete
 arbitrary native-policy acknowledgement. No second process scanner or native
 updater is permitted.
@@ -31,7 +33,9 @@ foreign/modified-file refusal before mutation. Inject interruption before/after
 each placement, removal, native transition and readiness commit. Assert uncertain
 replies resume recorded phases, with unavailable readiness until complete, and
 no repeated uncertain exec/signal. Reuse prerequisite race/identity tests and add
-composition guards that prevent bypassing them. Register exact safety selectors
+composition guards that prevent bypassing them. Cover absent canonical paths on
+first provisioning/disjoint additions, plus interrupted old-path trust revocation
+before replacement or unlink. Register exact safety selectors
 and resource classifications. No live VM or host native policy is used. Update
 delivered support owners and close through the
 [master](../Fixture-Execution-Plan.md).

@@ -12,6 +12,10 @@ and the existing acknowledgement limits. Generate only finite UID/path/hash
 barriers, nonce startup controls and unique-executable/PID/UID observer rules.
 Handle whitespace/comma destinations through exact content identities, including
 their documented identical-copy effect. Preserve all non-fixture rule bytes.
+Render the design's temporary new-content hash guards for absent destinations
+and different-byte same-path replacements. Order canonical path/hash rules first;
+distinguish staged and final-path rule attribution, including separate final-path
+readback when an unrepresentable path shares a hash-rule ordinal.
 
 Decode only required typed decision fields from the current service invocation
 after the recorded cursor. Bind rule position to the exact compiled-input map,

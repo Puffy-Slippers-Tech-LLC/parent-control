@@ -274,6 +274,10 @@ retained-decision closure too: its case lease, exact source declaration and
 receipt checks govern capture recovery and source retirement. The same real-byte
 worker histories cover changes to that dependency.
 
+Private single-file publication also registers `tools/artifact_export.py` in
+this explicit closure. Shared export recovery dispatches its receipt verification
+before retirement, so its actual bytes affect retained controller decisions.
+
 Extend `plan_launcher.response_validator_sources()` and its existing content-change
 regressions as shared dependencies are changed or introduced. E01 inventories
 the controller's relevant validation/storage dependency closure, including

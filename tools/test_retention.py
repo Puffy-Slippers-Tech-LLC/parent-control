@@ -229,7 +229,7 @@ class Store:
                 return True
 
     @contextmanager
-    def publication(self, *, projected_bytes, verify=None, resumable=False):
+    def publication(self, *, projected_bytes, verify=None, resumable=False, reuse=None, wait=False):
         """Build one export before committing its bounded retention rotation.
 
         The caller verifies and fsyncs its payload before commit(). An interrupted
@@ -241,10 +241,12 @@ class Store:
             raise ValueError('retention: invalid publication size')
         if type(resumable) is not bool:
             raise ValueError('retention: invalid resumable publication option')
+        if type(wait) is not bool or (reuse is not None and not callable(reuse)):
+            raise ValueError('retention: invalid publication reuse option')
         if not self.path.is_absolute() or '..' in self.path.parts:
             raise ValueError('retention: invalid storage path')
         ensure_directory(self.path)
-        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
+        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=wait):
             with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock', publication=True):
                 pending = read_publication(self, fd) if resumable else None
                 if pending is None:
@@ -260,14 +262,21 @@ class Store:
                 records = ([] if state is None else
                            [record for _, record in latest_allocations([*state['history'], state])])
                 captures = publication_capture_bytes(state)
+                # A verified existing publication needs no staging space or new
+                # run. Decide under the same writer that admits allocations.
+                reused = None
+                if pending is None and reuse is not None:
+                    publication_usage(records)
+                    reused = reuse(state)
                 if pending is None:
-                    usage = publication_usage(records) + projected_bytes + captures
+                    usage = publication_usage(records) + (projected_bytes if reused is None else 0) + captures
                 else:
                     usage = publication_usage([*records, pending['staging']]) + captures
                 if usage > MAX_RETAINED_BYTES:
                     raise ValueError('retention: publication exceeds 4 GiB storage budget; evidence preserved')
                 transaction = Publication(self, fd, state, projected_bytes, verify,
                                           authorize=authorize, resumable=resumable, intent=pending)
+                transaction.reused = reused
                 try:
                     yield transaction
                 finally:
@@ -771,8 +780,11 @@ class Publication:
         self.resumable = resumable
         self.active = True
         self.committing = intent is not None and intent['phase'] == 'committed'
+        self.reused = None
 
     def allocate(self, factory, **options):
+        if self.reused is not None:
+            raise ValueError('retention: reused publication cannot allocate')
         if (self.active and self.resumable and self.intent is not None
                 and self.intent['phase'] == 'staging'):
             with directory_descriptor(self.intent['staging']['path']):

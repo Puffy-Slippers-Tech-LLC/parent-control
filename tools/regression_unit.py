@@ -1572,6 +1572,11 @@ def buckets(nodeids):
 # add no VM, service, process, shared cache, display, bus or socket. Retention,
 # recording, bundle and plan-evidence modules keep compatible unit overlap;
 # retention/recording cleanup classifications retain the same private ownership.
+# E05 export reuse adds bounded joined thread pools over tiny pytest-private
+# export journals. Threads share only their test's descriptor locks and use the
+# current identity; no credential changes, subprocess, VM, service, socket or
+# shared cache is acquired. Artifact/bundle modules remain compatible; retention
+# reuse guards retain the same private resources in unit and cleanup inventories.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

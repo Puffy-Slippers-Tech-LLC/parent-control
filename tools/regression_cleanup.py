@@ -31,6 +31,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # synchronous reentry adds no process or shared resource in either inventory.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch; test_test_retention_cleanup_safety remains compatible in both inventories.
+# E05 publication reuse uses private fixture journals and descriptor locks only;
+# it adds no shared mutable resource or cleanup owner and remains compatible.
 # Capture retirement and resumable-publication checks add only private journals,
 # files and local descriptors with synchronous interruption doubles. They own no
 # child, VM, display, socket, bus, service or shared cache; compatible in both inventories.

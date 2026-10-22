@@ -10,7 +10,6 @@ import pwd
 import re
 import stat
 import sys
-import tempfile
 import zipfile
 
 CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
@@ -76,28 +75,11 @@ def copy_bytes(fd, output, count):
 
 
 def export(fd, info, source, uid, gid):
-    """Create a new private caller-owned copy; no caller-selected write target."""
+    """Publish or reuse a verified private caller-owned copy."""
     sys.path.insert(0, str(Path(CHECKOUT) / 'tools'))
-    import test_retention
-    from test_storage import directory as storage_directory
-    previous_uid, previous_gid = os.geteuid(), os.getegid()
-    try:
-        os.setegid(gid)
-        os.seteuid(uid)
-        parent = storage_directory('exports')
-        with test_retention.Store(parent / 'retention').session():
-            directory = Path(test_retention.allocate(tempfile.mkdtemp,
-                prefix='onpc-artifact-export-', dir=parent))
-            destination = directory / Path(source).name
-            with destination.open('xb') as output:
-                os.fchmod(output.fileno(), 0o600)
-                copy_bytes(fd, output, info.st_size)
-                output.flush()
-                os.fsync(output.fileno())
-            return str(destination)
-    finally:
-        os.seteuid(previous_uid)
-        os.setegid(previous_gid)
+    import artifact_export
+    return artifact_export.export(fd, info, source, uid, gid, checkout=CHECKOUT,
+        opener=lambda: open_source(source, CHECKOUT, uid))
 
 
 def nonnegative(value):

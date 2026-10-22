@@ -430,8 +430,8 @@ class Selection:
                                  projected_bytes=projected,
                                  simultaneous_bytes=export_bytes + projected,
                                  limit_bytes=retention.MAX_RETAINED_BYTES)
-        if self.export_budget['simultaneous_bytes'] > retention.MAX_RETAINED_BYTES:
-            raise ValueError('bundle: selected export and retained exports exceed the existing budget')
+        # Publication checks simultaneous capacity under its owner lock, after
+        # attempting reuse. A verified existing copy needs no staging budget.
         if getattr(self, 'capture_reuse', None) is not None:
             self.manifest = self.capture_reuse['manifest']
             self.selection_sha256 = digest(encoded(self.manifest))
@@ -863,7 +863,10 @@ def export(selection, *, expected, defer_cleanup=False):
         parent = selection.publication_parent(create=True)
         with retention.Store(parent / 'retention').publication(
                 projected_bytes=selection.projected_bytes,
-                verify=lambda record: inspect_record(record, selection.uid, checkout=selection.checkout)) as transaction:
+                verify=lambda record: inspect_publication(record, selection.uid, checkout=selection.checkout),
+                reuse=lambda state: reuse_export(selection, state), wait=True) as transaction:
+            if transaction.reused is not None:
+                return transaction.reused
             directory = transaction.allocate(tempfile.mkdtemp, prefix='onpc-evidence-bundle-', dir=parent)
             fd = retention.directory(directory)
             try:
@@ -891,6 +894,42 @@ def export(selection, *, expected, defer_cleanup=False):
                 os.close(fd)
         return dict(receipt, path=str(directory / 'evidence.zip'), files=len(selection.files),
                     cleanup_complete=not defer_cleanup)
+
+
+def reuse_export(selection, state):
+    """Reuse only an owner-locked, freshly verified complete publication.
+
+    Journal usage is an operational snapshot, not selected source provenance.
+    Everything else, including original identities, owner/run, inherited copies
+    and logical claims, must match the newly authenticated inventory exactly.
+    """
+    if state is None:
+        return None
+    selected = {key: value for key, value in selection.manifest.items() if key != 'source_budgets'}
+    with identity(selection.reader_uid, selection.reader_gid):
+        selection.revalidate()
+    records = retention.latest_allocations([*state['history'], state])
+    for _, record in reversed(records):
+        directory = Path(record['path'])
+        if not directory.name.startswith('onpc-evidence-bundle-'):
+            continue
+        with verified_record(record, selection.uid, checkout=selection.checkout) as (verified, _):
+            manifest = verified['manifest']
+            if {key: value for key, value in manifest.items() if key != 'source_budgets'} != selected:
+                continue
+            with identity(selection.reader_uid, selection.reader_gid):
+                selection.revalidate()
+            receipt = {key: value for key, value in verified.items() if key != 'manifest'}
+            return dict(receipt, path=str(directory / 'evidence.zip'), cleanup_complete=True)
+    return None
+
+
+def inspect_publication(record, uid, *, checkout=None):
+    """Verify either established export format in the shared owning journal."""
+    if Path(record['path']).name.startswith('onpc-artifact-export-'):
+        import artifact_export
+        return artifact_export.verify(record, uid, checkout=checkout)
+    return inspect_record(record, uid, checkout=checkout)
 
 
 def inspect(checkout, uid, gid, path, *, member=None, offset=0, count=8000,
@@ -948,11 +987,15 @@ def verified_record(record, uid, *, checkout=None):
     selection = Selection(checkout, uid, os.getegid(), [], [], [])
     selection.records = {str(directory): record}
     with selection.open(directory / 'receipt.json') as (fd, info):
+        if info.st_uid != uid or stat.S_IMODE(info.st_mode) != 0o600:
+            raise ValueError('bundle: publication is not private to its caller')
         receipt_identity = fingerprint(info)
         if info.st_size > 4096:
             raise ValueError('bundle: invalid receipt size')
         receipt = decoded(os.read(fd, 4096))
     with selection.open(directory / 'evidence.zip') as (fd, info):
+        if info.st_uid != uid or stat.S_IMODE(info.st_mode) != 0o600:
+            raise ValueError('bundle: publication is not private to its caller')
         before = fingerprint(info)
         verify_receipt(receipt, info, file_digest(fd, info.st_size))
         with os.fdopen(os.dup(fd), 'rb') as stream:
@@ -974,6 +1017,12 @@ def verified_record(record, uid, *, checkout=None):
                 def unchanged():
                     if fingerprint(os.fstat(fd)) != before:
                         raise ValueError('bundle: archive changed during inspection')
+                    with selection.open(directory / 'receipt.json') as (_, current):
+                        if fingerprint(current) != receipt_identity:
+                            raise ValueError('bundle: receipt changed during inspection')
+                    with selection.open(directory / 'evidence.zip') as (_, current):
+                        if fingerprint(current) != before:
+                            raise ValueError('bundle: archive changed during inspection')
 
                 def read(member=None, *, offset=0, count=8000, record_id=None,
                          member_id=None, closure_sha256=None):
@@ -1019,7 +1068,7 @@ def finish(checkout, uid, gid):
     with identity(uid, gid):
         parent = storage.directory('exports', root=checkout, create=False)
         return retention.Store(parent / 'retention').finish_publication(
-            verify=lambda record: inspect_record(record, uid))
+            verify=lambda record: inspect_publication(record, uid, checkout=checkout))
 
 
 def recover(checkout, uid, gid):
@@ -1027,5 +1076,5 @@ def recover(checkout, uid, gid):
     with identity(uid, gid):
         parent = storage.directory('exports', root=checkout, create=False)
         with retention.Store(parent / 'retention').publication(
-                projected_bytes=0, verify=lambda record: inspect_record(record, uid)):
+                projected_bytes=0, verify=lambda record: inspect_publication(record, uid, checkout=checkout)):
             pass

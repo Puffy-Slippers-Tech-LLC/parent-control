@@ -1921,8 +1921,12 @@ pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts export '<report-directo
 
 `read` also accepts `--offset` for paging through large files. `list` returns
 JSON names; `stat` returns JSON type, size, mode, and modification time. `export`
-prints a new `output/test-runs/host/exports/onpc-artifact-export-*/<original-name>`
-path, subject to bounded export retention. Its directory is
+prints an `output/test-runs/host/exports/onpc-artifact-export-*/<original-name>`
+path, subject to bounded export retention. Identical requests reuse a freshly
+verified private copy without starting a retention run or evicting another
+report. The source path, identity, content, checkout and caller must still match;
+changed sources receive a new copy. Missing, replaced or corrupt saved copies
+refuse specifically instead of returning a remembered path. Its directory is
 mode `700` and file mode `600`, both owned by the invoking account. Ordinary
 readers can then inspect the copy without privilege. Graphical-smoke PNG exports
 follow the separate [screenshot contract](../docs/Mandates/Test-Storage-Mandate.md#screenshot-export-and-cleanup).
@@ -1982,6 +1986,12 @@ references return exit 3 and finite JSON `error: evidence_unavailable` plus exac
 mandatory `--source` and `--bundle` inputs never receive this renewal exception.
 It also checks source budgets and conservative simultaneous export space before
 publication. Export requires the exact plan digest and repeats these guards.
+Concurrent identical exports serialize the reuse decision under the publication
+owner. The existing manifest/receipt is the reuse record; operational journal
+usage snapshots do not change the selected source provenance. Reuse verifies
+the saved archive again and allocates no retention slot. Related files selected
+together publish atomically through the same bundle transaction; an interrupted
+copy cannot publish a partial group or retire earlier exports.
 Earlier verified bundles are flattened with new evidence; identical original
 records deduplicate and conflicting records refuse. Every selected file is
 preserved, including host selection/results. No file is silently omitted.
@@ -1995,6 +2005,10 @@ Schema-1 bundles and their receipts remain readable without implicit upgrades.
 All physical members and the finite logical dependency closure are verified
 before a logical member is returned; unknown fields, conflicting closures,
 wrong checkouts and ambiguous mappings refuse.
+Within one pinned verified-read scope, multiple bounded member reads share one
+complete archive verification. Each read rechecks the archive and receipt
+identities; mutation or scope release invalidates that trust. Concurrent readers
+share the finished owner, while publication waits until readers release it.
 
 `bundle-read` accepts either legacy `--path` or the complete
 `--record-id`, `--member-id`, `--closure-sha256` triple. The same offset and

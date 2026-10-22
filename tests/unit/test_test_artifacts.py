@@ -30,7 +30,7 @@ def test_reads_and_exports_any_format_without_changing_source(artifact, name, mo
     checkout, original = artifact
     import test_storage
     monkeypatch.setattr(test_storage, 'ROOT', checkout)
-    monkeypatch.setitem(HELPER['export'].__globals__, 'CHECKOUT', str(ROOT))
+    monkeypatch.setitem(HELPER['export'].__globals__, 'CHECKOUT', str(checkout))
     source = original.with_name(name)
     original.rename(source)
     before = source.stat()
@@ -53,6 +53,187 @@ def test_reads_and_exports_any_format_without_changing_source(artifact, name, mo
     finally:
         # This fixture records and owns the exact export directory it removes.
         shutil.rmtree(exported.parent)
+
+
+@pytest.fixture
+def private_export(artifact, monkeypatch):
+    import test_storage
+    checkout, source = artifact
+    monkeypatch.setattr(test_storage, 'ROOT', checkout)
+    monkeypatch.setitem(HELPER['export'].__globals__, 'CHECKOUT', str(checkout))
+
+    def publish(path=source):
+        with HELPER['open_source'](str(path), checkout, os.getuid()) as (fd, info):
+            return Path(HELPER['export'](fd, info, str(path), os.getuid(), os.getgid()))
+
+    return checkout, source, publish
+
+
+def test_identical_private_exports_reuse_without_rotating_other_reports(private_export, monkeypatch):
+    import test_retention
+    checkout, source, publish = private_export
+    first = publish()
+    other = source.with_name('other.log')
+    other.write_bytes(b'other report')
+    kept = publish(other)
+    journal = first.parent.parent / 'retention' / 'current.json'
+    before = journal.read_bytes()
+    monkeypatch.setattr(test_retention.Publication, 'allocate',
+                        lambda *_a, **_k: pytest.fail('identical export allocated a slot'))
+    for _ in range(7):
+        assert publish() == first
+    assert journal.read_bytes() == before
+    assert kept.read_bytes() == b'other report'
+    assert first.read_bytes() == source.read_bytes()
+    assert first.stat().st_ino != source.stat().st_ino
+
+
+@pytest.mark.parametrize('change', ['bytes', 'replace', 'basename'])
+def test_changed_source_and_equal_basenames_do_not_reuse_private_export(private_export, change):
+    _, source, publish = private_export
+    first = publish()
+    if change == 'bytes':
+        source.write_bytes(b'changed')
+    elif change == 'replace':
+        old = source.with_name('old')
+        source.rename(old)
+        source.write_bytes(first.read_bytes())
+    else:
+        second = source.parent / 'second'
+        second.mkdir()
+        second = second / source.name
+        second.write_bytes(source.read_bytes())
+        source = second
+    fresh = publish(source)
+    assert fresh != first
+    assert fresh.read_bytes() == source.read_bytes()
+    assert first.read_bytes() == b'0123456789\x00\xff'
+
+
+@pytest.mark.parametrize('fault', ['missing', 'bytes', 'replace', 'receipt'])
+def test_stale_private_export_refuses_instead_of_returning_saved_path(private_export, fault):
+    _, source, publish = private_export
+    first = publish()
+    journal = first.parent.parent / 'retention' / 'current.json'
+    before = journal.read_bytes()
+    if fault == 'missing':
+        first.unlink()
+    elif fault == 'bytes':
+        first.write_bytes(b'wrong')
+    elif fault == 'replace':
+        first.rename(first.with_name('previous'))
+        first.write_bytes(source.read_bytes())
+        first.chmod(0o600)
+    else:
+        (first.parent / '.onpc-export' / 'receipt.json').write_bytes(b'{}')
+    with pytest.raises((ValueError, FileNotFoundError)):
+        publish()
+    assert journal.read_bytes() == before
+    assert source.read_bytes() == b'0123456789\x00\xff'
+
+
+@pytest.mark.parametrize('name', ['receipt.json', '.onpc-export', '.onpc-export-control'])
+def test_private_export_metadata_preserves_original_filename(private_export, name):
+    _, source, publish = private_export
+    named = source.with_name(name)
+    source.rename(named)
+    first = publish(named)
+    assert first.name == name and first.read_bytes() == named.read_bytes()
+    assert publish(named) == first
+
+
+def test_concurrent_identical_private_exports_commit_once(private_export):
+    from concurrent.futures import ThreadPoolExecutor
+    _, source, publish = private_export
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        copies = list(pool.map(lambda _: publish(), range(8)))
+    assert len(set(copies)) == 1
+    journal = json.loads((copies[0].parent.parent / 'retention' / 'current.json').read_text())
+    assert journal['history'] == [] and len(journal['paths']) == 1
+    assert copies[0].read_bytes() == source.read_bytes()
+
+
+def test_interrupted_private_copy_preserves_previous_publication(private_export, monkeypatch):
+    import artifact_export
+    _, source, publish = private_export
+    first = publish()
+    source.write_bytes(b'new result')
+    original = artifact_export.checksum
+
+    def fail(fd, size, output=None):
+        if output is not None:
+            output.write(b'partial')
+            raise RuntimeError('interrupted copy')
+        return original(fd, size)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(artifact_export, 'checksum', fail)
+        with pytest.raises(RuntimeError, match='interrupted'):
+            publish()
+    assert first.read_bytes() == b'0123456789\x00\xff'
+    assert not (first.parent.parent / 'retention' / 'publication.json').exists()
+    assert len(list(first.parent.parent.glob('onpc-artifact-export-*'))) == 1
+    assert publish().read_bytes() == b'new result'
+
+
+def test_raw_and_grouped_exports_share_verified_retention_recovery(private_export, monkeypatch):
+    import evidence_bundle
+    import test_retention
+    checkout, source, publish = private_export
+    first = publish()
+    with evidence_bundle.Selection(checkout, os.getuid(), os.getgid(), [], [str(first)], []) as selection:
+        grouped = evidence_bundle.export(selection, expected=selection.selection_sha256)
+    assert evidence_bundle.inspect(checkout, os.getuid(), os.getgid(), grouped['path'],
+                                   member=str(first)) == source.read_bytes()
+    assert publish() == first
+    source.write_bytes(b'deferred raw result')
+    commit = test_retention.Publication.commit
+    with monkeypatch.context() as patch:
+        patch.setattr(test_retention.Publication, 'commit',
+                      lambda transaction: commit(transaction, defer_cleanup=True))
+        deferred = publish()
+    assert (deferred.parent.parent / 'retention' / 'publication.json').exists()
+    assert evidence_bundle.finish(checkout, os.getuid(), os.getgid())
+    assert not (deferred.parent.parent / 'retention' / 'publication.json').exists()
+    assert deferred.read_bytes() == source.read_bytes()
+
+
+def test_exporting_oldest_saved_copy_refuses_before_source_retirement(private_export):
+    _, source, publish = private_export
+    first = publish()
+    for index in range(2):
+        other = source.with_name(f'other-{index}.log')
+        other.write_bytes(str(index).encode())
+        publish(other)
+    journal = first.parent.parent / 'retention' / 'current.json'
+    before = journal.read_bytes()
+    with pytest.raises(ValueError, match='would retire the selected source'):
+        publish(first)
+    assert first.read_bytes() == source.read_bytes()
+    assert journal.read_bytes() == before
+    assert not (journal.parent / 'publication.json').exists()
+
+
+def test_raw_reuse_keeps_copy_verified_through_source_revalidation(private_export, monkeypatch):
+    from contextlib import contextmanager
+    _, source, publish = private_export
+    first = publish()
+    opener = HELPER['export'].__globals__['open_source']
+    calls = []
+
+    @contextmanager
+    def mutate_after_verification(*args):
+        calls.append(args[0])
+        if len(calls) == 3:  # Initial open, inventory check, reuse source check.
+            first.write_bytes(b'changed while checking source')
+        with opener(*args) as opened:
+            yield opened
+
+    monkeypatch.setitem(HELPER['export'].__globals__, 'open_source', mutate_after_verification)
+    monkeypatch.setitem(HELPER, 'open_source', mutate_after_verification)
+    with pytest.raises(ValueError, match='private copy changed during verification'):
+        publish()
+    assert len(calls) == 3 and source.read_bytes() == b'0123456789\x00\xff'
 
 
 def test_scoped_bundle_helper_derives_owner_from_validated_plan(tmp_path, monkeypatch, capsys):

@@ -680,6 +680,11 @@ def nested_operation(root, child_run):
         return
     from test_storage import directory
     parent = Path(value)
+    if parent.name == 'worktree-resolution':
+        with worktree_resolution_owner(root, parent):
+            _register_nested(parent, child_run)
+            yield
+        return
     plan_owner = (parent.parent.parent == directory('plans', root=root)
                   and len(parent.parent.name) == 64
                   and all(c in '0123456789abcdef' for c in parent.parent.name))
@@ -693,12 +698,57 @@ def nested_operation(root, child_run):
             if (not busy(owner) or current_run(parent.parent) != parent
                     or (parent / 'cancel').exists() or (parent / 'nested-closed').exists()):
                 raise ValueError('workflow owner is no longer accepting test operations')
-        record = parent / 'nested.json'
-        entries = json.loads(record.read_text()) if record.exists() else []
-        info = child_run.stat()
-        entries.append({'path': str(child_run), 'device': info.st_dev, 'inode': info.st_ino})
-        atomic(record, entries)
+        _register_nested(parent, child_run)
         yield
+
+
+def _register_nested(parent, child_run):
+    """Register under the caller's held nested gate and authenticated owner."""
+    record = parent / 'nested.json'
+    entries = json.loads(record.read_text()) if record.exists() else []
+    info = child_run.stat()
+    entries.append({'path': str(child_run), 'device': info.st_dev, 'inode': info.st_ino})
+    atomic(record, entries)
+
+
+@contextmanager
+def worktree_resolution_owner(root, session):
+    """Authenticate a destination resolver against its live source launcher.
+
+    This child is inside the source's retained allocation, while its tests belong
+    to the destination checkout. Neither directory names nor a live PID suffice.
+    """
+    from test_storage import directory
+    private_directory(session)
+    record = _start_record(session / 'propagation-owner.json')
+    source, source_root = Path(record['run']), Path(record['root'])
+    if session != source / 'worktree-resolution' or str(root.resolve()) != record['destination']:
+        raise ValueError('worktree resolution checkout identity changed')
+    plan_owner = (source.parent.parent == directory('plans', root=source_root)
+                  and len(source.parent.name) == 64
+                  and all(c in '0123456789abcdef' for c in source.parent.name))
+    if (not plan_owner and source.parent not in tuple(directory(kind, root=source_root)
+            for kind in ('write-e2e', 'fix-tests', 'fix-tests-host'))):
+        raise ValueError('invalid propagation source launcher')
+    private_directory(source)
+    info = source.stat()
+    if [info.st_dev, info.st_ino] != record['identity']:
+        raise ValueError('propagation source directory identity changed')
+    with lock(session / 'nested-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        with lock(source.parent / 'owner') as source_owner, lock(session / 'owner') as owner:
+            info = os.fstat(source_owner)
+            if ([info.st_dev, info.st_ino] != record['owner_identity'] or not busy(source_owner)
+                    or not busy(owner) or current_run(source.parent) != source
+                    or (source / 'cancel').exists() or (session / 'cancel').exists()
+                    or (session / 'nested-closed').exists()):
+                raise ValueError('propagation source no longer accepts test operations')
+            checkpoint = json.loads((source / 'checkpoint.json').read_text())
+            targets = checkpoint.get('worktree_propagation', {}).get('targets', [])
+            if not any(item['path'] == str(root.resolve()) and item.get('phase') in
+                       ('upstream', 'merge', 'restoring') for item in targets):
+                raise ValueError('destination has no retained propagation transaction')
+            yield
 
 
 def finish_nested(root, run):

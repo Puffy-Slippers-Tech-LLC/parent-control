@@ -1504,6 +1504,9 @@ def test_commit_failure_retries_without_recounting_or_reacceptance(commit_checko
 def test_push_failure_retries_existing_commit_before_counting_completion(commit_checkout, monkeypatch,
                                                                        optimization):
     root = commit_checkout
+    propagated = []
+    monkeypatch.setattr(workflow, 'propagate_worktrees',
+                        lambda root, run, state, commit, **_: propagated.append(commit))
     before = workflow.queue_state(root)[1]
     state = dict(workflow.fresh_state('001'), commit_required=True, in_flight=True,
                  queue_before=before)
@@ -1533,6 +1536,7 @@ def test_push_failure_retries_existing_commit_before_counting_completion(commit_
     assert git(root, 'ls-remote', 'origin', 'refs/heads/main').stdout == ''
     persisted = json.loads((root / 'checkpoint.json').read_text())
     recovered = workflow.recover_completion(root, root, persisted)
+    assert propagated == [commit]
     assert git(root, 'rev-parse', 'HEAD').stdout.strip() == commit
     assert git(root, 'ls-remote', 'origin', 'refs/heads/main').stdout.split()[0] == commit
     assert 'pending_completion' not in recovered and 'commit_intent' not in recovered

@@ -87,6 +87,11 @@ checks each own a bounded, waited Python child without model inference.
 No VM, bus, display, network, shared mutable path
 or cache, heavy build or cleanup-inventory resource is acquired; compatible unit
 scheduling is appropriate. Cleanup and UI inventories gain no module.
+launcher_worktrees uses pytest-private Git checkouts, worktrees, bare remotes,
+stash objects and checkpoint/lock trees, bounded waited Git children and a
+private supervised Python agent double. It owns no live service, network, VM, bus, display,
+shared cache or heavy build. Compatible unit scheduling is appropriate; cleanup
+and UI inventories gain no module.
 Automatic controller-reload checks keep the same private records and lock trees,
 with process-local exec/descriptor doubles. Public detached checks also exercise
 real interpreter replacement, bounded local app-server doubles and private Git
@@ -1223,7 +1228,7 @@ graphical_attachment_cleanup_safety graphical_backend graphical_expiry graphical
 graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_cleanup_safety
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety guest_inputs
 installed_journey_cleanup_safety installer integration_harness kiosk_confinement kiosk_login kiosk_model kiosk_rendering
-execution_plan_launcher launcher_chat launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
+execution_plan_launcher launcher_worktrees launcher_chat launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
 package_content package_install_cleanup_safety
 package_os_gate package_payload package_removal package_transaction_notice pam_runtime_cap
 parent_about_cleanup_safety parent_about_worker parent_access_worker parent_client

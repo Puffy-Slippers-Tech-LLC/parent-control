@@ -237,7 +237,7 @@ ORIGINAL_VALIDATOR_SOURCES = (
     'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py', 'detached_launcher.py',
 )
 ADDED_VALIDATOR_SOURCES = (
-    'test_retention.py', 'test_storage.py', 'test_input_transfer.py', 'launcher_git.py',
+    'test_retention.py', 'test_storage.py', 'test_input_transfer.py', 'launcher_git.py', 'launcher_worktrees.py',
     'onpc-test-artifacts', 'launcher_question.py', 'plan_reconciliation.py',
     'vm_selection.py', '../tests/integration/vm_config.py', 'evidence_identity.py',
     'evidence_capture.py', 'capture_publication.py', 'recording_storage.py', 'artifact_export.py',
@@ -2000,6 +2000,7 @@ def test_closeout_preserves_proof_after_cleanup_before_git(rig, monkeypatch, pub
     monkeypatch.setattr(workflow, 'pull_before_commit', lambda *_, **__: events.append('pull'))
     monkeypatch.setattr(workflow, 'stage_task', lambda _, paths, **__: events.append('stage') or paths)
     monkeypatch.setattr(workflow, 'finish_commit', lambda *_: events.append('commit'))
+    monkeypatch.setattr(workflow, 'propagate_worktrees', lambda *_, **__: events.append('propagate'))
     if publication_fails:
         with pytest.raises(ValueError, match='exact proof unavailable'):
             workflow.closeout(rig.plan, rig.spec, rig.run, state)
@@ -2007,7 +2008,7 @@ def test_closeout_preserves_proof_after_cleanup_before_git(rig, monkeypatch, pub
         assert state['pending_completion']['status'] == 'task_complete'
     else:
         assert workflow.closeout(rig.plan, rig.spec, rig.run, state)
-        assert events == ['cleanup', 'proof', 'pull', 'stage', 'commit']
+        assert events == ['cleanup', 'proof', 'pull', 'stage', 'commit', 'propagate']
 
 
 @pytest.mark.parametrize('exhausted', [False, True])

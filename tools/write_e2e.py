@@ -18,7 +18,7 @@ from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_a
 from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
                               retain_result_rejection, result_recovery_instructions, task_limit,
                               validate_session_result, warn_remaining)
-from launcher_git import git_output, worktree_snapshot, session_changes
+from launcher_git import closeout_lock, git_output, propagate_worktrees, worktree_snapshot, session_changes
 
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
@@ -826,6 +826,11 @@ def finish_commit(root, run, state, paths):
 
 
 def finish_completion(root, run, state, result, updated):
+    with closeout_lock(root, run, state):
+        return _finish_completion(root, run, state, result, updated)
+
+
+def _finish_completion(root, run, state, result, updated):
     if state.get('commit_intent'):
         paths = state['commit_intent']['paths']
     else:
@@ -835,6 +840,7 @@ def finish_completion(root, run, state, result, updated):
         pushed = git_output(root, 'push', check=False)
         if pushed.returncode:
             raise ValueError('completion push failed: ' + pushed.stderr.strip())
+        propagate_worktrees(root, run, state, commit, git=git_output)
         if state.get('optimization_session'):
             updated['optimization'] = {'pending': [], 'last_checkpoint': {
                 'tasks': list(state['optimization']['pending']), 'commit': commit}}
@@ -844,6 +850,7 @@ def finish_completion(root, run, state, result, updated):
     updated.pop('commit_intent', None)
     updated.pop('pending_completion', None)
     updated.pop('worktree_before', None)
+    updated.pop('worktree_propagation', None)
     return updated
 
 

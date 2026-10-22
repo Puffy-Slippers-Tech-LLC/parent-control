@@ -549,8 +549,9 @@ semantics.
 operations or Git changes. The shared ordinary-plan driver first pulls the current
 branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
 then stages the accepted task's explicit owned paths, commits them as
-`TA: Completed task ID`, and runs `git push` using the checkout's existing
-remote and branch configuration. Both `execute-plan` and `reliability-plan`
+`TA: Completed task ID`, runs `git push` using the checkout's existing
+remote and branch configuration, and completes
+[shared worktree propagation](#shared-worktree-propagation). Both `execute-plan` and `reliability-plan`
 inherit this policy. Only successful Git close-out counts the task against the
 run limit and permits selecting the next task. The controller owns task commits
 and pushes. If a pull changes HEAD, encounters merge conflicts or needs local
@@ -585,6 +586,59 @@ Already-running backends keep their original policy; attaching does not reload
 code or defaults. Stop at a session boundary and start a fresh run to load a
 changed policy. Tasks completed by an older review-only backend are not
 retroactively committed by restart; preserve their changes for explicit close-out.
+
+## Shared worktree propagation
+
+After a launcher pushes a task, optimization or verified repair commit, shared
+Git infrastructure propagates that exact commit to every other branch listed in
+[`config/worktree.json`](../config/worktree.json). Entries in `worktrees` are
+branch names, resolved through Git's registered worktree inventory; exclude the
+current checkout by its resolved path. This is symmetric: with `main` and
+`worktree` configured, either checkout merges its completed work into the other.
+Additional configured worktrees receive the same change. A checkout without this
+configuration has no propagation destinations. Missing configured checkouts,
+detached destinations, existing Git operations or missing upstreams refuse with
+an actionable retained checkpoint; the launcher never creates branches or
+changes Git configuration.
+
+This boundary is shared by ordinary-plan launchers, `write-e2e` (including its
+optimization commits), and `fix-tests`. It adds no propagation operation to
+read-only checks or launchers that do not commit and push. Task completion and
+selection of further work wait until every destination has been pushed.
+
+For each destination, the controller records its branch, upstream, original
+HEAD and a unique stash identity. It stashes staged, unstaged and untracked work
+with `git stash push -u` when needed, fetches and merges its configured upstream,
+and merges the source completion commit. The destination's active changes stay
+outside these merges and their commits. It restores that exact stash with its
+index state before pushing the destination. Restoration uses apply followed by
+identity-checked drop after a successful push, providing the effect of stash pop
+with recoverable write boundaries. Files unaffected by the merge must restore
+their exact contents, modes and index entries before stash retirement. Existing
+stashes remain untouched.
+
+Merge and stash-restoration conflicts start supervised, unattended GPT-6.1 Sol
+High resolution turns in the affected destination, using the shared agent and
+cleanup infrastructure. No developer question is required. The resolver combines
+both branches' intended changes, preserves destination active work (including
+partial staging and untracked files), and validates affected behavior. It never
+chooses ours/theirs wholesale, commits active work, force-pushes or drops a stash;
+the controller owns merge commits and pushes. Incomplete resolutions continue
+automatically for up to five turns; exhausted resolution, failed validation,
+transport, credentials or hooks retain the transaction and stash without
+granting completion.
+Destination test runs register against the live source launcher and its exact
+propagation checkpoint, while retaining destination-specific cleanup ownership.
+
+One repository-wide lock covers source Git close-out and propagation, serializing
+reverse-direction updates before either source writes its completion commit.
+Competing close-outs wait unattended, with cancellation still available.
+Checkpoint each destination's stash, fetch, merges, restoration, push and stash
+retirement. Restart reuses the source task commit and completed destinations;
+an interrupted stash application is inspected by the automatic resolver before
+any replay. Changed checkout/branch/upstream/HEAD identities preserve pending
+work and refuse unsafe recovery. Existing running backends require a fresh run
+to load this policy.
 
 ## Reviewed plan splits
 
@@ -640,7 +694,7 @@ single state machine containing every task type's acceptance branches.
 | [`launcher_runtime.py`](../tools/launcher_runtime.py) | Common options, locked task budget and live limit changes | Worker defines an accepted task boundary and default budget |
 | [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, following | Worker command, validated namespace, lifecycle callbacks |
 | [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) | Synchronized overview/totals and execution/status column widths and input routing | `WorkflowView`: progress and plan-total projections, question support and optional composer |
-| [`launcher_git.py`](../tools/launcher_git.py) | Upstream pull/reconciliation handoff, literal file paths, worktree fingerprints and commit-intent recovery | Ordinary-plan pull policy, required close-out files and commit message; workflow owns push policy |
+| [`launcher_git.py`](../tools/launcher_git.py) / [`launcher_worktrees.py`](../tools/launcher_worktrees.py) | Upstream reconciliation, literal paths, commit recovery and shared post-push worktree propagation | Workflow owns source pull/push policy and commit scope; propagation shares destination discovery, stash/merge/restore, automatic conflict resolution and recovery |
 
 The current adapters use these components according to their workflow:
 

@@ -1,6 +1,7 @@
 """Shared literal-path Git close-out and identity-checked commit recovery."""
 
 import hashlib
+from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
@@ -261,8 +262,25 @@ def validate_closeout_ownership(root, paths, state):
 
 
 def git_output(root, *arguments, check=True):
-    return subprocess.run(['git', *arguments], cwd=root, env=dict(launcher.environment(), LC_ALL='C'),
-                          capture_output=True, text=True, check=check)
+    return subprocess.run(['git', *arguments], cwd=root,
+                          env=dict(launcher.environment(), LC_ALL='C', GIT_TERMINAL_PROMPT='0'),
+                          stdin=subprocess.DEVNULL, capture_output=True, text=True, check=check)
+
+
+def closeout_lock(root, run, state):
+    """Serialize source Git writes with reverse-direction destination updates."""
+    if not (root / 'config/worktree.json').exists() and not state.get('worktree_propagation'):
+        return nullcontext()
+    from launcher_worktrees import transaction_lock
+    return transaction_lock(root, run)
+
+
+def propagate_worktrees(root, run, state, commit, *, git=None):
+    """Shared post-push boundary for ordinary plans, E2E and verified repairs."""
+    if not (root / 'config/worktree.json').exists() and not state.get('worktree_propagation'):
+        return
+    from launcher_worktrees import propagate
+    propagate(root, run, state, commit, git=git or git_output)
 
 
 def finish_commit(root, run, state, paths, message, *, git=None):

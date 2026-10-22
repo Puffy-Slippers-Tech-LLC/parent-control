@@ -179,7 +179,7 @@ def test_diagnostics_and_failed_verification_are_never_committed(checkout):
                           text=True, check=True, timeout=10).stdout.strip() == '2'
 
 
-@pytest.mark.parametrize('failure', ['stage', 'commit', 'push', 'after_commit'])
+@pytest.mark.parametrize('failure', ['stage', 'commit', 'push', 'after_commit', 'propagate'])
 def test_repair_git_recovers_each_interrupted_closeout_step(checkout, monkeypatch, failure):
     import fix_tests_git
     root, _ = checkout
@@ -205,6 +205,8 @@ def test_repair_git_recovers_each_interrupted_closeout_step(checkout, monkeypatc
             patch.setattr(fix_tests_git, 'stage_task', reject)
         elif failure in ('commit', 'after_commit'):
             patch.setattr(fix_tests_git, 'finish_commit', after_commit if failure == 'after_commit' else reject)
+        elif failure == 'propagate':
+            patch.setattr(fix_tests_git, 'propagate_worktrees', reject)
         else:
             patch.setattr(fix_tests_git, 'git_output', reject_push)
         with pytest.raises((OSError, ValueError), match='injected Git interruption'):

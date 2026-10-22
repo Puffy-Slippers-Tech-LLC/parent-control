@@ -26,7 +26,7 @@ import detached_launcher as launcher
 import plan_evidence
 import plan_evidence_recovery
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace
-from launcher_git import (GitReconciliationRequired, finish_commit, git_output,
+from launcher_git import (GitReconciliationRequired, closeout_lock, finish_commit, git_output, propagate_worktrees,
                           pull_before_commit, reconciliation_instructions, stage_task,
                           validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_progress
@@ -593,6 +593,11 @@ def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=No
 
 
 def closeout(plan, spec, run, state):
+    with closeout_lock(plan.root, run, state):
+        return _closeout(plan, spec, run, state)
+
+
+def _closeout(plan, spec, run, state):
     result = state['pending_completion']
     if not state.get('pull_intent'):
         validate_result(plan, state, result)
@@ -652,11 +657,13 @@ def closeout(plan, spec, run, state):
             pushed = git_output(plan.root, 'push', check=False)
             if pushed.returncode:
                 raise ValueError('completion push failed: ' + pushed.stderr.strip())
+            propagate_worktrees(plan.root, run, state, committed, git=git_output)
     state.update(phase='complete', in_flight=False, summary=result['summary'], handoff=result['handoff'])
     state.pop('pending_completion', None)
     state.pop('commit_intent', None)
     state.pop('pull_intent', None)
     state.pop('git_reconciliation', None)
+    state.pop('worktree_propagation', None)
     launcher.atomic(run / 'checkpoint.json', state)
     return True
 
@@ -704,7 +711,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     # locks include input-transfer admission; helper dispatch authenticates the
     # owner before preservation, and Git/question/reconciliation retain state.
     'test_retention.py', 'test_storage.py', 'test_input_transfer.py',
-    'launcher_git.py', 'onpc-test-artifacts', 'launcher_question.py',
+    'launcher_git.py', 'launcher_worktrees.py', 'onpc-test-artifacts', 'launcher_question.py',
     'plan_reconciliation.py', 'vm_selection.py', '../tests/integration/vm_config.py',
     'evidence_identity.py', 'evidence_capture.py', 'capture_publication.py',
     'recording_storage.py', 'artifact_export.py',

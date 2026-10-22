@@ -357,7 +357,9 @@ category and each fresh verification pass starts without `--resume`.
 After confirming that the specific repaired case passed, the launcher stages
 the repair's explicit owned files, commits them as `TA: Fixed CATEGORY CASE`
 (with the VM name when applicable), and runs `git push` before another repair
-session or category. This uses the current branch's configured upstream.
+session or category. It also completes
+[shared worktree propagation](../docs/Execution-Plans.md#shared-worktree-propagation)
+before advancing. This uses the current branch's configured upstream.
 Case verification requires the runner's teardown-complete pass for that exact
 case and VM under the original selectors; a different failure alone does not
 prove a pass. Non-case failures require a successful replay of their category.
@@ -672,7 +674,9 @@ already waiting. Ctrl+C again while waiting for
 input cancels the entire launcher. Piped observers retain signal cancellation.
 
 After each completed task, the launcher stages its owned paths and commits them
-as `TA: Completed task ID`, then runs `git push` before selecting another task.
+as `TA: Completed task ID`, then runs `git push` and completes
+[shared worktree propagation](../docs/Execution-Plans.md#shared-worktree-propagation)
+before selecting another task. Optimization commits use the same propagation.
 The push uses the checkout's existing Git remote and branch configuration.
 Git uses literal paths
 and `commit --only` so unrelated staged files remain outside the commit. Agents

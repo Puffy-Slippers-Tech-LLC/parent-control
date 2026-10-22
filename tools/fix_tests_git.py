@@ -3,7 +3,7 @@
 import json
 
 import detached_launcher as launcher
-from launcher_git import (finish_commit, git_output, stage_task, validate_closeout_ownership,
+from launcher_git import (closeout_lock, finish_commit, git_output, propagate_worktrees, stage_task, validate_closeout_ownership,
                           validate_pull_identity, worktree_fingerprint, worktree_snapshot,
                           session_changes)
 
@@ -71,6 +71,10 @@ class RepairCommits:
         self.finish_pending()
 
     def finish_pending(self):
+        with closeout_lock(self.root, self.run, self.state):
+            self._finish_pending()
+
+    def _finish_pending(self):
         key = self.state.get('pending')
         if key is None:
             return
@@ -101,9 +105,10 @@ class RepairCommits:
         pushed = git_output(self.root, 'push', check=False)
         if pushed.returncode:
             raise ValueError('repair push failed: ' + pushed.stderr.strip())
+        propagate_worktrees(self.root, self.run, self.state, commit, git=git_output)
         print(f'fix-tests: committed and pushed verified repair: {commit}', flush=True)
         del self.state['repairs'][key]
-        for field in ('pending', 'commit_intent', 'pull_intent'):
+        for field in ('pending', 'commit_intent', 'pull_intent', 'worktree_propagation'):
             self.state.pop(field, None)
         self.save()
 

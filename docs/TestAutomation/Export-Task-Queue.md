@@ -30,13 +30,9 @@ No product acceptance or live VM work belongs to this queue.
 | [ ] | E14 | [Qualify the composed infrastructure](Export-Tasks/E14-composition.md) | E13 | Private end-to-end failure matrix, compatibility and resource review and all-consumer disposition using earlier safety coverage | 60–90 min provisional |
 | [ ] | E14a | [Independently review final delivery](Export-Tasks/E14a-review.md) | E14 | Independent final source/evidence review against frozen history, interfaces, producer/consumer coverage and safety regressions | 45–60 min |
 
-Estimates include reading, delivery, applicable regressions and cleanup; they do
-not shorten safety acceptance or change session allowances. E01b's
-[frozen allocation](Export-Design.md#frozen-delivery-allocation) resolves all ranges,
-including its review and E14/E14a. Future Estimate cells retain their protected
-earlier planning text; provisional labels there grant no unresolved allocation
-choice. Six consumer briefs hold exact reviewed prerequisite blocks and revised
-ranges, including indivisible recovery reasons. Their selected consumers insert
-independently deliverable mechanisms and producer/launcher families under the
-[shared prerequisite route](../Execution-Plans.md#execution-and-delegation);
-do not weaken acceptance or shift product work into this queue.
+Estimates include reading, delivery, applicable checks and owned cleanup; they
+grant no extra allowance and do not shorten acceptance. Completed rows retain
+their historical claims. The [implementation direction](Export-Design.md#implementation-direction)
+supersedes the unimplemented mechanism freeze. Existing rows own all remaining
+delivery and behavioral checks; there are no automatic future insertion blocks.
+The already inserted E03 prerequisites and retained suspended work remain intact.

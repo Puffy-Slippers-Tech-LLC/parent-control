@@ -18,8 +18,8 @@ owner finishes; incomplete cleanup never becomes passing proof. Preserve failed
 and interrupted attempts, worker versus batch provenance and original inventories.
 Do not change selectors, scheduling, test outcomes, fixture preparation, VM
 ownership or the latest-only watch recording policy. Include standalone and
-first-use report routes, not only the aggregate happy path. Split independent frozen
-producer families before this row if needed; no unassigned producer is complete.
+first-use report routes, not only the aggregate happy path. Every assigned
+producer needs an explicit delivered or unresolved disposition.
 
 ## Validation and close-out
 

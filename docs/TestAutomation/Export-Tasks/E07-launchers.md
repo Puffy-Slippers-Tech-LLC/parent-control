@@ -54,37 +54,3 @@ No model, actual Git remote, VM or product suite runs. Assert no extra session o
 completion credit, unchanged unrelated work and exact retained acceptance scope.
 Run the scoped launcher/evidence safety selections, update their owning contracts
 only for delivered behavior and follow the master's cleanup and close-out.
-
-## Frozen prerequisite insertion
-
-E01b allocation: 135–180 min total; this consumer retains 30–45 min for adapter
-and active-target composition plus every original acceptance assertion. Recovery's
-60–75 min range keeps exact renewed proof, protected startup correction, capacity
-partial edits and accepted Git retry together: all share the retained transaction
-and cannot authorize proof renewal or reset counts independently.
-
-When E07 is selected, before implementation insert exactly this contiguous block
-immediately before E07, using the existing finite briefs:
-
-Brief navigation: [E07p-lifecycle](E07p-lifecycle.md), [E07p-recovery](E07p-recovery.md).
-The literal rows below use queue-relative destinations; copy them unchanged.
-
-```markdown
-| Done | ID | Task | Requires | Scope | Estimate |
-| --- | --- | --- | --- | --- | --- |
-| [ ] | E07p-lifecycle | [Retain ordinary working and accepted proof](Export-Tasks/E07p-lifecycle.md) | E06a | Integrate exact capture and carry through ordinary continuation, blocked answers, suspension and rejected responses | 45–60 min |
-| [ ] | E07p-recovery | [Compose ordinary recovery and Git retries](Export-Tasks/E07p-recovery.md) | E07p-lifecycle | Preserve real proof through scoped renewal, protected recovery, capacity partial edits and accepted Git retry without extra allowance | 60–75 min |
-```
-
-Exact E07 Requires before: `E06a`; after: `E06a, E07p-recovery`.
-At insertion update this brief's top-level Requires to that same after field.
-New briefs declare `Acceptance: host`, no Targets. Keep E07 Scope, acceptance and
-all original assertions, including every adapter, real-file guard and actual
-authenticated two-reference path. Use the
-[shared insertion route](../../Execution-Plans.md#execution-and-delegation) and
-[frozen guards](../Export-Design.md#frozen-insertion-guard-review).
-Preserve all other rows and controller ownership; finish cleanup, point to
-E07p-lifecycle and return `prerequisite_required` or valid `continue` with retained
-consumer work. No prerequisite runs or checkpoint adoption during insertion.
-On resumption audit all adapters and compose real evidence functions through the
-active-target, older-report and fresh-controller paths before closing E07.

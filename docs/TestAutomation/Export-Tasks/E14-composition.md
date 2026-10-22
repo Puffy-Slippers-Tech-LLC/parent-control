@@ -50,37 +50,3 @@ scope. Report pending historical proof or protected external application as limi
 not a pass.
 Move delivered enduring requirements into existing owners, remove completed briefs
 as appropriate and use shared close-out. No other queue gains completion credit.
-
-## Frozen prerequisite insertion
-
-E01b allocation: 165–225 min total. This consumer retains 45–60 min for the remaining
-finite matrix, resource/compatibility review and complete consumer disposition.
-The three independent historical families get separate executable deliveries;
-each retains its real cross-boundary path and controls rather than substituting
-isolated parser, bundle-read or mocked source-map tests.
-
-When E14 is selected, before implementation insert exactly this contiguous block
-immediately before E14, using the existing finite briefs:
-
-Brief navigation: [E14p-rotation](E14p-rotation.md), [E14p-active](E14p-active.md), [E14p-restart](E14p-restart.md).
-The literal rows below use queue-relative destinations; copy them unchanged.
-
-```markdown
-| Done | ID | Task | Requires | Scope | Estimate |
-| --- | --- | --- | --- | --- | --- |
-| [ ] | E14p-rotation | [Compose capture through startup rotation](Export-Tasks/E14p-rotation.md) | E13 | Verify actual startup report retirement and exact single-invocation retained closure with failed and stale acknowledgement controls | 45–60 min |
-| [ ] | E14p-active | [Compose archived reads during active production](Export-Tasks/E14p-active.md) | E14p-rotation | Verify both absent originals through authenticated archived selection during unrelated same-target production without active journal inspection | 30–45 min |
-| [ ] | E14p-restart | [Compose actual-file controller restarts](Export-Tasks/E14p-restart.md) | E14p-active | Verify each actual dependency change stops retained decisions and exact fresh-controller resumption without extra credit | 45–60 min |
-```
-
-Exact E14 Requires before: `E13`; after: `E13, E14p-restart`.
-At insertion update this brief's top-level Requires to that same after field.
-New briefs declare `Acceptance: host`, no Targets. E14 retains every original
-assertion/Scope/acceptance and E14a retains independent final review. Use the
-[shared insertion route](../../Execution-Plans.md#execution-and-delegation) and
-[frozen guards](../Export-Design.md#frozen-insertion-guard-review).
-After owned cleanup point to E14p-rotation, return `prerequisite_required` or valid
-`continue` with retained consumer work, and run no prerequisite or checkpoint
-adoption in that session. On resumption verify the exact applicability of those
-results, complete the remaining composition matrix above and preserve commands,
-results and cleanup for E14a. A prerequisite pass alone cannot close E14.

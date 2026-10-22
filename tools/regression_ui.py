@@ -53,9 +53,6 @@ from pathlib import PurePosixPath
 # Parent first-run dismissal reuses each preview's private accessibility bus
 # and recorded owner. The temporary reader is reset before launch returns; no
 # new process, shared setting, file or cleanup lifetime is introduced.
-# Native activity identity/readback adds only immutable public values to the
-# existing fixture GUI's private display and owned payload processes; retain
-# its whole-module fixture build reservation and compatible classification.
 # Localization review keeps the existing private preview/display/bus and owned
 # application lifecycle. Optional images read only the current worker's sealed
 # spectator feed, close readers, and use registered retention allocations.
@@ -204,40 +201,18 @@ GROUPS = (
     # separate worker deadline so the long preview matrices cannot consume
     # its startup/check budget. Each module keeps its session fixtures intact.
     ('About', ('test_about_release.py',), 6),
-    ('Screen fidelity', ('test_screen_preview.py',), 12),
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
     ('Accessible adapter', ('test_e2e_accessible_adapter.py',), 12),
-    # Recording reuses that spectator in a private bus/Mutter/runtime, with one
-    # bounded encoder and synthetic private feeds. No live VM or shared display;
-    # The two 10-second benchmark runs stay serial in its existing admission.
-    ('Test spectators', ('test_e2e_watch.py', 'test_ui_watch.py', 'test_watch.py',
-                         'test_watch_recording.py'), 8),
+    # Core recording integration uses a private bus/Mutter/runtime, one bounded
+    # encoder and synthetic feeds. No viewer UI actions, live VM or shared
+    # display; retain its existing admission and whole-module fixture scope.
+    ('Core recording', ('test_watch_recording.py',), 8),
     ('Automation identity', ('test_automation_identity.py', 'test_translation_widget_contracts.py'), 12),
-    ('Fixture GUI', ('test_fixture_gui.py',), 30),
 )
 
 # The adapter's Shell search shares the headless runner with its own artifact/
 # runtime root; it does not publish Nested Shell's stable latest paths.
-# The spectator fixture uses process-local memfds and per-test output. Its live
-# checks only read a running E2E feed and are excluded from host aggregates.
-# The combined watcher has private memfds, runtime sockets and tmp_path launcher
-# locks/logs, on this same private display/bus; it starts no real runner or VM.
-# Registry refresh/retired-worktree checks keep those same private resources;
-# replaced asynchronous feeds are closed and joined by their owning fixture.
-# The multi-VM grid uses up to five private synthetic memfds in this fixture;
-# cells share only its private display/bus and add no libvirt or host resources.
-# The stalled-VM check parks only a private transport thread; its event is
-# released before owned feeds are closed and joined, including failure cleanup.
-# Checkout terminal/flat-grid checks add three tiny private log/lock trees,
-# four private UI sockets and three synthetic VM memfds. Tile double clicks
-# and branch/tab changes stay on GTK's main thread on this private display.
-# They retain the same spectator reservation and compatible scheduling.
-# VM ID ordering adds only a tiny config in the same tmp_path; duplicate-tab
-# handoff uses the existing synthetic feeds and starts no additional process.
-# The singleton check adds
-# plus one waited singleton peer on that same private display/bus. No real Git
-# checkout, controller, desktop service or VM is started by the fixture.
-# Automation identity uses the standard private preview session. Fixture GUI
+# Automation identity uses the standard private preview session.
 # Parent Hebrew logical-text/Tab checks use Request behavior's existing private
 # preview process, compositor, accessibility bus and event file. No new live
 # owner, shared path, service or display; compatible UI classification stays.
@@ -245,8 +220,6 @@ GROUPS = (
 # events, with no external delivery or new resource/cleanup owner.
 # Enabled Hebrew allowance/balances reuse the same private Parent preview and
 # display; the finite return-to-English adds no owner or resource reservation.
-# builds its payload and Flatpak installation below its private pytest root;
-# both use the worker's private compositor, accessibility bus and runtime.
 # Keep pairing identities separate even when buckets have the same reservation.
 # The catalogue matrix uses the existing private Parent preview and event log,
 # with finite scripted native rows. Its waited Perl children expand input only;
@@ -296,8 +269,8 @@ GROUPS = (
 # Its lifetime pipe and kernel subreaper scope contain only that private Shell
 # launch and services; its socket runtime and scratch locks outlive forced pytest
 # exit. It introduces no shared resource; keep the existing ui-shell reservation.
-KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-about', 'ui-screen', 'ui-shell',
-         'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')
+KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-about', 'ui-shell',
+         'ui-accessible', 'ui-watch', 'ui-identity')
 
 
 @dataclass(frozen=True)

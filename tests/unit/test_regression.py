@@ -1527,7 +1527,6 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     # actual jobs, estimates and dependencies; do not duplicate its job ordering.
     inventory = {name: [f'tests/ui/{name}::test_{index}' for index in range(count)]
                  for name, count in [('test_request_form_component.py', 58),
-                                     ('test_screen_preview.py', 20),
                                      ('test_preview_smoke.py', 23),
                                      ('test_request_layout.py', 22),
                                      ('test_parent_feedback.py', 8),
@@ -1539,7 +1538,7 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     monkeypatch.setattr(test_activity, 'record_cleanup', lambda _: None)
     releases, scheduled = {}, []
     durations = {'Publishing tests': 40, 'Unit — Bucket 1': 12,
-                 'UI — Request behavior': 80, 'UI — Screen fidelity': 100}
+                 'UI — Request behavior': 80}
     import regression_unit
     monkeypatch.setitem(regression_unit.ESTIMATES, 'test_core.py', 150)
     unit_nodes = ('tests/unit/test_core.py::test_case',)
@@ -1634,11 +1633,10 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     events = [json.loads(line) for line in (report.directory / 'schedule.jsonl').read_text().splitlines()]
     starts = {event['job']: event for event in events if event['event'] == 'start'}
     finishes = {event['job']: event for event in events if event['event'] == 'finish'}
-    assert list(starts)[:4] == ['UI — Request behavior', 'publish', 'UI — Screen fidelity',
-                               'Unit — Bucket 1']
+    assert list(starts)[:3] == ['UI — Request behavior', 'publish', 'Unit — Bucket 1']
     component, unit = starts['Private D-Bus components'], starts['Unit — Bucket 1']
-    assert component['branch'] == unit['branch'] == 4
-    assert 0 <= component['monotonic'] - finishes['Unit — Bucket 1']['monotonic'] <= 5
+    assert unit['branch'] == 3 and component['branch'] == 4
+    assert 0 <= component['monotonic'] - unit['monotonic'] <= 5
     preview = starts['UI — Preview smoke']
     assert preview['branch'] == starts['publish']['branch']
     assert 0 <= preview['monotonic'] - finishes['publish']['monotonic'] <= (10 if io_burst else 5)

@@ -83,12 +83,12 @@ DEMANDS.update(publish=Demand(2, 6 * GIB), artifacts=Demand(2, 4 * GIB),
                system=Demand(0, 0), e2e=Demand(0, 0))
 
 # Publishing companions with reviewed isolation. Units/components have live
-# overlap evidence; screen fidelity and request behavior use private compositor/
+# overlap evidence; request behavior uses private compositor/
 # bus/PipeWire/XDG state and per-test evidence, separate from publishing's private
 # sbuild tree. Keep these identities explicit; other UI buckets stay excluded.
 # Keep these symmetric: launch order must not change isolation requirements.
 BUILD_KINDS = frozenset(('publish', 'artifacts'))
-BUILD_COMPANIONS = frozenset(('unit', 'component', 'ui-screen', 'ui-request'))
+BUILD_COMPANIONS = frozenset(('unit', 'component', 'ui-request'))
 # Artifact construction reads the checkout and writes only private source,
 # package and fixture directories. It neither installs nor launches the product.
 ARTIFACT_COMPANIONS = PARALLEL | BUILD_KINDS

@@ -1357,7 +1357,7 @@ reports and has no parallel cleanup branches or join stage.
 
 Host work and independent publishing/build jobs share the branches; comparison
 joins both successful builders and their validated distinct outputs. Publishing
-may overlap units, components, request behavior, screen fidelity and artifacts.
+may overlap units, components, request behavior and artifacts.
 Artifact operations may overlap known parallel host categories and each other.
 Every VM attempt remains exclusive after the host/build join. Resource shortages
 defer launches, and already-running tests finish normally when load rises.
@@ -1377,13 +1377,15 @@ UI bucket collection and completion must match the original discovered test IDs
 exactly; count-only matches cannot pass. New UI modules run exclusively until
 their isolation is reviewed in `tools/regression_ui.py`. Nested Shell stays in
 one bucket so its stable latest-evidence paths have one writer. Accessible
-adapter and E2E spectator are separate parallel buckets: the adapter uses private
-compositors, buses, settings and attempt artifacts (including its Shell search),
-while the spectator uses process-local frame memory and per-test output. Host
-aggregates and focused UI runs exclude `live_e2e` checks consistently during
-collection and execution. Those checks belong to VM acceptance and are outside
-the host-only UI category. Both host spectator buckets retain UI resource
-admission and exclusion from publishing.
+adapter and core recording integration are separate parallel buckets: the
+adapter uses private compositors, buses, settings and attempt artifacts
+(including its Shell search), while recording uses private synthetic feeds,
+a compositor and an owned encoder. Recording retains its UI resource admission
+and exclusion from publishing. Viewer UI tests are excluded under the
+[test scope mandate](../docs/Mandates/Test-Scope-Mandate.md); core encoding,
+credential masking, evidence publication and worker cleanup checks remain.
+Host aggregates and focused UI runs retain the `live_e2e` exclusion during
+collection and execution so VM-dependent checks cannot enter the host category.
 The private compositor fixture is explicitly required by the nested-Shell module,
 so its outer Devkit viewer never depends on a prior module's display setup. The
 checkout `dogtail_config.ini` disables Dogtail's shared `/tmp` debug file through
@@ -1555,8 +1557,9 @@ encoder and bounded frame handoff. No audio is recorded. Keyframe-aligned clips
 can include a short prelude, whose visible VMs also appear in the filename.
 Transient GTK paint gaps retain the last safe frame and are counted separately
 from encoder overload; a sustained rendering stall fails capture.
-Synthetic render/encode benchmarks verify playback and report overhead; they do
-not establish a negligible impact on live VM test duration.
+Focused recording integration checks verify playback, credential masking,
+publication and owned cleanup. Routine suites do not run an observation-only
+render/encode benchmark or claim negligible impact on live VM test duration.
 
 ### Aggregate output retention
 

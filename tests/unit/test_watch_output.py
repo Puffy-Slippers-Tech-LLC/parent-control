@@ -13,76 +13,7 @@ import pytest
 from test_storage import directory
 from tests.support.terminal_screen import Terminal
 from watch_output import Output, TerminalWriter, TAIL_BYTES, JsonReader
-from watch_viewer import ResourceUsage, viewer_entries
-
-
-def test_footer_resources_use_interval_activity_and_refresh_once_per_second(tmp_path):
-    proc, block = tmp_path / 'proc', tmp_path / 'block'
-    proc.mkdir()
-    for name in ('nvme0n1', 'sdb'):
-        (block / name / 'device').mkdir(parents=True)
-    # These whole virtual devices have no physical device link; partitions
-    # have no entry under /sys/block. Their larger counters must be ignored.
-    (block / 'dm-0').mkdir()
-    (block / 'loop0').mkdir()
-    now = [0.0]
-    usage = ResourceUsage(proc, block, clock=lambda: now[0])
-    def snapshot(user, idle, reads, writes):
-        (proc / 'stat').write_text(f'cpu {user} 0 0 {idle} 0 0 0 0 900 0\n')
-        (proc / 'meminfo').write_text('MemTotal: 8000 kB\nMemAvailable: 2000 kB\n')
-        (proc / 'diskstats').write_text('\n'.join(
-            f'8 {index} {name} 0 0 0 {read} 0 0 0 {write} 0 0 0'
-            for index, (name, read, write) in enumerate(zip(
-                ('nvme0n1', 'sdb', 'dm-0', 'loop0', 'nvme0n1p1'), reads, writes))))
-    snapshot(100, 100, [100] * 5, [100] * 5)
-    assert usage.text() == 'CPU:    — | Memory:  75% | Disk:    —'
-    snapshot(150, 150, [500, 800, 5000, 5000, 5000], [700, 300, 5000, 5000, 5000])
-    now[0] = .99
-    assert usage.text() == 'CPU:    — | Memory:  75% | Disk:    —'
-    now[0] = 1
-    assert usage.text() == 'CPU:  50% | Memory:  75% | Disk:  70%'
-    # Parallel requests can accumulate more than one second of read/write time.
-    snapshot(250, 150, [3500, 800, 5000, 5000, 5000], [3700, 300, 5000, 5000, 5000])
-    now[0] = 3
-    assert usage.text() == 'CPU: 100% | Memory:  75% | Disk: 100%'
-    full_width = usage.text()
-    now[0] = 4
-    assert usage.text() == 'CPU:    — | Memory:  75% | Disk:   0%'
-    snapshot(251, 249, [3500, 800, 5000, 5000, 5000], [3710, 300, 5000, 5000, 5000])
-    (proc / 'meminfo').write_text('MemTotal: 8000 kB\nMemAvailable: 7920 kB\n')
-    now[0] = 5
-    assert usage.text() == 'CPU:   1% | Memory:   1% | Disk:   1%'
-    assert len(usage.text()) == len(full_width)
-    assert [i for i, char in enumerate(usage.text()) if char == '|'] == [
-        i for i, char in enumerate(full_width) if char == '|']
-
-
-def test_footer_resources_recover_from_unavailable_and_reset_counters(tmp_path):
-    proc, block = tmp_path / 'proc', tmp_path / 'block'
-    proc.mkdir()
-    (block / 'sda' / 'device').mkdir(parents=True)
-    now = [0.0]
-    usage = ResourceUsage(proc, block, clock=lambda: now[0])
-    assert usage.text() == 'CPU:    — | Memory:    — | Disk:    —'
-    (proc / 'stat').write_text('cpu invalid\n')
-    (proc / 'meminfo').write_text('MemTotal: 0 kB\nMemAvailable: 0 kB\n')
-    (proc / 'diskstats').write_text('invalid\n')
-    now[0] = 1
-    assert usage.text() == 'CPU:    — | Memory:    — | Disk:    —'
-    (proc / 'stat').write_text('cpu 100 0 0 100 0 0 0 0\n')
-    (proc / 'meminfo').write_text('MemTotal: 1000 kB\nMemAvailable: 500 kB\n')
-    (proc / 'diskstats').write_text('8 0 sda 0 0 0 100 0 0 0 100 0 0 0\n')
-    now[0] = 2
-    assert usage.text() == 'CPU:    — | Memory:  50% | Disk:    —'
-    (proc / 'stat').write_text('cpu 10 0 0 10 0 0 0 0\n')
-    (proc / 'diskstats').write_text('8 0 sda 0 0 0 10 0 0 0 10 0 0 0\n')
-    now[0] = 3
-    assert usage.text() == 'CPU:    — | Memory:  50% | Disk:   0%'
-    (proc / 'stat').write_text('cpu 20 0 0 100 0 0 0 0\n')
-    (proc / 'diskstats').write_text('8 0 sda 0 0 0 10 0 0 0 510 0 0 0\n')
-    (proc / 'meminfo').unlink()
-    now[0] = 4
-    assert usage.text() == 'CPU:  10% | Memory:    — | Disk:  50%'
+from watch_viewer import viewer_entries
 
 
 def test_viewer_vm_ids_are_numeric_and_duplicate_checkouts_follow_the_controller():

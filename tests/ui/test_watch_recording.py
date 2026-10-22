@@ -1,4 +1,7 @@
-"""Private watch rendering is playable independently of any desktop watcher."""
+"""Core recording integrity, credential masking and owned worker cleanup.
+
+These integration checks need the recording compositor, not viewer UI actions.
+"""
 
 import json
 import fcntl
@@ -70,63 +73,6 @@ def test_private_worker_renders_encodes_seals_and_closes(tmp_path):
     finally:
         control.close()
         stop_owned(process, identity)
-
-
-def test_synthetic_two_vm_recording_cpu_and_memory_comparison(tmp_path, record_property, capsys):
-    """Observation-only benchmark: synthetic feeds supply no live VM evidence."""
-    root = tmp_path / 'checkout'
-    (root / 'config').mkdir(parents=True)
-    (root / '.git').mkdir()
-    (root / 'tools').mkdir()
-    (root / 'tools/watch').touch()
-    (root / 'config/test-vm.json').write_text(json.dumps({'vms': [
-        dict(name='Synthetic-One', id=1, enabled='false', disk_anchor='/unused/one.qcow2'),
-        dict(name='Synthetic-Two', id=2, enabled='false', disk_anchor='/unused/two.qcow2')]}))
-    measurements = {}
-    for mode in ('no-encoder', 'encoded'):
-        output = tmp_path / (mode + '.webm')
-        control, remote = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-        control.settimeout(25)
-        command = launch_command(root, remote.fileno(), output)
-        command[4] = str(Path(__file__).with_name('watch_recording_benchmark.py'))
-        with (tmp_path / (mode + '.log')).open('wb') as log:
-            process = subprocess.Popen(command,
-                env={**os.environ, 'ONPC_RECORDING_BENCHMARK': mode},
-                pass_fds=(remote.fileno(), *scratch_descriptors()), stdout=log, stderr=log)
-        identity = process_identity(process)
-        remote.close()
-        try:
-            ready = json.loads(control.recv(65536))
-            assert ready['event'] == 'ready', (ready, (tmp_path / (mode + '.log')).read_text())
-            time.sleep(10)
-            control.send(b'{"op":"close"}')
-            result = json.loads(control.recv(65536))
-            assert result['event'] == 'closed', (result, (tmp_path / (mode + '.log')).read_text())
-            assert process.wait(timeout=15) == 0
-            assert result['samples'] >= 35
-            assert {span['vm'] for span in result['vm_spans']} == {'Synthetic-One', 'Synthetic-Two'}
-            assert result['cpu_seconds'] > 0 and result['peak_rss_sum_kib'] > 0
-            if mode == 'encoded':
-                subprocess.run(['ffmpeg', '-v', 'error', '-i', str(output), '-f', 'null', '-'],
-                               check=True, timeout=25)
-                result['bytes'] = output.stat().st_size
-            measurements[mode] = result
-        finally:
-            control.close()
-            stop_owned(process, identity)
-    encoded, baseline = measurements['encoded'], measurements['no-encoder']
-    measurements['synthetic_only'] = True
-    measurements['encoder_cpu_seconds_per_second'] = (
-        encoded['cpu_seconds'] / encoded['duration_seconds']
-        - baseline['cpu_seconds'] / baseline['duration_seconds'])
-    # Sum of individual high-water marks is an upper-bound comparison, not a
-    # claim that every process reached its peak at the same instant.
-    measurements['encoder_peak_rss_sum_delta_kib'] = (
-        encoded['peak_rss_sum_kib'] - baseline['peak_rss_sum_kib'])
-    (tmp_path / 'synthetic-recording-benchmark.json').write_text(json.dumps(measurements, indent=2))
-    record_property('synthetic_recording_benchmark', json.dumps(measurements))
-    with capsys.disabled():
-        print('Synthetic recording benchmark: ' + json.dumps(measurements, separators=(',', ':')), flush=True)
 
 
 def test_secret_frame_is_marked_and_large_span_summary_is_lossless():

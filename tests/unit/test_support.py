@@ -10,7 +10,6 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from tests.support.configuration import valid_config
 from tests.support.events import read_events
 from tests.support.modules import load_module
 from tests.support.terminal import capture
@@ -185,12 +184,6 @@ def test_graphical_boot_restores_pytest_storage_default(monkeypatch, previous, f
         boot_preview_session(session)
     assert tempfile.tempdir == previous
     assert os.environ['TMPDIR'] == '/var/tmp'
-
-
-def test_configuration_factory_returns_independent_documents():
-    first = valid_config()
-    first["kiosk_uid"] = 1234
-    assert valid_config()["kiosk_uid"] == 991
 
 
 def test_event_reader_waits_for_complete_records_and_accepts_missing_files(tmp_path):

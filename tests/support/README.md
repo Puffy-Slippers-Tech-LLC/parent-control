@@ -3,8 +3,8 @@
 Start here before adding fixture code. These are opt-in helpers on top of
 pytest, unittest, Hypothesis, Gio, Dogtail and the existing language runners.
 Tests own scenarios and assertions; helpers own repeated setup, transport and
-cleanup. [Architecture regressions](../unit/test_support_architecture.py) prevent
-helpers and test cases from importing collected case modules.
+cleanup. Helpers and test cases must not import collected case modules; keep
+reusable mechanics in support modules.
 
 Temporary storage follows the
 [test storage mandate](../../docs/Mandates/Test-Storage-Mandate.md): use the

@@ -331,15 +331,10 @@ the automation VNC endpoint remains responsive. It also starts a lease without
 an E2E recorder, hands off the maintenance collector, checks live screen/SSH and
 footer intent through repeated reader connections, and verifies keeper shutdown.
 The same check covers the system-test SPICE display through the shared collector.
-The isolated GTK test is
-`tests/ui/test_e2e_watch.py::test_window_survives_stop_reconnect_and_resize`.
-For acceptance, run `E2E-030/parent` (verified installation setup, real reboot,
-Parent About journey and final shutdown), and select
-`tests/ui/test_e2e_watch.py` through `tools/run-ui-tests --timeout 1300` during
-its active feed. The live tests close an initial window during automation, then
-open another, reconnect its feed repeatedly and retain it through shutdown. The acceptance
-window belongs to the private test compositor, so its fixture cleanup cannot
-close a manually opened host viewer. Per-run results remain in runner artifacts.
+The [test scope mandate](../../docs/Mandates/Test-Scope-Mandate.md) excludes
+spectator-window UI tests. Core collector, credential, recording and cleanup
+checks remain direct infrastructure coverage; product journeys do not require
+a separate viewer acceptance run. Per-run results remain in runner artifacts.
 
 ### Listing and execution
 

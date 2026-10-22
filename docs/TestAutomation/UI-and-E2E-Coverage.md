@@ -185,10 +185,11 @@ outcomes under their existing owners.
 | Future language 309 | Retain child's language and restricted station request choices across one approver change and language restoration, with the new approver still selected. Drop repeated About/error-report tours and report-draft reopening: error-report closure ends its draft under the [specification](../Specification.md#feedback-and-error-reports). |
 | Future language 310 | Observe translated remaining-time use after each language save without extra time, lost work or changed policy, then natural expiry. Remove the extra unchanged overlay reopen and manual lock/unlock cycle; E2E-011/022 retain session-resume/lifecycle outcomes. Tooltip/menu/label matrices remain UI. |
 
-The prior UI allocation review covered `tests/ui/test_*.py` modules. The screen-preview,
-UI-watcher, E2E-watcher and fixture-GUI modules exercise the test harness itself;
-they do not duplicate product E2E assertions. The live E2E spectator remains an
-explicit opt-in check. The catalogue query/filter matrix is executable through
+The prior UI allocation review covered `tests/ui/test_*.py` modules. Screen-picker,
+watcher and fixture-widget UI tests have been removed under the
+[test scope mandate](../Mandates/Test-Scope-Mandate.md). Core recording,
+input/ownership and fixture-integrity checks remain direct infrastructure
+coverage. The catalogue query/filter matrix is executable through
 the shared installed worker composites and public-ID adapter. Outstanding request
 matrices above remain TODO. The valid Save/Cancel and invalid/Reset match-editor
 matrices are executable through the shared editor and text blocks.

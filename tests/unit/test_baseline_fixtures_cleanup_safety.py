@@ -97,6 +97,9 @@ class Guest:
     def checksum(self, algorithm, path): return hashlib.new(algorithm, self.read_file(path)).hexdigest()
     def mv(self, source, target): self.nodes[target] = self.nodes.pop(source)
     def sync(self): pass
+    def rm(self, path):
+        self.nodes.pop(path)
+        self.writes.append(path)
     def umask(self, mode): assert mode == 0o077
     def filesize(self, path): return len(self.read_file(path))
     def is_file(self, path): return path in self.nodes and stat.S_ISREG(self.nodes[path][0]['st_mode'])
@@ -172,6 +175,94 @@ def test_first_repeat_owned_update_and_preserved_unrelated_state(prepared):
     assert guest.read_file('/opt/unrelated') == b'keep'
     assert guest.read_file(fixture.assets.PREFIX + '/Exact Fixture.AppImage') == b'new distinct A'
     assert guest.read_file(fixture.assets.PREFIX + '/PrismLauncher.AppImage') == payload['N']
+
+
+def test_clean_retirement_removes_complete_legacy_payload_and_exact_trust_only(prepared):
+    guest, payload = prepared
+    fixture.reconcile(guest, payload)
+    guest.write('/opt/unrelated', b'preserved')
+    environment = fixture.environment_files(fixture.accounts(guest))
+    before = {path: copy.deepcopy(guest.nodes[path]) for path in environment}
+    backend = copy.deepcopy(guest.nodes[fixture.BACKEND_CONFIG])
+    fixture.reconcile_clean(guest, fixture.prepare_vm.preparation_digest())
+    fixture.verify_clean(guest)
+    assert not any(guest.exists(path) for path in fixture.movable_files(guest))
+    assert not guest.exists(fixture.TRUST_FILE) and not guest.exists(fixture.TRUST_RECORD)
+    assert {path: guest.nodes[path] for path in environment} == before
+    assert guest.nodes[fixture.BACKEND_CONFIG] == backend
+    assert guest.read_file('/opt/unrelated') == b'preserved'
+    prior = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    fixture.reconcile_clean(guest)
+    assert guest.nodes == prior and guest.writes == []
+
+
+def test_clean_baseline_preparation_needs_no_movable_payload(prepared):
+    guest, _ = prepared
+    fixture.reconcile_clean(guest)
+    fixture.verify_clean(guest)
+    assert not any(guest.exists(path) for path in fixture.movable_files(guest))
+
+
+def test_clean_environment_retry_preserves_owned_stage_between_chown_and_chmod(prepared, monkeypatch):
+    guest, _ = prepared
+    original = guest.chmod
+    failed = False
+    def interrupted(mode, path):
+        nonlocal failed
+        if (not failed and mode == 0o644 and path.endswith('.onpc-baseline-new')
+                and '/home/onpc-child-riley/' in path):
+            failed = True
+            assert guest.lstatns(path)['st_uid'] == 1000
+            assert stat.S_IMODE(guest.lstatns(path)['st_mode']) == 0o600
+            raise RuntimeError('interrupted ownership placement')
+        original(mode, path)
+    monkeypatch.setattr(guest, 'chmod', interrupted)
+    with pytest.raises(RuntimeError, match='interrupted ownership placement'):
+        fixture.reconcile_clean(guest)
+    monkeypatch.setattr(guest, 'chmod', original)
+    fixture.reconcile_clean(guest)
+    fixture.verify_clean(guest)
+
+
+@pytest.mark.parametrize('fault', ['bytes', 'owner', 'link', 'foreign-admission'])
+def test_clean_retirement_refuses_ambiguous_legacy_ownership_before_mutation(prepared, fault):
+    guest, payload = prepared
+    fixture.reconcile(guest, payload)
+    target = fixture.assets.PREFIX + '/PrismLauncher.AppImage'
+    if fault == 'bytes':
+        guest.write(target, b'foreign bytes')
+    elif fault == 'owner':
+        guest.chown(0, 0, target)
+    elif fault == 'link':
+        guest.links[target] = '/unrelated'
+    else:
+        guest.write('/etc/fapolicyd/trust.d/foreign.trust',
+                    (target + ' 4 ' + 'a' * 64 + '\n').encode())
+    prior = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    with pytest.raises(ValueError):
+        fixture.reconcile_clean(guest, fixture.prepare_vm.preparation_digest())
+    assert guest.nodes == prior and guest.writes == []
+
+
+def test_clean_retirement_resumes_only_its_exact_durable_members(prepared, monkeypatch):
+    guest, payload = prepared
+    fixture.reconcile(guest, payload)
+    original = guest.rm
+    removed = []
+    def interrupted(path):
+        original(path)
+        removed.append(path)
+        if len(removed) == 3:
+            raise RuntimeError('interrupted deletion')
+    monkeypatch.setattr(guest, 'rm', interrupted)
+    with pytest.raises(RuntimeError, match='interrupted deletion'):
+        fixture.reconcile_clean(guest, fixture.prepare_vm.preparation_digest())
+    assert guest.exists(fixture.RETIRE_RECORD)
+    monkeypatch.setattr(guest, 'rm', original)
+    fixture.reconcile_clean(guest, fixture.prepare_vm.preparation_digest())
+    fixture.verify_clean(guest)
 
 
 @pytest.mark.parametrize('boundary', [None, 'write', 'rename', 'record'])

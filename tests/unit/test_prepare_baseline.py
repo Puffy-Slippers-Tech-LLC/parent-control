@@ -988,6 +988,8 @@ def guest_fixture(*, os_id='ubuntu'):
     accounts = {item.username: {"uid": 1000 + i, "role": item.role} for i, item in enumerate(guest.IDENTITIES)}
     marker = guest.marker_document(guest.GuestIdentity(guest.HOSTNAME, "a" * 32, "26.04", "kvm"),
                                    accounts, SCRIPT_DIGEST)
+    # This fixture deliberately exercises the legacy recovery reader.
+    marker['schema_version'] = guest.MARKER_VERSION
     files = {str(guest.MARKER): host.encode(marker), "/etc/hostname": (guest.HOSTNAME + '\n').encode(),
              "/etc/machine-id": b"a" * 32, "/var/lib/dpkg/status": b"Package: bash\nStatus: install ok installed\n"}
     files['/etc/os-release'] = (b'ID=ubuntu\nVERSION_ID=26.04\n' if os_id == 'ubuntu' else
@@ -1015,8 +1017,31 @@ def guest_fixture(*, os_id='ubuntu'):
     # Model accepted reusable inputs, so residue/identity tests still reach their
     # intended guard through the real fixture and console readiness checks.
     metadata = {}
+    policy_payloads = {}
+    if os_id == 'fedora':
+        names = baseline_fixtures.native_assets.NATIVE_STOCK_RULE_NAMES
+        stock = {name: b'# fixed stock source\n' for name in names}
+        policy_payloads = {'/usr/share/fapolicyd/default-ruleset.known-libs':
+                           ('\n'.join(names) + '\n').encode(),
+            **{'/usr/share/fapolicyd/sample-rules/' + name: data
+               for name, data in stock.items()}}
+        for path, data in {**policy_payloads,
+                **{'/etc/fapolicyd/rules.d/' + name: data for name, data in stock.items()}}.items():
+            files[path] = data
+            metadata[path] = {'st_mode': stat.S_IFREG | 0o644, 'st_uid': 0,
+                             'st_gid': 987 if path.startswith('/etc/') else 0, 'st_nlink': 1}
+            for parent in Path(path).parents:
+                metadata.setdefault(str(parent), {'st_mode': stat.S_IFDIR | 0o755,
+                                                  'st_uid': 0, 'st_gid': 0, 'st_nlink': 1})
     fixture_accounts = baseline_fixtures.accounts(g)
-    declaration = baseline_fixtures.declared_files(g, fixture_accounts)
+    if os_id == 'fedora':
+        fixture_accounts['native-policy'] = SimpleNamespace(pw_uid=0, pw_gid=987)
+    native = baseline_fixtures.native_assets
+    source_keys = dict(zip(native.executable_sources(), (asset[0] for asset in native.ASSETS)))
+    source_keys.update({source: source.rsplit('/', 1)[-1] for source in native.gui_sources()})
+    source_hashes = {source: hashlib.sha256(('fixture-' + key).encode()).hexdigest()
+                     for source, key in source_keys.items()}
+    declaration = baseline_fixtures.declared_files(g, fixture_accounts, source_hashes)
     record = {'purpose': baseline_fixtures.PURPOSE, 'pending': None, 'files': {}}
     for path, (source, mode, role) in declaration.items():
         data = source if isinstance(source, bytes) else ('fixture-' + source).encode()
@@ -1106,6 +1131,10 @@ def guest_fixture(*, os_id='ubuntu'):
         if argv[:2] == ['rpm', '-qf']:
             return 'fapolicyd'
         if argv[:2] == ['rpm', '-q']:
+            if argv[3] == baseline_fixtures.native_assets.NATIVE_RULE_MANIFEST:
+                return ''.join(path + '\t' + hashlib.sha256(data).hexdigest()
+                    + '\t' + str(stat.S_IFREG | 0o644) + '\troot\troot\t0\n'
+                    for path, data in policy_payloads.items())
             if argv[3].startswith('%{FILEDIGESTALGO}'):
                 return '8\n' + ''.join(path + '\t' + hashlib.sha256(files[path]).hexdigest() + '\n'
                                        for path in native_tools.values())

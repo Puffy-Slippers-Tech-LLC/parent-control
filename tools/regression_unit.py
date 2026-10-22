@@ -1096,7 +1096,14 @@ from regression_ui import Bucket
 # Fixture provisioning uses pytest-private descriptor trees and in-memory
 # transport/native/lease doubles. No VM, service, shared cache or child process;
 # compatible in both unit and cleanup inventories.
+# fixture_snapshots owns only pytest-private records and in-process suite,
+# transport and filesystem doubles. It starts no VM, subprocess, display, bus,
+# socket or service and uses no shared cache. Its small CPU/I/O demand permits
+# compatible overlap; it introduces no cleanup or UI inventory owner.
+# Baseline, app-snapshot and transfer safety additions retain their existing
+# private filesystem/double ownership in both unit and cleanup inventories.
 REVIEWED = frozenset("""
+fixture_snapshots
 fixture_provision_cleanup_safety
 fixture_execution_cleanup_safety fixture_handoff_cleanup_safety
 fixture_manifest fixture_container fixture_bundle_cleanup_safety

@@ -574,7 +574,8 @@ class Qualification:
             with self.ledger.measure('preparation'):
                 lease.prepare()
                 host_key = runner.bootstrap(self.commands, lease, self.directory,
-                                            guestfs, observation_only=True)
+                                            guestfs, observation_only=True,
+                                            environment_only=self.assets is None and not self.serial)
                 lease.guard(off=True)
                 lease.save('isolated')
                 self.verified = VerifiedInputs(lease=lease, assets=self.assets)

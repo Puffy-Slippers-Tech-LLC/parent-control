@@ -184,7 +184,8 @@ def main():
                     inputs = attempt / 'input'
                     inputs.mkdir(mode=0o700)
                     (inputs / 'selected-inputs.json').write_text(json.dumps({'scope': 'spectator-harness'}))
-                    host_key = runner.bootstrap(commands, lease, attempt, guestfs, observation_only=True)
+                    host_key = runner.bootstrap(commands, lease, attempt, guestfs,
+                                                observation_only=True, environment_only=True)
                     lease.save('isolated')
                     result[name] = run_probe(lease, commands, attempt, host_key)
                     ledger.pass_outcome('infrastructure')

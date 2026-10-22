@@ -165,8 +165,13 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     preparation('Installing app')
     setup = directory / 'suite-setup'
     setup.mkdir(mode=0o700)
-    stage(setup, assets, selection, bundle=bundle)
-    host_key = system.bootstrap(suite.commands, lease, setup, suite.guestfs)
+    clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
+    if clean:
+        stage(setup, assets, selection, bundle=bundle, snapshot=True)
+    else:
+        stage(setup, assets, selection, bundle=bundle)
+    host_key = system.bootstrap(suite.commands, lease, setup, suite.guestfs,
+        **({'snapshot_capture': True} if clean else {}))
     lease.save('isolated')
     verified = VerifiedInputs(lease=lease, assets=assets, root=root)
     suite.verified = verified

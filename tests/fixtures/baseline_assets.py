@@ -1,5 +1,6 @@
 """Finite reusable guest assets. No product state or attempt credentials."""
 from pathlib import Path
+from tests.fixtures.baseline_environment import desktop_settings_files, automatic_update_files
 
 try:
     from native_assets import (ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,
@@ -97,37 +98,6 @@ def catalogue_files(accounts, *, root=None, system_dir='/usr/share/applications'
                    + ('Hidden=true\n' if hidden else ''))
         files[directory + '/' + CATALOG_PREFIX + name + '.desktop'] = (content.encode(), 0o644, role)
     return files
-
-
-def desktop_settings_files(accounts):
-    """Keep fixture folder names stable across deliberate desktop-language changes.
-
-    The optional GTK renamer is not a product surface. Disable its legacy XDG
-    autostart and modern systemd entry through supported per-user overrides.
-    An empty regular unit is a systemd mask, avoiding a /dev/null symlink in
-    the fixture reconciler's strictly regular-file inventory.
-    """
-    files = {}
-    for role in ('child', 'other', 'parent'):
-        config = accounts[role].pw_dir + '/.config/'
-        files[config + 'autostart/user-dirs-update-gtk.desktop'] = (
-            b'[Desktop Entry]\nType=Application\nName=User folders update\nHidden=true\n',
-            0o644, role)
-        files[config + 'systemd/user/user-dirs-update-gtk.service'] = (b'', 0o644, role)
-    return files
-
-
-def automatic_update_files(os_id):
-    """Keep Ubuntu package changes under the preparation controller's ownership.
-
-    Empty regular systemd units mask the finite automatic APT entry points.
-    Explicit apt-get updates in baseline preparation remain available.
-    """
-    if os_id != 'ubuntu':
-        return {}
-    return {'/etc/systemd/system/' + unit: (b'', 0o644, 'system') for unit in (
-        'apt-daily.timer', 'apt-daily.service',
-        'apt-daily-upgrade.timer', 'apt-daily-upgrade.service')}
 
 
 def files(accounts):

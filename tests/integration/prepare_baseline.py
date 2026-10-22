@@ -534,9 +534,15 @@ def inspect_guest(guestfs, disk, script_digest):
             fields = dict(line.split(": ", 1) for line in block.splitlines() if ": " in line and not line.startswith(" "))
             require(fields.get("Package") not in ("oh-no-parent-control", "oh-no-parent-control-dbgsym"),
                     "guest:residue:package")
-        from baseline_fixtures import verify as verify_fixtures
+        from baseline_fixtures import verify as verify_fixtures, verify_clean
         from baseline_console import verify as verify_console
-        verify_fixtures(g, script_digest)
+        clean = guest_contract.fixture_boundary(marker) == 'clean'
+        if clean:
+            verify_clean(g)
+            from baseline_guest import verify_clean_sources
+            verify_clean_sources(g)
+        else:
+            verify_fixtures(g, script_digest)
         verify_console(g)
         for category, paths in guest_contract.RESIDUE_PATHS.items():
             require(not any(g.exists(path) or g.is_symlink(path) for path in paths), f"guest:residue:{category}")
@@ -554,6 +560,7 @@ def inspect_guest(guestfs, disk, script_digest):
             require(not g.glob_expand(pattern), "guest:residue:service-session")
         return {"preparation_record_sha256": hashlib.sha256(raw).hexdigest(),
                 "preparation_script_sha256": script_digest,
+                **({'fixture_boundary': 'clean'} if clean else {}),
                 **({'ubuntu_version': version} if os_id == 'ubuntu' else {'os_id': os_id, 'version': version}),
                 "accounts": marker["accounts"]}
     finally:

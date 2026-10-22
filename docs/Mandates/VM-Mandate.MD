@@ -152,26 +152,34 @@ execution until recovered; evidence is never discarded to enable parallelism.
 
 ## VM-host setup and baseline
 
-- All reusable, one-time guest prerequisites belong to `tools/prepare-vm`:
-  dependencies, fixed fixture applications and launchers, and persistent harness
+- All reusable, one-time environment prerequisites belong to `tools/prepare-vm`:
+  dependencies and persistent harness
   settings. Runners, cases and app-snapshot preparation only verify them. Missing
   or stale prerequisites fail with baseline-refresh guidance; no on-the-fly
   installation, repair or alternate preparation route is permitted in tests.
   Attempt-specific SSH identities, evidence/transport state, product packages
   under test and deliberate scenario mutations remain attempt-owned. Do not
   preseed product policy, grants, usage or a scenario's expected result.
-  This includes reusable native, Snap, Flatpak and offline-game fixtures once
-  implemented. Their pending capability tasks must add preparation and read-only
-  verification to the shared routes before consumers can use them. A package
+  Ubuntu 26.04's schema-4 baseline and app captures exclude movable fixture
+  payloads, admissions and copied fixture sources. Their host-owned inputs use
+  the [shared SSH provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning)
+  only after target/envelope qualification; unqualified runners refuse clean
+  captures before input. Fedora retains its legacy baseline fixture ownership
+  until its own snapshot task passes. Reusable native, Snap, Flatpak and game
+  dependencies remain environment-owned; pending capabilities still require
+  shared preparation and read-only verification before use. A package
   change explicitly exercised by a catalogue/update/removal case remains a
   scenario mutation; it is not an on-the-fly prerequisite repair.
 - Preparation is an idempotent reconciliation of a finite declared inventory.
   Reuse matching state without rewriting it, update only proven owned inputs,
   preserve unrelated files/accounts/settings, and safely resume partial work.
   Refuse links, foreign ownership, ambiguous state and unexpected collisions.
-  Verify bytes, modes, owners, launchers and configuration before capture; bind
-  fixture sources to the baseline identity so stale baselines and derived app
-  snapshots cannot pass. Cover first run, repeat, update and interrupted retry.
+  Verify bytes, modes, owners and configuration before capture; bind environment,
+  runtime dependency and shared lifecycle sources to baseline identity. Legacy
+  captures additionally bind their embedded fixture sources. Ubuntu's
+  [clean boundary](../../tests/integration/Environment.md#ubuntu-clean-snapshots)
+  preserves fixture-only independence, exact legacy retirement and old recovery.
+  Cover first run, repeat, update and interrupted retry.
   Auto mode still applies available system updates and replaces snapshots as
   documented; idempotence never weakens the lease, provenance or product-free gate.
 - `./setup.sh` is the sole public VM-host setup entry point. Modes must be

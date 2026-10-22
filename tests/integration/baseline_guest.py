@@ -3,6 +3,8 @@
 from contextlib import contextmanager
 from pathlib import Path
 import os
+import hashlib
+import json
 import re
 import stat
 import tempfile
@@ -17,6 +19,10 @@ from watch_activity import observed
 STAGE = '/var/lib/onpc-baseline-preparation'
 UNIT = '/etc/systemd/system/onpc-baseline-preparation.service'
 LINK = '/etc/systemd/system/multi-user.target.wants/onpc-baseline-preparation.service'
+SOURCE_RETIREMENT = STAGE + '/source-retirement.json'
+SOURCE_STAGING = STAGE + '/source-staging.json'
+STAGED_MOVABLE_SOURCES = (*prepare_vm.SNAPSHOT_SOURCE_SYMBOLS,
+                         'common/oh_no_parent_control_ui/gtk_automation.py')
 SERVICE = f'''[Unit]
 Description=Prepare the ONPC test baseline
 Wants=network-online.target accounts-daemon.service
@@ -153,6 +159,118 @@ def preparation_failure(g):
     return diagnostics + evidence
 
 
+def recover_source_staging(g):
+    """Retire only exact completed or privately pending preparation copies."""
+    from baseline_fixtures import regular
+    if not (g.exists(SOURCE_STAGING) or g.is_symlink(SOURCE_STAGING)):
+        return
+    regular(g, SOURCE_STAGING, 0, 0, 0o600)
+    record = json.loads(g.read_file(SOURCE_STAGING))
+    require(type(record) is dict and set(record) == {'purpose', 'files', 'pending'}
+            and record['purpose'] == 'onpc-preparation-source-staging-v1'
+            and type(record['files']) is dict
+            and set(record['files']) == set(STAGED_MOVABLE_SOURCES)
+            and record['pending'] in (None, *STAGED_MOVABLE_SOURCES),
+            'guest:source-staging-record')
+    for relative, digest in record['files'].items():
+        require(type(digest) is str and re.fullmatch('[0-9a-f]{64}', digest) is not None,
+                'guest:source-staging-record')
+        path = STAGE + '/checkout/' + relative
+        if g.exists(path) or g.is_symlink(path):
+            directory(g, str(Path(path).parent))
+            regular(g, path, 0, 0, 0o600)
+            require(relative == record['pending'] or g.checksum('sha256', path) == digest,
+                    'guest:source-staging-substituted')
+    for relative in record['files']:
+        path = STAGE + '/checkout/' + relative
+        if g.exists(path):
+            g.rm(path)
+            g.sync()
+
+
+def prepare_source_retirement(g):
+    """Prove old copied sources by their original marker-bound digest."""
+    from baseline_fixtures import regular, write_record
+    recover_source_staging(g)
+    paths = tuple(prepare_vm.FIXTURE_SOURCE_FILES)
+    if g.exists(SOURCE_RETIREMENT) or g.is_symlink(SOURCE_RETIREMENT):
+        regular(g, SOURCE_RETIREMENT, 0, 0, 0o600)
+        plan = json.loads(g.read_file(SOURCE_RETIREMENT))
+        require(type(plan) is dict and set(plan) == {'purpose', 'files'}
+                and plan['purpose'] == 'onpc-preparation-source-retirement-v1'
+                and type(plan['files']) is dict and set(plan['files']) == set(paths),
+                'guest:source-retirement-record')
+    else:
+        present = [path for path in paths if g.exists(STAGE + '/checkout/' + path)
+                   or g.is_symlink(STAGE + '/checkout/' + path)]
+        if not present:
+            return
+        marker_path = str(prepare_vm.MARKER)
+        regular(g, marker_path, 0, 0, 0o600)
+        marker = json.loads(g.read_file(marker_path))
+        require(prepare_vm.fixture_boundary(marker) == 'legacy', 'guest:source-retirement-marker')
+        for relative in prepare_vm.LEGACY_SCRIPT_FILES:
+            path = STAGE + '/checkout/' + relative
+            directory(g, str(Path(path).parent))
+            regular(g, path, 0, 0, 0o600)
+        actual = prepare_vm.preparation_source_digest(
+            lambda relative: g.read_file(STAGE + '/checkout/' + relative),
+            prepare_vm.LEGACY_SCRIPT_FILES)
+        require(actual == marker['preparation_script_sha256'], 'guest:source-retirement-digest')
+        plan = {'purpose': 'onpc-preparation-source-retirement-v1',
+                'files': {relative: g.checksum('sha256', STAGE + '/checkout/' + relative)
+                          for relative in paths}}
+        write_record(g, plan, SOURCE_RETIREMENT)
+    for relative, digest in plan['files'].items():
+        require(type(digest) is str and re.fullmatch('[0-9a-f]{64}', digest) is not None,
+                'guest:source-retirement-record')
+        path = STAGE + '/checkout/' + relative
+        if g.exists(path) or g.is_symlink(path):
+            directory(g, str(Path(path).parent))
+            regular(g, path, 0, 0, 0o600)
+            require(g.checksum('sha256', path) == digest, 'guest:source-retirement-substituted')
+    for relative in plan['files']:
+        path = STAGE + '/checkout/' + relative
+        if g.exists(path):
+            g.rm(path)
+            g.sync()
+
+
+def verify_clean_sources(g):
+    """No movable source bytes survive capture; avatar and recovery data stay."""
+    paths = (*prepare_vm.FIXTURE_SOURCE_FILES,
+             'common/oh_no_parent_control_ui/gtk_automation.py')
+    require(not any(g.exists(STAGE + '/checkout/' + relative)
+                    or g.is_symlink(STAGE + '/checkout/' + relative) for relative in paths),
+            'guest:fixture-source-retained')
+    # Previous app preparations archive their input tree by a fixed rename.
+    # Those trees have no per-member deletion ownership receipt. Audit them,
+    # preserving and refusing any legacy source leak rather than sweeping them.
+    roots = g.glob_expand('/var/tmp/onpc-system-input*')
+    require(type(roots) is list and len(roots) <= 1024, 'guest:fixture-input-inventory')
+    for root in roots:
+        require(type(root) is str and re.fullmatch(
+            r'/var/tmp/onpc-system-input(?:-snapshot-[0-9a-f]{32}-[0-9a-f]{32})?', root),
+            'guest:fixture-input-inventory')
+        info = g.lstatns(root)
+        require(g.realpath(root) == root and stat.S_ISDIR(info['st_mode'])
+                and info['st_uid'] == info['st_gid'] == 0 and not info['st_mode'] & 0o022,
+                'guest:fixture-input-ownership')
+        names = g.find(root)
+        require(type(names) is list and len(names) <= 65536, 'guest:fixture-input-inventory')
+        for name in names:
+            require(type(name) is str and '\x00' not in name
+                    and all(part not in ('', '.', '..') for part in name.removeprefix('/').split('/')),
+                    'guest:fixture-input-inventory')
+            relative = name.removeprefix('/')
+            require(not any(relative == path or relative.endswith('/' + path)
+                            for path in paths), 'guest:fixture-input-source-retained')
+    # A product-free baseline has no installation attempt to retain. Even a
+    # recognized archive may conceal packed fixture bytes; without a member
+    # ownership receipt it must be preserved and refused before capture.
+    require(not roots, 'guest:fixture-input-retained')
+
+
 @observed('Preparing the baseline VM; waiting for guest setup and shutdown')
 def prepare(capture, guestfs, password, *, mode='manual'):
     """Operate only on the off, journal-bound source selected by the controller."""
@@ -162,14 +280,41 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         reconcile_console(g)
         directory(g, STAGE)
         require(g.lstatns(STAGE)['st_mode'] & 0o077 == 0, 'guest:preparation-private')
-        files = set(prepare_vm.SCRIPT_FILES) | set(prepare_vm.REQUIRED_CHECKOUT_ENTRIES)
+        os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
+            g.read_file('/etc/os-release').decode()))
+        if os_id == 'ubuntu':
+            prepare_source_retirement(g)
+            from baseline_fixtures import reconcile_clean
+            marker = (json.loads(g.read_file(str(prepare_vm.MARKER)))
+                      if g.exists(str(prepare_vm.MARKER)) else None)
+            # Legacy retirement must precede new writers. A fresh guest has no
+            # fixed accounts/native tools yet; its environment is reconciled
+            # only after the guest setup below establishes those dependencies.
+            if marker and prepare_vm.fixture_boundary(marker) == 'legacy':
+                reconcile_clean(g, marker['preparation_script_sha256'])
+        files = set(prepare_vm.preparation_files(os_id)) | set(prepare_vm.REQUIRED_CHECKOUT_ENTRIES)
         files.update({'tests/integration/baseline_guest_entry.py',
                       'tests/integration/test_account_password.py'})
         files.update(str(Path(account.icon_file).relative_to(prepare_vm.CHECKOUT))
                      for account in prepare_vm.IDENTITIES)
+        if os_id == 'ubuntu':
+            from baseline_fixtures import write_record
+            stage = {'purpose': 'onpc-preparation-source-staging-v1', 'pending': None,
+                     'files': {relative: hashlib.sha256(
+                         (prepare_vm.CHECKOUT / relative).read_bytes()).hexdigest()
+                               for relative in STAGED_MOVABLE_SOURCES}}
+            write_record(g, stage, SOURCE_STAGING)
         for relative in sorted(files):
+            if os_id == 'ubuntu' and relative in stage['files']:
+                stage['pending'] = relative
+                write_record(g, stage, SOURCE_STAGING)
             write(g, STAGE + '/checkout/' + relative,
                   (prepare_vm.CHECKOUT / relative).read_bytes())
+            if os_id == 'ubuntu' and relative in stage['files']:
+                require(g.checksum('sha256', STAGE + '/checkout/' + relative) == stage['files'][relative],
+                        'guest:preparation-source-changed')
+                stage['pending'] = None
+                write_record(g, stage, SOURCE_STAGING)
         for name in ('success', 'reboot-required'):
             if g.exists(STAGE + '/' + name) or g.is_symlink(STAGE + '/' + name):
                 write(g, STAGE + '/' + name, b'')
@@ -216,6 +361,14 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         require(g.is_symlink(LINK) and g.readlink(LINK) == UNIT, 'guest:preparation-unit')
         g.rm(LINK)
         g.rm(UNIT)
+    if os_id == 'ubuntu':
+        with mounted(guestfs, capture) as g:
+            from baseline_fixtures import verify_clean, reconcile_clean
+            reconcile_clean(g)
+            recover_source_staging(g)
+            verify_clean_sources(g)
+            verify_clean(g)
+        return
     from baseline_fixtures import build_payload, reconcile
     with operation('Reconciling reusable baseline application fixtures'):
         payload = build_payload()

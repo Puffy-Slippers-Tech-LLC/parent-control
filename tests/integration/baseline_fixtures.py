@@ -19,6 +19,183 @@ import prepare_vm
 
 RECORD = '/var/lib/onpc-baseline-fixtures.json'
 PURPOSE = 'onpc-reusable-fixtures-v1'
+CLEAN_PURPOSE = 'onpc-baseline-environment-v1'
+RETIRE_RECORD = '/var/lib/onpc-baseline-fixture-retirement.json'
+
+
+def environment_files(identities, os_id='ubuntu'):
+    from tests.fixtures.baseline_environment import desktop_settings_files, automatic_update_files
+    return desktop_settings_files(identities) | automatic_update_files(os_id)
+
+
+def _clean_declaration(g):
+    identities = accounts(g)
+    return identities, environment_files(identities)
+
+
+def movable_files(g):
+    identities, environment = _clean_declaration(g)
+    return {path: value for path, value in declared_files(g, identities).items()
+            if path not in environment}
+
+
+def _present(g, path):
+    return g.exists(path) or g.is_symlink(path)
+
+
+def _retirement_plan(g, script_digest):
+    """Record the fully verified finite legacy closure before removing any file."""
+    movable = movable_files(g)
+    require(not any(_present(g, path) for path in (
+        RECORD + '.new', TRUST_RECORD + '.new', TRUST_PENDING,
+        *(path + '.onpc-baseline-new' for path in movable))), 'retirement-incomplete')
+    allowed = set(movable) | {TRUST_RECORD, TRUST_FILE}
+    if _present(g, RETIRE_RECORD):
+        regular(g, RETIRE_RECORD, 0, 0, 0o600)
+        plan = json.loads(g.read_file(RETIRE_RECORD))
+        require(type(plan) is dict and set(plan) == {'purpose', 'files'}
+                and plan['purpose'] == 'onpc-legacy-fixture-retirement-v1'
+                and type(plan['files']) is dict and set(plan['files']) == allowed,
+                'retirement-record')
+    else:
+        verify(g, script_digest)
+        record = json.loads(g.read_file(RECORD))
+        files = {path: record['files'][path] for path in movable}
+        for path in (TRUST_RECORD, TRUST_FILE):
+            info = g.lstatns(path)
+            files[path] = {'sha256': g.checksum('sha256', path),
+                           'mode': stat.S_IMODE(info['st_mode']),
+                           'uid': info['st_uid'], 'gid': info['st_gid']}
+        plan = {'purpose': 'onpc-legacy-fixture-retirement-v1', 'files': files}
+        write_record(g, plan, RETIRE_RECORD)
+    # Recheck every remaining member before resuming any removal. Missing files
+    # are authorized only by this durable, already verified retirement intent.
+    for path, spec in plan['files'].items():
+        require(type(spec) is dict and set(spec) == {'sha256', 'mode', 'uid', 'gid'}
+                and type(spec['sha256']) is str
+                and re.fullmatch('[0-9a-f]{64}', spec['sha256']) is not None,
+                'retirement-record')
+        if path in movable:
+            _, mode, role = movable[path]
+            account = accounts(g)[role]
+            require((spec['mode'], spec['uid'], spec['gid']) ==
+                    (mode, account.pw_uid, account.pw_gid), 'retirement-record')
+        else:
+            require(spec['uid'] == 0 and spec['mode'] == 0o600
+                    and type(spec['gid']) is int and spec['gid'] >= 0,
+                    'retirement-record')
+        if _present(g, path):
+            directory(g, str(Path(path).parent), spec['uid'], spec['gid'])
+            regular(g, path, spec['uid'], spec['gid'], spec['mode'])
+            require(g.checksum('sha256', path) == spec['sha256'], 'retirement-substituted')
+    verify_foreign_trust(g)
+    preflight_backend(g)
+    return plan
+
+
+def reconcile_clean(g, script_digest=None):
+    """Ubuntu-only environment reconciliation and resumable exact retirement."""
+    require(prepare_vm.release_identity(prepare_vm.parse_os_release(
+        g.read_file('/etc/os-release').decode()))[0] == 'ubuntu', 'clean-target')
+    identities, declaration = _clean_declaration(g)
+    previous = None
+    if _present(g, RECORD):
+        regular(g, RECORD, 0, 0, 0o600)
+        previous = json.loads(g.read_file(RECORD))
+    if previous and previous.get('purpose') == PURPOSE:
+        plan = _retirement_plan(g, script_digest)
+        for path in plan['files']:
+            if _present(g, path):
+                g.rm(path)
+                g.sync()
+    else:
+        require(previous is None or (type(previous) is dict and set(previous) == {'purpose', 'files', 'pending'}
+                and previous['purpose'] == CLEAN_PURPOSE and previous['pending'] is None
+                and set(previous['files']) == set(declaration)), 'environment-record')
+        require(not any(_present(g, path) for path in
+                        (*movable_files(g), TRUST_RECORD, TRUST_FILE, TRUST_PENDING)),
+                'clean-fixture-collision')
+    desired = {}
+    for path, (data, mode, role) in declaration.items():
+        account = identities[role]
+        spec = {'sha256': hashlib.sha256(data).hexdigest(), 'mode': mode,
+                'uid': account.pw_uid, 'gid': account.pw_gid}
+        desired[path] = spec
+        ancestor = Path(path).parent
+        while not _present(g, str(ancestor)):
+            ancestor = ancestor.parent
+        directory(g, str(ancestor), spec['uid'], spec['gid'])
+        if _present(g, path):
+            regular(g, path, spec['uid'], spec['gid'], mode)
+            require(previous is not None and previous['files'].get(path) == spec
+                    and g.read_file(path) == data, 'environment-collision')
+        temporary = path + '.onpc-baseline-new'
+        if _present(g, temporary):
+            require(previous is not None and previous['files'].get(path) == spec,
+                    'environment-staging-collision')
+            info = g.lstatns(temporary)
+            if info['st_uid'] == info['st_gid'] == 0 and stat.S_IMODE(info['st_mode']) == 0o600:
+                regular(g, temporary, 0, 0, 0o600)
+            else:
+                require(stat.S_IMODE(info['st_mode']) in (0o600, mode),
+                        'environment-staging-collision')
+                regular(g, temporary, spec['uid'], spec['gid'], stat.S_IMODE(info['st_mode']))
+                require(g.read_file(temporary) == data, 'environment-staging-collision')
+    # Backend configuration is environment-owned; retire only exact fixture
+    # admissions and retain the native file backend and its recovery receipt.
+    reconcile_backend(g)
+    final = {'purpose': CLEAN_PURPOSE, 'files': desired, 'pending': None}
+    if previous != final:
+        # The finite desired identities own partially placed environment files
+        # if a subsequent write is interrupted. Verification still requires all.
+        write_record(g, final)
+    for path, (data, mode, role) in declaration.items():
+        if _present(g, path):
+            continue
+        spec = desired[path]
+        directory(g, str(Path(path).parent), spec['uid'], spec['gid'], create=True)
+        temporary = path + '.onpc-baseline-new'
+        if _present(g, temporary):
+            g.rm(temporary)
+        g.umask(0o077)
+        g.write(temporary, data)
+        g.chown(0, 0, temporary)
+        g.chmod(0o600, temporary)
+        require(g.read_file(temporary) == data, 'environment-staging-substituted')
+        g.chown(spec['uid'], spec['gid'], temporary)
+        g.chmod(mode, temporary)
+        g.sync()
+        g.mv(temporary, path)
+        g.sync()
+    verify_clean(g)
+    return declaration
+
+
+def verify_clean(g):
+    """Read-only proof of persistent settings and complete movable absence."""
+    identities, declaration = _clean_declaration(g)
+    regular(g, RECORD, 0, 0, 0o600)
+    record = json.loads(g.read_file(RECORD))
+    require(type(record) is dict and set(record) == {'purpose', 'files', 'pending'}
+            and record['purpose'] == CLEAN_PURPOSE and record['pending'] is None
+            and set(record['files']) == set(declaration), 'environment-record')
+    for path, (data, mode, role) in declaration.items():
+        account = identities[role]
+        expected = {'sha256': hashlib.sha256(data).hexdigest(), 'mode': mode,
+                    'uid': account.pw_uid, 'gid': account.pw_gid}
+        require(record['files'][path] == expected, 'environment-record')
+        directory(g, str(Path(path).parent), account.pw_uid, account.pw_gid)
+        regular(g, path, account.pw_uid, account.pw_gid, mode)
+        require(g.read_file(path) == data, 'environment-substituted')
+    require(not any(_present(g, path) for path in
+                    (*movable_files(g), TRUST_RECORD, TRUST_FILE, TRUST_PENDING,
+                     *(path + '.onpc-baseline-new' for path in declaration),
+                     *(path + '.onpc-baseline-new' for path in movable_files(g)))),
+            'clean-fixture-present')
+    verify_foreign_trust(g)
+    state = preflight_backend(g)
+    require(state['complete'] and g.read_file(BACKEND_CONFIG) == bytes.fromhex(state['after_hex'])
+            and not _present(g, BACKEND_PENDING), 'backend-incomplete')
 
 
 def require(value, category='unsafe-or-stale'):

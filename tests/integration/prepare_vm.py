@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import dataclasses
+import ast
 import hashlib
 import json
 import os
@@ -36,10 +37,11 @@ HOSTNAME = VM.hostname if VM else None
 UBUNTU_VERSION = "26.04"
 MARKER_PURPOSE = "oh-no-parent-control-test-baseline"
 MARKER_VERSION = 2
+CLEAN_MARKER_VERSION = 4
 INTERACTIVE_SHELL = "/bin/bash"
 FORBIDDEN_CHILD_GROUPS = frozenset({"adm", "sudo", "wheel"})
 KIOSK_USER = "oh-no-parent-control"
-SCRIPT_FILES = (
+LEGACY_SCRIPT_FILES = (
     "tests/integration/prepare_vm.py",
     "tests/integration/guest_test_dependencies.py",
     "tests/integration/chinese_language_assets.py",
@@ -58,6 +60,70 @@ SCRIPT_FILES = (
     "config/test-vm.json",
     "common/oh_no_parent_control_ui/test_identities.py",
 )
+
+# Movable fixture sources never enter Ubuntu's preparation checkout or identity.
+# gtk_automation remains a shared product input, even though it is no longer
+# copied into that checkout for the old fixture compiler.
+FIXTURE_SOURCE_FILES = (
+    'tests/integration/baseline_fixtures.py',
+    'tests/fixtures/baseline_assets.py',
+    'tests/fixtures/native_trust.py',
+    'tests/fixtures/native_assets.py',
+    'tests/fixtures/build_test_applications.py',
+    'tests/fixtures/onpc_test_application.c',
+    'tests/fixtures/gui_application.py',
+)
+SCRIPT_FILES = tuple(path for path in LEGACY_SCRIPT_FILES
+                     if path not in FIXTURE_SOURCE_FILES or path in (
+                         'tests/integration/baseline_fixtures.py', 'tests/fixtures/native_trust.py')) + (
+    'tests/integration/baseline_guest.py', 'tests/integration/prepare_baseline.py',
+    'tests/fixtures/baseline_environment.py')
+
+
+def preparation_files(os_id=None):
+    if os_id is None:
+        os_id = 'fedora' if VM and VM.package_format == 'rpm' else 'ubuntu'
+    return (*LEGACY_SCRIPT_FILES, 'tests/fixtures/baseline_environment.py') if os_id == 'fedora' else SCRIPT_FILES
+
+
+SNAPSHOT_SOURCE_SYMBOLS = {
+    'tests/integration/baseline_fixtures.py': (
+        'RECORD', 'PURPOSE', 'CLEAN_PURPOSE', 'RETIRE_RECORD', 'environment_files', '_clean_declaration',
+        'movable_files', '_present', '_retirement_plan', 'reconcile_clean', 'verify_clean',
+        'require', 'accounts', 'directory', 'regular', 'write_record',
+        'native_trust_provenance', 'verify_foreign_trust', 'preflight_backend', 'reconcile_backend'),
+    'tests/fixtures/native_trust.py': (
+        'TRUST_RECORD', 'TRUST_FILE', 'TRUST_PENDING', 'TRUST_PURPOSE', 'FIXTURE_RECORD',
+        'BACKEND_CONFIG', 'BACKEND_RECORD', 'BACKEND_PENDING', 'BACKEND_PURPOSE',
+        'require', 'native_tool_paths', '_backend_line', 'file_backend_sources',
+        'file_backend_config', 'validate_backend_record', 'validate_backend_shape',
+        'validate_backend_provenance', '_metadata_diagnostic',
+        'ForeignTrustMetadataError', 'OwnedTrustMetadataError'),
+}
+
+
+def snapshot_source_projection(relative, contents):
+    """Bind shared environment policy without hashing movable fixture builders."""
+    wanted = set(SNAPSHOT_SOURCE_SYMBOLS[relative])
+    selected = []
+    for node in ast.parse(contents).body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            selected.append(ast.dump(node, include_attributes=False))
+            continue
+        names = ({node.name} if isinstance(node, (ast.FunctionDef, ast.ClassDef)) else
+                 {target.id for target in node.targets if isinstance(target, ast.Name)}
+                 if isinstance(node, ast.Assign) else set())
+        if names & wanted:
+            selected.append(ast.dump(node, include_attributes=False))
+            wanted -= names
+    if wanted:
+        raise PreparationError('guard:checkout', 'snapshot source projection is incomplete')
+    return '\n'.join(selected).encode()
+
+
+def fixture_boundary(marker):
+    validate_marker(marker)
+    return 'clean' if marker['schema_version'] == CLEAN_MARKER_VERSION else 'legacy'
 
 
 IDENTITIES = TEST_IDENTITIES
@@ -250,14 +316,21 @@ def selinux_policy(contents):
     return '/etc/selinux/targeted/contexts/files/file_contexts'
 
 
-def preparation_digest(checkout: Path = CHECKOUT) -> str:
+def preparation_digest(checkout: Path = CHECKOUT, *, os_id=None, legacy=False) -> str:
+    files = LEGACY_SCRIPT_FILES if legacy else preparation_files(os_id)
+    return preparation_source_digest(lambda relative: (checkout / relative).read_bytes(), files)
+
+
+def preparation_source_digest(read, files):
+    """Hash either a host checkout or the exact retained legacy guest sources."""
     digest = hashlib.sha256()
-    for relative in SCRIPT_FILES:
-        path = checkout / relative
+    for relative in files:
         try:
-            contents = path.read_bytes()
+            contents = read(relative)
         except OSError as error:
             raise PreparationError("guard:checkout", "preparation source is incomplete") from error
+        if files == SCRIPT_FILES and relative in SNAPSHOT_SOURCE_SYMBOLS:
+            contents = snapshot_source_projection(relative, contents)
         if relative == 'config/test-vm.json':
             # Scheduling and selector aliases do not change the prepared guest.
             # Keep names, disks and other configuration in the proof, but do not
@@ -664,7 +737,7 @@ def marker_document(
     if set(accounts) != expected_users or not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise PreparationError("marker:schema", "verified preparation data is incomplete")
     document: dict[str, object] = {
-        "schema_version": MARKER_VERSION if guest.os_id == 'ubuntu' else 3,
+        "schema_version": CLEAN_MARKER_VERSION if guest.os_id == 'ubuntu' else 3,
         "purpose": MARKER_PURPOSE,
         "guest": {
             "hostname": guest.hostname,
@@ -684,10 +757,10 @@ def marker_document(
 def validate_marker(document: dict[str, object], *, os_id=None) -> None:
     if set(document) != {"schema_version", "purpose", "guest", "preparation_script_sha256", "accounts", "test_dependencies"}:
         raise PreparationError("marker:schema", "preparation record has unexpected fields")
-    if type(document['schema_version']) is not int or document["schema_version"] not in (MARKER_VERSION, 3) or document["purpose"] != MARKER_PURPOSE:
+    if type(document['schema_version']) is not int or document["schema_version"] not in (MARKER_VERSION, 3, CLEAN_MARKER_VERSION) or document["purpose"] != MARKER_PURPOSE:
         raise PreparationError("marker:schema", "preparation record identity is invalid")
     guest = document["guest"]
-    platform = 'ubuntu' if document['schema_version'] == MARKER_VERSION else 'fedora'
+    platform = 'fedora' if document['schema_version'] == 3 else 'ubuntu'
     fields = {'hostname', 'machine_id', 'virtualization'} | (
         {'ubuntu_version'} if platform == 'ubuntu' else {'os_id', 'version'})
     if not isinstance(guest, dict) or set(guest) != fields:

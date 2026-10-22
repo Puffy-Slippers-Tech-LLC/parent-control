@@ -45,7 +45,7 @@ CATEGORIES = {
     'component-all': CategorySpec('the current make check-component aggregate', leaf=False),
     'fixtures': CategorySpec('build, verify PATH; native-runtime also supports prepare; --kind native-runtime --target ubuntu|fedora; generated build output', leaf=False),
     'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
-    'integration': CategorySpec('installed dispatcher for check_* basenames; no script arguments', leaf=False, scope='vm'),
+    'integration': CategorySpec('installed dispatcher for check_* basenames; --list lists bindings; no script arguments', leaf=False, scope='vm'),
     'system': CategorySpec('sequential tests per VM; stable numeric --id N[,N...] or --area/--test selectors; optional --artifacts (otherwise prepare each VM\'s declared package format); --previous-artifacts, --list', scope='vm'),
     'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm'),
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
@@ -491,7 +491,8 @@ def qualification_input_options(root, selector):
 
 def qualification_artifact_command(root, category, args):
     """Prepare every declared qualification input for the selected VM."""
-    if category != 'integration' or len(args) != 1 or args[0] in HELP_ARGV[0] + HELP_ARGV[1]:
+    if (category != 'integration' or len(args) != 1
+            or args[0] in INSPECTION_FLAGS):
         return None
     options = qualification_input_options(root, args[0])
     if options is None:
@@ -589,7 +590,7 @@ def plan(root, category, argv):
                     target_package_format=selected().require_package_format())
             except system_runner.Error as error:
                 raise ValueError(str(error)) from error
-        if '--list' in argv and category != 'integration':
+        if '--list' in argv:
             return [command], False
         # Forward the validated E2E options, preserving a multi-case selection.
         forwarded = command[3:] if category == 'e2e' else [*argv, *vm_args]

@@ -94,7 +94,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     categories = parser.add_subparsers(dest='category', required=True)
     integration = categories.add_parser('integration', allow_abbrev=False)
-    integration.add_argument('test', help='check_* basename, with optional .py suffix')
+    integration.add_argument('test', nargs='?', help='check_* basename, with optional .py suffix')
+    integration.add_argument('--list', action='store_true')
     system = categories.add_parser('system', allow_abbrev=False)
     system.add_argument('--artifacts', type=Path)
     system.add_argument('--previous-artifacts', type=Path)
@@ -203,6 +204,13 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 args.action, *map(str, args.keys),
                 *(['--new-name', args.new_name] if args.new_name is not None else [])]
     if args.category == 'integration':
+        if args.list:
+            if args.test is not None:
+                raise ValueError('test-runner:list-does-not-select-test')
+            target = confined_file(root, 'tests/integration/integration_inventory.py')
+            return ['/usr/bin/python3', '-B', str(target)]
+        if args.test is None:
+            raise ValueError('test-runner:test-required')
         name = args.test.removesuffix('.py')
         if not re.fullmatch(r'check_[a-z][a-z0-9_]*', name):
             raise ValueError('test-runner:invalid-test-name')
@@ -337,7 +345,7 @@ def run(root, argv, caller):
                    'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1'}
     if configured is not None:
         environment[vm_config.VARIABLE] = configured.name
-    if argv[0] in ('system', 'e2e') and '--list' in argv:
+    if argv[0] in ('integration', 'system', 'e2e') and '--list' in argv:
         return subprocess.run(command, cwd=root, env=environment, user=caller.pw_uid,
                               group=caller.pw_gid,
                               extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid),

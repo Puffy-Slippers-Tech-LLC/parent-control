@@ -1049,7 +1049,7 @@ def prepare_maintenance_transport(lease):
             'schema_version': 1, 'scope': 'maintenance-ssh', 'run': lease.state['run']}))
         import guestfs
         host_key = system.bootstrap(lease.commands, lease, directory, guestfs,
-                                    observation_only=True)
+                                    observation_only=True, environment_only=True)
         publish_maintenance(lease, directory, host_key)
 
 

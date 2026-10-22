@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F11 — [Decouple Ubuntu snapshots from fixture payloads](Fixture-Tasks/F11-ubuntu-snapshots.md)**.
+Next task: **F05 — [Qualify Ubuntu fixture provisioning](Fixture-Tasks/F05-ubuntu-provision.md)**.
 
 ## Outcome and status
 
@@ -19,8 +19,10 @@ host construction, complete runtime manifests and independent verification for
 both target ABIs. F03 delivered verified execution-owned publication/reuse,
 immutable selections, authenticated read-only handoff and inherited retention
 ownership. F15 delivered the host-validated, fail-closed SSH provisioning boundary.
-F11 and later tasks remain unimplemented; runner dispatch stays unavailable until
-target qualification. Host inputs and host checks supply no installed acceptance.
+F11 delivered Ubuntu's fixture-independent baseline/app captures, exact legacy
+retirement, standalone app reuse and dependency/product invalidation proof.
+Later tasks remain unimplemented; runner dispatch stays unavailable until target
+qualification. Host inputs and host checks supply no installed acceptance.
 
 ## Launcher
 

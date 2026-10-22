@@ -16,6 +16,18 @@ from tests.support.vm_baseline import local_preparation_source, rig
 from tests.support.vm_runner import lease_rig
 
 
+@pytest.mark.parametrize('observation_only', [False, True])
+def test_unqualified_clean_snapshot_refuses_before_transport_or_guest_input(tmp_path, observation_only):
+    lease = Mock()
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean'}}
+    commands, guestfs = Mock(), Mock()
+    with pytest.raises(runner.Error, match='fixtures:runner-not-qualified-for-clean-snapshot'):
+        runner.bootstrap(commands, lease, tmp_path, guestfs, observation_only=observation_only)
+    commands.run.assert_not_called()
+    guestfs.GuestFS.assert_not_called()
+    lease.save.assert_not_called()
+
+
 
 
 @pytest.mark.parametrize('failure', [None, 'missing', 'parent', 'symlink', 'file',

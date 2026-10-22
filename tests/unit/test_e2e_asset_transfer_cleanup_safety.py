@@ -58,6 +58,23 @@ def test_real_staged_bytes_copied_before_readonly_observation(attempt):
     assert api.GuestFS.call_count == 1
 
 
+@pytest.mark.parametrize('installed', [False, True])
+def test_unqualified_transfer_refuses_clean_capture_before_guest_input(attempt, installed):
+    control, lease, guest, api = attempt
+    lease.capture.state['guest']['fixture_boundary'] = 'clean'
+    transport = Mock()
+    with pytest.raises(transfer.EvidenceError,
+                       match='fixtures:runner-not-qualified-for-clean-snapshot'):
+        if installed:
+            control.provision_installed(lease, transport)
+        else:
+            control.provision(lease, api)
+    api.GuestFS.assert_not_called()
+    transport.call.assert_not_called()
+    with pytest.raises(transfer.EvidenceError, match='already-attempted'):
+        control.provision(lease, api)
+
+
 def test_inventory_api_prefix_is_explicit_and_diagnostic_excludes_paths(attempt, capsys):
     control, lease, guest, api = attempt
     control.provision(lease, api)

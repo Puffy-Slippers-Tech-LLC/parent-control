@@ -1672,8 +1672,15 @@ def retire_snapshot_payload(g, run):
 
 
 @observed('Preparing the VM SSH transport and guest inputs')
-def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
+def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
+              snapshot_capture=False, environment_only=False):
     """Prepare SSH only on the reset, powered-off active disk via libguestfs."""
+    require(type(snapshot_capture) is bool, 'fixtures:invalid-snapshot-capture')
+    require(type(environment_only) is bool and (not environment_only or observation_only),
+            'fixtures:invalid-environment-observation')
+    require(environment_only or snapshot_capture or
+            lease.capture.state['guest'].get('fixture_boundary') != 'clean',
+            'fixtures:runner-not-qualified-for-clean-snapshot')
     if getattr(lease, 'online_pending', False) is True:
         require(not observation_only, 'online-snapshot:installed-inputs-required')
         from online_snapshot import stage

@@ -129,11 +129,18 @@ Explicit baseline preparation is
 work includes `--y`, while manual work omits it to retain confirmation. See
 [VM prerequisites](../tests/integration/Environment.md).
 Reusable guest dependencies, fixed fixture apps/launchers and persistent harness
-settings belong exclusively to this baseline route. Test runners and app-snapshot
+settings belong to this baseline route under the target-specific
+[baseline mandate](Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+Ubuntu's schema-4 captures exclude movable fixture apps, launchers, admissions
+and copied fixture sources; Fedora retains the legacy inventory until qualified.
+Test runners and app-snapshot
 preparation verify them and report missing or stale state; they never install or
 repair them implicitly. Invoke authorized baseline refresh separately. Its finite
 inventory must reconcile idempotently, preserve unrelated state and safely retry
 owned partial work; see the [baseline mandate](Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+The host account owns fixture input folders. The maintained SSH provisioner
+reads selected inputs without changing host ownership and resolves guest owners
+from accepted roles; no host/guest UID synchronization is required.
 The tools-only refresh also fills missing `curl`, `ripgrep`, Python coverage
 plugin and GTK 4 VTE viewer packages without requesting package upgrades; ordinary test commands
 never install dependencies. Full setup includes these prerequisites too.

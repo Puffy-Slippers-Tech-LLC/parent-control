@@ -1,8 +1,9 @@
 # Host-owned fixture lifecycle: target design
 
 Status: **partially implemented**: producer lifetime, immutable host construction,
-execution-owned reuse and the host-validated SSH provisioner are delivered.
-Target qualification, snapshot and runner migration, and live refresh remain proposed.
+execution-owned reuse, the host-validated SSH provisioner and Ubuntu's clean
+snapshot boundary are delivered. Provisioning qualification, Fedora snapshots,
+runner migration and live refresh remain proposed.
 The [execution plan](Fixture-Execution-Plan.md) delivers this design. Current
 VM, storage and preparation rules remain effective until their owning tasks
 deliver and document a replacement.
@@ -222,6 +223,11 @@ do not sweep directories or mutate a saved snapshot in place. Verify clean
 baseline and app captures and keep actual dependency/product invalidation.
 Snapshot preparation itself needs no movable fixture runtime.
 
+F11 delivered Ubuntu's schema-4
+[clean snapshot boundary](../../tests/integration/Environment.md#ubuntu-clean-snapshots),
+including actual baseline/app capture, standalone reuse, legacy retirement and
+fixture-independent identities. Fedora stays on its legacy boundary until F12.
+
 Qualify each runner branch once against these clean captures. Unmigrated branches
 refuse clean captures before input; an implementation task enables only its
 qualified branch/target. No second legacy qualification pass or runtime
@@ -320,10 +326,11 @@ targets and finite subsets; accept no arbitrary destination or guest command.
 Expose exact validated options/help in their implementation tasks. There is no
 new catalogue-ID, cache inspect/prune or quiesce option.
 
-Engineering selectors are `check_fixture_provisioning`,
-`check_fixture_snapshots`, the seven matrix selectors and
-`check_fixture_live_refresh`. All are **planned and unimplemented** until their
-own registration/listing; examples in briefs grant no operation.
+`check_fixture_snapshots` is registered and qualified for Ubuntu only; use
+`tools/run-tests integration --list` for bindings. `check_fixture_provisioning`,
+the seven matrix selectors and `check_fixture_live_refresh` remain **planned
+and unimplemented** until their own registration/listing; examples in briefs
+grant no operation.
 
 ## Acceptance and ownership handoff
 

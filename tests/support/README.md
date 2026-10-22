@@ -118,6 +118,11 @@ transport. The caller holds the exclusive VM lease and registers the staging
 intent with its existing attempt owner before the first guest write. The
 provisioner owns no VM restoration, retention journal or rollback mechanism.
 
+The host account owns its fixture input folder. Privileged controllers read
+that folder through the existing authenticated input boundary; SSH copies the
+selected files and assigns ownership from accepted guest roles. Host and guest
+accounts need no matching numeric IDs or permission synchronization.
+
 `provision(selection, subsets, attempt_id=...)` preflights the target, accepted
 account roles, complete selected destinations, absence controls and native
 metadata. Private staging precedes placement, exact native activation, labels,
@@ -134,10 +139,12 @@ attempt. After the existing VM owner has restored its snapshot and verified the
 guest off, `reset_after_restore(lease)` retires that generation before the next
 prepare. Old objects and receipts stay unusable. Reboot alone grants no reset.
 Live refresh also needs the later qualified idle-maintenance boundary. Runner dispatch and
-engineering selectors remain unavailable until the
+provisioning/runner engineering selectors remain unavailable until the
 [fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies
 the actual target and preparation envelope. Host doubles supply no installed
-or customer acceptance.
+or customer acceptance. Ubuntu's delivered
+[clean-capture check](../integration/Environment.md#ubuntu-clean-snapshots)
+supplies snapshot infrastructure acceptance only.
 
 ## Host and guest boundaries
 

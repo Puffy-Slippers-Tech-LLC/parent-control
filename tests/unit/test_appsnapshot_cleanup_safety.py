@@ -23,6 +23,109 @@ from tests.support.vm_runner import UUID, xml as domain_xml
 VM_ARGS = ['--vm', vm_name()]
 
 
+def test_clean_snapshot_stages_only_frozen_installation_closure(tmp_path, monkeypatch):
+    import installed_setup
+    bundle = installed_setup.inputs(ROOT)
+    expected = {'install-source/Makefile', 'system_guest.py', 'owned_commands.py',
+                'guest_install_recipe.py', 'guest/redact.py'}
+    selected = installed_setup.snapshot_inputs(bundle)
+    assert set(selected.files) == expected
+    assert selected.digest('guest_install_recipe.py') == bundle.digest('guest_install_recipe.py')
+    # After freezing, source reads cannot fill gaps or silently replace bytes.
+    import guest_inputs
+    monkeypatch.setattr(guest_inputs, 'read', Mock(side_effect=AssertionError('checkout read')))
+    assets = tmp_path / 'assets'
+    assets.mkdir(mode=0o700)
+    (assets / 'package.deb').write_bytes(b'product package')
+    (assets / 'installed-files.json').write_text('[]')
+    fixtures = assets / 'fixtures'
+    fixtures.mkdir()
+    (fixtures / 'native-fixture').write_bytes(b'movable fixture')
+    (assets / 'frozen-source.tar').write_bytes(b'fixture sources')
+    result = installed_setup.stage(tmp_path, assets, {'scope': 'snapshot'},
+                                   bundle=bundle, snapshot=True)
+    payload = tmp_path / 'input'
+    files = {p.relative_to(payload).as_posix() for p in payload.rglob('*') if p.is_file()}
+    assert files == expected | {'package.deb', 'installed-files.json',
+                                'selected-inputs.json', 'transfer-sha256.json'}
+    identity = json.loads((payload / 'selected-inputs.json').read_bytes())
+    assert set(identity['files']) == expected
+    assert result == installed_setup.system.baseline.digest(payload / 'selected-inputs.json')
+    inventory = json.loads((payload / 'transfer-sha256.json').read_bytes())
+    assert set(inventory) == files - {'transfer-sha256.json'}
+    for target, data in selected.files.items():
+        assert (payload / target).read_bytes() == data
+    assert (assets / 'frozen-source.tar').read_bytes() == b'fixture sources'
+    assert (fixtures / 'native-fixture').read_bytes() == b'movable fixture'
+
+
+def test_clean_snapshot_refuses_missing_frozen_installation_helper(tmp_path):
+    import installed_setup
+    from guest_inputs import InputError
+    bundle = installed_setup.inputs(ROOT)
+    del bundle.files['guest_install_recipe.py']
+    with pytest.raises(InputError, match='guest-inputs:missing-module:guest_install_recipe'):
+        installed_setup.snapshot_inputs(bundle)
+
+
+@pytest.mark.parametrize('guest', [
+    {'ubuntu_version': '26.04', 'fixture_boundary': 'clean'},
+    {'ubuntu_version': '26.04'}, {'os_id': 'fedora', 'version': '44'}])
+@pytest.mark.parametrize('mode', ['online', 'offline'])
+def test_app_capture_selects_clean_payload_without_changing_install_sequence(
+        tmp_path, monkeypatch, guest, mode):
+    import installed_setup
+    import online_snapshot
+    import provenance
+    import vm_transport
+    system = app_snapshot.system
+    suite = Mock()
+    lease = suite.lease
+    lease.capture.state = {'guest': guest}
+    lease.state = {'run': 'a' * 32}
+    lease.source.domain.snapshotListNames.return_value = []
+    assets = tmp_path / 'assets'
+    assets.mkdir()
+    (assets / ('package.' + system.package_format(guest))).write_bytes(b'product package')
+    monkeypatch.setattr(system, 'package_version', Mock(return_value='9.8.7'))
+    monkeypatch.setattr(app_snapshot, 'input_identity', Mock(return_value='{}'))
+    monkeypatch.setattr(system, 'watch_progress', None)
+    stage = Mock()
+    bootstrap = Mock(return_value='ssh-ed25519 host')
+    monkeypatch.setattr(installed_setup, 'stage', stage)
+    monkeypatch.setattr(system, 'bootstrap', bootstrap)
+    monkeypatch.setattr(system, 'address', Mock(return_value='guest'))
+    verified = Mock()
+    monkeypatch.setattr(provenance, 'VerifiedInputs', Mock(return_value=verified))
+    transport = Mock()
+    monkeypatch.setattr(vm_transport, 'Transport', Mock(return_value=transport))
+    setup = Mock()
+    monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock(return_value=setup))
+    monkeypatch.setattr(online_snapshot, 'disconnected_network', lambda _: nullcontext())
+    publish = Mock()
+    monkeypatch.setattr(online_snapshot, 'publish', publish)
+    assert app_snapshot.prepare(suite, tmp_path, assets, {'scope': 'snapshot'},
+                                root=ROOT, mode=mode)
+    clean = guest.get('fixture_boundary') == 'clean'
+    assert stage.call_args.kwargs == {'bundle': suite.input_bundle.return_value,
+                                     **({'snapshot': True} if clean else {})}
+    assert bootstrap.call_args.kwargs == ({'snapshot_capture': True} if clean else {})
+    setup.run.assert_called_once_with(lease.guard, verify=mode == 'online')
+    transport.probe_ready.assert_called_once_with()
+    transport.call.assert_called_once_with(system.guest_command('a' * 32, 'verify-snapshot'),
+                                           timeout=660)
+    verified.recheck.assert_called_once_with()
+    lease.capture.retire_vm_ownership.assert_called_once_with()
+    lease.create_installed.assert_called_once_with(mode=mode)
+    if mode == 'online':
+        publish.assert_called_once_with(lease, tmp_path / 'suite-setup', 'ssh-ed25519 host')
+        lease.source.shutdown.assert_not_called()
+    else:
+        publish.assert_not_called()
+        lease.source.shutdown.assert_called_once_with(lease.guard, requested=False,
+                                                       request=transport.poweroff)
+
+
 @pytest.mark.parametrize('version', ['9.8.7', '9.8.7+ppa1~ubuntu26.04.1',
     '9.8.7-ppa1-ubuntu26.04.1', '9.8.7+ppa2~ubuntu26.04.1'])
 def test_snapshot_name_uses_app_release(version):
@@ -396,7 +499,7 @@ def test_connecting_for_a_probe_does_not_restore_or_change_guest_time(tmp_path, 
 
 def test_online_bootstrap_never_mounts_or_writes_offline_guest(tmp_path, monkeypatch):
     import online_snapshot
-    lease = Mock(online_pending=True)
+    lease = Mock(online_pending=True, capture=Mock(state={'guest': {}}))
     staged = Mock(return_value='ssh-ed25519 fixture')
     monkeypatch.setattr(online_snapshot, 'stage', staged)
     guestfs = Mock()

@@ -28,6 +28,7 @@ NATIVE_RUNTIME_SOURCES = (
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/build_test_applications.py',
     'tests/fixtures/baseline_assets.py', 'tests/fixtures/native_assets.py',
+    'tests/fixtures/baseline_environment.py',
     'tests/fixtures/gui_application.py', 'tests/fixtures/onpc_test_application.c',
     'common/oh_no_parent_control_ui/gtk_automation.py',
     'tools/fixture_target_build.py', 'tools/fixture_manifest.py',

@@ -155,24 +155,28 @@ pinning is refreshed by host preparation); no product activation or data migrati
 `tools/prepare-vm` owns all reusable one-time guest preparation. Tests,
 qualification workers and app-snapshot preparation verify readiness and refuse
 missing or stale inputs with baseline-refresh guidance. They must not install,
-repair or recreate those inputs during an attempt. This applies to future native,
-Snap, Flatpak and game fixtures as well as current declarations.
+repair or recreate environment inputs during an attempt. Ubuntu's delivered
+[clean snapshot boundary](#ubuntu-clean-snapshots) keeps movable fixture payloads
+on the host; Fedora's legacy fixture inventory below remains unchanged until
+its own migration passes. Future native, Snap, Flatpak and game dependencies
+still require shared environment preparation before use.
 
 | Input | Owner and lifetime |
 | --- | --- |
 | Fixed accounts, guest dependencies, welcome/idle settings | Baseline account/tool reconciliation |
-| Stable fixture folder names across desktop-language changes | `baseline_assets.desktop_settings_files`: per-fixture `Hidden=true` XDG autostart override and empty regular systemd user-unit mask for the optional GTK folder renamer; the shared fixture reconciler owns placement and read-only verification |
-| Stable Ubuntu package inputs during execution | `baseline_assets.automatic_update_files`: empty regular system-unit masks for `apt-daily.service`, `apt-daily.timer`, `apt-daily-upgrade.service` and `apt-daily-upgrade.timer`; the shared fixture reconciler owns placement and read-only verification. Fedora has no APT masks. |
+| Stable fixture folder names across desktop-language changes | `baseline_environment.desktop_settings_files`: per-fixture `Hidden=true` XDG autostart override and empty regular systemd user-unit mask for the optional GTK folder renamer; the baseline reconciler owns placement and read-only verification |
+| Stable Ubuntu package inputs during execution | `baseline_environment.automatic_update_files`: empty regular system-unit masks for `apt-daily.service`, `apt-daily.timer`, `apt-daily-upgrade.service` and `apt-daily-upgrade.timer`; the baseline reconciler owns placement and read-only verification. Fedora has no APT masks. |
 | Serial getty and the 600-second console login window | [baseline_console.py](baseline_console.py); attempts only verify |
-| A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py) |
-| Static native enforcement binaries and catalogue precedence/path witnesses | The same finite baseline declaration; engineering checks only verify |
-| Trusted hard/soft native witnesses | `baseline_assets.TRUSTED_NATIVE`, the same fixture reconciler and `native_trust` provenance schema; two distinct payloads admitted through exact native file-trust entries, alongside unchanged untrusted variants |
-| Supporting screen-time and retained activity | `native_assets.ACTIVITY_EXECUTABLE`, a distinct root-owned GUI executable with two private root-owned Python runtime files; the same reconciler admits their exact file-trust identities while A/H/S/N and the mechanical controls remain untrusted |
+| A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | Legacy Fedora: [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py). Clean Ubuntu: host-owned, pending runner qualification. |
+| Static native enforcement binaries and catalogue precedence/path witnesses | The same target-specific movable fixture ownership; engineering checks only verify |
+| Trusted hard/soft native witnesses | Legacy Fedora: `baseline_assets.TRUSTED_NATIVE`, fixture reconciler and `native_trust` provenance. Clean Ubuntu captures contain neither payload nor exact fixture admission. |
+| Supporting screen-time and retained activity | Legacy Fedora: `native_assets.ACTIVITY_EXECUTABLE` and its two private GUI modules retain exact file-trust identities. Clean Ubuntu keeps these movable inputs on the host. |
 | Product package and installed app snapshot | Existing product-installation lifecycle; the baseline stays product-free |
 | Private SSH identity, worker transport and evidence | Per-attempt ownership and cleanup |
 | Synthetic attachment/copy/rename/save-error inputs, future binaries and launcher removal | Deliberate scenario mutations at their declared checkpoints; preserve independent-entry and cleanup checks |
 | Dynamic accounts, directory-service configuration, keyring challenges and fault injection | Scenario-owned state; reusable dependencies still belong in baseline |
 
+The following fixture reconciliation/trust rules describe legacy captures.
 Fixture reconciliation verifies the entire declared set before writing. Matching
 files are reused; recorded owned files may be updated atomically. Foreign files,
 links, hardlinks, unsafe ancestors and changed ownership refuse. The root-owned
@@ -243,6 +247,41 @@ Idempotence does not suppress auto-mode system updates or the documented snapsho
 replacement. It does not authorize adopting an unknown file or bypassing the
 lease, provenance, ownership or product-free gates. The governing rule is the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+
+### Ubuntu clean snapshots
+
+Ubuntu 26.04 preparation writes marker schema 4. Its baseline and derived app
+captures contain environment dependencies and settings, without movable fixture
+binaries, launchers, exact fixture trust entries or copied fixture sources.
+The native file backend, account pictures and recovery records remain intact.
+Fedora retains schema 3 and its legacy inventory until F12 is accepted.
+
+An explicit auto-mode refresh restores the accepted old baseline before migration.
+Retirement first verifies the complete recorded legacy inventory and source
+digest. Durable intents permit exact interrupted deletion and temporary source
+staging recovery. Ambiguous, substituted or foreign files refuse; unrelated
+files and avatar/recovery data are preserved. Product-free captures refuse
+retained installation input trees, including archives with opaque payloads.
+Legacy marker inspection and recorded stop/restoration remain supported.
+
+`prepare_vm.preparation_files()` and its source projection bind runtime
+dependencies, persistent environment declarations, shared product inputs and
+clean lifecycle/backend policy. Fixture declarations, compiled payloads and
+fixture-only builder bodies do not invalidate clean snapshots. Dependency,
+shared lifecycle, installation recipe and product content changes still do.
+
+App preparation transfers only the product package, installation manifest and
+frozen installation-helper closure. It preserves installation, reboot,
+verification and private online-credential publication. Unqualified runner
+envelopes refuse clean captures before input; environment-only maintenance,
+watch and baseline credential/display checks retain their explicit routes.
+
+List registered checks with `tools/run-tests integration --list`.
+`tools/run-tests integration --vm onpc-Ubuntu26.04 check_fixture_snapshots`
+audits actual clean baseline/app captures, retained checkout and archived input
+trees, independent byte readback, source/product invalidation and owned final
+restoration. Invoke authorized baseline refresh separately; this check never
+refreshes a baseline or grants provisioning, runner or customer acceptance.
 
 ### Verified finite native transaction inputs
 

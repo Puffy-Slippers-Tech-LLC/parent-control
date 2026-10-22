@@ -23,17 +23,38 @@ def inputs(root):
         'tests/integration/wellbeing_probe.py')]])
 
 
-def stage(directory, assets, selection, *, bundle=None):
+def snapshot_inputs(bundle):
+    """Select installation helpers from the caller's already frozen inputs.
+
+    Snapshot preparation needs no fixture declarations or scenario workers.
+    Keep its package recipe and guarded guest entry point, including their
+    transitive imports, without reading replacement bytes from the checkout.
+    """
+    return Bundle(bundle.root, [('Makefile', 'install-source/Makefile'),
+        ('tests/integration/system_guest.py', 'system_guest.py')],
+        frozen={bundle.sources[target]: data for target, data in bundle.files.items()})
+
+
+def stage(directory, assets, selection, *, bundle=None, snapshot=False):
     """Bind the existing installed payload and fixed helper bytes before bootstrap."""
     destination = directory / 'input'
     require(not destination.exists(), 'setup:input-exists')
-    if assets == directory / 'assets':
+    bundle = bundle if bundle is not None else inputs(system.ROOT)
+    if snapshot:
+        # Clean Ubuntu captures retain the package and installation metadata,
+        # never artifact fixtures, their build sources or unused guest helpers.
+        require((assets / 'package.deb').is_file() and not (assets / 'package.rpm').exists(),
+                'setup:snapshot-platform')
+        bundle = snapshot_inputs(bundle)
+        destination.mkdir(mode=0o700)
+        for name in ('package.deb', 'installed-files.json'):
+            shutil.copyfile(assets / name, destination / name)
+    elif assets == directory / 'assets':
         # This is the attempt's already frozen private copy. Transfer ownership
         # to its input directory instead of retaining a second complete bundle.
         assets.rename(destination)
     else:
         shutil.copytree(assets, destination)
-    bundle = bundle if bundle is not None else inputs(system.ROOT)
     files = bundle.stage(destination)
     identity = {'schema_version': 1, 'scope': 'e2e-installed-setup',
                 'selection': selection, 'files': files}

@@ -1199,6 +1199,18 @@ def test_backend_readiness_is_a_fixed_host_safe_command():
         commands.plan(ROOT, 'backend', ['--command=id'])
 
 
+def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
+    plan, safety = commands.plan(ROOT, 'integration', ['--list'])
+    assert plan == [['/usr/bin/python3', '-B',
+                     str(ROOT / 'tests/integration/integration_inventory.py')]]
+    assert safety is False
+    listing = runpy.run_path(str(ROOT / 'tests/integration/integration_inventory.py'))
+    assert 'check_fixture_snapshots' in {item['name'] for item in listing['inventory']()}
+    dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
+    with pytest.raises(ValueError, match='list-does-not-select-test'):
+        dispatcher['selection'](ROOT, ['integration', '--list', 'check_fixture_snapshots'])
+
+
 @pytest.mark.parametrize('argv', [['--help'], ['-h']])
 def test_help_prints_complete_categories_and_combinations(capsys, argv):
     assert commands._main(argv) == 0

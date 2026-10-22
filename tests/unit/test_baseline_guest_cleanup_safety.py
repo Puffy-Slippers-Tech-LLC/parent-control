@@ -2,6 +2,8 @@
 from tests.support.vm_registry import vm_name
 from contextlib import contextmanager
 from pathlib import Path
+import hashlib
+import json
 import stat
 from unittest.mock import Mock, call
 
@@ -18,6 +20,8 @@ def preparation(monkeypatch):
     monkeypatch.setattr(baseline_fixtures, 'build_payload', Mock(return_value={}))
     monkeypatch.setattr(baseline_fixtures, 'reconcile', Mock(return_value={
         '/opt/onpc-baseline-assets/test': ('mechanical', 0o755, 'system')}))
+    monkeypatch.setattr(baseline_fixtures, 'reconcile_clean', Mock(return_value={}))
+    monkeypatch.setattr(baseline_fixtures, 'verify_clean', Mock())
     monkeypatch.setattr(baseline_console, 'reconcile', Mock())
     files, links = {}, {}
     files['/etc/os-release'] = b'ID=ubuntu\nVERSION_ID=26.04\n'
@@ -33,13 +37,20 @@ def preparation(monkeypatch):
     g.realpath.side_effect = lambda p: links.get(p, p)
     g.mkdir.side_effect = directories.add
     g.chmod.side_effect = lambda mode, p: modes.update({p: mode})
-    g.lstatns.side_effect = lambda p: {'st_uid': 0, 'st_nlink': 1,
+    g.lstatns.side_effect = lambda p: {'st_uid': 0, 'st_gid': 0, 'st_nlink': 1,
         'st_mode': (0o40000 if p in directories else 0o100000) | modes.get(p, 0o755)}
     g.write.side_effect = lambda p, data: files.update({p: data})
     g.read_file.side_effect = files.__getitem__
+    g.checksum.side_effect = lambda algorithm, path: hashlib.new(algorithm, files[path]).hexdigest()
     g.readlink.side_effect = links.__getitem__
+    g.glob_expand.return_value = []
     g.ln_s.side_effect = lambda target, p: links.update({p: target})
     g.rm.side_effect = lambda p: (links if p in links else files).pop(p)
+    def move(source, target):
+        files[target] = files.pop(source)
+        if source in modes:
+            modes[target] = modes.pop(source)
+    g.mv.side_effect = move
     capture = Mock()
     capture.watch = None
     capture.state = {'operation': 'a' * 32}
@@ -73,6 +84,109 @@ def test_repeat_stages_only_maintained_code_and_never_the_host_envrc(preparation
         assert not any(b'fixture-password' in data for data in p.files.values())
     assert p.capture.source.domain.create.call_count == 2
     p.capture.source.shutdown.assert_not_called()
+
+
+def test_clean_preparation_never_builds_fixtures_and_removes_shared_module_copy(preparation):
+    import baseline_fixtures
+    p = preparation
+    def environment_after_guest_setup(*args):
+        assert p.capture.source.domain.create.call_count == 1
+    baseline_fixtures.reconcile_clean.side_effect = environment_after_guest_setup
+    guest.prepare(p.capture, Mock(), 'fixture-password')
+    baseline_fixtures.build_payload.assert_not_called()
+    baseline_fixtures.reconcile.assert_not_called()
+    baseline_fixtures.reconcile_clean.assert_called_once()
+    guest.verify_clean_sources(p.g)
+    for identity in guest.prepare_vm.IDENTITIES:
+        relative = Path(identity.icon_file).relative_to(guest.prepare_vm.CHECKOUT)
+        assert p.files[guest.STAGE + '/checkout/' + str(relative)] == Path(identity.icon_file).read_bytes()
+
+
+def test_clean_capture_refuses_archived_fixture_sources_without_deleting_the_tree(preparation):
+    p = preparation
+    root = '/var/tmp/onpc-system-input-snapshot-' + 'a' * 32 + '-' + 'b' * 32
+    p.g.mkdir(root)
+    p.g.glob_expand.return_value = [root]
+    p.g.find.return_value = ['checkout/tests/fixtures/onpc_test_application.c']
+    p.files[root + '/checkout/tests/fixtures/onpc_test_application.c'] = b'legacy source'
+    before = dict(p.files)
+    with pytest.raises(host.CaptureError, match='guest:fixture-input-source-retained'):
+        guest.verify_clean_sources(p.g)
+    assert p.files == before
+
+
+def test_clean_baseline_refuses_packed_or_unused_inputs_before_capture(preparation):
+    p = preparation
+    root = '/var/tmp/onpc-system-input-snapshot-' + 'a' * 32 + '-' + 'b' * 32
+    p.g.mkdir(root)
+    p.g.glob_expand.return_value = [root]
+    p.g.find.return_value = ['fixtures.tar.gz']
+    p.files[root + '/fixtures.tar.gz'] = b'opaque previous fixture bytes'
+    before = dict(p.files)
+    with pytest.raises(host.CaptureError, match='guest:fixture-input-retained'):
+        guest.verify_clean_sources(p.g)
+    assert p.files == before
+
+
+@pytest.mark.parametrize('boundary', ['boot', 'source-removal'])
+def test_clean_preparation_retry_owns_new_sources_after_staging_and_partial_removal(preparation, boundary):
+    p = preparation
+    remove = p.g.rm.side_effect
+    failed = False
+    if boundary == 'boot':
+        p.capture.source.domain.create.side_effect = RuntimeError('interrupted preparation')
+    else:
+        def interrupted_remove(path):
+            nonlocal failed
+            result = remove(path)
+            if path.endswith('/tests/fixtures/native_trust.py') and not failed:
+                failed = True
+                raise RuntimeError('interrupted preparation')
+            return result
+        p.g.rm.side_effect = interrupted_remove
+    with pytest.raises(RuntimeError, match='interrupted preparation'):
+        guest.prepare(p.capture, Mock(), 'fixture-password')
+    assert guest.SOURCE_STAGING in p.files
+    p.g.rm.side_effect = remove
+    p.capture.source.domain.create.side_effect = p.boot
+    guest.prepare(p.capture, Mock(), 'fixture-password')
+    guest.verify_clean_sources(p.g)
+
+
+@pytest.mark.parametrize('fault', [None, 'tampered', 'symlink'])
+def test_source_retirement_requires_complete_old_digest_and_preserves_avatar_and_unrelated(preparation, monkeypatch, fault):
+    p = preparation
+    # This test exercises source retirement itself rather than full preparation.
+    for relative in guest.prepare_vm.LEGACY_SCRIPT_FILES:
+        guest.write(p.g, guest.STAGE + '/checkout/' + relative,
+                    (guest.prepare_vm.CHECKOUT / relative).read_bytes())
+    identities = {item.username: {'uid': 1000 + index, 'role': item.role}
+                  for index, item in enumerate(guest.prepare_vm.IDENTITIES)}
+    marker = guest.prepare_vm.marker_document(
+        guest.prepare_vm.GuestIdentity(guest.prepare_vm.HOSTNAME, 'a' * 32, '26.04', 'kvm'),
+        identities, guest.prepare_vm.preparation_digest(legacy=True))
+    marker['schema_version'] = guest.prepare_vm.MARKER_VERSION
+    guest.write(p.g, str(guest.prepare_vm.MARKER), json.dumps(marker).encode())
+    p.g.checksum.side_effect = lambda algorithm, path: hashlib.new(algorithm, p.files[path]).hexdigest()
+    target = guest.STAGE + '/checkout/tests/fixtures/onpc_test_application.c'
+    if fault == 'tampered':
+        p.files[target] = b'foreign'
+    elif fault == 'symlink':
+        p.links[target] = '/unrelated'
+    p.files[guest.STAGE + '/avatar.png'] = b'avatar'
+    p.files[guest.STAGE + '/unrelated'] = b'preserved'
+    if fault in ('tampered', 'symlink'):
+        before = dict(p.files)
+        with pytest.raises((host.CaptureError, ValueError)):
+            guest.prepare_source_retirement(p.g)
+        assert p.files == before
+        return
+    guest.prepare_source_retirement(p.g)
+    assert not any(guest.STAGE + '/checkout/' + relative in p.files
+                   for relative in guest.prepare_vm.FIXTURE_SOURCE_FILES)
+    assert p.files[guest.STAGE + '/avatar.png'] == b'avatar'
+    assert p.files[guest.STAGE + '/unrelated'] == b'preserved'
+    guest.prepare_source_retirement(p.g)
 
 
 @pytest.mark.parametrize('graphics', ['vnc', 'spice'])

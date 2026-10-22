@@ -475,7 +475,7 @@ def test_marker_schema_is_exact_versioned_and_secret_free():
     assert set(document) == {
         "schema_version", "purpose", "guest", "preparation_script_sha256", "accounts", "test_dependencies"
     }
-    assert document["schema_version"] == 2
+    assert document["schema_version"] == prepare.CLEAN_MARKER_VERSION
     assert document['test_dependencies'] == prepare.guest_tools.VERSIONS
     assert set(document["accounts"]) == {item.username for item in prepare.IDENTITIES}
     serialized = repr(document).lower()
@@ -488,6 +488,46 @@ def test_marker_schema_is_exact_versioned_and_secret_free():
     changed["accounts"]["onpc-child-riley"] = {"uid": 1300, "role": "standard"}
     with pytest.raises(prepare.PreparationError, match="marker:schema"):
         prepare.validate_marker(changed)
+
+
+def test_clean_ubuntu_digest_separates_fixture_payloads_from_environment_and_shared_sources(tmp_path):
+    for relative in set(prepare.LEGACY_SCRIPT_FILES) | set(prepare.SCRIPT_FILES):
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
+    original = prepare.preparation_digest(tmp_path, os_id='ubuntu')
+    fixture_path = tmp_path / 'tests/fixtures/onpc_test_application.c'
+    fixture_path.write_bytes(fixture_path.read_bytes() + b'\n/* fixture-only edit */\n')
+    assert prepare.preparation_digest(tmp_path, os_id='ubuntu') == original
+    lifecycle = tmp_path / 'tests/integration/baseline_fixtures.py'
+    source = lifecycle.read_text()
+    lifecycle.write_text(source.replace('"""Compile only native inputs using the maintained builder and disk scratch."""',
+                                        '"""Changed fixture-only builder documentation."""'))
+    assert prepare.preparation_digest(tmp_path, os_id='ubuntu') == original
+    lifecycle.write_text(source.replace("raise ValueError('baseline:fixtures-' + category + '; run tools/prepare-vm')",
+                                        "raise ValueError('changed shared guard:' + category)"))
+    assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original
+    lifecycle.write_text(source)
+    lifecycle.write_text(source.replace("RECORD = '/var/lib/onpc-baseline-fixtures.json'",
+                                        "RECORD = '/var/lib/changed-environment-record.json'"))
+    assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original
+    lifecycle.write_text(source + '\nimport math\n')
+    assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original
+    lifecycle.write_text(source)
+    environment = tmp_path / 'tests/fixtures/baseline_environment.py'
+    environment.write_bytes(environment.read_bytes() + b'\n# changed persistent settings\n')
+    assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original
+    environment.write_bytes((ROOT / 'tests/fixtures/baseline_environment.py').read_bytes())
+    shared = tmp_path / 'common/oh_no_parent_control_ui/gtk_automation.py'
+    shared.write_bytes(shared.read_bytes() + b'\n# shared product source edit\n')
+    assert prepare.preparation_digest(tmp_path, os_id='ubuntu') != original
+
+
+def test_clean_and_legacy_marker_discriminators_preserve_old_readers():
+    marker = valid_marker()
+    assert prepare.fixture_boundary(marker) == 'clean'
+    marker['schema_version'] = prepare.MARKER_VERSION
+    assert prepare.fixture_boundary(marker) == 'legacy'
 
 
 def test_marker_permission_contract_requires_root_owned_0600_regular_file():

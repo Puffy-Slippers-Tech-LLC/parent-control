@@ -690,12 +690,24 @@ def execute(root, spec, run, owner):
     return read_session_result(run)
 
 
+RESPONSE_VALIDATOR_SOURCES = (
+    'plan_launcher.py', 'execution_plan.py', 'document_checks.py',
+    'launcher_runtime.py', 'plan_evidence.py', 'plan_evidence_recovery.py',
+    'evidence_bundle.py', 'detached_launcher.py',
+    # Explicit retained-decision closure audited in Export-Design.md. Storage
+    # locks include input-transfer admission; helper dispatch authenticates the
+    # owner before preservation, and Git/question/reconciliation retain state.
+    'test_retention.py', 'test_storage.py', 'test_input_transfer.py',
+    'launcher_git.py', 'onpc-test-artifacts', 'launcher_question.py',
+    'plan_reconciliation.py', 'vm_selection.py', '../tests/integration/vm_config.py',
+    'evidence_identity.py',
+)
+
+
 def response_validator_sources():
     """Detect repairs that this process cannot load by retrying an agent turn."""
-    return {name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
-            for name in ('plan_launcher.py', 'execution_plan.py', 'document_checks.py',
-                         'launcher_runtime.py', 'plan_evidence.py',
-                         'plan_evidence_recovery.py', 'evidence_bundle.py', 'detached_launcher.py')}
+    return {name: hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
+            for name in RESPONSE_VALIDATOR_SOURCES}
 
 
 def evidence_recovery_pending(plan, state):

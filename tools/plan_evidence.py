@@ -11,6 +11,7 @@ import re
 import stat
 import subprocess
 import uuid
+from contextlib import ExitStack, contextmanager
 
 import evidence_bundle as bundle
 from execution_plan import plan_namespace
@@ -235,9 +236,13 @@ def _index(path):
     except FileNotFoundError:
         return None, b''
     value = bundle.decoded(data)
-    if (not isinstance(value, dict) or set(value) != {
+    if not isinstance(value, dict) or type(value.get('schema')) is not int:
+        raise ValueError('plan evidence: invalid accepted index')
+    if value['schema'] == 2:
+        _index_v2(value)
+    elif (value['schema'] != 1 or set(value) != {
             'schema', 'plan', 'bundle', 'sha256', 'selection_sha256', 'ledger', 'tasks'}
-            or value['schema'] != 1 or not isinstance(value['tasks'], dict)):
+            or not isinstance(value['tasks'], dict)):
         raise ValueError('plan evidence: invalid accepted index')
     return value, data
 
@@ -247,19 +252,25 @@ def _ledger(record, plan):
         return _verified_ledger(record, plan, verified, read)
 
 
-def _verified_ledger(record, plan, verified, read):
+def _verified_ledger(record, plan, verified, read, *, ledger_path=None):
     """Validate all proof records within the archive's verified read scope."""
     candidates = []
     for entry in verified['manifest']['files']:
-        if Path(entry['path']).name == 'accepted-ledger.json':
+        if (entry['path'] == ledger_path if ledger_path is not None else
+                Path(entry['path']).name == 'accepted-ledger.json'):
             data = read(entry['path'], count=bundle.MAX_READ)
             value = bundle.decoded(data)
-            if (not isinstance(value, dict) or set(value) != {
-                    'schema', 'plan', 'generation', 'previous_index_sha256', 'tasks'}
-                    or value['schema'] != 1 or value['plan'] != plan.path
+            schema = value.get('schema') if isinstance(value, dict) else None
+            keys = {'schema', 'plan', 'generation', 'previous_index_sha256', 'tasks'}
+            if schema == 2:
+                keys |= {'records', 'segments'}
+            if (not isinstance(value, dict) or set(value) != keys
+                    or type(schema) is not int or schema not in (1, 2) or value['plan'] != plan.path
                     or type(value['generation']) is not int or value['generation'] <= 0
                     or not isinstance(value['tasks'], dict)):
                 raise ValueError('plan evidence: invalid accepted ledger')
+            if schema == 2 and ledger_path is None:
+                raise ValueError('plan evidence: schema 2 requires an exact ledger selector')
             candidates.append((value['generation'], entry['path'], value))
     if not candidates:
         raise ValueError('plan evidence: accepted ledger is missing')
@@ -267,8 +278,22 @@ def _verified_ledger(record, plan, verified, read):
     if sum(item[0] == generation for item in candidates) != 1:
         raise ValueError('plan evidence: ambiguous accepted ledger')
     files = {item['path']: item for item in verified['manifest']['files']}
+    _validate_task_proofs(value, plan, files, read)
+    if value['schema'] == 2:
+        return value, None
+    index = dict(schema=1, plan=plan.path, bundle=str(Path(record['path']) / 'evidence.zip'),
+                 sha256=verified['sha256'], selection_sha256=verified['selection_sha256'],
+                 ledger=ledger_path, tasks=value['tasks'])
+    return value, index
+
+
+def _validate_task_proofs(value, plan, files, read):
+    """Keep the original exact result/input/cleanup checks in both versions."""
     for task, proof in value['tasks'].items():
-        if (not isinstance(proof, dict) or set(proof) != {'result', 'sha256', 'inputs', 'cleanup', 'records', 'attempt'}
+        keys = {'result', 'sha256', 'inputs', 'cleanup', 'records', 'attempt'}
+        if value['schema'] == 2:
+            keys.add('record_refs')
+        if (not isinstance(proof, dict) or set(proof) != keys
                 or proof['cleanup'] is not True or proof['result'] not in files
                 or files[proof['result']]['sha256'] != proof['sha256']
                 or not proof['inputs'] or any(path not in files for path in proof['inputs'])
@@ -301,13 +326,320 @@ def _verified_ledger(record, plan, verified, read):
         if (result.get('task_id') != task or result.get('status') != 'task_complete'
                 or result.get('cleanup_complete') is not True):
             raise ValueError('plan evidence: result or cleanup does not match accepted proof')
-    index = dict(schema=1, plan=plan.path, bundle=str(Path(record['path']) / 'evidence.zip'),
-                 sha256=verified['sha256'], selection_sha256=verified['selection_sha256'],
-                 ledger=ledger_path, tasks=value['tasks'])
-    return value, index
+
+
+def _hash(value):
+    return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value) is not None
+
+
+def _index_v2(value):
+    if (set(value) != {'schema', 'plan', 'generation', 'ledger', 'ledger_sha256', 'segments', 'tasks'}
+            or value['schema'] != 2 or type(value['schema']) is not int
+            or type(value['generation']) is not int or value['generation'] < 1
+            or not isinstance(value['plan'], str) or not _hash(value['ledger_sha256'])
+            or not isinstance(value['tasks'], dict) or not isinstance(value['ledger'], dict)
+            or set(value['ledger']) != {'segment_id', 'original_path'}):
+        raise ValueError('plan evidence: invalid schema 2 accepted index')
+    segments = value['segments']
+    if (not isinstance(segments, list) or not 1 <= len(segments) <= 3
+            or any(not isinstance(item, dict) or set(item) != {
+                'id', 'bundle', 'sha256', 'selection_sha256', 'allocation'} for item in segments)):
+        raise ValueError('plan evidence: invalid accepted segments')
+    ids = [item['id'] for item in segments]
+    if (any(item not in ('00', '01', '02') for item in ids)
+            or ids != sorted(set(ids)) or value['ledger']['segment_id'] not in ids):
+        raise ValueError('plan evidence: invalid accepted segment IDs')
+    bundle.path_text(value['ledger']['original_path'])
+    for item in segments:
+        allocation = item['allocation']
+        if (not _hash(item['sha256']) or not _hash(item['selection_sha256'])
+                or not isinstance(allocation, dict) or set(allocation) != {
+                    'path', 'device', 'inode', 'mode', 'journal', 'run'}
+                or any(type(allocation[key]) is not int or allocation[key] <= 0
+                       for key in ('device', 'inode'))
+                or type(allocation['mode']) is not int or allocation['mode'] != 0o700
+                or not isinstance(allocation['run'], str)
+                or re.fullmatch(r'[0-9a-f]{32}', allocation['run']) is None):
+            raise ValueError('plan evidence: invalid accepted segment allocation')
+        directory = bundle.path_text(item['bundle'])
+        if directory != bundle.path_text(allocation['path']):
+            raise ValueError('plan evidence: segment allocation does not match its bundle')
+        bundle.path_text(allocation['journal'])
+
+
+def _record_closure(records, roots):
+    selected, visiting = {}, set()
+    pending = [(reference, False) for reference in reversed(roots)]
+    while pending:
+        reference, leaving = pending.pop()
+        if (not isinstance(reference, dict) or set(reference) != {'record_id', 'closure_sha256'}
+                or not _hash(reference['record_id']) or not _hash(reference['closure_sha256'])):
+            raise ValueError('plan evidence: invalid logical record reference')
+        key = reference['record_id']
+        if key not in records or records[key]['closure_sha256'] != reference['closure_sha256']:
+            raise ValueError('plan evidence: logical record is missing or changed')
+        if leaving:
+            visiting.remove(key)
+            selected[key] = records[key]
+            continue
+        if key in visiting:
+            raise ValueError('plan evidence: cyclic logical record dependencies')
+        if key in selected:
+            continue
+        visiting.add(key)
+        pending.append((reference, True))
+        pending.extend((dependency, False) for dependency in reversed(records[key]['dependencies']))
+    return selected
+
+
+def _ledger_v2(value, plan, index):
+    import evidence_identity as identities
+    if (not isinstance(value, dict) or set(value) != {
+            'schema', 'plan', 'generation', 'previous_index_sha256', 'tasks', 'records', 'segments'}
+            or type(value['schema']) is not int or value['schema'] != 2
+            or value['plan'] != plan.path or value['generation'] != index['generation']
+            or type(value['generation']) is not int or not _hash(value['previous_index_sha256'])
+            or not isinstance(value['records'], dict) or value['tasks'] != index['tasks']
+            or not isinstance(value['segments'], list)):
+        raise ValueError('plan evidence: invalid schema 2 accepted ledger')
+    for key, logical in value['records'].items():
+        identities.finalize_record(logical)
+        if key != logical['record_id']:
+            raise ValueError('plan evidence: ledger record key does not match its identity')
+    assigned = {}
+    segment_ids = []
+    for segment in value['segments']:
+        if (not isinstance(segment, dict) or set(segment) != {'id', 'record_ids'}
+                or not isinstance(segment['record_ids'], list)
+                or any(not _hash(key) for key in segment['record_ids'])
+                or segment['record_ids'] != sorted(set(segment['record_ids']))):
+            raise ValueError('plan evidence: invalid ledger segment records')
+        segment_ids.append(segment['id'])
+        for key in segment['record_ids']:
+            if key in assigned:
+                raise ValueError('plan evidence: record assigned to multiple segments')
+            assigned[key] = segment['id']
+    if (segment_ids != [item['id'] for item in index['segments']]
+            or set(assigned) != set(value['records'])):
+        raise ValueError('plan evidence: ledger segment closure does not match its records')
+    all_references = []
+    for task, proof in value['tasks'].items():
+        if not isinstance(proof, dict) or not isinstance(proof.get('record_refs'), list) or not proof['record_refs']:
+            raise ValueError('plan evidence: accepted task lacks logical record references')
+        refs = proof['record_refs']
+        ids = [ref.get('record_id') for ref in refs if isinstance(ref, dict)]
+        if len(ids) != len(refs) or any(not _hash(key) for key in ids) or ids != sorted(set(ids)):
+            raise ValueError('plan evidence: invalid accepted task record references')
+        closure = _record_closure(value['records'], refs)
+        covered = {}
+        for logical in closure.values():
+            for member in logical['members']:
+                covered.setdefault(member['original_path'], []).append((logical, member))
+        results = [(logical, member) for logical, member in covered.get(proof.get('result'), [])
+                   if member['role'] == 'result' and member['sha256'] == proof.get('sha256')
+                   and logical['context']['task'] == task and logical['context']['workflow'] == plan.path
+                   and logical['status'] == 'passed' and logical['completeness'] == 'complete'
+                   and logical['cleanup']['state'] == 'complete']
+        if (not results or not isinstance(proof.get('records'), dict)
+                or any(not any(member['sha256'] == hashed for _, member in covered.get(path, []))
+                       for path, hashed in proof['records'].items())):
+            raise ValueError('plan evidence: task proof lacks its exact logical result or supporting members')
+        all_references.extend(refs)
+    if set(_record_closure(value['records'], all_references)) != set(value['records']):
+        raise ValueError('plan evidence: accepted ledger contains unclaimed records')
+    return assigned
+
+
+class _RecordUnavailable(LookupError):
+    """Internal absence after the locator and ledger have been verified."""
+
+
+@contextmanager
+def _verified_index_v2(plan, index, *, record_id=None):
+    """Pin the locator's exact ledger and only the requested dependency segments."""
+    _index_v2(index)
+    if index['plan'] != plan.path:
+        raise ValueError('plan evidence: accepted index belongs to another plan')
+    parent = _parent(plan)
+    with ExitStack() as stack:
+        state = stack.enter_context(bundle.retention.Store(parent / 'retention').inspection())
+        if state is None:
+            raise ValueError('plan evidence: accepted segments have no recorded owner')
+        allocations = {}
+        entries = [*state['history'], state]
+        for number, record in bundle.retention.latest_allocations(entries):
+            allocations[record['path']] = dict(record, journal=str(parent / 'retention'),
+                                               run=entries[number]['run'])
+        opened = {}
+        def open_segment(segment_id):
+            if segment_id in opened:
+                return opened[segment_id]
+            segment = next(item for item in index['segments'] if item['id'] == segment_id)
+            directory = bundle.path_text(segment['bundle'])
+            if directory.parent != parent or allocations.get(str(directory)) != segment['allocation']:
+                raise ValueError('plan evidence: accepted segment has no exact recorded owner')
+            verified, read = stack.enter_context(bundle.verified_record(
+                segment['allocation'], os.geteuid(), checkout=plan.root))
+            if (verified['sha256'] != segment['sha256']
+                    or verified['selection_sha256'] != segment['selection_sha256']):
+                raise ValueError('plan evidence: accepted segment changed')
+            opened[segment_id] = verified, read
+            return verified, read
+        ledger_verified, ledger_read = open_segment(index['ledger']['segment_id'])
+        raw = ledger_read(index['ledger']['original_path'], count=bundle.MAX_READ)
+        if _digest(raw) != index['ledger_sha256']:
+            raise ValueError('plan evidence: accepted ledger checksum mismatch')
+        value = bundle.decoded(raw)
+        assigned = _ledger_v2(value, plan, index)
+        records = value['records']
+        if record_id is None:
+            required = records
+        elif record_id not in records:
+            raise _RecordUnavailable('plan evidence: requested logical record is absent')
+        else:
+            required = _record_closure(records, [dict(record_id=record_id,
+                closure_sha256=records[record_id]['closure_sha256'])])
+        tasks = value['tasks'] if record_id is None else {
+            task: proof for task, proof in value['tasks'].items()
+            if record_id in _record_closure(records, proof['record_refs'])}
+        if not tasks:
+            raise ValueError('plan evidence: requested record has no accepted task')
+        task_records = _record_closure(records, [ref for proof in tasks.values() for ref in proof['record_refs']])
+        for key, logical in task_records.items():
+            verified, _ = open_segment(assigned[key])
+            actual = {entry['record_id']: entry for entry in verified['manifest'].get('records', [])}
+            if actual.get(key) != logical:
+                raise ValueError('plan evidence: ledger logical record does not match its segment')
+        files, readers = {}, {}
+        for verified, read in opened.values():
+            for entry in verified['manifest']['files']:
+                if entry['path'] in files and {
+                        key: value for key, value in files[entry['path']].items() if key != 'member'} != {
+                        key: value for key, value in entry.items() if key != 'member'}:
+                    raise ValueError('plan evidence: conflicting original proof member')
+                files[entry['path']], readers[entry['path']] = entry, read
+            physical = {entry['member']: entry for entry in verified['manifest']['files']}
+            logical_records = {item['record_id']: item for item in verified['manifest'].get('records', [])}
+            for mapping in verified['manifest'].get('member_map', []):
+                provenance = mapping['original_provenance']
+                original = provenance['original_path']
+                entry = dict(physical[mapping['physical_member']], path=original,
+                             allocation=provenance['source_allocation'], identity=provenance['identity'])
+                if original in files and {
+                        key: value for key, value in files[original].items() if key != 'member'} != {
+                        key: value for key, value in entry.items() if key != 'member'}:
+                    raise ValueError('plan evidence: conflicting logical original proof member')
+                files[original] = entry
+                def logical_read(path, *, mapping=mapping, read=read, logical_records=logical_records, **kwargs):
+                    return read(record_id=mapping['record_id'], member_id=mapping['member_id'],
+                        closure_sha256=logical_records[mapping['record_id']]['closure_sha256'], **kwargs)
+                readers[original] = logical_read
+        def read_original(path, **kwargs):
+            if path not in readers:
+                raise ValueError('plan evidence: exact proof member is missing')
+            return readers[path](path, **kwargs)
+        _validate_task_proofs(dict(value, tasks=tasks), plan, files, read_original)
+        def read_member(key, member_id):
+            logical = required[key]
+            members = [member for member in logical['members'] if member['member_id'] == member_id]
+            if len(members) != 1:
+                raise ValueError('plan evidence: requested logical member is absent')
+            member = members[0]
+            _, read = opened[assigned[key]]
+            # Complete bytes and their logical mapping were verified when the
+            # held archive scope opened. A diagnostic slice must not exclude
+            # large media members from exact metadata/closure resolution.
+            return read(record_id=key, member_id=member_id,
+                        closure_sha256=logical['closure_sha256'], count=bundle.MAX_READ)
+        yield dict(index=index, ledger=value, records=required, read=read_member,
+                   bundles=[str(Path(item['bundle']) / 'evidence.zip') for item in index['segments']
+                            if item['id'] in opened])
+
+
+class _ReferenceScope:
+    def __init__(self, plan, document):
+        self.plan, self.checkout = plan, Path(plan.root)
+        self.document = Path(document)
+        if not self.document.is_absolute():
+            self.document = self.checkout / self.document
+        self.document = Path(os.path.abspath(self.document))
+        if not self.document.is_relative_to(self.checkout):
+            raise ValueError('plan evidence: declaring document escapes checkout')
+
+    @contextmanager
+    def __call__(self, path, *, record_id):
+        if path != locator(self.plan):
+            raise ValueError('plan evidence: locator is outside the trusted plan scope')
+        raw = _read(path)
+        value = bundle.decoded(raw)
+        if not isinstance(value, dict) or value.get('schema') != 2:
+            raise ValueError('plan evidence: legacy locator cannot satisfy an exact reference')
+        journal = _parent(self.plan).parent / 'retention'
+        with bundle.retention.directory_descriptor(journal) as fd, \
+                _verified_index_v2(self.plan, value, record_id=record_id) as verified:
+            info = os.fstat(fd)
+            owner = dict(device=info.st_dev, inode=info.st_ino, mode=info.st_mode,
+                         uid=info.st_uid, gid=info.st_gid)
+            for logical in [verified['records'][record_id]]:
+                declared = logical['context']['owner']
+                if (declared['journal'] != str(journal) or declared['identity'] != owner
+                        or declared['caller'] != dict(uid=os.geteuid(), gid=os.getegid())):
+                    raise ValueError('plan evidence: logical owner does not match the trusted journal')
+            yield verified
+            if _read(path) != raw:
+                raise ValueError('plan evidence: locator changed during resolution')
+
+
+def reference_scope(plan, *, document):
+    """Authorize one validated plan locator; JSON provenance grants no access."""
+    return _ReferenceScope(plan, document)
+
+
+def resolve_reference(reference, *, consumer, read_scope):
+    """Resolve an immutable selector inside a trusted caller-owned read scope."""
+    import evidence_identity as identities
+    identities.validate_consumer(consumer)
+    destination, selector = identities.parse_reference(reference)
+    if selector is None:
+        raise identities.MalformedEvidence('plan evidence: an exact evidence selector is required')
+    if not callable(read_scope) or not hasattr(read_scope, 'checkout') or not hasattr(read_scope, 'document'):
+        raise identities.MalformedEvidence('plan evidence: expected a trusted explicit read scope')
+    checkout = Path(read_scope.checkout)
+    destination = Path(destination)
+    if destination.is_absolute():
+        raise identities.MalformedEvidence('plan evidence: locator destination must be relative')
+    path = Path(os.path.abspath(Path(read_scope.document).parent / destination))
+    if not path.is_relative_to(checkout):
+        raise identities.MalformedEvidence('plan evidence: locator escapes checkout')
+    expected_reference = dict(kind='evidence', **selector)
+    if expected_reference not in consumer['references']:
+        raise identities.EvidenceContextError('plan evidence: selector is not declared by its consumer')
+    try:
+        with read_scope(path, record_id=selector['record_id']) as verified:
+            record = verified['records'][selector['record_id']]
+            if record['closure_sha256'] != selector['closure_sha256']:
+                raise identities.EvidenceIntegrityError('plan evidence: requested closure changed')
+            with bundle.retention.directory_descriptor(checkout) as fd:
+                info = os.fstat(fd)
+                repository = dict(root=str(checkout), device=info.st_dev, inode=info.st_ino, uid=os.geteuid())
+            if any(item['context']['repository'] != repository for item in verified['records'].values()):
+                raise identities.EvidenceContextError('plan evidence: evidence belongs to another checkout')
+            identities.match_context(record, consumer)
+            member = next((item for item in record['members'] if item['member_id'] == selector['member_id']), None)
+            if member is None:
+                raise bundle.LogicalEvidenceUnavailable([selector])
+            return dict(record=record, member=member, closure=verified['records'],
+                        data=verified['read'](selector['record_id'], selector['member_id']),
+                    data_complete=member['bytes'] <= bundle.MAX_READ,
+                        bundles=verified['bundles'])
+    except _RecordUnavailable:
+        raise bundle.LogicalEvidenceUnavailable([selector]) from None
 
 
 def _verify_index(plan, index):
+    if index.get('schema') == 2:
+        with _verified_index_v2(plan, index):
+            return
     if index['plan'] != plan.path:
         raise ValueError('plan evidence: accepted index belongs to another plan')
     path = Path(index['bundle'])
@@ -395,6 +727,8 @@ def _references(plan, result, state):
 def preserve(plan, run, state, result):
     """Retain a validated completion before its run or acceptance reports rotate."""
     previous = recover(plan)
+    if previous is not None and previous['schema'] == 2:
+        raise ValueError('plan evidence: schema 2 publication requires the versioned producer')
     if (result.get('status') != 'task_complete' or result.get('cleanup_complete') is not True
             or result.get('task_id') != state['task_id']):
         raise ValueError('plan evidence: preservation requires accepted completion and cleanup')

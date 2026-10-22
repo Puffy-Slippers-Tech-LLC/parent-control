@@ -17,6 +17,7 @@ import struct
 import tempfile
 import zipfile
 
+import evidence_identity as logical
 import test_retention as retention
 import test_storage as storage
 
@@ -149,7 +150,13 @@ def stream_bytes(stream, size, output=None):
         if not chunk:
             raise ValueError('bundle: incomplete source')
         probe = previous + chunk
-        if re.search(rb'-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----', probe):
+        # A quoted header in source is not key material. Refuse actual header
+        # lines and serialized keys with a base64 body line, preserving quoted
+        # test source verbatim. A read-chunk boundary is never file EOF; the
+        # overlap also covers serialized line endings split between reads.
+        endings = rb'[\r\n]|(?:\\r)?\\n[A-Za-z0-9+/=]+(?:\\r)?\\n'
+        boundary = b'(?=' + endings + (rb'|\Z)' if len(chunk) == remaining else b')')
+        if re.search(rb'-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----' + boundary, probe):
             raise ValueError('bundle: SSH or private key material is refused')
         previous = probe[-256:]
         result.update(chunk)
@@ -163,10 +170,14 @@ def stream_bytes(stream, size, output=None):
 
 class Selection:
     def __init__(self, checkout, uid, gid, targets, sources, bundles, *, plan_namespace=None,
-                 references=()):
+                 references=(), logical_records=(), record_references=(), consumer=None):
         self.checkout, self.uid, self.gid = Path(checkout), uid, gid
         self.targets, self.sources, self.bundles = targets, sources, bundles
         self.references = list(references)
+        self.logical_records = list(logical_records)
+        self.record_references, self.consumer = list(record_references), consumer
+        self.logical_origins = {}
+        self.logical_storage = {}
         self.stack = ExitStack()
         self.export_stack = self.stack.enter_context(ExitStack())
         self.reader_uid, self.reader_gid = os.geteuid(), os.getegid()
@@ -250,13 +261,14 @@ class Selection:
         return result
 
     def load(self):
-        values = [*self.sources, *self.bundles, *self.references]
+        values = [*self.sources, *self.bundles, *self.references, *self.record_references]
         if not values or len(values) > 256:
             raise ValueError('bundle: select between one and 256 explicit sources')
         if len(set(values)) != len(values):
             raise ValueError('bundle: duplicate selected source')
         if self.references and self.plan_namespace is None:
             raise ValueError('bundle: renewable references require a validated plan')
+        self.structured_references()
         for journal, uid, gid in self.catalogue():
             with identity(uid, gid):
                 publication = (journal.parent.name == 'exports' if self.plan_namespace is None else
@@ -297,17 +309,27 @@ class Selection:
             with self.open(path) as (fd, info):
                 before = fingerprint(info)
                 checksum = file_digest(fd, info.st_size)
-                if (not isinstance(receipt, dict) or set(receipt) != {
-                        'sha256', 'bytes', 'selection_sha256', 'identity'}
-                        or receipt['bytes'] != info.st_size or receipt['sha256'] != checksum
-                        or receipt['identity'] != before):
-                    raise ValueError('bundle: publication checksum mismatch')
+                verify_receipt(receipt, info, checksum)
                 stream = self.stack.enter_context(os.fdopen(os.dup(fd), 'rb'))
                 archive, manifest = verify_stream(stream)
                 self.stack.callback(archive.close)
                 if (digest(encoded(manifest)) != receipt['selection_sha256']
-                        or fingerprint(os.fstat(fd)) != before):
+                        or fingerprint(os.fstat(fd)) != before
+                        or receipt.get('schema', 1) != manifest['schema']):
                     raise ValueError('bundle: inherited bundle changed')
+                if manifest['schema'] == 2:
+                    logical.validate_records(manifest['records'], manifest['member_map'],
+                                             manifest['files'], repository=self.repository())
+                    self.logical_records.extend(manifest['records'])
+                    physical_files = {item['member']: item for item in manifest['files']}
+                    for mapping in manifest['member_map']:
+                        key = (mapping['record_id'], mapping['member_id'])
+                        origin = mapping['original_provenance']
+                        if key in self.logical_origins and self.logical_origins[key] != origin:
+                            raise ValueError('bundle: conflicting logical member provenance')
+                        self.logical_origins[key] = origin
+                        physical = physical_files[mapping['physical_member']]
+                        self.logical_storage[key] = physical['path']
                 self.archives[value] = archive
                 self.bundle_identities[value] = before
                 self.previous.append(dict(path=value, sha256=checksum,
@@ -334,6 +356,7 @@ class Selection:
             entry = dict(entry, member=f'files/{index:08d}')
             self.files[path] = (entry, origin)
             self.manifest['files'].append(entry)
+        self.logical_manifest()
         data = encoded(self.manifest)
         if len(data) > MAX_MANIFEST:
             raise ValueError('bundle: manifest exceeds the finite selection limit')
@@ -353,6 +376,65 @@ class Selection:
                                  limit_bytes=retention.MAX_RETAINED_BYTES)
         if self.export_budget['simultaneous_bytes'] > retention.MAX_RETAINED_BYTES:
             raise ValueError('bundle: selected export and retained exports exceed the existing budget')
+
+    def repository(self):
+        with retention.directory_descriptor(self.checkout) as fd:
+            info = os.fstat(fd)
+            return dict(root=str(self.checkout), device=info.st_dev, inode=info.st_ino, uid=self.uid)
+
+    def structured_references(self):
+        """Reader-before-writer activation gate for authenticated declarations.
+
+        E02 registers the wire syntax, not a consumer catalogue. Caller JSON
+        cannot authenticate a claim revision or its required input assertions.
+        The custody owner must register that authority before selection activates.
+        Trusted host code can already resolve with an explicit reference_scope.
+        """
+        if bool(self.record_references) != (self.consumer is not None):
+            raise ValueError('bundle: structured references require exactly one consumer')
+        if not self.record_references:
+            return
+        logical.validate_consumer(self.consumer)
+        context = self.consumer['expected_context']
+        if context['repository'] != self.repository():
+            raise logical.EvidenceContextError('bundle: consumer belongs to another checkout')
+        from execution_plan import Plan, plan_namespace
+        plan = Plan.load(self.checkout, context['workflow'])
+        if self.plan_namespace != plan_namespace(plan.path):
+            raise logical.EvidenceContextError('bundle: consumer belongs to another plan')
+        for reference in self.record_references:
+            logical.parse_reference(reference)
+        raise logical.EvidenceContextError('bundle: structured selection requires an '
+                                           'owner-registered consumer; activation is pending')
+
+    def logical_manifest(self):
+        if not self.logical_records:
+            return
+        records = {}
+        for record in self.logical_records:
+            key = record['record_id']
+            if key in records and records[key] != record:
+                raise logical.EvidenceIntegrityError('bundle: conflicting logical record closure')
+            records[key] = record
+        mappings = []
+        for record_id, record in sorted(records.items()):
+            for member in record['members']:
+                key = (record_id, member['member_id'])
+                entry = self.files.get(self.logical_storage.get(key, member['original_path']))
+                if entry is None:
+                    raise ValueError('bundle: logical member has no selected original')
+                entry = entry[0]
+                provenance = self.logical_origins.get(key, dict(original_path=entry['path'],
+                    source_allocation=entry['allocation'], identity=entry['identity']))
+                mappings.append(dict(record_id=record_id, member_id=member['member_id'],
+                                     physical_member=entry['member'], original_provenance=provenance))
+        mappings.sort(key=lambda item: (item['record_id'], item['member_id']))
+        self.manifest.update(schema=2, records=[records[key] for key in sorted(records)], member_map=mappings)
+        logical.validate_records(self.manifest['records'], mappings, self.manifest['files'],
+                                 repository=self.repository())
+        for reference in self.record_references:
+            _, selector = logical.parse_reference(reference)
+            resolve_member(self.manifest, **selector, consumer=self.consumer)
 
     def reference_present(self, path):
         """Probe only checkout evidence without traversing a source symlink.
@@ -527,6 +609,59 @@ def file_digest(fd, size):
         return stream_bytes(stream, size)
 
 
+def verify_receipt(receipt, info, checksum):
+    keys = {'sha256', 'bytes', 'selection_sha256', 'identity'}
+    if isinstance(receipt, dict) and 'schema' in receipt:
+        keys.add('schema')
+        if type(receipt['schema']) is not int or receipt['schema'] != 2:
+            raise ValueError('bundle: unsupported receipt schema')
+    if (not isinstance(receipt, dict) or set(receipt) != keys
+            or type(receipt['bytes']) is not int or receipt['bytes'] != info.st_size
+            or type(receipt['identity']) is not list or len(receipt['identity']) != 10
+            or any(type(value) is not int or value < 0 for value in receipt['identity'])
+            or receipt['sha256'] != checksum or receipt['identity'] != fingerprint(info)
+            or not isinstance(receipt['selection_sha256'], str)
+            or re.fullmatch('[0-9a-f]{64}', receipt['selection_sha256']) is None):
+        raise ValueError('bundle: publication checksum mismatch')
+
+
+def resolve_member(manifest, *, record_id, member_id, closure_sha256, consumer=None):
+    """Select an exact immutable claim after the complete manifest was verified."""
+    # Use the shared parser for strict ID types and syntax, including direct API
+    # calls which did not originate in a Markdown destination.
+    logical.parse_reference('accepted-evidence.json#onpc-evidence-v1:'
+                            f'{record_id}:{member_id}:{closure_sha256}')
+    if manifest['schema'] != 2:
+        raise logical.EvidenceContextError('bundle: legacy navigation has no logical claim')
+    records = {item['record_id']: item for item in manifest['records']}
+    record = records.get(record_id)
+    if record is None:
+        raise LogicalEvidenceUnavailable([dict(record_id=record_id, member_id=member_id,
+                                               closure_sha256=closure_sha256)])
+    if record['closure_sha256'] != closure_sha256:
+        raise logical.EvidenceIntegrityError('bundle: requested closure does not match')
+    if consumer is not None:
+        logical.match_context(record, consumer)
+        selector = dict(kind='evidence', record_id=record_id, member_id=member_id,
+                        closure_sha256=closure_sha256)
+        if selector not in consumer['references']:
+            raise logical.EvidenceContextError('bundle: member is not declared by the consumer')
+    matches = [item for item in record['members'] if item['member_id'] == member_id]
+    if not matches:
+        raise LogicalEvidenceUnavailable([dict(record_id=record_id, member_id=member_id,
+                                               closure_sha256=closure_sha256)])
+    return record, matches[0]
+
+
+class LogicalEvidenceUnavailable(EvidenceUnavailable):
+    def __init__(self, references):
+        self.references = references
+        super().__init__([encoded(item).decode() for item in references])
+
+    def payload(self):
+        return dict(error='evidence_unavailable', schema=1, references=self.references)
+
+
 def verify_stream(stream):
     """Verify every stored member; never extract archive paths."""
     stream.seek(0, os.SEEK_END)
@@ -560,8 +695,11 @@ def verify_stream(stream):
         if archive.read('manifest.sha256').decode('ascii') != digest(data):
             raise ValueError('bundle: manifest checksum mismatch')
         manifest = decoded(data)
-        if (not isinstance(manifest, dict) or set(manifest) != {
-                'schema', 'files', 'inherited', 'source_budgets'} or manifest['schema'] != SCHEMA
+        keys = {'schema', 'files', 'inherited', 'source_budgets'}
+        if isinstance(manifest, dict) and manifest.get('schema') == 2:
+            keys.update(('records', 'member_map'))
+        if (not isinstance(manifest, dict) or set(manifest) != keys
+                or type(manifest['schema']) is not int or manifest['schema'] not in (1, 2)
                 or not isinstance(manifest['files'], list) or not 0 < len(manifest['files']) <= MAX_FILES):
             raise ValueError('bundle: invalid manifest')
         if (not isinstance(manifest['inherited'], list) or len(manifest['inherited']) > 256
@@ -640,6 +778,8 @@ def verify_stream(stream):
                     raise ValueError('bundle: member checksum mismatch')
         if set(names) != set(expected):
             raise ValueError('bundle: undeclared archive members')
+        if manifest['schema'] == 2:
+            logical.validate_records(manifest['records'], manifest['member_map'], manifest['files'])
         return archive, manifest
     except BaseException:
         archive.close()
@@ -670,6 +810,8 @@ def export(selection, *, expected, defer_cleanup=False):
                     output_identity = fingerprint(os.fstat(destination.fileno()))
                 receipt = dict(sha256=checksum, bytes=size, identity=output_identity,
                                selection_sha256=selection.selection_sha256)
+                if selection.manifest['schema'] == 2:
+                    receipt['schema'] = 2
                 descriptor = os.open('receipt.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                                      0o600, dir_fd=fd)
                 with os.fdopen(descriptor, 'wb') as output:
@@ -684,7 +826,8 @@ def export(selection, *, expected, defer_cleanup=False):
                     cleanup_complete=not defer_cleanup)
 
 
-def inspect(checkout, uid, gid, path, *, member=None, offset=0, count=8000):
+def inspect(checkout, uid, gid, path, *, member=None, offset=0, count=8000,
+            record_id=None, member_id=None, closure_sha256=None):
     """Verify all bytes, then return the manifest or a bounded original-file slice."""
     path = path_text(path)
     if path.name != 'evidence.zip' or not path.parent.name.startswith('onpc-evidence-bundle-'):
@@ -707,14 +850,20 @@ def inspect(checkout, uid, gid, path, *, member=None, offset=0, count=8000):
                        if record['path'] == str(path.parent)]
             if len(records) != 1:
                 raise ValueError('bundle: bundle has no unique recorded owner')
-            return inspect_record(records[0], uid, checkout=checkout, member=member, offset=offset, count=count)
+            return inspect_record(records[0], uid, checkout=checkout, member=member, offset=offset, count=count,
+                                  record_id=record_id, member_id=member_id, closure_sha256=closure_sha256)
 
 
-def inspect_record(record, uid, *, checkout=None, member=None, offset=0, count=8000):
+def inspect_record(record, uid, *, checkout=None, member=None, offset=0, count=8000,
+                   record_id=None, member_id=None, closure_sha256=None):
     """Already owner-locked publication verification, including deferred recovery."""
     if type(offset) is not int or type(count) is not int or offset < 0 or not 0 <= count <= MAX_READ:
         raise ValueError('bundle: invalid inspection byte range')
     with verified_record(record, uid, checkout=checkout) as (verified, read):
+        structured = any(value is not None for value in (record_id, member_id, closure_sha256))
+        if structured:
+            return read(member, offset=offset, count=count, record_id=record_id,
+                        member_id=member_id, closure_sha256=closure_sha256)
         return verified if member is None else read(member, offset=offset, count=count)
 
 
@@ -738,31 +887,44 @@ def verified_record(record, uid, *, checkout=None):
         receipt = decoded(os.read(fd, 4096))
     with selection.open(directory / 'evidence.zip') as (fd, info):
         before = fingerprint(info)
-        if (not isinstance(receipt, dict) or set(receipt) != {
-                'sha256', 'bytes', 'selection_sha256', 'identity'} or receipt['bytes'] != info.st_size
-                or file_digest(fd, info.st_size) != receipt['sha256']
-                or receipt['identity'] != before):
-            raise ValueError('bundle: publication checksum mismatch')
+        verify_receipt(receipt, info, file_digest(fd, info.st_size))
         with os.fdopen(os.dup(fd), 'rb') as stream:
             archive, manifest = verify_stream(stream)
             try:
                 for entry in manifest['files']:
                     checkout_allocation(checkout, entry['allocation'])
-                if digest(encoded(manifest)) != receipt['selection_sha256']:
+                if (digest(encoded(manifest)) != receipt['selection_sha256']
+                        or receipt.get('schema', 1) != manifest['schema']):
                     raise ValueError('bundle: selection checksum mismatch')
+                if manifest['schema'] == 2:
+                    logical.validate_records(manifest['records'], manifest['member_map'],
+                                             manifest['files'], repository=selection.repository())
                 members = {entry['path']: entry for entry in manifest['files']}
+                physical_members = {entry['member']: entry for entry in manifest['files']}
+                logical_mappings = {(entry['record_id'], entry['member_id']): entry
+                                    for entry in manifest.get('member_map', [])}
 
                 def unchanged():
                     if fingerprint(os.fstat(fd)) != before:
                         raise ValueError('bundle: archive changed during inspection')
 
-                def read(member, *, offset=0, count=8000):
+                def read(member=None, *, offset=0, count=8000, record_id=None,
+                         member_id=None, closure_sha256=None):
                     if (type(offset) is not int or type(count) is not int or offset < 0
                             or not 0 <= count <= MAX_READ):
                         raise ValueError('bundle: invalid inspection byte range')
                     if archive.fp is None:
                         raise ValueError('bundle: verified archive is closed')
                     unchanged()
+                    selectors = (record_id, member_id, closure_sha256)
+                    if any(value is not None for value in selectors):
+                        if member is not None or any(value is None for value in selectors):
+                            raise ValueError('bundle: select an original path or one complete logical member')
+                        resolve_member(manifest, record_id=record_id,
+                            member_id=member_id, closure_sha256=closure_sha256)
+                        mapping = logical_mappings[(record_id, member_id)]
+                        selected = physical_members[mapping['physical_member']]
+                        member = selected['path']
                     if member not in members:
                         raise ValueError('bundle: original path is not in the manifest')
                     with archive.open(members[member]['member']) as source:

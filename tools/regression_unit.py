@@ -1080,7 +1080,7 @@ from regression_ui import Bucket
 # The native setup-barrier checks stat tiny unopened pytest-private FIFOs;
 # they acquire no worker or live pipe reader and retain compatible isolation.
 REVIEWED = frozenset("""
-plan_evidence plan_evidence_recovery
+evidence_identity plan_evidence plan_evidence_recovery
 native_history_routes native_update_runner
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures
@@ -1539,6 +1539,10 @@ def buckets(nodeids):
 # private archive scope. Mutation controls and verification counters use tiny
 # local files and process-local doubles; unit compatibility is unchanged and
 # cleanup/UI inventories gain no resources or modules.
+# Logical identity validation uses finite in-memory metadata only. Schema-2
+# bundle/locator and controller byte-change checks use tiny pytest-private
+# files, journals and synchronous doubles. No VM, service, display, process,
+# shared cache or new cleanup owner is acquired; compatible unit overlap applies.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

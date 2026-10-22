@@ -1684,12 +1684,6 @@ def buckets(nodeids):
 # socket, display, service or shared cache is acquired; bundle, artifact, capture
 # and controller modules retain compatible overlap. Cleanup/UI inventories gain
 # no module or resource owner.
-# E07 ordinary consumer histories use those same private journals, finite ZIPs,
-# real local descriptor locks and synchronous helper/controller doubles. Repeated
-# restart, suspended work and Git retry add no real model, remote, VM, socket,
-# display, service, cache or shared path. Existing compatible classifications for
-# execution_plan_launcher, plan_evidence, plan_evidence_recovery and test_artifacts
-# remain appropriate; cleanup and UI inventories gain no module or resource.
 # Mixed plan-completion selection in test_test_artifacts uses only the existing
 # pytest-private plans, tiny archives/journals and real in-process descriptor
 # locks. It adds no process, VM, socket, service, shared cache or cleanup/UI
@@ -1700,6 +1694,12 @@ def buckets(nodeids):
 # dispatcher double opens the child's real private producer session. No VM or
 # live coordinator is accessed; the module retains
 # compatible unit and cleanup scheduling.
+# E07 ordinary consumer histories use those same private journals, finite ZIPs,
+# real local descriptor locks and synchronous helper/controller doubles. Repeated
+# restart, suspended work and Git retry add no real model, remote, VM, socket,
+# display, service, cache or shared path. Existing compatible classifications for
+# execution_plan_launcher, plan_evidence, plan_evidence_recovery and test_artifacts
+# remain appropriate; cleanup and UI inventories gain no module or resource.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

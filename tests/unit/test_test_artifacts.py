@@ -438,6 +438,49 @@ def test_bundle_plan_resolves_two_retired_reports_during_unrelated_active_target
         assert after == before
 
 
+@pytest.mark.parametrize('action', ['bundle-plan', 'bundle-export'])
+def test_plan_completion_with_fresh_records_does_not_open_unrelated_active_owner(
+        retained_plan_helper, monkeypatch, capsys, action):
+    """Close-out mixes finished controller records with already archived proof."""
+    import evidence_bundle
+    import test_retention
+    fixture = retained_plan_helper
+    workflow = test_retention.Store(fixture.archive_owner.path.parent.parent / 'retention')
+    with workflow.session():
+        run = workflow.path.parent / ('a' * 32)
+        run.mkdir(mode=0o700)
+        test_retention.retain(run)
+        completion = run / 'accepted-proof'
+        completion.mkdir(mode=0o700)
+        (completion / 'result.json').write_bytes(b'{"cleanup_complete":true}')
+    arguments = fixture.arguments(sources=[completion])
+    with fixture.active() as live, monkeypatch.context() as patch:
+        patch.delenv(test_retention.VARIABLE, raising=False)
+        patch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+        # Registration remains writable for the unrelated live producer.
+        with evidence_bundle.Selection(fixture.checkout, os.geteuid(), os.getegid(),
+                ['synthetic-target'], [str(completion)], [str(fixture.bundle)],
+                plan_namespace=fixture.archive_owner.path.parent.parent.name,
+                references=list(map(str, fixture.originals))) as selection:
+            selected = selection.selection_sha256
+            assert str(completion / 'result.json') in selection.files
+            assert str(live) not in selection.files
+            with fixture.owner.opened() as fd, fixture.owner.locked(fd, 'writer.lock', blocking=False):
+                pass
+        if action == 'bundle-export':
+            arguments[0] = action
+            arguments += ['--expect', selected]
+        assert HELPER['main'](arguments) == 0
+        captured = capsys.readouterr()
+        assert not captured.err
+        result = json.loads(captured.out)
+        if action == 'bundle-plan':
+            assert result['selection_sha256'] == selected
+        else:
+            assert evidence_bundle.inspect(fixture.checkout, os.geteuid(), os.getegid(),
+                result['path'], member=str(completion / 'result.json')) == b'{"cleanup_complete":true}'
+
+
 def test_ordinary_plan_preserves_two_retired_reports_through_authenticated_helper(
         retained_plan_helper, monkeypatch):
     from contextlib import contextmanager, redirect_stdout, redirect_stderr
@@ -591,49 +634,6 @@ def test_plan_sources_do_not_bypass_active_target_refusals(
                  for path in fixture.checkout.rglob('*') if path.is_file()}
         assert after == before
         assert all(not path.exists() for path in fixture.originals)
-
-
-@pytest.mark.parametrize('action', ['bundle-plan', 'bundle-export'])
-def test_plan_completion_with_fresh_records_does_not_open_unrelated_active_owner(
-        retained_plan_helper, monkeypatch, capsys, action):
-    """Close-out mixes finished controller records with already archived proof."""
-    import evidence_bundle
-    import test_retention
-    fixture = retained_plan_helper
-    workflow = test_retention.Store(fixture.archive_owner.path.parent.parent / 'retention')
-    with workflow.session():
-        run = workflow.path.parent / ('a' * 32)
-        run.mkdir(mode=0o700)
-        test_retention.retain(run)
-        completion = run / 'accepted-proof'
-        completion.mkdir(mode=0o700)
-        (completion / 'result.json').write_bytes(b'{"cleanup_complete":true}')
-    arguments = fixture.arguments(sources=[completion])
-    with fixture.active() as live, monkeypatch.context() as patch:
-        patch.delenv(test_retention.VARIABLE, raising=False)
-        patch.delenv(test_retention.OWNER_VARIABLE, raising=False)
-        # Registration remains writable for the unrelated live producer.
-        with evidence_bundle.Selection(fixture.checkout, os.geteuid(), os.getegid(),
-                ['synthetic-target'], [str(completion)], [str(fixture.bundle)],
-                plan_namespace=fixture.archive_owner.path.parent.parent.name,
-                references=list(map(str, fixture.originals))) as selection:
-            selected = selection.selection_sha256
-            assert str(completion / 'result.json') in selection.files
-            assert str(live) not in selection.files
-            with fixture.owner.opened() as fd, fixture.owner.locked(fd, 'writer.lock', blocking=False):
-                pass
-        if action == 'bundle-export':
-            arguments[0] = action
-            arguments += ['--expect', selected]
-        assert HELPER['main'](arguments) == 0
-        captured = capsys.readouterr()
-        assert not captured.err
-        result = json.loads(captured.out)
-        if action == 'bundle-plan':
-            assert result['selection_sha256'] == selected
-        else:
-            assert evidence_bundle.inspect(fixture.checkout, os.geteuid(), os.getegid(),
-                result['path'], member=str(completion / 'result.json')) == b'{"cleanup_complete":true}'
 
 
 @pytest.mark.parametrize('defect', ['missing-member', 'wrong-attempt', 'wrong-target'])

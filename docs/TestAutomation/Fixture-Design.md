@@ -23,13 +23,217 @@ a concrete runtime necessity, named inventory owner and separate compatibility
 dependency; convenience is insufficient. Future Snap/Flatpak/game capabilities
 remain pending and do not expand this migration's finite delivered inventory.
 
-F01 audits every current baseline fixture and every fixture included in artifact
-bundles, classifying host-only, guest runtime payload, environment dependency or
-scenario mutation, with its producer/consumers and migration owner. Include native
-A/H/S/N, mechanical/catalogue witnesses, trusted hard/soft/activity inputs,
-shared runtime/desktop files and existing attachment/package-transfer inputs.
-Scenario mutations stay at their declared checkpoints; reusable provisioning
-must not preseed product policy, grants, usage or an asserted result.
+The F01 inventory below freezes placement and consumer requirements against the
+current source. It does not implement them. Scenario mutations stay at their
+declared checkpoints; reusable provisioning must not preseed product policy,
+grants, usage or an asserted result. F51 owns schema/transition details and F52
+owns the subsequent independent design review.
+
+### Frozen placement inventory
+
+The finite declaration is [baseline_assets.py](../../tests/fixtures/baseline_assets.py)
+(`native_files`, `catalogue_files`, `desktop_settings_files`,
+`automatic_update_files`) plus [native_assets.py](../../tests/fixtures/native_assets.py)
+(`native_policy_files`). [baseline_fixtures.py](../../tests/integration/baseline_fixtures.py)
+currently builds/reconciles it during baseline preparation. Owner roles below
+mean the accepted guest accounts, never a host UID: `child` is Riley, `other`
+Jordan, `parent` Jamie and `system` root. Preserve their actual UID/GID and the
+existing declaration's modes during migration.
+
+| Family / complete original output boundary | Frozen placement and minimum guest closure | Original ownership / native action | Delivery owner |
+| --- | --- | --- | --- |
+| A/H/S/N GUI identities: `Exact Fixture.AppImage`, `Path With Spaces.AppImage`, `Versioned/Lunar Client-3.7.17.AppImage`, `PrismLauncher.AppImage` beneath `/opt/onpc-test-fixtures/Applications`; legacy root-level `Lunar Client-3.7.17.AppImage` | Runtime. Select only required executables, their adjacent `onpc-test-gui.py` and `gtk_automation.py`, and launchers actually used. The nested S needs the `Versioned/` runtime pair; other identities use the root pair. Legacy S is an untrusted compatibility control, not the active S launcher. | Executables 0755 and runtime 0644, Jordan-owned. Four role desktop files for each of Riley and Jordan, 0644 and owned by that user. Intentionally absent from file trust. Fedora exact child-UID/content admissions remain fixture-owned. | F02 bundle; F33 imports all original members; F15 contraction; F05/F06 activation; consuming envelope tasks below |
+| Mechanical executable `/opt/onpc-baseline-assets/onpc-test-application`; command, whitespace, pattern and retention targets in `baseline_assets.NATIVE`; pattern sibling `Unrelated.AppImage`; corresponding four system launchers | Runtime engineering subset. Each selected command needs its mechanical bytes; the pattern comparison also requires `Unrelated.AppImage`. Include desktop entries for catalogue/launcher consumers. No Python GUI runtime is needed. | Root:root, executable 0755 / desktop 0644, untrusted. Preserve whitespace and unrelated-pattern controls. | F02/F33/F15/F05/F06; system consumers F09/F10/F16/F17 |
+| `TRUSTED_NATIVE`: `/opt/onpc-test-fixtures-trusted-{hard,soft}/native-fixture` and `TrustedHard`/`TrustedSoft` system desktop entries | Runtime trusted-native subset: selected headless executable plus a desktop file only when the consumer uses discovery. Distinct hard and soft bytes stay distinct. | Root:root 0755 / 0644. Exact file-trust admission for the two executables; no directory trust. | F02/F33/F15/F05/F06; retained native-transaction consumers through system envelope |
+| `/opt/onpc-test-fixtures-activity/native-fixture` and its adjacent two GUI files | Runtime activity subset: exactly these three files. No A/H/S/N launchers or copied interpreter/GTK tree. | Root:root 0755 executable / 0644 runtime; all three admitted to exact native file trust. | F02/F33/F15/F05/F06; activity E2E consumers F18/F19 |
+| Catalogue precedence/path set from `CATALOG_ENTRIES` and `catalogue_files` | Runtime engineering subset. Preserve system/child/parent/other Shared, ChildOnly, OtherOnly, ParentOnly and masked desktop entries; Relative, RelativeUnavailable, DesktopPath, SystemPreferred and SystemFallback; their declared mechanical targets, user `.local/bin`/`bin`, `/usr/local/bin`, `/usr/bin` and `catalog/desktop path` witnesses. The consumer selects its complete precedence comparison, including negative/masking controls. | Targets 0755, entries 0644, exact declared symbolic role. Keep root-owned targets distinct from account-owned PATH controls; no trust admission. | F02/F33/F15/F05/F06; system catalogue consumers F09/F10/F16/F17 |
+| Folder-renamer overrides for Riley, Jordan and Jamie; Ubuntu four `apt-daily*` service/timer masks | Environment, retained in baseline: six per-user regular files plus Ubuntu's four regular empty system units. They do not belong to a runtime subset and cannot be retired by contraction. | Per-user 0644 overrides; root:root 0644 APT masks. No fixture trust action. | F33 classification; F11/F12 dependency-only preparation |
+| Native trust fragment/backend records, Fedora `69-onpc-baseline-runtime.rules` and `89-onpc-baseline-fixtures.rules`, fixture ownership/pending record | Environment backend configuration remains baseline-owned; exact fixture admissions, trust and ownership metadata move with the selected runtime transaction. Preserve original records for recovery, rather than treating them as payload to copy. | Five trusted paths total (hard, soft, activity and its two modules). Trust fragment root:`fapolicyd` 0600; Fedora admission files root:`fapolicyd` 0644. Other fixture outputs retain declared ownership. Fedora rules admit the four active executable hashes and two runtime hashes for the two children, without making them trusted. | F24/F30 original proof; F31/F50 native protocol; F33 import; F15/F05/F06 composition |
+| Fixed accounts, pictures, passwords/keyring preservation, welcome/idle/desktop settings, serial getty/login timeout, dependency packages and SSH service/host keys | Environment. Keep the finite [environment inventory](../../tests/integration/Environment.md#reusable-preparation-ownership) and [guest tools](../../tests/integration/guest_test_dependencies.py) in preparation. GTK/Python and native libraries needed by native fixtures are target dependencies, not copies of the host interpreter. | Existing account/tool/console owners and accepted OS package provenance. Credentials never enter a bundle. | F11/F12 split environment ABI; F24/F30 preserve accepted original decoding |
+| Builder sources, compilers, native identity intermediates, manifests/checksums, expected results, Flatpak repository/bundle, Snap package and offline-game payload; copied standalone GUI runtime | Host-only. [build_test_applications.py](../../tests/fixtures/build_test_applications.py) currently emits these alongside native outputs; its full output is not the new profile. Snap/Flatpak/game runtime tests remain host-only, and pending guest capabilities gain no implementation credit. Build directories, private Flatpak home and packaging scratch never enter a guest. | Host shared storage/retention authority. No guest install, runtime admission or cache key for these pending guest capabilities. | F29/F02 profile extraction; F03/F14/F04 publication/pins/retention |
+| Product packages/current and previous releases; finite native dependency update pairs | Host immutable test inputs, separately identified from fixtures. Transfer only the selected target package(s) at the owning install/update checkpoint. Native old/new package transactions remain scenario mutations, never reusable fixture repair. | Existing artifact manifest, signature/dependency verification and attempt-frozen selection; installation stays on the public installation route. | F02 source separation; F09–F28 envelope provenance; F11/F12 snapshot coupling |
+| Attachments, documents, copy/rename/save-error inputs, new versions and launcher removal; LDAP/SSSD configuration/accounts, keyring challenges, policy/grants/usage | Scenario-owned. Only finite bytes actually opened in the guest are transferred, at their existing checkpoint. Attachment sentinels/readbacks remain independently asserted. No reusable profile precreates the requested product result. | Existing scenario owner, mutation guards and cleanup; no added blanket native trust. | F09–F28 preserve checkpoint order; F13 final disposition audit |
+
+The original declaration contains 34 native, 33 catalogue and six desktop-setting
+files, plus four Ubuntu APT masks or two Fedora admission files: 77 Ubuntu / 75
+Fedora outputs, excluding the separate receipts/backend records. These counts
+describe the reviewed original set, not a replacement for its exact file map.
+All members, including unrequested launchers and compatibility controls, enter
+F33's original-proof classification before any subset is selected.
+
+`native` means `native_assets.sources()` (eight active executable/runtime source
+keys plus four launcher keys). `riley-grid` means `riley_grid_sources()` (the same
+eight runtime keys and only Riley's A launcher). `activity` means
+`activity_sources()` (three keys). Mechanical, trusted-native and catalogue
+selections use the exact finite declaration above. A combined consumer takes
+the union, deduplicates shared destinations and retains required negative
+controls. These are subsets of one `native-runtime` build per target ABI, never
+separate build keys. Host-only package formats and complete fixture image roots
+must not leak into that union.
+
+Catalogue closure also preserves the independently checked absence of
+`/usr/local/bin/onpc-test-catalog-fallback`. A positive inventory alone cannot
+replace the PATH fallback assertion in `system_enforcement.provision_catalog`.
+
+### Original preparation source closure
+
+[prepare_vm.SCRIPT_FILES](../../tests/integration/prepare_vm.py) contains these
+17 entries. `preparation_digest` hashes their ordered names, lengths and bytes;
+its JSON normalization excludes `concurrency`, `backup_root`, per-VM `id` and
+`enabled`, retaining the other configuration dependencies.
+
+- `tests/integration/`: `prepare_vm.py`, `guest_test_dependencies.py`,
+  `chinese_language_assets.py`, `vm_config.py`, `baseline_guest_entry.py`,
+  `test_account_password.py`, `baseline_fixtures.py`, `baseline_console.py`.
+- `tests/fixtures/`: `baseline_assets.py`, `native_trust.py`, `native_assets.py`,
+  `build_test_applications.py`, `onpc_test_application.c`, `gui_application.py`.
+- `common/oh_no_parent_control_ui/`: `gtk_automation.py`, `test_identities.py`.
+- `config/test-vm.json`.
+
+[baseline_guest.prepare](../../tests/integration/baseline_guest.py) stages their
+union with `REQUIRED_CHECKOUT_ENTRIES` (already included), plus
+`test_user_icons/{jamie,casey,riley,jordan}.png`: 21 root-owned 0600 files beneath
+the private `/var/lib/onpc-baseline-preparation/checkout`. The temporary service,
+link and consumed password disappear; `mode`, `success`, `preparation.log` and
+the checkout remain. Successful reboot verification removes `reboot-required`.
+F24/F30 preserve accepted marker/capture and raw original proof. F33 classifies
+every retained source member as data, retiring movable source/builder copies
+only under that proof and preserving environment/recovery records and avatar
+identity. F11/F12 change staging and digest together; deleting currently required
+digest inputs early would break legacy verification. Capture must inspect this
+location and archived copies, not merely `/opt` runtime destinations.
+
+### Artifact and named-input consumers
+
+[artifact_inputs.capture](../../tools/artifact_inputs.py) already separates
+package and fixture source/toolchain/runtime identities;
+[package_inputs](../../tools/package_inputs.py) freezes the packaging map.
+However, [build_test_artifacts](../../tools/build_test_artifacts.py) currently
+invokes its fixture builder from the live checkout. F02 must freeze the fixture
+closure too, rather than crediting the frozen product source tree for both.
+The existing fixture source list includes builder, GUI runtime, native assets,
+C/GUI application and shared GTK automation; baseline declarations and native
+trust are additional placement/activation inputs with their own identities.
+[gui_runtime](../../tests/fixtures/gui_runtime.py) currently constructs a Debian
+multiarch standalone runtime. It is not evidence of a Fedora-compatible native
+builder; F02 must deliver target construction and actual ABI verification.
+
+The complete builder also emits native default/game/Flatpak wrappers, the future
+S `Lunar Client-3.8.0.AppImage`, legacy image-root launchers,
+`fixture-targets.json`, Flatpak repository/bundle, Snap package and
+`SHA256SUMS.json`. Future S is a scenario update input; the other unused output
+collections stay host-only. `system_runner.stage_assets` currently verifies a
+Flatpak member even for native consumers; that host verification is not a reason
+to transfer it. F02 and F09–F28 separate those dependencies without removing
+existing builder/runtime coverage or consumer assertions.
+
+[test_storage.named_input](../../tools/test_storage.py) includes current package
+sources by default. `fixture_source` and `upgrade_source` add fixture identities;
+`vm_source` binds the selected VM, and platform binding applies to every named
+input. Preserve the literal Boolean declarations consumed through AST by
+`test_commands.qualification_input_options` and the pre-dispatch preparation in
+`qualification_artifact_command`. Current prefixes are `onpc-parent-setup-`,
+`onpc-native-fixtures-` and `onpc-upgrade-v1.2-`, with the declared VM/source
+suffixes. A current snapshot does not refresh an older immutable input.
+F09–F28 migrate these consumers to a single pinned fixture reference alongside
+the independently verified product input; F14 supplies cache access within an
+active execution session. No failed assertion may trigger input replacement.
+
+The following freezes the current literal named-input alternatives. Names omit
+only `check_e2e_`, except explicit `check_parent_*` names; absent flags are false.
+These are input-identity groups, **not** envelope aliases: apply the actual
+dispatch map below, including its product-free, setup and dormant exceptions.
+Each wrapper's declarations must continue to agree under the AST validator.
+
+```text
+upgrade_source=True:
+  upgrade_assets, chinese_kiosk_lifecycle, package_upgrade
+package_source=True, fixture_source=True:
+  baseline_journey, baseline_app_effects
+vm_source=True, fixture_source=True:
+  retained_app_visits, riley_native_grid, native_fixtures,
+  choices_overlay_to_kiosk, overlay_valid_choices, retained_unlock_success,
+  request_flow, cross_surface, request_exit, kiosk_eligible_choices,
+  request_choices, retained_entry, overlay_choices
+vm_source=True:
+  lock_surface, fresh_child_allowed, window_switch, lock_recipient,
+  retained_parent, set_an_allowance_for_a_named_child, retained_unlock,
+  challenges, desktop_session, unlock
+fixture_source=True:
+  app_activity, catalogue_search, match_editor, policy, native_grid_usable,
+  match_save_cancel, overlay_license, review_a_rejected_parent_rule_s_report,
+  overlay_browser_links, catalogue, native_app, access_choices,
+  overlay_approved_exit, policy_legend, natural_expiry,
+  read_overlay_about_and_links, overlay_approval
+package_source=True:
+  kiosk_preferences_confinement, restart_notice, named_child_custom_saves,
+  chinese_native_auth, customer_reboot, kiosk_entry, overlay_rejection,
+  allowance_presets, feedback_read, feedback_privacy,
+  reminder_fullscreen_preference, chinese_current_install, custom_save_trace,
+  baseline_auth_pause, parent_language, parent_hebrew_policy, revocation,
+  parent_dialog_language, allowance, parent_language_isolation,
+  read_parent_information_links, unrelated_reboot_request, overlay_language,
+  kiosk_feedback_confinement, kiosk_reminder_binding, overlay_prompt,
+  time_explanation, revoke_cancel, kiosk_language_restoration, parent_rtl,
+  kiosk_notification_wellbeing, kiosk_approved_flow, kiosk_language, text,
+  kiosk_approval, overlay_reminder_editing, shell_panel, allowance_boundaries
+named_input() with no options:
+  check_parent_standard_input, check_parent_setup, check_parent_access,
+  check_parent_input, check_parent_about, operate_public_connectivity_controls,
+  license_viewer, app_restart, edit_and_save_an_open_synthetic_document,
+  kiosk_no_child, countdown_minutes, auth_result,
+  wait_a_bounded_real_interval_under_the_attempt_guard, trace_stable_state,
+  document_open, format, gdm_navigation, time_profiles_daily, desktop_keyring,
+  shell_search_results, shell_search, parent_save, eligible_kiosk_fixtures,
+  kiosk_valid_duration, trace, feedback_block_semantics,
+  independent_network_management, save_chooser, approval_flow, mate_prompt,
+  set_fresh_thirty_minute_allowance, countdown, chinese_language_assets,
+  desktop_language, feedback_length, files, read_restricted_station_about,
+  countdown_ticks, diagnostic_export, toggle, parent_support, kiosk_fixtures,
+  gdm_product_free, accessibility_input_trace, parent_website, feedback_reset,
+  attachments, kiosk_multiple, feedback_link_semantics, feedback_formats,
+  auth_prompt, feedback_rejection, parent_save_trace, parent_search_launch,
+  product_free_entry, read_an_expanded_time_explanation, terminal_provider,
+  gdm_recipient, file_chooser, package_authority,
+  set_jordan_thirty_minute_allowance, request_duration, attachment_items,
+  operate_the_countdown_context_menu, feedback_states, kiosk_rejection,
+  app_row_observations, compose_observation_around_one_caller_input,
+  open_a_customer_document_or_archive, fresh_desktop, package_command,
+  give_repeated_public_operations_distinct_stages, parent_privacy,
+  feedback_collection, attachment_preview
+```
+
+### Frozen public route names
+
+The following extensions are **planned and unimplemented**. Current
+`fixtures build` / `fixtures verify PATH` still select the legacy complete
+builder through [test_commands](../../tools/test_commands.py); current
+[vm_control](../../tests/integration/vm_control.py) has no fixture-sync action.
+Registration, argument validation, help/listing, grants and applicable ownership
+regressions must precede the first use. These names authorize no command now.
+
+| Planned public surface | Finite meaning / owner |
+| --- | --- |
+| `tools/run-tests fixtures build --profile native-runtime --for-vm --vm NAME` | Resolve the registered target ABI and build the reviewed profile on the host. F02 owns construction/verification; F03/F04 add publication, reuse and bounded admission. |
+| `tools/run-tests fixtures verify --bundle ID` | Verify one exact published immutable bundle; F03. Retain legacy `verify PATH` for existing consumers until migration. |
+| `tools/run-tests fixtures inspect` | Read catalogue versions, occupied slots, bytes, pins and pending work without allocating a build; F04. |
+| `tools/run-tests fixtures prune` | Apply the same bounded oldest-eligible retirement transaction; no arbitrary path, unpin or filesystem sweep; F04. |
+| `tools/test-vm --vm NAME fixtures sync --profile native-runtime --bundle ID --subset SUBSET` | Pin an exact bundle before borrowing the caller's recorded running maintenance instance; refuse a foreign owner. Default refuses in-use payloads; explicit `--quiesce-owned` permits only recorded fixture owners/descendants. No implicit restore/reboot or service restart; F07/F08. |
+| `tools/test-vm --vm NAME fixtures inspect` | Read the owned instance's generation/readiness and pin provenance without mutation; F07/F08. |
+
+`NAME` is a current registry name/ID; only `onpc-Ubuntu26.04` and `onpc-Fedora44`
+gain this plan's target qualification. `ID` names an exact host catalogue bundle,
+never a supplied directory or guest destination. `SUBSET` is a finite declared
+selection above, not an arbitrary file/command list. F51 freezes its request and
+receipt encoding. `tools/fixture` remains exclusively the migration-plan launcher.
+
+Planned engineering integration selectors are `check_fixture_provisioning`
+(F05/F06), the seven `check_fixture_*` names in the consumer table below,
+`check_fixture_clean_admission` (F48/F49), and `check_fixture_live_refresh`
+(F07/F08). The seven clean repetitions use `check_fixture_clean_` followed by
+the same envelope suffix. All run through `tools/run-tests integration --vm NAME`
+only after registration/listing. They are preparation-only bindings, not new
+customer scenarios, and require exact target evidence and normal owned cleanup.
 
 ## Identity and build publication
 
@@ -439,15 +643,133 @@ only when host composition tests prove it calls the same preparation branch with
 the same lifetime/guards. Different restore or provisioning branches require
 their own row and bounded prerequisite, not inferred qualification.
 
-| Envelope | Existing boundary to migrate | Initial Ubuntu / Fedora tasks | Clean-schema Ubuntu / Fedora tasks |
-| --- | --- | --- | --- |
-| Product-free system | `system_snapshots._run_attempts(installed=False)` and `system_runner.installed_run` before installation input | F09 / F10 | F34 / F41 |
-| Installed system | `_run_attempts(installed=True)`, `Suite.prepare_case` and restored offline app snapshot | F16 / F17 | F35 / F42 |
-| Installed E2E | `InstalledJourney` setup, online snapshot credential rebind and `AssetTransfer.provision_installed` consumers | F18 / F19 | F36 / F43 |
-| Product-free graphical E2E | `InstalledJourney` product-free branch and package/upgrade preparation before customer input; dormant current-install guard stays host-only | F20 / F21 | F37 / F44 |
-| Standalone transfer qualification | `check_graphical_smoke` / `AssetTransfer.provision` before boot; move fixture bytes to owned SSH after transport readiness | F22 / F23 | F38 / F45 |
-| Standalone serial qualification | `check_graphical_smoke.Smoke.execute`, `check_graphical_serial` and authenticated-install aliases | F25 / F26 | F39 / F46 |
-| Recorded serial E2E harness | `serial_harness.record_serial_journey` under `execution.ScenarioContext` / recorder ownership | F27 / F28 | F40 / F47 |
+| Envelope | Existing boundary to migrate | Planned selector suffix / engineering subset | Initial Ubuntu / Fedora tasks | Clean-schema Ubuntu / Fedora tasks |
+| --- | --- | --- | --- | --- |
+| Product-free system | `system_snapshots._run_attempts(installed=False)` and `system_runner.installed_run(already_installed=False)` before installation input; finite `FIRST_CONFIGURE_PHASES` metadata with no installed precondition | `system_product_free` / trusted-native, hard only | F09 / F10 | F34 / F41 |
+| Installed system | `_run_attempts(installed=True)` and `Suite.prepare_case`; current Suite default is **online**, while F16/F17 require an explicit **offline** preparation binding; `enforcement` phase and `installed-digest-verified-product` precondition | `system_installed` / trusted-native, hard only | F16 / F17 | F35 / F42 |
+| Installed E2E | `InstalledJourney` setup, default **online** snapshot credential rebind and `AssetTransfer.provision_installed`; qualification wrappers also have explicit offline restore | `e2e_installed` / native | F18 / F19 | F36 / F43 |
+| Product-free graphical E2E | `InstalledJourney.product_free`, package/upgrade preparation before customer input; GDM-only has no movable input; dormant current-install guard stays host-only | `e2e_product_free` / native for asset-bearing branches, empty for GDM-only | F20 / F21 | F37 / F44 |
+| Standalone transfer qualification | `runner --qualify-transfer` → `Qualification.execute` → `AssetTransfer.provision` before boot; move fixture bytes to owned SSH after transport readiness | `transfer` / native | F22 / F23 | F38 / F45 |
+| Standalone serial qualification | `Qualification.execute` with a serial `Smoke` worker, `check_graphical_serial`, `runner --qualify-install` and `--qualify-install-refusal` | `serial` / native | F25 / F26 | F39 / F46 |
+| Recorded serial E2E harness | `controller_qualification.E2E_CASES['gdm-observation']` → `serial_harness.record_serial_journey` under `execution.ScenarioContext` / recorder ownership | `recorded_serial` / native | F27 / F28 | F40 / F47 |
+
+Suffixes above form the exact planned `check_fixture_SUFFIX` and
+`check_fixture_clean_SUFFIX` selectors. For the headless system witness, select
+only `/opt/onpc-test-fixtures-trusted-hard/native-fixture` with its exact native
+trust admission, independently read its digest, run it without arguments over
+owned SSH as the accepted `child` (Riley) account, and require exactly
+`ONPC_TEST_APPLICATION_READY` plus exit 0. No desktop file is needed. For native,
+independently read A and its two adjacent runtime members, execute selected A
+with `--stay-alive` as that same child account (matching Fedora's finite UID
+admissions), require the same marker, then send SIGTERM only to its recorded
+supervised process and require exit 0. This fixed mode in
+[onpc_test_application.c](../../tests/fixtures/onpc_test_application.c) opens no
+GUI and changes no product state. Readback must match the pinned manifest;
+neither a marker alone nor receipt presence proves selected bytes. GDM-only
+proves an empty closure and unchanged product-free entry, not a native witness.
+Activity/trusted-native and contraction/trust witnesses remain additional
+F05/F06 provisioning obligations, under F50's activation protocol.
+
+### Source-backed consumer and alias disposition
+
+The map is defined by actual dispatch, not selector spelling:
+
+- [system_snapshots.attempts](../../tests/integration/system_snapshots.py)
+  partitions lifecycle/removal histories by `history.start`, first-configure and
+  PAM histories as product-free, independent authorization/enforcement/session
+  as installed, and isolated trusted-fixture qualification as product-free.
+  `fresh_install=True` places its grouped phases in the product-free branch.
+  F09/F10 and F16/F17 preserve all these predicates and the trusted history's
+  real previous-package requirement; a narrow engineering witness stops before
+  any phase/product assertion.
+- [suite_lease.needs_installed](../../tests/e2e/suite_lease.py) and
+  [execution.attempt](../../tests/e2e/execution.py) route registered
+  [scenario declarations](../../tests/e2e/scenarios.json) to installed E2E or
+  product-free entry. The installed default is online, including the Suite
+  constructed by `system_snapshots.create_suite`; current system code does not
+  explicitly select offline. F16/F17 must establish and prove their required
+  offline binding, rather than assuming that the default already supplies it.
+  This is an implementation obligation, not offline acceptance credit.
+  [InstalledJourney](../../tests/e2e/installed_journey.py) establishes
+  transport, calls `InstalledSetup.provision`, then optional
+  `AssetTransfer.provision_installed` before `plan.stage_actions`. F18/F19 and
+  F20/F21 own these respective branches, preserving every stage action.
+- Among integration wrappers calling
+  [check_graphical_smoke.main](../../tests/integration/check_graphical_smoke.py)
+  directly or as `smoke`, evaluate each finite literal/loop option alternative
+  through its **ordered** `qualification_class` assignments. Exactly those
+  whose final class is `KioskEntryQualification` or a transitive subclass in
+  [parent_setup_qualification.py](../../tests/integration/parent_setup_qualification.py)
+  belong to installed E2E. This dispatch predicate includes every such wrapper
+  and loop alternative; it does not merge separate attempts. Its inherited
+  `attach_installed_snapshot` sets `online_pending` for online, and explicitly
+  restores offline otherwise. F18/F19 composition tests and preparation proof
+  must cover both alternatives; one cannot stand in for the other.
+- The exact product-free smoke-dispatch exceptions are
+  `check_e2e_gdm_product_free`, `check_e2e_product_free_entry`,
+  `check_e2e_upgrade_assets`, `check_e2e_chinese_language_assets`,
+  `check_e2e_desktop_language`, `check_e2e_package_authority`,
+  `check_e2e_package_command`, `check_e2e_customer_reboot`,
+  `check_e2e_restart_notice`, `check_e2e_unrelated_reboot_request`,
+  `check_e2e_package_upgrade`, `check_e2e_chinese_kiosk_lifecycle` and
+  `check_e2e_chinese_current_install`. `GdmProductFreeQualification` has no asset
+  transfer; `ProductFreeEntryQualification` subclasses and recorded
+  package/Chinese/lifecycle journeys retain their existing offline asset setup
+  checkpoint until F20/F21 moves fixture transfer. No package or reboot assertion
+  changes.
+- `check_parent_setup`, `check_parent_input`, `check_parent_standard_input` use
+  `ParentSetupQualification.execute`'s separate baseline/bootstrap branch.
+  F09/F10 (clean F34/F41) factor/prove the same product-free-system readiness
+  boundary after `Transport.probe_ready`, before `InstalledSetup.run` installs
+  anything. Host composition must explicitly bind all three aliases; installed
+  snapshot proof does not cover them.
+- `check_parent_about` and `check_parent_access` currently reach
+  `ParentJourneyQualification` without a setter satisfying the installed guard.
+  `InstalledJourney.install_current_package` likewise has no current producer.
+  Preserve these dormant guard branches with host coverage; F20/F21 must not
+  enable them or claim live fixture acceptance for them.
+- [runner](../../tests/e2e/runner.py)'s `--qualify-transfer` calls smoke with
+  assets; `--qualify-install` adds credentials, serial and install;
+  `--qualify-install-refusal` adds serial and install-refusal.
+  [check_graphical_serial](../../tests/integration/check_graphical_serial.py)
+  calls `main(provision_credentials=True, serial=True)`. F22/F23 own transfer;
+  F25/F26 own serial/authenticated alternatives, retaining successful-install
+  reboot versus refused-install logout/no-reboot assertions.
+- [serial_harness](../../tests/e2e/serial_harness.py)'s recorded branch stages
+  credentials, stock getty and offline assets before
+  `Smoke(authenticate=True, serial=True, functional=True)`. F27/F28 preserve its
+  HAR09/HAR10 recorder/stage completion, durable observations before replies,
+  boot continuity, logout/session absence and worker shutdown checkpoints.
+- `check_graphical_credentials`, `check_graphical_vt6_prompt`,
+  `check_graphical_vt6_authentication` and bare `check_graphical_smoke` are
+  baseline credential/display/getty consumers with no native fixture closure.
+  F11/F12 retain their dependency-only guard. `check_graphical_attachment` is VM
+  diagnosis without reusable fixture payload. `check_graphical_transport` and
+  `check_graphical_worker` remain host mechanics/doubles. Recovery, storage and
+  `check_e2e_watch` retain their own owners, without fixture-envelope credit.
+- [app_snapshot.prepare](../../tests/e2e/app_snapshot.py) and standalone
+  [prepare_appsnapshot](../../tools/prepare_appsnapshot.py) are preparation
+  producers, not extra envelope aliases: the library defaults offline, whereas
+  Suite and the standalone tool explicitly request online, with
+  install/verification/reboot and credential publication. F11/F12
+  exclude movable outputs at capture while retaining exact product/recipe and
+  original-schema recovery; F30 preserves ownership/credential decoding.
+- [vm_control](../../tests/integration/vm_control.py) diagnostic/reproduction
+  actions reuse the named journey's actual branch and keep their maintenance
+  lease, transport and cleanup. F07/F08 bind their fixture use to an explicit
+  immutable pin; their results remain diagnostic. `NativeFixtures` profiles
+  `native`, `riley-grid`, `activity` select the closures above; `chinese` verifies
+  environment language prerequisites and selects no movable bytes.
+
+For every asset-bearing branch,
+[AssetTransfer](../../tests/e2e/asset_transfer.py) retains one-shot
+attempt/phase identity, collision/replay refusal, independent post-boot inventory
+readback and upgrade account/locale/unrelated-file witnesses. Native
+`fixture_actions` retain wrong-entry/refusal timing. Recorded `stage_actions`,
+attachment/document changes and launcher/version mutations remain scenario
+checkpoints; readiness cannot preseed them. Host alias composition tests must
+enumerate actual dispatch alternatives and named-input declarations, including
+empty/dormant branches, before the owning task claims the map implemented.
 
 These are preparation-only engineering bindings. Each calls the real shared
 envelope through fixture readiness, independently executes/reads a harmless
@@ -544,6 +866,18 @@ fixture, trust, staging, barrier and the retained baseline-preparation checkout
 locations; renaming a payload is not removal.
 
 ## Acceptance and ownership handoff
+
+F01 review accepted the placement, original-source and consumer maps above.
+Source review corrected the pattern subset's required unrelated control,
+Fedora admission ownership, the actual online Suite default versus F16/F17's
+planned offline binding, standalone online preparation and the serial execution
+owner. Witnesses specify exact bytes, account and supervised termination.
+Markdown links and plan structure passed; the maintained consistency and
+side-effect-free adapter selection passed
+[321 host checks](../../output/test-runs/host/reports/20261022T035137Z-f77c5cbd/report.md).
+Both read-only helpers finished; no VM, build, setup or product/runtime operation
+was performed and no owned live resources remain. This is F01 review evidence,
+not F51 schema completion, F52 independent review or installed qualification.
 
 Qualify Ubuntu 26.04 and Fedora 44 independently: first stage, repeat/no writes,
 version update, corrupt/missing inputs, interrupted transaction/retry, foreign

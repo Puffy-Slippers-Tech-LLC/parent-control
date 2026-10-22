@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F01 — [Freeze fixture placement and consumers](Fixture-Tasks/F01-design.md)**.
+Next task: **F51 — [Freeze schemas and transition contracts](Fixture-Tasks/F51-schemas.md)**.
 
 ## Outcome and present status
 
@@ -11,10 +11,11 @@ readiness, then execute. Fix movable fixture payloads on the host and refresh an
 owned running VM without snapshot replacement or reboot. Bound retained builds
 and recover interrupted publication/provisioning without consuming partial state.
 
-The [target design](Fixture-Design.md) is proposed and unimplemented. This
-authoring session adds only this plan, queue, briefs, the thin `tools/fixture`
-adapter and adapter checks. It executes no queue task, provisions no fixture,
-changes no current VM/storage policy and supplies no installed acceptance.
+The [target design](Fixture-Design.md) remains unimplemented. F01 completed its
+source-backed [placement inventory](Fixture-Design.md#frozen-placement-inventory),
+consumer/alias map and planned public names under review acceptance. Schemas and
+independent design review remain F51/F52. No fixture was provisioned, no current
+VM/storage policy changed and no installed acceptance was supplied.
 
 The specialized [E2E plan](E2E-Execution-Plan.md) remains responsible for customer
 scenario work. This plan reuses its underlying

@@ -1,7 +1,7 @@
 # Host-owned fixture task queue
 
 The [master](Fixture-Execution-Plan.md) owns the sole next-task pointer. Every
-row below is unimplemented; authoring and structural checks close no task.
+unchecked row below remains unimplemented; authoring and structural checks alone close no task.
 Scopes bind the [target design](Fixture-Design.md). IDs are stable labels.
 All live checks qualify fixture preparation/lifecycle only and stop before
 product actions or assertions; envelope names identify infrastructure callers,
@@ -10,7 +10,7 @@ this queue's testing scope.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | F01 | [Freeze fixture placement and consumers](Fixture-Tasks/F01-design.md) | Baseline | Finite family placement, minimal guest closures and exact consumer/alias map | 20–30 min |
+| [x] | F01 | [Freeze fixture placement and consumers](Fixture-Design.md#frozen-placement-inventory) | Baseline | Finite family placement, minimal guest closures and exact consumer/alias map | 20–30 min; source review accepted; [321 metadata/adapter checks passed](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json); no VM resources |
 | [ ] | F51 | [Freeze schemas and transition contracts](Fixture-Tasks/F51-schemas.md) | F01 | Canonical identities, request/pin schemas, six-slot transitions, native protocol and clean-schema gate contracts | 20–30 min |
 | [ ] | F52 | [Independently review the frozen design](Fixture-Tasks/F52-design-review.md) | F51 | Independent source-backed design review before implementation; no installed credit | 20–30 min |
 | [ ] | F29 | [Own one fixture producer](Fixture-Tasks/F29-production-lifetime.md) | F52 | Single build-slot reservation, descendant leases and interrupted producer cleanup; no byte quota | 20–30 min |
@@ -70,4 +70,4 @@ indivisible ownership/activation state machine. Target qualification rows have
 are smaller admission gates. The clean-schema repetitions are prerequisites of
 enablement, never validation deferred to the final review. Newly discovered
 independent work uses the [shared prerequisite contract](../Execution-Plans.md#execution-and-delegation)
-without weakening scope or acceptance. No authored row is complete.
+without weakening scope or acceptance. Completion requires its declared acceptance.

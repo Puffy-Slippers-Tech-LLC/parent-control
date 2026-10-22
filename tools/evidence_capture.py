@@ -1,4 +1,4 @@
-"""Producer-owned, finite sealed handoffs; no publication or source release.
+"""Producer-owned finite seals and verified source-owner acknowledgements.
 
 Only a capability minted from a live in-process retention owner can finalize a
 record. Readers resolve an exact registered ID and hold the independent finished
@@ -902,3 +902,229 @@ def capture_scope(checkout, uid, gid, capture_id, *, expected=None, target=None,
 def inspect_capture(checkout, uid, gid, capture_id, *, expected=None, target=None):
     with capture_scope(checkout, uid, gid, capture_id, expected=expected, target=target) as request:
         return request
+
+
+def _publication_module():
+    if __package__:
+        from . import capture_publication
+    else:
+        import capture_publication
+    return capture_publication
+
+
+def _acknowledgement(charge, value):
+    logical._object(value, {'schema', 'version', 'request', 'delivery', 'caller_slot'},
+                    'capture acknowledgement')
+    if (value['schema'] != 'onpc-capture-acknowledgement'
+            or type(value['version']) is not int or value['version'] != 1):
+        raise ValueError('capture: unsupported acknowledgement')
+    request = value['request']
+    _validate_request(request)
+    if (request['capture_id'] != charge['capture_id']
+            or request['producer'] != charge['intent']['producer']
+            or request['record'] != charge['intent']['record']
+            or request['consumers'] != charge['intent']['consumers']):
+        raise ValueError('capture: acknowledgement request or closure changed')
+    retention.publication_record(value['caller_slot'])
+    caller = request['producer']['caller']
+    with _identity(caller['uid'], caller['gid']):
+        expected_slot = _slot_path(request['producer']['repository'], charge['capture_id'])
+    if value['caller_slot']['path'] != str(expected_slot):
+        raise ValueError('capture: acknowledgement caller slot changed')
+    logical.encoded(value)
+    return value
+
+
+def _charge_owner(store, fd, entry, charge):
+    """Validate the private parent claim, never a caller-supplied receipt."""
+    _checked_registration(_registration(charge), charge)
+    producer = charge['intent']['producer']
+    _validate_producer(producer)
+    logical._record(charge['intent']['record'])
+    if (producer['owner']['journal'] != str(store.path)
+            or producer['owner']['identity'] != _directory_identity(os.fstat(fd))
+            or producer['run'] != entry['run']
+            or charge['capture_id'] != logical.digest(producer)
+            or charge['path'] != str(_slot_path(producer['repository'], charge['capture_id']))):
+        raise ValueError('capture: required source owner changed')
+
+
+def _destination_originals(charge, verified):
+    """Bind archived provenance to the producer's private before-copy witness."""
+    record = charge['intent']['record']
+    originals = {item['member_id']: item['identity'] for item in charge['intent']['originals']}
+    mappings = {(item['record_id'], item['member_id']): item
+                for item in verified['manifest']['member_map']}
+    for member in record['members']:
+        mapping = mappings.get((record['record_id'], member['member_id']))
+        if mapping is None or mapping['original_provenance'] != dict(
+                original_path=member['original_path'],
+                source_allocation=member['source_allocation'],
+                identity=originals[member['member_id']]):
+            raise ValueError('capture: destination original identity changed')
+
+
+@contextmanager
+def _original_scope(store, entry, charge, *, missing=False):
+    """Keep present original descriptors pinned; only retirement retries omit bytes."""
+    intent = charge['intent']
+    originals = {item['member_id']: item['identity'] for item in intent['originals']}
+    if set(originals) != {item['member_id'] for item in intent['record']['members']}:
+        raise ValueError('capture: original closure changed')
+    with ExitStack() as stack:
+        for member in intent['record']['members']:
+            try:
+                source, info = stack.enter_context(_source(member, entry, store, entry['run']))
+            except FileNotFoundError:
+                if missing:
+                    continue
+                raise
+            if (_fingerprint(info) != originals[member['member_id']]
+                    or _hash(source, member['bytes']) != member['sha256']):
+                raise ValueError('capture: acknowledged original changed')
+        yield
+
+
+def acknowledge_capture(checkout, uid, gid, capture_id, *, expected, session_handle=None):
+    """Record custody only under the exact live or finished source owner.
+
+    Destination ownership is acquired before the source writer. The public helper
+    can acknowledge a finished owner; a live producer must supply its unforgeable
+    in-process session handle. Neither a receipt nor a path is source authority.
+    """
+    publication = _publication_module()
+    with ExitStack() as stack:
+        request = stack.enter_context(capture_scope(checkout, uid, gid, capture_id,
+                                                    expected=expected))
+        producer = request['producer']
+        caller = producer['caller']
+        if session_handle is not None:
+            session = _session(session_handle)
+            if session['context'] != request['record']['context']:
+                raise ValueError('capture: acknowledgement belongs to another issued attempt')
+            store, fd = session['store'], session['binding'][1]
+        else:
+            owner_uid = producer['owner']['identity']['uid']
+            stack.enter_context(_identity(owner_uid, 0 if owner_uid == 0 else gid))
+            store = retention.Store(producer['owner']['journal'])
+            fd = stack.enter_context(store.opened())
+            stack.enter_context(store.locked(fd, 'owner.lock', blocking=False))
+            with store.locked(fd, 'writer.lock'):
+                retention.finished_owner(fd, store.read(fd))
+        delivery = publication.read_delivery(checkout, uid, gid, capture_id)
+        verified = stack.enter_context(publication.verified_delivery(
+            checkout, uid, gid, capture_id, request, delivery))
+        # The independent destination lease remains held through durable save.
+        with store.locked(fd, 'writer.lock'):
+            state = store.read(fd)
+            entries = [*state['history'], state]
+            matches = [(entry, charge) for entry in entries for charge in entry.get('captures', [])
+                       if charge['capture_id'] == capture_id]
+            if len(matches) != 1:
+                raise ValueError('capture: missing exact source intent for acknowledgement')
+            entry, charge = matches[0]
+            _charge_owner(store, fd, entry, charge)
+            _destination_originals(charge, verified)
+            with _original_scope(store, entry, charge):
+                with _identity(uid, gid):
+                    caller_path = _slot_path(producer['repository'], capture_id)
+                    with retention.directory_descriptor(caller_path) as caller_fd:
+                        info = os.fstat(caller_fd)
+                        retention.private(info)
+                        caller_slot = dict(path=str(caller_path), device=info.st_dev,
+                                           inode=info.st_ino, mode=0o700)
+                acknowledgement = dict(schema='onpc-capture-acknowledgement', version=1,
+                    request=request, delivery=delivery, caller_slot=caller_slot)
+                _acknowledgement(charge, acknowledgement)
+                previous = charge.get('acknowledgement')
+                if previous is not None and previous != acknowledgement:
+                    raise ValueError('capture: source acknowledgement changed')
+                if previous is None:
+                    # Account parent control/recovery growth before the write.
+                    proposed = copy.deepcopy(state)
+                    selected = next(item for owner in [*proposed['history'], proposed]
+                                    for item in owner.get('captures', [])
+                                    if item['capture_id'] == capture_id)
+                    selected['acknowledgement'] = acknowledgement
+                    logical.encoded(proposed)
+                    _capacity(state, len(logical.encoded(acknowledgement)) * 2 + 8192,
+                              charge['intent'])
+                    checkpoint('acknowledgement')
+                    charge['acknowledgement'] = acknowledgement
+                    store.save(fd, state)
+                checkpoint('acknowledged')
+                return copy.deepcopy(acknowledgement)
+
+
+@contextmanager
+def retirement_scope(store, fd):
+    """Pin replacement custody outside the source writer, then audit deletions.
+
+    Pending or invalid claims are remembered and refuse only when selected for
+    retirement. A parent acknowledgement survives partial source/slot deletion,
+    so recovery never needs to adopt a missing or caller-replaced seal control.
+    """
+    with store.locked(fd, 'writer.lock', publication=True, shared=True):
+        state = store.read(fd)
+        intent = retention.read_publication(store, fd)
+        states = [state]
+        if intent is not None:
+            states.append(intent['original'])
+        entries = [entry for owner in states if owner is not None
+                   for entry in [*owner['history'], owner]]
+        charges = {}
+        for entry in entries:
+            for charge in entry.get('captures', []):
+                previous = charges.setdefault(charge['capture_id'], (entry, copy.deepcopy(charge)))
+                if previous[1] != charge:
+                    raise ValueError('capture: conflicting required source claims')
+    with ExitStack() as destinations:
+        publication = _publication_module() if charges else None
+        verified, failures = {}, {}
+        # Deterministic trusted journal ordering; no source writer is held here.
+        ordered = sorted(charges.items(), key=lambda pair: (
+            pair[1][1].get('acknowledgement', {}).get('delivery', {}).get('journal', ''), pair[0]))
+        for identifier, (entry, charge) in ordered:
+            try:
+                _charge_owner(store, fd, entry, charge)
+                acknowledgement = _acknowledgement(charge, charge['acknowledgement'])
+                producer = acknowledgement['request']['producer']
+                caller = producer['caller']
+                replacement = destinations.enter_context(publication.verified_delivery(
+                    producer['repository']['root'], caller['uid'], caller['gid'], identifier,
+                    acknowledgement['request'], acknowledgement['delivery']))
+                _destination_originals(charge, replacement)
+                verified[identifier] = charge
+            except (KeyError, ValueError, OSError) as error:
+                failures[identifier] = error
+
+        def authorize(selected_entries, *, cleanup=False):
+            selected = [(entry, charge) for entry in selected_entries
+                        for charge in entry.get('captures', [])]
+            # Audit the entire selection before deleting any original or seal.
+            for entry, charge in selected:
+                identifier = charge['capture_id']
+                if identifier not in verified or verified[identifier] != charge:
+                    raise ValueError('capture: required source has no verified acknowledgement; '
+                                     'finish its recorded publication') from failures.get(identifier)
+                _charge_owner(store, fd, entry, charge)
+                if not cleanup:
+                    with _original_scope(store, entry, charge, missing=True):
+                        pass
+                retention.remove({key: charge[key] for key in ('path', 'device', 'inode', 'mode')},
+                                 validate_only=True)
+                acknowledgement = charge['acknowledgement']
+                caller = acknowledgement['request']['producer']['caller']
+                with _identity(caller['uid'], caller['gid']):
+                    retention.remove(acknowledgement['caller_slot'], validate_only=True)
+            if cleanup:
+                for _, charge in selected:
+                    acknowledgement = charge['acknowledgement']
+                    private_slot = {key: charge[key] for key in ('path', 'device', 'inode', 'mode')}
+                    retention.remove(private_slot)
+                    if acknowledgement['caller_slot'] != private_slot:
+                        caller = acknowledgement['request']['producer']['caller']
+                        with _identity(caller['uid'], caller['gid']):
+                            retention.remove(acknowledgement['caller_slot'])
+
+        yield authorize

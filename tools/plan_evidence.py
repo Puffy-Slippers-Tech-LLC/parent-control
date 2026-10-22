@@ -668,7 +668,7 @@ def recover(plan):
     store = bundle.retention.Store(parent / 'retention')
     if store.path.exists():
         with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
-            with store.locked(fd, 'writer.lock', publication=True):
+            with store.retirement(fd) as authorize, store.locked(fd, 'writer.lock', publication=True):
                 intent = bundle.retention.read_publication(store, fd)
                 if intent is not None and intent['phase'] == 'committed':
                     current_state = store.read(fd)
@@ -685,7 +685,7 @@ def recover(plan):
                             raise ValueError('plan evidence: accepted index changed during publication')
                         _atomic(index_path, bundle.encoded(replacement))
                 bundle.retention.recover_publication(store, fd,
-                    verify=lambda record: _ledger(record, plan))
+                    verify=lambda record: _ledger(record, plan), authorize=authorize)
     index, _ = _index(index_path)
     if index is not None:
         _verify_index(plan, index)

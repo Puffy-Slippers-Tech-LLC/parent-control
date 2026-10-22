@@ -340,14 +340,18 @@ def test_selection_pins_original_provenance_for_its_entire_read_scope(producer):
     assert producer.result.read_bytes() == PAYLOAD
 
 
-@pytest.fixture
-def helper(producer, monkeypatch):
+def artifact_helper(producer, monkeypatch):
     script = runpy.run_path(str(ROOT / 'tools/onpc-test-artifacts'))
     main = script['main']
     monkeypatch.setitem(main.__globals__, 'CHECKOUT', str(producer.checkout))
     monkeypatch.setitem(main.__globals__, 'caller',
                         lambda: (os.geteuid(), os.getegid()))
     return main
+
+
+@pytest.fixture
+def helper(producer, monkeypatch):
+    return artifact_helper(producer, monkeypatch)
 
 
 def test_helper_capture_plan_and_custody_inspect_use_authenticated_registration(
@@ -377,6 +381,12 @@ def test_helper_capture_plan_and_custody_inspect_use_authenticated_registration(
     ['bundle-custody', '--transaction', 'a' * 64, '--expect', 'b' * 64,
      '--operation', 'retire-finish'],
     ['bundle-custody', '--transaction', 'a' * 64, '--expect', 'b' * 64,
+     '--operation', 'acknowledge'],
+    ['bundle-acknowledge', '--capture', 'short', '--expect', 'b' * 64],
+    ['bundle-acknowledge', '--capture', 'a' * 64, '--expect', 'short'],
+    ['bundle-acknowledge', '--capture', 'a' * 64, '--expect', 'b' * 64,
+     '--destination', '/caller/receipt'],
+    ['bundle-custody', '--transaction', 'a' * 64, '--expect', 'b' * 64,
      '--operation', 'inspect', '--uid', '1000'],
     ['bundle-custody', '--transaction', 'a' * 64, '--expect', 'b' * 64,
      '--operation', 'inspect', '--source', '/caller/journal'],
@@ -390,27 +400,567 @@ def test_helper_rejects_unregistered_capabilities_and_malformed_ids_before_ident
     assert failure.value.code == 2
 
 
-def test_capture_export_remains_explicitly_unregistered_until_publication_task(
+def test_helper_publishes_real_capture_and_keeps_source_until_owner_acknowledges(
         producer, helper, capsys):
     identifier = producer.finalize()
-    with pytest.raises(SystemExit) as failure:
-        helper(['bundle-export', '--capture', identifier, '--expect', 'f' * 64])
-    assert failure.value.code == 2
-    result = capsys.readouterr()
-    assert not result.out
-    assert result.err
+    request = producer.inspect(identifier)
+    assert helper(['bundle-plan', '--capture', identifier]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert helper(['bundle-export', '--capture', identifier,
+                   '--expect', plan['selection_sha256']]) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    verified = bundle.inspect(producer.checkout, os.geteuid(), os.getegid(), receipt['path'])
+    assert verified['manifest']['records'] == [producer.record()]
+    assert len(verified['manifest']['member_map']) == 1
     assert producer.result.read_bytes() == PAYLOAD
-    assert producer.inspect(identifier)['capture_id'] == identifier
+    before = (producer.store.path / 'current.json').read_bytes()
+    # The authenticated helper cannot seize an active producer's owner lock.
+    assert helper(['bundle-acknowledge', '--capture', identifier,
+                   '--expect', request['request_sha256']]) == 2
+    refused = capsys.readouterr()
+    assert not refused.out and refused.err
+    assert (producer.store.path / 'current.json').read_bytes() == before
+    capture.acknowledge_capture(producer.checkout, os.geteuid(), os.getegid(), identifier,
+                                expected=request['request_sha256'], session_handle=producer.handle)
+    assert producer.result.read_bytes() == PAYLOAD
 
 
-def test_library_export_cannot_bypass_the_pending_capture_publication_gate(producer):
-    identifier = producer.finalize()
+def test_helper_acknowledges_only_registered_delivery_of_finished_source(
+        tmp_path, monkeypatch, capsys):
+    with producer_session(tmp_path, monkeypatch) as value:
+        identifier = value.finalize()
+        request = value.inspect(identifier)
+        receipt = publish_capture(value, identifier)
+        helper_main = artifact_helper(value, monkeypatch)
+    assert helper_main(['bundle-acknowledge', '--capture', identifier,
+                        '--expect', request['request_sha256']]) == 0
+    acknowledgement = json.loads(capsys.readouterr().out)
+    assert acknowledgement['request'] == request
+    state = json.loads((value.store.path / 'current.json').read_bytes())
+    assert state['captures'][0]['acknowledgement'] == acknowledgement
+    assert value.result.read_bytes() == PAYLOAD
+    assert bundle.inspect(value.checkout, os.geteuid(), os.getegid(), receipt['path'])[
+        'manifest']['records'] == [request['record']]
+
+
+def publish_capture(producer, identifier=None, **kwargs):
+    identifier = identifier or producer.finalize()
     with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
                           [], [], [], captures=[identifier]) as selected:
-        with pytest.raises(ValueError, match='capture|publication|pending'):
-            bundle.export(selected, expected=selected.plan()['selection_sha256'])
+        return bundle.export(selected, expected=selected.plan()['selection_sha256'], **kwargs)
+
+
+def acknowledge(producer, identifier, expected=None):
+    request = producer.inspect(identifier)
+    return capture.acknowledge_capture(
+        producer.checkout, os.geteuid(), os.getegid(), identifier,
+        expected=expected or request['request_sha256'], session_handle=producer.handle)
+
+
+def test_library_publication_and_acknowledgement_verify_complete_logical_closure(producer):
+    identifier = producer.finalize()
+    request = producer.inspect(identifier)
+    receipt = publish_capture(producer, identifier)
+    published = bundle.inspect(producer.checkout, os.geteuid(), os.getegid(), receipt['path'])
+    manifest = published['manifest']
+    assert manifest['records'] == [request['record']]
+    assert len(manifest['member_map']) == len(request['sealed']['mappings']) == 1
+    record = request['record']
+    member = record['members'][0]
+    assert bundle.inspect(producer.checkout, os.geteuid(), os.getegid(), receipt['path'],
+                          record_id=record['record_id'], member_id=member['member_id'],
+                          closure_sha256=record['closure_sha256']) == PAYLOAD
+    before = json.loads((producer.store.path / 'current.json').read_bytes())
+    assert not before['captures'][0].get('acknowledgement')
     assert producer.result.read_bytes() == PAYLOAD
-    assert producer.inspect(identifier)['capture_id'] == identifier
+    acknowledge(producer, identifier)
+    after = json.loads((producer.store.path / 'current.json').read_bytes())
+    acknowledgement = after['captures'][0]['acknowledgement']
+    assert acknowledgement
+    assert after['paths'] == before['paths'] and after['history'] == before['history']
+    assert producer.result.read_bytes() == PAYLOAD
+    assert producer.inspect(identifier) == request
+
+
+def test_publication_preserves_complete_selected_dependency_closure(producer):
+    first = producer.finalize()
+    dependency = producer.record()
+    handle = capture.issue_session(
+        producer.store, repository=producer.checkout, workflow='capture-fixture',
+        task='P03', check='dependent-capture', inputs_sha256='c' * 64,
+        sources_sha256='d' * 64,
+        consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)},
+        dependencies=[dependency])
+    record = producer.record(context=capture.session_context(handle),
+        dependencies=[dict(record_id=dependency['record_id'],
+                           closure_sha256=dependency['closure_sha256'])])
+    second = capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER])
+    with pytest.raises(ValueError, match='dependenc'):
+        with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                              [], [], [], captures=[second]):
+            pytest.fail('incomplete dependency publication was admitted')
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=sorted([first, second])) as selection:
+        receipt = bundle.export(selection, expected=selection.selection_sha256)
+    verified = bundle.inspect(producer.checkout, os.geteuid(), os.getegid(), receipt['path'])
+    assert {item['record_id'] for item in verified['manifest']['records']} == {
+        dependency['record_id'], record['record_id']}
+    acknowledge(producer, first)
+    request = producer.inspect(second)
+    capture.acknowledge_capture(producer.checkout, os.geteuid(), os.getegid(), second,
+        expected=request['request_sha256'], session_handle=handle)
+    assert producer.result.read_bytes() == PAYLOAD
+
+
+@pytest.mark.parametrize('boundary', [
+    'publication.registered', 'publication.copied', 'publication.committed',
+    'publication.locator', 'publication.delivered',
+])
+@pytest.mark.parametrize('failure', [KeyboardInterrupt, RuntimeError])
+def test_publication_interruption_recovers_same_registered_allocation(
+        producer, monkeypatch, boundary, failure):
+    import capture_publication as publication
+
+    identifier = producer.finalize()
+    source_state = (producer.store.path / 'current.json').read_bytes()
+
+    def interrupt(stage):
+        if stage == boundary:
+            raise failure('private publication cancellation')
+
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        parent = selected.publication_parent(create=True)
+        with monkeypatch.context() as local:
+            local.setattr(publication, 'checkpoint', interrupt)
+            with pytest.raises(failure):
+                bundle.export(selected, expected=selected.selection_sha256)
+    stages = {path: path.stat().st_ino for path in parent.iterdir()
+              if path.name.startswith('onpc-evidence-bundle-')}
+    assert len(stages) == 1
+    assert (producer.store.path / 'current.json').read_bytes() == source_state
+    assert producer.result.read_bytes() == PAYLOAD
+    assert producer.previous_proof.read_bytes() == b'prior finished evidence\n'
+    receipt = publish_capture(producer, identifier)
+    assert Path(receipt['path']).parent in stages
+    assert {path: path.stat().st_ino for path in stages} == stages
+    assert {path for path in parent.iterdir()
+            if path.name.startswith('onpc-evidence-bundle-')} == set(stages)
+    assert receipt['cleanup_complete']
+    assert not (parent / 'retention' / retention.PUBLICATION).exists()
+    assert (producer.store.path / 'current.json').read_bytes() == source_state
+    acknowledge(producer, identifier)
+
+
+def test_lost_publication_and_ack_replies_retry_without_extra_allocations(producer):
+    identifier = producer.finalize()
+    first = publish_capture(producer, identifier)
+    first_path = Path(first['path'])
+    identity = (first_path.parent.stat().st_ino, first_path.stat().st_ino)
+    second = publish_capture(producer, identifier)
+    assert second == first
+    assert (first_path.parent.stat().st_ino, first_path.stat().st_ino) == identity
+    first_ack = acknowledge(producer, identifier)
+    state = (producer.store.path / 'current.json').read_bytes()
+    assert acknowledge(producer, identifier) == first_ack
+    assert (producer.store.path / 'current.json').read_bytes() == state
+    assert producer.result.read_bytes() == PAYLOAD
+
+
+def test_lost_helper_export_reply_reuses_original_expected_selection(
+        producer, helper, capsys):
+    identifier = producer.finalize()
+    assert helper(['bundle-plan', '--capture', identifier]) == 0
+    expected = json.loads(capsys.readouterr().out)['selection_sha256']
+    arguments = ['bundle-export', '--capture', identifier, '--expect', expected]
+    assert helper(arguments) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    archive = Path(receipt['path'])
+    identity = (archive.parent.stat().st_ino, archive.stat().st_ino)
+    assert helper(arguments) == 0
+    assert json.loads(capsys.readouterr().out) == receipt
+    assert (archive.parent.stat().st_ino, archive.stat().st_ino) == identity
+    assert producer.result.read_bytes() == PAYLOAD
+
+
+@pytest.mark.parametrize('replacement', [False, True])
+def test_partial_copy_recovers_same_files_and_refuses_replacement(
+        producer, monkeypatch, replacement):
+    identifier = producer.finalize()
+    real_stream = bundle.stream_bytes
+    copied = False
+
+    def partial_copy(stream, size, output=None):
+        nonlocal copied
+        if output is not None and not copied:
+            copied = True
+            output.write(stream.read(max(1, size // 2)))
+            raise SimulatedInterrupt('private interruption in payload copy')
+        return real_stream(stream, size, output)
+
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        expected = selected.selection_sha256
+        parent = selected.publication_parent(create=True)
+        with monkeypatch.context() as local:
+            local.setattr(bundle, 'stream_bytes', partial_copy)
+            with pytest.raises(SimulatedInterrupt):
+                bundle.export(selected, expected=expected)
+    stages = [path for path in parent.iterdir() if path.name.startswith('onpc-evidence-bundle-')]
+    assert len(stages) == 1
+    stage = stages[0]
+    files = {path.name: path.stat().st_ino for path in stage.iterdir()}
+    assert set(files) == {'evidence.zip', 'receipt.json'}
+    assert (stage / 'evidence.zip').stat().st_size > 0
+    if replacement:
+        archive = stage / 'evidence.zip'
+        saved = stage / 'evidence.owned-saved'
+        archive.rename(saved)
+        archive.write_bytes(saved.read_bytes())
+        archive.chmod(0o600)
+        # Keep only the expected names; the original remains privately owned.
+        preserved = stage.with_name(stage.name + '-owned-file')
+        saved.rename(preserved)
+        try:
+            with pytest.raises(ValueError, match='replaced|identity'):
+                publish_capture(producer, identifier)
+            assert archive.exists() and preserved.exists()
+        finally:
+            archive.unlink()
+            preserved.rename(archive)
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        assert selected.selection_sha256 == expected
+        receipt = bundle.export(selected, expected=expected)
+    assert Path(receipt['path']).parent == stage
+    assert {path.name: path.stat().st_ino for path in stage.iterdir()} == files
+    assert producer.result.read_bytes() == PAYLOAD
+    acknowledge(producer, identifier)
+
+
+@pytest.mark.parametrize('failure', ['second-create', 'first-registration', 'registration-reply'])
+def test_stage_initialization_failure_recovers_registered_allocation(
+        producer, monkeypatch, failure):
+    import capture_publication as publication
+
+    identifier = producer.finalize()
+    before = (producer.store.path / 'current.json').read_bytes()
+    real_open = publication.os.open
+    real_save = publication._save
+    failed = False
+
+    def failed_create(path, flags, *args, **kwargs):
+        nonlocal failed
+        if path == 'receipt.json' and flags & os.O_CREAT and not failed:
+            failed = True
+            raise OSError('private second stage file creation failure')
+        return real_open(path, flags, *args, **kwargs)
+
+    def failed_registration(store, fd, state, request, **kwargs):
+        nonlocal failed
+        pending = state.get('pending')
+        if pending is not None and len(pending.get('files') or {}) == 1 and not failed:
+            failed = True
+            if failure == 'registration-reply':
+                real_save(store, fd, state, request, **kwargs)
+            raise OSError('private first stage file registration failure')
+        return real_save(store, fd, state, request, **kwargs)
+
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        parent = selected.publication_parent(create=True)
+        with monkeypatch.context() as local:
+            if failure == 'second-create':
+                local.setattr(publication.os, 'open', failed_create)
+            else:
+                local.setattr(publication, '_save', failed_registration)
+            with pytest.raises(OSError, match='private .*stage file'):
+                bundle.export(selected, expected=selected.selection_sha256)
+    assert failed
+    stages = [path for path in parent.iterdir() if path.name.startswith('onpc-evidence-bundle-')]
+    assert len(stages) == 1
+    stage = stages[0]
+    stage_inode = stage.stat().st_ino
+    files = {path.name: path.stat().st_ino for path in stage.iterdir()}
+    assert set(files) <= {'evidence.zip', 'receipt.json'}
+    assert (producer.store.path / 'current.json').read_bytes() == before
+    assert producer.result.read_bytes() == PAYLOAD
+    receipt = publish_capture(producer, identifier)
+    assert Path(receipt['path']).parent == stage and stage.stat().st_ino == stage_inode
+    assert all((stage / name).stat().st_ino == inode for name, inode in files.items())
+    assert receipt['cleanup_complete']
+    acknowledge(producer, identifier)
+
+
+def test_pending_request_without_stage_rechecks_complete_budget_before_allocation(
+        producer, monkeypatch):
+    import capture_publication as publication
+
+    identifier = producer.finalize()
+    original = (producer.store.path / 'current.json').read_bytes()
+
+    def failed_factory(**_kwargs):
+        raise OSError('private allocation failure before stage registration')
+
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        parent = selected.publication_parent(create=True)
+        with monkeypatch.context() as local:
+            local.setattr(publication.tempfile, 'mkdtemp', failed_factory)
+            with pytest.raises(OSError, match='private allocation'):
+                bundle.export(selected, expected=selected.selection_sha256)
+    assert not list(parent.glob('onpc-evidence-bundle-*'))
+    journal = (parent / 'retention' / publication.JOURNAL).read_bytes()
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        with monkeypatch.context() as local:
+            local.setattr(retention, 'MAX_RETAINED_BYTES', selected.projected_bytes)
+            local.setattr(publication.tempfile, 'mkdtemp',
+                          lambda **_kwargs: pytest.fail('capacity refusal allocated a stage'))
+            with pytest.raises(ValueError, match='budget|capacity'):
+                bundle.export(selected, expected=selected.selection_sha256)
+    assert (parent / 'retention' / publication.JOURNAL).read_bytes() == journal
+    assert (producer.store.path / 'current.json').read_bytes() == original
+    assert producer.result.read_bytes() == PAYLOAD
+    receipt = publish_capture(producer, identifier)
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        budget = selected.plan()['export_budget']
+        assert budget['existing_allocated_bytes'] > 0
+        assert budget['projected_bytes'] == 0
+        assert budget['simultaneous_bytes'] == budget['existing_allocated_bytes']
+    assert receipt['cleanup_complete']
+    acknowledge(producer, identifier)
+
+
+def test_partial_stage_retry_refuses_budget_that_cannot_finish_without_rewriting(
+        producer, monkeypatch):
+    identifier = producer.finalize()
+    real_stream = bundle.stream_bytes
+    interrupted = False
+
+    def partial(stream, size, output=None):
+        nonlocal interrupted
+        if output is not None and not interrupted:
+            interrupted = True
+            output.write(stream.read(max(1, size // 2)))
+            raise SimulatedInterrupt('private partial-stage capacity fixture')
+        return real_stream(stream, size, output)
+
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        parent = selected.publication_parent(create=True)
+        with monkeypatch.context() as local:
+            local.setattr(bundle, 'stream_bytes', partial)
+            with pytest.raises(SimulatedInterrupt):
+                bundle.export(selected, expected=selected.selection_sha256)
+    stage, = (path for path in parent.iterdir() if path.name.startswith('onpc-evidence-bundle-'))
+    before = {path.name: (path.read_bytes(), bundle.fingerprint(path.stat()))
+              for path in stage.iterdir()}
+    source_state = (producer.store.path / 'current.json').read_bytes()
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        # The currently allocated partial tree fits this budget. Completion and
+        # its control/recovery copies need more than the projected payload alone.
+        limit = selected.projected_bytes
+        used = sum(path.stat().st_blocks * 512 for path in parent.rglob('*'))
+        assert used < limit
+        with monkeypatch.context() as local:
+            local.setattr(retention, 'MAX_RETAINED_BYTES', limit)
+            with pytest.raises(ValueError, match='budget|capacity|limit'):
+                bundle.export(selected, expected=selected.selection_sha256)
+    assert {path.name: (path.read_bytes(), bundle.fingerprint(path.stat()))
+            for path in stage.iterdir()} == before
+    assert (producer.store.path / 'current.json').read_bytes() == source_state
+    assert producer.result.read_bytes() == PAYLOAD
+    receipt = publish_capture(producer, identifier)
+    assert Path(receipt['path']).parent == stage
+    assert all((stage / name).stat().st_ino == identity[1]
+               for name, (_, identity) in before.items())
+    acknowledge(producer, identifier)
+
+
+def test_more_than_three_cumulative_generations_preserve_every_required_record(producer):
+    import capture_publication as publication
+
+    first = producer.finalize()
+    request = producer.inspect(first)
+    initial = publish_capture(producer, first)
+    delivery = publication.read_delivery(producer.checkout, os.geteuid(), os.getegid(), first)
+    required = {request['record']['record_id']}
+    for number in range(4):
+        handle = capture.issue_session(
+            producer.store, repository=producer.checkout, workflow='capture-fixture', task='P12',
+            check=f'cumulative-proof-{number}', target='', inputs_sha256='c' * 64,
+            sources_sha256='d' * 64,
+            consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)})
+        record = producer.record(context=capture.session_context(handle))
+        identifier = capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER])
+        required.add(record['record_id'])
+        receipt = publish_capture(producer, identifier)
+        verified = bundle.inspect(producer.checkout, os.geteuid(), os.getegid(), receipt['path'])
+        assert {item['record_id'] for item in verified['manifest']['records']} == required
+    assert not Path(initial['path']).exists()
+    with publication.verified_delivery(producer.checkout, os.geteuid(), os.getegid(),
+                                       first, request, delivery) as verified:
+        assert {item['record_id'] for item in verified['manifest']['records']} == required
+    journal = Path(delivery['journal'])
+    state = json.loads((journal / 'current.json').read_bytes())
+    assert len([*state['history'], state]) <= retention.RUNS_TO_KEEP
+    assert len(retention.latest_allocations([*state['history'], state])) <= retention.RUNS_TO_KEEP
+    assert producer.result.read_bytes() == PAYLOAD
+    acknowledge(producer, first)
+
+
+@pytest.mark.parametrize('boundary', ['acknowledgement', 'acknowledged'])
+@pytest.mark.parametrize('failure', [KeyboardInterrupt, RuntimeError])
+def test_ack_interruption_preserves_source_and_retries_exact_receipt(
+        producer, monkeypatch, boundary, failure):
+    identifier = producer.finalize()
+    receipt = publish_capture(producer, identifier)
+
+    def interrupt(stage):
+        if stage == boundary:
+            raise failure('private owner acknowledgement cancellation')
+
+    with monkeypatch.context() as local:
+        local.setattr(capture, 'checkpoint', interrupt)
+        with pytest.raises(failure):
+            acknowledge(producer, identifier)
+    state = json.loads((producer.store.path / 'current.json').read_bytes())
+    assert bool(state['captures'][0].get('acknowledgement')) == (boundary == 'acknowledged')
+    assert producer.result.read_bytes() == PAYLOAD
+    assert producer.previous_proof.read_bytes() == b'prior finished evidence\n'
+    acknowledgement = acknowledge(producer, identifier)
+    assert acknowledgement['request'] == producer.inspect(identifier)
+    assert publish_capture(producer, identifier) == receipt
+    assert json.loads((producer.store.path / 'current.json').read_bytes())[
+        'captures'][0]['acknowledgement'] == acknowledgement
+
+
+@pytest.mark.parametrize('change', ['source-changed', 'source-missing',
+                                    'destination-changed', 'destination-missing'])
+def test_acknowledgement_reverifies_required_source_and_destination(producer, change):
+    identifier = producer.finalize()
+    receipt = publish_capture(producer, identifier)
+    before = (producer.store.path / 'current.json').read_bytes()
+    path = producer.result if change.startswith('source') else Path(receipt['path'])
+    saved = path.with_name(path.name + '.owned-saved')
+    path.rename(saved)
+    try:
+        if change.endswith('changed'):
+            path.write_bytes(b'changed bytes cannot be acknowledged\n')
+            path.chmod(0o600)
+        with pytest.raises((ValueError, OSError)):
+            acknowledge(producer, identifier)
+        assert (producer.store.path / 'current.json').read_bytes() == before
+        assert saved.exists()
+        assert producer.previous_proof.read_bytes() == b'prior finished evidence\n'
+    finally:
+        if path.exists():
+            path.unlink()
+        saved.rename(path)
+
+
+def test_stale_request_and_wrong_authenticated_caller_cannot_acknowledge(producer):
+    identifier = producer.finalize()
+    publish_capture(producer, identifier)
+    before = (producer.store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError):
+        acknowledge(producer, identifier, expected='f' * 64)
+    request = producer.inspect(identifier)
+    with pytest.raises((ValueError, OSError)):
+        capture.acknowledge_capture(producer.checkout, os.geteuid() + 1, os.getegid(), identifier,
+                                    expected=request['request_sha256'], session_handle=producer.handle)
+    assert (producer.store.path / 'current.json').read_bytes() == before
+    assert producer.result.read_bytes() == PAYLOAD
+
+
+@pytest.mark.parametrize('change', ['attempt', 'closure', 'request'])
+def test_replayed_or_forged_registration_cannot_release_source(producer, change):
+    identifier = producer.finalize()
+    publish_capture(producer, identifier)
+    registration = capture.capture_status(producer.handle, identifier)
+    path = Path(registration['slot']['path']) / 'registration.json'
+    saved = path.read_bytes()
+    before = (producer.store.path / 'current.json').read_bytes()
+    forged = copy.deepcopy(registration)
+    if change == 'attempt':
+        forged['request']['producer']['attempt'] = 'e' * 32
+    elif change == 'closure':
+        forged['request']['record']['closure_sha256'] = 'e' * 64
+    else:
+        forged['request']['request_sha256'] = 'e' * 64
+    try:
+        path.write_bytes(logical.encoded(forged))
+        with pytest.raises(ValueError):
+            acknowledge(producer, identifier)
+        assert (producer.store.path / 'current.json').read_bytes() == before
+        assert producer.result.read_bytes() == PAYLOAD
+    finally:
+        path.write_bytes(saved)
+
+
+@pytest.mark.parametrize('boundary', ['preflight', 'actual'])
+def test_publication_capacity_refusal_preserves_prior_proof_and_registered_retry(
+        producer, monkeypatch, boundary):
+    import capture_publication as publication
+
+    identifier = producer.finalize()
+    before = (producer.store.path / 'current.json').read_bytes()
+
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[identifier]) as selected:
+        with monkeypatch.context() as local:
+            if boundary == 'preflight':
+                local.setattr(retention, 'MAX_RETAINED_BYTES', 1)
+            else:
+                # Change the limit only after real bytes exist, past projection.
+                def actual(stage):
+                    if stage == 'publication.copied':
+                        local.setattr(retention, 'MAX_RETAINED_BYTES', 1)
+                local.setattr(publication, 'checkpoint', actual)
+            with pytest.raises(ValueError, match='budget|capacity|limit'):
+                bundle.export(selected, expected=selected.selection_sha256)
+    assert (producer.store.path / 'current.json').read_bytes() == before
+    assert producer.result.read_bytes() == PAYLOAD
+    assert producer.previous_proof.read_bytes() == b'prior finished evidence\n'
+    publish_capture(producer, identifier)
+    acknowledge(producer, identifier)
+
+
+def test_cumulative_capacity_refusal_keeps_previous_destination_and_new_required_source(
+        producer, monkeypatch):
+    first = producer.finalize()
+    previous = publish_capture(producer, first)
+    archive = Path(previous['path'])
+    before_archive = (archive.read_bytes(), archive.stat().st_ino)
+    handle = capture.issue_session(
+        producer.store, repository=producer.checkout, workflow='capture-fixture', task='P12',
+        check='next-cumulative-proof', target='', inputs_sha256='c' * 64,
+        sources_sha256='d' * 64,
+        consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)})
+    record = producer.record(context=capture.session_context(handle))
+    second = capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER])
+    source_state = (producer.store.path / 'current.json').read_bytes()
+    with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                          [], [], [], captures=[second]) as selected:
+        parent = selected.publication_parent()
+        journal = parent / 'retention/current.json'
+        before_journal = journal.read_bytes()
+        assert len(selected.manifest['records']) == 2
+        with monkeypatch.context() as local:
+            local.setattr(retention, 'MAX_RETAINED_BYTES', 1)
+            with pytest.raises(ValueError, match='budget|capacity|limit'):
+                bundle.export(selected, expected=selected.selection_sha256)
+    assert (archive.read_bytes(), archive.stat().st_ino) == before_archive
+    assert journal.read_bytes() == before_journal
+    assert (producer.store.path / 'current.json').read_bytes() == source_state
+    assert producer.result.read_bytes() == PAYLOAD
+    replacement = publish_capture(producer, second)
+    verified = bundle.inspect(producer.checkout, os.geteuid(), os.getegid(), replacement['path'])
+    assert {item['record_id'] for item in verified['manifest']['records']} == {
+        producer.record()['record_id'], record['record_id']}
 
 
 def test_capacity_refusal_preserves_source_and_prior_proof_without_extra_slots(
@@ -533,6 +1083,112 @@ def test_direct_fourth_session_cannot_rotate_a_required_capture_away(
     entries = [*json.loads(before)['history'], json.loads(before)]
     charges = [charge for entry in entries for charge in entry.get('captures', [])]
     assert len(charges) == 1 and charges[0]['capture_id'] == identifier
+
+
+def test_verified_ack_releases_exact_source_after_retained_session_rotation(
+        tmp_path, monkeypatch):
+    with producer_session(tmp_path, monkeypatch) as value:
+        identifier = value.finalize()
+        receipt = publish_capture(value, identifier)
+        acknowledgement = acknowledge(value, identifier)
+        slot = Path(acknowledgement['caller_slot']['path'])
+    for _ in range(4):
+        with value.store.session():
+            pass
+    assert not value.source.exists()
+    assert not slot.exists()
+    state = json.loads((value.store.path / 'current.json').read_bytes())
+    assert not any(entry.get('captures') for entry in [*state['history'], state])
+    verified = bundle.inspect(value.checkout, os.geteuid(), os.getegid(), receipt['path'])
+    assert verified['manifest']['records'] == [acknowledgement['request']['record']]
+
+
+@pytest.mark.parametrize('change', ['changed', 'missing'])
+def test_acknowledged_destination_is_reverified_before_count_retirement(
+        tmp_path, monkeypatch, change):
+    with producer_session(tmp_path, monkeypatch) as value:
+        identifier = value.finalize()
+        receipt = publish_capture(value, identifier)
+        acknowledgement = acknowledge(value, identifier)
+    for _ in range(2):
+        with value.store.session():
+            pass
+    before = (value.store.path / 'current.json').read_bytes()
+    archive = Path(receipt['path'])
+    saved = archive.with_name('evidence.owned-saved')
+    archive.rename(saved)
+    try:
+        if change == 'changed':
+            archive.write_bytes(b'changed acknowledged destination\n')
+            archive.chmod(0o600)
+        with pytest.raises(ValueError, match='capture|acknowledgement'):
+            with value.store.session():
+                pytest.fail('invalid replacement released a required source')
+        assert (value.store.path / 'current.json').read_bytes() == before
+        assert value.result.read_bytes() == PAYLOAD
+        assert Path(acknowledgement['caller_slot']['path']).is_dir()
+    finally:
+        if archive.exists():
+            archive.unlink()
+        saved.rename(archive)
+    # Restoring the same bytes after a rename does not restore the receipt's
+    # exact file fingerprint. Prior acknowledgement remains insufficient.
+    with pytest.raises(ValueError, match='capture|acknowledgement'):
+        with value.store.session():
+            pytest.fail('restored bytes bypassed exact destination identity')
+    assert (value.store.path / 'current.json').read_bytes() == before
+    assert value.result.read_bytes() == PAYLOAD
+
+
+@pytest.mark.parametrize('removed', [False, True])
+def test_interrupted_slot_cleanup_resumes_only_recorded_identity(
+        tmp_path, monkeypatch, removed):
+    with producer_session(tmp_path, monkeypatch) as value:
+        identifier = value.finalize()
+        publish_capture(value, identifier)
+        acknowledgement = acknowledge(value, identifier)
+    for _ in range(2):
+        with value.store.session():
+            pass
+    slot = Path(acknowledgement['caller_slot']['path'])
+    real_remove = retention.remove
+    failed = False
+
+    def interrupted(record, *args, **kwargs):
+        nonlocal failed
+        if record['path'] == str(slot) and not kwargs.get('validate_only') and not failed:
+            failed = True
+            if removed:
+                real_remove(record, *args, **kwargs)
+            raise SimulatedInterrupt('original retired; slot cleanup reply lost')
+        return real_remove(record, *args, **kwargs)
+
+    with monkeypatch.context() as local:
+        local.setattr(retention, 'remove', interrupted)
+        with pytest.raises(SimulatedInterrupt):
+            with value.store.session():
+                pytest.fail('slot cleanup failure admitted another owner')
+    assert failed and not value.source.exists()
+    before = (value.store.path / 'current.json').read_bytes()
+    saved = slot.with_name(slot.name + '-owned-saved')
+    if not removed:
+        slot.rename(saved)
+    slot.mkdir(mode=0o700)
+    try:
+        with pytest.raises(ValueError, match='replaced|identity'):
+            with value.store.session():
+                pytest.fail('cleanup adopted a replacement slot')
+        assert slot.is_dir()
+        assert (value.store.path / 'current.json').read_bytes() == before
+    finally:
+        slot.rmdir()
+        if not removed:
+            saved.rename(slot)
+    with value.store.session():
+        pass
+    assert not slot.exists()
+    after = json.loads((value.store.path / 'current.json').read_bytes())
+    assert not any(entry.get('captures') for entry in [*after['history'], after])
 
 
 class SimulatedInterrupt(KeyboardInterrupt):

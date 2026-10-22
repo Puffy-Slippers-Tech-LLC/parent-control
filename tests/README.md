@@ -2427,9 +2427,35 @@ opens only those independently finished owners and does not catalogue an active
 parent. `bundle-custody --transaction ID --expect REQUEST_SHA256 --operation inspect`
 authenticates one exact request without a supplied journal, UID or destination.
 Missing, pending, active, foreign, replaced or changed registrations and snapshots
-refuse. Capture export and custody mutations remain unavailable until the working
-publication/acknowledgement transaction is delivered; a successful seal or plan
-supplies no acceptance or source-release permission.
+refuse. `bundle-export --capture ID --expect SELECTION_SHA256` publishes the exact
+selection through the shared verified bundle transaction. Captures from one
+authenticated workflow use its bounded cumulative publication journal, separate
+from disposable exports and accepted-plan proof. Each replacement carries the
+previous required records. Its matching locator commits before older generations
+retire; interrupted copies reuse the exact registered stage and file identities.
+Repeated identical requests independently verify and return the existing copy.
+
+`bundle-acknowledge --capture ID --expect REQUEST_SHA256`
+records acknowledgement only under a finished source owner. An active producer
+uses `evidence_capture.acknowledge_capture(..., session_handle=HANDLE)` with its
+issued live handle. Both routes independently verify the destination's complete
+logical closure, request, attempt and original identities before recording custody
+in the source journal. The helper accepts no caller-selected destination, owner
+or journal. A successful seal, receipt JSON or acknowledgement supplies no test
+pass. Source retirement pins and re-verifies the current cumulative replacement,
+audits the complete deletion set, and removes only recorded originals and slots.
+Pending, changed or missing replacement proof preserves the required source.
+
+`tools/capture_publication.py` owns `capture-publication.json` in that workflow's
+existing retention directory. Its published generation is the locator, with a
+single pending request/stage/receipt for recovery, rather than a separate index.
+Caller-slot `publication.json` contains exactly `schema:1`, `capture_id`,
+`request_sha256` and the derived `journal`; this pointer is never authority.
+The parent charge's version-1 `onpc-capture-acknowledgement` binds `request`,
+`delivery` and the exact `caller_slot` cleanup identity. The private parent record
+survives partial source/slot deletion until recorded cleanup finishes. Source,
+seal, old generations, staging and control/recovery copies retain their existing
+byte, file and metadata limits; capacity refusal preserves prior proof.
 
 P03 lives in `tests/unit/test_evidence_capture.py`, using private synthetic owners
 and real storage/retention locks. It covers authority, exact context, immutable

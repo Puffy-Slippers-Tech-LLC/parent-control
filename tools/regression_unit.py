@@ -1548,6 +1548,10 @@ def buckets(nodeids):
 # retention trees with real descriptor locks and synchronous interruption doubles.
 # No live parent, service, VM, process, display, socket or shared cache is acquired;
 # evidence_capture is compatible unit work and adds no cleanup/UI inventory owner.
+# Capture publication/acknowledgement extends those same private trees with tiny
+# independent ZIPs, real retention locks and synchronous cancellation/recovery
+# doubles. No credentials switch, live helper, process or shared resource is added;
+# evidence_capture and execution_plan_launcher retain compatible unit scheduling.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

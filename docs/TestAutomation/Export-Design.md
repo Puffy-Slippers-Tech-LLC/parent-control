@@ -258,10 +258,10 @@ the existing controller-owned recovery contract.
 
 ### Controller compatibility guard
 
-E03p-auth registers `tools/evidence_capture.py` in the explicit retained-decision
-closure, alongside the previously registered retention, storage, bundle and
-authenticated-helper sources. The existing actual-file-byte worker histories
-cover the added module with the original eight sources unchanged, including
+Finalized capture and publication register `tools/evidence_capture.py` and
+`tools/capture_publication.py` in the explicit retained-decision closure, alongside
+the retention, storage, bundle and authenticated-helper sources. The existing
+actual-file-byte worker histories cover both modules with the original eight sources unchanged, including
 continuation, rejected-result recovery and answered blockers. `test_activity.py`
 remains unchanged advisory coordination and is not imported by the capture
 authority or ordinary controller; its prior conditional exclusion still applies.
@@ -707,10 +707,12 @@ these limits and status, rather than treating a discovered directory as complete
 
 ### Retirement entry points
 
-All deletion below currently depends on identity/ownership and lifecycle guards,
-not yet the owner-local pending-capture checks. E04/P02
-owns that addition at each applicable entry, reusing the existing safety gates.
-Publication also belongs to E05/P04; E03/P03 supplies the handoff acknowledgement.
+E03p-capture adds owner-local pending-source refusal to the applicable shared
+retirement routes below. Acknowledged retirement pins the independently verified
+replacement before taking the source writer and preserves the private parent
+claim through partial source/slot cleanup. E04/P02 still owns broader required-proof
+lifetimes; E05/P04 owns further export reuse and E03/P03 owns producer lifecycle
+composition. The inventory retains the original ownership and recovery anchors.
 Explicit discard still requires its existing specific authority. This audit
 grants no discard or live cleanup permission.
 

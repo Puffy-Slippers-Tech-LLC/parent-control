@@ -170,6 +170,9 @@ def main(argv=None):
     custody.add_argument('--transaction', required=True)
     custody.add_argument('--expect', required=True)
     custody.add_argument('--operation', required=True, choices=('inspect',))
+    acknowledge = actions.add_parser('bundle-acknowledge', allow_abbrev=False)
+    acknowledge.add_argument('--capture', required=True)
+    acknowledge.add_argument('--expect', required=True)
     args = parser.parse_args(argv)
     if args.action == 'bundle-read':
         structured = (args.record_id, args.member_id, args.closure_sha256)
@@ -183,13 +186,14 @@ def main(argv=None):
         if len(args.capture) > 256 or len(set(args.capture)) != len(args.capture) or any(
                 re.fullmatch(r'[0-9a-f]{64}', value) is None for value in args.capture):
             parser.error('--capture requires unique lowercase SHA-256 identities, at most 256')
-        if args.action == 'bundle-export' and args.capture:
-            parser.error('capture publication is pending; only authenticated bundle-plan inspection is available')
         if bool(args.record_reference) != bool(args.consumer) or len(args.consumer) > 1:
             parser.error('--record-reference requires exactly one --consumer, and conversely')
     if args.action == 'bundle-custody' and any(re.fullmatch(r'[0-9a-f]{64}', value) is None
             for value in (args.transaction, args.expect)):
         parser.error('transaction and expected request must be lowercase SHA-256 identities')
+    if args.action == 'bundle-acknowledge' and any(re.fullmatch(r'[0-9a-f]{64}', value) is None
+            for value in (args.capture, args.expect)):
+        parser.error('capture and expected request must be lowercase SHA-256 identities')
     try:
         if CHECKOUT is None:
             raise ValueError('installation required')
@@ -228,6 +232,10 @@ def main(argv=None):
                 import evidence_capture
                 result = evidence_capture.inspect_capture(CHECKOUT, uid, gid, args.transaction,
                                                          expected=args.expect)
+            elif args.action == 'bundle-acknowledge':
+                import evidence_capture
+                result = evidence_capture.acknowledge_capture(CHECKOUT, uid, gid, args.capture,
+                                                             expected=args.expect)
             elif args.action == 'bundle-finish':
                 result = {'cleanup_complete': True,
                           'retirement_finished': evidence_bundle.finish(CHECKOUT, uid, gid)}

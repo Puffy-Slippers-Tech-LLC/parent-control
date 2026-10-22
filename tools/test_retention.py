@@ -134,8 +134,11 @@ def validate_captures(values):
         raise ValueError('retention: invalid sealed capture charges')
     ids = set()
     for item in values:
-        if (type(item) is not dict or set(item) != {
+        if (type(item) is not dict or not {
                 'capture_id', 'path', 'device', 'inode', 'mode', 'reserved_bytes', 'intent'}
+                <= set(item) or set(item) - {
+                'capture_id', 'path', 'device', 'inode', 'mode', 'reserved_bytes', 'intent',
+                'acknowledgement'}
                 or not isinstance(item['capture_id'], str) or len(item['capture_id']) != 64
                 or any(c not in '0123456789abcdef' for c in item['capture_id'])
                 or item['capture_id'] in ids or type(item['mode']) is not int or item['mode'] != 0o700
@@ -147,6 +150,8 @@ def validate_captures(values):
                 raise ValueError('retention: invalid sealed capture identity')
         if not isinstance(item['path'], str) or not Path(item['path']).is_absolute() or '..' in Path(item['path']).parts:
             raise ValueError('retention: invalid sealed capture path')
+        if 'acknowledgement' in item and type(item['acknowledgement']) is not dict:
+            raise ValueError('retention: invalid capture acknowledgement')
         ids.add(item['capture_id'])
     if values:
         if __package__:
@@ -161,14 +166,30 @@ def capture_bytes(entry):
                for item in entry.get('captures', []))
 
 
-def require_no_captures(entries):
+def require_no_captures(entries, authorize=None, *, cleanup=False):
     if any(entry.get('captures') for entry in entries):
-        raise ValueError('retention: required sealed captures preserve this owner; finish the recorded capture')
+        if authorize is None:
+            raise ValueError('retention: required sealed captures preserve this owner; finish the recorded capture')
+        authorize(entries, cleanup=cleanup)
 
 
 class Store:
     def __init__(self, path):
         self.path = Path(path)
+
+    @contextmanager
+    def retirement(self, fd):
+        """Pin replacement proof before taking this owner's writer lock.
+
+        The capture owner rechecks selected charges under that writer before
+        deletion. Direct low-level callers without this scope remain fail closed.
+        """
+        if __package__:
+            from .evidence_capture import retirement_scope
+        else:
+            from evidence_capture import retirement_scope
+        with retirement_scope(self, fd) as authorize:
+            yield authorize
 
     @contextmanager
     def inspection(self, *, include_committed=False):
@@ -197,20 +218,17 @@ class Store:
     def finish_publication(self, *, verify=None):
         """Finish only a committed output's recorded, deferred retirement."""
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
-            with self.locked(fd, 'writer.lock', publication=True):
-                current = self.read(fd)
-                if current is not None:
-                    require_no_captures([*current['history'], current])
+            with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock', publication=True):
                 intent = read_publication(self, fd)
                 if intent is None:
                     return False
                 if intent['phase'] != 'committed':
                     raise ValueError('retention: publication is not committed; resume publication recovery')
-                recover_publication(self, fd, verify=verify)
+                recover_publication(self, fd, verify=verify, authorize=authorize)
                 return True
 
     @contextmanager
-    def publication(self, *, projected_bytes, verify=None):
+    def publication(self, *, projected_bytes, verify=None, resumable=False):
         """Build one export before committing its bounded retention rotation.
 
         The caller verifies and fsyncs its payload before commit(). An interrupted
@@ -220,28 +238,42 @@ class Store:
             raise ValueError('retention: publication requires an independent owner')
         if type(projected_bytes) is not int or projected_bytes < 0:
             raise ValueError('retention: invalid publication size')
+        if type(resumable) is not bool:
+            raise ValueError('retention: invalid resumable publication option')
         if not self.path.is_absolute() or '..' in self.path.parts:
             raise ValueError('retention: invalid storage path')
         ensure_directory(self.path)
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
-            with self.locked(fd, 'writer.lock', publication=True):
-                current = self.read(fd)
-                if current is not None:
-                    require_no_captures([*current['history'], current])
-                recover_publication(self, fd, verify=verify)
+            with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock', publication=True):
+                pending = read_publication(self, fd) if resumable else None
+                if pending is None:
+                    recover_publication(self, fd, verify=verify, authorize=authorize)
                 state = self.read(fd)
                 finished_owner(fd, state)
+                if pending is not None:
+                    replacement, _ = publication_states(pending)
+                    if state != pending['original'] and not (
+                            pending['phase'] == 'committed' and state == replacement):
+                        raise ValueError('retention: publication owner changed; evidence preserved')
+                    state = pending['original']
                 records = ([] if state is None else
                            [record for _, record in latest_allocations([*state['history'], state])])
-                if publication_usage(records) + projected_bytes > MAX_RETAINED_BYTES:
+                captures = publication_capture_bytes(state)
+                if pending is None:
+                    usage = publication_usage(records) + projected_bytes + captures
+                else:
+                    usage = publication_usage([*records, pending['staging']]) + captures
+                if usage > MAX_RETAINED_BYTES:
                     raise ValueError('retention: publication exceeds 4 GiB storage budget; evidence preserved')
-                transaction = Publication(self, fd, state, projected_bytes, verify)
+                transaction = Publication(self, fd, state, projected_bytes, verify,
+                                          authorize=authorize, resumable=resumable, intent=pending)
                 try:
                     yield transaction
                 finally:
                     transaction.active = False
-                    if transaction.intent is not None and not transaction.committing:
-                        recover_publication(self, fd, verify=verify)
+                    if (transaction.intent is not None and not transaction.committing
+                            and not resumable):
+                        recover_publication(self, fd, verify=verify, authorize=authorize)
 
     def discard_unpublished_input(self, path):
         """Explicit recovery of one recorded, interrupted artifact build.
@@ -250,12 +282,14 @@ class Store:
         Keep journals/reports intact; never infer recovery from a directory name.
         """
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
-            with self.locked(fd, 'writer.lock'):
+            with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock'):
                 state = self.read(fd)
                 if (state is None or 'recovery-required' in os.listdir(fd)
                         or not state['finished']):
                     raise ValueError('retention: unpublished input requires a finished, unmarked owner')
-                require_no_captures([*state['history'], state])
+                # This route retires only the selected input, but preserve the
+                # conservative owner-wide capture guard for explicit discard.
+                require_no_captures([*state['history'], state], authorize)
                 records = [record for _, record in latest_allocations([*state['history'], state])
                            if record['path'] == str(path)]
                 if len(records) != 1:
@@ -294,19 +328,26 @@ class Store:
         if not self.path.exists():
             return 0
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
-            with self.locked(fd, 'writer.lock'):
+            with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock'):
                 state = self.read(fd)
                 if 'recovery-required' in os.listdir(fd) or (state and not state['finished']):
                     raise ValueError('retention: unfinished evidence cannot be discarded')
                 if state is None:
                     return 0
                 records = [record for _, record in latest_allocations([*state['history'], state])]
-                require_no_captures([*state['history'], state])
+                entries = [*state['history'], state]
+                require_no_captures(entries, authorize)
                 guard({record['path'] for record in records})
                 for record in records:
                     remove(record, validate_only=True)
                 for record in records:
                     remove(record)
+                require_no_captures(entries, authorize, cleanup=True)
+                # Preserve ordinary path records for partial-deletion recovery;
+                # all capture originals and slots have now retired successfully.
+                for entry in entries:
+                    entry.pop('captures', None)
+                self.save(fd, state)
                 print(f'Discarded {len(records)} completed registered allocations.', flush=True)
                 return len(records)
 
@@ -322,7 +363,7 @@ class Store:
         ensure_directory(self.path)
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
             guard()
-            with lease(), self.locked(fd, 'writer.lock'):
+            with lease(), self.retirement(fd) as authorize, self.locked(fd, 'writer.lock'):
                 state = self.read(fd)
                 marked = 'recovery-required' in os.listdir(fd)
                 if state is None:
@@ -331,7 +372,7 @@ class Store:
                     return False
                 if state['finished'] and not marked:
                     if completed_guard is not None:
-                        self.prune(fd, state, completed_guard=completed_guard)
+                        self.prune(fd, state, completed_guard=completed_guard, authorize=authorize)
                     return False
                 for _, record in latest_allocations([*state['history'], state]):
                     remove(record, validate_only=True)
@@ -347,7 +388,7 @@ class Store:
                     os.fsync(fd)
                 state['finished'] = True
                 self.save(fd, state)
-                self.prune(fd, state, completed_guard=completed_guard)
+                self.prune(fd, state, completed_guard=completed_guard, authorize=authorize)
                 print('Recovered idle test retention; evidence retained within storage limits.', flush=True)
                 return True
 
@@ -407,7 +448,7 @@ class Store:
         os.replace('current.tmp', name, src_dir_fd=fd, dst_dir_fd=fd)
         os.fsync(fd)
 
-    def prune(self, fd, state, *, keep=RUNS_TO_KEEP, completed_guard=None):
+    def prune(self, fd, state, *, keep=RUNS_TO_KEEP, completed_guard=None, authorize=None):
         """Bound completed evidence by count and allocated bytes, under ownership.
 
         Preserve an oversized current run at finalization. Execution recovery
@@ -424,11 +465,27 @@ class Store:
         expire = max(0, len(entries) - keep)
         while sum(sizes[expire:]) > MAX_RETAINED_BYTES and expire < len(entries) - 1:
             expire += 1
-        require_no_captures(entries[:expire])
+        oversized = (sizes[-1] > MAX_RETAINED_BYTES and completed_guard is not None
+                     and state['finished'] and 'recovery-required' not in os.listdir(fd))
+        retiring = entries[:expire] + ([state] if oversized and expire < len(entries) else [])
+        # Audit every dependency in the whole proposed deletion set before
+        # removing either historical or oversized-current evidence.
+        require_no_captures(retiring, authorize)
+        if oversized:
+            current_records = [record for index, record in allocations
+                               if index == len(entries) - 1]
+            completed_guard({record['path'] for record in current_records})
         for index, record in allocations:
             if index < expire:
                 remove(record)
+        if oversized:
+            for record in current_records:
+                remove(record)
+        require_no_captures(retiring, authorize, cleanup=True)
         state['history'] = state['history'][expire:]
+        if oversized or expire == len(entries):
+            state['paths'] = []
+            state.pop('captures', None)
         self.save(fd, state)
         # Archives are small recovery receipts, not a second retention queue.
         live = {entry['run'] for entry in [*state['history'], state]}
@@ -440,18 +497,7 @@ class Store:
                 private(info, regular=True)
                 os.unlink(name, dir_fd=fd)
         if sizes[-1] > MAX_RETAINED_BYTES:
-            if (completed_guard is not None and state['finished']
-                    and 'recovery-required' not in os.listdir(fd)):
-                require_no_captures([state])
-                records = [record for index, record in allocations
-                           if index == len(entries) - 1]
-                completed_guard({record['path'] for record in records})
-                for record in records:
-                    remove(record)
-                # Keep records until every removal succeeds, so an interrupted
-                # deletion retries the original identities rather than replacements.
-                state['paths'] = []
-                self.save(fd, state)
+            if oversized:
                 print('Retired oversized completed test evidence '
                       f'({sizes[-1]} allocated bytes); new work may proceed.', flush=True)
                 return
@@ -475,7 +521,7 @@ class Store:
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False) as owner:
             if guard is not None:
                 guard()
-            with self.locked(fd, 'writer.lock'):
+            with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock'):
                 state = self.read(fd)
                 if (state and state['finished'] and preserve_completed is not None
                         and 'recovery-required' not in os.listdir(fd)
@@ -495,23 +541,25 @@ class Store:
                     # Check the previous current run before making it eligible
                     # for eviction. An oversized run must remain the owner until
                     # its evidence has been explicitly reduced or removed.
-                    self.prune(fd, state)
+                    self.prune(fd, state, authorize=authorize)
                     history = state['history'] + [dict(run=state['run'], paths=state['paths'],
                         **({'captures': state['captures']} if state.get('captures') else {}))]
                     # prune audited all identities before any eviction, including
                     # inaccessible sbuild trees and their earlier reports/logs.
                     allocations = latest_allocations(history)
-                    require_no_captures(history[:max(0, len(history) - (RUNS_TO_KEEP - 1))])
+                    retiring = history[:max(0, len(history) - (RUNS_TO_KEEP - 1))]
+                    require_no_captures(retiring, authorize)
                     for index, record in allocations:
                         if index < len(history) - (RUNS_TO_KEEP - 1):
                             remove(record)
+                    require_no_captures(retiring, authorize, cleanup=True)
                     state = dict(run=run, finished=False, paths=[],
                                  history=history[-(RUNS_TO_KEEP - 1):])
                 if state is None:
                     state = dict(run=run, finished=False, paths=[], history=[])
                 state['finished'] = False
                 self.save(fd, state)
-                self.prune(fd, state)
+                self.prune(fd, state, authorize=authorize)
             os.environ[VARIABLE] = json.dumps([str(self.path), run])
             previous_session = _sessions.get(str(self.path))
             binding = (os.getpid(), fd, owner, run, os.fstat(fd), os.fstat(owner))
@@ -529,12 +577,12 @@ class Store:
                     os.environ[VARIABLE] = previous
                 if guard is not None:
                     guard()
-                with self.locked(fd, 'writer.lock'):
+                with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock'):
                     state = self.read(fd)
                     state['finished'] = 'recovery-required' not in os.listdir(fd)
                     self.save(fd, state)
                     if state['finished']:
-                        self.prune(fd, state)
+                        self.prune(fd, state, authorize=authorize)
 
     def producer_binding(self):
         """Return only this process's live, descriptor-held producer capability."""
@@ -603,10 +651,21 @@ def publication_usage(records):
     return total
 
 
+def publication_capture_bytes(state):
+    return (0 if state is None else
+            sum(capture_bytes(entry) for entry in [*state['history'], state]))
+
+
+def publication_entries(intent):
+    original = intent['original']
+    return ([] if original is None else [*original['history'],
+            dict(run=original['run'], paths=original['paths'],
+                 **({'captures': original['captures']} if original.get('captures') else {}))])
+
+
 def publication_states(intent):
-    original, stage = intent['original'], intent['staging']
-    entries = [] if original is None else [*original['history'],
-                                          dict(run=original['run'], paths=original['paths'])]
+    stage = intent['staging']
+    entries = publication_entries(intent)
     expire = max(0, len(entries) - (RUNS_TO_KEEP - 1))
     retired = [record for index, record in latest_allocations(entries) if index < expire]
     replacement = dict(run=intent['run'], finished=True, paths=[stage], history=entries[expire:])
@@ -642,7 +701,8 @@ def committed_publication_audit(intent, verify):
     original = intent['original']
     records = ([] if original is None else
                [record for _, record in latest_allocations([*original['history'], original])])
-    if publication_usage([*records, intent['staging']]) > MAX_RETAINED_BYTES:
+    if (publication_usage([*records, intent['staging']])
+            + publication_capture_bytes(original) > MAX_RETAINED_BYTES):
         raise ValueError('retention: publication exceeds 4 GiB storage budget; evidence preserved')
     with directory_descriptor(intent['staging']['path']):
         pass  # Committed output must exist even after partial owned retirement.
@@ -650,7 +710,7 @@ def committed_publication_audit(intent, verify):
         verify(intent['staging'])
 
 
-def recover_publication(store, fd, *, verify=None):
+def recover_publication(store, fd, *, verify=None, authorize=None):
     intent = read_publication(store, fd)
     if intent is None:
         return
@@ -669,12 +729,16 @@ def recover_publication(store, fd, *, verify=None):
         # The committed intent is the write-ahead retirement receipt. Keep it
         # until all deletions finish; a retry only accepts these exact identities.
         committed_publication_audit(intent, verify)
+        entries = publication_entries(intent)
+        retiring = entries[:max(0, len(entries) - (RUNS_TO_KEEP - 1))]
+        require_no_captures(retiring, authorize)
         if current != replacement:
             store.save(fd, replacement)
         for record in retired:
             if verify is not None:
                 verify(intent['staging'])
             remove(record)
+        require_no_captures(retiring, authorize, cleanup=True)
     os.unlink(PUBLICATION, dir_fd=fd)
     os.fsync(fd)
 
@@ -690,15 +754,23 @@ def directory_descriptor(path):
 
 class Publication:
     """One identity-bound output; usable only while its Store context is held."""
-    def __init__(self, store, fd, original, projected_bytes, verify):
+    def __init__(self, store, fd, original, projected_bytes, verify, *,
+                 authorize=None, resumable=False, intent=None):
         self.store, self.fd, self.original = store, fd, original
         self.projected_bytes = projected_bytes
         self.verify = verify
-        self.intent = None
+        self.intent = intent
+        self.authorize = authorize
+        self.resumable = resumable
         self.active = True
-        self.committing = False
+        self.committing = intent is not None and intent['phase'] == 'committed'
 
     def allocate(self, factory, **options):
+        if (self.active and self.resumable and self.intent is not None
+                and self.intent['phase'] == 'staging'):
+            with directory_descriptor(self.intent['staging']['path']):
+                pass
+            return Path(self.intent['staging']['path'])
         if not self.active or self.intent is not None:
             raise ValueError('retention: publication permits one allocation')
         previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
@@ -731,6 +803,17 @@ class Publication:
     def commit(self, *, defer_cleanup=False):
         if type(defer_cleanup) is not bool:
             raise ValueError('retention: invalid deferred cleanup option')
+        if (self.active and self.resumable and self.committing and self.intent is not None
+                and self.intent['phase'] == 'committed' and defer_cleanup):
+            if read_publication(self.store, self.fd) != self.intent:
+                raise ValueError('retention: publication owner changed; evidence preserved')
+            committed_publication_audit(self.intent, self.verify)
+            replacement, _ = publication_states(self.intent)
+            current = self.store.read(self.fd)
+            if current != self.original and current != replacement:
+                raise ValueError('retention: publication owner changed; evidence preserved')
+            self.store.save(self.fd, replacement)
+            return
         if not self.active or self.intent is None or self.committing:
             raise ValueError('retention: publication has no uncommitted allocation')
         if self.store.read(self.fd) != self.original or read_publication(self.store, self.fd) != self.intent:
@@ -738,7 +821,8 @@ class Publication:
         finished_owner(self.fd, self.original)
         records = ([] if self.original is None else
                    [record for _, record in latest_allocations([*self.original['history'], self.original])])
-        if publication_usage([*records, self.intent['staging']]) > MAX_RETAINED_BYTES:
+        if (publication_usage([*records, self.intent['staging']])
+                + publication_capture_bytes(self.original) > MAX_RETAINED_BYTES):
             raise ValueError('retention: publication exceeds 4 GiB storage budget; evidence preserved')
         with directory_descriptor(self.intent['staging']['path']) as target:
             os.fsync(target)
@@ -752,7 +836,7 @@ class Publication:
             committed_publication_audit(self.intent, self.verify)
             self.store.save(self.fd, replacement)
         else:
-            recover_publication(self.store, self.fd, verify=self.verify)
+            recover_publication(self.store, self.fd, verify=self.verify, authorize=self.authorize)
 
 
 def environment():

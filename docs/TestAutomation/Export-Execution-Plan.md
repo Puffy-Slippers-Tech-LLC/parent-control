@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E03p-capture — [Publish and acknowledge working capture](Export-Tasks/E03p-capture.md)**.
+Next task: **E03 — [Capture evidence before rotation](Export-Tasks/E03-capture.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

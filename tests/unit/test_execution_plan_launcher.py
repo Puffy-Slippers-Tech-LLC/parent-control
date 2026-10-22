@@ -221,6 +221,7 @@ ADDED_VALIDATOR_SOURCES = (
     'test_retention.py', 'test_storage.py', 'test_input_transfer.py', 'launcher_git.py',
     'onpc-test-artifacts', 'launcher_question.py', 'plan_reconciliation.py',
     'vm_selection.py', '../tests/integration/vm_config.py', 'evidence_identity.py',
+    'evidence_capture.py', 'capture_publication.py',
 )
 
 

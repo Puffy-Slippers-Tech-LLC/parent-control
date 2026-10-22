@@ -181,6 +181,7 @@ class Selection:
         self.logical_records = list(logical_records)
         self.record_references, self.consumer = list(record_references), consumer
         self.captures = list(captures)
+        self.capture_requests = []
         self.logical_origins = {}
         self.logical_storage = {}
         self.stack = ExitStack()
@@ -198,8 +199,9 @@ class Selection:
         # every publication belongs to its authenticated unprivileged caller.
         # Resolve under that identity even after catalogue() restores root.
         with identity(self.uid, self.gid):
-            return (plan_parent(self.checkout, self.plan_namespace, create=create)
-                    if self.plan_namespace is not None else
+            namespace = getattr(self, 'capture_namespace', self.plan_namespace)
+            return (plan_parent(self.checkout, namespace, create=create)
+                    if namespace is not None else
                     storage.directory('exports', root=self.checkout, create=create))
 
     def __enter__(self):
@@ -308,6 +310,7 @@ class Selection:
                 metadata = {}
                 request = self.stack.enter_context(evidence_capture.capture_scope(
                     self.checkout, self.uid, self.gid, capture_id, metadata=metadata))
+                self.capture_requests.append(request)
                 target = request['record']['context']['target']
                 if (target and target not in self.targets) or (not target and self.targets):
                     raise ValueError('bundle: capture target does not match explicit selection')
@@ -332,6 +335,8 @@ class Selection:
                 self.source_budgets.append(dict(journal=allocation['journal'], allocated_bytes=measured))
                 if len(self.source_budgets) > MAX_SOURCE_BUDGETS:
                     raise ValueError('bundle: source budget entry limit exceeded')
+            import capture_publication
+            capture_publication.prepare_selection(self)
         missing, archived = [], []
         for value in self.references:
             path = path_text(value)
@@ -409,16 +414,27 @@ class Selection:
         if self.projected_bytes > MAX_BYTES:
             raise ValueError('bundle: selection exceeds the 1 GiB bundle limit')
         self.selection_sha256 = digest(data)
+        namespace = getattr(self, 'capture_namespace', self.plan_namespace)
+        export_journal = None
+        if namespace is not None:
+            try:
+                export_journal = self.publication_parent() / 'retention'
+            except FileNotFoundError:
+                pass  # First capture planning creates no destination storage.
         export_bytes = sum(item['allocated_bytes'] for item in self.source_budgets
                            if (Path(item['journal']).parent.name == 'exports'
-                               if self.plan_namespace is None else
-                               Path(item['journal']) == self.publication_parent() / 'retention'))
+                               if namespace is None else
+                               Path(item['journal']) == export_journal))
+        projected = 0 if getattr(self, 'capture_reuse', None) is not None else self.projected_bytes
         self.export_budget = dict(existing_allocated_bytes=export_bytes,
-                                 projected_bytes=self.projected_bytes,
-                                 simultaneous_bytes=export_bytes + self.projected_bytes,
+                                 projected_bytes=projected,
+                                 simultaneous_bytes=export_bytes + projected,
                                  limit_bytes=retention.MAX_RETAINED_BYTES)
         if self.export_budget['simultaneous_bytes'] > retention.MAX_RETAINED_BYTES:
             raise ValueError('bundle: selected export and retained exports exceed the existing budget')
+        if getattr(self, 'capture_reuse', None) is not None:
+            self.manifest = self.capture_reuse['manifest']
+            self.selection_sha256 = digest(encoded(self.manifest))
 
     def repository(self):
         with retention.directory_descriptor(self.checkout) as fd:
@@ -809,7 +825,12 @@ def verify_stream(stream):
                            and allocation.parent.parent.parent.name == 'plans'
                            and allocation.parents[3].name in ('host', 'privileged')
                            and journal == allocation.parent / 'retention')
-            if not (ordinary or plan_run or plan_export) or path == allocation:
+            capture = (allocation.name == 'snapshot'
+                       and re.fullmatch(r'[0-9a-f]{64}', allocation.parent.name)
+                       and allocation.parent.parent.name == 'captures'
+                       and allocation.parents[2].name in ('host', 'privileged')
+                       and journal == allocation.parent / 'retention-sealed')
+            if not (ordinary or plan_run or plan_export or capture) or path == allocation:
                 raise ValueError('bundle: inconsistent storage provenance')
             paths.add(str(path))
             expected.append(entry['member'])
@@ -831,7 +852,8 @@ def verify_stream(stream):
 
 def export(selection, *, expected, defer_cleanup=False):
     if selection.captures:
-        raise ValueError('bundle: capture publication is pending; sealed inspection supplies no custody acknowledgement')
+        import capture_publication
+        return capture_publication.publish(selection, expected=expected, defer_cleanup=defer_cleanup)
     if expected != selection.selection_sha256:
         raise ValueError('bundle: selection changed; inspect a fresh plan before exporting')
     # Release only the export read lease; other source owners stay pinned.

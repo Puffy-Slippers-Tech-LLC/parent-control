@@ -57,6 +57,179 @@ def publication_allocation(transaction, tmp_path):
     return path
 
 
+def pending_capture(store, tmp_path, *, oldest=False):
+    """A valid parent charge remains required even if its controls are absent."""
+    slot = tmp_path / 'capture-slot'
+    slot.mkdir(mode=0o700)
+    info = slot.stat()
+    charge = dict(capture_id='a' * 64, path=str(slot), device=info.st_dev,
+                  inode=info.st_ino, mode=0o700, reserved_bytes=0, intent={})
+    with store.opened() as fd, store.locked(fd, 'writer.lock'):
+        state = store.read(fd)
+        entry = state['history'][0] if oldest else state
+        entry['captures'] = [charge]
+        store.save(fd, state)
+    return slot, charge
+
+
+@pytest.mark.parametrize('operation', ['count', 'prune', 'reconcile', 'privileged-prune',
+                                        'discard', 'unpublished'])
+def test_pending_capture_refuses_each_source_retirement_route(tmp_path, monkeypatch, operation):
+    store, paths = export_fixture(tmp_path)
+    slot, _ = pending_capture(store, tmp_path, oldest=operation in ('count', 'prune', 'privileged-prune'))
+    if operation == 'reconcile':
+        monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', 1)
+    before = (store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='capture'):
+        if operation == 'count':
+            with store.session():
+                pytest.fail('count admission retired a required capture')
+        elif operation in ('prune', 'privileged-prune'):
+            with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+                # The privileged startup has this separate prune after reconcile.
+                with store.retirement(fd) as authorize, store.locked(fd, 'writer.lock'):
+                    store.prune(fd, store.read(fd), keep=2, authorize=authorize)
+        elif operation == 'reconcile':
+            store.reconcile(lambda: None, completed_guard=lambda _paths: None)
+        elif operation == 'discard':
+            store.discard_completed(lambda _paths: pytest.fail('capture refusal reached discard guard'))
+        else:
+            store.discard_unpublished_input(paths[-1])
+    assert (store.path / 'current.json').read_bytes() == before
+    assert all(path.is_dir() for path in paths) and slot.is_dir()
+
+
+@pytest.mark.parametrize('resume', ['finish', 'publication', 'direct'])
+def test_committed_recovery_checks_original_capture_before_any_retirement(tmp_path, resume):
+    store, paths = export_fixture(tmp_path)
+    with store.publication(projected_bytes=16384) as transaction:
+        stage = publication_allocation(transaction, tmp_path)
+        transaction.commit(defer_cleanup=True)
+    with store.opened() as fd, store.locked(fd, 'writer.lock', publication=True):
+        intent = retention.read_publication(store, fd)
+        slot = tmp_path / 'capture-slot'
+        slot.mkdir(mode=0o700)
+        info = slot.stat()
+        intent['original']['history'][0]['captures'] = [dict(
+            capture_id='a' * 64, path=str(slot), device=info.st_dev,
+            inode=info.st_ino, mode=0o700, reserved_bytes=0, intent={})]
+        store.save(fd, intent, name=retention.PUBLICATION)
+        replacement, _ = retention.publication_states(intent)
+        store.save(fd, replacement)
+    before = (store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='capture'):
+        if resume == 'finish':
+            store.finish_publication()
+        elif resume == 'publication':
+            with store.publication(projected_bytes=0):
+                pytest.fail('recovery retired a pending source')
+        else:
+            with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+                with store.locked(fd, 'writer.lock', publication=True):
+                    retention.recover_publication(store, fd)
+    assert all(path.is_dir() for path in paths) and stage.is_dir() and slot.is_dir()
+    assert (store.path / 'current.json').read_bytes() == before
+    assert (store.path / retention.PUBLICATION).is_file()
+
+
+def test_publication_history_preserves_unretired_capture_charge(tmp_path):
+    store, _ = export_fixture(tmp_path)
+    _, charge = pending_capture(store, tmp_path)
+    with store.publication(projected_bytes=16384) as transaction:
+        publication_allocation(transaction, tmp_path)
+        transaction.commit(defer_cleanup=True)
+    state = json.loads((store.path / 'current.json').read_text())
+    assert state['history'][-1]['captures'] == [charge]
+    assert store.finish_publication()
+    assert json.loads((store.path / 'current.json').read_text())['history'][-1]['captures'] == [charge]
+
+
+def test_acknowledged_retirement_keeps_proof_pinned_until_exact_cleanup_and_save(
+        tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    store, paths = export_fixture(tmp_path)
+    slot, charge = pending_capture(store, tmp_path, oldest=True)
+    held = False
+    selected = []
+    @contextmanager
+    def retirement_scope(fd):
+        nonlocal held
+        # A destination verification scope must start before the source writer.
+        with store.locked(fd, 'writer.lock', blocking=False):
+            pass
+        held = True
+        def authorize(entries, *, cleanup=False):
+            assert held
+            charges = [item for entry in entries for item in entry.get('captures', [])]
+            assert charges == [charge]
+            selected.append(cleanup)
+            if cleanup:
+                assert not paths[0].exists()
+                # The old journal keeps the claim until cleanup has succeeded.
+                assert json.loads((store.path / 'current.json').read_text())['history'][0]['captures'] == [charge]
+                retention.remove(charge)
+        try:
+            yield authorize
+        finally:
+            held = False
+    monkeypatch.setattr(store, 'retirement', retirement_scope)
+    remove = retention.remove
+    def pinned_remove(record, *, validate_only=False):
+        if not validate_only:
+            assert held
+        return remove(record, validate_only=validate_only)
+    monkeypatch.setattr(retention, 'remove', pinned_remove)
+    with store.session():
+        assert not paths[0].exists() and not slot.exists()
+        assert all(path.exists() for path in paths[1:])
+    assert selected == [False, True]
+    assert not held
+
+
+@pytest.mark.parametrize('phase', ['staging', 'committed'])
+def test_resumable_publication_reuses_stage_and_defers_exact_retirement(tmp_path, phase):
+    store, paths = export_fixture(tmp_path)
+    with pytest.raises(SimulatedFailure):
+        with store.publication(projected_bytes=16384, resumable=True) as transaction:
+            stage = publication_allocation(transaction, tmp_path)
+            if phase == 'committed':
+                transaction.commit(defer_cleanup=True)
+            recorded = json.loads((store.path / retention.PUBLICATION).read_text())
+            raise SimulatedFailure('lost publication reply')
+    assert all(path.exists() for path in paths) and stage.is_dir()
+    factory = Mock(side_effect=AssertionError('retry allocated another stage'))
+    with store.publication(projected_bytes=16384, resumable=True) as retried:
+        assert retried.intent == recorded
+        assert retried.original == recorded['original']
+        if phase == 'staging':
+            assert retried.allocate(factory) == stage
+        else:
+            assert retried.committing
+        retried.commit(defer_cleanup=True)
+        factory.assert_not_called()
+        assert all(path.exists() for path in paths)
+    assert (store.path / retention.PUBLICATION).is_file()
+    assert store.finish_publication()
+    assert not paths[0].exists() and all(path.exists() for path in paths[1:])
+    assert stage.is_dir()
+
+
+def test_resumable_publication_retry_counts_its_stage_once(tmp_path, monkeypatch):
+    store, paths = export_fixture(tmp_path)
+    with store.publication(projected_bytes=16384, resumable=True) as transaction:
+        stage = publication_allocation(transaction, tmp_path)
+    with store.opened() as fd:
+        intent = retention.read_publication(store, fd)
+    records = [record for _, record in retention.latest_allocations(
+        [*intent['original']['history'], intent['original']])]
+    usage = retention.publication_usage([*records, intent['staging']])
+    monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', usage)
+    with store.publication(projected_bytes=usage, resumable=True) as retried:
+        assert retried.allocate(Mock()) == stage
+        retried.commit(defer_cleanup=True)
+    assert all(path.exists() for path in paths) and stage.is_dir()
+
+
 @pytest.mark.parametrize('include_committed', [False, True])
 def test_inspections_overlap_but_exclude_writers_until_last_reader_exits(
         tmp_path, include_committed):

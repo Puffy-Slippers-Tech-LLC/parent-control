@@ -43,11 +43,12 @@ def main():
                     lease=lambda: lease(ROOT))
     # Rotate eligible completed evidence before the aggregate's RAM admission.
     with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
-        with lease(ROOT):
+        with lease(ROOT), store.retirement(fd) as authorize:
             with store.locked(fd, 'writer.lock'):
                 state = store.read(fd)
                 if state is not None and state['finished']:
-                    store.prune(fd, state, keep=2, completed_guard=unused)
+                    store.prune(fd, state, keep=2, completed_guard=unused,
+                                authorize=authorize)
     print('Test recovery: VM and privileged storage are ready.', flush=True)
     return 0
 

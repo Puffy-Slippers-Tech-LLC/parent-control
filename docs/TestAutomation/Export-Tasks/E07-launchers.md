@@ -30,8 +30,11 @@ evidence migration must not reset retained counts or create retry credit.
 
 ## Validation and close-out
 
-Extend private ordinary-plan launcher fixtures for every assigned consumer and
-handoff kind, including more than three restarts, missing exact member, conflicting
+Follow the master's [mandate boundaries](../Export-Execution-Plan.md#delivery).
+Record a disposition for every assigned adapter; exercise shared evidence and
+handoff behavior through representative private ordinary-plan fixtures. Add an
+adapter-specific check only for distinct dispatch, policy or lifetime behavior.
+Reuse existing checks for more than three restarts, missing exact member, conflicting
 live proof, cancelled capture, legacy checkpoints and Git retry after raw rotation.
 Exercise actual dependency-file changes while the original eight guarded files
 remain unchanged. Verify boundary stop and exact fresh-controller resumption

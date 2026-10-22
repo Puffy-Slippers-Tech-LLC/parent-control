@@ -24,7 +24,10 @@ or transcript dump and no new ad hoc evidence document.
 
 ## Validation and close-out
 
-Test stable inventory ordering/digests, mixed syntax, nested documents, two
+Follow the master's [mandate boundaries](../Export-Execution-Plan.md#delivery).
+Reuse parser, identity and refusal tests; exercise the inventory's own distinct
+classification/composition guarantees with representative inputs, including
+stable ordering/digests, mixed syntax, nested documents, two
 checkouts/targets, matching versus ambiguous archive members, unavailable output
 on a clean checkout and preserved permission refusal. Run a read-only real
 inventory through the registered interface and retain it in normal launcher

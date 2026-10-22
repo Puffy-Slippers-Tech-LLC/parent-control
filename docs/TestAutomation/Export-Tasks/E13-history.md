@@ -26,7 +26,10 @@ already authorized exact disclosure through its controller-owned route.
 
 ## Validation and close-out
 
-Test unchanged history without repeated task/session failure, new bad references,
+Follow the master's [mandate boundaries](../Export-Execution-Plan.md#delivery).
+Reuse existing exact-authorization and disclosure-recovery checks; add only an
+uncovered availability/dependency or composition boundary. Cover unchanged history
+without repeated task/session failure, new bad references,
 new active consumers of old missing proof, exact surviving accepted completion,
 authorization mismatch, denied versus missing sources and interrupted disclosure.
 Verify all migration categories now have explicit resolved or pending dispositions;

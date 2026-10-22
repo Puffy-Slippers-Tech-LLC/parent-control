@@ -47,6 +47,15 @@ no product or VM acceptance. All implementation checks use host-private fixtures
 including helper/privileged/target protocol simulations. Do not weaken a test
 assertion to make reference maintenance easier.
 
+Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md) and the master's
+[mandate boundaries](Export-Execution-Plan.md#delivery) to all remaining delivery,
+including P01–P12 and final review. These are core evidence/ownership guarantees,
+not a requirement for recursive tests of cases, fixtures or assertion helpers.
+Reuse direct coverage at each shared owner; add representative consumer checks
+only for distinct behavior or a concrete composition gap. UI tests of test tools
+are excluded. Preserve historical results without repeating their counts or
+obsolete metadata matrices as acceptance requirements.
+
 Keep public artifact reading/copying in the existing maintained reader. The
 `tools/export` wrapper executes this plan; it must never become a competing copy,
 archive or privileged shell route. Reuse shared storage, retention and bundle
@@ -309,7 +318,7 @@ file is excluded. Include the authenticated helper dispatch where its source
 changes affect those decisions. Use an explicit reviewed source inventory; no new
 watcher, archive state machine or unbounded filesystem/import scan is needed.
 Each introducing task registers its relevant dependencies and runs the guard's
-private regressions before completion; E07 is the integration check, not the
+affected private regressions before completion; E07 is the integration check, not the
 first opportunity to add restart protection.
 
 Change actual dependency-file bytes in fixtures, including an extracted module
@@ -320,6 +329,8 @@ Connect the real fingerprint reader to the worker in these histories: a separate
 hasher test plus worker tests using mocked source dictionaries cannot establish
 the restart guarantee. Snapshot the registered inventory before mutation; verify
 unchanged bytes cause no restart and every newly registered dependency is covered.
+Use the shared parameterized dependency check and representative lifecycle paths;
+do not repeat every dependency mutation across every adapter and handoff kind.
 Preserve normal restart allowances under the existing launcher contract; capture
 or retry operations grant no additional allowance. Older specialized controllers
 retain their own lifecycle policy and use its supported
@@ -390,17 +401,21 @@ unit scope; they supply no composed evidence-lifetime acceptance.
 
 ## Infrastructure acceptance
 
-Each task owns meaningful host regressions. E14 reuses their helpers and results
-to add boundary-spanning histories, rather than rebuilding each task's safety
-matrix. E14a independently reviews the final source and retained results.
+Each task owns meaningful host regressions under the test scope mandate.
+Inventories need a disposition for every family/route, with shared coverage
+identified; they do not require one new test per inventory row. E14 reuses earlier
+helpers and results to add boundary-spanning histories, rather than rebuilding
+each task's safety matrix. E14a independently reviews the final source and retained results.
 Final composition uses private
 producer/controller/helper fixtures to reproduce the historical failure families,
 including more than three source sessions, more than three unrelated exports,
 multiple targets with identical basenames, separate retries, changed source,
 concurrent readers, denied authority, active owner, wrong checkout, capacity
 exhaustion and injected interruption at each durable transition. Exercise
-continuation, suspension, restart and accepted Git retry without running models,
-VMs or product suites. Assert exact retained bytes/provenance, durable recovery,
+each distinct recovery boundary at its shared owner; compose only the changed
+cross-owner interactions rather than duplicating the full failure matrix.
+Exercise continuation, suspension, restart and accepted Git retry without running
+models, VMs or product suites. Assert exact retained bytes/provenance, durable recovery,
 bounded allocation counts/bytes, unchanged foreign resources and scoped severity.
 Include two vanished legacy report paths with two exact retained members while
 the same synthetic target has an unrelated active producer. Both references
@@ -679,8 +694,12 @@ histories below cover the remaining exposure rather than reimplementing fixes.
 ### Planned regression ledger
 
 P01–P12 are finite audit identifiers, not completion claims or command names,
-not runnable selectors or acceptance results. The current queue owns delivery; implementing rows register concrete test
-functions before invocation. Existing regression anchors above remain required.
+not runnable selectors or acceptance results. The current queue owns delivery;
+implementing rows register concrete test functions before invocation. Reuse the
+existing regression anchors for their distinct core guarantees under the
+[test scope mandate](../Mandates/Test-Scope-Mandate.md); a historical test name or
+count does not require retaining redundant or excluded coverage. Preserve product
+assertions, required safety outcomes and the three integration histories.
 
 | ID | Delivery owner | Required history |
 | --- | --- | --- |

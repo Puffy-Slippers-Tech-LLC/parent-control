@@ -9,8 +9,10 @@ Qualify the composed tooling against every E01 failure/consumer row under the
 [master](../Export-Execution-Plan.md) and
 [infrastructure acceptance](../Export-Design.md#infrastructure-acceptance). Read
 the final delivered boundaries, owning contracts, exact historical regressions,
-consumer dispositions and applicable host resource inventories. Reuse the earlier
-rows' private helpers and safety regressions; add composed boundary coverage here.
+consumer dispositions and applicable host resource inventories. Apply the master's
+[mandate boundaries](../Export-Execution-Plan.md#delivery). Reuse the earlier
+rows' private helpers and safety regressions; add only missing composed boundary
+coverage here.
 E14a separately owns independent final review, preserving the original E14 review
 obligation without combining its allowance with this implementation task.
 
@@ -19,8 +21,11 @@ export, generated document reference, validation, rotation, restart and recovery
 Include more than three source sessions and unrelated exports, duplicate
 basenames/targets, attempts with changed inputs, punctuation/spaces/worktrees,
 concurrent readers and identical exporters, legacy schemas, missing proof, unsafe
-live sources, denied owner, file/byte capacity and interruption at every durable
-transition. Exercise continue, suspension and accepted Git retry without models,
+live sources, denied owner, file/byte capacity and distinct durable recovery
+transitions. Reuse direct checks at their shared owners; combine representative
+inputs only where a cross-owner interaction can reveal a new failure. Do not
+multiply the full matrix across consumers or retest private fixture/helper logic.
+Exercise continue, suspension and accepted Git retry without models,
 VMs, real remote writes or product suites. Assert exact evidence/dependency bytes,
 bounded allocation/verification cost and unchanged foreign resources. Verify
 trivialities continue while wrong-but-existing or required missing proof blocks.
@@ -41,9 +46,11 @@ inventory. Do not rerun unrelated safety matrices already accepted on unchanged 
 
 ## Validation and close-out
 
-Run the frozen lowest effective maintained infrastructure selections with explicit
-timeouts, including applicable cleanup-safety regressions. Finish host parallelism
-review for every changed resource/module inventory; runtime fallback is no review.
+Run the lowest effective maintained selections for changed composition and the
+three required histories, with explicit timeouts and applicable cleanup-safety
+regressions. Historical frozen selections/counts are not a mandatory rerun list.
+Finish host parallelism review for every changed resource/module inventory;
+runtime fallback is no review.
 Retain exact composed commands/results for E14a's independent review. Check all
 consumer and legacy dispositions, help/plan `--check`, changed links and source/build
 scope. Report pending historical proof or protected external application as limits,

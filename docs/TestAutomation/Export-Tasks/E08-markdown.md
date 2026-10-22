@@ -24,7 +24,11 @@ Expose structure separately from evidence identity/availability validation.
 
 ## Validation and close-out
 
-Extend document/read-only/plan tests for inline/reference/image syntax, fragments,
+Follow the master's [mandate boundaries](../Export-Execution-Plan.md#delivery).
+Test parsing once at the shared owner, with representative consumer integration
+for a distinct command-safety or protected-claim boundary. Reuse existing cases;
+do not duplicate the syntax matrix in document, reader and plan tests.
+Cover inline/reference/image syntax, fragments,
 same-document anchors, malformed links, duplicate headings, code fences/spans,
 spaces, angle destinations and literal punctuation. Check stable diagnostics and
 finite input bounds; optional versus required severity is assigned by E10, not

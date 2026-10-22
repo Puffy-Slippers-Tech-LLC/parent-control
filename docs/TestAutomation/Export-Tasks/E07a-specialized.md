@@ -26,6 +26,9 @@ do not introduce broader replay, checkpoint reset or new repair retries.
 
 ## Validation and close-out
 
+Follow the master's [mandate boundaries](../Export-Execution-Plan.md#delivery).
+Reuse shared capture/reference safety checks; add focused private checks for the
+distinct repair and E2E consumer policies rather than copying the common matrix.
 Use private repair/E2E launcher fixtures for rotated raw reports, failed and
 passing attempts, interrupted capture, missing member, denied helper, legacy
 handoff and restarted continuation. Assert no synthetic pass, skipped selector,

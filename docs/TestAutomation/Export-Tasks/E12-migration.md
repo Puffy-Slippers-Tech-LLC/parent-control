@@ -24,7 +24,9 @@ proof stays for E13; do not select a plausible filename or rerun acceptance.
 
 ## Validation and close-out
 
-Use private fixtures for preview/apply idempotence, changed document/candidate,
+Follow the master's [mandate boundaries](../Export-Execution-Plan.md#delivery).
+Reuse shared publication, resolver and cleanup checks. Use private fixtures for
+the migration's distinct preview/apply idempotence, changed document/candidate,
 partial interruption, protected active/suspended history, legacy generation and
 unrelated edits. Verify each applied reference resolves to identical original
 proof and commands/cleanup after unrelated export rotation. Run registered

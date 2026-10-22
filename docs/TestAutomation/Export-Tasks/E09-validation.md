@@ -23,9 +23,13 @@ Register and document public validated interfaces before using them.
 
 ## Validation and close-out
 
-Test wrong-but-existing report, old attempt with identical bytes, swapped targets,
-different inputs, generic locator, absent original resolved by exact archive,
-unsafe live source, changed document after preview and nested relative prose
-links. Confirm every frozen consumer has coverage and no command executes from
-link text. Use scoped host identity/document/launcher tests; update artifact and
-execution-plan owners for delivered behavior and follow the master's close-out.
+Follow the master's [mandate boundaries](../Export-Execution-Plan.md#delivery).
+Reuse existing identity/resolver coverage and add only missing semantic or
+consumer-composition checks. Cover wrong-but-existing report, old attempt with
+identical bytes, swapped targets, different inputs, generic locator, absent original
+resolved by exact archive, unsafe live source, changed document after preview and
+nested relative prose links. Give every frozen consumer a disposition identifying its shared coverage
+or distinct gap; no separate test is required for an identical shared route.
+Verify no command executes from link text. Use scoped host identity/document/launcher
+tests; update artifact and execution-plan owners for delivered behavior and follow
+the master's close-out.

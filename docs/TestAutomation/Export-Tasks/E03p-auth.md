@@ -6,12 +6,14 @@ Requires: E02
 ## Status and reading route
 
 Completed 2026-10-21 under the [master](../Export-Execution-Plan.md).
-This brief remains because the parent consumer's frozen insertion and navigation
-still reference it. Enduring delivered rules are in
+This retained brief records historical scope and evidence; it is not an active
+task or a requirement to rerun its original matrix. Apply the master's current
+[mandate boundaries](../Export-Execution-Plan.md#delivery) to later maintenance.
+Enduring delivered rules are in
 [sealed producer handoffs](../../../tests/README.md#sealed-producer-handoffs).
-The [parent consumer](E03-capture.md) retains every original assertion and its
-close-out obligation after this allocation passes. Shared protocols remain owned
-by the [design](../Export-Design.md), not by this brief.
+The parent E03 consumer is complete in the [queue](../Export-Task-Queue.md);
+its historical assertions and close-out evidence remain there. Shared protocols
+remain owned by the [design](../Export-Design.md), not by this brief.
 Read [finalized authority](../Export-Design.md#finalized-capture-authority-and-durable-transitions), [wire records](../Export-Design.md#canonical-identities-and-wire-records), [producer map](../Export-Design.md#producer-and-consumer-inventory).
 Follow the design maps to complete affected functions and necessary callers;
 discover any additional source/test filename before reading it.

@@ -10,6 +10,12 @@ Deliver the original E14 independent final-review obligation under the
 [infrastructure acceptance](../Export-Design.md#infrastructure-acceptance).
 Read the E01b-frozen history/producer/consumer/retirement/dependency inventories,
 delivered source boundaries, existing owning contracts and exact E14 results.
+Apply the master's [mandate boundaries](../Export-Execution-Plan.md#delivery)
+when assessing coverage: every family needs a disposition, while shared core
+guarantees need focused direct checks and only distinct composition checks.
+Flag redundant recursive tests and any UI tests of test tools; preserve unique
+safety guarantees and product assertions. Historical counts or exhaustive
+consumer/input combinations are not approval criteria.
 
 Obtain GPT-6.1 Sol xHigh final review with a self-contained assignment and
 `fork_turns="none"`. Verify exact identities and full proof, early capture,

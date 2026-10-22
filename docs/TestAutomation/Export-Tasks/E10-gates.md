@@ -31,7 +31,11 @@ and validate actual-file change detection before close-out.
 
 ## Validation and close-out
 
-Exercise each severity row with both positive and negative private fixtures:
+Follow the master's [mandate boundaries](../Export-Execution-Plan.md#delivery).
+Reuse owner-level checks for each distinct severity/refusal and test representative
+gate integrations. Do not repeat the severity matrix at every caller or assert
+diagnostic formatting beyond actionable class, location and recovery information.
+Exercise the applicable positive and negative boundaries in private fixtures:
 trivial formatting must continue; wrong matching-looking proof must stop; unrelated
 old loss must not rerun tests; that same loss as an active dependency must block.
 Test a harmless presentation-only edit separately from changing `Ubuntu passed`

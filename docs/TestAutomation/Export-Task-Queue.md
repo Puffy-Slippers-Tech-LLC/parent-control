@@ -4,6 +4,9 @@ The [master](Export-Execution-Plan.md) owns the sole next-task pointer. Remainin
 rows bind the [proposed design](Export-Design.md). Host acceptance
 means infrastructure checks only, including synthetic privileged/target metadata.
 No product acceptance or live VM work belongs to this queue.
+Every unfinished row follows the master's
+[mandate boundaries](Export-Execution-Plan.md#delivery); audit inventories require
+complete dispositions, not duplicate tests for each consumer or helper.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |

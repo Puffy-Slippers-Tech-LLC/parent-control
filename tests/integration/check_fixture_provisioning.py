@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Engineering qualification of Ubuntu's attempt-owned fixture provisioner."""
+"""Engineering qualification of Ubuntu/Fedora attempt-owned fixture provisioning."""
 import argparse
 import json
 import sys

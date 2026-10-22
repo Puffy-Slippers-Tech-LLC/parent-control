@@ -366,8 +366,11 @@ Fedora and renewed Ubuntu snapshot qualification passed, together with separate
 auto-mode refresh, standalone Fedora reuse/stop and owned cleanup. The old Fedora
 baseline was restored by auto preparation; no pending legacy execution owner
 needed live stop recovery. Host regressions retain legacy stop/restoration coverage.
-This supplies snapshot infrastructure acceptance only; Fedora provisioning and
-ordinary runner qualification remain separate tasks.
+This supplies snapshot infrastructure acceptance only. Fedora's separate
+[provisioning qualification](../support/README.md#attempt-owned-fixture-provisioning)
+now passed on these clean captures, including enforcing labels, exact admissions,
+untrusted runtime controls and interrupted-stage recovery, with renewed Ubuntu
+proof. Ordinary runner envelopes remain gated pending their own qualification.
 
 ### Verified finite native transaction inputs
 

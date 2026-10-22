@@ -513,7 +513,7 @@ def qualification_artifact_command(root, category, args):
 
 
 def qualification_fixture_options(root, category, args, *, control=None, environment=None):
-    """Freeze F05's caller-owned fixture input before the privileged VM lease.
+    """Freeze the qualified target's caller-owned input before the VM lease.
 
     The selection is a locator, not authority: the privileged consumer repeats
     the authenticated journal and complete bundle checks before acquiring a VM.
@@ -522,8 +522,10 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
     if category != 'integration' or len(args) != 1 or args[0].removesuffix('.py') != 'check_fixture_provisioning':
         return []
     from vm_selection import selected
-    if selected().name != 'onpc-Ubuntu26.04':
-        raise ValueError('fixture provisioning qualification is Ubuntu-only')
+    targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+    target = targets.get(selected().name)
+    if target is None:
+        raise ValueError('fixture provisioning qualification target is unavailable')
     from fixture_execution import Selection
     if control is None:
         from regression_process import Control
@@ -549,14 +551,14 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
                     records.append(line[len(prefix):])
         if len(pending) > 65536:
             invalid, pending = True, b''
-    status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', 'ubuntu'),
+    status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', target),
                          cwd=root, env=environment, output=output, timeout=600.0)
     if status:
         raise ValueError('fixture preparation failed; status=' + str(status))
     if invalid or len(records) != 1:
         raise ValueError('fixture preparation returned no unique selection')
     selection = Selection.from_record(json.loads(records[0]))
-    if selection.target != 'ubuntu':
+    if selection.target != target:
         raise ValueError('fixture preparation returned an incompatible selection')
     return ['--fixture-selection', json.dumps(selection.record(), sort_keys=True)]
 

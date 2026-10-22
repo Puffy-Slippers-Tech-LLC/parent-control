@@ -94,28 +94,30 @@ def test_fixture_qualification_ignores_unrelated_selections(monkeypatch, categor
 
 def test_fixture_qualification_refuses_other_target_before_preparing(monkeypatch):
     import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='onpc-Fedora44'))
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
     control = Mock()
-    with pytest.raises(ValueError, match='Ubuntu-only'):
+    with pytest.raises(ValueError, match='target is unavailable'):
         commands.qualification_fixture_options(ROOT, 'integration', ['check_fixture_provisioning'], control=control)
     control.run.assert_not_called()
 
 
-def test_fixture_qualification_imports_in_standalone_launcher_context():
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_fixture_qualification_imports_in_standalone_launcher_context(vm, target):
     # pytest puts the checkout root on sys.path. The public launcher initially
     # has only tools/, so a fresh isolated interpreter must exercise this route.
     from tools.test_storage import scratch_descriptors
     program = '''import json,os,pathlib,sys
 root=pathlib.Path(sys.argv[1]);sys.path.insert(0,str(root/'tools'))
-os.environ['ONPC_TEST_VM']='onpc-Ubuntu26.04'
+os.environ['ONPC_TEST_VM']=sys.argv[2]
+target=sys.argv[3]
 import test_commands
-record={'schema':'onpc-execution-fixture-v1','target':'ubuntu','key':'a'*64,
- 'allocation':'/tmp/onpc-native-runtime-ubuntu-'+'a'*64+'-private',
+record={'schema':'onpc-execution-fixture-v1','target':target,'key':'a'*64,
+ 'allocation':'/tmp/onpc-native-runtime-'+target+'-'+'a'*64+'-private',
  'device':1,'inode':2,'journal':'/tmp/retention-private','journal_device':3,
  'journal_inode':4,'run':'b'*32,'build_identity':'c'*64}
 class Control:
  def run(self,command,**options):
-  assert command[-2:]==['--target','ubuntu']
+  assert command[-2:]==['--target',target]
   assert options['timeout']==600.0
   options['output'](('fixture-execution: selection='+json.dumps(record)+'\\n').encode())
   return 0
@@ -123,7 +125,7 @@ options=test_commands.qualification_fixture_options(root,'integration',
  ['check_fixture_provisioning'],control=Control(),environment={})
 assert options[0]=='--fixture-selection' and json.loads(options[1])==record
 '''
-    result = subprocess.run(['/usr/bin/python3', '-IB', '-c', program, str(ROOT)],
+    result = subprocess.run(['/usr/bin/python3', '-IB', '-c', program, str(ROOT), vm, target],
                             capture_output=True, text=True, timeout=15,
                             pass_fds=scratch_descriptors(), check=False)
     assert result.returncode == 0, result.stdout + result.stderr
@@ -138,14 +140,16 @@ def frozen_fixture_selection():
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suffix, frozen_fixture_selection):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suffix, vm, target, frozen_fixture_selection):
     import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='onpc-Ubuntu26.04'))
-    selected = frozen_fixture_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
+    selected = replace(frozen_fixture_selection, target=target,
+        allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     encoded = b'fixture-execution: selection=' + json.dumps(selected.record()).encode() + b'\n'
 
     def execute(command, **kwargs):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', 'ubuntu')
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target)
         assert kwargs['cwd'] == ROOT and kwargs['env'] == {'PRIVATE': 'environment'}
         assert kwargs['timeout'] == 600.0
         # Split both the prefix and the JSON across callback invocations.
@@ -163,13 +167,17 @@ def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suff
 
 @pytest.mark.parametrize('failure', ['missing', 'duplicate', 'malformed', 'oversized',
     'unterminated', 'foreign-target', 'nonzero'])
-def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_fixture_selection, failure):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_fixture_selection, failure, vm, target):
     import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='onpc-Ubuntu26.04'))
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
     record = frozen_fixture_selection.record()
+    record['target'] = target
+    record['allocation'] = record['allocation'].replace('ubuntu', target)
     if failure == 'foreign-target':
-        record['target'] = 'fedora'
-        record['allocation'] = record['allocation'].replace('ubuntu', 'fedora')
+        foreign = 'fedora' if target == 'ubuntu' else 'ubuntu'
+        record['target'] = foreign
+        record['allocation'] = record['allocation'].replace(target, foreign)
     line = b'fixture-execution: selection=' + json.dumps(record).encode() + b'\n'
     output = {'missing': b'progress only\n', 'duplicate': line * 2,
         'malformed': b'fixture-execution: selection={\n',

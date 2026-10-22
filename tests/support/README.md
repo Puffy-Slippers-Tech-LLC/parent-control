@@ -145,10 +145,17 @@ daemon's PID and service invocation, observes its current-boot startup message,
 then observes update completion after a pre-update journal cursor before exact
 database readback. It never resends an update or retries a failed database command.
 The `check_fixture_provisioning` engineering selector is qualified on clean Ubuntu
-attempts: foreign-destination refusal, fresh minimal trusted-hard provisioning,
-and the installed native/activity/trusted/mechanical union, including harmless
-runtime use, verification without writes and normal baseline restoration. This
-does not qualify concurrent native updaters or Fedora.
+26.04 and Fedora 44 attempts: foreign-destination refusal, a lost reply after real
+SSH staging, fresh minimal trusted-hard provisioning, and the installed
+native/activity/trusted/mechanical union. The interrupted generation withholds
+input even through a replacement facade; the VM owner restores it before fresh
+provisioning. Both targets independently prove exact bytes/metadata, trust rows,
+all four deliberately untrusted native runtime controls, verification without
+writes, preserved vendor/product policy and final baseline restoration.
+Fedora additionally proves enforcing SELinux and exact labels, finite content/UID
+admissions, source/compiled/public-rule agreement, and actual denial of the
+untrusted mechanical control without an admission. Compiled-file and CLI checks
+complement runtime outcomes; they grant no concurrent-updater qualification.
 Ordinary runner dispatch and runner engineering selectors remain unavailable until the
 [fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies
 the actual target and preparation envelope. Host doubles supply no installed

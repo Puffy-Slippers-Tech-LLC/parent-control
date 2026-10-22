@@ -217,7 +217,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             finally:
                 sys.path.pop(0)
             selected = Selection.from_record(json.loads(args.fixture_selection))
-            if configured.name != 'onpc-Ubuntu26.04' or selected.target != 'ubuntu':
+            targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+            if targets.get(configured.name) != selected.target:
                 raise ValueError('test-runner:fixture-target-not-qualified')
             fixture_options = ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
         if args.list:

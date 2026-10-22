@@ -70,9 +70,12 @@ def fixture_selection(checkout):
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selection, suffix):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selection, suffix, vm, target):
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     command = runner['selection'](checkout, ['integration',
-        'check_fixture_provisioning' + suffix, '--vm', 'onpc-Ubuntu26.04',
+        'check_fixture_provisioning' + suffix, '--vm', vm,
         '--fixture-selection', json.dumps(fixture_selection)])
     assert command == ['/usr/bin/python3', '-B',
         str(checkout / 'tests/integration/check_fixture_provisioning.py'),

@@ -1104,8 +1104,12 @@ from regression_ui import Bucket
 # compatible in both unit and cleanup inventories.
 # Fixture provisioning qualification checks finite in-memory audit records and
 # pytest-private result files with process-local suite/lease/transport doubles.
+# Fedora policy/SELinux and lost-reply checks retain those same private owners.
 # No VM, process, fixture build, socket, display, service or shared cache is used;
 # compatible unit overlap, with no cleanup inventory or resource owner added.
+# Dual-target dispatcher checks use private checkout records; launcher checks
+# retain bounded waited isolated Python children and inherited scratch leases.
+# They add no shared cache, live guest/service, or cleanup/UI inventory owner.
 # Output-ancestor reconciliation uses pytest-private directories, metadata and
 # descriptor/ownership doubles in storage/handoff cleanup tests. No shared
 # output is touched; both modules retain compatible unit/cleanup scheduling.

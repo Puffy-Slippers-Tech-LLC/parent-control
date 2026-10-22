@@ -1083,7 +1083,12 @@ from regression_ui import Bucket
 # relocated producer locks with target/compiler doubles and bounded waited
 # Python lease/assembly children. No shared producer, container, VM or display
 # is acquired; compatible in both inventories.
+# Execution fixture publication/handoff uses private relocated journals and tiny
+# inert bundles, local locks and bounded waited Python children. No live build,
+# VM, display, socket, external service or shared cache; compatible in unit and
+# cleanup scheduling. Retention capability checks use those same private locks.
 REVIEWED = frozenset("""
+fixture_execution_cleanup_safety fixture_handoff_cleanup_safety
 fixture_manifest fixture_container fixture_bundle_cleanup_safety
 fixture_producer_cleanup_safety
 evidence_capture evidence_identity plan_evidence plan_evidence_recovery

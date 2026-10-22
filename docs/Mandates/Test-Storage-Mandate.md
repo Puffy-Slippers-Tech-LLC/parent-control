@@ -108,10 +108,17 @@ slot fields with checkout, process and lease identities. It neither replaces an 
 retention token nor uses evidence rotation for fixture versions.
 
 This lifetime API owns unfinished production only. Immutable host construction
-uses the [frozen bundle contract](../../tests/support/README.md#frozen-native-fixture-bundles);
-execution-owned input reuse/publication remains the separate
-[fixture-plan](../TestAutomation/Fixture-Execution-Plan.md) task F03.
-The current proposal reuses ordinary input retention; it adds no shared version
+and execution-owned reuse/publication use the
+[frozen bundle contract](../../tests/support/README.md#frozen-native-fixture-bundles).
+`fixture_execution.prepare()` registers its retained allocation before copying
+verified producer bytes and atomically publishing completion. Reuse stays within
+the existing run; `Selection.record()` freezes the exact handoff. Forward both
+the existing retention environment and `scratch_descriptors()` through every
+descendant; that route includes the existing retention owner descriptor.
+`authenticated_input()` pins the authenticated caller's registered input read-only
+without changing its cleanup ownership. Recovery and ordinary bounded retirement
+remain with the original journal.
+Execution-owned fixture inputs reuse ordinary input retention; they add no shared version
 catalogue, cross-journal pins or six-slot policy. There is no byte quota, quota
 setup or product installation in producer recovery.
 

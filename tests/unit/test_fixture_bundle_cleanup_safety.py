@@ -268,12 +268,15 @@ def test_success_publishes_only_verified_complete_bundle_atomically(
     publications = []
 
     def verified_rename(source, destination, *args, **kwargs):
-        if Path(destination) == output / 'native-runtime':
+        if Path(destination) == Path('native-runtime'):
+            descriptor = kwargs['dst_dir_fd']
+            info, expected = os.fstat(descriptor), output.stat()
+            assert (info.st_dev, info.st_ino) == (expected.st_dev, expected.st_ino)
             assert not list(output.iterdir())
             manifest = fixture_manifest.verify(source, target=target)
             assert set(manifest['members']) == set(fixture_manifest.declarations())
             assert private_store.snapshot()['slot']['state'] == 'verifying'
-            publications.append((source, destination))
+            publications.append((source, output / destination))
         return rename(source, destination, *args, **kwargs)
 
     monkeypatch.setattr(bundle.os, 'rename', verified_rename)

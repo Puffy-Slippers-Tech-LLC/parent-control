@@ -19,6 +19,7 @@ import uuid
 import tempfile
 
 VARIABLE = 'ONPC_TEST_RETENTION'
+OWNER_VARIABLE = 'ONPC_TEST_RETENTION_FD'
 RUNS_TO_KEEP = 3
 MAX_RETAINED_BYTES = 4 * 1024 ** 3
 PUBLICATION = 'publication.json'
@@ -518,6 +519,7 @@ class Store:
         if len(run) != 32 or uuid.UUID(hex=run).hex != run:
             raise ValueError('retention: invalid run token')
         previous = os.environ.get(VARIABLE)
+        previous_owner = os.environ.get(OWNER_VARIABLE)
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False) as owner:
             if guard is not None:
                 guard()
@@ -561,6 +563,7 @@ class Store:
                 self.save(fd, state)
                 self.prune(fd, state, authorize=authorize)
             os.environ[VARIABLE] = json.dumps([str(self.path), run])
+            os.environ[OWNER_VARIABLE] = str(owner)
             previous_session = _sessions.get(str(self.path))
             binding = (os.getpid(), fd, owner, run, os.fstat(fd), os.fstat(owner))
             _sessions[str(self.path)] = binding
@@ -575,6 +578,10 @@ class Store:
                     os.environ.pop(VARIABLE, None)
                 else:
                     os.environ[VARIABLE] = previous
+                if previous_owner is None:
+                    os.environ.pop(OWNER_VARIABLE, None)
+                else:
+                    os.environ[OWNER_VARIABLE] = previous_owner
                 if guard is not None:
                     guard()
                 with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock'):
@@ -841,7 +848,70 @@ class Publication:
 
 def environment():
     value = os.environ.get(VARIABLE)
-    return {} if value is None else {VARIABLE: value}
+    if value is None:
+        return {}
+    result = {VARIABLE: value}
+    if OWNER_VARIABLE in os.environ:
+        result[OWNER_VARIABLE] = os.environ[OWNER_VARIABLE]
+    return result
+
+
+def owner_descriptor(*, active=True):
+    """Authenticate the inherited owner capability, never acquire a new owner.
+
+    A token alone cannot keep an allocation alive. The separately opened lock
+    must be excluded while the supplied descriptor must already share the
+    exclusive holder's open file description. Never unlock that description:
+    descendants keep it alive after their coordinator closes its own copy.
+    """
+    try:
+        storage, run = json.loads(os.environ[VARIABLE])
+        owner = int(os.environ[OWNER_VARIABLE])
+    except (KeyError, ValueError, TypeError) as error:
+        raise ValueError('retention: inherited owner descriptor required') from error
+    if not valid_token(run) or owner < 0:
+        raise ValueError('retention: invalid inherited owner')
+    store = Store(storage)
+    with store.opened() as fd:
+        held = os.fstat(owner)
+        private(held, regular=True)
+        probe = os.open('owner.lock', os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                        dir_fd=fd)
+        try:
+            current = os.fstat(probe)
+            private(current, regular=True)
+            if (current.st_dev, current.st_ino) != (held.st_dev, held.st_ino):
+                raise ValueError('retention: inherited owner was replaced')
+            try:
+                fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                pass
+            else:
+                raise ValueError('retention: inherited owner is no longer held')
+            try:
+                fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise ValueError('retention: descriptor does not own this run') from error
+            state = store.read(fd)
+            if state is None or state['run'] != run or (active and state['finished']):
+                raise ValueError('retention: inherited owner run changed')
+            # Reopening through all ancestors also detects a replaced journal.
+            with store.opened() as reopened:
+                before, after = os.fstat(fd), os.fstat(reopened)
+                lock = os.stat('owner.lock', dir_fd=reopened, follow_symlinks=False)
+                if ((before.st_dev, before.st_ino) != (after.st_dev, after.st_ino)
+                        or (held.st_dev, held.st_ino) != (lock.st_dev, lock.st_ino)):
+                    raise ValueError('retention: inherited owner journal changed')
+        finally:
+            os.close(probe)
+    return owner
+
+
+def descriptors():
+    """Forward only an explicitly inherited/current retention capability."""
+    if VARIABLE not in os.environ or OWNER_VARIABLE not in os.environ:
+        return ()
+    return (owner_descriptor(active=False),)
 
 
 def legacy_system_evidence(state):

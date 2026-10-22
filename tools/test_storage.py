@@ -12,8 +12,9 @@ import json
 import atexit
 import uuid
 import errno
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import tempfile
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / 'output/test-runs'
@@ -167,6 +168,189 @@ def named_input_slot(path):
         finally:
             os.close(fd)
     raise ValueError('named input has too many empty reservations')
+
+
+def _input_caller(caller_uid):
+    """Authenticate an input reader; a supplied UID never grants authority."""
+    uid = os.geteuid()
+    if uid == 0:
+        value = os.environ.get('PKEXEC_UID', '')
+        if not value.isascii() or not value.isdecimal() or int(value) <= 0:
+            raise ValueError('input: authenticated caller required')
+        uid = int(value)
+    if caller_uid is not None and (type(caller_uid) is not int or caller_uid != uid):
+        raise ValueError('input: foreign caller')
+    return uid
+
+
+def _input_identity(info):
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid,
+            info.st_gid, None if stat.S_ISDIR(info.st_mode) else info.st_nlink)
+
+
+@contextmanager
+def authenticated_input(selection, *, caller_uid=None, root=ROOT):
+    """Pin one execution's registered caller-owned input without writing it.
+
+    The authenticated dispatcher supplies the caller identity. The live owner
+    and shared writer lock protect this read from retention rotation; neither
+    a path nor a serialized selection creates ownership. Bundle verification
+    must use the yielded allocation descriptor, including child opens.
+    """
+    if __package__:
+        from . import test_retention as retention
+    else:
+        import test_retention as retention
+    uid = _input_caller(caller_uid)
+    fields = {'schema', 'target', 'key', 'allocation', 'device', 'inode', 'journal',
+              'journal_device', 'journal_inode', 'run', 'build_identity'}
+    if (type(selection) is not dict or set(selection) != fields
+            or selection['schema'] != 'onpc-execution-fixture-v1'
+            or type(selection['target']) is not str or selection['target'] not in ('ubuntu', 'fedora')
+            or any(type(selection[key]) is not str for key in ('journal', 'allocation'))
+            or any(type(selection[key]) is not str or
+                   re.fullmatch(r'[0-9a-f]{64}', selection[key]) is None
+                   for key in ('key', 'build_identity'))
+            or not retention.valid_token(selection['run'])
+            or any(type(selection[key]) is not int or selection[key] <= 0
+                   for key in ('device', 'inode', 'journal_device', 'journal_inode'))):
+        raise ValueError('input: invalid selection')
+    root = Path(root)
+    base = root / 'output/test-runs/host'
+    journal = Path(selection['journal'])
+    allocation = Path(selection['allocation'])
+    if (not root.is_absolute() or '..' in root.parts
+            or journal.parent != base / 'state'
+            or not retention.journal_path(str(journal))
+            or allocation.parent != base / 'allocations'
+            or re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', allocation.name) is None):
+        raise ValueError('input: unconfined selection')
+
+    with ExitStack() as stack:
+        witnesses = []
+        def opened(name, flags, parent=None):
+            fd = os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+            stack.callback(os.close, fd)
+            return fd
+
+        def chain(path):
+            parent = opened('/', os.O_RDONLY | os.O_DIRECTORY)
+            current = Path('/')
+            for name in path.parts[1:]:
+                current /= name
+                child = opened(name, os.O_RDONLY | os.O_DIRECTORY, parent)
+                info = os.fstat(child)
+                if current.is_relative_to(root) and current != root:
+                    if info.st_uid != uid or info.st_mode & 0o022:
+                        raise ValueError('input: unsafe storage owner or mode')
+                    if retention.mount_id(child) != retention.mount_id(parent):
+                        raise ValueError('input: mounted storage')
+                witnesses.append((parent, name, child, _input_identity(info), retention.mount_id(child)))
+                parent = child
+            return parent
+
+        def private(fd, *, regular=False):
+            info = os.fstat(fd)
+            if (info.st_uid != uid or stat.S_IMODE(info.st_mode) != (0o600 if regular else 0o700)
+                    or not (stat.S_ISREG(info.st_mode) if regular else stat.S_ISDIR(info.st_mode))
+                    or regular and info.st_nlink != 1):
+                raise ValueError('input: unsafe owner or mode')
+            return info
+
+        journal_fd = chain(journal)
+        info = private(journal_fd)
+        if (info.st_dev, info.st_ino) != (selection['journal_device'], selection['journal_inode']):
+            raise ValueError('input: journal replaced')
+        disk_backed(journal_fd)
+        owner = opened('owner.lock', os.O_RDONLY | os.O_NONBLOCK, journal_fd)
+        owner_info = private(owner, regular=True)
+        writer = opened('writer.lock', os.O_RDONLY | os.O_NONBLOCK, journal_fd)
+        writer_info = private(writer, regular=True)
+        for descriptor in (owner, writer):
+            if retention.mount_id(descriptor) != retention.mount_id(journal_fd):
+                raise ValueError('input: mounted journal entry')
+
+        def live_owner():
+            try:
+                fcntl.flock(owner, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return
+            else:
+                fcntl.flock(owner, fcntl.LOCK_UN)
+                raise ValueError('input: execution owner is not active')
+
+        live_owner()
+        # Existing locks only: a privileged reader must not create caller files.
+        fcntl.flock(writer, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        source = opened('current.json', os.O_RDONLY | os.O_NONBLOCK, journal_fd)
+        before = private(source, regular=True)
+        if retention.mount_id(source) != retention.mount_id(journal_fd):
+            raise ValueError('input: mounted journal entry')
+        if before.st_size > 8 * 1024 ** 2:
+            raise ValueError('input: journal too large')
+        with os.fdopen(os.dup(source), 'rb') as stream:
+            raw = stream.read(8 * 1024 ** 2 + 1)
+        after = os.fstat(source)
+        if (len(raw) != before.st_size or _input_identity(before) != _input_identity(after)
+                or (before.st_mtime_ns, before.st_ctime_ns) != (after.st_mtime_ns, after.st_ctime_ns)):
+            raise ValueError('input: journal changed')
+        def unique(pairs):
+            result = {}
+            for name, value in pairs:
+                if name in result:
+                    raise ValueError('input: duplicate journal field')
+                result[name] = value
+            return result
+        try:
+            state = retention.validate_state(json.loads(raw, object_pairs_hook=unique))
+            records = {record['path']: record for _, record in
+                       retention.latest_allocations([*state['history'], state])}
+        except (ValueError, KeyError, TypeError, AttributeError) as error:
+            raise ValueError('input: invalid journal') from error
+        if state['run'] != selection['run']:
+            raise ValueError('input: execution run changed')
+        expected = dict(path=str(allocation), device=selection['device'],
+                        inode=selection['inode'], mode=0o700)
+        if records.get(str(allocation)) != expected or expected not in state['paths']:
+            raise ValueError('input: allocation is not registered to this owner')
+        allocation_fd = chain(allocation)
+        info = private(allocation_fd)
+        if (info.st_dev, info.st_ino) != (selection['device'], selection['inode']):
+            raise ValueError('input: allocation replaced')
+        disk_backed(allocation_fd)
+
+        def recheck():
+            for parent, name, original, saved, mount in witnesses:
+                current = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                  dir_fd=parent)
+                try:
+                    if (_input_identity(os.fstat(current)) != saved
+                            or retention.mount_id(current) != mount
+                            or retention.mount_id(original) != mount):
+                        raise ValueError('input: path replaced or mounted')
+                finally:
+                    os.close(current)
+            for name, saved in (('owner.lock', owner_info), ('writer.lock', writer_info),
+                                ('current.json', before)):
+                current = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW,
+                                  dir_fd=journal_fd)
+                try:
+                    if (_input_identity(os.fstat(current)) != _input_identity(saved)
+                            or retention.mount_id(current) != retention.mount_id(journal_fd)):
+                        raise ValueError('input: journal entry replaced or mounted')
+                finally:
+                    os.close(current)
+            current = os.fstat(source)
+            if (current.st_size, current.st_mtime_ns, current.st_ctime_ns) != (
+                    before.st_size, before.st_mtime_ns, before.st_ctime_ns):
+                raise ValueError('input: journal changed')
+            live_owner()
+
+        recheck()
+        try:
+            yield allocation_fd
+        finally:
+            recheck()
 
 
 def privileged_state(uid):
@@ -388,4 +572,9 @@ def scratch_descriptors():
             if error.errno not in (errno.ENOENT, errno.EBADF):
                 raise
             # listdir's own fd or a concurrent worker's descriptor has closed.
+    if __package__:
+        from . import test_retention
+    else:
+        import test_retention
+    descriptors.update(test_retention.descriptors())
     return tuple(sorted(descriptors))

@@ -28,6 +28,44 @@ class SimulatedInterrupt(KeyboardInterrupt):
     """Distinguish the fixture's interrupt from a real test-run interruption."""
 
 
+def test_inherited_retention_capability_is_the_existing_exclusive_owner(tmp_path, monkeypatch):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        owner = retention.owner_descriptor()
+        assert retention.descriptors() == (owner,)
+        assert retention.environment()[retention.OWNER_VARIABLE] == str(owner)
+        false_owner = os.open(store.path / 'owner.lock', os.O_RDONLY)
+        try:
+            with monkeypatch.context() as patch:
+                patch.setenv(retention.OWNER_VARIABLE, str(false_owner))
+                with pytest.raises(ValueError, match='does not own'):
+                    retention.owner_descriptor()
+            assert retention.owner_descriptor() == owner
+        finally:
+            os.close(false_owner)
+        with monkeypatch.context() as patch:
+            patch.delenv(retention.OWNER_VARIABLE)
+            with pytest.raises(ValueError, match='descriptor required'):
+                retention.owner_descriptor()
+
+
+def test_inherited_retention_capability_refuses_replaced_lock(tmp_path):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        owner = retention.owner_descriptor()
+        lock = store.path / 'owner.lock'
+        original = store.path / 'original.lock'
+        lock.rename(original)
+        lock.touch(mode=0o600)
+        try:
+            with pytest.raises(ValueError, match='replaced|ownership'):
+                retention.owner_descriptor()
+            assert os.fstat(owner).st_ino == original.stat().st_ino
+        finally:
+            lock.unlink()
+            original.rename(lock)
+
+
 def allocated(parent, name):
     path = parent / name
     path.mkdir(mode=0o700)

@@ -129,6 +129,21 @@ def test_native_fixture_category_registers_build_output_before_execution(monkeyp
         ROOT, 'tools/fixture_bundle.py', '--target', 'ubuntu', '--output', output)
 
 
+@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
+def test_native_fixture_prepare_uses_execution_owner_without_an_extra_allocation(monkeypatch, target):
+    import regression_process
+    import test_retention
+    allocation = Mock()
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(test_retention, 'allocate', allocation)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    flags = ['prepare', '--kind', 'native-runtime', '--target', target]
+    assert regression_process.category_run(ROOT, 'fixtures', flags, pipe=False) == 0
+    allocation.assert_not_called()
+    assert execute.call_args.args[0] == commands.python_file(
+        ROOT, 'tools/fixture_execution.py', '--target', target)
+
+
 @pytest.mark.parametrize('status,package_format', [(3, 'deb'), (5, 'rpm'), (6, None), (0, None), (130, None)])
 @pytest.mark.parametrize('candidate_format', [None, 'deb', 'rpm'])
 def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(

@@ -119,6 +119,10 @@ def test_runtime_tracks_import_bytes_inventory_and_search_order(tmp_path, monkey
     monkeypatch.setattr(cache.sysconfig, 'get_path', lambda _: str(first))
     monkeypatch.setattr(cache.site, 'ENABLE_USER_SITE', False)
     initial = cache.runtime_identity(tmp_path / 'checkout')
+    with monkeypatch.context() as patch:
+        patch.setenv(test_retention.VARIABLE, json.dumps(['/private/retention', 'a' * 32]))
+        patch.setenv(test_retention.OWNER_VARIABLE, '12345')
+        assert cache.runtime_identity(tmp_path / 'checkout') == initial
     metadata = dependency.stat()
     dependency.write_text('after!')
     os.utime(dependency, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))

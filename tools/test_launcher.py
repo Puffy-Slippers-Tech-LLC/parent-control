@@ -167,6 +167,7 @@ def test_environment(root):
     # those fixtures as real aggregate outputs. UI workers opt in explicitly.
     import test_retention
     result.pop(test_retention.VARIABLE, None)
+    result.pop(test_retention.OWNER_VARIABLE, None)
     # Pytest capture and temporary fixtures must not compete with retained
     # screenshots for the per-user quota of a RAM-backed /tmp. tempfile and
     # pytest still create/lock their own private names for concurrent workers.

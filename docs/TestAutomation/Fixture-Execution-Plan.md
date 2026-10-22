@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F03 — [Reuse execution-owned fixture inputs](Fixture-Tasks/F03-publication.md)**.
+Next task: **F15 — [Provision through one fail-closed SSH boundary](Fixture-Tasks/F15-guest-transactions.md)**.
 
 ## Outcome and status
 
@@ -16,8 +16,10 @@ guest rollback, process-supervisor and native acknowledgement proposals.
 F01/F51/F52 remain completed historical inventory/design reviews. F29 delivered
 the existing single-producer lifetime and safety checks. F02 delivered frozen
 host construction, complete runtime manifests and independent verification for
-both target ABIs. F03 and later tasks remain unimplemented; host construction
-supplies no guest provisioning or installed acceptance.
+both target ABIs. F03 delivered verified execution-owned publication/reuse,
+immutable selections, authenticated read-only handoff and inherited retention
+ownership. F15 and later tasks remain unimplemented; these host inputs supply
+no guest provisioning or installed acceptance.
 
 ## Launcher
 

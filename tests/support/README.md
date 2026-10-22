@@ -79,9 +79,34 @@ with separate optional launcher subsets. Mechanical, command, whitespace,
 pattern, retention and catalogue retain their exact comparisons; compatibility
 selects the separate legacy S runtime. `legacy` selects the complete declaration.
 No subset has a separate build version. Account homes remain symbolic until an
-accepted guest account mapping exists. Input reuse, authenticated handoff and
-guest provisioning remain later fixture-plan tasks; a constructed bundle alone
-does not authorize those operations.
+accepted guest account mapping exists. Guest provisioning remains a later
+fixture-plan task; a constructed bundle alone does not authorize guest input.
+
+`tools/run-tests fixtures prepare --kind native-runtime --target ubuntu|fedora`
+selects an execution-owned input through
+[`fixture_execution.prepare()`](../../tools/fixture_execution.py). It registers
+an empty allocation in the existing active retention journal, copies independently
+verified producer bytes and publishes the completed child atomically before
+releasing the producer. A matching input is reusable only within that same run,
+after full verification. Product-only edits do not change the fixture key;
+incomplete, corrupt, missing or replaced registered inputs refuse without repair
+or replacement. Independent executions own separate bounded copies.
+
+Select before acquiring a VM. Pass the immutable `Selection.record()` through
+descendants and keep the existing retention environment and
+`test_storage.scratch_descriptors()` forwarding. The inherited owner descriptor
+protects the original journal until descendants close it; unfinished recovery
+continues to block rotation through the existing retention owner. After cleanup,
+normal last-three-run retention applies. There is no separate fixture cache,
+pin journal or deletion owner.
+
+`fixture_execution.verify(selection)` uses the shared
+`test_storage.authenticated_input()` read-only boundary. It authenticates the
+actual process/caller, pins the exact registered allocation and journal, holds
+the existing writer lock for reading and verifies the selected frozen bundle
+through directory descriptors. A privileged consumer never writes caller-owned
+inputs or registers them in another journal. Runner integration remains with
+the subsequent fixture-plan tasks.
 
 ## Host and guest boundaries
 

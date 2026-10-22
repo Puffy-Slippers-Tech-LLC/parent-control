@@ -157,6 +157,7 @@ def runtime_identity(root):
     env = environment(root, scratch=False)
     env.pop('ONPC_TEST_ACTIVITY_FD', None)
     env.pop('ONPC_TEST_RETENTION', None)
+    env.pop(test_retention.OWNER_VARIABLE, None)
     env.pop('TMPDIR', None)
     return digest([sys.version, sys.path, os.uname(), os.getuid(), os.getgroups(), env, values])
 

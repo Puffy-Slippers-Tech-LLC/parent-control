@@ -320,7 +320,12 @@ from regression_resources import HOST_WORKERS
 # Bundle failure/publication checks use the same relocated producer roots,
 # tiny inert payloads, synchronous target doubles and bounded waited Python
 # lease/assembly children; no shared producer, container, VM or display.
+# Execution fixture publication/handoff uses only pytest-private relocated
+# journals, tiny inert bundles, local descriptors and bounded waited Python
+# children. No shared build/cache, VM, display, socket or service is acquired;
+# the same compatible ownership applies in the unit inventory.
 REVIEWED = frozenset('''
+fixture_execution fixture_handoff
 fixture_producer fixture_bundle
 recording_storage
 e2e_natural_expiry

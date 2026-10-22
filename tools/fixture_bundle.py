@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(ROOT / 'tools') not in sys.path:
     sys.path.insert(0, str(ROOT / 'tools'))
-from tools import artifact_inputs, fixture_manifest, fixture_producer, test_storage
+from tools import artifact_inputs, fixture_manifest, fixture_producer, test_storage, test_retention
 
 TARGETS = {'ubuntu': {'os': 'ubuntu', 'release': '26.04', 'architecture': 'x86_64'},
            'fedora': {'os': 'fedora', 'release': '44', 'architecture': 'x86_64'}}
@@ -189,13 +189,43 @@ def usage(path):
             'allocated_bytes': sum(p.stat().st_blocks * 512 for p in paths)}
 
 
-def build(output, *, target, root=ROOT):
+def _output_identity(output, descriptor, original):
+    """A retained locator may never redirect publication to a replacement."""
+    identity = lambda info: (info.st_dev, info.st_ino, info.st_uid, info.st_gid, info.st_mode)
+    try:
+        current = test_retention.directory(output)
+    except (OSError, ValueError) as error:
+        raise ValueError('fixture output allocation was replaced') from error
+    try:
+        if (identity(os.fstat(current)) != identity(original)
+                or identity(os.fstat(descriptor)) != identity(original)
+                or test_retention.mount_id(current) != test_retention.mount_id(descriptor)):
+            raise ValueError('fixture output allocation was replaced')
+    finally:
+        os.close(current)
+
+
+def build(output, *, target, root=ROOT, publication='move', publish_guard=None):
     if target not in TARGETS:
         raise ValueError('unsupported fixture target')
+    if publication not in ('move', 'copy'):
+        raise ValueError('unsupported fixture publication')
     output = Path(output)
-    if (output.resolve(strict=True) != output or not output.is_dir()
-            or any(output.iterdir())):
+    if output.resolve(strict=True) != output:
         raise ValueError('fixture output must be an empty allocated directory')
+    descriptor = test_retention.directory(output)
+    try:
+        original = os.fstat(descriptor)
+        if os.listdir(descriptor):
+            raise ValueError('fixture output must be an empty allocated directory')
+        _output_identity(output, descriptor, original)
+        return _build(output, descriptor, original, target=target, root=root,
+                      publication=publication, publish_guard=publish_guard)
+    finally:
+        os.close(descriptor)
+
+
+def _build(output, output_fd, original, *, target, root, publication, publish_guard):
     transaction = uuid.uuid4().hex
     print('fixture-bundle: transaction=' + transaction, flush=True)
     store = fixture_producer.Store()
@@ -207,6 +237,7 @@ def build(output, *, target, root=ROOT):
         environment = producer.environment({'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
             'LANG': 'C.UTF-8', 'HOME': str(workspace), 'SOURCE_DATE_EPOCH': '0',
             'PYTHONDONTWRITEBYTECODE': '1', 'PYTHONNOUSERSITE': '1',
+            **test_retention.environment(),
             **({'XDG_RUNTIME_DIR': os.environ['XDG_RUNTIME_DIR']} if 'XDG_RUNTIME_DIR' in os.environ else {})})
         compiled, toolchain = target_build(source, workspace, target, environment)
         staging = producer.allocate('staging') / 'bundle'
@@ -228,17 +259,64 @@ def build(output, *, target, root=ROOT):
             raise ValueError('fixture construction exceeds reviewed storage limit')
         print('fixture-bundle: sizes=' + json.dumps(sizes, sort_keys=True), flush=True)
         final = output / 'native-runtime'
-        if os.path.lexists(final):
+        _output_identity(output, output_fd, original)
+        if os.listdir(output_fd):
             raise ValueError('fixture publication collision')
-        # The registered allocation roots stay in place. Only their completed
-        # child moves, atomically, after independent full verification.
-        os.rename(staging, final)
-        descriptor = os.open(output, os.O_RDONLY | os.O_DIRECTORY)
+        # Execution inputs require independent bytes before this producer's
+        # lease is released. Preserve a failed copy inside its registered
+        # destination; an incomplete nonempty input must never be adopted.
+        if publish_guard is not None:
+            publish_guard()
+        _output_identity(output, output_fd, original)
+        if publication == 'copy':
+            os.mkdir('.native-runtime-staging', mode=0o700, dir_fd=output_fd)
+            copied = os.open('.native-runtime-staging',
+                             os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=output_fd)
+            try:
+                copied_info = os.fstat(copied)
+                for name in ('fixture-manifest.json', 'payload.tar', 'complete.json'):
+                    _output_identity(output, output_fd, original)
+                    source_fd = os.open(staging / name, os.O_RDONLY | os.O_NOFOLLOW)
+                    try:
+                        descriptor = os.open(name,
+                                             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                             0o600, dir_fd=copied)
+                        with os.fdopen(source_fd, 'rb', closefd=False) as source_stream:
+                            with os.fdopen(descriptor, 'wb') as destination_stream:
+                                shutil.copyfileobj(source_stream, destination_stream)
+                                destination_stream.flush()
+                                os.fsync(destination_stream.fileno())
+                    finally:
+                        os.close(source_fd)
+                    _output_identity(output, output_fd, original)
+                fixture_manifest.verify(staging, target=target)
+                if fixture_manifest._verify(copied, target, True) != manifest:
+                    raise ValueError('fixture copy identity mismatch')
+                os.fsync(copied)
+            finally:
+                os.close(copied)
+        if publish_guard is not None:
+            publish_guard()
+        _output_identity(output, output_fd, original)
+        # Registered roots stay in place; readiness is one atomic child rename.
+        if publication == 'copy':
+            current = os.stat('.native-runtime-staging', dir_fd=output_fd, follow_symlinks=False)
+            if (current.st_dev, current.st_ino) != (copied_info.st_dev, copied_info.st_ino):
+                raise ValueError('fixture publication staging was replaced')
+            os.rename('.native-runtime-staging', 'native-runtime',
+                      src_dir_fd=output_fd, dst_dir_fd=output_fd)
+        else:
+            os.rename(staging, 'native-runtime', dst_dir_fd=output_fd)
+        os.fsync(output_fd)
+        _output_identity(output, output_fd, original)
+        descriptor = os.open('native-runtime', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                             dir_fd=output_fd)
         try:
-            os.fsync(descriptor)
+            if fixture_manifest._verify(descriptor, target, True) != manifest:
+                raise ValueError('fixture published identity mismatch')
         finally:
             os.close(descriptor)
-        fixture_manifest.verify(final, target=target)
+        _output_identity(output, output_fd, original)
     print('fixture-bundle: output=' + str(final), flush=True)
     print('fixture-bundle: producer-cleanup=passed', flush=True)
     return final

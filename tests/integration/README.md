@@ -112,7 +112,7 @@ after guarded SSH readiness, before uploading installation inputs or running a
 system phase. The launcher selects the execution-owned immutable input before
 VM acquisition. Only `trusted-hard` is provisioned; readiness binds the selected
 manifest, VM UUID, actual boot and unique attempt. Missing or incompatible
-selections release no input. Clean installed-system and other unmigrated
+selections release no input. Other unmigrated
 envelopes retain their refusal.
 
 `check_parent_setup`, `check_parent_input` and `check_parent_standard_input`
@@ -148,6 +148,33 @@ Fedora 44 uses the same product-free boundary and engineering selector above.
 Its selection must match the restored Fedora guest and RPM package format.
 Independent readback additionally checks enforcing SELinux, exact labels and
 unchanged native admission sources, compiled rules and public rule listing.
+
+### Ubuntu installed-system preparation
+
+On clean Ubuntu 26.04, `system_snapshots._run_attempts(installed=True)` explicitly
+selects the offline app-snapshot mode through `Suite.prepare_case`. The restored
+app is bootstrapped with fresh attempt credentials; an online resume cannot
+qualify this branch. After SSH readiness and system startup completion,
+`system_runner.installed_run` uses the
+same immutable input and trusted-hard provisioner before uploading system input.
+Installed-product verification and all system assertions remain in their
+original order. A session reboot requires read-only readiness renewal for the
+new boot after system startup completes, without replacing fixtures or resetting
+scenario state. Startup waiting never restarts services; native checks still
+require an active daemon and its current-boot initialization event.
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_system_installed
+```
+
+This engineering selector exercises two actual offline app restores. It stops
+before system input or product assertions, independently checks the selected
+manifest bytes and Riley's headless runtime witness, and proves input refusals,
+fresh readiness, no-write repeats and unchanged selection after producer-source
+edits. Results retain package metadata and frozen helpers, without the complete
+fixture collection. Watched baseline restoration and owned credential, staging,
+input and transport cleanup remain required. Fedora installed-system and other
+unmigrated envelopes remain gated. This supplies no customer or E2E acceptance.
 
 ## Retained-session native dependency update
 

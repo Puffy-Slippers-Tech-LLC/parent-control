@@ -392,6 +392,47 @@ class Provisioner:
             if acquired:
                 self._shared['lock'].release()
 
+    def renew_after_reboot(self, readiness):
+        """Recheck the installed-system hard witness on a new boot, without writes.
+
+        The live lease owns the original request and terminal latch. Renewal
+        cannot change its selection, attempt, subset or destinations, replay
+        placement, or repair scenario mutations. A failed check is terminal.
+        """
+        acquired = self._shared['lock'].acquire(blocking=False)
+        try:
+            require(acquired, 'concurrent-provisioning')
+            state = self._guard()
+            require(self._receipt is not None and readiness == self._receipt,
+                    'readiness-required')
+            require(readiness.binding == self._request['binding']
+                    and state['domain_uuid'] == readiness.binding['vm_uuid']
+                    and state['run'] == readiness.binding['run'], 'stale-readiness')
+            require(readiness.binding['subsets'] == ['trusted-hard']
+                    and self._request['target'] == {'os': 'ubuntu', 'release': '26.04',
+                                                     'architecture': 'x86_64'},
+                    'reboot-renewal-not-qualified')
+            boot = self._boot()
+            require(boot != readiness.binding['boot_sha256'], 'reboot-required')
+            request = deepcopy(self._request)
+            request['binding']['boot_sha256'] = boot
+            request['staging'] = '/run/onpc-fixture-' + digest(request['binding'])
+            request['repeat'] = True
+            inspected = self._step('inspect', request)
+            require(accepted_accounts(inspected['accounts']) == request['accounts']
+                    and inspected['target'] == request['target'], 'changed-environment')
+            require(self._step('preflight', request) == {'ok': True}, 'preflight')
+            files = self._readback(request)
+            self._request = deepcopy(request)
+            self._receipt = Readiness(deepcopy(request['binding']), deepcopy(files))
+            return deepcopy(self._receipt)
+        except BaseException:
+            self.failed, self._receipt = True, None
+            raise
+        finally:
+            if acquired:
+                self._shared['lock'].release()
+
     def require_ready(self, readiness):
         """Guard the public input boundary; imported/snapshot receipts cannot pass."""
         acquired = self._shared['lock'].acquire(blocking=False)

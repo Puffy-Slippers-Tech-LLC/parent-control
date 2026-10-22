@@ -117,9 +117,20 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     from installed_setup import stage, InstalledSetup
     from provenance import VerifiedInputs
     from vm_transport import Transport
+    from build_test_artifacts import PACKAGE_INPUT_NAME, verify
     system.require(type(overwrite) is bool, 'suite:invalid-overwrite')
     system.require(mode in ('online', 'offline'), 'suite:invalid-snapshot-mode')
     lease = suite.lease
+    clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
+    profile = assets / PACKAGE_INPUT_NAME
+    package_only = profile.exists() or profile.is_symlink()
+    package_manifest = None
+    if package_only:
+        system.require(clean, 'suite:package-only-clean-snapshot-required')
+        # System staging retains finite scenario comparisons alongside its
+        # explicit package profile. Authenticate it before any snapshot change;
+        # installation itself receives only the clean frozen helper closure.
+        package_manifest = verify(assets, package_only=True)
     package = assets / ('package.' + system.package_format(lease.capture.state['guest']))
     system.require(package.is_file(), 'suite:package-platform-mismatch')
     version = system.package_version(suite.commands, package)
@@ -165,15 +176,19 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     preparation('Installing app')
     setup = directory / 'suite-setup'
     setup.mkdir(mode=0o700)
-    clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
     if clean:
         stage(setup, assets, selection, bundle=bundle, snapshot=True)
     else:
         stage(setup, assets, selection, bundle=bundle)
+    if package_only:
+        system.stage_asset_inventory(setup / 'input', package_manifest, package_only=True)
+        system.require(verify(setup / 'input', package_only=True) == package_manifest,
+                       'suite:package-input-changed')
     host_key = system.bootstrap(suite.commands, lease, setup, suite.guestfs,
         **({'snapshot_capture': True} if clean else {}))
     lease.save('isolated')
-    verified = VerifiedInputs(lease=lease, assets=assets, root=root)
+    verified = VerifiedInputs(lease=lease, assets=setup / 'input' if package_only else assets,
+                            root=root, **({'package_only': True} if package_only else {}))
     suite.verified = verified
     lease.start()
     hostname = system.address(lease.source)

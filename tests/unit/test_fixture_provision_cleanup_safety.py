@@ -227,6 +227,65 @@ def test_identical_repeat_verifies_without_writes_or_registration(rig):
         'inspect', 'preflight', 'readback', 'witness']
 
 
+def test_installed_hard_reboot_renews_only_readiness_and_preserves_scenario_mutations(rig):
+    first = execute(rig, ('trusted-hard',))
+    scenario = rig.boundary.path('/home/child/scenario-document')
+    scenario.parent.mkdir(parents=True)
+    scenario.write_bytes(b'preserve deliberate scenario version')
+    writes, registered = rig.boundary.writes[:], rig.registered[:]
+    rig.boundary.calls.clear()
+    rig.reader.reset_mock()
+    rig.transport.call.return_value = ('f' * 64 + '\n').encode()
+    renewed = rig.control.renew_after_reboot(first)
+    assert renewed.binding == {**first.binding, 'boot_sha256': 'f' * 64}
+    assert renewed.files == first.files
+    assert rig.control.require_ready(renewed) == renewed
+    assert [action for action, _ in rig.boundary.calls] == [
+        'inspect', 'preflight', 'readback', 'witness']
+    assert all(request['repeat'] for _, request in rig.boundary.calls)
+    assert rig.boundary.writes == writes and rig.registered == registered
+    assert scenario.read_bytes() == b'preserve deliberate scenario version'
+    rig.reader.assert_not_called()
+    with pytest.raises(ValueError, match='readiness-required'):
+        rig.control.require_ready(first)
+    assert_terminal(rig)
+
+
+@pytest.mark.parametrize('fault', ['same-boot', 'foreign-receipt', 'failed', 'subset',
+                                  'fedora', 'changed-accounts', 'changed-target',
+                                  'modified', 'missing', 'preflight', 'readback', 'witness'])
+def test_installed_reboot_renewal_refuses_without_writes_or_repair(rig, fault):
+    ready = execute(rig, ('mechanical',) if fault == 'subset' else ('trusted-hard',))
+    writes, registered = rig.boundary.writes[:], rig.registered[:]
+    rig.boundary.calls.clear()
+    rig.transport.call.return_value = ('f' * 64 + '\n').encode()
+    if fault == 'same-boot':
+        rig.transport.call.return_value = ('d' * 64 + '\n').encode()
+    elif fault == 'foreign-receipt':
+        ready.binding['attempt_id'] = 'foreign-attempt'
+    elif fault == 'failed':
+        rig.control.failed = True
+    elif fault == 'fedora':
+        rig.control._request['target'] = {'os': 'fedora', 'release': '44', 'architecture': 'x86_64'}
+    elif fault == 'changed-accounts':
+        rig.boundary.accounts['child']['uid'] += 10
+    elif fault == 'changed-target':
+        rig.boundary.target['architecture'] = 'aarch64'
+    elif fault in ('modified', 'missing'):
+        member = next(iter(rig.control._request['members'].values()))
+        path = rig.boundary.path(member['destination'])
+        if fault == 'missing':
+            path.unlink()
+        else:
+            path.write_bytes(b'preserve changed scenario bytes')
+    elif fault in ('preflight', 'readback', 'witness'):
+        rig.boundary.fail = fault
+    with pytest.raises((ValueError, OSError, KeyError)):
+        rig.control.renew_after_reboot(ready)
+    assert rig.boundary.writes == writes and rig.registered == registered
+    assert_terminal(rig)
+
+
 @pytest.mark.parametrize('fault', ['missing', 'incompatible'])
 def test_invalid_input_fails_before_guest_mutation(rig, fault):
     if fault == 'missing':

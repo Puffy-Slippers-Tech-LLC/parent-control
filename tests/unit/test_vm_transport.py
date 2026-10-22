@@ -198,6 +198,78 @@ def test_readiness_waits_through_ssh_handshake_reset(no_live_readiness_timer):
     no_live_readiness_timer.wait.assert_called_once()
 
 
+@pytest.mark.parametrize('status,state', [(0, b'running\n'), (1, b'degraded\n')])
+def test_boot_completion_observes_one_systemd_wait_and_preserves_its_status(status, state):
+    value = client()
+    # Real lease guards execute Commands too. A degraded result must retain
+    # systemctl's exit 1 even after the post-command ownership audit succeeds.
+    value.guard.side_effect = lambda _: setattr(value.commands, 'last_returncode', 0)
+    def run(*args, **kwargs):
+        value.commands.last_returncode = status
+        return state
+    value.commands.run.side_effect = run
+    assert value.wait_boot_complete() == state.decode().strip()
+    assert value.commands.run.call_count == 1
+    assert value.guard.call_count == 2
+    sent = value.commands.run.call_args
+    argv = shlex.split(sent.args[0][-1].split(' && exec ', 1)[1])
+    assert argv == ['/usr/bin/systemctl', 'is-system-running', '--wait']
+    assert sent.kwargs['timeout'] == 600 and sent.kwargs['check'] is False
+    assert sent.args[0] == [*transport.ssh(value.config), transport.remote(value.config, argv)]
+
+
+@pytest.mark.parametrize('status,raw', [(0, b'degraded\n'), (1, b'running\n'),
+    (2, b'running\n'), (255, b''), (0, b'starting\n'), (1, b'failed\n'),
+    (0, b'running\nforeign\n'), (0, b'\xff'), (0, None)])
+def test_boot_completion_rejects_wrong_status_or_state_without_retry(status, raw):
+    value = client()
+    value.commands.last_returncode = status
+    value.commands.run.return_value = raw
+    with pytest.raises(transport.Error, match='transport:boot-not-complete'):
+        value.wait_boot_complete()
+    assert value.commands.run.call_count == 1
+    assert value.guard.call_count == 2
+
+
+def test_boot_completion_timeout_is_terminal_without_retry():
+    value = client()
+    def run(args, **kwargs):
+        raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+    value.commands.run.side_effect = run
+    with pytest.raises(subprocess.TimeoutExpired) as failure:
+        value.wait_boot_complete()
+    assert failure.value.timeout == 600
+    assert value.commands.run.call_count == value.guard.call_count == 1
+
+
+@pytest.mark.parametrize('when', ['before', 'after'])
+def test_boot_completion_guard_failure_never_retries_or_accepts(when):
+    value = client()
+    value.commands.run.return_value = b'running\n'
+    failure = transport.Error('transport:domain-replaced-or-shared')
+    value.guard.side_effect = failure if when == 'before' else [None, failure]
+    with pytest.raises(transport.Error, match='domain-replaced-or-shared'):
+        value.wait_boot_complete()
+    assert value.commands.run.call_count == int(when == 'after')
+
+
+@pytest.mark.parametrize('when', ['command', 'postguard'])
+def test_boot_completion_configuration_change_cannot_authorize_provisioning(when):
+    value = client()
+    def run(*args, **kwargs):
+        if when == 'command':
+            value.config['run'] = 'f' * 32
+        return b'running\n'
+    value.commands.run.side_effect = run
+    def guard(_):
+        if when == 'postguard' and value.guard.call_count == 2:
+            value.config['run'] = 'f' * 32
+    value.guard.side_effect = guard
+    with pytest.raises(transport.Error, match='transport:configuration-changed'):
+        value.wait_boot_complete()
+    assert value.commands.run.call_count == 1
+
+
 @pytest.mark.parametrize('probe', ['ready', 'boot-id', 'boot-change'])
 def test_readiness_retries_timed_out_ssh_probe(probe, no_live_readiness_timer):
     value = client()

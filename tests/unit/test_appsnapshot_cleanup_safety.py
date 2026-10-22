@@ -130,6 +130,7 @@ def test_app_capture_selects_clean_payload_without_changing_install_sequence(
     assert stage.call_args.kwargs == {'bundle': suite.input_bundle.return_value,
                                      **({'snapshot': True} if clean else {})}
     assert bootstrap.call_args.kwargs == ({'snapshot_capture': True} if clean else {})
+    provenance.VerifiedInputs.assert_called_once_with(lease=lease, assets=assets, root=ROOT)
     setup.run.assert_called_once_with(lease.guard, verify=mode == 'online')
     transport.probe_ready.assert_called_once_with()
     transport.call.assert_called_once_with(system.guest_command('a' * 32, 'verify-snapshot'),
@@ -144,6 +145,117 @@ def test_app_capture_selects_clean_payload_without_changing_install_sequence(
         publish.assert_not_called()
         lease.source.shutdown.assert_called_once_with(lease.guard, requested=False,
                                                        request=transport.poweroff)
+
+
+@pytest.mark.parametrize('package', ['package.deb', 'package.rpm'])
+@pytest.mark.parametrize('fault', [None, 'source-package', 'source-metadata', 'staged-package',
+                                  'staged-metadata', 'helper', 'transfer'])
+def test_clean_app_snapshot_authenticates_package_profile_without_copying_scenario_fixtures(
+        tmp_path, monkeypatch, package, fault):
+    import installed_setup
+    import provenance
+    import vm_transport
+    from build_test_artifacts import verify
+    system = app_snapshot.system
+    source = tmp_path / 'source'
+    (source / 'tests/e2e').mkdir(parents=True)
+    (source / 'tests/e2e/scenarios.json').write_text('{}')
+    monkeypatch.setattr(provenance, 'source_paths', lambda _: ['tests/e2e/scenarios.json'])
+    baseline = {'baseline_sha256': 'b' * 64,
+                'environment_id': ('fedora44-' if package.endswith('rpm') else 'ubuntu26-04-')
+                                  + 'e' * 64}
+    monkeypatch.setattr(provenance, 'baseline_inputs', lambda _: baseline)
+    assets = tmp_path / 'assets'
+    assets.mkdir(mode=0o700)
+    (assets / package).write_bytes(b'authenticated product package')
+    (assets / 'installed-files.json').write_text('[]')
+    comparison = assets / 'fixtures/mechanical/identity-trusted-hard'
+    comparison.parent.mkdir(parents=True)
+    comparison.write_bytes(b'finite scenario comparison; preserve original version')
+    (assets / 'scenario-helper.py').write_bytes(b'original selected scenario helper')
+    manifest = {'source': {'sha256': 's' * 64},
+                'artifacts': {'package': {'path': package,
+                    'sha256': system.baseline.digest(assets / package)}}}
+    system.stage_asset_inventory(assets, manifest, package_only=True)
+    original = {path.relative_to(assets).as_posix(): (path.read_bytes(), path.stat().st_mode)
+                for path in assets.rglob('*') if path.is_file()}
+    if fault == 'source-package':
+        (assets / package).write_bytes(b'corrupt package')
+    elif fault == 'source-metadata':
+        (assets / 'installed-files.json').write_text('["corrupt metadata"]')
+    original_after_fault = {path.relative_to(assets).as_posix():
+                           (path.read_bytes(), path.stat().st_mode)
+                           for path in assets.rglob('*') if path.is_file()}
+    suite = Mock(verified=None)
+    lease = suite.lease
+    guest = ({'os_id': 'fedora', 'version': '44'} if package.endswith('rpm') else
+             {'ubuntu_version': '26.04'})
+    lease.capture.state = {'guest': {**guest, 'fixture_boundary': 'clean'}}
+    lease.state = {'run': 'a' * 32, 'baseline_sha256': baseline['baseline_sha256']}
+    lease.source.domain.snapshotListNames.return_value = []
+    suite.input_bundle.return_value = installed_setup.inputs(ROOT)
+    monkeypatch.setattr(system, 'package_version', Mock(return_value='9.8.7'))
+    monkeypatch.setattr(app_snapshot, 'input_identity', Mock(return_value='{}'))
+    monkeypatch.setattr(system, 'watch_progress', None)
+    monkeypatch.setattr(system, 'address', Mock(return_value='guest'))
+    stage = installed_setup.stage
+    def stage_with_fault(*args, **kwargs):
+        result = stage(*args, **kwargs)
+        payload = args[0] / 'input'
+        if fault == 'staged-package':
+            (payload / package).write_bytes(b'corrupt copied package')
+        elif fault == 'staged-metadata':
+            (payload / 'installed-files.json').write_text('["changed while copying"]')
+        return result
+    monkeypatch.setattr(installed_setup, 'stage', stage_with_fault)
+    def bootstrap(*args, **kwargs):
+        assert kwargs == {'snapshot_capture': True}
+        payload = args[2] / 'input'
+        if fault == 'helper':
+            (payload / 'system_guest.py').write_bytes(b'changed helper after inventory')
+        elif fault == 'transfer':
+            (payload / 'transfer-sha256.json').write_text('{}')
+        return 'ssh-ed25519 host'
+    bootstrap_call = Mock(side_effect=bootstrap)
+    monkeypatch.setattr(system, 'bootstrap', bootstrap_call)
+    transport = Mock()
+    monkeypatch.setattr(vm_transport, 'Transport', Mock(return_value=transport))
+    if fault:
+        with pytest.raises(Exception, match=('package input verification failed'
+                if fault in ('source-package', 'source-metadata', 'staged-package') else
+                'suite:package-input-changed' if fault == 'staged-metadata' else
+                'setup:payload-changed')):
+            app_snapshot.prepare(suite, tmp_path, assets, {}, root=source, mode='offline')
+        lease.create_installed.assert_not_called()
+        transport.copy.assert_not_called()
+        if fault.startswith('source-'):
+            lease.prepare.assert_not_called()
+        if fault in ('source-package', 'source-metadata', 'staged-package', 'staged-metadata'):
+            bootstrap_call.assert_not_called()
+    else:
+        assert app_snapshot.prepare(suite, tmp_path, assets, {}, root=source, mode='offline')
+        payload = tmp_path / 'suite-setup/input'
+        assert suite.verified.assets == payload
+        assert verify(payload, package_only=True) == verify(assets, package_only=True)
+        files = {path.relative_to(payload).as_posix() for path in payload.rglob('*')
+                 if path.is_file()}
+        assert not (payload / 'fixtures').exists()
+        assert not (payload / 'artifact-manifest.json').exists()
+        assert not (payload / 'scenario-helper.py').exists()
+        inventory = json.loads((payload / 'transfer-sha256.json').read_bytes())
+        assert set(inventory) == files - {'transfer-sha256.json'}
+        assert inventory == {name: system.baseline.digest(payload / name) for name in inventory}
+        selected = json.loads((payload / 'selected-inputs.json').read_bytes())['files']
+        assert all(inventory[name] == item['sha256'] for name, item in selected.items())
+        assert set(suite.verified.asset_files) == files
+        transport.copy.assert_called_once_with(False, str(payload) + '/', system.PAYLOAD + '/')
+        lease.create_installed.assert_called_once_with(mode='offline')
+        (payload / 'system_guest.py').write_bytes(b'changed after provenance capture')
+        with pytest.raises(provenance.EvidenceError, match='provenance:assets-changed'):
+            suite.verified.recheck()
+        assert original_after_fault == original
+    assert {path.relative_to(assets).as_posix(): (path.read_bytes(), path.stat().st_mode)
+            for path in assets.rglob('*') if path.is_file()} == original_after_fault
 
 
 @pytest.mark.parametrize('version', ['9.8.7', '9.8.7+ppa1~ubuntu26.04.1',

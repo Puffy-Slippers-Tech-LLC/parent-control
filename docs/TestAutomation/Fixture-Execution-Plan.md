@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F16 — [Integrate Ubuntu installed-system preparation](Fixture-Tasks/F16-ubuntu-installed-system.md)**.
+Next task: **F17 — [Integrate Fedora installed-system preparation](Fixture-Tasks/F17-fedora-installed-system.md)**.
 
 ## Outcome and status
 
@@ -50,6 +50,19 @@ incorrect error expectation were repaired while preserving behavior assertions.
 Ubuntu product-free preparation proof was renewed. Independent Sol High review found
 no remaining issues; host composition/provenance/ownership checks and watched
 owned cleanup passed, with both VMs independently off.
+F16 delivered Ubuntu's installed-system preparation through explicit offline app
+restores and the shared hard-only provisioning boundary. Two restored boots
+passed independent byte/runtime checks as Riley, input refusals, fresh readiness,
+no-write repeats and unchanged selection after actual producer-source edits,
+without system input or phase execution. Package-only snapshot provenance and
+the restored-boot startup race were repaired without changing native assertions.
+Affected host checks passed; one worker deadline's unfinished checks passed in a
+focused rerun. Independent Sol High review found no remaining issues after a
+diagnostic-storage finding was resolved. Watched baseline, producer, credential,
+staging, input-retention and transport cleanup passed; Ubuntu independently ended
+off. The [installed report](../../output/test-runs/host/reports/20261022T174825Z-4752b1f0/report.md)
+records the exact selector and retained evidence. This supplies no customer/E2E
+acceptance.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

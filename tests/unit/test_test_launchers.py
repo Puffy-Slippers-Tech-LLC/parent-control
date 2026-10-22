@@ -55,7 +55,8 @@ def test_every_named_input_consumer_prepares_before_dispatch(
     allocate = Mock(return_value=output)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     fixture_options = (['--fixture-selection', '{"frozen":"fixture"}']
-                       if name in ('check_fixture_provisioning', *PRODUCT_FREE_FIXTURE_SELECTORS) else [])
+                       if name in ('check_fixture_provisioning', 'check_fixture_system_installed',
+                                   *PRODUCT_FREE_FIXTURE_SELECTORS) else [])
     freeze = Mock(return_value=fixture_options)
     monkeypatch.setattr(commands, 'qualification_fixture_options', freeze)
     execute = Mock(side_effect=[build_status, 0])
@@ -63,6 +64,14 @@ def test_every_named_input_consumer_prepares_before_dispatch(
     authorize = Mock()
     monkeypatch.setattr(dev_privileges, 'check', authorize)
     selector = name + suffix
+    if name == 'check_fixture_system_installed' and target != 'onpc-Ubuntu26.04':
+        with pytest.raises(ValueError, match='target is unavailable'):
+            regression_process.category_run(ROOT, 'integration', [selector], pipe=False)
+        allocate.assert_not_called()
+        execute.assert_not_called()
+        authorize.assert_not_called()
+        freeze.assert_not_called()
+        return
     assert regression_process.category_run(
         ROOT, 'integration', [selector], pipe=False) == build_status
     allocate.assert_called_once_with(output)
@@ -194,6 +203,48 @@ def test_source_proof_option_refuses_other_integration_selectors(monkeypatch, se
         dispatch(ROOT, ['integration', selector, '--vm', vm,
                         '--fixture-selection', json.dumps(frozen_fixture_selection.record()),
                         '--fixture-source-selection', json.dumps(source_proof_selection(frozen_fixture_selection))])
+
+
+@pytest.mark.parametrize('suffix', ['', '.py'])
+def test_installed_system_freezes_original_input_and_actual_source_proof(
+        monkeypatch, frozen_fixture_selection, suffix):
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='onpc-Ubuntu26.04'))
+    record = frozen_fixture_selection.record()
+    source = source_proof_selection(frozen_fixture_selection)
+    def execute(command, **options):
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
+            '--target', 'ubuntu', '--qualify-source-edit')
+        options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n'
+            + 'fixture-execution: source-edit=' + json.dumps(source) + '\n').encode())
+        return 0
+    control = SimpleNamespace(run=Mock(side_effect=execute))
+    options = commands.qualification_fixture_options(ROOT, 'integration',
+        ['check_fixture_system_installed' + suffix], control=control, environment={})
+    assert options == ['--fixture-selection', json.dumps(record, sort_keys=True),
+                       '--fixture-source-selection', json.dumps(source, sort_keys=True)]
+    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+    dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
+    command = dispatch(ROOT, ['integration', 'check_fixture_system_installed' + suffix,
+                              '--vm', 'onpc-Ubuntu26.04', *options])
+    assert command[3:] == options
+
+
+@pytest.mark.parametrize('vm', ['onpc-Fedora44', 'unqualified-target'])
+@pytest.mark.parametrize('suffix', ['', '.py'])
+def test_installed_system_target_refuses_before_any_input(monkeypatch, vm, suffix):
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
+    selector = 'check_fixture_system_installed' + suffix
+    control = Mock()
+    for operation in (
+            lambda: commands.plan(ROOT, 'integration', [selector]),
+            lambda: commands.qualification_artifact_command(ROOT, 'integration', [selector]),
+            lambda: commands.qualification_fixture_options(
+                ROOT, 'integration', [selector], control=control)):
+        with pytest.raises(ValueError, match='target is unavailable'):
+            operation()
+    control.run.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['missing', 'duplicate', 'foreign-input', 'oversized', 'malformed'])

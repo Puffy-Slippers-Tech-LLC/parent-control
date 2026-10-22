@@ -162,7 +162,11 @@ are qualified through the real system attempt and all three Parent bootstrap
 alias compositions. It selects only trusted-hard after SSH readiness and before
 installation input. Its dedicated engineering selector also verifies immutable
 selection after edits to the actual private producer source checkout, across
-two restored boots. Other ordinary runner branches and engineering selectors
+two restored boots. Ubuntu's [installed-system preparation](../integration/README.md#ubuntu-installed-system-preparation)
+uses that same hard-only boundary after explicit offline app restoration and
+fresh SSH bootstrap. Read-only readiness renewal after its session reboot
+checks the same selected bytes and native state without resetting scenario
+mutations. Other ordinary runner branches and engineering selectors
 remain unavailable until the
 [fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies
 their actual target and preparation envelope. Host doubles supply no installed

@@ -39,6 +39,7 @@ def create_suite(source, guestfs, commands):
     from suite_lease import Suite
     suite = Suite(lambda: (source, guestfs))
     suite.commands = commands
+    suite.snapshot_mode = 'offline'
     return suite
 
 
@@ -108,8 +109,21 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                         reset_after_restore(lease)
                     system.verify_history_target(selected, lease.capture)
                     if installed:
-                        system.require(lease.capture.state['guest'].get('fixture_boundary') != 'clean',
-                                       'fixtures:system-installed-target-not-qualified')
+                        if lease.capture.state['guest'].get('fixture_boundary') == 'clean':
+                            from system_fixture_preparation import (qualified_guest, validate_input,
+                                                                    installed_selection)
+                            system.require(qualified_guest(lease.capture.state['guest'], installed=True),
+                                           'fixtures:system-installed-target-not-qualified')
+                            validate_input(installed_selection(fixture_selection), target='ubuntu')
+                            if (suite.prepared and
+                                    lease._restored_name != lease.installed_name):
+                                # A preceding invocation/history may finish at
+                                # baseline. Reuse verification must restore app
+                                # state again, rather than treating it as ready.
+                                suite.prepared = False
+                        # Suite's general default is online; installed system
+                        # cases always restore the powered-off app snapshot.
+                        suite.snapshot_mode = 'offline'
                         # prepare_case calls the shared preparation with overwrite=False
                         # and keeps the completed version snapshot across invocations.
                         suite.prepare_case(installed_case(True), directory, directory / 'input',
@@ -118,7 +132,8 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                         lease.prepare()
                 with ledger.measure('bootstrap'):
                     clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
-                    options = {'system_product_free': True} if clean and not installed else {}
+                    options = ({'system_installed': True} if installed else
+                               {'system_product_free': True}) if clean else {}
                     host_key = system.bootstrap(suite.commands, lease, attempt, suite.guestfs,
                                                 **options)
                     lease.start()

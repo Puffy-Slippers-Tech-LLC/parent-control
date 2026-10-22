@@ -63,10 +63,10 @@ def test_product_free_preparation_precedes_all_input_and_never_collects_engineer
     vm.copy.assert_not_called()
     vm.call.assert_not_called()
     vm.reboot.assert_not_called()
+    vm.wait_boot_complete.assert_not_called()
 
 
 @pytest.mark.parametrize('installed,guest', [
-    (True, {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}),
     (True, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}),
     (False, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '43'}),
     (False, {'fixture_boundary': 'clean', 'ubuntu_version': '26.10'}),
@@ -215,14 +215,14 @@ def test_clean_attempt_uses_actual_installed_run_and_observes_under_lease(
 
 
 def test_clean_installed_attempt_refuses_before_snapshot_preparation_or_boot(
-        tmp_path, monkeypatch, qualified_guest):
+        tmp_path, monkeypatch):
     import guest_inputs
     selection = system.resolve_selection('authorization', inventories=INVENTORIES)
     (tmp_path / 'input').mkdir()
     monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
     suite = Mock(verified=None, lease=legacy_lease(state={'run': RUN}))
     lease = suite.lease
-    lease.capture.state = {'guest': qualified_guest}
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}}
     lease.__enter__ = Mock(return_value=lease)
     lease.__exit__ = Mock(return_value=False)
     bootstrap = Mock()
@@ -235,6 +235,230 @@ def test_clean_installed_attempt_refuses_before_snapshot_preparation_or_boot(
     bootstrap.assert_not_called()
     lease.start.assert_not_called()
     lease.__exit__.assert_called_once()
+
+
+@pytest.mark.parametrize('area', ['authorization', 'enforcement', 'session'])
+def test_clean_installed_attempt_uses_offline_restore_and_shared_hard_preparation(
+        tmp_path, monkeypatch, area):
+    import guest_inputs
+    import vm_transport
+    import system_fixture_preparation as preparation
+    selection = system.resolve_selection(area, inventories=INVENTORIES)
+    (tmp_path / 'input').mkdir()
+    monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
+    suite = Mock(verified=None, snapshot_mode='online')
+    suite.prepared = True
+    lease = suite.lease
+    lease.state = {'run': RUN}
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.__enter__ = Mock(return_value=lease)
+    lease.__exit__ = Mock(return_value=False)
+    lease._restored_name = 'onpc-baseline'
+    lease.installed_name = 'onpc-v1.4'
+    active = []
+    record = {'target': 'ubuntu', 'frozen': 'same-caller-input'}
+    monkeypatch.setattr(preparation, 'validate_input', lambda value, target=None: value)
+    monkeypatch.setattr(preparation, 'selection_record', lambda value, target=None: value)
+
+    def restore(case, *args, **kwargs):
+        assert case == snapshots.installed_case(True)
+        assert suite.snapshot_mode == 'offline'
+        assert suite.prepared is False
+        lease.installed_online = lease.online_pending = False
+        lease.installed_name = lease._restored_name = 'onpc-v1.4'
+        active.append('offline-restore')
+    suite.prepare_case.side_effect = restore
+    bootstrap = Mock(side_effect=lambda *args, **kwargs: active.append('bootstrap') or 'key')
+    monkeypatch.setattr(system, 'bootstrap', bootstrap)
+    monkeypatch.setattr(system, 'address', lambda _: 'guest')
+    vm = Mock()
+    vm.probe_ready.side_effect = lambda: active.append('ssh-ready')
+    vm.wait_boot_complete.side_effect = lambda: active.append('boot-complete')
+    monkeypatch.setattr(vm_transport, 'Transport', Mock(return_value=vm))
+    controller = Mock()
+
+    def prepare(transport, owner, directory, frozen, *, installed=False):
+        assert installed and frozen is record and transport is vm and owner is lease
+        preparation.require_installed_restore(lease)
+        assert directory == tmp_path / ('attempt-' + area)
+        active.append('provision')
+        return {'vm': vm, 'lease': lease, 'directory': directory,
+                'controller': controller, 'receipt': 'restored-boot'}
+    monkeypatch.setattr(preparation, 'prepare', prepare)
+    result = snapshots.run_attempts(suite, tmp_path, selection, {}, 'selected', system.RunLedger(),
+        fixture_selection=record, preparation_only=True,
+        preparation_observer=lambda stage, context: active.append(stage) or stage)
+    assert result == ['ready']
+    assert active == ['offline-restore', 'bootstrap', 'ssh-ready', 'boot-complete',
+                      'before', 'provision', 'ready']
+    bootstrap.assert_called_once_with(suite.commands, lease, tmp_path / ('attempt-' + area),
+                                     suite.guestfs, system_installed=True)
+    lease.prepare.assert_not_called()
+    vm.copy.assert_not_called()
+    vm.call.assert_not_called()
+    vm.reboot.assert_not_called()
+    controller.require_ready.assert_called_once_with('restored-boot')
+
+
+@pytest.mark.parametrize('fault', ['online', 'pending', 'wrong-restore', 'missing-name'])
+def test_clean_installed_offline_restore_guard_precedes_transport(tmp_path, fault):
+    lease, vm = legacy_lease(), Mock()
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.installed_online = lease.online_pending = False
+    lease.installed_name = lease._restored_name = 'onpc-v1.4'
+    if fault == 'online':
+        lease.installed_online = True
+    elif fault == 'pending':
+        lease.online_pending = True
+    elif fault == 'wrong-restore':
+        lease._restored_name = 'onpc-baseline'
+    else:
+        lease.installed_name = lease._restored_name = None
+    selected = system.resolve_selection('authorization', inventories=INVENTORIES)
+    with pytest.raises(ValueError, match='offline-restore-required'):
+        system.installed_run(vm, lease, tmp_path, selected, already_installed=True,
+                             fixture_selection={'target': 'ubuntu'})
+    assert vm.mock_calls == []
+
+
+@pytest.mark.parametrize('failure', ['missing-input', 'incompatible-input'])
+def test_clean_installed_bad_input_refuses_before_app_preparation(tmp_path, monkeypatch, failure):
+    import guest_inputs
+    import system_fixture_preparation as preparation
+    selected = system.resolve_selection('authorization', inventories=INVENTORIES)
+    (tmp_path / 'input').mkdir()
+    monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
+    suite = Mock(verified=None)
+    lease = suite.lease
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.__enter__ = Mock(return_value=lease)
+    lease.__exit__ = Mock(return_value=False)
+    monkeypatch.setattr(preparation, 'installed_selection', lambda value: value)
+    validate = Mock(side_effect=ValueError(failure))
+    monkeypatch.setattr(preparation, 'validate_input', validate)
+    bootstrap = Mock()
+    monkeypatch.setattr(system, 'bootstrap', bootstrap)
+    with pytest.raises(ValueError, match=failure):
+        snapshots.run_attempts(suite, tmp_path, selected, {}, 'selected', system.RunLedger(),
+                               fixture_selection={'target': 'ubuntu'})
+    validate.assert_called_once_with({'target': 'ubuntu'}, target='ubuntu')
+    suite.prepare_case.assert_not_called()
+    bootstrap.assert_not_called()
+    lease.start.assert_not_called()
+
+
+def test_repeated_clean_installed_histories_use_real_suite_offline_reuse_after_baseline_cleanup(
+        tmp_path, monkeypatch):
+    import guest_inputs
+    import vm_transport
+    import system_fixture_preparation as preparation
+    from suite_lease import Suite
+    selected = system.resolve_selection('authorization', inventories=INVENTORIES)
+    lease = legacy_lease(state={'run': RUN})
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.installed_online = lease.online_pending = False
+    lease.installed_name = None
+    lease._restored_name = 'onpc-baseline'
+    lease.restore_installed = False
+    lease.__enter__ = Mock(return_value=lease)
+    def cleanup(*args):
+        lease._restored_name = 'onpc-baseline'
+        return False
+    lease.__exit__ = Mock(side_effect=cleanup)
+    def stop():
+        assert lease.restore_installed is True
+        lease._restored_name = lease.installed_name
+    lease.stop.side_effect = stop
+    suite = Suite(Mock())
+    suite.lease, suite.source, suite.guestfs = lease, Mock(), Mock()
+    suite.prepare_installed = Mock(return_value=False)
+    monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
+    monkeypatch.setattr(system, 'package_version', lambda *args: '1.4.0')
+    monkeypatch.setattr(system, 'bootstrap', Mock(return_value='key'))
+    monkeypatch.setattr(system, 'address', lambda _: 'guest')
+    monkeypatch.setattr(vm_transport, 'Transport', Mock())
+    monkeypatch.setattr(preparation, 'validate_input', lambda value, target=None: value)
+    monkeypatch.setattr(preparation, 'selection_record', lambda value, target=None: value)
+    def prepare(*args, **kwargs):
+        assert kwargs == {'installed': True}
+        preparation.require_installed_restore(lease)
+        return {'controller': Mock(), 'receipt': 'actual-restored-boot'}
+    monkeypatch.setattr(preparation, 'prepare', prepare)
+    for name in ('first', 'second'):
+        directory = tmp_path / name
+        (directory / 'input').mkdir(parents=True)
+        (directory / 'input/package.deb').write_bytes(b'frozen-package')
+        assert snapshots.run_attempts(suite, directory, selected, {}, 'selected', system.RunLedger(),
+            fixture_selection={'target': 'ubuntu'}, preparation_only=True) == [None]
+        assert lease._restored_name == 'onpc-baseline'
+    assert suite.prepare_installed.call_count == 2
+    for call in suite.prepare_installed.call_args_list:
+        assert call.kwargs == {'root': system.ROOT, 'overwrite': False, 'mode': 'offline'}
+    assert lease.stop.call_count == 2
+
+
+@pytest.mark.parametrize('failure', [None, 'initial-boot', 'reboot-boot', 'renewal'])
+def test_clean_installed_session_renews_same_controller_after_reboot_before_phase(
+        tmp_path, monkeypatch, failure):
+    import system_fixture_preparation as preparation
+    selected = system.resolve_selection('session', inventories=INVENTORIES)
+    lease, vm = legacy_lease(state={'run': RUN}), Mock()
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.installed_online = lease.online_pending = False
+    lease.installed_name = lease._restored_name = 'onpc-v1.4'
+    record = {'target': 'ubuntu'}
+    monkeypatch.setattr(preparation, 'selection_record', lambda value, target=None: value)
+    controller = Mock()
+    events = []
+    controller.require_ready.side_effect = lambda receipt: events.append(('ready', receipt))
+    def renew(receipt):
+        events.append(('renew', receipt))
+        if failure == 'renewal':
+            raise ValueError('renewal-refused')
+        return 'new-boot'
+    controller.renew_after_reboot.side_effect = renew
+    prepare = Mock(return_value={'controller': controller, 'receipt': 'restored-boot'})
+    monkeypatch.setattr(preparation, 'prepare', prepare)
+    observer = Mock()
+    def boot_complete():
+        events.append(('boot-complete',))
+        if ((failure == 'initial-boot' and vm.wait_boot_complete.call_count == 1) or
+                (failure == 'reboot-boot' and vm.wait_boot_complete.call_count == 2)):
+            raise system.Error('transport:boot-not-complete')
+    vm.wait_boot_complete.side_effect = boot_complete
+    vm.reboot.side_effect = lambda: events.append(('reboot',))
+    def run_phase(*args):
+        events.append(('phase',))
+    monkeypatch.setattr(system, 'run_pytest', run_phase)
+    monkeypatch.setattr(system, 'capture_session_screen', Mock())
+    write_junit_results(tmp_path, selected)
+    if failure:
+        with pytest.raises((ValueError, system.Error), match=(
+                'renewal-refused' if failure == 'renewal' else 'transport:boot-not-complete')):
+            system.installed_run(vm, lease, tmp_path, selected, already_installed=True,
+                                 fixture_selection=record, preparation_observer=observer)
+        assert ('phase',) not in events
+    else:
+        system.installed_run(vm, lease, tmp_path, selected, already_installed=True,
+                             fixture_selection=record, preparation_observer=observer)
+        assert events[-6:] == [('reboot',), ('boot-complete',), ('renew', 'restored-boot'),
+                              ('ready', 'new-boot'), ('ready', 'new-boot'), ('phase',)]
+    if failure in ('initial-boot', 'reboot-boot'):
+        controller.renew_after_reboot.assert_not_called()
+    else:
+        controller.renew_after_reboot.assert_called_once_with('restored-boot')
+    assert vm.reboot.call_count == int(failure != 'initial-boot')
+    assert vm.wait_boot_complete.call_count == (1 if failure == 'initial-boot' else 2)
+    calls = [call.args[0] for call in vm.call.call_args_list]
+    if failure == 'initial-boot':
+        prepare.assert_not_called()
+        observer.assert_not_called()
+        vm.copy.assert_not_called()
+        vm.call.assert_not_called()
+    else:
+        assert system.guest_command(RUN, 'verify-installed') in calls
+    assert not any(system.guest_command(RUN, action) in calls
+                   for action in ('install', 'install-previous', 'upgrade'))
 
 
 @pytest.fixture(autouse=True)

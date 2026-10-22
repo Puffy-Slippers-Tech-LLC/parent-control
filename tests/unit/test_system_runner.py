@@ -1252,16 +1252,22 @@ Signed-By:
     (True, {'fixture_boundary': 'clean', 'ubuntu_version': '26.10'}, False),
     (True, {'fixture_boundary': 'clean', 'os_id': 'unknown', 'version': '44'}, False),
 ])
+@pytest.mark.parametrize('branch', ['system_product_free', 'system_installed'])
 def test_clean_bootstrap_requires_explicit_qualified_target_branch(
-        tmp_path, enabled, guest, accepted):
+        tmp_path, enabled, guest, accepted, branch):
     commands, lease, guestfs = Mock(), Mock(), Mock()
+    if branch == 'system_installed':
+        accepted = accepted and guest.get('ubuntu_version') == '26.04'
+    options = {branch: enabled}
+    lease.installed_online = lease.online_pending = False
+    lease.installed_name = lease._restored_name = 'onpc-v1.4'
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
                            'guest': {**guest, 'preparation_record_sha256': 'e' * 64}}
     lease.state = {'run': RUN, 'baseline_sha256': 'd' * 64}
     lease.source.uuid = UUID
     if not accepted:
         with pytest.raises(runner.Error, match='fixtures:'):
-            runner.bootstrap(commands, lease, tmp_path, guestfs, system_product_free=enabled)
+            runner.bootstrap(commands, lease, tmp_path, guestfs, **options)
         commands.run.assert_not_called()
         guestfs.GuestFS.assert_not_called()
         return
@@ -1285,7 +1291,7 @@ def test_clean_bootstrap_requires_explicit_qualified_target_branch(
     guestfs.GuestFS.return_value = g
     with patch.object(runner, 'retire_snapshot_payload'):
         assert runner.bootstrap(commands, lease, tmp_path, guestfs,
-                                system_product_free=True) == 'ssh-ed25519 public-test-key'
+                                **options) == 'ssh-ed25519 public-test-key'
 
 
 @pytest.mark.parametrize('os_id,major,minor', [('ubuntu', 26, 10), ('fedora', 43, 0)])

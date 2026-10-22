@@ -329,7 +329,9 @@ and supplies no customer or Fedora acceptance.
 Ubuntu's delivered [product-free system preparation](README.md#ubuntu-product-free-system-preparation)
 now provisions its selected trusted-hard witness over owned SSH after a clean
 baseline boot. The three Parent bootstrap aliases share that boundary.
-Installed-system and other envelopes remain separately gated; snapshot checks
+Ubuntu's [installed-system preparation](README.md#ubuntu-installed-system-preparation)
+explicitly restores an offline app capture before fresh bootstrap and hard-only
+provisioning. Other envelopes remain separately gated; snapshot checks
 and provisioning checks do not substitute for their runner qualifications.
 
 ### Fedora clean snapshots

@@ -245,6 +245,11 @@ attempt on Ubuntu. F10 extends that boundary and the three aliases to
 including enforcing SELinux and exact native policy/label readback.
 All other matrix entries retain their separate gates.
 
+F16 adds Ubuntu's [installed-system preparation](../../tests/integration/README.md#ubuntu-installed-system-preparation)
+through explicit offline app restoration, fresh bootstrap and the same hard-only
+readiness boundary. Its `check_fixture_system_installed` selector exercises the
+real installed branch before system input; Fedora retains its F17 gate.
+
 ### Runner acceptance matrix
 
 | Envelope | Actual preparation boundary | Planned selector suffix / subset | Ubuntu / Fedora tasks |

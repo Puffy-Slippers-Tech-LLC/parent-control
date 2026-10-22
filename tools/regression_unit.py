@@ -1133,6 +1133,10 @@ from regression_ui import Bucket
 # process-local runner/lease/transport doubles. No VM, subprocess, service,
 # fixture build, display, socket, shared cache or cleanup/UI owner is added;
 # bounded CPU and disk work is compatible with ordinary unit overlap.
+# Installed-system composition and reboot-readiness coverage retain these
+# private trees and in-process doubles. Dispatcher/launcher additions retain
+# their existing bounded waited children; no live guest, external service,
+# shared cache, socket, display or new cleanup/UI owner is introduced.
 REVIEWED = frozenset("""
 fixture_system_qualification
 fixture_provision_qualification

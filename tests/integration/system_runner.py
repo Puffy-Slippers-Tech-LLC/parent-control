@@ -1772,16 +1772,23 @@ def retire_snapshot_payload(g, run):
 
 @observed('Preparing the VM SSH transport and guest inputs')
 def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
-              snapshot_capture=False, environment_only=False, system_product_free=False):
+              snapshot_capture=False, environment_only=False, system_product_free=False,
+              system_installed=False):
     """Prepare SSH only on the reset, powered-off active disk via libguestfs."""
     require(type(snapshot_capture) is bool, 'fixtures:invalid-snapshot-capture')
     require(type(system_product_free) is bool, 'fixtures:invalid-system-product-free')
-    from system_fixture_preparation import qualified_guest
+    require(type(system_installed) is bool, 'fixtures:invalid-system-installed')
+    from system_fixture_preparation import qualified_guest, require_installed_restore
+    require(not system_installed or (not system_product_free and not snapshot_capture
+            and not observation_only and qualified_guest(lease.capture.state['guest'], installed=True)),
+            'fixtures:system-installed-target-not-qualified')
+    if system_installed:
+        require_installed_restore(lease)
     require(not system_product_free or qualified_guest(lease.capture.state['guest']),
             'fixtures:system-product-free-target-not-qualified')
     require(type(environment_only) is bool and (not environment_only or observation_only),
             'fixtures:invalid-environment-observation')
-    require(environment_only or snapshot_capture or system_product_free or
+    require(environment_only or snapshot_capture or system_product_free or system_installed or
             lease.capture.state['guest'].get('fixture_boundary') != 'clean',
             'fixtures:runner-not-qualified-for-clean-snapshot')
     if getattr(lease, 'online_pending', False) is True:
@@ -1796,6 +1803,8 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
         os_id, version = baseline.guest_contract.inspected_release(g, root)
         require(not system_product_free or (os_id, version) in (('ubuntu', '26.04'), ('fedora', '44')),
                 'fixtures:system-product-free-target-not-qualified')
+        require(not system_installed or (os_id, version) == ('ubuntu', '26.04'),
+                'fixtures:system-installed-target-not-qualified')
         package = directory / 'input' / ('package.rpm' if os_id == 'fedora' else 'package.deb')
         if not observation_only:
             require(package.is_file(), 'assets:package-platform-mismatch:' + os_id)
@@ -2065,24 +2074,47 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
     # Its observer runs under the caller's live lease for independent audits.
     guest = lease.capture.state['guest']
     clean = isinstance(guest, dict) and guest.get('fixture_boundary') == 'clean'
+    fixture_context = None
     if clean or preparation_only:
-        from system_fixture_preparation import prepare, selection_record, qualified_guest
-        require(not already_installed and qualified_guest(guest),
-                'fixtures:system-product-free-target-not-qualified')
-        fixture_selection = selection_record(fixture_selection)
+        from system_fixture_preparation import (prepare, selection_record, qualified_guest,
+                                                require_installed_restore, installed_selection)
+        require(qualified_guest(guest, installed=already_installed),
+                'fixtures:system-' + ('installed' if already_installed else 'product-free')
+                + '-target-not-qualified')
+        if already_installed:
+            require_installed_restore(lease)
+        fixture_selection = (installed_selection(fixture_selection) if already_installed else
+                             selection_record(fixture_selection))
         with ledger.measure('bootstrap'):
             vm.probe_ready()
+            if already_installed:
+                vm.wait_boot_complete()
             context = {'vm': vm, 'lease': lease, 'directory': directory}
             if preparation_observer is not None:
                 preparation_observer('before', context)
-            context = prepare(vm, lease, directory, fixture_selection)
+            context = prepare(vm, lease, directory, fixture_selection,
+                              **({'installed': True} if already_installed else {}))
             if preparation_observer is not None:
                 observed = preparation_observer('ready', context)
             else:
                 observed = None
             context['controller'].require_ready(context['receipt'])
+            fixture_context = context
         if preparation_only:
             return observed
+    def require_fixture_ready():
+        if fixture_context is not None:
+            fixture_context['controller'].require_ready(fixture_context['receipt'])
+
+    def reboot():
+        if already_installed:
+            require_fixture_ready()
+        vm.reboot()
+        if fixture_context is not None and already_installed:
+            vm.wait_boot_complete()
+            fixture_context['receipt'] = fixture_context['controller'].renew_after_reboot(
+                fixture_context['receipt'])
+            require_fixture_ready()
     run = lease.state['run']
     outcome = 'failed'
     qualification_pending = False
@@ -2090,6 +2122,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         with ledger.measure('bootstrap'):
             if not clean:
                 vm.ready()
+            if already_installed:
+                require_fixture_ready()
             vm.copy(False, str(directory / 'input') + '/', PAYLOAD + '/')
         previous = [directory / 'input' / ('previous-package.' + extension)
                     for extension in ('deb', 'rpm')]
@@ -2126,6 +2160,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         if already_installed:
             lease.save('snapshot-readiness')
             with ledger.measure('bootstrap'):
+                require_fixture_ready()
                 vm.call(guest_command(run, 'verify-installed'), timeout=660)
         elif has_previous:
             lease.save('package-install')
@@ -2223,6 +2258,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 with ledger.measure('reboot'):
                     vm.reboot()
             if phase == 'session':
+                if already_installed:
+                    require_fixture_ready()
                 lease.save('graphical-expiry-fixture')
                 with ledger.measure('test'):
                     vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
@@ -2230,10 +2267,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                              'prepare'], timeout=300)
                 lease.save('graphical-expiry-reboot')
                 with ledger.measure('reboot'):
-                    vm.reboot()
+                    reboot()
             lease.save('pytest-' + phase)
             with ledger.measure('test'):
                 try:
+                    if already_installed:
+                        require_fixture_ready()
                     run_pytest(vm, run, phase, selection)
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1

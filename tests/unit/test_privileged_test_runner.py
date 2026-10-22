@@ -87,6 +87,21 @@ def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selec
         '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
 
 
+@pytest.mark.parametrize('suffix', ['', '.py'])
+def test_installed_system_dispatch_is_bound_to_ubuntu(checkout, fixture_selection, suffix):
+    name = 'check_fixture_system_installed'
+    (checkout / 'tests/integration' / (name + '.py')).touch()
+    command = runner['selection'](checkout, ['integration', name + suffix,
+        '--vm', 'onpc-Ubuntu26.04', '--fixture-selection', json.dumps(fixture_selection)])
+    assert command == ['/usr/bin/python3', '-B',
+        str(checkout / 'tests/integration' / (name + '.py')),
+        '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
+    for arguments in ([], ['--fixture-selection', json.dumps(fixture_selection)]):
+        with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+            runner['selection'](checkout, ['integration', name + suffix,
+                '--vm', 'onpc-Fedora44', *arguments])
+
+
 @pytest.mark.parametrize('payload', ['{', 'null', '[]', '{}', 'x' * 8193])
 def test_fixture_selection_rejects_malformed_json_or_record(checkout, fixture_selection, payload):
     with pytest.raises(ValueError):

@@ -1,4 +1,4 @@
-"""Qualified product-free system preparation, after guarded SSH readiness.
+"""Qualified system preparation, after guarded SSH readiness.
 
 The caller selects immutable inputs before VM acquisition. This adapter owns
 neither a fixture producer nor VM recovery; the existing attempt owns staging.
@@ -32,8 +32,17 @@ def guest_target(guest):
     return None
 
 
-def qualified_guest(guest):
-    return guest_target(guest) is not None
+def qualified_guest(guest, *, installed=False):
+    target = guest_target(guest)
+    return target == 'ubuntu' if installed else target is not None
+
+
+def require_installed_restore(lease):
+    """Installed system cases qualify the off app restore, never online resume."""
+    if (lease.installed_online is not False or lease.online_pending is not False
+            or not isinstance(lease.installed_name, str) or not lease.installed_name
+            or lease._restored_name != lease.installed_name):
+        raise ValueError('fixtures:system-installed-offline-restore-required')
 
 
 def selection_record(value, target=None):
@@ -62,6 +71,13 @@ def validate_input(value, target=None):
     return record
 
 
+def installed_selection(value):
+    record = selection_record(value)
+    if record['target'] != 'ubuntu':
+        raise ValueError('fixtures:system-installed-target-not-qualified')
+    return record
+
+
 def register_staging(directory, lease, attempt_id, path):
     if re.fullmatch(r'/run/onpc-fixture-[0-9a-f]{64}', path) is None:
         raise ValueError('fixtures:staging-path')
@@ -76,9 +92,13 @@ def register_staging(directory, lease, attempt_id, path):
         os.fsync(stream.fileno())
 
 
-def prepare(vm, lease, directory, selection):
-    if not qualified_guest(lease.capture.state['guest']):
-        raise ValueError('fixtures:system-product-free-target-not-qualified')
+def prepare(vm, lease, directory, selection, *, installed=False):
+    if not qualified_guest(lease.capture.state['guest'], installed=installed):
+        raise ValueError('fixtures:system-' + ('installed' if installed else 'product-free')
+                         + '-target-not-qualified')
+    if installed:
+        require_installed_restore(lease)
+        selection = installed_selection(selection)
     selection = validate_input(selection, target=guest_target(lease.capture.state['guest']))
     identity = attempt_id(directory)
     controller = fixture_provision.Provisioner(lease, vm,

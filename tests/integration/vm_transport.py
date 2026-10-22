@@ -164,6 +164,27 @@ class Transport:
     def probe_ready(self, *, boot_id=False, timeout=330):
         return self._probe_ready(boot_id=boot_id, timeout=timeout)
 
+    @observed('Waiting for system startup to complete')
+    def wait_boot_complete(self):
+        """Observe systemd's terminal startup state before installed provisioning.
+
+        This is the same boot boundary as system_guest.wait_for_boot. Degraded
+        completion leaves every dependency assertion in force. There is one
+        read-only command, with no service repair or uncertain-command retry.
+        """
+        config = dict(self.config)
+        raw = self.call(['/usr/bin/systemctl', 'is-system-running', '--wait'],
+                        timeout=600, check=False)
+        status = self.commands.last_returncode
+        require(self.config == config, 'transport:configuration-changed')
+        # Lease guards share Commands and may replace last_returncode. Keep
+        # systemctl's status before verifying the still-owned instance.
+        self.guard(config)
+        require(self.config == config, 'transport:configuration-changed')
+        require(isinstance(raw, bytes) and (status, raw.strip()) in
+                {(0, b'running'), (1, b'degraded')}, 'transport:boot-not-complete')
+        return raw.decode('ascii').strip()
+
     @observed('Waiting for the VM to finish rebooting')
     def wait_boot_change(self, previous_boot_sha256, *, on_diagnostic=None):
         """Observe a customer-requested reboot; never issue a lifecycle command.

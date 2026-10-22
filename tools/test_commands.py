@@ -523,11 +523,17 @@ def fixture_execution_target(category, args):
                  and args[0].removesuffix('.py') in (
                      'check_fixture_system_product_free', 'check_parent_setup',
                      'check_parent_input', 'check_parent_standard_input'))
-    if not provisioning and not bootstrap and category != 'system':
+    installed = (category == 'integration' and len(args) == 1
+                 and args[0].removesuffix('.py') == 'check_fixture_system_installed')
+    if not provisioning and not bootstrap and not installed and category != 'system':
         return None
     from vm_selection import selected
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
+    if installed:
+        if target != 'ubuntu':
+            raise ValueError('fixture installed system target is unavailable')
+        return target
     if provisioning:
         if target is None:
             raise ValueError('fixture provisioning qualification target is unavailable')
@@ -551,7 +557,8 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
         return []
     from fixture_execution import Selection, validate_source_selection
     source_edit = (category == 'integration' and len(args) == 1
-                   and args[0].removesuffix('.py') == 'check_fixture_system_product_free')
+                   and args[0].removesuffix('.py') in (
+                       'check_fixture_system_product_free', 'check_fixture_system_installed'))
     if control is None:
         from regression_process import Control
         with Control().installed() as owned:

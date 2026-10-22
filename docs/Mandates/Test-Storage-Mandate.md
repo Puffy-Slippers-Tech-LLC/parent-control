@@ -146,6 +146,12 @@ authorizes ordinary producers to allocate under an independent root.
 
 ## Disaster recovery archives
 
+The [central VM pool](VM-Mandate.MD#central-vm-checkout) keeps only its small
+UUID lock files and reservation receipts in the VM host's `/run/onpc-vm-pool/`.
+These are host-wide operational bookkeeping, independent of test checkouts and
+retention. No test payload, log, report or evidence belongs there. Unit tests
+inject private lock roots in their normal test scratch.
+
 Explicit VM disaster archives use `backup_root` in
 [`config/test-vm.json`](../../config/test-vm.json) through
 [`tools/backupvm`](../../tools/backupvm) and

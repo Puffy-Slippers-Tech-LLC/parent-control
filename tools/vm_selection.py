@@ -35,6 +35,8 @@ PREPARATION_INSTRUCTIONS = BASELINE_INSTRUCTIONS + ' ' + APPSNAPSHOT_INSTRUCTION
 
 def execution_selection(name=None):
     concurrency, vms = vm_config.execution(name)
+    from vm_pool import check_queue
+    check_queue(vms)
     for vm in vms:
         vm.require_package_format()
     select(vms[0].name)

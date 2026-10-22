@@ -1917,7 +1917,30 @@ def test_rename_refusals_leave_domain_snapshots_and_provenance_untouched(lease_r
     lease, current = lease_rig
     snapshots, _ = rename_rig(lease, current, monkeypatch)
     destination = lease.directory.parent / 'custom-Ubuntu26.04'
-    lock = None
+    if fault == 'busy':
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError
+        import threading
+        started = threading.Event()
+        original, originals = current['xml'], snapshots.copy()
+        def execute():
+            started.set()
+            control.rename(lease, destination.name)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as worker:
+                with lease.capture.lock_path.open('rb') as lock:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    result = worker.submit(execute)
+                    assert started.wait(5)
+                    with pytest.raises(TimeoutError):
+                        result.result(timeout=0.1)
+                    assert current['xml'] == original and snapshots == originals
+                    lease.source.domain.rename.assert_not_called()
+                result.result(timeout=5)
+            assert destination.is_dir()
+            lease.source.domain.rename.assert_called_once()
+        finally:
+            lease.release()
+        return
     if fault == 'running':
         current['id'], lease.source.off = 71, False
     elif fault == 'destination':
@@ -1927,9 +1950,6 @@ def test_rename_refusals_leave_domain_snapshots_and_provenance_untouched(lease_r
     elif fault == 'pending':
         (lease.directory / 'rename-previous.json').write_text('{"phase":"requested"}')
         (lease.directory / 'rename-previous.json').chmod(0o600)
-    else:
-        lock = lease.capture.lock_path.open('rb')
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     original = current['xml']
     originals = snapshots.copy()
     try:
@@ -1941,8 +1961,6 @@ def test_rename_refusals_leave_domain_snapshots_and_provenance_untouched(lease_r
         lease.source.domain.snapshotCreateXML.assert_not_called()
     finally:
         lease.release()
-        if lock is not None:
-            lock.close()
 
 
 @pytest.mark.parametrize('fault', ['api', 'snapshot', 'move', 'interrupt'])

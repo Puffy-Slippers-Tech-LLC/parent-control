@@ -176,8 +176,19 @@ def execution_arguments(argv):
 def vm_request(argv):
     from vm_selection import vm_config, execution_selection, extract_execution, selected
     args, selector = vm_config.extract_selector(argv)
+    request = [arg for arg in args if arg != '--resume' and not arg.startswith('--resume-case=')]
+    if request[:1] == ['--stop-on-error']:
+        request = request[1:]
+    vm_artifacts = request[:3] == ['artifacts', 'prepare', '--for-vm']
+    if vm_artifacts and not is_inspection(args) and selector is None:
+        raise ValueError('VM artifact preparation requires one explicit --vm NAME')
     if not is_inspection(args) and args != ['--stop'] and not host_only_request(args):
         _, vms = execution_selection(selector)
+        if vm_artifacts:
+            if len(vms) != 1:
+                raise ValueError('VM artifact preparation requires one explicit --vm NAME')
+            from vm_selection import BATCH
+            os.environ.pop(BATCH, None)
         if len(vms) > 1 and any(value == '--native-artifacts' or value.startswith('--native-artifacts=')
                                  for value in args):
             raise ValueError('explicit native artifacts require a single VM; use --native-inputs for a queue')
@@ -936,6 +947,8 @@ def _main(argv=None, *, detached=False, checkpoint=None):
             from dev_privileges import check
             check(commands[-1][1])
             commands[-1].insert(1, '--keep-cwd')
+            from vm_pool import arguments
+            commands[-1][3:3] = arguments()
         print('run-tests: validated category starting', file=sys.stderr, flush=True)
         from test_storage import scratch_descriptors
         return subprocess.run(commands[-1], env=env, pass_fds=scratch_descriptors(),
@@ -994,6 +1007,8 @@ def host_only_request(argv):
     if args[:1] == ['--stop-on-error']:
         args = args[1:] or ['all']
     category = args[0]
+    if args[:3] == ['artifacts', 'prepare', '--for-vm']:
+        return False
     if category in COMPLETE:
         phases = [argument for argument in args if argument in COMPLETE]
         return bool(phases) and all(phase == 'host' for phase in phases)

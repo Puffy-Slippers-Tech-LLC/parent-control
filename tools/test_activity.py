@@ -134,11 +134,10 @@ def activity(root, *, host_only=None, named_vm=None, includes_host=False):
                 pass
             else:
                 host_only = (other.st_dev, other.st_ino) == (candidate.st_dev, candidate.st_ino)
-    from vm_selection import selected
-    vm = (selected(required=False) if not host_only and
-          (named_vm or previous_named_vm or (inherited is not None and previous is None)) else None)
+    from vm_selection import selected, BATCH
+    vm = selected(required=False) if not host_only else None
     if named_vm is None:
-        named_vm = previous_named_vm if previous is not None else False
+        named_vm = previous_named_vm if previous is not None else vm is not None and BATCH not in os.environ
         if inherited is not None and previous is None and vm is not None:
             try:
                 candidate = (directory / ('vm-' + vm.name + '.lock')).lstat()
@@ -155,8 +154,9 @@ def activity(root, *, host_only=None, named_vm=None, includes_host=False):
     opened = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     try:
         if named_vm:
-            # Existing aggregate controllers retain exclusive checkout ownership;
-            # independent named preparation owners may overlap each other only.
+            # Compatibility with an older exclusive checkout controller only.
+            # New batch and named owners share this gate; the host pool owns
+            # actual VM admission, independently for each UUID.
             compatibility = os.open(directory / 'lock',
                 os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
             info = os.fstat(compatibility)
@@ -177,7 +177,8 @@ def activity(root, *, host_only=None, named_vm=None, includes_host=False):
                 raise ValueError('foreign test activity descriptor')
         descriptor = opened if inherited is None else inherited
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(descriptor, (fcntl.LOCK_SH if not host_only and not named_vm
+                                     else fcntl.LOCK_EX) | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise ValueError('another test launcher owns this checkout; wait for its cleanup') from error
         if inherited is None:

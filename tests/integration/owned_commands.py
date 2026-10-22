@@ -39,6 +39,7 @@ class Commands:
 
     def __init__(self):
         self.lock_fd = None
+        self.controller_fds = ()
         self.directory = None
         self.sequence = 0
         self.last_returncode = None
@@ -125,7 +126,7 @@ class Commands:
             child = subprocess.Popen(args, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
                                      stdout=slave if terminal else output,
                                      stderr=slave if terminal else subprocess.STDOUT if merge_stderr else errors,
-                                     pass_fds=tuple(dict.fromkeys((*pass_fds,
+                                     pass_fds=tuple(dict.fromkeys((*pass_fds, *self.controller_fds,
                                          *(() if self.lock_fd is None else (self.lock_fd,))))),
                                      **({'env': {**os.environ, 'TERM': 'xterm-256color'}} if terminal else {}))
             try:

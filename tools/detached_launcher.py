@@ -84,6 +84,9 @@ def atomic(path, value):
 
 def owner_record(run, **fields):
     """Publish one clock origin per backend spawn, shared by all observers."""
+    from vm_pool import VARIABLE
+    if VARIABLE in os.environ:
+        fields['vm_checkout'] = os.environ[VARIABLE]
     return dict(fields, run=run.name, started_at=time.time(), started_monotonic=time.monotonic())
 
 
@@ -581,6 +584,9 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
             run = current_run(directory)
             if run is None:
                 raise ValueError(f'active {name} owner has no readable run record')
+            if not stop and name in ('fix-tests', 'write-e2e', 'plans'):
+                from vm_pool import check_attachment
+                check_attachment(json.loads((directory / 'current.json').read_text()))
             if on_attach is not None:
                 on_attach(run)
             if stop:
@@ -763,7 +769,10 @@ def finish_nested(root, run):
         allowed = (directory('sessions', root=root), directory('sessions-host', root=root))
         for entry in entries:
             child = Path(entry['path'])
-            if child.parent not in allowed or child.is_symlink():
+            vm_session = (child.parent.parent == allowed[0]
+                          and child.parent.name.startswith('vm-')
+                          and not child.parent.is_symlink())
+            if child.parent not in allowed and not vm_session or child.is_symlink():
                 raise ValueError('unsafe nested test record; preserve evidence')
             try:
                 info = child.stat()

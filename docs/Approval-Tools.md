@@ -214,9 +214,11 @@ journal. Its restore-only dispatch uses maintenance scratch rather than an
 evidence-retention session, whose entry gate requires an idle VM. The shared
 owned recovery and live VM ownership checks still apply. Offline snapshots and online
 snapshots older than 24 hours force replacement. Explicit overwrite still rebuilds.
-Standalone app preparation holds a named VM checkout activity lock, so different
-VMs may prepare concurrently while the same VM and aggregate owners remain
-excluded. A read-only snapshot probe sends unfinished attempts through shared
+Standalone app preparation holds the host-wide
+[VM checkout](Mandates/VM-Mandate.MD#central-vm-checkout) throughout probing,
+building and maintenance handoff. Other requests for that VM queue, including
+requests from other checkouts; different VMs remain independent.
+A read-only snapshot probe sends unfinished attempts through shared
 recovery before probing again. Healthy online maintenance resumes directly;
 replacement recovers its exact recorded owner through the maintained stop path.
 Failed SSH or clock readiness after a successful restore performs owned cleanup.

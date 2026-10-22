@@ -35,5 +35,8 @@ def check(program):
 def launch(program, argv):
     check(program)
     os.chdir(Path(__file__).resolve().parents[1])
-    command = ['/usr/bin/pkexec', '--keep-cwd', program, *argv]
+    from vm_pool import arguments
+    checkout = arguments() if program in ('/usr/local/libexec/onpc-test-runner',
+                                         '/usr/local/libexec/onpc-setup') else []
+    command = ['/usr/bin/pkexec', '--keep-cwd', program, *checkout, *argv]
     os.execve(command[0], command, {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'})

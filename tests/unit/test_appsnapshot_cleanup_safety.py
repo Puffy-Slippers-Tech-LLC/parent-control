@@ -361,6 +361,14 @@ def test_invalid_options_refused_before_any_work(argv, monkeypatch):
     check.assert_not_called()
 
 
+@pytest.fixture(autouse=True)
+def no_live_reservations(monkeypatch):
+    import vm_pool
+    monkeypatch.setattr(vm_pool, 'reservation', lambda *a, **kw: nullcontext())
+    import cleanup_e2e
+    monkeypatch.setattr(cleanup_e2e, 'reservation', lambda *a, **kw: nullcontext())
+
+
 @pytest.fixture
 def launch(tmp_path, monkeypatch):
     import test_storage
@@ -856,7 +864,7 @@ def test_probe_routes_unfinished_attempts_to_recovery_and_keeps_healthy_online_r
     raw = json.dumps({'phase': phase, 'run': 'a' * 32}).encode()
     journal.write_bytes(raw)
     (tmp_path / 'vm-control.json').write_text(json.dumps({'run': ('a' if owned else 'b') * 32}))
-    assert controller.probe('pinned', overwrite=False) == status
+    assert controller.probe(UUID, overwrite=False) == status
     assert journal.read_bytes() == raw
     source.domain.create.assert_not_called()
     source.domain.revertToSnapshot.assert_not_called()
@@ -1156,11 +1164,11 @@ def test_probe_uses_exclusive_vm_lock_and_never_mutates(
         f'<domainsnapshot><memory snapshot="{memory}"/><state>running</state>'
         f'<creationTime>{int(time.time()) - age}</creationTime>{domain}</domainsnapshot>')
     monkeypatch.setattr(online_snapshot, 'load', Mock(return_value={'bound': True}))
-    assert controller.probe('pinned', overwrite=False) == (status if exists else 3)
+    assert controller.probe(UUID, overwrite=False) == (status if exists else 3)
     source.domain.snapshotListNames.assert_called_once_with(0)
     assert len(source.domain.mock_calls) == (3 if exists else 1)
     source.close.assert_called_once()
-    assert list(tmp_path.iterdir()) == [lock]
+    assert sorted(path.name for path in tmp_path.iterdir()) == ['baseline.lock', 'vm-pool']
     with lock.open() as stream:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
@@ -1178,7 +1186,7 @@ def test_probe_rejects_foreign_vm_before_reading_snapshots(tmp_path, monkeypatch
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
     monkeypatch.setattr(controller, 'check_identity', Mock(side_effect=ValueError('foreign VM')))
     with pytest.raises(ValueError, match='foreign VM'):
-        controller.probe('pinned')
+        controller.probe(UUID)
     source.domain.snapshotListNames.assert_not_called()
     source.close.assert_called_once()
 
@@ -1209,7 +1217,7 @@ def test_forced_probe_selects_backend_without_snapshot_mutation(tmp_path, monkey
     source = Mock()
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
     monkeypatch.setattr(controller, 'check_identity', Mock())
-    assert controller.probe('pinned', **options) == expected
+    assert controller.probe(UUID, **options) == expected
     assert source.domain.mock_calls == []
     source.close.assert_called_once()
 

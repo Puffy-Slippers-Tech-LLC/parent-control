@@ -263,19 +263,27 @@ def guard_domain(connection, api, vm, identity=None, *, missing=False):
 
 
 @contextmanager
-def lease(vm, commands):
+def lease(vm, commands, *, vm_uuid=None):
+    require(base._controller.get() is None, 'state:busy-controller; nested stages borrow the outer lease')
     base.prepare_state_root(vm.baseline_directory.parent)
     private_directory(vm.baseline_directory, create=True)
     compatibility = base.compatibility_lock(vm.baseline_directory)
     fd = observer = None
     try:
-        fd = os.open(vm.baseline_directory / '.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        if vm_uuid is None:
+            phase = vm.baseline_directory / 'phase.json'
+            if phase.exists():
+                vm_uuid = read_json(phase)['source']['layout']['uuid']
+            else:
+                import libvirt
+                source = base.LibvirtSource(libvirt)
+                try:
+                    vm_uuid = source.uuid
+                finally:
+                    source.close()
+        fd = base.open_controller_lock(vm.baseline_directory / '.lock', vm_uuid=vm_uuid)
         base.identity(vm.baseline_directory / '.lock', private=True, mode=0o600)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            raise base.CaptureError('state:busy-controller') from error
-        commands.lock_fd, commands.compatibility_fd = fd, compatibility
+        base.bind_controller(commands, fd, compatibility)
         # Use the normal persistent off-VM display feed. Viewing never controls
         # storage or VM lifetime, and no guest is booted for disaster recovery.
         from e2e_watch import begin
@@ -288,9 +296,9 @@ def lease(vm, commands):
     finally:
         if observer is not None:
             observer.close()
-        commands.lock_fd = commands.compatibility_fd = None
+        base.bind_controller(commands, None, None)
         if fd is not None:
-            os.close(fd)
+            base.close_controller_lock(fd)
         if compatibility is not None:
             os.close(compatibility)
 
@@ -663,7 +671,7 @@ def target(vm, manifest, record):
     return root / relative
 
 
-def load_archive(vm, root):
+def archive_metadata(vm, root):
     private_directory(root / vm.name)
     direct = os.path.lexists(root / vm.name / 'complete.json')
     latest = read_json(root / vm.name / ('complete.json' if direct else 'latest.json'))
@@ -677,6 +685,11 @@ def load_archive(vm, root):
     require(manifest.get('schema_version') == SCHEMA and manifest.get('name') == vm.name and
             manifest.get('disk_anchor') == str(vm.disk_anchor), 'registry-backup-mismatch')
     require(str(uuid.UUID(manifest['uuid'])) == manifest['uuid'], 'archive-uuid')
+    return archive, manifest, latest
+
+
+def load_archive(vm, root):
+    archive, manifest, latest = archive_metadata(vm, root)
     if 'baseline_sha256' in manifest:
         require(isinstance(manifest['baseline_sha256'], str) and
                 len(manifest['baseline_sha256']) == 64 and
@@ -990,9 +1003,11 @@ def publish_file(vm, manifest, record, archive, journal, guard=lambda: None,
     atomic(vm.baseline_directory / JOURNAL, journal)
 
 
-def restore(connection, api, vm, root, commands):
+def restore(connection, api, vm, root, commands, *, expected_uuid=None):
     with operation('Restoring registered VM and reconciling provenance'):
         archive, manifest, latest = load_archive(vm, root)
+        require(expected_uuid is None or manifest['uuid'] == expected_uuid,
+                'archive-uuid-changed; retry to check out the current archive VM')
         journal = restore_preflight(connection, api, vm, manifest, latest, commands)
         if journal is None:
             previous_journal = vm.baseline_directory / JOURNAL
@@ -1162,24 +1177,30 @@ def main(argv=None):
                 base.identity(lock, private=True, mode=0o600)
                 from test_storage import disk_backed
                 disk_backed(fd)
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 for vm in vms:
                     vm_config.select(vm.name)
                     if args.action == 'restore':
                         ensure_parents(vm.disk_anchor.parent)
                         ensure_parents(vm_config.STATE_ROOT.parent)
                     commands = base.Commands()
-                    with lease(vm, commands):
-                        if args.action == 'backup':
-                            prepare_backup(api, vm, commands)
-                            backup(api, vm, root, commands)
-                        else:
-                            connection = api.open(vm_config.URI)
-                            require(connection is not None, 'connection')
-                            try:
-                                restore(connection, api, vm, root, commands)
-                            finally:
-                                connection.close()
+                    vm_uuid = archive_metadata(vm, root)[1]['uuid'] if args.action == 'restore' else None
+                    # Always take the VM first, archive second. Never hold the
+                    # archive lock while queuing for somebody else's VM.
+                    with lease(vm, commands, vm_uuid=vm_uuid):
+                        fcntl.flock(fd, fcntl.LOCK_EX)
+                        try:
+                            if args.action == 'backup':
+                                prepare_backup(api, vm, commands)
+                                backup(api, vm, root, commands)
+                            else:
+                                connection = api.open(vm_config.URI)
+                                require(connection is not None, 'connection')
+                                try:
+                                    restore(connection, api, vm, root, commands, expected_uuid=vm_uuid)
+                                finally:
+                                    connection.close()
+                        finally:
+                            fcntl.flock(fd, fcntl.LOCK_UN)
             finally:
                 os.close(fd)
         return 0

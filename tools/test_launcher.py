@@ -142,6 +142,9 @@ def environment(root, *, scratch=True):
                   PYTHONNOUSERSITE='1',
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')
     result.update(test_activity.environment())
+    from vm_pool import VARIABLE as CHECKOUT
+    if CHECKOUT in os.environ:
+        result[CHECKOUT] = os.environ[CHECKOUT]
     from vm_recording import VARIABLE as RECORDING_CONTROL
     if RECORDING_CONTROL in os.environ:
         result[RECORDING_CONTROL] = os.environ[RECORDING_CONTROL]

@@ -110,17 +110,65 @@ New controllers also hold a shared legacy root lease, excluding older controller
 that still require it exclusively. Existing unfinished legacy journals refuse new
 execution until recovered; evidence is never discarded to enable parallelism.
 
-- **Controller contention:** Checkout activity locks do not reserve the VM
-  across every category transition or exclude work from another checkout.
-  For `state:busy-controller` or a launcher ownership refusal, inspect the
-  retained failure location and current runner/owner through authorized
-  read-only diagnostics. A refusal before acquisition is infrastructure
-  contention, not a product assertion. Attach only to a matching run in the
-  current checkout; otherwise let the foreign owner finish its normal cleanup.
-  Do not stop its VM/processes, clear locks/journals, or refresh the baseline
-  to make room. Recheck readiness through the maintained route after release,
-  then retry only the affected selection. If the owner cannot finish without
-  external action, report that concrete blocker and preserve completed results.
+### Central VM checkout
+
+The shared [VM pool](../../tools/vm_pool.py) is the bookkeeper for maintained VM
+preparation, execution, maintenance and recovery. The VM host owns one kernel
+checkout per domain UUID in `/run/onpc-vm-pool/`. Repository roots, branches,
+worktrees, driver types and the machine initiating a request do not select a
+different lock. Remote drivers submit through the VM host's maintained helper;
+they must not substitute a lock on the driver machine.
+
+This is advisory coordination for participating tools and drivers. Manual
+virt-manager GUI use remains unrestricted and outside the pool. Do not patch or
+intercept virt-manager, hook libvirt operations, or change access controls to
+enforce checkout. The pool therefore does not promise exclusion against manual
+GUI actions; existing driver identity and lifecycle guards still apply.
+
+An occupied VM queues requests automatically until checkin. Other VM UUIDs
+remain independent. The manager never expires or steals an occupied checkout.
+Existing identity, provenance, unfinished-journal and recovery checks still run
+after acquisition; waiting does not authorize taking over an unfinished guest.
+Read-only watch observation remains independent and never holds a checkout.
+
+A reservation covers a sequence of commands, including builds and investigation
+after failure. Nested commands borrow it; their completion cannot check in the
+enclosing driver. Single-VM test/repair and preparation owners retain it through
+their workflow. Batch workers reserve independently; a batch controller reserves
+no VMs itself. Each worker recovers its own VM before testing, under that same
+reservation; one occupied VM must not delay admission of another free worker.
+Other drivers and interactive investigation use the shared route:
+
+```sh
+tools/vm-pool --vm NAME -- COMMAND ARGUMENTS
+```
+
+The command runs as its original user. Its VM commands carry the checkout receipt
+through maintained dispatchers. Keep this command/session alive while inspecting
+the VM or preparing the next probe. Ending it checks in once its active borrowed
+commands also finish. Kernel descriptor lifetime handles exit and crashes; no
+stale-file deletion or PID-based lock stealing is needed.
+
+The implementation uses ordinary file locks and a receipt, with no socket
+protocol or service to operate. A short admission gate serializes new owners;
+the reservation and its commands hold shared lifetime locks. A new owner waits
+for exclusive lifetime ownership. Borrowing never takes the admission gate,
+so nested commands can finish while the next owner waits.
+
+A reserved driver may attach only to workflows started under its own receipt.
+Joining another workflow could wait for a request queued behind that driver.
+Such attachment refuses immediately; cancellation remains available so the
+driver can stop the queued workflow without checking in first.
+
+One request chain reserves one VM at a time. A nested request for another VM
+refuses before waiting: check in first, or use independent workers. This removes
+circular hold-and-wait between VMs. Trusted in-process lifecycle stages borrow
+their enclosing controller descriptor. Ordering is VM checkout, checkout-local
+activity, controller operation, then any archive lock. Package workers do not
+reacquire the parent's activity lock. Never stop a foreign VM/process or clear
+its journals/locks to make room. A self-conflicting controller refusal is an
+infrastructure error to diagnose, never a product assertion or a reason to clear
+ownership.
 
 ## VM observation mandate
 

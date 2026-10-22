@@ -1758,12 +1758,22 @@ def test_invalid_phase_record_refuses_recovery(rig, kind):
     assert len(rig.source.creations) == 1
 
 
-def test_lock_refuses_a_second_controller_without_signalling_or_deleting(rig):
+def test_lock_queues_a_second_controller_without_signalling_or_deleting(rig):
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
+    import threading
     interrupt_snapshot(rig)
-    with open(rig.directory / ".lock", "rb") as lock:
-        host.fcntl.flock(lock.fileno(), host.fcntl.LOCK_EX | host.fcntl.LOCK_NB)
-        with pytest.raises(host.CaptureError, match="busy-controller"):
-            rig.capture().run()
+    started = threading.Event()
+    def execute():
+        started.set()
+        return rig.capture().run()
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        with open(rig.directory / '.lock', 'rb') as lock:
+            host.fcntl.flock(lock.fileno(), host.fcntl.LOCK_EX | host.fcntl.LOCK_NB)
+            result = worker.submit(execute)
+            assert started.wait(5)
+            with pytest.raises(TimeoutError):
+                result.result(timeout=0.1)
+        result.result(timeout=5)
     assert len(rig.source.creations) == 1
 
 

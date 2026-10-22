@@ -1717,6 +1717,7 @@ def test_pending_transfer_blocks_all_ordinary_retention_writers(tmp_path, monkey
 
 def test_batch_input_cli_derives_journals_and_runs_normal_verification_under_ownership(tmp_path, monkeypatch):
     import cleanup_e2e
+    monkeypatch.setattr(cleanup_e2e, 'reservation', lambda *a, **kw: nullcontext())
     import test_commands
     import test_storage
     import test_input_transfer

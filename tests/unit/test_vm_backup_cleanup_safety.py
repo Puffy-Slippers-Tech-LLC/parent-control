@@ -240,6 +240,18 @@ def network_rig(backup_rig):
     return rig
 
 
+def test_restore_revalidates_archive_uuid_after_checkout_wait(backup_rig, monkeypatch):
+    rig = backup_rig
+    save(rig)
+    preflight = Mock()
+    monkeypatch.setattr(recovery, 'restore_preflight', preflight)
+    with pytest.raises(base.CaptureError, match='archive-uuid-changed'):
+        recovery.restore(rig.connection, API, rig.vm, rig.root, rig.commands,
+                         expected_uuid='f95890e1-88e7-4779-8ae3-53fdcc34330b')
+    preflight.assert_not_called()
+    assert not (rig.directory / recovery.JOURNAL).exists()
+
+
 def test_backup_restores_deleted_domain_disks_and_rebinds_baseline(backup_rig):
     rig = backup_rig
     archive, manifest, latest = save(rig)

@@ -14,6 +14,7 @@ from regression_process import Control
 import test_commands
 import test_recovery
 import vm_recording
+import vm_pool
 
 # This process exercises session ownership against a temporary checkout. Its
 # host recovery may be enabled explicitly; never dispatch tests or VM work here.
@@ -23,6 +24,7 @@ test_commands.selections = lambda root, argv: [(argv[0], argv[1:])]
 # This harmless process tests detached ownership only. The separate recording
 # UI tests exercise the real private compositor, encoder and publication.
 vm_recording.recording = lambda *args, **kwargs: nullcontext(None)
+vm_pool.selected_reservation = lambda **kwargs: nullcontext()
 
 dispatch = test_commands._main
 

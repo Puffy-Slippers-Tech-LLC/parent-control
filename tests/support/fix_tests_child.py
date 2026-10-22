@@ -13,6 +13,15 @@ import time
 def main():
     root = Path.cwd()
     kind, *args = sys.argv[1:]
+    if kind == '--worker':
+        from contextlib import nullcontext
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+        import fix_tests
+        import vm_pool
+        vm_pool.selected_reservation = lambda **kwargs: nullcontext()
+        vm_pool.reservation = lambda *args, **kwargs: nullcontext()
+        root, run, owner, *options = args
+        return fix_tests.worker(Path(root), Path(run), int(owner), *options)
     if kind == 'agent' and args == ['debug', 'models']:
         if (root / 'catalog.json').exists():
             print((root / 'catalog.json').read_text())

@@ -40,8 +40,10 @@ unaffected tests.
 Every test execution through `tools/run-tests` uses the same live dashboard and
 final summary: category results, actual host branches and joins, durations and
 overall wall time. Only selected categories appear; unused branches are omitted.
-Cleanup is a lightweight serial ownership/recovery preflight before parallel
-work. It runs no regression tests and has no host branch or cleanup join stage.
+Cleanup is a lightweight serial ownership/recovery preflight before host work
+or each VM worker's own tests. VM workers recover independently under their
+reservations, so an occupied VM does not stall a free worker. Cleanup runs no
+regression tests and has no host branch or cleanup join stage.
 Recovery failures still fail the run; overall wall time includes cleanup.
 For example, `tools/run-tests unit -k 'grant' static shell` runs the selected unit
 tests followed by shell checks in one report. Each category keeps its own
@@ -288,6 +290,14 @@ inputs are prepared through the maintained builders. Repair agents remain serial
 within each host or VM workflow; implementation agents remain serial.
 `fix-tests` and `write-e2e` share the VM queue through
 `run-tests`.
+
+VM ownership is coordinated by the host-wide
+[VM pool](../docs/Mandates/VM-Mandate.MD#central-vm-checkout), keyed by domain UUID.
+Requests for an occupied VM wait automatically across launchers and worktrees;
+other VMs remain independent. Use `tools/vm-pool --vm NAME -- COMMAND ARGUMENTS`
+to retain an investigation reservation between commands. One request chain owns
+one VM at a time; batches use independent workers. Checkout-local activity and
+retained results do not constitute a VM reservation.
 
 `host-builds` remains a compatibility alias for `host`. Its `--serial-builds`
 option runs publishing/builds after the host join for scheduling comparisons.

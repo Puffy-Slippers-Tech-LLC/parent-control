@@ -445,6 +445,27 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
 
 
 def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false'):
+    from vm_pool import selected_reservation
+    from test_commands import host_only_request
+    selected = json.loads(requested)
+    status = 1
+    try:
+        with selected_reservation(enabled=not host_only_request(selected),
+                                  stopped=lambda: (run / 'cancel').exists()):
+            status = reserved_worker(root, run, owner, model, effort, app_model, requested, rounds, resume)
+    except KeyboardInterrupt:
+        status = 130
+    except (OSError, ValueError) as error:
+        print(f'fix-tests: {error}', file=sys.stderr, flush=True)
+    finally:
+        budget = TaskBudget(run)
+        budget.close()
+        atomic(run / 'result.json', {'status': status, 'tasks': budget.read()['completed']})
+        os.close(owner)
+    return status
+
+
+def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false'):
     from launcher_progress import publish_progress, publish_repair_status, read_progress, repair_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     round_number = 1
@@ -617,6 +638,12 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             return failure
 
     def repair(prompt, *, failure_key, previous=None):
+        from contextlib import nullcontext
+        from vm_pool import reservation
+        with (reservation(failure_key[2]) if failure_key[2] else nullcontext()):
+            return repair_owned(prompt, failure_key=failure_key, previous=previous)
+
+    def repair_owned(prompt, *, failure_key, previous=None):
         nonlocal verifying_fix
         commits.begin(failure_key, inventory[failure_key[0]]['args'])
         diagnostic = previous is not None and previous.get('status') == 'diagnostic_ready'
@@ -873,9 +900,6 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             lines[-1] = 'Status: ' + ('Task limit reached' if limited else
                                      {0: 'Complete', 130: 'Stopped'}.get(status, 'Blocked'))
             publish_progress(run, previous[-1]['key'], lines)
-        budget.close()
-        atomic(run / 'result.json', {'status': status, 'tasks': budget.read()['completed']})
-        os.close(owner)
     return status
 
 

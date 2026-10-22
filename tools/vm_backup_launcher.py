@@ -40,8 +40,10 @@ def main(action, argv=None):
             raise ValueError('invoke as an unprivileged administrator')
         check(HELPER)
         selector = ','.join(vm.name for vm in vms)
+        from vm_pool import arguments as checkout_arguments, check_queue
+        check_queue(vms)
         status = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-            HELPER, tool, '--vm', selector], cwd=ROOT,
+            HELPER, *checkout_arguments(), tool, '--vm', selector], cwd=ROOT,
             env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}).returncode
         if status:
             failure(tool, f'archive operation failed (status {status}); selected VMs were not all backed up.'

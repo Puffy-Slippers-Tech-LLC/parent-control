@@ -51,6 +51,8 @@ def main(argv=None):
     args = arguments(argv)
     try:
         concurrency, vms = vm_config.execution(args.vm)
+        from vm_pool import check_queue
+        check_queue(vms)
         args.vm = ','.join(vm.name for vm in vms)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
@@ -64,7 +66,9 @@ def main(argv=None):
             _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms)
             return status
         select(args.vm)
-        with test_activity.activity(root, named_vm=True), Control().installed() as control:
+        from vm_pool import reservation
+        with Control().installed() as control, reservation(args.vm, stopped=control.stopped), \
+                test_activity.activity(root, named_vm=True):
             check(helper)
             environment = test_launcher.environment(root)
             if args.overwrite == 'true':

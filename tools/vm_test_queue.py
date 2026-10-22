@@ -133,16 +133,6 @@ def run(root, argv):
         if status:
             return status
     with Control().installed() as control:
-        # Recovery is serial and finishes before any live VM attempt starts.
-        for vm in vms:
-            environment = test_launcher.environment(root)
-            environment.pop(BATCH, None)
-            environment[VARIABLE] = vm.name
-            command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                       '--recover', vm.name]
-            status = control.run(command, cwd=root, env=environment, cooperative=True)
-            if status:
-                return status
         store = test_retention.Store(test_activity.retention_path(root))
         from runner_evidence import recover_pending
         recover_pending(root, store)
@@ -271,20 +261,27 @@ def run(root, argv):
 
 def worker(argv):
     mode, name, *args = argv
-    if mode not in ('--recover', '--execute'):
+    if mode != '--execute':
         raise ValueError('private VM queue entry only')
     vm_config.select(name)
     os.environ.pop(BATCH, None)
     root = Path(__file__).resolve().parents[1]
     from regression_process import PipeFrameOutput
     sys.stdout = PipeFrameOutput(sys.stdout)
-    with test_activity.activity(root), Control().installed(pipe=True) as control:
+    # The batch's checkout-local gate is not a VM reservation or cleanup proof.
+    os.environ.pop(test_activity.VARIABLE, None)
+    from vm_pool import reservation
+    with Control().installed(pipe=True) as control, reservation(name, stopped=control.stopped), \
+            test_activity.activity(root, named_vm=True):
         # Nested aggregate controllers observe the same parent cancellation.
         import regression_process
         regression_process.session_stop = control.stopped
-        if mode == '--recover':
-            from test_recovery import cleanup
-            return cleanup(root)
+        from test_recovery import cleanup
+        if control.stopped.is_set():
+            return 130
+        status = cleanup(root)
+        if status:
+            return status
         from test_commands import _main
         from test_checkpoint import Checkpoint
         from test_commands import selections

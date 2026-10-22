@@ -46,7 +46,7 @@ have been removed.
 
 The required `--mode` accepts only `auto` or `manual`, with no default. Missing
 options or values print help and examples. Help and the red warnings reuse the
-same bullet lists of steps. Both modes immediately refuse a VM
+same bullet lists of steps. Both modes refuse a VM after checkout
 that is not off. Under the shared lease, a red warning describes the selected
 workflow and deletion of **all versioned app snapshots**, including release-derived
 names with or without the `v` prefix. By default, only an explicit `y` proceeds;

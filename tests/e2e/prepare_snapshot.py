@@ -1,6 +1,5 @@
 """Standalone controller for the same snapshot module used by E2E suites."""
 import argparse
-import fcntl
 import os
 from pathlib import Path
 import sys
@@ -52,10 +51,11 @@ def probe(expected_uuid, *, overwrite=True):
     base.canonical(base.BASELINES)
     lock_path = base.baseline_lock_path(base.BASELINES)
     base.identity(lock_path, private=True, mode=0o600)
-    fd = os.open(lock_path, os.O_RDWR | os.O_NOFOLLOW)
+    compatibility = base.compatibility_lock(base.BASELINES)
+    fd = None
     source = None
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fd = base.open_controller_lock(lock_path, vm_uuid=expected_uuid)
         source, _ = open_source()
         check_identity(source, expected_uuid)
         package_format = preparation_format(source, commands)
@@ -99,7 +99,10 @@ def probe(expected_uuid, *, overwrite=True):
             if source is not None:
                 source.close()
         finally:
-            os.close(fd)
+            if fd is not None:
+                base.close_controller_lock(fd)
+            if compatibility is not None:
+                os.close(compatibility)
 
 
 def prepare(artifacts, expected_uuid, *, overwrite=True):

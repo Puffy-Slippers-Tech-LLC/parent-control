@@ -772,7 +772,7 @@ def test_legacy_controller_lease_excludes_all_named_leases(rig, monkeypatch):
     (['all'], [['host']]), (['vm'], []), (['host', 'vm'], [['host']]),
     (['system', '--area', 'authorization', '--test', 'case[param]'], []),
 ])
-def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
+def test_queue_controller_runs_host_once_and_admits_guests_independently(
         tmp_path, monkeypatch, requested, expected_host):
     from contextlib import contextmanager
     import threading
@@ -809,6 +809,7 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
                         lambda *args: pytest.fail('batch must not allocate VM-owned inputs'))
     calls, active, peak = [], 0, 0
     gate = threading.Lock()
+    free_started = threading.Event()
     class FakeControl:
         stopped = threading.Event()
         @contextmanager
@@ -821,12 +822,14 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
             assert vm_selection.BATCH not in env
             with gate:
                 calls.append((mode, name))
-                if mode == '--recover':
-                    assert active == 0
-                    return 0
-                assert len([item for item in calls if item[0] == '--recover']) == len(vms)
+                assert mode == '--execute'
                 active += 1
                 peak = max(peak, active)
+            # A blocked guest must not prevent the next free VM from starting.
+            if name == 'guest-0':
+                assert free_started.wait(5)
+            elif name == 'guest-1':
+                free_started.set()
             assert command[5:] == (requested if 'system' in requested else ['system', 'e2e'])
             time.sleep(.02)
             if name == 'guest-0':
@@ -842,7 +845,7 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
     monkeypatch.setattr(queue, 'Control', FakeControl)
     assert queue.run(tmp_path, requested) == 1
     assert hosts == expected_host
-    assert calls[:len(vms)] == [('--recover', vm.name) for vm in vms]
+    assert len(calls) == len(vms)
     assert sorted(name for mode, name in calls if mode == '--execute') == [vm.name for vm in vms]
     assert peak == 2
     evidence, = tmp_path.glob('onpc-vm-queue-*')

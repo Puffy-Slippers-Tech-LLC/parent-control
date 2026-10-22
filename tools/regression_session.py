@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import uuid
+from contextlib import nullcontext
 
 import test_activity
 import test_launcher
@@ -41,9 +42,11 @@ class SessionOutput:
         publish_progress(self.run, key, lines)
 
 
-def prepare(root, *, host_only=False):
+def prepare(root, *, host_only=False, vm_name=None):
     from test_storage import directory as storage_directory
     directory = storage_directory('sessions-host' if host_only else 'sessions', root=root)
+    if vm_name is not None and not host_only:
+        directory = directory / ('vm-' + vm_name)
     for parent in (directory, *directory.parents):
         if parent.is_symlink():
             raise ValueError('aggregate session path contains a symlink')
@@ -83,7 +86,11 @@ def _select(root, argv):
     host_only = host_only_request(requested)
     # Each scope discovers and starts its own worker; mixed runs reserve both
     # activity locks without inspecting or consuming another scope's results.
-    directory = prepare(root, host_only=host_only)
+    from vm_selection import vm_config
+    _, selector = vm_config.extract_selector(requested)
+    vms = vm_config.execution(selector)[1] if selector is not None and not host_only else ()
+    directory = prepare(root, host_only=host_only,
+                        vm_name=vms[0].name if len(vms) == 1 else None)
     with lock(directory / 'gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         run, active = current_session(directory)
@@ -91,6 +98,9 @@ def _select(root, argv):
             from vm_selection import extract_execution as extract
             _, requested_vm = extract(requested, required=False)
             record = json.loads((directory / 'current.json').read_text())
+            if not host_only and '--stop' not in argv:
+                from vm_pool import check_attachment
+                check_attachment(record)
             _, active_vm = extract(record['argv'], required=False)
             if active_vm is not None and requested_vm != active_vm:
                 raise ValueError('vm-config: active run requires its original --vm NAME')
@@ -131,8 +141,9 @@ def _select(root, argv):
             requested.extend(('--vm', configured))
         # Keep host-only ownership independent of standalone VM preparation.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
-        with test_activity.activity(root, host_only=host_only,
-                                    includes_host=includes_host_request(root, requested)):
+        # VM checkout happens in the lifetime owner, before checkout-local
+        # bookkeeping. Startup holds only this session directory's gate.
+        with (test_activity.activity(root, host_only=True) if host_only else nullcontext()):
             import test_retention
             store = test_retention.Store(directory / 'retention')
             if store.path.exists():
@@ -256,7 +267,12 @@ def owned_worker(root, argv, run, owner):
     sys.stdout = SessionOutput(run, original)
     try:
         from test_commands import _main, selections, host_only_selection
-        with test_activity.activity(root):
+        from vm_pool import selected_reservation
+        from test_commands import host_only_request, includes_host_request
+        with selected_reservation(enabled=not host_only_request(argv),
+                                  stopped=regression_process.session_stop), \
+                test_activity.activity(root, host_only=host_only_request(argv),
+                                       includes_host=includes_host_request(root, argv)):
             from test_recovery import before_run
             categories = [kind for kind, _ in selections(root, argv)] if argv else []
             sys.stdout.controller('preparing', [
@@ -275,6 +291,8 @@ def owned_worker(root, argv, run, owner):
             from vm_recording import recording
             with recording(root, enabled=not host_only_selection([(kind, []) for kind in categories])) as media:
                 status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}))
+    except KeyboardInterrupt:
+        status = 130
     except Exception as error:
         print(f'Test runner infrastructure failed: {type(error).__name__}: {error}',
               file=sys.stderr, flush=True)

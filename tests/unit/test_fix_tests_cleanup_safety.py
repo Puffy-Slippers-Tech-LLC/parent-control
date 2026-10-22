@@ -60,6 +60,12 @@ def checkout(tmp_path, monkeypatch):
     popen = subprocess.Popen
 
     def record(*args, **kwargs):
+        if '--worker' in args[0]:
+            # Keep real launcher ownership, but route VM reservations through
+            # the harmless child double rather than the installed host helper.
+            command = list(args[0])
+            command[2] = str(ROOT / 'tests/support/fix_tests_child.py')
+            args = (command, *args[1:])
         child = popen(*args, **kwargs)
         if '--worker' in args[0]:
             spawned.append(child)
@@ -508,6 +514,20 @@ def test_concurrent_starts_share_one_owner_and_terminal_loss_only_detaches(check
     assert fix_tests.select(root, stop=True) == (run, False)
     assert fix_tests.follow(run, io.StringIO()) == 130
     assert (root / 'test-interrupted').exists() and (root / 'test-cleaned').exists()
+
+
+def test_reserved_driver_cannot_join_a_repair_waiting_for_its_checkout(checkout, monkeypatch):
+    import vm_pool
+    root, spawned = checkout
+    run, started = fix_tests.select(root)
+    assert started
+    monkeypatch.setenv(vm_pool.VARIABLE,
+                       'f95890e1-88e7-4779-8ae3-53fdcc34330a:' + 'a' * 32)
+    with pytest.raises(ValueError, match='another reservation'):
+        fix_tests.select(root)
+    assert len(spawned) == 1
+    assert fix_tests.select(root, stop=True) == (run, False)
+    assert fix_tests.follow(run, io.StringIO()) == 130
 
 
 @pytest.mark.parametrize('action', ['stop', 'ctrl-c', 'kill-owner'])

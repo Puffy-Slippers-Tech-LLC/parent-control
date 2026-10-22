@@ -72,6 +72,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Repair resume checks reuse fix_tests_cleanup_safety's private checkpoint trees
 # and recorded, waited test/agent doubles. They create no new shared cleanup
 # owner, VM, display or socket; compatible unit and cleanup scheduling holds.
+# Repair workers stub VM reservations before entering their real lifecycle;
+# attachment checks retain private receipts and the same waited child owners.
 # Repair panel checks add private metadata and in-memory terminal/clock doubles
 # around the same recorded, waited children; compatible in both inventories.
 # Non-case diagnostic/repair replay uses those same private checkpoints and

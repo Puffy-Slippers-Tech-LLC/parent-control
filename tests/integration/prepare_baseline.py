@@ -56,6 +56,7 @@ PREVIOUS_SNAPSHOT = "oh-no-parent-control-baseline"
 SNAPSHOT_NAMES = (SNAPSHOT, 'onpc-baseline', PREVIOUS_SNAPSHOT)
 PHASES = ("validation", "shutdown-requested", "source-off", "snapshot-requested", "finalized")
 _controller = ContextVar('preparation_controller', default=None)
+_pool_descriptors = {}
 _event_dispatch = None
 _event_dispatch_lock = threading.Lock()
 
@@ -96,15 +97,62 @@ def controller_scope(path, fd, *, watch=None):
         _controller.reset(token)
 
 
-def open_controller_lock(path):
+def open_controller_lock(path, *, vm_uuid=None):
     held = _controller.get()
     if held is not None and held[0] == Path(path) and held[2] == os.getpid():
+        owning = _pool_descriptors.get(held[1])
+        require(owning is None or vm_uuid is None or owning[3] == vm_uuid,
+                'guard:controller-vm-changed')
         info = identity(path, private=True, mode=0o600)
         opened = os.fstat(held[1])
         require((opened.st_dev, opened.st_ino) == (info['device'], info['inode']),
                 'guard:controller-lock-changed')
         return os.dup(held[1])
-    return os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    require(not any(item[1:3] == (os.getpid(), threading.get_ident())
+                    for item in _pool_descriptors.values()),
+            'state:busy-controller; nested stages must borrow controller_scope')
+    from vm_pool import acquire
+    pool = acquire(vm_uuid)
+    fd = None
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        identity(path, private=True, mode=0o600)
+        # Same-reservation subprocesses still serialize their actual mutations.
+        # Trusted nested in-process stages borrowed the enclosing description above.
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        _pool_descriptors[fd] = (pool, os.getpid(), threading.get_ident(), vm_uuid)
+        return fd
+    except BaseException:
+        if fd is not None:
+            os.close(fd)
+        os.close(pool)
+        raise
+
+
+def close_controller_lock(fd):
+    owned = _pool_descriptors.pop(fd, None)
+    try:
+        os.close(fd)
+    finally:
+        if owned is not None:
+            os.close(owned[0])
+
+
+def controller_descriptors(fd, compatibility=None):
+    """An explicitly spawned command retains both checkout and operation."""
+    owner = _pool_descriptors.get(fd)
+    held = _controller.get()
+    if owner is None and held is not None and held[2] == os.getpid():
+        owner = _pool_descriptors.get(held[1])
+    return tuple(value for value in (fd, compatibility, owner[0] if owner else None)
+                 if value is not None)
+
+
+def bind_controller(commands, fd, compatibility):
+    """Both command adapters retain exactly the enclosing controller's leases."""
+    commands.lock_fd = fd
+    commands.compatibility_fd = compatibility
+    commands.controller_fds = controller_descriptors(fd, compatibility) if fd is not None else ()
 
 
 def controller_watch():
@@ -250,8 +298,7 @@ class Commands:
     def _run(self, arguments, *, timeout):
         with subprocess.Popen(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                               stderr=subprocess.DEVNULL,
-                              pass_fds=tuple(fd for fd in (self.lock_fd, self.compatibility_fd)
-                                             if fd is not None)) as child:
+                              pass_fds=controller_descriptors(self.lock_fd, self.compatibility_fd)) as child:
             pidfd = os.pidfd_open(child.pid)
             try:
                 try:
@@ -581,7 +628,7 @@ def compatibility_lock(directory):
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     try:
         identity(path, private=True, mode=0o600)
-        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        fcntl.flock(fd, fcntl.LOCK_SH)
         return fd
     except BaseException:
         os.close(fd)
@@ -993,29 +1040,39 @@ class Capture:
 
     @observed('Preparing and validating the VM baseline')
     def run(self, *, replace_missing=False, refresh=False, mode=None, confirm=confirm_preparation):
+        from contextlib import nullcontext
+        from vm_pool import checkout
+        vm_uuid = getattr(self.source, 'uuid', None) or self.source.snapshot()[0]['uuid']
+        require(isinstance(vm_uuid, str) and re.fullmatch(
+            r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', vm_uuid), 'guard:uuid')
+        held = _controller.get()
+        borrowing = held is not None and held[0] == self.lock_path and held[2] == os.getpid()
+        require(borrowing or not any(item[1:3] == (os.getpid(), threading.get_ident())
+                                    for item in _pool_descriptors.values()),
+                'state:busy-controller; nested stages must borrow controller_scope')
+        with nullcontext() if borrowing else checkout(vm_uuid):
+            return self.run_owned(replace_missing=replace_missing, refresh=refresh,
+                                  mode=mode, confirm=confirm)
+
+    def run_owned(self, *, replace_missing=False, refresh=False, mode=None, confirm=confirm_preparation):
         # Resolve the existing disk and chain before filesystem writes/shutdown.
         if mode is not None:
             require(mode in ('auto', 'manual'), 'guard:preparation-mode')
             require(self.source.snapshot()[1], 'guard:source-running; shut down the VM first')
         inventory, _off = self.inventory()
-        if mode == 'auto':
-            if self.source.baseline() is None:
-                raise MissingAutoBaseline('snapshot:metadata-missing; auto mode requires onpc_baseline')
+        if mode == 'auto' and self.source.baseline() is None:
+            raise MissingAutoBaseline('snapshot:metadata-missing; auto mode requires onpc_baseline')
         refresh = refresh or mode is not None
         if refresh:
-            require(_off, "guard:source-running")
+            require(_off, 'guard:source-running')
         self.directory_identity = self.prepare_private_directory(refresh=refresh)
         compatibility = compatibility_lock(self.directory)
         fd = None
         try:
-            fd = open_controller_lock(self.lock_path)
+            vm_uuid = getattr(self.source, 'uuid', None) or self.source.snapshot()[0]['uuid']
+            fd = open_controller_lock(self.lock_path, vm_uuid=vm_uuid)
             identity(self.lock_path, private=True, mode=0o600)
-            try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as error:
-                raise CaptureError("state:busy-controller") from error
-            self.commands.lock_fd = fd
-            self.commands.compatibility_fd = compatibility
+            bind_controller(self.commands, fd, compatibility)
             from e2e_watch import begin
             begin(self)
             if mode is not None:
@@ -1046,10 +1103,9 @@ class Capture:
             self.execute(require_off=refresh)
         finally:
             try:
-                self.commands.lock_fd = None
-                self.commands.compatibility_fd = None
+                bind_controller(self.commands, None, None)
                 if fd is not None:
-                    os.close(fd)
+                    close_controller_lock(fd)
                 if compatibility is not None:
                     os.close(compatibility)
             finally:

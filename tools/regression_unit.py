@@ -380,6 +380,14 @@ use private registry/disks/journals and real advisory locks on those private fil
 Build, app preparation and privilege dispatch are process-local doubles; no live
 VM, host build, external service, bus/display or new cleanup owner is added.
 The module retains compatible scheduling in the unit and cleanup inventories.
+vm_pool uses private kernel lock files in test scratch, and
+bounded explicitly spawned and waited Python children. It owns no VM, display,
+bus, external service or shared cache; its small CPU/I/O load is compatible.
+Queue/cancellation checks use private events, receipts and synchronous doubles.
+Repair lifecycle children stub VM reservations before entering the real worker;
+they retain only their existing private Git trees and waited process owners.
+The shared pytest fixture redirects coordinator state into each test's private
+tree. Existing VM/launcher cleanup classifications remain valid; UI gains none.
 Restore-bootstrap refusal checks use those same private disks, metadata and
 journals; they add no live service, subprocess or shared mutable resource.
 Interrupted-backup ownership checks retain those same private journal fixtures.
@@ -1259,7 +1267,7 @@ system_remote_accounts system_runner system_runner_cleanup_safety system_snapsho
 terminal_cleanup_safety test_account_password test_activity test_artifacts test_launchers
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety
 ui_cleanup_safety ui_watch ui_watch_cleanup_safety uninstall unit_test_launcher usage_query_retry verify_test_traceability
-vm_backup_cleanup_safety vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
+vm_backup_cleanup_safety vm_config vm_control_cleanup_safety vm_pool vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
 write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 """.split())
 

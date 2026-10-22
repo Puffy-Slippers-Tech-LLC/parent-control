@@ -75,15 +75,20 @@ def main():
         if CHECKOUT is None or os.geteuid() != 0 or int(os.environ.get('PKEXEC_UID', '0')) <= 0:
             raise ValueError('setup-helper: use the installed helper through setup.sh')
         root = Path(CHECKOUT)
-        selected = command(root, sys.argv[1:])
-        report_status = sys.argv[1] != 'prepare-vm'
+        sys.path.insert(0, str(root / 'tools'))
+        import vm_pool
+        argv = vm_pool.consume(sys.argv[1:])
+        selected = command(root, argv)
+        report_status = argv[0] != 'prepare-vm'
         if report_status:
-            print(f'setup-helper: starting {sys.argv[1]}', flush=True)
+            print(f'setup-helper: starting {argv[0]}', flush=True)
         result = subprocess.run(selected, cwd=root, check=False,
                                 env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
                                      'LANG': 'C.UTF-8', 'HOME': '/root',
                                      'PKEXEC_UID': str(int(os.environ['PKEXEC_UID'])),
                                      'DEBIAN_FRONTEND': 'noninteractive',
+                                     **({vm_pool.VARIABLE: os.environ[vm_pool.VARIABLE]}
+                                        if vm_pool.VARIABLE in os.environ else {}),
                                      'PYTHONDONTWRITEBYTECODE': '1'})
         if report_status:
             print(f'setup-helper: finished (status={result.returncode})', flush=True)

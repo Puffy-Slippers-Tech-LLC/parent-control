@@ -197,13 +197,12 @@ def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
     assert session.follow(run, io.StringIO()) == 7
 
 
-def test_active_vm_session_refuses_missing_or_other_vm_before_cancellation(tmp_path, workers):
+def test_active_vm_session_is_independent_of_other_vm_stop_requests(tmp_path, workers):
     vm_args = ['--vm', vm_name(1)]
     run, started = session.select(tmp_path, ['e2e', *vm_args])
     assert started
     for argv in (['--stop'], ['--stop', '--vm', vm_name()]):
-        with pytest.raises(ValueError, match='original --vm NAME'):
-            session.select(tmp_path, argv)
+        assert session.select(tmp_path, argv) == (None, False)
         assert not (run / 'cancel').exists()
     assert session.select(tmp_path, ['e2e', *vm_args]) == (run, False)
     assert len(workers) == 1
@@ -225,8 +224,7 @@ def test_active_vm_session_keeps_its_guest_when_configured_ids_swap(tmp_path, wo
     assert current['argv'] == ['e2e', '--vm', 'first-guest']
     entries[0]['id'], entries[1]['id'] = entries[1]['id'], entries[0]['id']
     config.write_text(json.dumps({'vms': entries}))
-    with pytest.raises(ValueError, match='original --vm NAME'):
-        session.select(tmp_path, ['--stop', '--vm', '17'])
+    assert session.select(tmp_path, ['--stop', '--vm', '17']) == (None, False)
     assert not (run / 'cancel').exists()
     for selector in ('83', 'first-guest'):
         assert session.select(tmp_path, ['e2e', '--vm', selector]) == (run, False)
@@ -251,7 +249,8 @@ def test_explicit_vm_queue_reattaches_by_canonical_names_and_rejects_other_selec
     assert current['vm_batch'] == {'concurrency': 2, 'vms': ['guest-1', 'guest-0']}
     for selector in ('2,1', 'guest-1,guest-0'):
         assert session.select(tmp_path, ['e2e', '--vm', selector]) == (run, False)
-    for options in ([], ['--vm', '1'], ['--vm', 'all']):
+    assert session.select(tmp_path, ['--stop', '--vm', '1']) == (None, False)
+    for options in ([], ['--vm', 'all']):
         with pytest.raises(ValueError, match='original'):
             session.select(tmp_path, ['--stop', *options])
         assert not (run / 'cancel').exists()
@@ -318,6 +317,8 @@ def test_snapshot_probe_can_overlap_only_host_session(tmp_path, workers, monkeyp
     from contextlib import nullcontext
     from unittest.mock import Mock
     import prepare_appsnapshot
+    import vm_pool
+    monkeypatch.setattr(vm_pool, 'reservation', lambda *a, **kw: nullcontext())
 
     monkeypatch.setattr(test_commands, 'validate', lambda root, argv: [(argv[0], [])])
     run, started = session.select(tmp_path, [category])
@@ -467,6 +468,7 @@ def test_concurrent_host_and_vm_requests_start_independent_workers(tmp_path, wor
 def test_complete_run_reserves_both_host_and_vm_scopes(tmp_path, workers, category):
     run, started = session.select(tmp_path, [category])
     assert started
+    wait_for(tmp_path / 'child-ready')
     with pytest.raises(ValueError, match='another test launcher'):
         with test_activity.activity(tmp_path, host_only=True):
             pass
@@ -684,17 +686,51 @@ def test_session_recovery_refuses_unsafe_evidence_before_allocating_or_spawning(
     assert set(directory.iterdir()) - entries == {directory / 'gate'}
 
 
-def test_legacy_activity_refuses_duplicate_without_starting_worker(tmp_path, workers):
-    # Hold an independent file description, as an older running launcher does.
+def test_vm_request_is_registered_before_worker_queues_for_checkout(tmp_path, workers):
+    # Registration cannot hold a checkout-local activity while waiting for the
+    # host pool: a reserving driver may need that activity for its next command.
     with test_activity.activity(tmp_path):
         descriptor = test_activity._descriptor
         test_activity._descriptor = None
         try:
-            with pytest.raises(ValueError, match='another test launcher'):
-                session.select(tmp_path, ['all'])
+            run, started = session.select(tmp_path, ['all'])
+            assert started
         finally:
             test_activity._descriptor = descriptor
-    assert workers == []
+    assert len(workers) == 1
+
+
+@pytest.mark.parametrize('same_reservation', [False, True])
+def test_reserved_driver_joins_only_its_own_runner(tmp_path, workers, monkeypatch, same_reservation):
+    import vm_pool
+    receipt = 'f95890e1-88e7-4779-8ae3-53fdcc34330a:' + 'a' * 32
+    if same_reservation:
+        monkeypatch.setenv(vm_pool.VARIABLE, receipt)
+    run, started = session.select(tmp_path, ['e2e'])
+    assert started
+    monkeypatch.setenv(vm_pool.VARIABLE, receipt)
+    if same_reservation:
+        assert session.select(tmp_path, ['e2e']) == (run, False)
+    else:
+        with pytest.raises(ValueError, match='another reservation'):
+            session.select(tmp_path, ['e2e'])
+    assert len(workers) == 1
+    # Cancellation is safe and must remain available to the reserving caller.
+    assert session.select(tmp_path, ['--stop']) == (run, False)
+    assert (run / 'cancel').exists()
+
+
+def test_queued_cancellation_publishes_a_stopped_result(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    import vm_pool
+    @contextmanager
+    def cancelled(**kwargs):
+        raise KeyboardInterrupt
+        yield
+    monkeypatch.setattr(vm_pool, 'selected_reservation', cancelled)
+    owner = os.open(tmp_path / 'owner', os.O_RDWR | os.O_CREAT, 0o600)
+    assert session.owned_worker(tmp_path, ['system'], tmp_path, owner) == 130
+    assert (tmp_path / 'result').read_text() == '130'
 
 
 @pytest.mark.parametrize('change', ['none', 'passed-gate', 'started-suite', 'missing-progress',

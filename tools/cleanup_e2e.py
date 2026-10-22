@@ -4,11 +4,13 @@ import os
 from pathlib import Path
 import re
 import sys
+from contextlib import nullcontext
 
 import test_activity
 import test_retention
 from test_recovery import cleanup, cleanup_host
 from vm_selection import select, vm_config, BATCH
+from vm_pool import reservation, check_queue
 
 
 def main(argv=None):
@@ -44,7 +46,8 @@ def main(argv=None):
                 raise ValueError('qualification has no ordinary artifact input declaration')
             os.environ.pop(BATCH, None)
             select(vms[0].name)
-            with test_activity.activity(root, includes_host=True):
+            with (reservation(vms[0].name) if args.transfer_batch_input else nullcontext()), \
+                    test_activity.activity(root, includes_host=True):
                 path = named_input(**options)
                 destination = test_retention.Store(test_activity.retention_path(root))
                 if args.transfer_batch_input:
@@ -69,10 +72,11 @@ def main(argv=None):
                     test_retention.Store(test_activity.retention_path(root)).discard_completed(lambda paths: None)
             return cleanup_host(root)
         _, vms = vm_config.execution(args.vm)
+        check_queue(vms)
         os.environ.pop(BATCH, None)
         for vm in vms:
             select(vm.name)
-            with test_activity.activity(root):
+            with reservation(vm.name), test_activity.activity(root):
                 if args.discard_completed:
                     from regression_process import category_run
                     from vm_selection import arguments

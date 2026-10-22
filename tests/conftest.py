@@ -22,6 +22,17 @@ def configured_vm_fixture(monkeypatch):
     monkeypatch.undo()
     vm_config.select(vm_name())
 
+
+@pytest.fixture(autouse=True)
+def isolated_vm_pool(request, monkeypatch):
+    """Host doubles never touch the VM host's real checkout bookkeeper."""
+    if request.node.path.parent != Path(__file__).parent / 'unit':
+        return
+    tmp_path = request.getfixturevalue('tmp_path')
+    import vm_pool
+    monkeypatch.setattr(vm_pool, 'RUNTIME', tmp_path / 'vm-pool')
+    monkeypatch.delenv(vm_pool.VARIABLE, raising=False)
+
 from tools.regression_events import (pytest_collection_finish, pytest_collectreport,
                                      pytest_runtest_logreport, pytest_sessionfinish,
                                      pytest_collection_modifyitems as resume_collection)

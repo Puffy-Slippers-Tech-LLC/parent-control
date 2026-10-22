@@ -41,6 +41,8 @@ def main(argv=None, *, refresh=True):
     args = arguments(argv)
     try:
         concurrency, vms = vm_config.execution(args.vm)
+        from vm_pool import check_queue
+        check_queue(vms)
         args.vm = ','.join(vm.name for vm in vms)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
@@ -57,12 +59,16 @@ def main(argv=None, *, refresh=True):
                       if refresh and 0 in results.values() else 0)
             return status or queue_status
         select(args.vm)
-        status = subprocess.run(
-            ['/usr/bin/pkexec', '--keep-cwd', HELPER, 'prepare-vm', '--mode', args.mode,
-             *(['--y'] if args.y else []), '--vm', args.vm],
-            cwd=ROOT,
-            env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
-        ).returncode
+        from vm_pool import reservation, arguments as checkout_arguments
+        import test_activity
+        with reservation(args.vm), test_activity.activity(ROOT, named_vm=True):
+            status = subprocess.run(
+                ['/usr/bin/pkexec', '--keep-cwd', HELPER, *checkout_arguments(),
+                 'prepare-vm', '--mode', args.mode,
+                 *(['--y'] if args.y else []), '--vm', args.vm],
+                cwd=ROOT,
+                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
+            ).returncode
         if status == 3:  # Operator declined; no baseline was prepared.
             print('prepare-vm: cancelled; no baseline snapshot was prepared.')
             return 0

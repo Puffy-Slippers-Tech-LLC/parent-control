@@ -44,23 +44,15 @@ def test_host_build_recovers_pending_evidence_before_new_session(monkeypatch, tm
     monkeypatch.setattr(sys, 'path', list(sys.path))
     host = load_module('onpc_test_prepare_vm_host', ROOT / 'tools/prepare_vm_host.py')
     events = []
-    active = False
+    # The public preparation owner holds activity across the private worker.
+    active = True
     store = None
     path = tmp_path / 'retention'
     control = object()
     error = ValueError(refusal) if refusal else None
 
-    @contextmanager
     def activity(root, *, named_vm):
-        nonlocal active
-        assert root == host.ROOT and named_vm is True
-        active = True
-        events.append('activity')
-        try:
-            yield
-        finally:
-            active = False
-            events.append('activity-closed')
+        pytest.fail('private worker must not reacquire the public owner activity lock')
 
     class Store:
         def __init__(self, location):
@@ -106,8 +98,8 @@ def test_host_build_recovers_pending_evidence_before_new_session(monkeypatch, tm
         with pytest.raises(ValueError) as caught:
             host.build_worker('rpm', -1)
         assert caught.value is error
-        assert events == ['activity', 'recovery', 'activity-closed']
+        assert events == ['recovery']
     else:
         assert host.build_worker('rpm', -1) == 23
-        assert events == ['activity', 'recovery', 'session', 'control', 'build', 'activity-closed']
-    assert not active
+        assert events == ['recovery', 'session', 'control', 'build']
+    assert active

@@ -831,14 +831,9 @@ class Lease:
         try:
             self.capture.directory_identity = self.capture.private_directory()
             self.compatibility_fd = baseline.compatibility_lock(self.directory)
-            self.fd = baseline.open_controller_lock(self.capture.lock_path)
+            self.fd = baseline.open_controller_lock(self.capture.lock_path, vm_uuid=self.source.uuid)
             baseline.identity(self.capture.lock_path, private=True, mode=0o600)
-            try:
-                fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as error:
-                raise Error('state:busy-controller') from error
-            self.commands.lock_fd = self.fd
-            self.commands.compatibility_fd = self.compatibility_fd
+            baseline.bind_controller(self.commands, self.fd, self.compatibility_fd)
             from e2e_watch import begin
             begin(self)
             self.capture.state = self.capture.read_state()
@@ -1074,11 +1069,10 @@ class Lease:
         # A refused concurrent lease may share this command adapter. It must
         # not clear the active owner's inherited-lock reference.
         if self.fd is not None and self.commands.lock_fd == self.fd:
-            self.commands.lock_fd = None
-            self.commands.compatibility_fd = None
+            baseline.bind_controller(self.commands, None, None)
         if self.fd is not None:
             try:
-                os.close(self.fd)
+                baseline.close_controller_lock(self.fd)
             except BaseException as error:
                 pending = pending if pending is not None else error
             finally:
@@ -1124,14 +1118,9 @@ class Lease:
         try:
             self.capture.directory_identity = self.capture.private_directory()
             self.compatibility_fd = baseline.compatibility_lock(self.directory)
-            self.fd = baseline.open_controller_lock(self.capture.lock_path)
+            self.fd = baseline.open_controller_lock(self.capture.lock_path, vm_uuid=self.source.uuid)
             baseline.identity(self.capture.lock_path, private=True, mode=0o600)
-            try:
-                fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as error:
-                raise Error('state:busy-controller') from error
-            self.commands.lock_fd = self.fd
-            self.commands.compatibility_fd = self.compatibility_fd
+            baseline.bind_controller(self.commands, self.fd, self.compatibility_fd)
             self.capture.state = self.capture.read_state()
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
             baseline.identity(self.journal, private=True, mode=0o600)

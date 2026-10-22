@@ -13,6 +13,10 @@ import regression_inputs
 
 def child(tmp_path, env, pass_fds=(), *, cleanup=False, host_only=None, retention=False,
           named_vm=None, vm=None, includes_host=False):
+    if vm is None and host_only is not True:
+        from vm_selection import selected
+        configured = selected(required=False)
+        vm = configured.name if configured else None
     script = tmp_path / 'lock_child.py'
     script.write_text('''import pathlib,sys
 sys.path.insert(0, sys.argv[1])
@@ -54,7 +58,7 @@ def test_competing_process_refuses_then_succeeds_after_owner_exits(tmp_path):
     assert child(tmp_path, env).returncode == 0
 
 
-def test_named_preparation_allows_other_vm_and_host_but_excludes_same_vm_and_aggregate(
+def test_named_activity_excludes_same_vm_and_shares_batch_gate(
         tmp_path, monkeypatch):
     import vm_selection
     monkeypatch.delenv(test_activity.VARIABLE, raising=False)
@@ -66,15 +70,15 @@ def test_named_preparation_allows_other_vm_and_host_but_excludes_same_vm_and_agg
         assert child(tmp_path, {}, named_vm=True, vm=first).returncode == 2
         assert child(tmp_path, {}, named_vm=True, vm=second, retention=True).returncode == 0
         assert child(tmp_path, {}, host_only=True).returncode == 0
-        assert child(tmp_path, {}, named_vm=False).returncode == 2
+        assert child(tmp_path, {}, named_vm=False).returncode == 0
         # Owned workers infer the named scope from the real inherited inode.
         assert child(tmp_path, test_activity.environment(), test_activity.descriptors(),
                      vm=first).returncode == 0
         assert child(tmp_path, test_activity.environment(), test_activity.descriptors(),
                      vm=second, named_vm=True).returncode == 2
     with test_activity.activity(root, named_vm=False):
-        assert child(tmp_path, {}, vm=first, named_vm=True).returncode == 2
-        assert child(tmp_path, {}, vm=second, named_vm=True).returncode == 2
+        assert child(tmp_path, {}, vm=first, named_vm=True).returncode == 0
+        assert child(tmp_path, {}, vm=second, named_vm=True).returncode == 0
     assert child(tmp_path, {}, named_vm=True, vm=first).returncode == 0
 
 
@@ -132,7 +136,8 @@ def test_foreign_descriptor_and_symlink_refuse(tmp_path, monkeypatch):
             with test_activity.activity(tmp_path / 'checkout'):
                 pytest.fail('must refuse')
     monkeypatch.delenv(test_activity.VARIABLE)
-    target = tmp_path / 'checkout/artifacts/test-activity/lock'
+    from vm_selection import selected
+    target = tmp_path / ('checkout/artifacts/test-activity/vm-' + selected().name + '.lock')
     target.unlink()
     target.symlink_to(other)
     with pytest.raises(OSError):

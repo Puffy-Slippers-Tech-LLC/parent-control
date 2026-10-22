@@ -134,6 +134,14 @@ class Control:
         # The installed dispatcher loads this file before adding the validated
         # checkout tools directory for its deferred imports.
         import test_activity
+        from vm_pool import arguments
+        if command and command[0] == '/usr/bin/pkexec':
+            command = list(command)
+            for index, value in enumerate(command):
+                if value in ('/usr/local/libexec/onpc-test-runner', '/usr/local/libexec/onpc-setup'):
+                    if index + 1 == len(command) or not command[index + 1].startswith('--vm-checkout='):
+                        command[index + 1:index + 1] = arguments()
+                    break
         bounded_group = timeout is not None
         if bounded_group and (cooperative or not math.isfinite(timeout) or timeout <= 0
                               or not math.isfinite(kill_after) or kill_after <= 0):

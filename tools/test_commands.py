@@ -62,6 +62,43 @@ COMPLETE = (*PHASES, 'vm')
 HELP_ARGV = (['--help'], ['-h'])
 INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
 
+# Final ordered smoke dispatches deriving from KioskEntryQualification. Keep
+# this finite: a new wrapper or a product-free branch gains no fixture grant.
+# The composition regression independently resolves inheritance and overrides.
+INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
+    'check_e2e_' + suffix for suffix in '''
+    access_choices accessibility_input_trace allowance allowance_boundaries allowance_presets
+    app_activity app_restart app_row_observations approval_flow attachment_items attachment_preview
+    attachments auth_prompt auth_result baseline_app_effects baseline_auth_pause baseline_journey
+    catalogue catalogue_search challenges chinese_native_auth choices_overlay_to_kiosk
+    compose_observation_around_one_caller_input countdown countdown_minutes countdown_ticks cross_surface
+    custom_save_trace desktop_keyring desktop_session diagnostic_export document_open
+    edit_and_save_an_open_synthetic_document eligible_kiosk_fixtures feedback_block_semantics
+    feedback_collection feedback_formats feedback_length feedback_link_semantics feedback_privacy
+    feedback_read feedback_rejection feedback_reset feedback_states file_chooser files format
+    fresh_child_allowed fresh_desktop gdm_navigation gdm_recipient
+    give_repeated_public_operations_distinct_stages independent_network_management kiosk_approval
+    kiosk_approved_flow kiosk_eligible_choices kiosk_entry kiosk_feedback_confinement kiosk_fixtures
+    kiosk_language kiosk_language_restoration kiosk_multiple kiosk_no_child kiosk_notification_wellbeing
+    kiosk_preferences_confinement kiosk_rejection kiosk_reminder_binding kiosk_valid_duration
+    license_viewer lock_recipient lock_surface match_editor match_save_cancel mate_prompt
+    named_child_custom_saves native_app native_fixtures native_grid_usable natural_expiry
+    open_a_customer_document_or_archive operate_public_connectivity_controls
+    operate_the_countdown_context_menu overlay_approval overlay_approved_exit overlay_browser_links
+    overlay_choices overlay_language overlay_license overlay_prompt overlay_rejection
+    overlay_reminder_editing overlay_valid_choices parent_dialog_language parent_hebrew_policy
+    parent_language parent_language_isolation parent_privacy parent_rtl parent_save parent_save_trace
+    parent_search_launch parent_support parent_website policy policy_legend
+    read_an_expanded_time_explanation read_overlay_about_and_links read_parent_information_links
+    read_restricted_station_about reminder_fullscreen_preference request_choices request_duration
+    request_exit request_flow retained_app_visits retained_entry retained_parent retained_unlock
+    retained_unlock_success review_a_rejected_parent_rule_s_report revocation revoke_cancel
+    riley_native_grid save_chooser set_an_allowance_for_a_named_child set_fresh_thirty_minute_allowance
+    set_jordan_thirty_minute_allowance shell_panel shell_search shell_search_results terminal_provider
+    text time_explanation time_profiles_daily toggle trace trace_stable_state unlock
+    wait_a_bounded_real_interval_under_the_attempt_guard window_switch
+    '''.split()})
+
 
 def suite_inventory(categories=(), *, inventory=None):
     """The exact, ordered granular partition consumed by all and fix-tests.
@@ -536,11 +573,22 @@ def fixture_execution_target(category, args):
                      'check_parent_input', 'check_parent_standard_input'))
     installed = (category == 'integration' and len(args) == 1
                  and args[0].removesuffix('.py') == 'check_fixture_system_installed')
-    if not provisioning and not bootstrap and not installed and category != 'system':
+    installed_e2e = (category == 'integration' and len(args) == 1
+                     and args[0].removesuffix('.py') in INSTALLED_E2E_FIXTURE_SELECTORS)
+    scenarios = (category == 'e2e' and not any(argument in (
+        '--qualify-transfer', '--qualify-install', '--qualify-install-refusal') for argument in args))
+    if not provisioning and not bootstrap and not installed and not installed_e2e and not scenarios and category != 'system':
         return None
     from vm_selection import selected
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
+    if installed_e2e:
+        if target != 'ubuntu':
+            raise ValueError('fixture installed E2E target is unavailable')
+        return target
+    if scenarios:
+        # Other targets keep the preparation guard owned by their E2E branch.
+        return target if target == 'ubuntu' else None
     if installed:
         if target is None:
             raise ValueError('fixture installed system target is unavailable')
@@ -569,7 +617,8 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
     from fixture_execution import Selection, validate_source_selection
     source_edit = (category == 'integration' and len(args) == 1
                    and args[0].removesuffix('.py') in (
-                       'check_fixture_system_product_free', 'check_fixture_system_installed'))
+                       'check_fixture_system_product_free', 'check_fixture_system_installed',
+                       'check_fixture_e2e_installed'))
     if control is None:
         from regression_process import Control
         with Control().installed() as owned:

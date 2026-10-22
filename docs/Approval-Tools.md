@@ -317,6 +317,11 @@ Both accept regular files up to 8 MiB, refuse final symlinks/special files, and
 expose no code, command, output-file or interpreter options. Link-check exits:
 0 success, 1 missing targets, 2 invalid request/read failure. Failure diagnostics
 give document argument number/line without copying prose or destinations.
+For inaccessible destinations within this checkout's `output/test-runs/`, the
+unprivileged checker uses only the [approved artifact reader's](../tests/README.md#prompt-free-test-artifact-access)
+metadata action. It does not read protected contents or change permissions.
+Other inaccessible destinations, or a refused/unavailable reader, return 2 and
+are reported separately from missing files, even when other links are missing.
 
 The [rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/rules#understand-rule-fields)
 matches literal argument prefixes; the strictest decision wins.

@@ -304,6 +304,43 @@ def test_snapshot_mode_and_host_age(mode, memory, state, created, expected):
     assert reason is None if expected is None else expected in reason
 
 
+@pytest.mark.parametrize('change', [None, 'whitespace', 'domain', 'running', 'memory', 'missing-memory'])
+def test_explicit_offline_restore_accepts_only_exact_validated_original_domain(change):
+    original = domain_xml()
+    saved = ET.fromstring(original)
+    if change == 'domain':
+        ET.SubElement(saved, 'unexpected').text = 'changed'
+    if change == 'whitespace':
+        ET.indent(saved)
+    memory = '<memory snapshot="' + ('external' if change == 'memory' else 'no') + '"/>'
+    if change == 'missing-memory':
+        memory = ''
+    xml = ('<domainsnapshot>' + memory + '<state>' +
+           ('running' if change == 'running' else 'shutoff') + '</state>' +
+           ET.tostring(saved, encoding='unicode') + '</domainsnapshot>')
+    reason = app_snapshot.mode_mismatch(xml, 'offline', offline_domain_xml=original)
+    if change in (None, 'whitespace'):
+        assert reason is None
+    elif change == 'domain':
+        assert reason == 'offline snapshot domain configuration changed'
+    else:
+        assert reason == 'offline snapshot is not shut off'
+
+
+def test_trusted_offline_domain_does_not_relax_online_console_or_default_callers():
+    original = domain_xml()
+    xml = ('<domainsnapshot><memory snapshot="internal"/><state>running</state>'
+           '<creationTime>100000</creationTime>' + original + '</domainsnapshot>')
+    default = app_snapshot.mode_mismatch(xml, 'online', now=100000)
+    assert default is not None
+    assert app_snapshot.mode_mismatch(xml, 'online', now=100000,
+        offline_domain_xml=original) == default
+    offline = xml.replace('snapshot="internal"', 'snapshot="no"').replace(
+        '<state>running</state>', '<state>shutoff</state>')
+    assert app_snapshot.mode_mismatch(offline, 'offline') is not None
+    assert app_snapshot.mode_mismatch(offline, 'offline', offline_domain_xml=original) is None
+
+
 @pytest.mark.parametrize('mode', ['online', 'offline'])
 def test_host_share_snapshot_requires_refresh_only_before_memory_restore(mode):
     domain = ET.fromstring(controller.system.isolated_xml(

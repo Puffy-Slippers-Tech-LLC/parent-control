@@ -888,6 +888,136 @@ def test_native_startup_observation_precedes_any_database_access(real_native, mo
     assert not any(argv[1:] in (['--dump-db'], ['--update']) for argv in r.commands.calls)
 
 
+@pytest.fixture(params=['ubuntu', 'fedora'])
+def native_service_start(request, monkeypatch):
+    """Read-only service/journal responses with a fake clock, on both targets."""
+    clock, sleeps, calls = [0.0], [], []
+    current = {'rows': [], 'index': 0}
+    def command(argv):
+        calls.append(argv)
+        if argv[0] == '/usr/bin/systemctl':
+            index = min(current['index'], len(current['rows']) - 1)
+            current['index'] += 1
+            return current['rows'][index]
+        assert argv[0] == '/usr/bin/journalctl'
+        return json.dumps({'_PID': '123', '_SYSTEMD_INVOCATION_ID': 'a' * 32,
+            'MESSAGE': 'Starting to listen for events', '__CURSOR': 'start'}).encode() + b'\n'
+    def sleep(seconds):
+        sleeps.append(seconds)
+        clock[0] += seconds
+    monkeypatch.setattr(guest.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(guest.time, 'sleep', sleep)
+    native = guest.Native(None, command, {'os': request.param}, service_gid=1234)
+    def rows(*values):
+        current['rows'] = [value if isinstance(value, bytes) else ''.join(
+            key + '=' + item + '\n' for key, item in {
+                'MainPID': '123', 'InvocationID': 'a' * 32, 'ActiveState': value}.items()).encode()
+            for value in values]
+    return SimpleNamespace(native=native, rows=rows, clock=clock, sleeps=sleeps, calls=calls)
+
+
+def test_native_service_start_waits_for_same_invocation_before_startup_event(native_service_start):
+    r = native_service_start
+    r.rows('activating', 'activating', 'active')
+    identity, cursor = r.native._started()
+    assert identity == {'MainPID': '123', 'InvocationID': 'a' * 32, 'ActiveState': 'active'}
+    assert cursor == 'start' and r.sleeps == [0.2, 0.2]
+    journal = next(index for index, argv in enumerate(r.calls) if argv[0] == '/usr/bin/journalctl')
+    assert journal == 4  # Three startup reads, then the event's strict active check.
+    assert all(argv[0] in ('/usr/bin/systemctl', '/usr/bin/journalctl') for argv in r.calls)
+
+
+def test_native_service_start_active_path_keeps_existing_event_checks(native_service_start):
+    r = native_service_start
+    r.rows('active')
+    assert r.native._started()[1] == 'start'
+    assert r.sleeps == []
+    assert [argv[0] for argv in r.calls] == [
+        '/usr/bin/systemctl', '/usr/bin/systemctl', '/usr/bin/journalctl', '/usr/bin/systemctl']
+
+
+def test_native_service_start_waits_for_fork_then_pins_the_observed_pid(native_service_start):
+    r = native_service_start
+    pending = b'MainPID=0\nInvocationID=' + b'a' * 32 + b'\nActiveState=activating\n'
+    r.rows(pending, 'activating', 'active')
+    identity, cursor = r.native._started()
+    assert identity['MainPID'] == '123' and cursor == 'start'
+    assert r.sleeps == [0.2, 0.2]
+
+
+def test_native_service_start_refuses_pid_disappearing_after_fork(native_service_start):
+    r = native_service_start
+    pending = b'MainPID=0\nInvocationID=' + b'a' * 32 + b'\nActiveState=activating\n'
+    r.rows(pending, 'activating', pending)
+    with pytest.raises(ValueError, match='native-service-changed'):
+        r.native._started()
+    assert r.sleeps == [0.2, 0.2] and len(r.calls) == 3
+
+
+def test_native_service_start_times_out_without_journal_or_mutation(native_service_start, monkeypatch):
+    r = native_service_start
+    r.rows('activating')
+    monkeypatch.setattr(guest.time, 'sleep', lambda _: r.clock.__setitem__(0, 180.0))
+    with pytest.raises(ValueError, match='native-service-timeout'):
+        r.native._started()
+    assert len(r.calls) == 1 and r.calls[0][0] == '/usr/bin/systemctl'
+
+
+def test_native_service_start_refuses_active_response_after_deadline(native_service_start):
+    r = native_service_start
+    r.rows('activating', 'active')
+    original = r.native.command
+    def delayed(argv):
+        result = original(argv)
+        if len(r.calls) == 2:
+            r.clock[0] = 180.0
+        return result
+    r.native.command = delayed
+    with pytest.raises(ValueError, match='native-service-timeout'):
+        r.native._started()
+    assert len(r.calls) == 2
+    assert all(argv[0] == '/usr/bin/systemctl' for argv in r.calls)
+
+
+@pytest.mark.parametrize('fault', ['failed', 'inactive', 'deactivating', 'pid', 'invocation',
+                                  'duplicate', 'malformed'])
+def test_native_service_start_refuses_invalid_state_or_identity_immediately(native_service_start, fault):
+    r = native_service_start
+    raw = b'MainPID=123\nInvocationID=' + b'a' * 32 + b'\nActiveState=activating\n'
+    if fault in ('failed', 'inactive', 'deactivating'):
+        raw = raw.replace(b'activating', fault.encode())
+    elif fault == 'pid':
+        raw = raw.replace(b'MainPID=123', b'MainPID=invalid')
+    elif fault == 'invocation':
+        raw = raw.replace(b'a' * 32, b'invalid')
+    elif fault == 'duplicate':
+        raw += b'MainPID=123\n'
+    else:
+        raw = raw.replace(b'MainPID=123', b'malformed')
+    r.rows(raw)
+    with pytest.raises(ValueError, match='native-service'):
+        r.native._started()
+    assert r.sleeps == [] and len(r.calls) == 1
+
+
+@pytest.mark.parametrize('field,replacement', [('MainPID', '456'), ('InvocationID', 'b' * 32)])
+def test_native_service_start_never_adopts_a_replacement(native_service_start, field, replacement):
+    r = native_service_start
+    values = {'MainPID': '123', 'InvocationID': 'a' * 32, 'ActiveState': 'active', field: replacement}
+    r.rows('activating', ''.join(key + '=' + value + '\n' for key, value in values.items()).encode())
+    with pytest.raises(ValueError, match='native-service-changed'):
+        r.native._started()
+    assert r.sleeps == [0.2] and len(r.calls) == 2
+
+
+def test_native_service_default_still_refuses_activating_without_wait(native_service_start):
+    r = native_service_start
+    r.rows('activating')
+    with pytest.raises(ValueError, match='native-service'):
+        r.native._service()
+    assert r.sleeps == [] and len(r.calls) == 1
+
+
 @pytest.mark.parametrize('fault', ['restart', 'foreign-record', 'old-completion', 'command-error'])
 def test_native_event_wait_never_adopts_foreign_or_uncertain_observations(real_native, monkeypatch, fault):
     r = real_native

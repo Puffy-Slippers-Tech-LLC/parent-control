@@ -313,6 +313,24 @@ def matched_screens(directory, plan, observations=()):
     return screens
 
 
+def prepare_installed_setup(context, transport, guard, *, observer=None):
+    """Shared setup boundary, before a worker receives setup_complete."""
+    from installed_setup import InstalledSetup
+    clean = context.lease.capture.state['guest'].get('fixture_boundary') == 'clean'
+    options = {}
+    if clean:
+        from e2e_fixture_preparation import validate_input
+        options = {'fixture_selection': validate_input(getattr(context, 'fixture_selection', None))}
+        if observer is not None:
+            options['observer'] = observer
+    prepared = InstalledSetup(context.directory, context.verified, transport).provision(guard, **options)
+    if getattr(context, 'asset_transfer', None) is not None:
+        context.asset_transfer.provision_installed(context.lease, transport)
+    if clean:
+        prepared['controller'].require_ready(prepared['receipt'])
+    return prepared if clean else None
+
+
 class InstalledJourney:
     """One guarded stage rendezvous, with durable observations before replies."""
 
@@ -323,6 +341,13 @@ class InstalledJourney:
         self.watch_progress = getattr(getattr(context, 'recorder', None), 'progress', None)
         self.review = review
         self.actions = actions or {}
+        if getattr(context, 'fixture_selection', None) is not None and not getattr(
+                context, 'product_free', False):
+            require(all(getattr(action, 'fixture_profile', 'native') in ('native', 'chinese')
+                        for action in self.actions.values())
+                    and not any(tag.endswith('native-activity-launch')
+                                for tag in plan.screen_tags.values()),
+                    'fixtures:e2e-profile-not-qualified')
         require(set(self.actions) == set(plan.stage_actions.values())
                 and set(plan.stage_actions) <= set(plan.stages), plan.prefix + ':stage-actions')
         self.steps = []
@@ -587,9 +612,7 @@ class InstalledJourney:
                 if install_current:
                     observed['setup'] = setup.run(guard, verify=False)
                 else:
-                    setup.provision(guard)
-                    if getattr(context, 'asset_transfer', None) is not None:
-                        context.asset_transfer.provision_installed(context.lease, transport)
+                    prepare_installed_setup(context, transport, guard)
                     observed['setup'] = {'installed_snapshot': context.installed_snapshot}
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
@@ -742,6 +765,10 @@ class InstalledJourney:
         self.progress(stage, observed)
         print(plan.prefix + ':stage-observed=' + stage, file=sys.stderr, flush=True)
         guard()
+        if stage == 'setup-detached':
+            prepared = getattr(context.verified, 'fixture_prepared', None)
+            if prepared is not None:
+                prepared['controller'].require_ready(prepared['receipt'])
         # Qualified graphical recipients already require a masked password
         # field. Keep their watch recording visible, including failed results;
         # credential delivery and durable recipient acknowledgements stay gated.

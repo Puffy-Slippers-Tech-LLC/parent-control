@@ -1,14 +1,17 @@
-"""Implementation of tools/read-only links and words; no writes or subprocesses."""
+"""Read-only document checks with guarded metadata access for test evidence."""
 import argparse
+import json
 import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import sys
 from urllib.parse import unquote, urlsplit
 
 
 MAX_BYTES = 8 * 1024 * 1024
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class Parser(argparse.ArgumentParser):
@@ -112,8 +115,32 @@ def inline_destinations(text):
         yield text.count('\n', 0, match.start()) + 1, ''.join(destination)
 
 
+def protected_artifact_exists(target):
+    """Use only the approved metadata reader, only within this checkout's evidence."""
+    original = Path(os.path.join(os.getcwd(), target))
+    target = Path(os.path.abspath(original))
+    if not target.is_relative_to(ROOT / 'output/test-runs'):
+        return False
+    try:
+        if '..' in original.parts:
+            last_parent = max(i for i, part in enumerate(original.parts) if part == '..')
+            prefix = Path(*original.parts[:last_parent + 1])
+            # Collapsing parent steps must not change the filesystem target
+            # when an earlier component is a symlink.
+            if prefix.resolve(strict=True) != Path(os.path.abspath(prefix)):
+                return False
+        result = subprocess.run(
+            ['/usr/bin/pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-artifacts',
+             'stat', str(target)], cwd=ROOT, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, text=True, check=False, timeout=15)
+        metadata = json.loads(result.stdout) if result.returncode == 0 else None
+        return isinstance(metadata, dict) and metadata.get('kind') in ('file', 'directory')
+    except (OSError, subprocess.TimeoutExpired, ValueError, RuntimeError):
+        return False
+
+
 def check_links(paths):
-    checked = missing = 0
+    checked = missing = inaccessible = 0
     for document, path in enumerate(paths, 1):
         for line, destination in inline_destinations(read_text(path)):
             if re.match(r'^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|//|#)', destination):
@@ -122,11 +149,20 @@ def check_links(paths):
             if target.scheme or target.netloc or not target.path:
                 continue
             checked += 1
-            if not (path.parent / unquote(target.path)).exists():
+            try:
+                (path.parent / unquote(target.path)).stat()
+            except (FileNotFoundError, NotADirectoryError):
                 missing += 1
                 # Do not echo source prose, URLs, filenames or account data.
                 print(f'links: document={document} line={line} missing local target')
-    print(f'links: documents={len(paths)} checked={checked} missing={missing}')
+            except PermissionError:
+                if not protected_artifact_exists(path.parent / unquote(target.path)):
+                    inaccessible += 1
+                    print(f'links: document={document} line={line} inaccessible local target')
+    suffix = f' inaccessible={inaccessible}' if inaccessible else ''
+    print(f'links: documents={len(paths)} checked={checked} missing={missing}{suffix}')
+    if inaccessible:
+        return 2
     return 1 if missing else 0
 
 

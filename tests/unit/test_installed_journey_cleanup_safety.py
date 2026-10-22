@@ -958,6 +958,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         installed_snapshot='onpc-v9.8.7',
         guestfs=Mock(), credentials=Mock(), verified=SimpleNamespace(inputs=inputs),
         lease=SimpleNamespace(source=SimpleNamespace(uuid='fixture-uuid'),
+            capture=SimpleNamespace(state={'guest': {'fixture_boundary': 'legacy'}}),
             view=SimpleNamespace(domain_id=7), state={'run': 'a' * 32}, guard=Mock()))
 
     with PrivateCollector(run_id=contract.run_id, secrets=[], parent=tmp_path) as collector:
@@ -1181,6 +1182,7 @@ def test_clean_baseline_qualification_installs_before_authorizing_customer_input
     context = SimpleNamespace(directory=tmp_path, install_current_package=True,
                               lease=Mock(), verified=Mock(), commands=Mock(), host_key='test-key')
     context.lease.state = {'run': 'test-run'}
+    context.verified.fixture_prepared = None
     journey = journeys.InstalledJourney(context, Mock(), SYNTHETIC)
     guard = Mock()
     for stage in ('ready', 'setup-detached'):
@@ -1215,6 +1217,8 @@ def test_activity_consumer_verifies_baseline_before_setup_reply(tmp_path, monkey
     context = SimpleNamespace(directory=tmp_path, installed_snapshot='accepted-snapshot',
                               lease=Mock(), verified=Mock(), commands=Mock(), host_key='test-key')
     context.lease.state = {'run': 'test-run'}
+    context.lease.capture.state = {'guest': {'fixture_boundary': 'legacy'}}
+    context.verified.fixture_prepared = None
     journey = journeys.InstalledJourney(context, Mock(), plan)
     guard = Mock()
     for stage in ('ready', 'setup-detached'):
@@ -1260,7 +1264,9 @@ def test_stage_action_runs_after_worker_guard_and_before_durable_reply(tmp_path,
     context = SimpleNamespace(directory=directory, host_key="fixture-key", commands=Mock(),
         installed_snapshot='onpc-v9.8.7',
         verified=Mock(), lease=SimpleNamespace(source=SimpleNamespace(uuid="fixture-uuid"),
+        capture=SimpleNamespace(state={'guest': {'fixture_boundary': 'legacy'}}),
         view=SimpleNamespace(domain_id=7), state={"run": "a" * 32}, guard=Mock()))
+    context.verified.fixture_prepared = None
     events = []
 
     def action(journey, guard):

@@ -1762,11 +1762,21 @@ def retire_snapshot_payload(g, run):
 @observed('Preparing the VM SSH transport and guest inputs')
 def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
               snapshot_capture=False, environment_only=False, system_product_free=False,
-              system_installed=False):
+              system_installed=False, e2e_installed=False):
     """Prepare SSH only on the reset, powered-off active disk via libguestfs."""
     require(type(snapshot_capture) is bool, 'fixtures:invalid-snapshot-capture')
     require(type(system_product_free) is bool, 'fixtures:invalid-system-product-free')
     require(type(system_installed) is bool, 'fixtures:invalid-system-installed')
+    require(type(e2e_installed) is bool, 'fixtures:invalid-e2e-installed')
+    if e2e_installed:
+        require(not system_installed and not system_product_free and not snapshot_capture
+                and not observation_only and not environment_only
+                and lease.capture.state['guest'].get('fixture_boundary') == 'clean'
+                and lease.capture.state['guest'].get('ubuntu_version') == '26.04'
+                and getattr(lease, 'installed_name', None) is not None
+                and (getattr(lease, 'online_pending', False) is True
+                     or getattr(lease, '_restored_name', None) == lease.installed_name),
+                'fixtures:e2e-installed-target-not-qualified')
     from system_fixture_preparation import qualified_guest, require_installed_restore, guest_target
     require(not system_installed or (not system_product_free and not snapshot_capture
             and not observation_only and qualified_guest(lease.capture.state['guest'], installed=True)),
@@ -1777,7 +1787,7 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
             'fixtures:system-product-free-target-not-qualified')
     require(type(environment_only) is bool and (not environment_only or observation_only),
             'fixtures:invalid-environment-observation')
-    require(environment_only or snapshot_capture or system_product_free or system_installed or
+    require(environment_only or snapshot_capture or system_product_free or system_installed or e2e_installed or
             lease.capture.state['guest'].get('fixture_boundary') != 'clean',
             'fixtures:runner-not-qualified-for-clean-snapshot')
     if getattr(lease, 'online_pending', False) is True:
@@ -1790,6 +1800,8 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
     lease.save('ssh-bootstrap')
     with mounted_guest(guestfs, lease, with_root=True) as (g, root):
         os_id, version = baseline.guest_contract.inspected_release(g, root)
+        require(not e2e_installed or (os_id, version) == ('ubuntu', '26.04'),
+                'fixtures:e2e-installed-target-not-qualified')
         require(not system_product_free or (os_id, version) in (('ubuntu', '26.04'), ('fedora', '44')),
                 'fixtures:system-product-free-target-not-qualified')
         require(not system_installed or (os_id, version) in (('ubuntu', '26.04'), ('fedora', '44')),

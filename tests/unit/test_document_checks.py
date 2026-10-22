@@ -1,7 +1,9 @@
 """Read-only handoff checks have bounded inputs and never evaluate source text."""
 from tests.support.modules import load_module
+import errno
 import os
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -48,6 +50,103 @@ def test_missing_targets_report_document_number_and_line_without_input_values(tm
     assert output == ('links: document=1 line=2 missing local target\n'
                       'links: document=2 line=1 missing local target\n'
                       'links: documents=2 checked=2 missing=2\n')
+
+
+def test_inaccessible_targets_are_read_failures_not_missing_or_success(tmp_path, monkeypatch, capsys):
+    source = tmp_path / 'sensitive-document.md'
+    target = tmp_path / 'private-target.json'
+    target.touch()
+    source.write_text('[private prose](private-target.json)\n[missing](absent.md)\n'
+                      '[present](sensitive-document.md)\n')
+    monkeypatch.setattr(checks, 'ROOT', tmp_path)
+    original = type(target).stat
+
+    def denied(path, *args, **kwargs):
+        if path == target:
+            raise PermissionError(errno.EACCES, 'private access details', str(target))
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(type(target), 'stat', denied)
+    monkeypatch.setattr(checks.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(checks.subprocess, 'run', lambda *args, **kwargs:
+                        pytest.fail('non-evidence paths must not reach the artifact reader'))
+    assert checks.main(['links', str(source)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ('links: document=1 line=1 inaccessible local target\n'
+                            'links: document=1 line=2 missing local target\n'
+                            'links: documents=1 checked=3 missing=1 inaccessible=1\n')
+    assert not captured.err
+
+
+@pytest.mark.parametrize('outcome', ['verified', 'refused', 'malformed', 'timeout', 'unavailable'])
+def test_protected_evidence_links_use_only_the_guarded_metadata_reader(
+        tmp_path, monkeypatch, capsys, outcome):
+    root = tmp_path / 'checkout'
+    (root / 'docs').mkdir(parents=True)
+    source = root / 'docs/guide.md'
+    source.write_text('[private prose](../output/test-runs/private-result.json)\n')
+    target = root / 'output/test-runs/private-result.json'
+    original = type(target).stat
+    calls = []
+
+    def denied(path, *args, **kwargs):
+        if checks.Path(os.path.abspath(path)) == target:
+            raise PermissionError(errno.EACCES, 'private access details', str(target))
+        return original(path, *args, **kwargs)
+
+    def metadata_reader(argv, **kwargs):
+        calls.append(argv)
+        assert argv == ['/usr/bin/pkexec', '--keep-cwd',
+                        '/usr/local/libexec/onpc-test-artifacts', 'stat', str(target)]
+        assert kwargs == dict(cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                              text=True, check=False, timeout=15)
+        if outcome == 'timeout':
+            raise subprocess.TimeoutExpired(argv, 15)
+        if outcome == 'unavailable':
+            raise FileNotFoundError('private helper details')
+        return SimpleNamespace(returncode=2 if outcome == 'refused' else 0,
+                               stdout='{"kind":"file"}' if outcome != 'malformed' else 'true')
+
+    monkeypatch.setattr(checks, 'ROOT', root)
+    monkeypatch.setattr(type(target), 'stat', denied)
+    monkeypatch.setattr(checks.subprocess, 'run', metadata_reader)
+    assert checks.check_links([source]) == (0 if outcome == 'verified' else 2)
+    assert len(calls) == 1
+    captured = capsys.readouterr()
+    expected = 'links: documents=1 checked=1 missing=0\n' if outcome == 'verified' else (
+        'links: document=1 line=1 inaccessible local target\n'
+        'links: documents=1 checked=1 missing=0 inaccessible=1\n')
+    assert captured.out == expected
+    assert not captured.err
+
+
+def test_parent_steps_through_symlinks_cannot_verify_an_unrelated_artifact(
+        tmp_path, monkeypatch, capsys):
+    root = tmp_path / 'checkout'
+    evidence = root / 'output/test-runs'
+    evidence.mkdir(parents=True)
+    (evidence / 'result.json').touch()
+    private = tmp_path / 'elsewhere/private'
+    private.mkdir(parents=True)
+    (evidence / 'jump').symlink_to(private, target_is_directory=True)
+    source = root / 'guide.md'
+    source.write_text('[private prose](output/test-runs/jump/../result.json)\n')
+    target = evidence / 'jump/../result.json'
+    original = type(target).stat
+
+    def denied(path, *args, **kwargs):
+        if path == target:
+            raise PermissionError(errno.EACCES, 'private access details', str(target))
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(checks, 'ROOT', root)
+    monkeypatch.setattr(type(target), 'stat', denied)
+    monkeypatch.setattr(checks.subprocess, 'run', lambda *args, **kwargs:
+                        pytest.fail('a different normalized target must not reach the reader'))
+    assert checks.check_links([source]) == 2
+    assert capsys.readouterr().out == (
+        'links: document=1 line=1 inaccessible local target\n'
+        'links: documents=1 checked=1 missing=0 inaccessible=1\n')
 
 
 def test_link_existence_is_relative_to_each_document(tmp_path, capsys):

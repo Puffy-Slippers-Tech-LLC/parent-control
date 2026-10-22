@@ -53,7 +53,16 @@ class NativeFixtures:
         self.verified.recheck()
         names = (activity_sources() if self.profile == 'activity' else
                  riley_grid_sources() if self.profile == 'riley-grid' else sources())
-        expected = ({name: self.verified.asset_files[name] for name in names}
+        selection = getattr(self.verified, 'fixture_selection', None)
+        if selection is not None:
+            require(self.profile in ('native', 'chinese'), 'fixtures:e2e-profile-not-qualified')
+            from e2e_fixture_preparation import asset_hashes
+            prepared = self.verified.fixture_prepared
+            prepared['controller'].require_ready(prepared['receipt'])
+            files = asset_hashes(selection)
+        else:
+            files = self.verified.asset_files
+        expected = ({name: files[name] for name in names}
                     if self.profile != 'chinese' else {})
         if self.profile not in ('chinese', 'activity'):
             require(len({expected[name] for name in executable_sources()}) == 4, 'native:identical-roles')
@@ -130,6 +139,8 @@ def fixture_actions(*, include_refusal=True, profile='native'):
     def verify(journey, guard):
         guard()
         return controller(journey).verify()
+
+    refuse.fixture_profile = verify.fixture_profile = profile
 
     return ({'native-refuse': refuse, 'native-verify': verify} if include_refusal
             else {'native-verify': verify})

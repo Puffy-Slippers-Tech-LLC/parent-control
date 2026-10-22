@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F18 — [Integrate Ubuntu installed E2E preparation](Fixture-Tasks/F18-ubuntu-installed-e2e.md)**.
+Next task: **F19 — [Integrate Fedora installed E2E preparation](Fixture-Tasks/F19-fedora-installed-e2e.md)**.
 
 ## Outcome and status
 
@@ -82,6 +82,18 @@ No implementation changes were needed during renewal; the independent Sol High
 review remains retained. Watched restoration and owned cleanup passed, and the
 public status route independently confirmed both VMs off. This supplies no
 customer/E2E acceptance.
+F18 delivered Ubuntu's [installed E2E preparation](../../tests/integration/README.md#ubuntu-installed-e2e-preparation)
+with immutable native input before worker input. Two actual online resumes with
+credential rebind and two explicit offline Kiosk attachments passed independent
+12-file readback, harmless Riley runtime use, input refusals, fresh readiness,
+no-write repeats and unchanged selection after producer-source edits. Final
+ordered alias/loop composition and affected provenance/ownership checks passed.
+Offline attachment now verifies the saved inactive domain before isolation;
+native startup observation waits for the same service invocation to become active.
+Both repairs passed host checks and the complete installed history. Watched
+baseline restoration and owned producer, credential, staging, input and transport
+cleanup passed; Ubuntu independently ended off. The queue records the exact
+runner result. This supplies no customer/E2E acceptance.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

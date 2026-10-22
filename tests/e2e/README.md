@@ -472,6 +472,12 @@ shared qualification for foreground VM commands. No product update is required.
 
 ## Run E2E scenarios
 
+Clean Ubuntu installed preparation uses the
+[qualified native fixture boundary](../integration/README.md#ubuntu-installed-e2e-preparation)
+after app-snapshot restore and credential binding, before scenario input.
+Other targets, product-free envelopes and unqualified fixture profiles retain
+their migration gates. Preparation proof supplies no customer-scenario credit.
+
 Runs automatically retain human-readable WebM clips of the shared multi-VM
 watch layout under the [recording contract](../README.md#vm-watch-recordings).
 The visible watcher is optional; recordings do not replace scenario assertions

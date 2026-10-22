@@ -129,11 +129,13 @@ class ParentJourneyQualification(smoke.Qualification):
             self.attach_installed_snapshot(lease)
             host_key = smoke.runner.bootstrap(
                 self.commands, lease, self.directory, guestfs,
-                observation_only=self.observation_only)
+                observation_only=self.observation_only,
+                **({'e2e_installed': True} if getattr(self, 'fixture_selection', None) is not None else {}))
             lease.guard(off=True)
             lease.save('isolated')
             self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets,
-                                                upgrade=self.upgrade_assets)
+                                                upgrade=self.upgrade_assets,
+                **({'package_only': True} if getattr(self, 'fixture_selection', None) is not None else {}))
             self.result['provenance'] = self.verified.inputs
             if self.upgrade_assets:
                 self.result['upgrade_inputs'] = self.verified.upgrade_inputs
@@ -141,6 +143,7 @@ class ParentJourneyQualification(smoke.Qualification):
                 lease, self.verified, self.directory, guestfs, self.commands)
             context = SimpleNamespace(directory=self.directory, lease=lease, verified=self.verified,
                                       commands=self.commands, host_key=host_key)
+            context.fixture_selection = getattr(self, 'fixture_selection', None)
             self.prepare_context(context)
 
             def progress(stage, observed):
@@ -207,7 +210,8 @@ class KioskEntryQualification(ParentJourneyQualification):
         memory = ET.fromstring(xml).find('memory')
         online = memory is not None and memory.get('snapshot') == 'internal'
         mode = 'online' if online else 'offline'
-        reason = mode_mismatch(xml, mode) or mismatch(xml, expected)
+        reason = mode_mismatch(xml, mode, **(
+            {'offline_domain_xml': lease.original_xml} if not online else {})) or mismatch(xml, expected)
         smoke.require(reason is None, 'setup:installed-snapshot-stale:' + str(reason))
         lease.guard(off=True)
         smoke.require(snap.getXMLDesc(0) == xml, 'setup:installed-snapshot-changed')
@@ -218,6 +222,7 @@ class KioskEntryQualification(ParentJourneyQualification):
             'inputs': json.loads(ET.fromstring(xml).findtext('description')),
             'expected_inputs': json.loads(expected),
         }
+        lease.installed_name, lease.installed_xml = name, xml
         if online:
             lease.installed_name, lease.installed_xml = name, xml
             lease.online_pending = True
@@ -231,6 +236,9 @@ class KioskEntryQualification(ParentJourneyQualification):
         lease.state['domain_id'] = None
         lease.guard(off=True)
         lease.save('isolated')
+        lease.online_pending = False
+        lease.online_bootstrap = None
+        lease._restored_name = name
 
 
 class KioskPreferencesConfinementQualification(KioskEntryQualification):

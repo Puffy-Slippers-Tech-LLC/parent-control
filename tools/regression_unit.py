@@ -1163,7 +1163,18 @@ from regression_ui import Bucket
 # private trees and in-process doubles. Dispatcher/launcher additions retain
 # their existing bounded waited children; no live guest, external service,
 # shared cache, socket, display or new cleanup/UI owner is introduced.
+# Installed E2E qualification owns only tiny pytest-private files and synchronous
+# lease/SSH/native/selection doubles. No VM, process, service, display, socket,
+# bus, shared cache or build is acquired. Bounded CPU/I/O permits compatible
+# overlap; no cleanup or UI inventory owner is added. Related existing modules
+# retain their private-file/in-memory ownership and current classifications.
+# Cumulative publication boundaries own 259 tiny pytest-private seals and five
+# private exports. Existing evidence_capture filesystem weighting and compatible
+# scheduling apply; no shared journal, process, service, display, socket or bus
+# is added. Protected-document-link checks mock the metadata reader and use
+# private paths/symlinks; document_checks adds no live privileged resource.
 REVIEWED = frozenset("""
+fixture_e2e_qualification
 fixture_system_qualification
 fixture_provision_qualification
 fixture_snapshots

@@ -243,13 +243,16 @@ class Native:
         self.command([self.cli, '--check-config'])
         self._started()
 
-    def _service(self):
+    def _service(self, *, allow_activating=False):
         raw = self.command(['/usr/bin/systemctl', 'show', 'fapolicyd.service',
             '--property=MainPID', '--property=InvocationID', '--property=ActiveState']).decode()
-        fields = dict(line.split('=', 1) for line in raw.splitlines())
+        rows = [line.split('=', 1) for line in raw.splitlines()]
+        require(len(rows) == 3 and all(len(row) == 2 for row in rows), 'native-service')
+        fields = dict(rows)
         require(set(fields) == {'MainPID', 'InvocationID', 'ActiveState'}
-                and fields['ActiveState'] == 'active'
-                and fields['MainPID'].isdigit() and int(fields['MainPID']) > 0
+                and fields['ActiveState'] in (('active', 'activating') if allow_activating else ('active',))
+                and fields['MainPID'].isdigit() and (int(fields['MainPID']) > 0
+                    or allow_activating and fields['ActiveState'] == 'activating' and fields['MainPID'] == '0')
                 and re.fullmatch(r'[0-9a-f]{32}', fields['InvocationID']), 'native-service')
         return fields
 
@@ -283,10 +286,27 @@ class Native:
             time.sleep(min(0.2, max(0, deadline - time.monotonic())))
 
     def _started(self):
+        # Package startup can still be hashing its database in start-post.
+        # Observe that one invocation becoming active without restarting it or
+        # adopting a replacement process; _event retains strict active checks.
+        deadline = time.monotonic() + 180
+        identity = self._service(allow_activating=True)
+        pinned = {key: identity[key] for key in ('MainPID', 'InvocationID')
+                  if key != 'MainPID' or identity[key] != '0'}
+        while identity['ActiveState'] == 'activating':
+            require(time.monotonic() < deadline, 'native-service-timeout')
+            time.sleep(min(0.2, max(0, deadline - time.monotonic())))
+            require(time.monotonic() < deadline, 'native-service-timeout')
+            observed = self._service(allow_activating=True)
+            require(time.monotonic() < deadline, 'native-service-timeout')
+            require(all(observed[key] == value for key, value in pinned.items()),
+                    'native-service-changed')
+            if observed['MainPID'] != '0':
+                pinned['MainPID'] = observed['MainPID']
+            identity = observed
         # Type=forking becomes active before the packaged daemon loads trust.
         # Its current invocation's startup event follows initialization; querying
         # LMDB sooner can race the daemon replacing that database.
-        identity = self._service()
         cursor = self._event('Starting to listen for events', identity)
         return identity, cursor
 

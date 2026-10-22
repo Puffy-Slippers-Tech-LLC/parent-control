@@ -105,6 +105,27 @@ def test_installed_system_dispatch_is_bound_to_qualified_target(checkout, fixtur
             '--vm', other, '--fixture-selection', json.dumps(fixture_selection)])
 
 
+@pytest.mark.parametrize('name', ['check_fixture_e2e_installed', 'check_e2e_approval_flow',
+                                  'check_e2e_native_fixtures'])
+def test_installed_e2e_dispatch_is_ubuntu_only(checkout, fixture_selection, name):
+    (checkout / 'tests/integration' / (name + '.py')).touch()
+    arguments = ['integration', name, '--fixture-selection', json.dumps(fixture_selection)]
+    command = runner['selection'](checkout, [*arguments, '--vm', 'onpc-Ubuntu26.04'])
+    assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        runner['selection'](checkout, [*arguments, '--vm', 'onpc-Fedora44'])
+
+
+@pytest.mark.parametrize('options', [
+    ['--list'], ['--qualify-transfer'], ['--qualify-install'], ['--qualify-install-refusal'],
+])
+def test_e2e_fixture_selection_does_not_enable_other_envelopes(fixture_selection, options):
+    root = Path(__file__).resolve().parents[2]
+    with pytest.raises(ValueError, match='unexpected-fixture-selection'):
+        runner['selection'](root, ['e2e', *options, '--vm', 'onpc-Ubuntu26.04',
+            '--fixture-selection', json.dumps(fixture_selection)])
+
+
 @pytest.mark.parametrize('payload', ['{', 'null', '[]', '{}', 'x' * 8193])
 def test_fixture_selection_rejects_malformed_json_or_record(checkout, fixture_selection, payload):
     with pytest.raises(ValueError):

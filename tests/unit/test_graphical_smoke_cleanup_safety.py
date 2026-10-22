@@ -337,8 +337,11 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
     events = []
     lease.guard = Mock(side_effect=lambda: events.append('guard'))
     lease.finish = Mock(side_effect=lambda: events.append('finish'))
-    with patch.object(runner.os, 'open', return_value=42), patch.object(runner.os, 'close') as close, \
-            patch.object(runner.fcntl, 'flock'), patch.object(runner.baseline, 'identity'), \
+    # Recovery owns the controller lease, while the shared lock implementation
+    # owns central VM reservations. Keep this journal test at that boundary.
+    with patch.object(runner.baseline, 'open_controller_lock', return_value=42) as acquire, \
+            patch.object(runner.baseline, 'close_controller_lock') as close, \
+            patch.object(runner.baseline, 'identity'), \
             patch.object(runner.baseline, 'domain_layout', return_value=baseline_state['source']['layout']), \
             patch.object(runner, 'isolated_xml'):
         if category:
@@ -351,6 +354,7 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
             assert events == ['guard', 'finish']
             assert lease.view.run == state['run'] and lease.view.domain_id == 17
         assert lease.fd is None
+        acquire.assert_called_once_with(lease.capture.lock_path, vm_uuid=source.uuid)
         close.assert_called_once_with(42)
     source.shutdown.assert_not_called()
     source.domain.create.assert_not_called()
@@ -564,14 +568,18 @@ def test_recovery_requires_exclusive_lock_before_journal_or_controls(tmp_path, g
     lease = runner.Lease(Mock(), Mock(), Mock(), directory=tmp_path, graphics_type=graphics_type)
     lease.capture = Mock()
     lease.finish = Mock()
-    with patch.object(runner.os, 'open', return_value=42), patch.object(runner.os, 'close'), \
+    with patch.object(runner.baseline, 'open_controller_lock',
+                      side_effect=runner.baseline.CaptureError('state:busy-controller')) as acquire, \
+            patch.object(runner.baseline, 'close_controller_lock') as close, \
             patch.object(runner.baseline, 'identity'), \
-            patch.object(runner.fcntl, 'flock', side_effect=BlockingIOError):
+            patch.object(runner.baseline, 'compatibility_lock', return_value=None):
         with pytest.raises(RuntimeError, match='busy-controller'):
             if graphics_type == 'vnc':
                 lease.recover_graphical_cleanup()
             else:
                 lease.recover_system_cleanup()
+    acquire.assert_called_once_with(lease.capture.lock_path, vm_uuid=lease.source.uuid)
+    close.assert_not_called()
     lease.capture.read_state.assert_not_called()
     lease.finish.assert_not_called()
 

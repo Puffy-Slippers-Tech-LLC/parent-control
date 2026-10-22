@@ -248,7 +248,7 @@ def test_lost_worker_guard_refuses_before_guest_mutation(setup):
 
 @pytest.mark.parametrize('mode', ['online', 'offline'])
 @pytest.mark.parametrize('changed', [None, 'package', 'baseline', 'recipe',
-                                    'metadata', 'age', 'race', 'guard'])
+                                    'metadata', 'age', 'race', 'guard', 'domain'])
 def test_snapshot_attachment_checks_frozen_installed_identity_before_restore(
         setup, monkeypatch, mode, changed):
     import app_snapshot
@@ -282,7 +282,14 @@ def test_snapshot_attachment_checks_frozen_installed_identity_before_restore(
                   'recipe': 'recipe_sha256'}[changed]] = 'd' * 64
     if changed == 'metadata':
         previous = {'schema_version': 2}
-    domain = app_snapshot.system.isolated_xml(domain_xml(), UUID, 'a' * 32, graphics_type='vnc')
+    lease.original_xml = domain_xml()
+    domain = (app_snapshot.system.isolated_xml(lease.original_xml, UUID, 'a' * 32, graphics_type='vnc')
+              if mode == 'online' else lease.original_xml)
+    if changed == 'domain':
+        import xml.etree.ElementTree as ET
+        edited = ET.fromstring(domain)
+        ET.SubElement(edited, 'unexpected').text = 'changed'
+        domain = ET.tostring(edited, encoding='unicode')
     memory, state = ('internal', 'running') if mode == 'online' else ('no', 'shutoff')
     created = 1 if changed == 'age' else 100000
     xml = (f'<domainsnapshot><description>{json.dumps(previous)}</description>'
@@ -292,7 +299,8 @@ def test_snapshot_attachment_checks_frozen_installed_identity_before_restore(
     snapshot.getXMLDesc.side_effect = [xml, xml + ' ' if changed == 'race' else xml]
     if changed == 'guard':
         lease.guard.side_effect = RuntimeError('lost owner')
-    accepted = changed is None or (changed == 'age' and mode == 'offline')
+    accepted = (changed is None or changed == 'age' and mode == 'offline'
+                or changed == 'domain' and mode == 'online')
     if not accepted:
         with pytest.raises((EvidenceError, RuntimeError)):
             controller.attach_installed_snapshot(lease)
@@ -303,6 +311,9 @@ def test_snapshot_attachment_checks_frozen_installed_identity_before_restore(
     else:
         from contextlib import nullcontext
         lease.snapshot_status.return_value = nullcontext()
+        operations = []
+        lease.source.domain.revertToSnapshot.side_effect = lambda *_: operations.append('restore')
+        lease.source.connection.defineXML.side_effect = lambda *_: operations.append('isolate')
         controller.attach_installed_snapshot(lease)
         assert controller.result['installed_snapshot'] == {
             'name': 'onpc-v9.8.7', 'mode': mode, 'inputs': previous,
@@ -310,8 +321,12 @@ def test_snapshot_attachment_checks_frozen_installed_identity_before_restore(
         if mode == 'online':
             assert lease.online_pending and lease.installed_xml == xml
             lease.source.domain.revertToSnapshot.assert_not_called()
+            assert operations == []
         else:
             lease.source.domain.revertToSnapshot.assert_called_once()
+            lease.source.connection.defineXML.assert_called_once_with(lease.test_xml)
+            assert operations == ['restore', 'isolate']
+            assert lease.original_xml == domain_xml()
         lease.guard.assert_any_call(off=True)
 
 

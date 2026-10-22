@@ -1479,9 +1479,15 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             and (not (install or install_refusal) or (assets is not None and serial
             and provision_credentials)), 'smoke:installation-prerequisites')
     require(type(serial) is bool and (not serial or provision_credentials), 'smoke:serial-credentials')
-    if parent_setup:
+    if parent_setup or fixture_selection is not None:
         from system_fixture_preparation import command_selection
         fixture_selection = command_selection(fixture_selection)
+    elif '--fixture-selection' in sys.argv:
+        from e2e_fixture_preparation import selection_record
+        import argparse
+        parser = argparse.ArgumentParser(allow_abbrev=False)
+        parser.add_argument('--fixture-selection', required=True)
+        fixture_selection = selection_record(json.loads(parser.parse_args().fixture_selection))
     credentials = FixtureCredentials() if provision_credentials else None
     require(assets is not None or len(sys.argv) == 1, 'smoke:invalid-arguments')
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
@@ -1807,7 +1813,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     staged = directory / 'assets'
                     result['source_preflight'] = stage_qualification_assets(
                         assets, staged, commands, dual_packages=dual_packages,
-                        package_only=parent_setup)
+                        package_only=parent_setup or fixture_selection is not None)
                 if (parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey
@@ -1816,7 +1822,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
                     installed_setup.stage(directory, staged, result['inputs_sha256'],
-                        **({'package_only': True} if parent_setup else {}))
+                        **({'package_only': True} if parent_setup or fixture_selection is not None else {}))
                     staged = directory / 'input'
                 else:
                     (directory / 'input').mkdir(mode=0o700)
@@ -2276,6 +2282,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                               staged, credentials, serial, install, install_refusal, vt6_prompt,
                                               vt6_auth)
                 if parent_setup:
+                    qualification.fixture_selection = fixture_selection
+                elif fixture_selection is not None:
+                    from parent_setup_qualification import KioskEntryQualification
+                    require(issubclass(qualification_class, KioskEntryQualification),
+                            'fixtures:e2e-installed-branch-not-qualified')
                     qualification.fixture_selection = fixture_selection
                 lease.finalize = qualification.finalize
                 with lease:

@@ -188,6 +188,34 @@ labels, finite native trust and unchanged native admission sources, compiled
 rules and public rule listing. Read-only readiness renewal after a session
 reboot preserves the selected bytes and scenario mutations.
 
+### Ubuntu installed E2E preparation
+
+Clean Ubuntu 26.04 installed E2E attempts select their immutable `native`
+runtime input before VM acquisition. After app-snapshot restoration, guarded
+SSH readiness and fresh credential binding, `InstalledSetup.provision` uses the
+[shared provisioner](../support/README.md#attempt-owned-fixture-provisioning)
+before scenario asset transfer and input. `InstalledJourney` and the
+installed qualification aliases share this boundary. Online resume and explicit
+offline restore retain their own preparation proof; an online result alone
+cannot qualify the offline branch.
+The offline attachment requires the exact validated inactive domain settings in
+its shut-off disk snapshot, then applies the lease's isolated settings before
+boot. Online captures retain their private-console and sharing checks.
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
+```
+
+This preparation-only check stops before worker or product assertions. It
+independently checks selected manifest bytes and harmless native use as Riley,
+missing/incompatible refusal, fresh attempt readiness, no-write repeats and
+unchanged selection after actual producer-source edits. Results retain package
+metadata and frozen helpers rather than the complete fixture collection.
+Scenario asset mutations remain separate. Watched baseline restoration and
+owned credential, staging, input and transport cleanup are required. Fedora,
+product-free E2E, standalone transfer/serial, recorded serial and unqualified fixture profiles
+retain their separate gates. This supplies no customer or E2E acceptance.
+
 ## Retained-session native dependency update
 
 Stable ID **289** is pending and has no executable binding for the rebuilt

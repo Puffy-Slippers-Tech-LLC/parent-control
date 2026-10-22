@@ -311,9 +311,11 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
     with tempfile.TemporaryDirectory(prefix='onpc-e2e-command-test-', dir='/tmp') as directory:
         build = Mock(return_value=SimpleNamespace(returncode=status))
         execute = Mock()
+        fixtures = Mock(return_value=['--fixture-selection', 'frozen-selection'])
         monkeypatch.setattr(commands.tempfile, 'mkdtemp', lambda **kwargs: directory)
         monkeypatch.setattr(commands.subprocess, 'run', build)
         monkeypatch.setattr(commands.os, 'execve', execute)
+        monkeypatch.setattr(commands, 'qualification_fixture_options', fixtures)
         monkeypatch.setattr(dev_privileges, 'check', Mock())
         result = commands._main(['e2e', '--ready', *VM_ARGS])
         aggregate.assert_not_called()
@@ -324,11 +326,14 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
         if status:
             assert result == status
             execute.assert_not_called()
+            fixtures.assert_not_called()
         else:
             execute.assert_not_called()
+            fixtures.assert_called_once_with(ROOT, 'e2e', ['--ready', '--artifacts=' + directory])
             assert build.call_args.args[0] == [
                 '/usr/bin/pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-runner',
-                'e2e', *VM_ARGS, '--ready', '--artifacts=' + directory]
+                'e2e', *VM_ARGS, '--ready', '--artifacts=' + directory,
+                '--fixture-selection', 'frozen-selection']
 
 
 def test_make_selector_never_becomes_recipe_shell_code(tmp_path, cli_checkout):

@@ -175,7 +175,7 @@ def validate_readback(observed, manifest, subsets, binding, *, installed):
     system.require(observed['trust_entries'] == trusted and observed['native_active'] is True,
                    'fixture-provisioning:native-activation')
     trust_file = observed['preserved']['@attempt-trust']
-    system.require(trust_file is not None and trust_file['uid'] == 0
+    system.require(trust_file is None if not trusted else trust_file is not None and trust_file['uid'] == 0
                    and trust_file['gid'] == observed['native_gid'] and trust_file['mode'] == 0o600
                    and trust_file['regular'] is True and trust_file['nlink'] == 1,
                    'fixture-provisioning:trust-metadata')
@@ -364,7 +364,7 @@ def unchanged_policy(before, after):
                    'fixture-provisioning:unrelated-native-or-product-state-changed')
 
 
-def runtime_witnesses(transport, members, accounts, os_id):
+def runtime_witnesses(transport, members, accounts, os_id, *, only=None):
     """Use the existing recorded Popen/termination owner for each runtime family."""
     from tests.fixtures import build_test_applications as processes
     source = ('from __future__ import annotations\n'
@@ -396,6 +396,10 @@ print(json.dumps({'paths':data['paths'],'denied':data['denied'],'ready':True}))
     # Mechanical remains trust=0 and has no finite fixture admission.
     denied = [baseline_assets.MECHANICAL] if os_id == 'fedora' and baseline_assets.MECHANICAL in paths else []
     witnesses = [path for path in witnesses if path not in denied]
+    if only is not None:
+        system.require(type(only) is tuple and only and set(only) <= set(witnesses),
+                       'fixture-provisioning:invalid-runtime-witness')
+        witnesses = list(only)
     system.require(witnesses, 'fixture-provisioning:no-runtime-witness')
     value = json.loads(transport.call(['/usr/bin/python3', '-I', '-c', source],
         input=system.baseline.encode({'paths': witnesses, 'denied': denied, 'uid': accounts['child']['uid']}),

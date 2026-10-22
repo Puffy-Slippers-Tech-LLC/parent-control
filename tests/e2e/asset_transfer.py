@@ -190,8 +190,12 @@ class AssetTransfer:
         self._attempted = True
         try:
             require(lease is not None and lease is self.verified.lease, 'transfer:outside-provisioning')
-            require(lease.capture.state['guest'].get('fixture_boundary') != 'clean',
-                    'fixtures:runner-not-qualified-for-clean-snapshot')
+            clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
+            if clean:
+                prepared = getattr(self.verified, 'fixture_prepared', None)
+                require(prepared is not None and prepared['lease'] is lease,
+                        'fixtures:runner-not-qualified-for-clean-snapshot')
+                prepared['controller'].require_ready(prepared['receipt'])
             require(lease.fd is not None
                     and lease.state['phase'] == 'running' and lease.state['domain_id'] is not None
                     and transport.config['domain_uuid'] == lease.state['domain_uuid']

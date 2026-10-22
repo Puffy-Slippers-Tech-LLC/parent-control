@@ -10,7 +10,7 @@ import system_runner as system
 import package_content
 
 
-def mode_mismatch(xml, mode, *, now=None):
+def mode_mismatch(xml, mode, *, now=None, offline_domain_xml=None):
     """Use libvirt's saved state and host UTC creation time, not guest time."""
     try:
         root = ET.fromstring(xml)
@@ -30,6 +30,18 @@ def mode_mismatch(xml, mode, *, now=None):
         domain = root.find('domain')
         if domain is None:
             return 'missing snapshot console configuration'
+        if not online and offline_domain_xml is not None:
+            # The lease validated this exact inactive domain before acquisition.
+            # Disk-only restoration replaces its configuration with test_xml
+            # before boot; it need not contain the online capture's console.
+            if memory is None or memory.get('snapshot') != 'no' or root.findtext('state') != 'shutoff':
+                return 'offline snapshot is not shut off'
+            expected = ET.fromstring(offline_domain_xml)
+            if (expected.tag != 'domain' or
+                    ET.canonicalize(ET.tostring(domain, encoding='unicode'), strip_text=True) !=
+                    ET.canonicalize(ET.tostring(expected, encoding='unicode'), strip_text=True)):
+                return 'offline snapshot domain configuration changed'
+            return None
         # Older isolation left host shares attached. Their backend state
         # depends on live host files outside the guest disk/RAM snapshot.
         # Refresh those online snapshots before attempting a memory restore;

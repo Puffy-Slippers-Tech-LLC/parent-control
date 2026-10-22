@@ -215,7 +215,7 @@ class VerifiedInputs:
         self._plan = copy.deepcopy(plan)
         self._upgrade = None
         try:
-            require(not package_only or (assets is not None and not upgrade and plan is None),
+            require(not package_only or (assets is not None and not upgrade),
                     'provenance:package-only-scope')
             self._source = snapshot(self.root, source=True)
             self._baseline = baseline_inputs(lease)

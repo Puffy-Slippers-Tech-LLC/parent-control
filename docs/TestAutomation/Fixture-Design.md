@@ -3,8 +3,8 @@
 Status: **partially implemented**: producer lifetime, immutable host construction,
 execution-owned reuse, the shared SSH provisioner, Ubuntu/Fedora clean snapshot
 boundaries, both-target provisioning qualification and both-target product-free
-and installed-system preparation are delivered. The remaining five runner
-envelopes and live refresh remain proposed.
+and installed-system preparation, and Ubuntu installed E2E preparation are delivered.
+Fedora installed E2E, the other four runner envelopes and live refresh remain proposed.
 The [execution plan](Fixture-Execution-Plan.md) delivers this design. Current
 VM, storage and preparation rules remain effective until their owning tasks
 deliver and document a replacement.
@@ -261,6 +261,15 @@ real installed branch before system input. F17 delivered that boundary on
 including enforcing SELinux, exact labels/native policy and read-only readiness
 renewal after a system reboot. Other matrix entries retain their own gates.
 
+F18 delivered Ubuntu's [installed E2E preparation](../../tests/integration/README.md#ubuntu-installed-e2e-preparation)
+after actual online resume/rebind and explicit offline Kiosk attachment. The
+shared setup boundary provisions the immutable native subset before asset
+transfer and worker input, rechecking readiness before the setup reply. Ordered
+wrapper/loop composition binds only installed aliases. Independent byte/runtime
+proof, input refusals, no-write repeats, fresh readiness and host-edit immunity
+passed on both restore branches. Fedora and unqualified fixture profiles retain
+their gates; scenario mutations and customer assertions remain separate.
+
 ### Runner acceptance matrix
 
 | Envelope | Actual preparation boundary | Selector suffix / subset (status below) | Ubuntu / Fedora tasks |
@@ -274,8 +283,9 @@ renewal after a system reboot. Other matrix entries retain their own gates.
 | Recorded serial | `controller_qualification.E2E_CASES['gdm-observation']` through `serial_harness.record_serial_journey` / `execution.ScenarioContext` and recorder | `recorded_serial` / native | F27 / F28 |
 
 `check_fixture_system_product_free` and `check_fixture_system_installed` are
-registered and qualified on both targets. The remaining matrix selectors are
-planned `check_fixture_SUFFIX` names, not executable until registered/listed.
+registered and qualified on both targets. `check_fixture_e2e_installed` is
+registered and qualified only on Ubuntu 26.04. The other four matrix selectors
+are planned `check_fixture_SUFFIX` names, not executable until registered/listed.
 Each invokes the real preparation branch, reads selected bytes
 independently, uses a harmless fixture over owned SSH and cleans up before product
 or worker input. Prove missing/incompatible refusal, a fresh attempt/boot record

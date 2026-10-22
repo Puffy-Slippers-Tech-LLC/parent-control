@@ -909,6 +909,95 @@ def test_more_than_three_cumulative_generations_preserve_every_required_record(p
     acknowledge(producer, first)
 
 
+def test_cumulative_request_history_exceeds_selection_limit_without_losing_oldest_proof(
+        tmp_path, monkeypatch):
+    import capture_publication as publication
+
+    def finalize_batch(value, count, *, allocation=None, result=None):
+        identifiers = []
+        for number in range(count):
+            handle = capture.issue_session(
+                value.store, repository=value.checkout, workflow='capture-fixture', task='P03',
+                check=f'bounded-history-{number}', target='', inputs_sha256='c' * 64,
+                sources_sha256='d' * 64,
+                consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)})
+            changes = dict(context=capture.session_context(handle))
+            if allocation is not None:
+                member = copy.deepcopy(value.record()['members'][0])
+                member.pop('member_id')
+                member.update(original_path=str(result), source_allocation=allocation)
+                changes['members'] = [member]
+            record = value.record(**changes)
+            identifiers.append(capture.finalize_capture(
+                handle, record=record, consumer_ids=[CONSUMER]))
+        return identifiers
+
+    def publish_batch(value, identifiers):
+        with bundle.Selection(value.checkout, os.geteuid(), os.getegid(),
+                              [], [], [], captures=identifiers) as selected:
+            assert len(selected.captures) <= capture.MAX_SELECTIONS
+            return bundle.export(selected, expected=selected.selection_sha256)
+
+    with producer_session(tmp_path, monkeypatch) as value:
+        identifiers = finalize_batch(value, 252)
+        oldest = identifiers[0]
+        request = value.inspect(oldest)
+        # Each seal has its own source budget; leave room for the prior archive.
+        initial = None
+        for offset in range(0, len(identifiers), bundle.MAX_SOURCE_BUDGETS - 1):
+            receipt = publish_batch(value, identifiers[offset:offset + bundle.MAX_SOURCE_BUDGETS - 1])
+            if initial is None:
+                initial = receipt
+        delivery = publication.read_delivery(value.checkout, os.geteuid(), os.getegid(), oldest)
+
+    with value.store.session() as run:
+        source = Path(retention.allocate(tempfile.mkdtemp, prefix='onpc-history-fixture-'))
+        result = source / 'result.json'
+        result.write_bytes(PAYLOAD)
+        result.chmod(0o600)
+        info = source.stat()
+        allocation = dict(path=str(source), device=info.st_dev, inode=info.st_ino,
+                          mode=0o700, journal=str(value.store.path), run=run)
+        added = finalize_batch(value, 7, allocation=allocation, result=result)
+        receipt = publish_batch(value, added)
+
+    assert not Path(initial['path']).exists()
+    journal = Path(delivery['journal']) / publication.JOURNAL
+    state = json.loads(journal.read_bytes())
+    assert state['pending'] is None
+    assert len(state['published']['requests']) == 259
+    assert {item['capture_id'] for item in state['published']['requests']} == set(identifiers + added)
+    assert next(item for item in state['published']['requests'] if item['capture_id'] == oldest) == request
+    with publication.verified_delivery(value.checkout, os.geteuid(), os.getegid(),
+                                       oldest, request, delivery) as verified:
+        assert verified['receipt'] == {key: receipt[key] for key in verified['receipt']}
+        assert len(verified['manifest']['records']) == 259
+    record = request['record']
+    assert bundle.inspect(value.checkout, os.geteuid(), os.getegid(), receipt['path'],
+                          record_id=record['record_id'], member_id=record['members'][0]['member_id'],
+                          closure_sha256=record['closure_sha256']) == PAYLOAD
+    before = journal.read_bytes()
+    with monkeypatch.context() as local:
+        local.setattr(logical, 'MAX_METADATA', len(bundle.encoded(state)) - 1)
+        with pytest.raises(ValueError, match='metadata.*limit'):
+            publication._validate(state, request)
+    with monkeypatch.context() as local:
+        local.setattr(logical, 'MAX_ENTRIES', 258)
+        with pytest.raises(ValueError, match='invalid request closure'):
+            publication._validate(state, request)
+    assert journal.read_bytes() == before
+
+
+def test_capture_selection_still_refuses_257_explicit_sources(producer):
+    identifiers = [f'{number:064x}' for number in range(capture.MAX_SELECTIONS + 1)]
+    before = (producer.store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='between one and 256 explicit sources'):
+        with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
+                              [], [], [], captures=identifiers):
+            pytest.fail('oversized explicit selection was accepted')
+    assert (producer.store.path / 'current.json').read_bytes() == before
+
+
 @pytest.mark.parametrize('boundary', ['acknowledgement', 'acknowledged'])
 @pytest.mark.parametrize('failure', [KeyboardInterrupt, RuntimeError])
 def test_ack_interruption_preserves_source_and_retries_exact_receipt(

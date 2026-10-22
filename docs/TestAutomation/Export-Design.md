@@ -183,6 +183,10 @@ recovery bytes/files before allocation, then check actual use before commit.
 Count physical copies on both sides. A pending transaction must recover its
 recorded stage before admitting another.
 
+The 256-selection limit bounds explicit inputs to each publication operation.
+The cumulative request index retains historical logical records within the
+existing 60,000-entry and 64-MiB metadata limits; it is not a lifetime selection quota.
+
 Compact only by the existing complete cumulative replacement: carry required
 members and omit explicitly released unreferenced material. Preserve original
 provenance when payload bytes deduplicate. Never mutate an archive in place,

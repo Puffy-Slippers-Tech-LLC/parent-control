@@ -81,11 +81,14 @@ class InstalledSetup:
         self.directory, self.verified, self.transport = directory, verified, transport
         self.attempted = False
 
-    def provision(self, guard):
+    def provision(self, guard, *, fixture_selection=None, observer=None):
         """Refresh this attempt's guarded helpers, including on reused snapshots."""
         require(not self.attempted, 'setup:already-attempted')
         self.attempted = True
         guard()
+        if fixture_selection is not None:
+            from e2e_fixture_preparation import validate_input
+            fixture_selection = validate_input(fixture_selection)
         self.verified.recheck()
         payload = self.directory / 'input'
         inventory = json.loads((payload / 'transfer-sha256.json').read_bytes())
@@ -102,6 +105,18 @@ class InstalledSetup:
         self.transport.copy(False, str(payload) + '/', system.PAYLOAD + '/')
         guard()
         self.verified.recheck()
+        if fixture_selection is not None:
+            from e2e_fixture_preparation import prepare
+            context = {'vm': self.transport, 'lease': self.verified.lease,
+                       'directory': self.directory}
+            if observer is not None:
+                observer('before', context)
+            prepared = prepare(self.transport, self.verified.lease, self.directory, fixture_selection)
+            if observer is not None:
+                observer('ready', prepared)
+            self.verified.fixture_selection = fixture_selection
+            self.verified.fixture_prepared = prepared
+            return prepared
 
     def run(self, guard, *, verify=True):
         """Install and verify after reboot, or stage a powered-off suite snapshot."""

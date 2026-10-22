@@ -36,7 +36,7 @@ def confined_file(root, relative):
 
 def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     """Read declarations only. Never import worker/VM code or create artifacts."""
-    argv, _ = vm_config.extract(argv, required=False, path=root / 'config/test-vm.json')
+    argv, configured = vm_config.extract(argv, required=False, path=root / 'config/test-vm.json')
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--vm', help='required configured VM name or ID; optional for --list')
     parser.add_argument('--list', action='store_true')
@@ -45,6 +45,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     selectors.add_argument('--id', help='comma-separated numeric case IDs in docs/Test-Coverage.md')
     selectors.add_argument('--ready', action='store_true', help='run all ready variants; report pending exclusions')
     parser.add_argument('--artifacts', type=Path)
+    parser.add_argument('--fixture-selection', help=argparse.SUPPRESS)
     parser.add_argument('--skip-backing-verification', action='store_true',
                         help='compatibility option; VM verification is always metadata-only')
     qualification = parser.add_mutually_exclusive_group()
@@ -52,6 +53,22 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-install', action='store_true')
     qualification.add_argument('--qualify-install-refusal', action='store_true')
     args = parser.parse_args(argv)
+    fixture_selection = None
+    if args.fixture_selection is not None:
+        if (args.list or args.qualify_transfer or args.qualify_install or args.qualify_install_refusal
+                or configured is not None and configured.name != 'onpc-Ubuntu26.04'):
+            raise ValueError('e2e:unexpected-fixture-selection')
+        if len(args.fixture_selection) > 8192:
+            raise ValueError('e2e:invalid-fixture-selection')
+        sys.path.insert(0, str(root / 'tools'))
+        try:
+            from fixture_execution import Selection
+        finally:
+            sys.path.pop(0)
+        selected = Selection.from_record(json.loads(args.fixture_selection))
+        if selected.target != 'ubuntu':
+            raise ValueError('e2e:fixture-target-not-qualified')
+        fixture_selection = selected.record()
     if not args.list:
         password_config.read_password(root)
     if args.qualify_transfer or args.qualify_install or args.qualify_install_refusal:
@@ -74,6 +91,8 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
                                     require_runnable=not args.list, root=root)
     plan['inventory_sha256'] = digest
     plan['mode'] = 'list-only' if args.list else 'execution-preflight'
+    if fixture_selection is not None:
+        plan['fixture_selection'] = fixture_selection
     if args.list:
         return plan
     if args.artifacts is None and allow_missing_artifacts:

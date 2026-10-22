@@ -140,9 +140,11 @@ guest off, `reset_after_restore(lease)` retires that generation before the next
 prepare. Old objects and receipts stay unusable. Reboot alone grants no reset.
 Live refresh also needs the later qualified idle-maintenance boundary.
 `wait_environment()` observes native startup before an independent clean audit;
-it grants no fixture readiness. The shared guest boundary pins the active native
-daemon's PID and service invocation, observes its current-boot startup message,
-then observes update completion after a pre-update journal cursor before exact
+it grants no fixture readiness. The shared guest boundary waits up to 180 seconds
+for one activating service invocation to become active, pinning its invocation
+and its PID once available. Failed states, changed identities and the deadline
+refuse readiness. It then observes that active daemon's current-boot startup
+message and update completion after a pre-update journal cursor before exact
 database readback. It never resends an update or retries a failed database command.
 The `check_fixture_provisioning` engineering selector is qualified on clean Ubuntu
 26.04 and Fedora 44 attempts: foreign-destination refusal, a lost reply after real
@@ -167,7 +169,11 @@ and the same [Fedora boundary](../integration/README.md#fedora-installed-system-
 use that same hard-only boundary after explicit offline app restoration and
 fresh SSH bootstrap. Read-only readiness renewal after a session reboot
 checks the same selected bytes and native state without resetting scenario
-mutations. Other ordinary runner branches and engineering selectors
+mutations. Ubuntu's [installed E2E preparation](../integration/README.md#ubuntu-installed-e2e-preparation)
+uses the immutable native selection after online resume/credential rebind or
+explicit offline restoration, before setup releases scenario input. Its
+preparation-only selector retains separate proof of both restore branches.
+Other ordinary runner branches and engineering selectors
 remain unavailable until the
 [fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies
 their actual target and preparation envelope. Host doubles supply no installed

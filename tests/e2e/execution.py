@@ -225,9 +225,15 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                 if suite is not None:
                     suite.credentials_checked = True
             staged = directory / 'assets'
-            system.stage_assets(system.artifact_source(Path(plan['artifacts'])), staged, commands)
+            from suite_lease import needs_installed
+            installed_consumer = needs_installed(case)
+            fixture_selection = plan.get('fixture_selection')
+            package_only = installed_consumer and fixture_selection is not None
+            system.stage_assets(system.artifact_source(Path(plan['artifacts'])), staged, commands,
+                                **({'package_only': True} if package_only else {}))
             staged.chmod(0o700)
-            source_check = preflight_source(staged, root=root)
+            source_check = preflight_source(staged, root=root,
+                **({'package_only': True} if package_only else {}))
             # bootstrap binds the guest's observation marker to this exact
             # selected input document. Stage it before acquiring the VM; a
             # ready callback cannot substitute for this preparation input.
@@ -235,13 +241,12 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                 'source_sha256': source_check['source_sha256'],
                 'inventory_sha256': plan['inventory_sha256'], 'case': case}
             input_directory = directory / 'input'
-            from suite_lease import needs_installed
-            installed_consumer = needs_installed(case)
             require(not installed_consumer or suite is not None,
                     'execution:installed-snapshot-suite-required')
             if installed_consumer:
                 from installed_setup import stage
-                stage(directory, staged, bootstrap_inputs, bundle=suite.input_bundle(root))
+                stage(directory, staged, bootstrap_inputs, bundle=suite.input_bundle(root),
+                      **({'package_only': True} if package_only else {}))
                 staged = input_directory
             else:
                 input_directory.mkdir(mode=0o700)
@@ -266,13 +271,18 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     if suite is None:
                         lease.prepare()
                     else:
+                        if lease.__dict__.get('_fixture_provision_state') is not None:
+                            from tools.fixture_provision import reset_after_restore
+                            reset_after_restore(lease)
                         suite.prepare_case(case, directory, staged, bootstrap_inputs, root=root)
                     host_key = system.bootstrap(commands, lease, directory, guestfs,
-                                                observation_only=not installed_consumer)
+                        observation_only=not installed_consumer,
+                        **({'e2e_installed': True} if package_only else {}))
                     lease.guard(off=True)
                     lease.save('isolated')
                     verified = VerifiedInputs(lease=lease, assets=staged, root=root,
-                                              plan={**plan, 'cases': [case]})
+                                              plan={**plan, 'cases': [case]},
+                                              **({'package_only': True} if package_only else {}))
                     if suite is not None:
                         suite.verified = verified
                     report['inputs'] = verified.inputs
@@ -293,6 +303,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                                               guestfs, host_key, credentials)
                     context.installed_snapshot = (lease.installed_name
                         if suite is not None and installed_consumer else None)
+                    context.fixture_selection = fixture_selection
 
                     def cleanup(_recorder, held):
                         if suite is None:
@@ -407,12 +418,16 @@ def emit_progress(kind, **fields):
 
 
 def main(plan):
+    require(os.geteuid() == os.getegid() == 0, 'execution:root-required')
+    from suite_lease import needs_installed
+    if any(needs_installed(case) for case in plan['cases']):
+        from e2e_fixture_preparation import validate_input
+        plan = {**plan, 'fixture_selection': validate_input(plan.get('fixture_selection'))}
     # Read configuration before artifacts, progress threads or a VM lease.
     from test_account_password import read_password
     password = read_password()
     from watch_activity import secret
     secret(password)
-    require(os.geteuid() == os.getegid() == 0, 'execution:root-required')
     require(Path.cwd() == ROOT == system.baseline.guest_contract.CHECKOUT,
             'execution:checkout')
     os.umask(0o077)

@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F29 — [Own one fixture producer](Fixture-Tasks/F29-production-lifetime.md)**.
+Next task: **F02 — [Build immutable host fixture bundles](Fixture-Tasks/F02-build.md)**.
 
 ## Outcome and present status
 
@@ -11,14 +11,17 @@ readiness, then execute. Fix movable fixture payloads on the host and refresh an
 owned running VM without snapshot replacement or reboot. Bound retained builds
 and recover interrupted publication/provisioning without consuming partial state.
 
-The [target design](Fixture-Design.md) remains unimplemented. F01 completed its
+The [target design](Fixture-Design.md) is being delivered incrementally. F01 completed its
 source-backed [placement inventory](Fixture-Design.md#frozen-placement-inventory),
 consumer/alias map and planned public names under review acceptance. F51 froze
 the canonical schemas, authority/recovery fields and transition contracts in the
 design. F52 completed the independent source-backed review and resolved two
 native-transition gaps in the [review record](Fixture-Design.md#f52-independent-design-review).
-No fixture was provisioned, no current
-VM/storage policy changed and no installed acceptance was supplied.
+F29 delivered the [single-producer lifetime](../Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes):
+one durable unfinished slot, registered children, inherited leases and exact
+cleanup/recovery, with host safety acceptance. Bundle construction, catalogue
+publication/pins and six-slot retention remain F02/F03/F14/F04 work. No fixture
+was provisioned, no VM policy changed and no installed acceptance was supplied.
 
 The specialized [E2E plan](E2E-Execution-Plan.md) remains responsible for customer
 scenario work. This plan reuses its underlying

@@ -370,6 +370,8 @@ def scratch_descriptors():
         descriptor = int(name)
         try:
             path = Path(os.readlink(f'/proc/self/fd/{descriptor}'))
+            if str(path) == str(producer) + ' (deleted)':
+                raise ValueError('fixture producer lease was removed')
             scratch_owner = (path.name == 'owner' and path.parent.parent == parent
                              and path.parent.name.startswith('run-'))
             if not scratch_owner and path != producer:

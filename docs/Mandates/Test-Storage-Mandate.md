@@ -100,9 +100,10 @@ The producer context closes its own lease without unlocking descendants. A live
 descendant or interrupted deletion leaves the same reservation occupied;
 `Store.recover(transaction_id)` retries only that recorded cleanup after the
 last lease closes. New production refuses until cleanup settles. Cleanup audits
-every registered allocation's checkout-relative identity, owner, mode and mount
+every registered allocation's allocator-relative identity, owner, mode and mount
 before deleting any tree, preserving unknown and replaced paths. The lifetime
-record is outside those trees. It neither replaces an active execution's
+record, `producer.json`, is outside those trees and carries the frozen unfinished
+slot fields with checkout, process and lease identities. It neither replaces an active execution's
 retention token nor uses evidence rotation for fixture versions.
 
 This delivered lifetime API owns unfinished production only. Immutable bundle

@@ -1122,7 +1122,7 @@ fixture_provision_cleanup_safety
 fixture_execution_cleanup_safety fixture_handoff_cleanup_safety
 fixture_manifest fixture_container fixture_bundle_cleanup_safety
 fixture_producer_cleanup_safety
-evidence_capture evidence_identity plan_evidence plan_evidence_recovery
+evidence_capture evidence_identity runner_evidence plan_evidence plan_evidence_recovery
 native_history_routes native_update_runner
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures
@@ -1592,6 +1592,10 @@ def buckets(nodeids):
 # retention trees with real descriptor locks and synchronous interruption doubles.
 # No live parent, service, VM, process, display, socket or shared cache is acquired;
 # evidence_capture is compatible unit work and adds no cleanup/UI inventory owner.
+# runner_evidence uses tiny pytest-private reports, finite JSON/ZIP payloads,
+# real shared retention locks and synchronous denial/registry doubles. No VM,
+# process, display, socket, bus, service, shared cache or new cleanup owner is
+# acquired; compatible unit overlap applies and cleanup/UI gain no module.
 # Capture publication/acknowledgement extends those same private trees with tiny
 # independent ZIPs, real retention locks and synchronous cancellation/recovery
 # doubles. No credentials switch, live helper, process or shared resource is added;

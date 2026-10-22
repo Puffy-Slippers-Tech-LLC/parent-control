@@ -103,8 +103,15 @@ def _repository(path, caller):
     logical._path(str(path))
     with retention.directory_descriptor(path) as fd:
         info = os.fstat(fd)
-        if info.st_uid != caller['uid'] or info.st_mode & 0o022:
+        if info.st_uid != caller['uid']:
             raise ValueError('capture: unsafe checkout identity')
+        # Use the bundle reader's existing private-user-group policy. Ordinary
+        # Ubuntu checkouts can be 0775 without admitting another account.
+        if __package__:
+            from .evidence_bundle import safe
+        else:
+            from evidence_bundle import safe
+        safe(info, caller['uid'], directory=True)
         return dict(root=str(path), device=info.st_dev, inode=info.st_ino, uid=caller['uid'])
 
 
@@ -1187,6 +1194,20 @@ def _charge_owner(store, fd, entry, charge):
 def _destination_originals(charge, verified):
     """Bind archived provenance to the producer's private before-copy witness."""
     record = charge['intent']['record']
+    context = record['context']
+    if context['task'] == 'runner-start' and context['check'] == 'report-start':
+        # A lifecycle seal protects later producer bytes during preparation.
+        # Publishing that seal alone must never authorize whole-run retirement,
+        # including via the finished-owner helper after a lost process.
+        reference = dict(record_id=record['record_id'], closure_sha256=record['closure_sha256'])
+        terminals = [candidate for candidate in verified['manifest']['records']
+            if candidate['context']['task'] == 'runner-terminal'
+            and candidate['context']['check'] == 'report'
+            and all(candidate['context'][key] == context[key]
+                    for key in ('repository', 'workflow', 'owner', 'run'))
+            and reference in candidate['dependencies']]
+        if len(terminals) != 1:
+            raise ValueError('capture: runner startup requires its exact terminal closure')
     originals = {item['member_id']: item['identity'] for item in charge['intent']['originals']}
     mappings = {(item['record_id'], item['member_id']): item
                 for item in verified['manifest']['member_map']}

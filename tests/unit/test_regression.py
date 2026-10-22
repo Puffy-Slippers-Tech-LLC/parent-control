@@ -298,11 +298,74 @@ def test_capture(record):
     assert 'private-test-output' not in output
 
 
+@pytest.fixture(autouse=True)
+def isolated_report_evidence(monkeypatch):
+    """Keep report I/O checks separate from real capture/publication histories."""
+    import runner_evidence
+
+    class Evidence:
+        def __init__(self, root, directory):
+            self.directory = directory
+            self.commands = []
+            self.finalizations = []
+
+        def command(self, record):
+            self.commands.append(json.loads(json.dumps(record)))
+
+        def finalize(self, **fields):
+            self.finalizations.append(fields)
+            return dict(receipt=None, records=[], references=[], capture_ids=[])
+
+    monkeypatch.setattr(runner_evidence, 'ReportEvidence', Evidence)
+
+
 @pytest.fixture
 def report(tmp_path):
     result = regression.Report(tmp_path)
     yield result
     result.close()
+
+
+def test_standalone_report_holds_owner_through_diagnostic_capture(tmp_path, monkeypatch):
+    import test_retention
+    monkeypatch.delenv(test_retention.VARIABLE, raising=False)
+    monkeypatch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+    report = regression.Report(tmp_path)
+    owner = report.retention_session
+    assert owner is not None
+    assert test_retention.owner_descriptor() >= 0
+    report.close()
+    assert report.retention_session is None
+    assert test_retention.token() is None
+    closure = report.evidence.finalizations[0]
+    assert closure['status'] is None and closure['cleanup'] == 'pending'
+    assert dict(path=str(report.directory / 'report.md'), role='result') in closure['members']
+
+
+def test_closed_command_keeps_exact_inventory_failure_and_cleanup(report, tmp_path):
+    run = regression.Run(tmp_path, report, Control(), host_only=True, continue_on_errors=True)
+    run.dashboard.stream = io.StringIO()
+    item = regression.Category('Exact selection', 1, nodeids=('file.py::case[param]',),
+                               retry_category='unit', resumed_nodeids=('file.py::earlier',))
+    run.categories.append(item)
+    argv = ['tools/run-tests', 'unit', '-k', 'case', '--timeout', '45']
+    execution = regression.Execution(run, item, command=argv, events=True)
+    for event in [dict(kind='collection', total=1, nodeids=list(item.nodeids)),
+                  dict(kind='failure', nodeid=item.nodeids[0], when='teardown'),
+                  dict(kind='finished', nodeid=item.nodeids[0])]:
+        execution.output((regression.PREFIX + json.dumps(event) + '\n').encode())
+    with pytest.raises(ValueError, match='fixture setup or cleanup failed'):
+        execution.finish(1)
+    record = json.loads((report.directory / 'command-001.json').read_text())
+    assert record['argv'] == argv
+    assert record['selected_ids'] == ['file.py::case[param]']
+    assert record['resumed_ids'] == ['file.py::earlier']
+    assert record['completed_ids'] == record['failed_ids'] == ['file.py::case[param]']
+    assert record['exit_status'] == 1 and record['cleanup'] == 'failed'
+    assert execution.raw.closed
+    assert report.evidence.commands == [record]
+    execution.close()
+    assert len(report.evidence.commands) == 1
 
 
 @pytest.mark.parametrize('failed', [False, True])
@@ -938,6 +1001,9 @@ def test_first_failure_cancels_and_finalizes_with_prompt(
     assert run.categories[0].state == 'Failed'
     assert run.report.stream.closed
     assert 'normal owned cleanup finished' in (run.report.directory / 'report.md').read_text()
+    closure = run.report.evidence.finalizations[-1]
+    assert dict(path=str(run.report.directory / 'failure.json'), role='result') in closure['members']
+    assert closure['categories'][0]['state'] == 'Failed'
     assert 'Copy this prompt into a new Codex session:' in capsys.readouterr().out
     failure = json.loads((run.report.directory / 'failure.json').read_text())
     assert failure['failures'] == [dict(category=run.categories[0].retry_category,
@@ -1178,6 +1244,23 @@ def test_report_rejects_symlinked_parent(tmp_path):
     with pytest.raises(OSError):
         regression.Report(tmp_path)
     assert not list(outside.iterdir())
+
+
+def test_report_registration_lost_sync_reply_preserves_committed_allocation(tmp_path, monkeypatch):
+    import test_retention
+    import test_storage
+    retain = test_retention.retain
+    def committed_then_failed(path, **kwargs):
+        retain(path, **kwargs)
+        raise OSError('synthetic lost registration sync reply')
+    monkeypatch.setattr(test_retention, 'retain', committed_then_failed)
+    with pytest.raises(OSError, match='lost registration sync reply'):
+        regression.Report(tmp_path)
+    store = test_retention.Store(test_storage.directory('state', root=tmp_path) / 'standalone-reports')
+    with store.inspection() as state:
+        allocation, = state['paths']
+        assert Path(allocation['path']).is_dir()
+        assert state['finished'] is True
 
 
 def test_new_fixture_test_is_discovered_without_runner_edit(tmp_path):

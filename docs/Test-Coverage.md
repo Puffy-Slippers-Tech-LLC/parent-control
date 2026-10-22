@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">37119</span>/<span style="color: gray">0</span>/37119 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">37222</span>/<span style="color: gray">0</span>/37222 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">221</span>/<span style="color: gray">0</span>/221 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">331</span>/<span style="color: gray">0</span>/331 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,7 +15,7 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">177</span>/<span style="color: gray">0</span>/177 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">46</span>/<span style="color: gray">147</span>/193 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">38191</span>/<span style="color: gray">147</span>/38338** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">38294</span>/<span style="color: gray">147</span>/38441** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 

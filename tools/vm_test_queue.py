@@ -2,10 +2,12 @@
 
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import sys
 import tempfile
 import threading
+import uuid
 
 # Workers use isolated Python; restore only this checkout's sibling modules.
 if __name__ == '__main__':
@@ -17,6 +19,80 @@ import test_retention
 from regression_process import Control, FRAME_PREFIX
 from vm_selection import BATCH, VARIABLE, vm_config
 from vm_queue import dispatch
+
+
+def worker_cleanup(root, target, status, proofs, invocation):
+    """Only a verified worker closure can report its cleanup to the batch."""
+    if not proofs:
+        return 'pending'
+    import evidence_identity as logical
+    from runner_evidence import resolve_reference
+    expected = 'interrupted' if status == 130 else 'failed' if status else 'passed'
+    for proof in proofs:
+        records = proof['records']
+        if not records:
+            raise ValueError('runner evidence: worker closure has no records')
+        for record in records:
+            logical._record(record)
+            references = [reference for reference in proof['references']
+                          if reference['record_id'] == record['record_id']]
+            if not references or references[0]['closure_sha256'] != record['closure_sha256']:
+                raise ValueError('runner evidence: worker closure changed')
+            resolve_reference(root, references[0])
+        terminal = records[-1]
+        if terminal['context']['check'] != 'report' or terminal['status'] != expected:
+            raise ValueError('runner evidence: worker result does not match its closure')
+        if not any(record['context']['target'] == target for record in records):
+            raise ValueError('runner evidence: worker target does not match its closure')
+        inputs = [member for member in terminal['members'] if member['role'] == 'input'
+                  and member['sha256'] == terminal['context']['inputs_sha256']]
+        if not inputs:
+            raise ValueError('runner evidence: worker selection is missing')
+        reference = next(reference for reference in proof['references']
+                         if reference['member_id'] == inputs[0]['member_id'])
+        payload = json.loads(resolve_reference(root, reference))
+        if payload['invocation'] != json.loads(json.dumps(invocation)) or invocation['target'] != target:
+            raise ValueError('runner evidence: worker invocation does not match its selection')
+    states = [proof['records'][-1]['cleanup']['state'] for proof in proofs]
+    return 'failed' if 'failed' in states else 'pending' if 'pending' in states else 'complete'
+
+
+@contextmanager
+def batch_evidence(root, store, vms, selection):
+    """Retain a truthful partial terminal closure if join processing fails."""
+    from runner_evidence import ReportEvidence
+    evidence = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-vm-queue-'))
+    captured = ReportEvidence(root, evidence, store=store, workflow='vm-test-queue')
+    captured.terminal_attempted = False
+    try:
+        yield evidence, captured
+    except BaseException as error:
+        # dispatch drains its owned pool before raising. Nothing here signals a
+        # child or adopts a worker's independently owned allocation.
+        if not captured.terminal_attempted:
+            try:
+                failure = evidence / 'runner-error.json'
+                with failure.open('x', encoding='utf-8') as stream:
+                    os.fchmod(stream.fileno(), 0o600)
+                    json.dump(dict(error=type(error).__name__, detail=str(error)[:4096],
+                                   selection=selection, targets=[vm.name for vm in vms]), stream)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                members = [dict(path=failure, role='result')]
+                members.extend(dict(path=evidence / name, role='command' if name.endswith('.log') else 'result')
+                    for name in ('results.json', 'failure.json', *(vm.name + '.log' for vm in vms))
+                    if (evidence / name).exists())
+                captured.terminal_attempted = True
+                receipt = captured.finalize(
+                    categories=[dict(target=vm.name, selection=selection) for vm in vms],
+                    status='interrupted' if isinstance(error, KeyboardInterrupt) else 'failed',
+                    cleanup='pending', members=members)
+                print('Runner evidence: ' + json.dumps(receipt, separators=(',', ':')), flush=True)
+            except BaseException as capture_error:
+                print('VM queue capture failed; original evidence remains required: '
+                      + type(capture_error).__name__ + ': ' + str(capture_error)[:2048],
+                      file=sys.stderr, flush=True)
+        raise
 
 
 def split(root, argv):
@@ -67,14 +143,18 @@ def run(root, argv):
             status = control.run(command, cwd=root, env=environment, cooperative=True)
             if status:
                 return status
-        with test_retention.Store(test_activity.retention_path(root)).session():
+        store = test_retention.Store(test_activity.retention_path(root))
+        from runner_evidence import recover_pending
+        recover_pending(root, store)
+        with store.session() as batch_run, batch_evidence(root, store, vms, guest_selection) as (evidence, captured):
             # Named inputs are VM-bound. Each worker prepares them inside its
             # own retention session, before its independent guest execution.
             # A batch-owned allocation would conflict with that VM's old claim
             # after an interrupted input was removed and recreated.
-            evidence = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-vm-queue-'))
             output_lock = threading.Lock()
             frames = {}
+            invocations = {vm.name: dict(batch_run=batch_run, attempt=uuid.uuid4().hex,
+                                        target=vm.name, selection=guest_selection) for vm in vms}
 
             def publish_frames():
                 if hasattr(sys.stdout, 'frame'):
@@ -88,11 +168,14 @@ def run(root, argv):
                 # A worker starts its own retention session, never another VM's.
                 environment.pop(test_retention.VARIABLE, None)
                 environment[VARIABLE] = vm.name
+                environment['ONPC_RUNNER_INVOCATION'] = json.dumps(invocations[vm.name], separators=(',', ':'))
                 command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                            '--execute', vm.name, *guest_args]
                 pending = b''
                 handoffs = []
+                worker_evidence = []
                 with (evidence / (vm.name + '.log')).open('xb') as log:
+                    os.fchmod(log.fileno(), 0o600)
                     def output(data):
                         nonlocal pending
                         log.write(data)
@@ -103,6 +186,8 @@ def run(root, argv):
                             value = line.decode('utf-8', errors='replace')
                             if value.startswith('Failure handoff: '):
                                 handoffs.append(value.removeprefix('Failure handoff: '))
+                            if value.startswith('Runner evidence: '):
+                                worker_evidence.append(json.loads(value.removeprefix('Runner evidence: ')))
                             with output_lock:
                                 if value.startswith(FRAME_PREFIX):
                                     frames[vm.name] = json.loads(value[len(FRAME_PREFIX):])
@@ -114,7 +199,7 @@ def run(root, argv):
                     if pending:
                         with output_lock:
                             print(f'[{vm.name}] ' + pending.decode('utf-8', errors='replace'), flush=True)
-                return {'status': status, 'handoffs': handoffs}
+                return {'status': status, 'handoffs': handoffs, 'evidence': worker_evidence}
 
             results = dispatch(vms, snapshot['concurrency'], execute, control.stopped)
             categories = []
@@ -139,6 +224,7 @@ def run(root, argv):
                 categories.extend(vm_categories)
                 failures.extend(vm_failures)
             (evidence / 'results.json').write_text(json.dumps(results, indent=2))
+            (evidence / 'results.json').chmod(0o600)
             failed = any((result['status'] if isinstance(result, dict) else result) != 0
                          for result in results.values())
             if hasattr(sys.stdout, 'frame'):
@@ -148,8 +234,38 @@ def run(root, argv):
                 handoff = evidence / 'failure.json'
                 handoff.write_text(json.dumps({'prompt': prompt, 'categories': list(dict.fromkeys(categories)),
                                               'failures': failures}))
+                handoff.chmod(0o600)
                 print(f'Failure handoff: {handoff}', flush=True)
             print(f'VM results: {evidence / "results.json"}', flush=True)
+            # Workers finish their own records under their own journals. The
+            # batch retains those references and its exact join result, without
+            # adopting the workers' allocation or cleanup ownership.
+            cleanup_states = []
+            for vm in vms:
+                result = results[vm.name]
+                status = result['status'] if isinstance(result, dict) else result
+                worker_proof = result.get('evidence', []) if isinstance(result, dict) else []
+                cleanup_state = worker_cleanup(root, vm.name, status, worker_proof, invocations[vm.name])
+                cleanup_states.append(cleanup_state)
+                captured.command(dict(
+                    check='worker:' + vm.name, target=vm.name,
+                    selection=guest_selection, argv=guest_args,
+                    status='interrupted' if status == 130 else 'failed' if status else 'passed',
+                    exit_status=status, cleanup=cleanup_state,
+                    provenance='worker-join', worker_evidence=worker_proof,
+                    log=str(evidence / (vm.name + '.log')) if (evidence / (vm.name + '.log')).exists() else None))
+            members = [dict(path=evidence / 'results.json', role='result')]
+            members.extend(dict(path=evidence / (vm.name + '.log'), role='command')
+                           for vm in vms if (evidence / (vm.name + '.log')).exists())
+            if failed and not control.stopped.is_set():
+                members.append(dict(path=evidence / 'failure.json', role='result'))
+            captured.terminal_attempted = True
+            receipt = captured.finalize(
+                categories=results,
+                status='interrupted' if control.stopped.is_set() else 'failed' if failed else 'passed',
+                cleanup=('failed' if 'failed' in cleanup_states else
+                         'pending' if 'pending' in cleanup_states else 'complete'), members=members)
+            print('Runner evidence: ' + json.dumps(receipt, separators=(',', ':')), flush=True)
             return 130 if control.stopped.is_set() else 1 if failed else 0
 
 

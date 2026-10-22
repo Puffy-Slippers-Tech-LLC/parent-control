@@ -780,6 +780,18 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
     import test_commands
     import vm_test_queue as queue
     import vm_selection
+    import runner_evidence
+    captured = []
+    class Evidence:
+        def __init__(self, root, directory, **kwargs):
+            self.directory = directory
+        def command(self, value):
+            captured.append(value)
+        def finalize(self, **kwargs):
+            assert kwargs['cleanup'] == 'pending'
+            assert {member['path'].name for member in kwargs['members']} >= {'results.json', 'failure.json'}
+            return dict(references=[])
+    monkeypatch.setattr(runner_evidence, 'ReportEvidence', Evidence)
     vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True) for index in range(5)]
     monkeypatch.setenv(vm_selection.BATCH, json.dumps({'vms': [vm.name for vm in vms], 'concurrency': 2}))
     monkeypatch.setattr(vm_config, 'registry', lambda: {vm.name: vm for vm in vms})
@@ -838,6 +850,10 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
     assert handoff['categories'] == ['e2e']
     assert handoff['failures'] == [dict(category='e2e', case='E2E-004/terminal', vm='guest-0')]
     assert set(json.loads((evidence / 'results.json').read_text())) == {vm.name for vm in vms}
+    assert [record['target'] for record in captured] == [vm.name for vm in vms]
+    assert all(record['provenance'] == 'worker-join' and record['cleanup'] == 'pending'
+               and record['argv'] == (requested if 'system' in requested else ['system', 'e2e'])
+               for record in captured)
     for vm in vms:
         text = (evidence / (vm.name + '.log')).read_text()
         assert text.startswith('Failure handoff: ' if vm.name == 'guest-0' else 'test output\n')

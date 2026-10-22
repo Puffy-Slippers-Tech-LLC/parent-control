@@ -241,6 +241,10 @@ ADDED_VALIDATOR_SOURCES = (
     'onpc-test-artifacts', 'launcher_question.py', 'plan_reconciliation.py',
     'vm_selection.py', '../tests/integration/vm_config.py', 'evidence_identity.py',
     'evidence_capture.py', 'capture_publication.py', 'recording_storage.py', 'artifact_export.py',
+    'runner_evidence.py', 'regression.py', 'regression_process.py',
+    'regression_events.py', 'test_commands.py', 'vm_test_queue.py',
+    'regression_inputs.py',
+    'test_recovery.py',
 )
 
 

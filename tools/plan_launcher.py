@@ -708,6 +708,12 @@ RESPONSE_VALIDATOR_SOURCES = (
     'plan_reconciliation.py', 'vm_selection.py', '../tests/integration/vm_config.py',
     'evidence_identity.py', 'evidence_capture.py', 'capture_publication.py',
     'recording_storage.py', 'artifact_export.py',
+    # Runner terminal records now supply the exact provenance retained by
+    # evidence consumers; reload before accepting decisions from changed code.
+    'runner_evidence.py', 'regression.py', 'regression_process.py',
+    'regression_events.py', 'test_commands.py', 'vm_test_queue.py',
+    'regression_inputs.py',
+    'test_recovery.py',
 )
 
 

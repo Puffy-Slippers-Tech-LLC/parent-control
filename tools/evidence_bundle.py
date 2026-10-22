@@ -174,13 +174,17 @@ def stream_bytes(stream, size, output=None):
 
 class Selection:
     def __init__(self, checkout, uid, gid, targets, sources, bundles, *, plan_namespace=None,
-                 references=(), logical_records=(), record_references=(), consumer=None, captures=()):
+                 references=(), logical_records=(), record_references=(), consumer=None, captures=(),
+                 include_host_captures=False):
+        if type(include_host_captures) is not bool:
+            raise ValueError('bundle: invalid host capture selection')
         self.checkout, self.uid, self.gid = Path(checkout), uid, gid
         self.targets, self.sources, self.bundles = targets, sources, bundles
         self.references = list(references)
         self.logical_records = list(logical_records)
         self.record_references, self.consumer = list(record_references), consumer
         self.captures = list(captures)
+        self.include_host_captures = include_host_captures
         self.capture_requests = []
         self.logical_origins = {}
         self.logical_storage = {}
@@ -367,7 +371,8 @@ class Selection:
                     self.checkout, self.uid, self.gid, capture_id, metadata=metadata))
                 self.capture_requests.append(request)
                 target = request['record']['context']['target']
-                if (target and target not in self.targets) or (not target and self.targets):
+                if (target and target not in self.targets) or (
+                        not target and self.targets and not self.include_host_captures):
                     raise ValueError('bundle: capture target does not match explicit selection')
                 allocation = request['sealed']['allocation']
                 if allocation['path'] in self.records:

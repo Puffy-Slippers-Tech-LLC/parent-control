@@ -145,6 +145,21 @@ def test_paths_environment_and_plain_objects_cannot_mint_authority(producer, han
     assert producer.result.read_bytes() == PAYLOAD
 
 
+@pytest.mark.parametrize('foreign', [False, True])
+def test_checkout_private_writable_group_uses_shared_bundle_trust_policy(
+        producer, monkeypatch, foreign):
+    producer.checkout.chmod(0o775)
+    user = bundle.pwd.getpwuid(os.geteuid()).pw_name
+    monkeypatch.setattr(bundle.grp, 'getgrgid', lambda gid: SimpleNamespace(
+        gr_mem=['another-account'] if foreign else [user]))
+    monkeypatch.setattr(bundle.pwd, 'getpwall', lambda: [])
+    if foreign:
+        with pytest.raises(ValueError, match='unsafe writable group'):
+            capture.session_context(producer.handle)
+    else:
+        assert capture.session_context(producer.handle) == producer.context
+
+
 @pytest.mark.parametrize('intent', [None, [], 'recording_source'])
 def test_malformed_optional_source_intent_refuses_as_invalid_metadata(producer, intent):
     producer.finalize()

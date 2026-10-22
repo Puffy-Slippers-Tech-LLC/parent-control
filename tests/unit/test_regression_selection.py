@@ -15,6 +15,18 @@ import test_recovery
 from tests.support.paths import ROOT
 
 
+@pytest.fixture(autouse=True)
+def isolated_capture(monkeypatch):
+    # These fixtures own routing, counts and source-observation behavior, with
+    # intentionally synthetic source labels. Real Report/capture/publication
+    # and exact fingerprint histories live in test_runner_evidence.
+    import runner_evidence
+    factory = Mock()
+    factory.return_value.finalize.return_value = dict(
+        records=[], references=[], consumers=[], capture_ids=[], receipt=None)
+    monkeypatch.setattr(runner_evidence, 'ReportEvidence', factory)
+
+
 @pytest.fixture
 def source_identity(monkeypatch):
     # The report tests use a private directory, not a Git checkout.

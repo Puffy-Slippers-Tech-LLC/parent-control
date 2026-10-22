@@ -2423,6 +2423,59 @@ evidence or the affected complete history again.
 
 ### Sealed producer handoffs
 
+Runner reports use `tools/runner_evidence.py::ReportEvidence` inside their live
+retention owner. `regression.Report` keeps a standalone owner alive from first
+registration through terminal capture; aggregate reports reuse their existing
+owner. Before result writes, an immutable sealed startup lifecycle record binds
+the run, owner, source identity and report allocation. It stays required until
+terminal publication and is acknowledged last, preserving originals even if
+preparing the terminal record fails. Each closed execution records its actual command, exact selected,
+resumed, completed and failed IDs, target, exit status, log and cleanup state.
+The final report closure includes the original inventory revisions, progress,
+resource/schedule records and failure handoff after outer recording cleanup.
+Coverage's finite XML and database results join that closure before their
+execution allocation rotates; its child creates them with private permissions.
+Unfinished executions and failed setup/teardown remain partial or failed proof;
+capture supplies no new test pass.
+
+Startup acknowledgement requires a verified terminal record that depends on
+that exact startup record. After an interrupted owner finishes, the next runner
+startup resumes its pending capture under the original run and capture identities.
+Recovery uses the registered report allocation and bounded, authenticated closed
+members; it preserves an existing terminal declaration or records an interrupted,
+partial result with pending cleanup. It never reruns checks or promotes their
+outcome. Existing initial-check recovery still owns an unfinished legacy run;
+foreign, replaced, active or cleanup-marked sources refuse capture recovery.
+
+`ReportEvidence.finalize` accepts explicit closed members with `path` and `role`,
+seals the command/result/input/cleanup records, publishes their dependency closure
+through the existing cumulative capture transaction and acknowledges it under
+the source owner. Its returned version-1 references bind workflow, record, member
+and closure digest. `runner_evidence.resolve_reference` derives the workflow's
+existing publication journal and verifies the current cumulative archive under
+its reader lock; original report paths and superseded export paths can retire.
+A denied publication is attempted once and preserves the required original.
+The library's `Selection(..., include_host_captures=True)` explicitly admits
+host records alongside an exact named-target capture selection. Its default and
+the artifact helper retain the existing refusal of a host capture selected as a
+named target. Checkout validation reuses the bundle reader's private-user-group
+policy, including refusal of writable groups containing unrelated accounts.
+
+VM queue workers finish their own reports and emit their structured evidence
+handoff. The batch retains exact guest selections, target-specific logs, worker
+references and the joined result under its separate owner. It verifies worker
+records before carrying their cleanup status; an absent closure remains pending.
+Each worker's immutable input includes the batch's fresh invocation identity and
+exact selection, which the join verifies through the published member. Stale
+attempts and different selections refuse. A parsing or proof-resolution failure
+captures the available batch closure as failed with pending cleanup; publication
+failure leaves the startup requirement in place without an authentication retry.
+It does not adopt the workers' allocations. `regression_process.host_run` and
+`category_run` stream into the owning execution; `test_commands` retains its
+existing aggregate, focused and inspection routing. Qualification, system/E2E
+collector and recovery-diagnostic closures have their separate delivery owner.
+The latest-only watch recording policy is unchanged.
+
 `tools/evidence_capture.py` owns authenticated finalized subsets for evidence
 producers. A producer obtains an opaque in-process handle only inside its live
 `Store.session`; the held owner descriptor, journal identity, run and newly issued

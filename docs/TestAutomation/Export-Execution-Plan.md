@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E06 — [Capture runner results at terminal boundaries](Export-Tasks/E06-runners.md)**.
+Next task: **E06a — [Capture qualification and E2E collector records](Export-Tasks/E06a-qualifications.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

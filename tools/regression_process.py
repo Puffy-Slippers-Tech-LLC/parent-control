@@ -453,7 +453,8 @@ def category_run(root, category, argv, *, pipe=True):
                            '--unattended', *command[2:]]
                 if category in ('system', 'e2e') and test_retention.token() is not None:
                     command.insert(4, '--retention-run=' + test_retention.token())
-            status = control.run(command, cwd=root, env=env, cooperative=privileged)
+            status = control.run(command, cwd=root, env=env, cooperative=privileged,
+                                 **({'umask': 0o077} if category == 'coverage' else {}))
             if status:
                 return status
         return 0

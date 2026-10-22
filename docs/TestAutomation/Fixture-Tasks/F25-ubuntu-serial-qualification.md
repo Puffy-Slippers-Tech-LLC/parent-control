@@ -6,26 +6,35 @@ Requires: F23
 
 ## Scope and implementation
 
-Migrate the standalone serial [matrix row](../Fixture-Design.md#runner-acceptance-matrix).
-Read `check_graphical_smoke.Smoke.execute`, `check_graphical_serial`, authenticated
-install/refusal aliases, getty/credential staging and F01's exact consumer map.
-Keep transport/credential bootstrap and fixed getty preparation at their required
-preboot boundary, while fixture bytes use owned SSH before any serial/customer
-input. Share the same pin/provisioner; preserve guarded secret recipients, recording
-seals, single-use input and deliberate package installation checkpoints.
-Recorded serial E2E callbacks retain their explicit legacy gate until F27/F28.
+Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
+[source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
+Migrate standalone serial `Smoke`/`check_graphical_serial` and authenticated
+install/refusal aliases. Read the complete credential/getty/bootstrap/asset chain.
+Retain preboot credential/getty lifetime, secret recipients, recording seals and
+single-use input; move reusable fixture bytes to shared owned SSH before serial
+input. Host composition preserves successful-install reboot versus refused-install
+logout/no-reboot assertions. Recorded serial remains gated until its own tasks.
 
-## Finite acceptance
+Reuse the execution-owned immutable input and single SSH provisioner on clean
+captures. Bind readiness to the actual restored/rebound boot and attempt.
+Enable only this qualified target/branch; other unmigrated branches must refuse.
+Keep platform-specific corrections in their shared owning adapter.
 
-Run affected host serial/credential/transfer safety checks. Register/list the
-planned binding before
-`tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_serial`.
-Exercise the actual `check_graphical_serial` preparation with the shared provisioner,
-one immutable pin, fresh receipt and independently observed harmless fixture use
-over SSH. Stop before serial input or product actions/assertions. Prove missing/
-stale fixture refusal releases no input. Host branch
-tests bind authenticated-install/refusal aliases to this same preparation;
-different fixture branches require a separate preparation-only prerequisite.
-Host checks preserve privacy/recipient guards without requalifying serial login,
-authentication or package behavior. Finish watched restoration, credential/transport/pin
-cleanup, update delivered owners and close through the [master](../Fixture-Execution-Plan.md).
+## Acceptance and cleanup
+
+Run exact affected host composition/provenance/ownership safety selections.
+Register/list the planned `check_fixture_serial` before invoking:
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_serial
+```
+
+Exercise actual standalone serial preparation and harmless native use, then
+stop before serial input/authentication or product assertions. Host tests bind
+authenticated-install/refusal aliases without claiming package/login acceptance.
+Prove selected manifest bytes independently, positive runtime use, fresh readiness,
+missing/incompatible refusal before input and no version switch under host edits.
+No complete fixture collection is copied into results; preserve scenario mutations.
+Finish watched owned restoration and credential/staging/input/transport cleanup.
+Update delivered runner/support owners and close through the
+[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.

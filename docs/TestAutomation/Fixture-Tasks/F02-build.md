@@ -3,42 +3,31 @@
 Acceptance: host
 Requires: F29
 
-## Purpose and scope
+## Scope and implementation
 
-Deliver the [design's build/identity boundary](../Fixture-Design.md#identity-and-build-publication)
-for F01's finite inventory. Keep sources, compiler work, expected results and
-unused fixture collections on the host; build only declared minimal profiles.
-The initial host build profile is `native-runtime`; its guest subsets share one
-version per target/ABI under the [working-set contract](../Fixture-Design.md#initial-working-set-and-producer-reservation).
+Implement [host construction](../Fixture-Design.md#identity-and-build-publication)
+for the finite inventory. Read the complete fixture builders/declarations,
+`tools/artifact_inputs.py`, `package_inputs.py`, `build_test_artifacts.py` and
+affected callers/tests. Freeze fixture sources before building; keep actual
+product inputs separate. One `native-runtime` build per target supplies all
+declared subsets, without host-only collections or a copied interpreter tree.
 
-## Read and implement
+Reuse the existing target builders and F29 producer lifetime. Verify native
+runtime ABI for both declared targets on the host. Record source/toolchain/target
+inputs separately from exact output bytes. Implement one complete manifest and
+payload verifier, including finite destinations/roles and absence controls.
+Expose validated build/verify options through the existing fixture launcher;
+preserve legacy callers until migrated. No shared cache is required.
 
-Read F01's frozen map, `tests/fixtures/build_test_applications.py`, `native_assets.py`,
-`baseline_assets.py`, `tools/artifact_inputs.py`, `package_inputs.py`,
-`build_test_artifacts.py`, `e2e_startup_cache.py` and complete affected consumers.
-Reuse builders, shared disk scratch and F29's single-producer slot reservation.
-Implement canonical complete manifests,
-frozen source/toolchain/target/ABI keys and separate exact output content identity.
-Build native artifacts in maintained host-side target environments and verify
-their declared runtime ABI; never compile in the guest or relabel host binaries.
-Expose the reviewed host build/verify interface through the maintained fixture
-route; this task does not expose a shared published cache before F03/F04.
-Preserve existing callers until they migrate. Forward scratch lease descriptors.
+## Acceptance and cleanup
 
-## Finite validation and cleanup
+Run the affected registered builder/artifact unit selections and actual fixture
+construction at its reviewed resource limit. Prove complete minimal membership,
+both target ABI checks, frozen-source mutation refusal, malformed/unsafe archive
+refusal and separate fixture/product/dependency invalidation. Record output and
+scratch sizes; apply existing storage limits. Preserve producer descendant leases
+and cover build failure/interruption/disk exhaustion with exact owned cleanup.
+Do not build packages solely to demonstrate fixture independence.
 
-Extend the affected builder/artifact unit modules and private fixture tests for
-identical build/reuse inputs, minimal closure, fixture-only versus product/dependency
-changes, source mutation while freezing and invalid manifest/archive membership.
-Exercise actual fixture construction at its reviewed artifact resource limit.
-Record both target outputs, simultaneous scratch footprint, allocated blocks and
-expanded membership for inspection; there is no fixed fixture-cache byte ceiling.
-Verify failure, disk exhaustion and cancellation cannot allocate another build
-slot until the original producer/descendant cleanup is reconciled.
-Do not run package builds solely to verify fixture source independence. Expected
-result: valid bundles identify exact bytes, incomplete or unsafe bundles refuse,
-and no guest or snapshot is touched. Use `tools/run-tests unit` with exact affected
-modules and, where needed, its existing `fixtures`/`fixture-runtime` routes after
-checking help/listing. New tests/selectors remain unimplemented until registered.
-Review resource classifications, remove only owned scratch, update support/build
-owners with delivered APIs and close through the [master](../Fixture-Execution-Plan.md).
+Follow the [master](../Fixture-Execution-Plan.md) for reading, resource review,
+owned cleanup and ordinary evidence/Git close-out.

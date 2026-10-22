@@ -6,24 +6,35 @@ Requires: F10
 
 ## Scope and implementation
 
-Migrate the installed-system row of the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix).
-Read F09's shared preparation API, `system_snapshots._run_attempts(installed=True)`,
-`Suite.prepare_case`, offline snapshot/bootstrap, `system_runner.installed_run`
-and F01's exact binding. Reuse the host pin, authenticated reader and shared
-provisioner after app-snapshot restore/SSH readiness, before installed test input.
-Preserve the offline installed starting state, product identity and system
-assertions. Other unqualified envelopes retain their legacy gates.
+Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
+[source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
+Migrate `system_snapshots._run_attempts(installed=True)` through
+`Suite.prepare_case`, explicit offline app-snapshot restoration/bootstrap and
+`system_runner.installed_run`. Read the full shared input/provisioning chain.
+Suite currently defaults online; establish the explicit offline binding rather
+than assuming it exists. Preserve the installed product/precondition and every
+system assertion.
 
-## Finite acceptance
+Reuse the execution-owned immutable input and single SSH provisioner on clean
+captures. Bind readiness to the actual restored/rebound boot and attempt.
+Enable only this qualified target/branch; other unmigrated branches must refuse.
+Keep platform-specific corrections in their shared owning adapter.
 
-Run affected host envelope/provenance/recovery safety tests. Register/list the
-planned `check_fixture_system_installed` engineering binding, then invoke
-`tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_system_installed`.
-Exercise its real preparation through offline app restore, then independently
-read/execute a harmless fixture witness over SSH. Stop before system test/product
-actions or assertions. Prove selected bytes are used, stale/missing inputs stop before test
-input, restored receipts are renewed, host edits do not switch the attempt pin,
-and product/baseline identities remain intact. Host branch tests cover aliases
-and reboot receipt renewal. Complete watched owned restoration, transport and
-pin cleanup; update delivered system/support/provenance owners and close through
-the [master](../Fixture-Execution-Plan.md).
+## Acceptance and cleanup
+
+Run exact affected host composition/provenance/ownership safety selections.
+Register/list the planned `check_fixture_system_installed` before invoking:
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_system_installed
+```
+
+Use the trusted-native hard witness as Riley after actual offline restore.
+Stop before system input or product assertions. Host tests cover aliases and
+reboot readiness renewal; an online result does not qualify this branch.
+Prove selected manifest bytes independently, positive runtime use, fresh readiness,
+missing/incompatible refusal before input and no version switch under host edits.
+No complete fixture collection is copied into results; preserve scenario mutations.
+Finish watched owned restoration and credential/staging/input/transport cleanup.
+Update delivered runner/support owners and close through the
+[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.

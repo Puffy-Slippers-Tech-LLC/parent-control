@@ -2,41 +2,27 @@
 
 Acceptance: installed
 Targets: onpc-Fedora44
-Requires: F48
+Requires: F05
 
-## Purpose and scope
+## Scope and implementation
 
-Complete the [snapshot/dependency split](../Fixture-Design.md#runner-and-snapshot-migration)
-on Fedora using the same schemas and shared capture/provisioning implementation.
-Ordinary new-schema dispatch stays disabled until F41–F47 and F49 pass.
+Deliver Fedora's [clean snapshot boundary](../Fixture-Design.md#runner-and-snapshot-migration)
+using F11's shared implementation. Read its complete digest/capture/recovery
+changes and remaining Fedora baseline/native/label/credential owners.
+Retire only the complete proven owned legacy movable set, preserve environment
+and legacy recovery, and refuse ambiguous identity. Preserve enforcing SELinux,
+exact native ownership and genuine dependency/product invalidation.
+Keep unmigrated Fedora consumers unavailable on clean captures.
 
-## Read and implement
+## Acceptance and cleanup
 
-Read F11's complete digest/capture/legacy recovery changes, F01's remaining
-Fedora consumer inventory, native dependency/trust/label ownership and relevant
-baseline/app-snapshot safety tests. New Fedora snapshots retain unavoidable
-environment dependencies, not movable native runtime payloads, launcher/data
-collections or fixture build tools. Preserve native trust ownership recovery
-when an old snapshot contains a prior prepared fixture record.
+Run affected capture/recovery/native safety tests first. Register/list
+`check_fixture_snapshots` on this target and record any separately authorized
+auto-mode refresh. Prove clean baseline/app captures, standalone app preparation
+without runtime fixtures, legacy stop/restoration, fixture-only source independence
+and no archived source/payload/admission leaks. No fallback to embedded fixtures.
+Finish watched owned restoration. Renew affected Ubuntu checks after shared
+changes and update the remaining VM/approval/environment owners for this boundary.
 
-## Finite validation and cleanup
-
-Run affected isolated capture/recovery/native safety tests before protected work.
-Record any separately invoked authorized schema-establishing baseline/app refresh.
-With registered/listed engineering bindings prove clean captures, standalone app
-preparation without fixtures, restore then minimum dynamic provisioning under
-enforcing SELinux, original-schema stop/restoration after source/dependency changes
-under F24/F30's legacy matrix, and fixture-only A→B update in fresh
-attempts with unchanged baseline/app snapshot identities. F08 separately owns
-same-boot maintenance refresh. Real dependency/product changes
-must still invalidate. Check no mapped consumer resolves a legacy payload fallback
-and no leaked staging/old trust admission, archived input tree, E2E asset payload
-or launch barrier enters capture. Include F33's full legacy inventory and retained
-preparation checkout; no movable source copy may remain. Register the fixed
-clean-schema engineering route, retain ordinary admission refusal and hand the
-seven distinct clean Fedora envelope checks to F41–F47. F49 enables ordinary
-dispatch only after those rows pass against these snapshots; legacy integration
-proof cannot substitute. Finish owned restoration,
-cache pins and transaction cleanup. Renew any Ubuntu proof invalidated by shared
-edits, update all remaining current mandate/environment/support references and
-close through the [master](../Fixture-Execution-Plan.md).
+Follow the [master](../Fixture-Execution-Plan.md) for reading, resource review,
+owned cleanup and ordinary evidence/Git close-out.

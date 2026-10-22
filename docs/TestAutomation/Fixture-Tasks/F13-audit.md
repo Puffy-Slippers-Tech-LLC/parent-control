@@ -3,42 +3,34 @@
 Acceptance: review
 Requires: F08
 
-## Purpose and scope
+## Scope and review
 
-Independently audit the final candidate against the complete
-[host-first design](../Fixture-Design.md). Verify all F01 inventory rows have an
-implemented disposition and no movable fixture has been left in snapshots merely
-for convenience. This review does not replace missing installed acceptance.
+Independently review the final [design](../Fixture-Design.md) implementation and
+all delivered operational owners. Give a GPT-6.1 Sol xHigh reviewer a bounded
+self-contained read-only assignment with `fork_turns="none"`. Check host-only
+construction, minimal complete closures, ABI/content identity, single producer
+lifetime, execution-owned retention/authenticated handoff, input immutability,
+fail-closed SSH provisioning and owned VM recovery.
 
-## Read and review
+Verify clean captures on both targets, preserved legacy cleanup, every actual
+consumer/alias disposition and the idle refresh refusal boundary. There must be
+no new cache/pin service, native acknowledgement protocol, supervisor or duplicate
+case installer. Keep scenario checkpoints/assertions and pending capabilities
+outside this migration.
 
-Read the final shared builders/cache, retention/pin recovery, guest provisioning,
-maintenance, runner and snapshot boundaries and all changed operational owners.
-Give an independent GPT-6.1 Sol xHigh reviewer a self-contained bounded assignment
-with `fork_turns="none"`. Review minimal guest closures, complete manifest/ABI
-identity, concurrent producer/consumer/retirement lock order, bounded staging and
-single-producer/descendant scratch ownership, exact guest native trust, in-use process safety, strict scenario
-assertions, legacy recovery and result-evidence independence from cache eviction.
+## Acceptance and close-out
 
-## Finite validation and close-out
+Require final-candidate evidence and owned cleanup from both targets for clean
+captures, provisioning, all seven real preparation envelopes and idle same-boot
+refresh. Host failure/interruption/identity tests remain required; review cannot
+substitute for missing or invalidated target proof. Insert a bounded prerequisite
+for missing work, resolve actionable findings and renew affected checks.
 
-Require exact final-candidate fixture-infrastructure evidence and owned cleanup
-from both canonical targets for provisioning/contraction/barriers, same-boot live
-refresh, every preparation matrix row and snapshot independence. No product
-journey/action/assertion is required or credited. Confirm host proof of active-session
-publication/export separation, authenticated caller reads, the bounded two-target
-six-slot working set, automatic oldest eligible cleanup, versioned legacy recovery
-and all count/pin/interruption boundaries. There is no fixture byte quota.
-Require both F48/F49 admission receipts and all fourteen clean-schema preparation
-rows; earlier fixture-bearing matrix proof cannot replace them. Verify admission
-was withheld until the corresponding clean rows passed. A missing or invalidated result becomes a bounded prerequisite before
-F13, never a review-only pass. Resolve actionable findings and renew material
-checks. Use maintained read-only inspection to confirm actual retained version
-counts/bytes and no unresolved producer/guest/pin transaction; no cleanup sweep.
+Check Markdown links, plan structure and affected metadata/launcher regressions.
+Verify existing bounded retention has no unfinished producer/input/VM cleanup
+and enduring rules live in their owning documents. No product or E2E completion
+credit is supplied. After accepted review and ordinary evidence/Git close-out,
+close only F13 and set the master's pointer to `Next task: none.`
 
-Validate changed Markdown links, plan `--check` and affected metadata/launcher
-tests. Verify enduring rules live in their existing owners, all planned selectors
-are implemented or explicitly outside scope, and the specialized E2E queue/case
-assertions retain their status. Do not broaden into pending fixture capabilities.
-Close only F13 after review and shared evidence/Git close-out, then set this
-plan's pointer to `Next task: none.` under the [master](../Fixture-Execution-Plan.md).
+Follow the [master](../Fixture-Execution-Plan.md) for reading, resource review,
+owned cleanup and ordinary evidence/Git close-out.

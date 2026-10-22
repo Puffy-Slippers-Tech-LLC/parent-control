@@ -1,42 +1,34 @@
-# F07 — Refresh an owned live Ubuntu VM
+# F07 — Refresh an idle owned Ubuntu VM
 
 Acceptance: installed
 Targets: onpc-Ubuntu26.04
-Requires: F49
+Requires: F28
 
-## Purpose and scope
+## Scope and implementation
 
-Deliver [live diagnostic refresh](../Fixture-Design.md#live-refresh-and-recorded-attempts)
-through the F01-reviewed `tools/test-vm` maintenance extension. Reuse F05/F06's
-exact provisioning, cache pins, VM ownership and shared observation.
+Add explicit [idle maintenance refresh](../Fixture-Design.md#live-refresh-and-recorded-attempts)
+to `tools/test-vm`. Read the complete VM-control/online-snapshot ownership,
+session, process and transport paths and the shared provisioner. Use existing
+authenticated input handoff, watch and maintenance owner. Register validated
+options/help; this surface is unimplemented until then.
 
-## Read and implement
+Before mutation prove the existing idle boundary excludes fixture workers,
+fixture-using graphical sessions and other launchers. Busy, foreign or uncertain
+ownership refuses; do not add a supervisor, process scan or launch barrier.
+Allow only the same declared subset/destinations. Provision using F15 and record
+a diagnostic generation. Failure makes maintenance unavailable until normal owned
+recovery, without promising same-boot rollback or repairing an active scenario.
 
-Read complete `tests/integration/vm_control.py`, `online_snapshot.py`,
-`system_runner.py`, `vm_transport.py` maintenance ownership/transport paths,
-their cleanup regressions and the shared provisioner. Add explicit bundle/profile
-selection and diagnostic generation records, read-only lost-reply reconciliation,
-unchanged no-op and F15's transaction-wide launch barrier/process quiescence.
-Reuse subset retirement; no second process scanner or signal-by-name path.
-Do not acquire another owner's VM
-or restart product/desktop services. Current public sync options are unimplemented
-until this task registers help, dispatcher validation and scoped grants.
+## Acceptance and cleanup
 
-## Finite validation and cleanup
+Run affected maintenance/provisioning safety tests first. Register/list
+`check_fixture_live_refresh`. In an idle watched Ubuntu maintenance instance,
+use A, change/build B on the host, explicitly sync and independently use B.
+Require unchanged boot/domain and baseline/app snapshot identities, correct native
+activation, unrelated state preservation and repeated verification without writes.
+Prove busy/session/worker, different-subset, corrupt-input and foreign-owner
+refusal before writes. Inject interruption/lost reply and verify unavailable
+readiness plus owned recovery. Finish all input/staging/maintenance cleanup.
 
-Run maintenance/provisioning safety regressions before a watched Ubuntu maintenance
-history: use fixture A, change its host source, build B, sync only the necessary
-closure and observe the changed harmless fixture witness in that same running
-guest, without product actions/assertions. Record
-unchanged boot/domain instance, baseline/app snapshot identities and preserved
-unrelated guest state. Exercise repeat/no writes, corrupt/missing bundle refusal,
-foreign-owner refusal and held fixture process refusal followed by explicit owned
-quiescence/restart. Refresh provides diagnostics, not acceptance for an already
-started scenario. Include a shrinking selection with obsolete launcher/trust
-absence and shared files retained, plus a concurrent launch refused for the full
-replacement/removal interval. Apply F50's attributed open/exec/trust witnesses,
-daemon identity and private observer retirement. Prove effective barrier removal before
-fixture B is used. Reuse unchanged F05 safety matrix proof; renew changed parts.
-Test interrupted sync recovery, complete the owned maintenance
-cleanup and pin release, and update maintained interfaces/guides through the
-[master](../Fixture-Execution-Plan.md).
+Follow the [master](../Fixture-Execution-Plan.md) for reading, resource review,
+owned cleanup and ordinary evidence/Git close-out.

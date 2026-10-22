@@ -6,18 +6,36 @@ Requires: F22
 
 ## Scope and implementation
 
-Qualify the standalone transfer [matrix row](../Fixture-Design.md#runner-acceptance-matrix)
-on Fedora. Read F22's full bootstrap/transfer/readback chain, F01's binding and
-native/SELinux actions. Use the same SSH provisioner and keep serial aliases gated.
+Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
+[source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
+Migrate standalone `runner --qualify-transfer` through
+`Qualification.execute`, `check_graphical_smoke` and `AssetTransfer.provision`.
+Read the complete bootstrap/asset chain. Keep preboot work limited to transport
+prerequisites; reusable payload moves through shared SSH only after readiness.
+An installed app snapshot cannot substitute for this product-free envelope.
+Keep serial aliases gated until their own tasks.
 
-## Finite acceptance
+Reuse the execution-owned immutable input and single SSH provisioner on clean
+captures. Bind readiness to the actual restored/rebound boot and attempt.
+Enable only this qualified target/branch; other unmigrated branches must refuse.
+Preserve enforcing SELinux, exact native admissions and labels. Renew affected
+Ubuntu checks after shared corrections.
 
-Run affected host safety checks and register/list the planned binding before
-`tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_transfer`.
-Through the actual product-free standalone transfer preparation observe selected
-bytes and native labels/trust, no fixture preboot upload or product installation,
-missing/corrupt refusal before graphical input, fresh receipt and unchanged pin.
-Cover uncertain transfer recovery without replay. Stop before graphical input or
-product actions/assertions. Finish watched restoration,
-transport and pin cleanup, renew affected Ubuntu proof after shared fixes and
-update delivered owners through the [master](../Fixture-Execution-Plan.md).
+## Acceptance and cleanup
+
+Run exact affected host composition/provenance/ownership safety selections.
+Register/list the planned `check_fixture_transfer` before invoking:
+
+```sh
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_transfer
+```
+
+Exercise the real standalone transfer preparation and independent harmless
+native use. Prove product absence, no reusable preboot upload and fail-closed
+uncertain transfer recovery without replay. Stop before graphical input.
+Prove selected manifest bytes independently, positive runtime use, fresh readiness,
+missing/incompatible refusal before input and no version switch under host edits.
+No complete fixture collection is copied into results; preserve scenario mutations.
+Finish watched owned restoration and credential/staging/input/transport cleanup.
+Update delivered runner/support owners and close through the
+[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.

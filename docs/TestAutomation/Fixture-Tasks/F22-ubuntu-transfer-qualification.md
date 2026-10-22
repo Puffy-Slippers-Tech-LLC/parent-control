@@ -6,23 +6,35 @@ Requires: F21
 
 ## Scope and implementation
 
-Migrate the standalone transfer [matrix row](../Fixture-Design.md#runner-acceptance-matrix).
-Read `check_graphical_smoke` asset preparation, `AssetTransfer.provision`,
-`serial_harness` callers, guarded bootstrap and F01's exact qualification binding.
-Keep preboot work to transport prerequisites; push fixture bytes through the
-shared provisioner only after owned SSH is ready. No installed app snapshot or
-implicit product installation may substitute for this product-free envelope.
-Leave serial callers gated until F25/F26 rather than changing their timing silently.
+Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
+[source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
+Migrate standalone `runner --qualify-transfer` through
+`Qualification.execute`, `check_graphical_smoke` and `AssetTransfer.provision`.
+Read the complete bootstrap/asset chain. Keep preboot work limited to transport
+prerequisites; reusable payload moves through shared SSH only after readiness.
+An installed app snapshot cannot substitute for this product-free envelope.
+Keep serial aliases gated until their own tasks.
 
-## Finite acceptance
+Reuse the execution-owned immutable input and single SSH provisioner on clean
+captures. Bind readiness to the actual restored/rebound boot and attempt.
+Enable only this qualified target/branch; other unmigrated branches must refuse.
+Keep platform-specific corrections in their shared owning adapter.
 
-Run affected host transfer/cleanup/provenance checks. Register/list the planned
-binding before
-`tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_transfer`.
-It must exercise the real standalone `--qualify-transfer` preparation and independent
-guest byte/harmless fixture readback over SSH, then stop before graphical input.
-Prove selected closure use, no preboot fixture upload,
-product absence, missing/corrupt refusal before graphical input, one attempt pin
-and fresh boot receipt. Cover uncertain transfer reconciliation and preserve
-existing fixture transfer assertions. Add no product actions/assertions. Finish watched restoration and all transport/pin
-cleanup, update delivered owners and close through the [master](../Fixture-Execution-Plan.md).
+## Acceptance and cleanup
+
+Run exact affected host composition/provenance/ownership safety selections.
+Register/list the planned `check_fixture_transfer` before invoking:
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_transfer
+```
+
+Exercise the real standalone transfer preparation and independent harmless
+native use. Prove product absence, no reusable preboot upload and fail-closed
+uncertain transfer recovery without replay. Stop before graphical input.
+Prove selected manifest bytes independently, positive runtime use, fresh readiness,
+missing/incompatible refusal before input and no version switch under host edits.
+No complete fixture collection is copied into results; preserve scenario mutations.
+Finish watched owned restoration and credential/staging/input/transport cleanup.
+Update delivered runner/support owners and close through the
+[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.

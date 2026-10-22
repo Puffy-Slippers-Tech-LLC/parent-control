@@ -1,41 +1,34 @@
-# F15 — Compose transactional guest contraction
+# F15 — Provision through one fail-closed SSH boundary
 
 Acceptance: host
-Requires: F33
+Requires: F03
 
-## Purpose and scope
+## Scope and implementation
 
-Compose transactional placement/removal under the
-[contraction contract](../Fixture-Design.md#profile-contraction-and-activation-transaction).
-Native rule rendering/witnesses, process supervision and legacy import are
-prerequisites, not additional implementations inside this task. Runtime dispatch
-remains gated until F05/F06 qualify the complete target boundary.
+Deliver the shared [SSH provisioner](../Fixture-Design.md#owned-ssh-provisioning-and-readiness).
+Read complete transport/guest-file, baseline fixture, native trust, AssetTransfer
+and attempt cleanup call chains. Reuse their lease, watch, guarded SSH and native
+APIs. Preflight finite paths, input, account roles and existing destination
+ownership before writes; stage privately, install declared bytes/modes and apply
+exact native actions and labels. Preserve unrelated state and product rules.
 
-## Read and implement
+Return attempt/boot-bound readiness only after independent byte/metadata readback
+and a harmless runtime witness. Repeated identical requests verify without writes.
+Failures and uncertain replies stop all input and delegate snapshot restoration
+to the existing VM owner. No per-file rollback/resume, guest contraction, process
+supervisor or native acknowledgement protocol. Live callers must later prove
+the same design's idle maintenance precondition. Dispatch remains unavailable
+until target qualification.
 
-Read the complete F31/F32/F50 native/process APIs and F33 import/removal API with
-their shared fixture/guest-file callers. Preflight the old/new union, classify
-additions/replacements/removals and preserve still-required shared runtime files.
-Journal payload/rollback identities before mutations. Compose the verified
-launch barrier (including staged added-content denies), explicit owned quiescence,
-old-path trust retirement before removal or same-path replacement, atomic
-placement/removal, canonical added-path deny proof, final new-set trust transition,
-independent readback, barrier release and readiness receipt in one
-recoverable state machine. Use F50's finite fixture proof, not a claim of complete
-arbitrary native-policy acknowledgement. No second process scanner or native
-updater is permitted.
+## Acceptance and cleanup
 
-## Finite validation and cleanup
+Use private filesystem/transport/native doubles to prove missing/incompatible
+input and foreign/modified/unsafe destination refusal before mutation, selected
+membership, trust actions, no-op verification and stale readiness refusal. Inject
+failure/lost reply at staging, placement, activation and readback; no case input
+may escape and the owned VM recovery path must remain authoritative. Cover
+registered staging cleanup and preserved diagnostics without uncertain exec or
+signal replay. Run exact affected safety tests before any later live operation.
 
-Use private real-file and explicit native/process doubles for larger→smaller→
-disjoint subsets, retained shared members, removed launchers/admissions and
-foreign/modified-file refusal before mutation. Inject interruption before/after
-each placement, removal, native transition and readiness commit. Assert uncertain
-replies resume recorded phases, with unavailable readiness until complete, and
-no repeated uncertain exec/signal. Reuse prerequisite race/identity tests and add
-composition guards that prevent bypassing them. Cover absent canonical paths on
-first provisioning/disjoint additions, plus interrupted old-path trust revocation
-before replacement or unlink. Register exact safety selectors
-and resource classifications. No live VM or host native policy is used. Update
-delivered support owners and close through the
-[master](../Fixture-Execution-Plan.md).
+Follow the [master](../Fixture-Execution-Plan.md) for reading, resource review,
+owned cleanup and ordinary evidence/Git close-out.

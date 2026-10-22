@@ -6,19 +6,36 @@ Requires: F25
 
 ## Scope and implementation
 
-Qualify F25's standalone serial [matrix row](../Fixture-Design.md#runner-acceptance-matrix)
-on Fedora. Read its full getty/credential/bootstrap/provisioning chain, F01's
-binding and native labels/trust. Preserve preboot credential lifetime, recording
-seals and input recipients while fixture bytes move through the same owned SSH API.
+Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
+[source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
+Migrate standalone serial `Smoke`/`check_graphical_serial` and authenticated
+install/refusal aliases. Read the complete credential/getty/bootstrap/asset chain.
+Retain preboot credential/getty lifetime, secret recipients, recording seals and
+single-use input; move reusable fixture bytes to shared owned SSH before serial
+input. Host composition preserves successful-install reboot versus refused-install
+logout/no-reboot assertions. Recorded serial remains gated until its own tasks.
 
-## Finite acceptance
+Reuse the execution-owned immutable input and single SSH provisioner on clean
+captures. Bind readiness to the actual restored/rebound boot and attempt.
+Enable only this qualified target/branch; other unmigrated branches must refuse.
+Preserve enforcing SELinux, exact native admissions and labels. Renew affected
+Ubuntu checks after shared corrections.
 
-Run affected host safety checks and register/list the planned binding before
-`tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_serial`.
-Use the actual serial qualification preparation to prove selected harmless fixture
-use over SSH before serial input, immutable pin, correct trust/labels, fresh boot receipt and
-missing/stale refusal without input. Validate authenticated-install/refusal alias
-composition with host checks preserving secret-recipient guards. Stop before
-serial input, authentication or product actions/assertions. Finish watched
-restoration and credential/transport/pin cleanup, renew Ubuntu proof invalidated
-by shared changes and update delivered owners through the [master](../Fixture-Execution-Plan.md).
+## Acceptance and cleanup
+
+Run exact affected host composition/provenance/ownership safety selections.
+Register/list the planned `check_fixture_serial` before invoking:
+
+```sh
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_serial
+```
+
+Exercise actual standalone serial preparation and harmless native use, then
+stop before serial input/authentication or product assertions. Host tests bind
+authenticated-install/refusal aliases without claiming package/login acceptance.
+Prove selected manifest bytes independently, positive runtime use, fresh readiness,
+missing/incompatible refusal before input and no version switch under host edits.
+No complete fixture collection is copied into results; preserve scenario mutations.
+Finish watched owned restoration and credential/staging/input/transport cleanup.
+Update delivered runner/support owners and close through the
+[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.

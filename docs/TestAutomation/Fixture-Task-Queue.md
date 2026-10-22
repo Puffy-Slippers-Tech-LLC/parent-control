@@ -1,12 +1,10 @@
 # Host-owned fixture task queue
 
-The [master](Fixture-Execution-Plan.md) owns the sole next-task pointer. Every
-unchecked row below remains unimplemented; authoring and structural checks alone close no task.
-Scopes bind the [target design](Fixture-Design.md). IDs are stable labels.
-All live checks qualify fixture preparation/lifecycle only and stop before
-product actions or assertions; envelope names identify infrastructure callers,
-not customer acceptance. Existing product suites and E2E completion stay outside
-this queue's testing scope.
+The [master](Fixture-Execution-Plan.md) owns the sole next-task pointer. Unchecked
+rows are unimplemented; authoring closes no task. IDs remain stable labels.
+Completed design rows below describe historical work on the former proposal.
+The [current design](Fixture-Design.md#scope-and-simplicity) supersedes its
+unimplemented machinery without claiming that work was delivered.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
@@ -14,60 +12,39 @@ this queue's testing scope.
 | [x] | F51 | [Freeze schemas and transition contracts](Fixture-Design.md#frozen-schema-vocabulary) | F01 | Canonical identities, request/pin schemas, six-slot transitions, native protocol and clean-schema gate contracts | Source-backed review accepted; schemas/authority/recovery and success/failure/interruption/lost-reply transitions frozen; three bounded-review findings resolved; links/plan checks, [732 metadata/launcher checks](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json) and [315 final close-out checks passed](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json); helpers finished, no VM resources |
 | [x] | F52 | [Independently review the frozen design](Fixture-Design.md#f52-independent-design-review) | F51 | Independent source-backed design review before implementation; no installed credit | Independent Sol xHigh source review accepted; two native-transition findings resolved and re-reviewed; links/plan checks and [417 launcher checks passed](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json); reviewer finished, no VM/build or live resources |
 | [x] | F29 | [Own one fixture producer](../Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes) | F52 | Single build-slot reservation, descendant leases and interrupted producer cleanup; no byte quota | [30 producer safety checks passed](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json); [408 support checks passed](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json), two new test-helper defects fixed/retested; [4 launcher checks passed](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json); Sol High review: no critical findings, naming note resolved; DEB/RPM make build passed; children reaped, owned cleanup complete, no VM resources |
-| [ ] | F02 | [Build immutable host fixture bundles](Fixture-Tasks/F02-build.md) | F29 | Minimal profile closures, separate source/content/dependency identities and verified frozen builds | 20–30 min |
-| [ ] | F03 | [Publish bundles and pin consumers](Fixture-Tasks/F03-publication.md) | F02 | Shared cache authority, atomic publication, durable consumer pins and interrupted ownership recovery | 20–30 min |
-| [ ] | F14 | [Bridge cache ownership into active executions](Fixture-Tasks/F14-cache-execution.md) | F03 | Authenticated caller cache reads, inherited pins and cache transactions during active execution | 20–30 min |
-| [ ] | F04 | [Retain six builds and clean oldest](Fixture-Tasks/F04-retention.md) | F14 | Six slots including unfinished builds, three versions per key, automatic oldest eligible cleanup and pin-aware refusal | 20–30 min |
-| [ ] | F24 | [Preserve original baseline and fixture decoding](Fixture-Tasks/F24-legacy-recovery.md) | F04 | Original marker/capture/fixture/native codecs and durable original-proof sidecar | 20–30 min |
-| [ ] | F30 | [Preserve snapshot and VM-owner recovery](Fixture-Tasks/F30-legacy-owner-recovery.md) | F24 | App/credential/VM-owner codecs, original-proof binding and supported interrupted cleanup | 20–30 min |
-| [ ] | F31 | [Render finite native rules and decisions](Fixture-Tasks/F31-native-rules.md) | F30 | Pure fixture rule renderer, precedence validation and attributed-decision decoder | 20–30 min |
-| [ ] | F32 | [Own fixture processes and descendants](Fixture-Tasks/F32-process-ownership.md) | F31 | Supervised tracees, cgroups/pinned process identities and explicit quiescence recovery | 30–60 min; one supervisor state machine |
-| [ ] | F50 | [Compose native activation witnesses](Fixture-Tasks/F50-native-activation.md) | F32 | Finite barrier/trust activation and removal proof, observer lifetime and lost-reply recovery | 30–60 min; one activation state machine |
-| [ ] | F33 | [Import the complete legacy movable set](Fixture-Tasks/F33-legacy-payload-import.md) | F50 | Original ownership import, unrequested payload retirement and retained preparation-source removal | 20–30 min |
-| [ ] | F15 | [Compose transactional guest contraction](Fixture-Tasks/F15-guest-transactions.md) | F33 | Compose prior native/process/import APIs with atomic placement, subset retirement and readiness | 20–30 min |
-| [ ] | F05 | [Provision fixtures over owned SSH on Ubuntu](Fixture-Tasks/F05-ubuntu-provision.md) | F15 | Shared staged guest provisioning, contraction, launch barrier, native trust and recovery qualified on Ubuntu | 30–60 min; one complete target history |
-| [ ] | F06 | [Qualify Fedora fixture provisioning](Fixture-Tasks/F06-fedora-provision.md) | F05 | Fedora labels, exact native admission and shared provisioning/recovery qualified on Fedora | 30–60 min; one complete target history |
-| [ ] | F09 | [Integrate Ubuntu product-free system preparation](Fixture-Tasks/F09-ubuntu-runners.md) | F06 | Shared attempt preparation and pinned provenance for the Ubuntu product-free system branch | 30–60 min; one envelope history |
-| [ ] | F10 | [Integrate Fedora product-free system preparation](Fixture-Tasks/F10-fedora-runners.md) | F09 | Fedora product-free system preparation through the same pinned input and failure boundary | 30–60 min; one envelope history |
-| [ ] | F16 | [Integrate Ubuntu installed-system preparation](Fixture-Tasks/F16-ubuntu-installed-system.md) | F10 | Ubuntu offline app-snapshot restoration, fresh fixture receipt and installed-system use | 30–60 min; one envelope history |
-| [ ] | F17 | [Integrate Fedora installed-system preparation](Fixture-Tasks/F17-fedora-installed-system.md) | F16 | Fedora offline app-snapshot restoration and installed-system fixture use | 30–60 min; one envelope history |
-| [ ] | F18 | [Integrate Ubuntu installed E2E preparation](Fixture-Tasks/F18-ubuntu-installed-e2e.md) | F17 | Ubuntu online credential rebind, shared pinned provisioning and installed E2E use | 30–60 min; one envelope history |
-| [ ] | F19 | [Integrate Fedora installed E2E preparation](Fixture-Tasks/F19-fedora-installed-e2e.md) | F18 | Fedora online credential rebind and installed E2E fixture use | 30–60 min; one envelope history |
-| [ ] | F20 | [Integrate Ubuntu product-free E2E preparation](Fixture-Tasks/F20-ubuntu-product-free-e2e.md) | F19 | Ubuntu graphical product-free preparation provisions before customer package input | 30–60 min; one envelope history |
-| [ ] | F21 | [Integrate Fedora product-free E2E preparation](Fixture-Tasks/F21-fedora-product-free-e2e.md) | F20 | Fedora graphical product-free preparation retains clean entry and pinned fixtures | 30–60 min; one envelope history |
-| [ ] | F22 | [Integrate Ubuntu transfer qualification](Fixture-Tasks/F22-ubuntu-transfer-qualification.md) | F21 | Standalone Ubuntu transfer preparation uses owned SSH after boot instead of preboot fixture upload | 30–60 min; one envelope history |
-| [ ] | F23 | [Integrate Fedora transfer qualification](Fixture-Tasks/F23-fedora-transfer-qualification.md) | F22 | Standalone Fedora transfer preparation uses the shared SSH fixture boundary | 30–60 min; one envelope history |
-| [ ] | F25 | [Integrate Ubuntu serial qualification](Fixture-Tasks/F25-ubuntu-serial-qualification.md) | F23 | Standalone Ubuntu serial/authenticated-install preparation binds the same host pin before input | 30–60 min; one envelope history |
-| [ ] | F26 | [Integrate Fedora serial qualification](Fixture-Tasks/F26-fedora-serial-qualification.md) | F25 | Standalone Fedora serial/authenticated-install preparation preserves recipient and fixture guards | 30–60 min; one envelope history |
-| [ ] | F27 | [Integrate Ubuntu recorded serial preparation](Fixture-Tasks/F27-ubuntu-recorded-serial.md) | F26 | Recorded Ubuntu serial E2E harness prepares fixtures under its recorder and scenario owner | 30–60 min; one preparation history |
-| [ ] | F28 | [Integrate Fedora recorded serial preparation](Fixture-Tasks/F28-fedora-recorded-serial.md) | F27 | Recorded Fedora serial E2E harness binds its recorder, pin, receipt and owned cleanup | 30–60 min; one preparation history |
-| [ ] | F11 | [Decouple Ubuntu snapshots from fixture payloads](Fixture-Tasks/F11-ubuntu-snapshots.md) | F28 | Establish gated clean Ubuntu capture/schema, legacy recovery and snapshot independence; ordinary new-schema dispatch stays disabled | 30–60 min; one complete target history |
-| [ ] | F34 | [Ubuntu clean product-free system preparation](Fixture-Tasks/F34-ubuntu-clean-system-product-free.md) | F11 | Actual product-free system envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F35 | [Ubuntu clean installed system preparation](Fixture-Tasks/F35-ubuntu-clean-system-installed.md) | F34 | Actual installed system envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F36 | [Ubuntu clean installed E2E preparation](Fixture-Tasks/F36-ubuntu-clean-e2e-installed.md) | F35 | Actual installed E2E envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F37 | [Ubuntu clean product-free graphical E2E preparation](Fixture-Tasks/F37-ubuntu-clean-e2e-product-free.md) | F36 | Actual product-free graphical E2E envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F38 | [Ubuntu clean standalone transfer preparation](Fixture-Tasks/F38-ubuntu-clean-transfer.md) | F37 | Actual standalone transfer envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F39 | [Ubuntu clean standalone serial preparation](Fixture-Tasks/F39-ubuntu-clean-serial.md) | F38 | Actual standalone serial envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F40 | [Ubuntu clean recorded serial E2E preparation](Fixture-Tasks/F40-ubuntu-clean-recorded-serial.md) | F39 | Actual recorded serial E2E envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F48 | [Enable Ubuntu clean-schema preparation](Fixture-Tasks/F48-ubuntu-enable-clean.md) | F40 | Verify all seven clean Ubuntu rows, publish exact admission receipt and check ordinary dispatch | 15–30 min; one admission history |
-| [ ] | F12 | [Decouple Fedora snapshots from fixture payloads](Fixture-Tasks/F12-fedora-snapshots.md) | F48 | Establish gated clean Fedora capture/schema and recovery; ordinary new-schema dispatch stays disabled | 30–60 min; one complete target history |
-| [ ] | F41 | [Fedora clean product-free system preparation](Fixture-Tasks/F41-fedora-clean-system-product-free.md) | F12 | Actual product-free system envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F42 | [Fedora clean installed system preparation](Fixture-Tasks/F42-fedora-clean-system-installed.md) | F41 | Actual installed system envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F43 | [Fedora clean installed E2E preparation](Fixture-Tasks/F43-fedora-clean-e2e-installed.md) | F42 | Actual installed E2E envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F44 | [Fedora clean product-free graphical E2E preparation](Fixture-Tasks/F44-fedora-clean-e2e-product-free.md) | F43 | Actual product-free graphical E2E envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F45 | [Fedora clean standalone transfer preparation](Fixture-Tasks/F45-fedora-clean-transfer.md) | F44 | Actual standalone transfer envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F46 | [Fedora clean standalone serial preparation](Fixture-Tasks/F46-fedora-clean-serial.md) | F45 | Actual standalone serial envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F47 | [Fedora clean recorded serial E2E preparation](Fixture-Tasks/F47-fedora-clean-recorded-serial.md) | F46 | Actual recorded serial E2E envelope against clean snapshots, harmless SSH fixture use/refusal and owned cleanup | 30–60 min; one clean-envelope history |
-| [ ] | F49 | [Enable Fedora clean-schema preparation](Fixture-Tasks/F49-fedora-enable-clean.md) | F47 | Verify all seven clean Fedora rows, publish exact admission receipt and check ordinary dispatch | 15–30 min; one admission history |
-| [ ] | F07 | [Refresh an owned live Ubuntu VM](Fixture-Tasks/F07-ubuntu-live.md) | F49 | Maintenance sync, same-boot fixture update, quiescence and diagnostic provenance on Ubuntu | 30–60 min; one complete target history |
-| [ ] | F08 | [Refresh an owned live Fedora VM](Fixture-Tasks/F08-fedora-live.md) | F07 | Same shared maintenance sync and same-boot native fixture update on Fedora | 30–60 min; one complete target history |
-| [ ] | F13 | [Audit the final fixture lifecycle](Fixture-Tasks/F13-audit.md) | F08 | Independent final review, all-consumer disposition, bounded retention and exact both-target evidence | 20–30 min |
+| [ ] | F02 | [Build immutable host fixture bundles](Fixture-Tasks/F02-build.md) | F29 | Frozen sources, minimal target runtime closures and independent verified manifests | 20–30 min |
+| [ ] | F03 | [Reuse execution-owned fixture inputs](Fixture-Tasks/F03-publication.md) | F02 | Verified publication and authenticated handoff through existing input/retention owners | 20–30 min |
+| [ ] | F15 | [Provision through one fail-closed SSH boundary](Fixture-Tasks/F15-guest-transactions.md) | F03 | Finite staged placement/readback; failed attempts use owned VM recovery | 20–30 min |
+| [ ] | F11 | [Decouple Ubuntu snapshots from fixture payloads](Fixture-Tasks/F11-ubuntu-snapshots.md) | F15 | Clean environment/app captures, owned legacy retirement and dependency identities | 30–60 min; one target history |
+| [ ] | F05 | [Qualify Ubuntu fixture provisioning](Fixture-Tasks/F05-ubuntu-provision.md) | F11 | Minimum closure, exact trust, harmless runtime use and failure recovery on clean Ubuntu | 30–60 min; one target history |
+| [ ] | F12 | [Decouple Fedora snapshots from fixture payloads](Fixture-Tasks/F12-fedora-snapshots.md) | F05 | The same clean capture/recovery boundary on Fedora | 30–60 min; one target history |
+| [ ] | F06 | [Qualify Fedora fixture provisioning](Fixture-Tasks/F06-fedora-provision.md) | F12 | Shared provisioning with enforcing SELinux, exact admissions and cleanup | 30–60 min; one target history |
+| [ ] | F09 | [Integrate Ubuntu product-free system preparation](Fixture-Tasks/F09-ubuntu-runners.md) | F06 | Real product-free system/bootstrap branch on clean captures | 30–60 min; one envelope history |
+| [ ] | F10 | [Integrate Fedora product-free system preparation](Fixture-Tasks/F10-fedora-runners.md) | F09 | The same product-free system/bootstrap branch on Fedora | 30–60 min; one envelope history |
+| [ ] | F16 | [Integrate Ubuntu installed-system preparation](Fixture-Tasks/F16-ubuntu-installed-system.md) | F10 | Explicit offline app restore and shared fixture readiness | 30–60 min; one envelope history |
+| [ ] | F17 | [Integrate Fedora installed-system preparation](Fixture-Tasks/F17-fedora-installed-system.md) | F16 | The same offline installed-system branch on Fedora | 30–60 min; one envelope history |
+| [ ] | F18 | [Integrate Ubuntu installed E2E preparation](Fixture-Tasks/F18-ubuntu-installed-e2e.md) | F17 | Online rebind, shared readiness and offline alias composition | 30–60 min; one envelope history |
+| [ ] | F19 | [Integrate Fedora installed E2E preparation](Fixture-Tasks/F19-fedora-installed-e2e.md) | F18 | The same installed E2E preparation on Fedora | 30–60 min; one envelope history |
+| [ ] | F20 | [Integrate Ubuntu product-free E2E preparation](Fixture-Tasks/F20-ubuntu-product-free-e2e.md) | F19 | Clean graphical entry; fixtures before customer package input | 30–60 min; one envelope history |
+| [ ] | F21 | [Integrate Fedora product-free E2E preparation](Fixture-Tasks/F21-fedora-product-free-e2e.md) | F20 | The same product-free graphical preparation on Fedora | 30–60 min; one envelope history |
+| [ ] | F22 | [Integrate Ubuntu transfer qualification](Fixture-Tasks/F22-ubuntu-transfer-qualification.md) | F21 | Standalone transfer stages reusable payload only after SSH readiness | 30–60 min; one envelope history |
+| [ ] | F23 | [Integrate Fedora transfer qualification](Fixture-Tasks/F23-fedora-transfer-qualification.md) | F22 | The same standalone transfer preparation on Fedora | 30–60 min; one envelope history |
+| [ ] | F25 | [Integrate Ubuntu serial qualification](Fixture-Tasks/F25-ubuntu-serial-qualification.md) | F23 | Standalone serial/authenticated aliases retain recipient/bootstrap guards | 30–60 min; one envelope history |
+| [ ] | F26 | [Integrate Fedora serial qualification](Fixture-Tasks/F26-fedora-serial-qualification.md) | F25 | The same standalone serial preparation on Fedora | 30–60 min; one envelope history |
+| [ ] | F27 | [Integrate Ubuntu recorded serial preparation](Fixture-Tasks/F27-ubuntu-recorded-serial.md) | F26 | Recorded harness owns shared readiness before worker input | 30–60 min; one envelope history |
+| [ ] | F28 | [Integrate Fedora recorded serial preparation](Fixture-Tasks/F28-fedora-recorded-serial.md) | F27 | The same recorder/serial preparation on Fedora | 30–60 min; one envelope history |
+| [ ] | F07 | [Refresh an idle owned Ubuntu VM](Fixture-Tasks/F07-ubuntu-live.md) | F28 | Same-subset diagnostic update at a proven idle maintenance boundary | 30–60 min; one target history |
+| [ ] | F08 | [Refresh an idle owned Fedora VM](Fixture-Tasks/F08-fedora-live.md) | F07 | The same idle same-boot update with Fedora labels/native activation | 30–60 min; one target history |
+| [ ] | F13 | [Audit the final fixture lifecycle](Fixture-Tasks/F13-audit.md) | F08 | Independent review, complete consumer disposition and exact both-target proof | 20–30 min |
 
-Each task owns its complete finite safety validation and cleanup. Ordinary rows
-target 15–30 minutes. F32/F50 have explicit 30–60 minute exceptions for one
-indivisible ownership/activation state machine. Target qualification rows have
-30–60 minute exceptions for one complete preparation envelope/history; F48/F49
-are smaller admission gates. The clean-schema repetitions are prerequisites of
-enablement, never validation deferred to the final review. Newly discovered
-independent work uses the [shared prerequisite contract](../Execution-Plans.md#execution-and-delegation)
-without weakening scope or acceptance. Completion requires its declared acceptance.
+The earlier unfinished F04/F14 cache tasks, F24/F30 legacy codecs,
+F31/F32/F33/F50 native/process/import machinery and F34–F49 repeated
+qualification/admission tasks are withdrawn, not completed. Their temporary
+briefs are removed. Existing producer/retention/VM safety contracts remain.
+
+Each installed runner row qualifies its actual envelope once against clean
+captures. These are fixture preparation checks and stop before product/worker
+input; they supply no product or E2E completion credit. All target rows keep
+their own refusal, positive-use and owned-cleanup proof. Shared changes renew
+affected earlier target results. New independent work follows the
+[shared prerequisite contract](../Execution-Plans.md#execution-and-delegation).

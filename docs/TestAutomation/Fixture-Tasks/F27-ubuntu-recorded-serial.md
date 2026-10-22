@@ -6,23 +6,36 @@ Requires: F26
 
 ## Scope and implementation
 
-Migrate the recorded serial E2E [matrix row](../Fixture-Design.md#runner-acceptance-matrix).
-Read `serial_harness.record_serial_journey`, `execution.ScenarioContext`, recorder
-setup/worker ownership and F01's exact preparation binding. Use the shared SSH
-provisioner after transport readiness and before serial worker input. Preserve
-the recorder's setup/start boundary, credential/getty lifetime and private seals.
-This is a distinct caller from standalone `check_graphical_smoke.Smoke.execute`.
+Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
+[source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
+Migrate `serial_harness.record_serial_journey` under
+`execution.ScenarioContext` and its recorder. Read the full worker/recorder/
+credential/getty/provisioning chain. Preserve setup/start ordering, private seals,
+HAR09/HAR10 stage completion, durable observations before replies, boot continuity,
+logout/session absence and owned worker shutdown. This is a distinct preparation
+caller from standalone Smoke.
 
-## Finite acceptance
+Reuse the execution-owned immutable input and single SSH provisioner on clean
+captures. Bind readiness to the actual restored/rebound boot and attempt.
+Enable only this qualified target/branch; other unmigrated branches must refuse.
+Keep platform-specific corrections in their shared owning adapter.
 
-Run affected host fixture/recorder/provenance/cleanup checks. Register/list the
-planned binding before
-`tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_recorded_serial`.
-Invoke the real recorded harness preparation through fixture readiness and
-independently read/execute a harmless fixture witness over owned SSH. Stop before
-serial input or any product action/assertion. Prove a fresh receipt, unchanged
-attempt pin under a host edit, missing/stale refusal without input and recorder
-provenance bound to the exact pin. Host composition checks preserve the original
-serial/secret guards without requalifying authentication or customer behavior.
-Finish watched restoration, credentials/transport/pins and recorder cleanup,
-update delivered owners and close through the [master](../Fixture-Execution-Plan.md).
+## Acceptance and cleanup
+
+Run exact affected host composition/provenance/ownership safety selections.
+Register/list the planned `check_fixture_recorded_serial` before invoking:
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_recorded_serial
+```
+
+Invoke the actual recorded harness preparation through shared readiness and
+harmless native use. Stop before serial worker input or product assertions.
+Host composition preserves serial/secret guards; recorder provenance binds the
+same immutable fixture input. Finish recorder cleanup as well as VM/transport.
+Prove selected manifest bytes independently, positive runtime use, fresh readiness,
+missing/incompatible refusal before input and no version switch under host edits.
+No complete fixture collection is copied into results; preserve scenario mutations.
+Finish watched owned restoration and credential/staging/input/transport cleanup.
+Update delivered runner/support owners and close through the
+[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.

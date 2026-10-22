@@ -6,25 +6,36 @@ Requires: F19
 
 ## Scope and implementation
 
-Migrate the graphical product-free E2E preparation
-[matrix row](../Fixture-Design.md#runner-acceptance-matrix). Read `InstalledJourney`
-product-free branch and dormant `install_current_package` guard, product-free entry,
-package/upgrade consumers, private asset staging and F01's exact branch bindings.
-Establish owned SSH and provision the selected closure before customer package
-input. Preserve deliberate installation/update mutations; generic preparation
-does not install the product or preseed policy. Host branch tests must keep the
-current-install setup ordering explicit rather than merging it with clean entry.
+Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
+[source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
+Migrate `InstalledJourney.product_free` and the asset-bearing package/upgrade
+preparations. Read complete asset/bootstrap callers and the design's exact smoke
+exceptions. Provision after owned SSH readiness, before customer package input.
+GDM-only selects an empty closure. Retain dormant `install_current_package`,
+`check_parent_about` and `check_parent_access` guards with host coverage;
+this task does not enable them. Preserve all scenario installation/update and
+document/attachment/version/launcher checkpoints.
 
-## Finite acceptance
+Reuse the execution-owned immutable input and single SSH provisioner on clean
+captures. Bind readiness to the actual restored/rebound boot and attempt.
+Enable only this qualified target/branch; other unmigrated branches must refuse.
+Keep platform-specific corrections in their shared owning adapter.
 
-Run affected host composition/input/provenance tests. Register/list the planned
-binding before
-`tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_product_free`.
-Invoke F01's real graphical product-free preparation binding and observe product
-absence and selected fixture readiness/use over SSH before package input. Stop
-there without a product install, action or assertion.
-Prove missing/stale input refusal, one pin despite host edits, fresh reboot
-readiness and no hidden preboot fixture upload or full result-tree cache copy.
-Host tests cover the dormant current-install setup guard; enabling a new consumer
-of that distinct branch requires its own preparation-only prerequisite. Finish watched restoration and transport/pin
-cleanup, update delivered owners and close through the [master](../Fixture-Execution-Plan.md).
+## Acceptance and cleanup
+
+Run exact affected host composition/provenance/ownership safety selections.
+Register/list the planned `check_fixture_e2e_product_free` before invoking:
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_product_free
+```
+
+Prove actual product-free graphical entry, product absence and selected native
+use, or the declared empty GDM-only closure. No preboot reusable payload upload.
+Stop before customer package input or product assertions.
+Prove selected manifest bytes independently, positive runtime use, fresh readiness,
+missing/incompatible refusal before input and no version switch under host edits.
+No complete fixture collection is copied into results; preserve scenario mutations.
+Finish watched owned restoration and credential/staging/input/transport cleanup.
+Update delivered runner/support owners and close through the
+[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.

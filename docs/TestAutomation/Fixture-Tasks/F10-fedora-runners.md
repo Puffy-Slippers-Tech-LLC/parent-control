@@ -4,33 +4,40 @@ Acceptance: installed
 Targets: onpc-Fedora44
 Requires: F09
 
-## Purpose and scope
+## Scope and implementation
 
-Migrate the Fedora product-free system row of the
-[runner matrix](../Fixture-Design.md#runner-acceptance-matrix) through F09's shared
-API, preserving public results and native policy. Other Fedora envelopes remain
-gated until their own paired rows; remove no readiness guard for those consumers.
+Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
+[source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
+Migrate the product-free system branch through
+`system_snapshots._run_attempts(installed=False)` and
+`system_runner.installed_run(already_installed=False)`. Read complete artifact/
+named-input and attempt preparation callers. Preserve lifecycle/history,
+first-configure/PAM and `fresh_install` dispatch and previous-package requirements.
+Factor the same boundary for `check_parent_setup`, `check_parent_input` and
+`check_parent_standard_input` after `Transport.probe_ready`, before
+`InstalledSetup.run`. All three aliases need host composition coverage.
 
-## Read and implement
+Reuse the execution-owned immutable input and single SSH provisioner on clean
+captures. Bind readiness to the actual restored/rebound boot and attempt.
+Enable only this qualified target/branch; other unmigrated branches must refuse.
+Preserve enforcing SELinux, exact native admissions and labels. Renew affected
+Ubuntu checks after shared corrections.
 
-Read F09's complete product-free envelope/caller/provenance chain, F01's Fedora binding,
-F06's runtime activation and the affected registered system/E2E/qualification
-bindings. Make bounded platform corrections in shared owners; do not copy case
-setup, weaken assertions or claim another queue's acceptance.
+## Acceptance and cleanup
 
-## Finite validation and cleanup
+Run exact affected host composition/provenance/ownership safety selections.
+Register/list the planned `check_fixture_system_product_free` before invoking:
 
-Run exact affected host safety tests first. Register/list the planned engineering
-binding `check_fixture_system_product_free` before invoking
-`tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_system_product_free`
-(planned until registered). Invoke F01's product-free system preparation binding
-through the actual `installed=False` branch. Read/execute a harmless fixture witness
-over SSH, then stop before package input or any product action/assertion. Observe
-readiness with the product absent and no retained full fixture copy. Prove immutable
-bundle/subset selection, correct trust/labels, fresh boot/attempt receipts after
-restore, stale/missing failure before scenario input and no host `latest` switch
-mid-run. Preserve scenario-owned mutations and package installation behavior.
-Use harmless fixture witnesses over owned SSH and exact infrastructure evidence only.
-Complete every owned lease/transport/pin cleanup, renew Ubuntu results invalidated
-by shared changes, update existing runner/provenance owners and close through the
-[master](../Fixture-Execution-Plan.md).
+```sh
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_system_product_free
+```
+
+Use the selected trusted-native hard witness as Riley, with no desktop file.
+Observe product absence and stop before installation input or any system phase.
+No installed-snapshot result substitutes for this bootstrap branch.
+Prove selected manifest bytes independently, positive runtime use, fresh readiness,
+missing/incompatible refusal before input and no version switch under host edits.
+No complete fixture collection is copied into results; preserve scenario mutations.
+Finish watched owned restoration and credential/staging/input/transport cleanup.
+Update delivered runner/support owners and close through the
+[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.

@@ -2,49 +2,34 @@
 
 Acceptance: installed
 Targets: onpc-Ubuntu26.04
-Requires: F28
+Requires: F15
 
-## Purpose and scope
+## Scope and implementation
 
-Deliver Ubuntu's [snapshot/dependency split](../Fixture-Design.md#runner-and-snapshot-migration).
-New snapshots contain environment dependencies and the installed product where
-appropriate, with movable fixture payloads excluded. Ordinary new-schema dispatch
-stays disabled until F34–F40 and F48 complete; this task does not enable cutover.
+Implement Ubuntu's [clean snapshot boundary](../Fixture-Design.md#runner-and-snapshot-migration).
+Read complete `prepare_vm.SCRIPT_FILES`/digest, baseline guest/capture/fixture
+ownership, app snapshot, online credential and standalone app preparation paths.
+Separate runtime dependency ABI from fixture-only bytes while preserving product
+and genuinely shared source invalidation.
 
-## Read and implement
+Recover existing VM owners before changing writers. Retire the complete proven
+owned legacy movable inventory, exact admissions and retained source copies
+before capture; preserve environment settings and avatar/recovery data. Refuse
+ambiguous ownership rather than importing or sweeping it. Preserve legacy
+stop/restoration. Unmigrated consumers must refuse clean captures before input.
+Update VM/approval/environment owners only for the delivered Ubuntu boundary.
 
-Read F01's complete digest/capture/recovery map, `prepare_vm.SCRIPT_FILES` /
-`preparation_digest`, `baseline_guest.prepare`, `prepare_baseline.inspect_guest`,
-`baseline_fixtures.verify`, `tests/e2e/app_snapshot.py`, `prepare_snapshot.py`,
-`tests/integration/online_snapshot.py`, `tools/prepare_appsnapshot.py`,
-`artifact_inputs.py`, `e2e_startup_cache.py` and affected baseline/snapshot tests.
-Separate dependency/provisioning ABI from fixture-only changes without dropping
-actual product/shared-file dependency tracking. Remove movable fixture compilation
-from new baseline preparation; verify clean capture and no pending transaction.
-Use F24/F30's version-dispatched [legacy matrix](../Fixture-Design.md#legacy-recovery-compatibility)
-and F33's complete movable-set/source-copy retirement.
-Preserve original-schema legacy recovery rather than making old owners impossible
-to stop/restore. Update mandate/approval/environment owners for the delivered
-Ubuntu boundary, keeping Fedora migration explicit until F12.
+## Acceptance and cleanup
 
-## Finite validation and cleanup
+Run affected baseline/capture/recovery safety tests first. Register/list the
+planned `check_fixture_snapshots` binding. Use a separately invoked authorized
+auto-mode preparation refresh to prove clean baseline/app captures, standalone
+app preparation without movable fixtures, legacy recovery and fixture-only source
+changes leaving snapshot identities valid. Actual dependency/product changes
+must still invalidate. Audit archived input trees and the baseline preparation
+checkout as well as runtime destinations. No hidden fixture fallback is allowed.
+Record preparation separately from later same-boot refresh, finish watched owned
+restoration and keep other targets gated until their own delivery.
 
-Run isolated baseline/capture/recovery safety checks first. A separately invoked,
-authorized auto-mode baseline/app refresh may establish this new schema; record
-it distinctly from sync. Through registered engineering bindings prove clean
-baseline/app capture, restore plus minimum dynamic provisioning, old-schema
-stop/restoration after current fixture/dependency source changes, legacy recovery
-and a subsequent fixture-only A→B host edit/use in fresh attempts without changed
-baseline/app snapshot identity. F07 separately owns same-boot live refresh after
-this dependency split is delivered. Dependency ABI and real product changes still
-invalidate their own caches. Prove standalone app preparation needs no movable
-fixtures and no consumer silently uses an embedded fallback. Audit archived
-`onpc-system-input-snapshot-*`, E2E asset, native trust/barrier and retained
-baseline-preparation checkout locations too; renaming a payload cannot pass clean
-capture. Require the initial both-target integration matrix before schema
-preparation, then register the fixed engineering qualification route for all
-seven clean Ubuntu rows. Ordinary dispatch must refuse without the matching F48
-receipt. F34–F40 repeat readiness/use/refusal/cleanup through each actual envelope
-on these clean snapshots before F48 enables it. Preserve stale-acquisition refusal
-for legacy snapshots while original accepted cleanup remains usable. Complete owned
-restoration/pin cleanup and close through the [master](../Fixture-Execution-Plan.md).
+Follow the [master](../Fixture-Execution-Plan.md) for reading, resource review,
+owned cleanup and ordinary evidence/Git close-out.

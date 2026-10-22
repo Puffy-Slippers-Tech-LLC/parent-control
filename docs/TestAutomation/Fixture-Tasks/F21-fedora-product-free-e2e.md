@@ -6,21 +6,37 @@ Requires: F20
 
 ## Scope and implementation
 
-Qualify the graphical product-free E2E [matrix row](../Fixture-Design.md#runner-acceptance-matrix)
-on Fedora. Read F20's complete product-free entry/asset chain and dormant
-current-install guard, F01's Fedora
-binding and native trust/label actions. Preserve package transaction and product
-assertions, clean entry, enforcing SELinux and all guarded input boundaries.
+Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
+[source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
+Migrate `InstalledJourney.product_free` and the asset-bearing package/upgrade
+preparations. Read complete asset/bootstrap callers and the design's exact smoke
+exceptions. Provision after owned SSH readiness, before customer package input.
+GDM-only selects an empty closure. Retain dormant `install_current_package`,
+`check_parent_about` and `check_parent_access` guards with host coverage;
+this task does not enable them. Preserve all scenario installation/update and
+document/attachment/version/launcher checkpoints.
 
-## Finite acceptance
+Reuse the execution-owned immutable input and single SSH provisioner on clean
+captures. Bind readiness to the actual restored/rebound boot and attempt.
+Enable only this qualified target/branch; other unmigrated branches must refuse.
+Preserve enforcing SELinux, exact native admissions and labels. Renew affected
+Ubuntu checks after shared corrections.
 
-Run affected isolated safety checks and register/list the planned binding before
-`tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_product_free`.
-Invoke the actual graphical product-free preparation to prove clean entry and
-selected fixture readiness/use over SSH. Stop before package input, product
-actions or assertions.
-Observe fresh reboot receipts, correct trust/labels, missing/incompatible refusal,
-immutable attempt pin and no preboot fixture upload/result-tree cache copy.
-Preserve F20's explicit branch/alias allocation; different branches need their
-own live prerequisite. Finish watched restoration and transport/pin cleanup,
-renew affected Ubuntu proof and update owners through the [master](../Fixture-Execution-Plan.md).
+## Acceptance and cleanup
+
+Run exact affected host composition/provenance/ownership safety selections.
+Register/list the planned `check_fixture_e2e_product_free` before invoking:
+
+```sh
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_product_free
+```
+
+Prove actual product-free graphical entry, product absence and selected native
+use, or the declared empty GDM-only closure. No preboot reusable payload upload.
+Stop before customer package input or product assertions.
+Prove selected manifest bytes independently, positive runtime use, fresh readiness,
+missing/incompatible refusal before input and no version switch under host edits.
+No complete fixture collection is copied into results; preserve scenario mutations.
+Finish watched owned restoration and credential/staging/input/transport cleanup.
+Update delivered runner/support owners and close through the
+[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.

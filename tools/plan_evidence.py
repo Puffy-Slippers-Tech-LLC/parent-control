@@ -105,7 +105,8 @@ def _turn(path, task_id, *, plan=None):
             or value['result_sha256'] is not None and not _hash(value['result_sha256'])):
         raise ValueError('plan evidence: invalid retained turn')
     contents = {name: _read(path / name) for name in value['files']}
-    if any(_digest(contents[name]) != hashed for name, hashed in value['files'].items()):
+    if (path.name != _digest(bundle.encoded(value))
+            or any(_digest(contents[name]) != hashed for name, hashed in value['files'].items())):
         raise ValueError('plan evidence: retained turn changed')
     if value['result_sha256'] is not None and value['files'].get('agent-result.json') != value['result_sha256']:
         raise ValueError('plan evidence: retained turn result changed')

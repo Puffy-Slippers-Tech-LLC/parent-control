@@ -12,6 +12,7 @@ import runpy
 import shutil
 import stat
 import tempfile
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import Mock
 import uuid
@@ -1304,7 +1305,8 @@ def test_discard_keeps_vm_and_compatibility_leases_through_removal(tmp_path, mon
     directory.mkdir(mode=0o700)
     monkeypatch.setattr(baseline, 'BASELINES', directory)
     monkeypatch.setattr(baseline.guest_contract.vm_config, 'STATE_ROOT', tmp_path)
-    (directory / 'phase.json').write_text('{"phase":"finalized"}')
+    (directory / 'phase.json').write_text(json.dumps({
+        'phase': 'finalized', 'source': {'layout': {'uuid': str(uuid.uuid4())}}}))
     (directory / 'phase.json').chmod(0o600)
     store = retention.Store(tmp_path / 'state')
     with store.session():
@@ -2636,7 +2638,9 @@ def test_privileged_guard_reads_the_shared_recovery_journal(tmp_path, monkeypatc
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     monkeypatch.setattr(baseline, 'BASELINES', tmp_path)
-    for name, content in (('.lock', ''), ('phase.json', '{"phase":"finalized"}'),
+    finalized = json.dumps({'phase': 'finalized',
+                            'source': {'layout': {'uuid': str(uuid.uuid4())}}})
+    for name, content in (('.lock', ''), ('phase.json', finalized),
                           ('system-run.json', json.dumps({'phase': phase}))):
         path = tmp_path / name
         path.write_text(content)
@@ -2656,7 +2660,9 @@ def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch
     directory.mkdir(mode=0o700)
     monkeypatch.setattr(baseline, 'BASELINES', directory)
     monkeypatch.setattr(baseline.guest_contract.vm_config, 'STATE_ROOT', tmp_path)
-    for name, content in (('phase.json', '{"phase":"finalized"}'),
+    finalized = json.dumps({'phase': 'finalized',
+                            'source': {'layout': {'uuid': str(uuid.uuid4())}}})
+    for name, content in (('phase.json', finalized),
                           ('system-run.json', '{"phase":"complete"}')):
         path = directory / name
         path.write_text(content)
@@ -2669,10 +2675,20 @@ def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch
     vm_lock_path = directory / '.lock'
     assert vm_lock_path.is_file()
     for busy_path in (vm_lock_path, lock_path):
-        with busy_path.open('rb') as lock:
+        started = Event()
+        def guarded():
+            started.set()
+            dispatcher['retention_guard'](root)
+        with ThreadPoolExecutor(max_workers=1) as worker, busy_path.open('rb') as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            with pytest.raises(BlockingIOError):
-                dispatcher['retention_guard'](root)
+            pending = worker.submit(guarded)
+            try:
+                assert started.wait(timeout=5)
+                with pytest.raises(TimeoutError):
+                    pending.result(timeout=0.1)
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                assert pending.result(timeout=5) is None
         dispatcher['retention_guard'](root)
 
     # A newer controller for another VM shares the compatibility lease and
@@ -2686,7 +2702,7 @@ def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch
         fcntl.flock(other.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         dispatcher['retention_guard'](root)
 
-    # Success and refusal must both release every descriptor they acquired.
+    # Completed guard calls must release every descriptor they acquired.
     for released_path in (vm_lock_path, lock_path):
         with released_path.open('rb') as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)

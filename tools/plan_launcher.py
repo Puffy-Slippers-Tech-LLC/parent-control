@@ -725,7 +725,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     # owner before preservation, and Git/question/reconciliation retain state.
     'test_retention.py', 'test_storage.py', 'test_input_transfer.py',
     'launcher_git.py', 'launcher_worktrees.py', 'onpc-test-artifacts', 'launcher_question.py',
-    'plan_reconciliation.py', 'vm_selection.py', '../tests/integration/vm_config.py',
+    'plan_reconciliation.py', 'vm_selection.py', 'vm_pool.py', '../tests/integration/vm_config.py',
     'evidence_identity.py', 'evidence_capture.py', 'capture_publication.py',
     'recording_storage.py', 'artifact_export.py',
     # Runner terminal records now supply the exact provenance retained by

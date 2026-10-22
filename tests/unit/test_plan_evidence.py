@@ -158,7 +158,8 @@ def test_rejected_and_missing_responses_preserve_truthful_terminal_bytes(campaig
     assert proof.recover(campaign.plan)['tasks'] == {}
 
 
-def test_turn_capture_refuses_unfinished_cleanup_and_changed_source(campaign):
+@pytest.mark.parametrize('rewrite_manifest', [False, True])
+def test_turn_capture_refuses_unfinished_cleanup_and_changed_source(campaign, rewrite_manifest):
     run, state, result, _ = campaign.accepted('consumer')
     with pytest.raises(ValueError, match='cleanup has not finished'):
         proof.retain_turn(campaign.plan, run, state, result)
@@ -167,6 +168,12 @@ def test_turn_capture_refuses_unfinished_cleanup_and_changed_source(campaign):
     finish_nested(campaign.plan.root, run)
     target = proof.retain_turn(campaign.plan, run, state, result)
     (target / 'agent-commands.log').write_text('changed original command')
+    if rewrite_manifest:
+        # Coordinated edits must not rewrite history under its protected,
+        # content-addressed checkpoint path, even with matching member hashes.
+        manifest = json.loads((target / 'turn.json').read_bytes())
+        manifest['files']['agent-commands.log'] = proof._digest((target / 'agent-commands.log').read_bytes())
+        (target / 'turn.json').write_bytes(bundle.encoded(manifest))
     before = copy.deepcopy(state)
     with pytest.raises(ValueError, match='retained turn changed'):
         proof.carry(campaign.plan, run, state)

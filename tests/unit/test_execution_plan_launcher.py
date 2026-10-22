@@ -315,7 +315,7 @@ ORIGINAL_VALIDATOR_SOURCES = (
 ADDED_VALIDATOR_SOURCES = (
     'test_retention.py', 'test_storage.py', 'test_input_transfer.py', 'launcher_git.py', 'launcher_worktrees.py',
     'onpc-test-artifacts', 'launcher_question.py', 'plan_reconciliation.py',
-    'vm_selection.py', '../tests/integration/vm_config.py', 'evidence_identity.py',
+    'vm_selection.py', 'vm_pool.py', '../tests/integration/vm_config.py', 'evidence_identity.py',
     'evidence_capture.py', 'capture_publication.py', 'recording_storage.py', 'artifact_export.py',
     'runner_evidence.py', 'regression.py', 'regression_process.py',
     'regression_events.py', 'test_commands.py', 'vm_test_queue.py',
@@ -2681,6 +2681,82 @@ def test_real_handoffs_survive_five_restarts_and_git_retry_after_raw_rotation(
         assert rig.plan.state()['001'] is False
 
 
+def test_structured_acceptance_survives_runner_rotations_and_fresh_git_retry(
+        rig, monkeypatch, real_plan_evidence):
+    import evidence_capture as capture
+    import runner_evidence as runner
+
+    bundle = real_plan_evidence.bundle
+    proof = workflow.plan_evidence
+    monkeypatch.delenv('ONPC_RUNNER_INVOCATION', raising=False)
+    monkeypatch.setattr(capture, '_authenticated_caller',
+                        lambda: dict(uid=os.geteuid(), gid=os.getegid()))
+    monkeypatch.setattr(runner.regression_inputs, 'identity', lambda root: 'f' * 64)
+    reports = bundle.retention.Store(bundle.storage.directory('state') / 'retention-host')
+
+    def produce(payload):
+        with reports.session():
+            allocation = Path(bundle.retention.allocate(tempfile.mkdtemp,
+                prefix='onpc-structured-retry-', dir=bundle.storage.directory('reports')))
+            report = allocation / 'report.md'
+            report.write_bytes(payload)
+            report.chmod(0o600)
+            producer = runner.ReportEvidence(rig.root, allocation)
+            published = producer.finalize(members=[dict(path=report, role='result')],
+                categories=[dict(name='unit', selected_ids=['exact-case'])],
+                status='passed', cleanup='complete', sources_sha256='f' * 64,
+                inputs=dict(selector=['unit', 'exact-case']))
+        record = published['records'][-1]
+        member = next(item for item in record['members'] if item['original_path'] == str(report))
+        reference = next(item for item in published['references']
+                         if item['member_id'] == member['member_id'])
+        consumer = next(item for item in published['consumers']
+                        if item['expected_context'] == record['context'])
+        return report, dict(schema='onpc-plan-evidence', version=1,
+                            reference=reference, consumer=consumer, record=record)
+
+    original, declaration = produce(b'exact original structured acceptance\n')
+    calls, results = [], []
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        calls.append((state['task_id'], state['task_sessions'], state['total_sessions']))
+        complete(rig.plan, state['task_id'])
+        result = response(state)
+        result['checks'][0]['evidence'] = json.dumps(declaration, sort_keys=True)
+        workflow.launcher.atomic(run / 'agent-result.json', result)
+        results.append(result)
+        return result
+
+    failing = [True]
+    def git(root, *args, **kwargs):
+        return SimpleNamespace(stdout='', stderr='private push retry',
+                               returncode=int(args == ('push',) and failing[0]))
+    monkeypatch.setattr(workflow, 'execute', execute)
+    monkeypatch.setattr(workflow, 'git_output', git)
+    assert rig.worker() == 1
+    accepted_run = rig.run
+    accepted = proof.recover(rig.plan)
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert saved['pending_completion'] == results[0]
+    assert TaskBudget(rig.run).read()['completed'] == 0
+    for _ in range(5):
+        state = real_plan_evidence.restart()
+        produce(b'unrelated later runner result\n')
+        assert state['task_sessions'] == state['total_sessions'] == 1
+        assert state['pending_completion'] == results[0]
+    assert not accepted_run.exists() and not original.exists()
+    assert runner.resolve_reference(rig.root, declaration['reference'],
+        consumer=declaration['consumer']) == b'exact original structured acceptance\n'
+    failing[0] = False
+    assert rig.worker(state) == 0
+    assert calls == [('001', 1, 1)] and len(results) == 1
+    assert TaskBudget(rig.run).read()['completed'] == 1
+    current = proof.recover(rig.plan)
+    assert current['tasks']['001'] == accepted['tasks']['001']
+    assert json.loads(bundle.inspect(rig.root, os.geteuid(), os.getegid(), current['bundle'],
+        member=current['tasks']['001']['result'], count=bundle.MAX_READ)) == results[0]
+
+
 @pytest.mark.parametrize('failure', ['pull', 'stage', 'commit', 'push'])
 def test_default_git_failure_retains_acceptance_and_retries_before_next_task(rig, monkeypatch, failure):
     events = []
@@ -4334,7 +4410,7 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
         'execute-plan', 'plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'detached_launcher.py',
         'launcher_git.py', 'launcher_runtime.py', 'launcher_progress.py',
         'launcher_question.py', 'launcher_view.py', 'launcher_display.py',
-        'launcher_chat.py', 'launcher_render.py', 'watch_output.py', 'vm_selection.py',
+        'launcher_chat.py', 'launcher_render.py', 'watch_output.py', 'vm_selection.py', 'vm_pool.py',
         'test_storage.py', 'test_retention.py', 'test_input_transfer.py',
         'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py',
         'plan_response.schema.json', 'plan_monitor.toml', 'plan_worker.toml',

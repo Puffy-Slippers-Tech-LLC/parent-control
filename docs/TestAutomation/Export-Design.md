@@ -331,6 +331,10 @@ so legacy relocation in `recording_control.py` is outside that route. Rendering
 modules and thin ordinary adapters add no separate evidence decision engine.
 The ordinary adapters share capture, working publication, structured consumption
 and accepted Git retry; specialized repair/E2E consumers remain assigned to E07a.
+The shared VM checkout receipt also registers `tools/vm_pool.py`: its receipt
+identity and attachment/queue guards govern retained owner and selection decisions
+through `detached_launcher.py` and `vm_selection.py`. Its actual bytes join the
+same restart histories; private detached checkouts include that runtime dependency.
 
 Change actual dependency-file bytes in fixtures, including an extracted module
 while the original eight guarded files remain unchanged. Assert session-boundary

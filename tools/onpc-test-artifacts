@@ -107,6 +107,24 @@ def nonnegative(value):
     return number
 
 
+def canonical_consumer(value, encode):
+    def unique(pairs):
+        result = {}
+        for key, item in pairs:
+            if key in result:
+                raise ValueError('bundle: duplicate consumer key')
+            result[key] = item
+        return result
+
+    def nonfinite(_value):
+        raise ValueError('bundle: nonfinite consumer number')
+
+    consumer = json.loads(value, object_pairs_hook=unique, parse_constant=nonfinite)
+    if not isinstance(consumer, dict) or value.encode('utf-8') != encode(consumer):
+        raise ValueError('bundle: consumer must be one canonical JSON object')
+    return consumer
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     actions = parser.add_subparsers(dest='action', required=True)
@@ -124,6 +142,8 @@ def main(argv=None):
         command.add_argument('--source', action='append', default=[])
         command.add_argument('--bundle', action='append', default=[])
         command.add_argument('--reference', action='append', default=[])
+        command.add_argument('--record-reference', action='append', default=[])
+        command.add_argument('--consumer', action='append', default=[])
         if action == 'bundle-plan':
             command.add_argument('--summary', action='store_true')
         if action == 'bundle-export':
@@ -136,12 +156,27 @@ def main(argv=None):
             command.add_argument('--summary', action='store_true')
             command.add_argument('--path')
         if action == 'bundle-read':
-            command.add_argument('--path', required=True)
+            selector = command.add_mutually_exclusive_group(required=True)
+            selector.add_argument('--path')
+            selector.add_argument('--record-id')
+            command.add_argument('--member-id')
+            command.add_argument('--closure-sha256')
             command.add_argument('--bytes', type=nonnegative, default=8000)
             command.add_argument('--offset', type=nonnegative, default=0)
     actions.add_parser('bundle-finish', allow_abbrev=False)
     actions.add_parser('bundle-recover', allow_abbrev=False)
     args = parser.parse_args(argv)
+    if args.action == 'bundle-read':
+        structured = (args.record_id, args.member_id, args.closure_sha256)
+        if any(value is not None for value in structured) and (
+                args.path is not None or any(value is None for value in structured)):
+            parser.error('--record-id, --member-id and --closure-sha256 are required together, without --path')
+        if args.record_id is not None and any(
+                re.fullmatch(r'[0-9a-f]{64}', value) is None for value in structured):
+            parser.error('record, member and closure identities must be lowercase SHA-256 values')
+    if args.action in ('bundle-plan', 'bundle-export'):
+        if bool(args.record_reference) != bool(args.consumer) or len(args.consumer) > 1:
+            parser.error('--record-reference requires exactly one --consumer, and conversely')
     try:
         if CHECKOUT is None:
             raise ValueError('installation required')
@@ -151,6 +186,12 @@ def main(argv=None):
             sys.path.insert(0, str(Path(CHECKOUT) / 'tools'))
             import evidence_bundle
             if args.action in ('bundle-plan', 'bundle-export'):
+                structured = {}
+                if args.record_reference:
+                    consumer = canonical_consumer(args.consumer[0], evidence_bundle.encoded)
+                    # This is transport, not authority: Selection validates the
+                    # declaration against the authenticated plan/check owner.
+                    structured = dict(record_references=args.record_reference, consumer=consumer)
                 namespace = None
                 if args.plan is not None:
                     from execution_plan import Plan, plan_namespace
@@ -159,7 +200,7 @@ def main(argv=None):
                     with evidence_bundle.Selection(CHECKOUT, uid, gid, args.target,
                                                    args.source, args.bundle,
                                                    plan_namespace=namespace,
-                                                   references=args.reference) as selection:
+                                                   references=args.reference, **structured) as selection:
                         result = (selection.plan() if args.action == 'bundle-plan' else
                                   evidence_bundle.export(selection, expected=args.expect,
                                                          defer_cleanup=args.defer_cleanup))
@@ -176,7 +217,10 @@ def main(argv=None):
                 result = {'cleanup_complete': True}
             else:
                 result = evidence_bundle.inspect(CHECKOUT, uid, gid, args.source, **(
-                    dict(member=args.path, offset=args.offset, count=args.bytes)
+                    dict(offset=args.offset, count=args.bytes, **(
+                        dict(member=args.path) if args.path is not None else
+                        dict(record_id=args.record_id, member_id=args.member_id,
+                             closure_sha256=args.closure_sha256)))
                     if args.action == 'bundle-read' else {}))
             if isinstance(result, bytes):
                 sys.stdout.buffer.write(result)

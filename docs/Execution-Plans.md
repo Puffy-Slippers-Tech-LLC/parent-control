@@ -76,6 +76,18 @@ names the verified bundle and original members. Selected queue evidence links
 and verified destinations in previously completed rows move to that locator
 only after verification, retaining their labels and claims. Unfinished consumers
 remain protected. A locator alone is no acceptance.
+
+The accepted-evidence reader supports strict locator/ledger schemas 1 and 2.
+Schema 2 binds the exact ledger member, segment receipts, task proof and logical
+record closures described in the [evidence wire contract](TestAutomation/Export-Design.md#canonical-identities-and-wire-records).
+`plan_evidence.resolve_reference` resolves a structured member selector through a
+trusted `reference_scope(plan, document=...)`, checks the declared consumer's exact
+context against the authenticated checkout and plan journal, and keeps ownership
+and archive descriptors held throughout verification. Relocated segment storage
+preserves the logical selector. Generic/schema 1 locators remain navigation and
+cannot satisfy a structured reference. The ordinary preservation producer still
+writes schema 1; versioned publication is delivered separately.
+
 Publication recovery verifies the committed payload and publishes its matching
 locator before retiring recorded older generations. Ordinary session and export
 rotation remains bounded and unchanged.

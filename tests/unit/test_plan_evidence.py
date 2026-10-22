@@ -14,6 +14,7 @@ import pytest
 
 import evidence_bundle as bundle
 import plan_evidence as proof
+import evidence_identity as identities
 from execution_plan import plan_namespace
 
 
@@ -102,6 +103,19 @@ def test_git_retry_reuses_only_the_exact_verified_result(campaign):
     assert proof.preserve(campaign.plan, run, state, result) == retained
     with pytest.raises(ValueError, match='accepted result changed'):
         proof.preserve(campaign.plan, run, state, dict(result, summary='changed'))
+
+
+def test_command_log_with_quoted_key_fixture_survives_preservation_and_recovery(campaign):
+    run, state, result, _ = campaign.accepted('first')
+    commands = (b"source read: b'-----BEGIN OPENSSH "
+                + b"PRIVATE KEY-----\\nsecret'})\n")
+    (run / 'agent-commands.log').write_bytes(commands)
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    assert proof.recover(campaign.plan) == accepted
+    capsule = Path(accepted['tasks']['first']['result']).parent
+    assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(), accepted['bundle'],
+        member=str(capsule / 'agent-commands.log')) == commands
+    assert (run / 'agent-commands.log').read_bytes() == commands
 
 
 def test_startup_verifies_cumulative_archive_once_per_recovery(campaign, monkeypatch):
@@ -714,3 +728,167 @@ def test_privileged_reader_resolves_publication_as_authenticated_caller(tmp_path
         assert selected.publication_parent() == expected
         assert tuple(current) == caller
     assert current == [0, 0]
+
+
+def _structured_publication(campaign, *, media=None):
+    """Explicit synthetic v2 records; the existing controller stays a v1 producer."""
+    run, state, result, report = campaign.accepted('first')
+    if media is not None:
+        (report / 'required-media.bin').write_bytes(media)
+    legacy = proof.preserve(campaign.plan, run, state, result)
+    verified = bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(), legacy['bundle'])
+    journal = campaign.namespace / 'retention'
+    info, root_info = journal.stat(), campaign.plan.root.stat()
+    repository = dict(root=str(campaign.plan.root), device=root_info.st_dev,
+                      inode=root_info.st_ino, uid=os.geteuid())
+    owner = dict(repository_sha256=identities.digest(repository),
+        caller=dict(uid=os.geteuid(), gid=os.getegid()), journal=str(journal),
+        identity=dict(device=info.st_dev, inode=info.st_ino, mode=info.st_mode,
+                      uid=info.st_uid, gid=info.st_gid))
+    context = dict(repository=repository, workflow=campaign.plan.path, owner=owner,
+        run='1' * 32, task='first', check='unit', attempt='2' * 32, target='',
+        inputs_sha256='3' * 64, sources_sha256='4' * 64)
+    selected = legacy['tasks']['first']
+    def logical(entries, context):
+        members = []
+        for entry in entries:
+            role = ('result' if entry['path'] == selected['result'] else
+                    'cleanup' if Path(entry['path']).name == 'cleanup.json' else
+                    'media' if Path(entry['path']).name == 'required-media.bin' else 'input')
+            members.append(dict(role=role, original_path=entry['path'],
+                source_allocation=entry['allocation'], bytes=entry['bytes'],
+                sha256=entry['sha256'], required=True))
+        key = identities.record_id(context)
+        cleanup = sorted(identities.member_id(key, member) for member in members
+                         if member['role'] == 'cleanup')
+        return identities.finalize_record(dict(schema='onpc-evidence-record', version=1,
+            context=context, status='passed', completeness='complete', members=members,
+            dependencies=[], cleanup=dict(state='complete', record_members=cleanup,
+                scope=dict(owner=owner, resources=[]))))
+    record = logical(verified['manifest']['files'], context)
+    tasks = dict(first=dict(selected, record_refs=[dict(record_id=record['record_id'],
+                                                      closure_sha256=record['closure_sha256'])]))
+    ledger = dict(schema=2, plan=campaign.plan.path, generation=1,
+        previous_index_sha256=proof._digest(proof.locator(campaign.plan).read_bytes()),
+        tasks=tasks, records={record['record_id']: record},
+        segments=[dict(id='00', record_ids=[record['record_id']])])
+    source = run / 'structured'
+    source.mkdir(mode=0o700)
+    ledger_path = source / 'accepted-ledger.json'
+    raw = bundle.encoded(ledger)
+    ledger_path.write_bytes(raw)
+    with campaign.runs.inspection() as retained:
+        allocation = next(dict(item, journal=str(journal), run=entries['run'])
+            for entries in [*retained['history'], retained]
+            for item in entries['paths'] if item['path'] == str(run))
+    metadata = logical([dict(path=str(ledger_path), allocation=allocation,
+                            bytes=len(raw), sha256=bundle.digest(raw))],
+                       dict(context, check='ledger-metadata'))
+    with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [], [str(source)],
+            [legacy['bundle']], plan_namespace=plan_namespace(campaign.plan.path),
+            logical_records=[record, metadata]) as selection:
+        exported = bundle.export(selection, expected=selection.selection_sha256)
+    index = dict(schema=2, plan=campaign.plan.path, generation=1,
+        ledger=dict(segment_id='00', original_path=str(ledger_path)),
+        ledger_sha256=bundle.digest(raw), segments=[_structured_segment(campaign, exported)], tasks=tasks)
+    proof.locator(campaign.plan).write_bytes(bundle.encoded(index))
+    member = next(item for item in record['members'] if item['original_path'] == selected['result'])
+    selector = dict(record_id=record['record_id'], member_id=member['member_id'],
+                    closure_sha256=record['closure_sha256'])
+    consumer = dict(schema='onpc-evidence-consumer', version=1, consumer_id='5' * 64,
+        owner=owner, revision_sha256='6' * 64, role='required_evidence', expected_context=context,
+        references=[dict(kind='evidence', **selector)], state='accepted')
+    reference = (os.path.relpath(proof.locator(campaign.plan),
+                                (campaign.plan.root / campaign.plan.path).parent)
+        + '#onpc-evidence-v1:' + ':'.join(selector[key]
+            for key in ('record_id', 'member_id', 'closure_sha256')))
+    return SimpleNamespace(index=index, record=record, consumer=consumer, reference=reference,
+        scope=proof.reference_scope(campaign.plan, document=campaign.plan.path), result=result)
+
+
+def _structured_segment(campaign, exported):
+    parent = proof._parent(campaign.plan)
+    with bundle.retention.Store(parent / 'retention').inspection() as state:
+        entries = [*state['history'], state]
+        number, allocation = next((number, allocation)
+            for number, allocation in bundle.retention.latest_allocations(entries)
+            if allocation['path'] == str(Path(exported['path']).parent))
+        allocation = dict(allocation, journal=str(parent / 'retention'), run=entries[number]['run'])
+    return dict(id='00', bundle=allocation['path'], sha256=exported['sha256'],
+        selection_sha256=exported['selection_sha256'], allocation=allocation)
+
+
+def test_schema2_exact_reference_survives_physical_generation_rotation(campaign):
+    selected = _structured_publication(campaign)
+    original = selected.index['segments'][0]['bundle']
+    for _ in range(4):
+        with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [], [],
+                [str(Path(selected.index['segments'][0]['bundle']) / 'evidence.zip')],
+                plan_namespace=plan_namespace(campaign.plan.path)) as selection:
+            exported = bundle.export(selection, expected=selection.selection_sha256)
+        selected.index['segments'] = [_structured_segment(campaign, exported)]
+        proof.locator(campaign.plan).write_bytes(bundle.encoded(selected.index))
+        resolved = proof.resolve_reference(selected.reference, consumer=selected.consumer,
+                                           read_scope=selected.scope)
+        assert resolved['record'] == selected.record
+        assert bundle.decoded(resolved['data']) == selected.result
+    assert not Path(original).exists()
+    assert proof.recover(campaign.plan) == selected.index
+
+
+@pytest.mark.parametrize('defect', ['member', 'context', 'checkout', 'ledger', 'task', 'segment'])
+def test_schema2_refuses_existing_wrong_member_context_or_changed_closure(campaign, defect):
+    selected = _structured_publication(campaign)
+    consumer = copy.deepcopy(selected.consumer)
+    reference = selected.reference
+    if defect == 'member':
+        other = next(item for item in selected.record['members']
+                     if item['member_id'] != consumer['references'][0]['member_id'])
+        reference = reference.replace(consumer['references'][0]['member_id'], other['member_id'])
+    elif defect == 'context':
+        consumer['expected_context']['target'] = 'other-target'
+    elif defect == 'checkout':
+        # The archived owner is otherwise valid; only the live checkout inode changes.
+        consumer['expected_context']['repository']['inode'] += 1
+    elif defect == 'ledger':
+        selected.index['ledger_sha256'] = 'a' * 64
+    elif defect == 'task':
+        selected.index['tasks']['first']['attempt'] = 'different-existing-attempt'
+    else:
+        selected.index['segments'][0]['selection_sha256'] = 'b' * 64
+    proof.locator(campaign.plan).write_bytes(bundle.encoded(selected.index))
+    with pytest.raises(ValueError):
+        proof.resolve_reference(reference, consumer=consumer, read_scope=selected.scope)
+
+
+def test_schema1_locator_stays_readable_but_refuses_exact_reference(campaign):
+    run, state, result, _ = campaign.accepted('first')
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    assert proof.recover(campaign.plan) == accepted
+    scope = proof.reference_scope(campaign.plan, document=campaign.plan.path)
+    with pytest.raises(ValueError, match='legacy locator'):
+        with scope(proof.locator(campaign.plan), record_id='a' * 64):
+            pytest.fail('legacy navigation supplied exact acceptance')
+
+
+def test_exact_large_member_resolution_keeps_metadata_and_bounded_slice(campaign):
+    media = b'm' * (bundle.MAX_READ + 1)
+    selected = _structured_publication(campaign, media=media)
+    member = next(item for item in selected.record['members'] if item['role'] == 'media')
+    original = selected.consumer['references'][0]['member_id']
+    selected.consumer['references'][0]['member_id'] = member['member_id']
+    reference = selected.reference.replace(original, member['member_id'])
+    result = proof.resolve_reference(reference, consumer=selected.consumer, read_scope=selected.scope)
+    assert result['member'] == member
+    assert result['data'] == media[:bundle.MAX_READ]
+    assert result['data_complete'] is False
+    assert result['closure'][selected.record['record_id']] == selected.record
+
+
+def test_structured_helper_selection_refuses_unregistered_consumer(campaign):
+    selected = _structured_publication(campaign)
+    with pytest.raises(identities.EvidenceContextError, match='owner-registered consumer'):
+        with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [], [], [],
+                plan_namespace=plan_namespace(campaign.plan.path),
+                record_references=[selected.reference], consumer=selected.consumer):
+            pytest.fail('caller JSON supplied consumer authority')

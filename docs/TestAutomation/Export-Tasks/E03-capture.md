@@ -1,7 +1,17 @@
 # E03 — Capture evidence before rotation
 
 Acceptance: host
-Requires: E02
+Requires: E02, E03p-capture
+
+## Prerequisite suspension
+
+The frozen E03p-auth and E03p-capture block is now inserted in the active queue.
+E03 remains unfinished with no implementation or acceptance credit. After both
+prerequisites pass, resume this brief's complete original delivery and acceptance,
+including real handoff/carry across suspension and restart. The insertion guards
+passed all 34 selected checks before activation (300s timeout;
+[report](../../../output/test-runs/host/reports/20261022T042003Z-f604b720/report.md)).
+No temporary resources remain from this insertion session.
 
 ## Purpose and delivery
 

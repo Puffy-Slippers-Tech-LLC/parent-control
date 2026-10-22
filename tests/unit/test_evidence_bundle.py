@@ -335,12 +335,38 @@ def test_credentials_paths_are_refused(evidence, name):
             pytest.fail('credential path accepted')
 
 
-def test_private_key_contents_are_refused_across_read_boundary(evidence):
-    root = evidence.allocate({'ordinary.log': b'x' * (65536 - 10)
-                              + b'-----BEGIN OPENSSH PRIVATE KEY-----\nsecret'})
+@pytest.mark.parametrize('kind', [b'OPENSSH', b'RSA', b'EC', b'ENCRYPTED', b''])
+@pytest.mark.parametrize('ending', [b'\nsecret', b'\r\nsecret', b''])
+@pytest.mark.parametrize('split', [10, 34, 35, 36])
+def test_private_key_contents_are_refused_across_read_boundary(evidence, kind, ending, split):
+    header = b'-----BEGIN ' + (kind + b' ' if kind else b'') + b'PRIVATE KEY-----'
+    root = evidence.allocate({'ordinary.log': b'x' * (65536 - split) + header + ending})
     with pytest.raises(ValueError, match='private key'):
         with evidence.select([root]):
             pytest.fail('private key content accepted')
+
+
+@pytest.mark.parametrize('split', [10, 34, 35, 36])
+def test_quoted_key_test_source_is_preserved_exactly(evidence, split):
+    header = b'-----BEGIN OPENSSH ' + b'PRIVATE KEY-----'
+    data = (b'x' * (65536 - split) + header + b"\\nsecret'})\n"
+            + b"pattern = rb'" + header + b"'\n")
+    root = evidence.allocate({'agent-commands.log': data})
+    result = evidence.publish([root])
+    assert evidence.inspect(result['path'], member=str(root / 'agent-commands.log'),
+                            count=len(data)) == data
+    assert (root / 'agent-commands.log').read_bytes() == data
+
+
+@pytest.mark.parametrize('ending', [b'\\n', b'\\r\\n'])
+@pytest.mark.parametrize('split', [10, 40, 70])
+def test_serialized_private_key_contents_are_refused_across_read_boundary(evidence, ending, split):
+    data = (b'x' * (65536 - split) + b'-----BEGIN OPENSSH ' + b'PRIVATE KEY-----'
+            + ending + b'b3BlbnNzaC1rZXktdjE=' + ending)
+    root = evidence.allocate({'ordinary.json': data})
+    with pytest.raises(ValueError, match='private key'):
+        with evidence.select([root]):
+            pytest.fail('serialized private key content accepted')
 
 
 @pytest.mark.parametrize('kind', ['empty', 'duplicate', 'relative', 'dotdot', 'unrecorded', 'many'])
@@ -713,3 +739,150 @@ def test_public_recovery_removes_only_recorded_incomplete_stage(evidence, monkey
     assert not stage.exists()
     assert (evidence.exports.path / 'current.json').read_bytes() == original
     assert all(path.exists() for path in previous)
+
+
+def logical_record(evidence, root, *, task='E02', check='exact', attempt='a' * 32,
+                   inputs='1' * 64, target=''):
+    """A producer draft bound to the fixture's real recorded file/owner."""
+    import evidence_identity as logical
+    with evidence.select([root]) as selected:
+        files = selected.manifest['files']
+        repository = selected.repository()
+    info = evidence.sources.path.stat()
+    owner = dict(repository_sha256=logical.digest(repository),
+                 caller=dict(uid=os.geteuid(), gid=os.getegid()), journal=str(evidence.sources.path),
+                 identity=dict(device=info.st_dev, inode=info.st_ino, mode=info.st_mode,
+                               uid=info.st_uid, gid=info.st_gid))
+    context = dict(repository=repository, workflow='fixture', owner=owner,
+                   run=files[0]['allocation']['run'], task=task, check=check, attempt=attempt,
+                   target=target, inputs_sha256=inputs, sources_sha256='2' * 64)
+    return logical.finalize_record(dict(schema=logical.SCHEMA, version=1, context=context,
+        status='passed', completeness='complete', dependencies=[],
+        cleanup=dict(state='complete', record_members=[], scope=dict(owner=owner, resources=[])),
+        members=[dict(role='result', original_path=entry['path'], source_allocation=entry['allocation'],
+                      bytes=entry['bytes'], sha256=entry['sha256'], required=True) for entry in files]))
+
+
+def publish_logical(evidence, records, sources=(), bundles=()):
+    with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [],
+                          list(map(str, sources)), list(map(str, bundles)),
+                          logical_records=records) as selected:
+        return bundle.export(selected, expected=selected.selection_sha256)
+
+
+def exact_read(evidence, path, record, member=None, **options):
+    return bundle.inspect(evidence.checkout, os.geteuid(), os.getegid(), str(path),
+        record_id=record['record_id'], member_id=(member or record['members'][0])['member_id'],
+        closure_sha256=record['closure_sha256'], **options)
+
+
+def test_logical_identity_survives_physical_generations_and_rotation(evidence):
+    root = evidence.allocate({'result.json': b'exact accepted proof'})
+    record = logical_record(evidence, root)
+    first = publish_logical(evidence, [record], [root])
+    previous = first
+    for _ in range(4):
+        evidence.allocate({'later.json': b'unrelated'})
+        previous = publish_logical(evidence, [], bundles=[previous['path']])
+    assert not root.exists() and not Path(first['path']).exists()
+    assert previous['schema'] == 2
+    assert exact_read(evidence, previous['path'], record) == b'exact accepted proof'
+    manifest = evidence.inspect(previous['path'])
+    assert manifest['records'] == [record]
+    assert manifest['member_map'][0]['original_provenance']['original_path'] == str(root / 'result.json')
+
+
+@pytest.mark.parametrize('change', ['task', 'check', 'attempt', 'inputs', 'target'])
+def test_same_bytes_and_basename_keep_distinct_logical_claims(evidence, change):
+    first = evidence.allocate({'result.json': b'identical'})
+    second = evidence.allocate({'result.json': b'identical'})
+    record = logical_record(evidence, first)
+    kwargs = {change: {'task': 'E03', 'check': 'other', 'attempt': 'b' * 32,
+                       'inputs': '3' * 64, 'target': 'synthetic-target'}[change]}
+    other = logical_record(evidence, second, **kwargs)
+    output = publish_logical(evidence, [record, other], [first, second])
+    assert record['record_id'] != other['record_id']
+    assert record['members'][0]['member_id'] != other['members'][0]['member_id']
+    assert exact_read(evidence, output['path'], record) == b'identical'
+    assert exact_read(evidence, output['path'], other) == b'identical'
+    with pytest.raises(bundle.LogicalEvidenceUnavailable):
+        exact_read(evidence, output['path'], record, member=other['members'][0])
+
+
+def test_wrong_existing_member_and_closure_do_not_supply_requested_result(evidence):
+    root = evidence.allocate({'first.json': b'first', 'second.json': b'second'})
+    record = logical_record(evidence, root)
+    output = publish_logical(evidence, [record], [root])
+    selected = record['members'][0]
+    assert exact_read(evidence, output['path'], record, selected) == Path(selected['original_path']).read_bytes()
+    with pytest.raises(ValueError, match='closure') as error:
+        exact_read(evidence, output['path'], dict(record, closure_sha256='0' * 64))
+    assert not isinstance(error.value, bundle.EvidenceUnavailable)
+    for options in ({'record_id': record['record_id']}, {'member_id': selected['member_id']},
+                    {'record_id': record['record_id'], 'member_id': selected['member_id'],
+                     'closure_sha256': record['closure_sha256'], 'member': selected['original_path']}):
+        with pytest.raises(ValueError):
+            bundle.inspect(evidence.checkout, os.geteuid(), os.getegid(), output['path'], **options)
+
+
+def test_legacy_schema_is_navigation_only_and_ambiguous_upgrades_refuse(evidence):
+    root = evidence.allocate({'result.json': b'legacy proof'})
+    record = logical_record(evidence, root)
+    output = evidence.publish([root])
+    assert 'schema' not in output
+    with pytest.raises(ValueError, match='legacy navigation'):
+        exact_read(evidence, output['path'], record)
+    with evidence.select([root]) as selected:
+        manifest = dict(selected.manifest, records=[], member_map=[])
+    with pytest.raises(ValueError, match='manifest'):
+        bundle.verify_stream(io.BytesIO(archive_bytes(manifest, b'legacy proof')))
+
+
+def test_logical_manifest_cannot_adopt_another_checkout_or_conflicting_verdict(evidence):
+    import evidence_identity as logical
+    root = evidence.allocate({'result.json': b'proof'})
+    record = logical_record(evidence, root)
+    changed = {key: value for key, value in record.items() if key != 'closure_sha256'}
+    changed['status'] = 'failed'
+    changed = logical.finalize_record(changed)
+    with pytest.raises(ValueError, match='conflicting logical record'):
+        publish_logical(evidence, [record, changed], [root])
+    foreign = logical.decoded(logical.encoded(record))
+    foreign.pop('record_id')
+    foreign.pop('closure_sha256')
+    foreign['context']['repository']['inode'] += 1
+    foreign['context']['owner']['repository_sha256'] = logical.digest(foreign['context']['repository'])
+    foreign['cleanup']['scope']['owner'] = foreign['context']['owner']
+    for member in foreign['members']:
+        member.pop('member_id')
+    foreign = logical.finalize_record(foreign)
+    with pytest.raises(logical.EvidenceContextError, match='another checkout'):
+        publish_logical(evidence, [foreign], [root])
+
+
+def test_schema_two_never_invents_logical_origins_for_legacy_files(evidence):
+    first = evidence.allocate({'result.json': b'proof'})
+    record = logical_record(evidence, first)
+    second = evidence.allocate({'unrelated.json': b'other'})
+    with pytest.raises(ValueError, match='inventory'):
+        publish_logical(evidence, [record], [first, second])
+
+
+@pytest.mark.parametrize('schema', [1, 2])
+@pytest.mark.parametrize('fault', ['boolean', 'tuple', 'short'])
+def test_receipt_identity_requires_exact_integer_list(evidence, schema, fault):
+    root = evidence.allocate({'result.json': b'proof'})
+    info = (root / 'result.json').stat()
+    fingerprint = bundle.fingerprint(info)
+    receipt = dict(sha256='a' * 64, bytes=info.st_size, selection_sha256='b' * 64,
+                   identity=list(fingerprint))
+    if schema == 2:
+        receipt['schema'] = 2
+    if fault == 'boolean':
+        receipt['identity'][5] = True  # Python equality alone aliases nlink=1.
+    elif fault == 'tuple':
+        receipt['identity'] = tuple(fingerprint)
+    else:
+        receipt['identity'].pop()
+    with pytest.raises(ValueError, match='checksum'):
+        bundle.verify_receipt(receipt, info, 'a' * 64)

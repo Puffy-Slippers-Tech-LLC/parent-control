@@ -1986,6 +1986,34 @@ Earlier verified bundles are flattened with new evidence; identical original
 records deduplicate and conflicting records refuse. Every selected file is
 preserved, including host selection/results. No file is silently omitted.
 
+Schema-2 bundles add strict `onpc-evidence-record` version-1 identities and an
+exact logical-member map to the existing ZIP format. Repository, owner, workflow,
+task/check/attempt, target and input/source hashes identify a claim; its closure
+binds verdict, members, dependencies and cleanup. Physical generation changes
+preserve those identities. Equal bytes or basenames never merge distinct claims.
+Schema-1 bundles and their receipts remain readable without implicit upgrades.
+All physical members and the finite logical dependency closure are verified
+before a logical member is returned; unknown fields, conflicting closures,
+wrong checkouts and ambiguous mappings refuse.
+
+`bundle-read` accepts either legacy `--path` or the complete
+`--record-id`, `--member-id`, `--closure-sha256` triple. The same offset and
+16-MiB slice limits apply; this selects an exact member, never a latest result.
+The helper also registers repeated `--record-reference` and exactly one
+`--consumer` canonical JSON object (sorted keys, compact separators, ASCII
+escapes), alongside validated `--plan`. This selection mode refuses until the
+custody owner supplies authenticated consumer registration; caller JSON cannot
+establish a claim revision or relax input assertions. Trusted host callers use
+`plan_evidence.resolve_reference` with an explicit plan/document read scope and
+an owner-issued consumer declaration. The selector fragment is
+`onpc-evidence-v1:RECORD_ID:MEMBER_ID:CLOSURE_SHA256`, with three lowercase
+SHA-256 values. Generic locators remain legacy navigation. The library's typed
+structured absence carries `error: evidence_unavailable`, `schema: 1` and exact
+`references`; access, integrity and context failures remain refusals. Resolution
+returns verified metadata/closure plus a bounded diagnostic slice, explicitly
+marking an incomplete slice for large members. No capture or custody operation
+is introduced by this reader interface.
+
 Bundles contain at most 60,000 files, a 64-MiB manifest and 1 GiB total projected
 output. Source depth is at most 32, with at most 256 explicit selections. The
 unchanged export journal accounts all simultaneous old and staging allocations;

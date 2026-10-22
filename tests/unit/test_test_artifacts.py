@@ -106,6 +106,141 @@ def test_scoped_helper_distinguishes_missing_references_from_refusals(tmp_path, 
         assert status == 2 and captured.err.startswith('test-artifacts: ')
 
 
+@pytest.fixture
+def bundle_helper(tmp_path, monkeypatch):
+    namespace = HELPER['main'].__globals__
+    monkeypatch.setitem(namespace, 'CHECKOUT', str(tmp_path))
+    monkeypatch.setitem(namespace, 'caller', lambda: (os.geteuid(), os.getegid()))
+    return tmp_path
+
+
+@pytest.mark.parametrize('arguments', [
+    [], ['--record-id', 'a' * 64], ['--member-id', 'b' * 64],
+    ['--record-id', 'a' * 64, '--member-id', 'b' * 64],
+    ['--record-id', 'a' * 64, '--closure-sha256', 'c' * 64],
+    ['--path', '/original', '--member-id', 'b' * 64],
+    ['--path', '/original', '--closure-sha256', 'c' * 64],
+    ['--path', '/original', '--record-id', 'a' * 64,
+     '--member-id', 'b' * 64, '--closure-sha256', 'c' * 64],
+    ['--record-id', 'A' * 64, '--member-id', 'b' * 64, '--closure-sha256', 'c' * 64],
+    ['--record-id', 'a' * 64, '--member-id', 'short', '--closure-sha256', 'c' * 64],
+])
+def test_bundle_read_refuses_incomplete_conflicting_or_malformed_selector(monkeypatch, arguments):
+    monkeypatch.setitem(HELPER['main'].__globals__, 'caller',
+                        lambda: pytest.fail('invalid selector reached authenticated dispatch'))
+    with pytest.raises(SystemExit) as failure:
+        HELPER['main'](['bundle-read', '/bundle/evidence.zip', *arguments])
+    assert failure.value.code == 2
+
+
+@pytest.mark.parametrize('structured', [False, True])
+def test_bundle_read_dispatches_exact_selector_and_bounded_slice(bundle_helper, monkeypatch, capsys, structured):
+    import evidence_bundle
+    seen = []
+    def inspect(*args, **kwargs):
+        seen.append((args, kwargs))
+        return {'verified': True}
+    monkeypatch.setattr(evidence_bundle, 'inspect', inspect)
+    selector = (['--record-id', 'a' * 64, '--member-id', 'b' * 64, '--closure-sha256', 'c' * 64]
+                if structured else ['--path', '/original/file'])
+    assert HELPER['main'](['bundle-read', '/bundle/evidence.zip', *selector,
+                           '--offset', '3', '--bytes', '9']) == 0
+    expected = (dict(record_id='a' * 64, member_id='b' * 64, closure_sha256='c' * 64)
+                if structured else dict(member='/original/file'))
+    assert seen == [((str(bundle_helper), os.geteuid(), os.getegid(), '/bundle/evidence.zip'),
+                     dict(offset=3, count=9, **expected))]
+    assert json.loads(capsys.readouterr().out) == {'verified': True}
+
+
+@pytest.mark.parametrize('failure', ['absent', 'wrong-context', 'wrong-member', 'closure', 'permission'])
+def test_bundle_read_keeps_exact_resolution_refusals_distinct_from_renewal(
+        bundle_helper, monkeypatch, capsys, failure):
+    import evidence_bundle
+    def refused(*args, **kwargs):
+        assert kwargs == dict(record_id='a' * 64, member_id='b' * 64,
+                              closure_sha256='c' * 64, offset=0, count=8000)
+        if failure == 'permission':
+            raise PermissionError('private source')
+        raise ValueError('bundle: ' + failure)
+    monkeypatch.setattr(evidence_bundle, 'inspect', refused)
+    assert HELPER['main'](['bundle-read', '/bundle/evidence.zip', '--record-id', 'a' * 64,
+                           '--member-id', 'b' * 64, '--closure-sha256', 'c' * 64]) == 2
+    captured = capsys.readouterr()
+    assert not captured.out and captured.err.startswith('test-artifacts: ')
+    assert 'evidence_unavailable' not in captured.err
+
+
+@pytest.mark.parametrize('action', ['bundle-plan', 'bundle-export'])
+@pytest.mark.parametrize('arguments', [
+    ['--record-reference', 'locator#selector'], ['--consumer', '{}'],
+    ['--record-reference', 'locator#selector', '--consumer', '{}', '--consumer', '{}'],
+    ['--capture', 'unregistered-capture'],
+])
+def test_structured_bundle_parser_requires_one_consumer_and_references(action, arguments, monkeypatch):
+    monkeypatch.setitem(HELPER['main'].__globals__, 'caller',
+                        lambda: pytest.fail('invalid selection reached authenticated dispatch'))
+    with pytest.raises(SystemExit) as failure:
+        HELPER['main']([action, *(['--expect', 'digest'] if action == 'bundle-export' else []),
+                        *arguments])
+    assert failure.value.code == 2
+
+
+@pytest.mark.parametrize('value', ['{', '[]', '{"role":"example", "version":1}',
+    '{"role":"example","role":"required_evidence"}', '{"version":NaN}'])
+def test_structured_bundle_refuses_noncanonical_or_ambiguous_consumer(bundle_helper, monkeypatch, capsys, value):
+    import evidence_bundle
+    monkeypatch.setattr(evidence_bundle, 'Selection',
+                        lambda *_args, **_kwargs: pytest.fail('invalid JSON reached Selection'))
+    assert HELPER['main'](['bundle-plan', '--record-reference', 'locator#selector',
+                           '--consumer', value]) == 2
+    captured = capsys.readouterr()
+    assert not captured.out and captured.err.startswith('test-artifacts: ')
+
+
+@pytest.mark.parametrize('action', ['bundle-plan', 'bundle-export'])
+def test_structured_bundle_dispatch_preserves_legacy_selections(bundle_helper, monkeypatch, capsys, action):
+    import evidence_bundle
+    import execution_plan
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+    consumer = dict(role='required_evidence', version=1)
+    wire = evidence_bundle.encoded(consumer).decode()
+    monkeypatch.setattr(execution_plan.Plan, 'load', lambda *_: SimpleNamespace(path='docs/Plan.md'))
+    seen = []
+    @contextmanager
+    def selection(*args, **kwargs):
+        seen.append((args, kwargs))
+        yield SimpleNamespace(plan=lambda: {'selection_sha256': 'verified'})
+    monkeypatch.setattr(evidence_bundle, 'Selection', selection)
+    monkeypatch.setattr(evidence_bundle, 'export',
+        lambda selected, **kwargs: {'export': kwargs})
+    arguments = ['--plan', 'docs/Plan.md', '--source', '/source', '--bundle', '/bundle',
+        '--reference', '/legacy', '--record-reference', 'first#selector',
+        '--record-reference', 'second#selector', '--consumer', wire]
+    if action == 'bundle-export':
+        arguments += ['--expect', 'digest', '--defer-cleanup']
+    assert HELPER['main']([action, *arguments]) == 0
+    assert seen == [((str(bundle_helper), os.geteuid(), os.getegid(), [], ['/source'], ['/bundle']),
+        dict(plan_namespace=execution_plan.plan_namespace('docs/Plan.md'), references=['/legacy'],
+             record_references=['first#selector', 'second#selector'], consumer=consumer))]
+    result = json.loads(capsys.readouterr().out)
+    assert result == ({'selection_sha256': 'verified'} if action == 'bundle-plan' else
+                      {'export': {'expected': 'digest', 'defer_cleanup': True}})
+
+
+def test_structured_consumer_role_cannot_override_selection_refusal(bundle_helper, monkeypatch, capsys):
+    import evidence_bundle
+    consumer = dict(role='example', version=1)
+    def refused(*args, **kwargs):
+        assert kwargs['consumer'] == consumer
+        raise ValueError('bundle: consumer owner or expected context is not authenticated')
+    monkeypatch.setattr(evidence_bundle, 'Selection', refused)
+    assert HELPER['main'](['bundle-plan', '--record-reference', 'locator#selector',
+                           '--consumer', evidence_bundle.encoded(consumer).decode()]) == 2
+    captured = capsys.readouterr()
+    assert not captured.out and 'not authenticated' in captured.err
+
+
 @pytest.mark.parametrize('path', ['/tmp/onpc-system-future/input/anything',
     '/tmp/onpc-another-suite/a/b/image.jpg', '/tmp/onpc-standalone.log',
     '/var/tmp/onpc-future/test', '/var/tmp/oh-no-parent-control-artifacts/run/log',

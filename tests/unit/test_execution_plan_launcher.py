@@ -213,6 +213,58 @@ def rig(tmp_path, monkeypatch):
                            worker=worker, cleanups=cleanups)
 
 
+ORIGINAL_VALIDATOR_SOURCES = (
+    'plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'launcher_runtime.py',
+    'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py', 'detached_launcher.py',
+)
+ADDED_VALIDATOR_SOURCES = (
+    'test_retention.py', 'test_storage.py', 'test_input_transfer.py', 'launcher_git.py',
+    'onpc-test-artifacts', 'launcher_question.py', 'plan_reconciliation.py',
+    'vm_selection.py', '../tests/integration/vm_config.py', 'evidence_identity.py',
+)
+
+
+def validator_tree(tmp_path, monkeypatch):
+    tools = tmp_path / 'validator-checkout' / 'tools'
+    tools.mkdir(parents=True)
+    names = ORIGINAL_VALIDATOR_SOURCES + ADDED_VALIDATOR_SOURCES
+    assert workflow.RESPONSE_VALIDATOR_SOURCES == names
+    for name in names:
+        path = tools / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'original dependency bytes\n')
+    monkeypatch.setattr(workflow, '__file__', str(tools / 'plan_launcher.py'))
+    return tools, workflow.response_validator_sources()
+
+
+@pytest.fixture(params=ADDED_VALIDATOR_SOURCES)
+def validator_checkout(tmp_path, monkeypatch, request, rig):
+    tools, snapshot = validator_tree(tmp_path, monkeypatch)
+    path = tools / request.param
+
+    def change():
+        path.write_bytes(b'repaired dependency bytes\n')
+        current = workflow.response_validator_sources()
+        assert {name for name in snapshot if current[name] != snapshot[name]} == {request.param}
+        assert all(current[name] == snapshot[name] for name in ORIGINAL_VALIDATOR_SOURCES)
+
+    inputs = rig.run / 'input' / 'selected-inputs.json'
+    inputs.parent.mkdir()
+    inputs.write_bytes(b'{"exact":"retained inputs"}\n')
+    owner = rig.run / 'owner'
+    owner.write_bytes(b'private controller ownership witness\n')
+    owner.chmod(0o600)
+    ownership = owner.stat()
+    yield SimpleNamespace(path=path, snapshot=snapshot, change=change)
+    assert inputs.read_bytes() == b'{"exact":"retained inputs"}\n'
+    assert owner.read_bytes() == b'private controller ownership witness\n'
+    current = owner.stat()
+    assert (current.st_dev, current.st_ino, current.st_uid, current.st_gid, current.st_mode) == (
+        ownership.st_dev, ownership.st_ino, ownership.st_uid, ownership.st_gid, ownership.st_mode)
+    state = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert state['stage_baseline'] == {} and state['protected_staged'] == []
+
+
 def test_plan_selects_first_unfinished_and_excludes_deferred_rows(tmp_path):
     plan = prepare(tmp_path)
     assert [task.id for task in plan.tasks()] == ['001', '002']
@@ -302,15 +354,13 @@ def test_rejected_result_retries_are_bounded_and_retain_original_baseline(rig, m
     assert TaskBudget(rig.run).read()['completed'] == 0
 
 
-def test_rejected_result_stops_before_retrying_with_stale_validation_code(rig, monkeypatch):
+def test_rejected_result_stops_before_retrying_with_stale_validation_code(rig, monkeypatch, validator_checkout):
     attempts = []
-    sources = {'execution_plan.py': 'original'}
-    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: sources.copy())
 
     def execute(root, spec, run, owner):
         state = json.loads((run / 'checkpoint.json').read_text())
         attempts.append(state['task_sessions'])
-        sources['execution_plan.py'] = 'repaired'
+        validator_checkout.change()
         return response(state)  # The running controller still rejects it.
 
     monkeypatch.setattr(workflow, 'execute', execute)
@@ -330,12 +380,11 @@ def test_rejected_result_stops_before_retrying_with_stale_validation_code(rig, m
 
 
 @pytest.mark.parametrize('status', ['continue', 'blocked', 'task_complete'])
-def test_valid_result_source_change_stops_before_next_admission_or_blocked_wait(rig, monkeypatch, status):
+def test_valid_result_source_change_stops_before_next_admission_or_blocked_wait(
+        rig, monkeypatch, status, validator_checkout):
     original = rig.plan.state()
-    sources = {'plan_evidence_recovery.py': 'original'}
-    attempts, admissions = [], []
+    attempts, admissions, results = [], [], []
     admit = TaskBudget.admit
-    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: sources.copy())
 
     def record_admission(budget):
         admissions.append(budget.run)
@@ -344,7 +393,7 @@ def test_valid_result_source_change_stops_before_next_admission_or_blocked_wait(
     def execute(root, spec, run, owner):
         state = json.loads((run / 'checkpoint.json').read_text())
         attempts.append(state['task_sessions'])
-        sources['plan_evidence_recovery.py'] = 'repaired'
+        validator_checkout.change()
         result = response(state, status)
         if status == 'task_complete':
             complete(rig.plan, state['task_id'])
@@ -352,6 +401,7 @@ def test_valid_result_source_change_stops_before_next_admission_or_blocked_wait(
             result['blocker'] = dict(explanation='Required authority is unavailable.',
                 question='Which route is authorized?', options=['Keep the boundary.', 'Authorize the route.'])
         workflow.launcher.atomic(run / 'agent-result.json', result)
+        results.append(result)
         return result
 
     monkeypatch.setattr(TaskBudget, 'admit', record_admission)
@@ -366,23 +416,21 @@ def test_valid_result_source_change_stops_before_next_admission_or_blocked_wait(
     assert state['queue_before'] == original and not state['in_flight']
     assert 'result_recovery' not in state
     assert state['phase'] == {'continue': 'recover', 'blocked': 'blocked', 'task_complete': 'complete'}[status]
-    assert json.loads((rig.run / 'agent-result.json').read_text())['status'] == status
+    assert json.loads((rig.run / 'agent-result.json').read_text()) == results[0]
     assert 'fresh run' in (rig.run / 'handoff.txt').read_text()
     assert rig.plan.state() == dict(original, **{'001': status == 'task_complete'})
     assert TaskBudget(rig.run).read()['completed'] == int(status == 'task_complete')
     assert rig.cleanups[-1] == rig.run
 
 
-def test_valid_continuation_source_change_reaches_fresh_startup_recovery(rig, monkeypatch):
-    sources = {'plan_evidence_recovery.py': 'original'}
+def test_valid_continuation_source_change_reaches_fresh_startup_recovery(rig, monkeypatch, validator_checkout):
     accepted_execute = workflow.execute
     attempts, recovered = [], []
-    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: sources.copy())
 
     def execute(root, spec, run, owner):
         state = json.loads((run / 'checkpoint.json').read_text())
         attempts.append(state['task_sessions'])
-        sources['plan_evidence_recovery.py'] = 'repaired'
+        validator_checkout.change()
         result = response(state, 'continue')
         workflow.launcher.atomic(run / 'agent-result.json', result)
         return result
@@ -416,21 +464,22 @@ def test_valid_continuation_source_change_reaches_fresh_startup_recovery(rig, mo
     assert TaskBudget(restarted).read()['completed'] == 1
 
 
-def test_source_change_while_blocked_retains_answer_before_new_session(rig, monkeypatch):
-    sources = {'plan_launcher.py': 'original'}
-    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: sources.copy())
+def test_source_change_while_blocked_retains_answer_before_new_session(rig, monkeypatch, validator_checkout):
     blocker = dict(explanation='Required authority is unavailable.', question='Which route is authorized?',
                    options=['Keep the boundary.', 'Authorize the route.'])
     answer = {'question': blocker['question'], 'answer': blocker['options'][0]}
 
     def wait(*_args, **_kwargs):
-        sources['plan_launcher.py'] = 'repaired'
+        validator_checkout.change()
         return answer
 
     monkeypatch.setattr(workflow, 'wait_for_answer', wait)
     monkeypatch.setattr(TaskBudget, 'admit', lambda *_: pytest.fail('stale controller admitted a session'))
     state = state_for(rig.plan, phase='blocked', task_sessions=1, total_sessions=1,
                       blocker=blocker, blocker_id='decision')
+    retained_response = response(state, 'blocked')
+    retained_response['blocker'] = blocker
+    workflow.launcher.atomic(rig.run / 'agent-result.json', retained_response)
     assert rig.worker(state) == 1
     checkpoint = json.loads((rig.run / 'checkpoint.json').read_text())
     assert checkpoint['phase'] == 'recover' and checkpoint['answer'] == answer
@@ -438,6 +487,7 @@ def test_source_change_while_blocked_retains_answer_before_new_session(rig, monk
     assert 'fresh run' in checkpoint['reason']
     assert rig.calls == [] and rig.cleanups == [rig.run]
     assert TaskBudget(rig.run).read()['completed'] == 0
+    assert json.loads((rig.run / 'agent-result.json').read_text()) == retained_response
 
 
 def write_evidence_recovery_request(plan, state):
@@ -516,22 +566,32 @@ def test_evidence_request_boundary_matches_exact_applied_request_identity(rig, e
     assert TaskBudget(rig.run).read()['completed'] == int(exact_marker)
 
 
-@pytest.mark.parametrize('changed', [
-    'plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'launcher_runtime.py',
-    'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py', 'detached_launcher.py',
-])
+@pytest.mark.parametrize('changed', ORIGINAL_VALIDATOR_SOURCES + ADDED_VALIDATOR_SOURCES)
 def test_response_validator_sources_detects_content_changes_only(tmp_path, monkeypatch, changed):
-    names = ('plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'launcher_runtime.py',
-             'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py', 'detached_launcher.py')
-    for name in names:
-        (tmp_path / name).write_text('original')
-    monkeypatch.setattr(workflow, '__file__', str(tmp_path / 'plan_launcher.py'))
-    original = workflow.response_validator_sources()
-    (tmp_path / changed).write_text('original')
+    tools, original = validator_tree(tmp_path, monkeypatch)
+    path = tools / changed
+    path.write_bytes(path.read_bytes())
     assert workflow.response_validator_sources() == original
-    (tmp_path / changed).write_text('repaired')
+    path.write_text('repaired')
     current = workflow.response_validator_sources()
-    assert {name for name in names if current[name] != original[name]} == {changed}
+    assert {name for name in original if current[name] != original[name]} == {changed}
+
+
+def test_unchanged_dependency_bytes_do_not_restart_worker(rig, monkeypatch, validator_checkout):
+    execute = workflow.execute
+
+    def unchanged(*args):
+        path = validator_checkout.path
+        path.write_bytes(path.read_bytes())
+        assert workflow.response_validator_sources() == validator_checkout.snapshot
+        return execute(*args)
+
+    monkeypatch.setattr(workflow, 'execute', unchanged)
+    assert rig.worker() == 0
+    state = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert 'validation code changed' not in state['reason']
+    assert rig.calls == [('001', 1, rig.spec.effort)]
+    assert TaskBudget(rig.run).read()['completed'] == 1
 
 
 @pytest.mark.parametrize('legacy', [False, True])
@@ -3233,6 +3293,10 @@ def test_relocated_public_cli_checks_plan_without_an_agent(tmp_path):
                  'launcher_runtime.py', 'test_storage.py', 'test_retention.py', 'test_input_transfer.py',
                  'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py']:
         shutil.copy2(source / name, tools / name)
+    for name in workflow.RESPONSE_VALIDATOR_SOURCES:
+        destination = tools / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / name, destination)
     result = subprocess.run([sys.executable, '-B', str(tools / 'execute-plan'), '--plan', 'docs/plan.md', '--check'],
                             cwd=tmp_path, capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
@@ -3508,8 +3572,12 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     ]
     for name in names:
         shutil.copy2(source / name, tools / name)
+    for name in workflow.RESPONSE_VALIDATOR_SOURCES:
+        destination = tools / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / name, destination)
     integration = tmp_path / 'tests/integration'
-    integration.mkdir(parents=True)
+    integration.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source.parent / 'tests/integration/vm_config.py', integration / 'vm_config.py')
     subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True, timeout=10)
     subprocess.run(['git', 'config', 'user.name', 'Launcher test'], cwd=tmp_path, check=True, timeout=10)

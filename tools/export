@@ -1,0 +1,16 @@
+#!/usr/bin/python3 -IB
+"""Improve test evidence and export infrastructure through the shared plan driver."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from plan_launcher import PlanWorkflow, main
+
+if __name__ == '__main__':
+    sys.exit(main(PlanWorkflow(
+        name='export',
+        plan='docs/TestAutomation/Export-Execution-Plan.md',
+        model='gpt-6.1-sol',
+        effort='high',
+        vm=False,
+    )))

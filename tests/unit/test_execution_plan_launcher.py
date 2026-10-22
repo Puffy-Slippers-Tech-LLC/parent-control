@@ -41,14 +41,15 @@ def synthetic_plan_evidence(monkeypatch):
 
 
 @pytest.fixture(params=[
-    ('reliability-plan', 'docs/Reliability-Plan.md'),
-    ('kiosk-prompt', 'docs/Kiosk-Session-Confinement-Plan.md'),
-    ('kiosk-desktop', 'docs/Kiosk-Desktop-Plan.md'),
-    ('kiosk-prompt-new', 'docs/Kiosk-Session-Confinement-New-Plan.md'),
-    ('fixture', 'docs/TestAutomation/Fixture-Execution-Plan.md'),
-], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-desktop', 'kiosk-prompt-new', 'fixture'])
+    ('reliability-plan', 'docs/Reliability-Plan.md', True),
+    ('kiosk-prompt', 'docs/Kiosk-Session-Confinement-Plan.md', True),
+    ('kiosk-desktop', 'docs/Kiosk-Desktop-Plan.md', True),
+    ('kiosk-prompt-new', 'docs/Kiosk-Session-Confinement-New-Plan.md', True),
+    ('fixture', 'docs/TestAutomation/Fixture-Execution-Plan.md', True),
+    ('export', 'docs/TestAutomation/Export-Execution-Plan.md', False),
+], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-desktop', 'kiosk-prompt-new', 'fixture', 'export'])
 def plan_adapter(monkeypatch, request):
-    name, plan = request.param
+    name, plan, vm = request.param
     entry = Path(workflow.__file__).with_name(name)
 
     def invoke(*args):
@@ -60,7 +61,7 @@ def plan_adapter(monkeypatch, request):
         return result.value.code
 
     return invoke, workflow.PlanWorkflow(
-        name=name, plan=plan, model='gpt-6.1-sol', effort='high', vm=True)
+        name=name, plan=plan, model='gpt-6.1-sol', effort='high', vm=vm)
 
 
 def test_plan_adapter_inherits_shared_commit_and_push_policy(plan_adapter, monkeypatch):
@@ -128,7 +129,7 @@ def test_plan_adapter_shares_master_ownership_and_common_controls(
     monkeypatch.setattr(workflow.launcher, 'select', select)
     controls = ['--stop'] if action == 'stop' else ['--tasks', '0']
     assert invoke('--plan', rig.plan.path, *controls) == 0
-    assert selections == ([] if action == 'stop' else [None])
+    assert selections == ([] if action == 'stop' or not _spec.vm else [None])
     assert TaskBudget(rig.run).read()['tasks'] == (1 if action == 'stop' else None)
 
 

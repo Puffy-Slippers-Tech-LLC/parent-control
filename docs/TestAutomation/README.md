@@ -35,6 +35,7 @@ edits supply no reason to discard valid results or overwrite unrelated work.
 | [Task queue](E2E-Task-Queue.md) | Single ordered checklist, including provider prerequisites and retained regressions, and delivered task scope | Current block or scenario readiness |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
 | [Fixture migration plan](Fixture-Execution-Plan.md), [queue](Fixture-Task-Queue.md) and `Fixture-Tasks/` | Separate ordinary-plan sequence for host-owned fixture infrastructure; [target design](Fixture-Design.md) is proposed until delivered | Current VM/storage policy changes, customer scenario acceptance or completion of the E2E queue |
+| [Evidence/export plan](Export-Execution-Plan.md), [queue](Export-Task-Queue.md) and `Export-Tasks/` | Separate ordinary-plan sequence for test evidence/reference infrastructure; [target design](Export-Design.md) is proposed until delivered | Product acceptance, VM operations, new passing results, or implementation of proposed validation/lifetime policy |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |
 
 Use the narrowest owner. The specification owns expected customer behavior;

@@ -622,6 +622,7 @@ The current adapters use these components according to their workflow:
 | `kiosk-desktop` | The same ordinary plan driver and shared lifecycle | [Unrestricted graphical desktop prevention](Kiosk-Desktop-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 | `kiosk-prompt-new` | The same ordinary plan driver and shared lifecycle | [Remaining confinement improvements](Kiosk-Session-Confinement-New-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 | `fixture` | The same ordinary plan driver and shared lifecycle | [Host-owned fixture migration](TestAutomation/Fixture-Execution-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
+| `export` | The same ordinary plan driver and shared lifecycle | [Test evidence and export infrastructure](TestAutomation/Export-Execution-Plan.md#scope-and-execution), with its own master-path namespace, host-only infrastructure acceptance and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 
 Run `tools/reliability-plan --check` to validate its plan, or
 `tools/reliability-plan --tasks 0` to execute its remaining queue. It defaults to

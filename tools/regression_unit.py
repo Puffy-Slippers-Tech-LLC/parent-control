@@ -1079,7 +1079,12 @@ from regression_ui import Bucket
 # file and in-process pipe/clock doubles; the compatible classification holds.
 # The native setup-barrier checks stat tiny unopened pytest-private FIFOs;
 # they acquire no worker or live pipe reader and retain compatible isolation.
+# Fixture producer safety uses tiny pytest-private roots/journals, local flock
+# leases, bounded waited Python children and process-local failure injection.
+# No live cache, VM, service, socket, bus or display is shared; compatible with
+# other unit work. Its cleanup inventory has the same ownership boundaries.
 REVIEWED = frozenset("""
+fixture_producer_cleanup_safety
 evidence_identity plan_evidence plan_evidence_recovery
 native_history_routes native_update_runner
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging

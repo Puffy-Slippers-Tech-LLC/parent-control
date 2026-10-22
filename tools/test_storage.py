@@ -42,6 +42,17 @@ def directory(kind='allocations', *, root=None, create=True):
     return _directory(kind, root=root, create=create, owner=owner, uid=os.geteuid())
 
 
+def fixture_directory():
+    """One host fixture authority, separate from disposable execution caches.
+
+    Producers are caller-owned. Authenticated privileged read-only lookup is a
+    later cache/session boundary; root must never build a second fixture cache.
+    """
+    if os.geteuid() == 0:
+        raise ValueError('fixture production requires an unprivileged owner')
+    return _directory('fixtures', root=None, create=True, owner='host', uid=os.geteuid())
+
+
 def recordings_directory(*, root=None, caller_uid=None, create=True):
     """Recording owner root, or root's read-only authenticated caller lookup.
 
@@ -353,17 +364,23 @@ def scratch_descriptors():
     # leases created through either import spelling of this module. No pathname
     # is opened to acquire another process's ownership.
     parent = ROOT / 'output/test-runs' / ('privileged' if os.geteuid() == 0 else 'host') / 'scratch'
+    producer = ROOT / 'output/test-runs/host/fixtures/producer.lock'
     descriptors = set(() if _scratch_fd is None else (_scratch_fd,))
     for name in os.listdir('/proc/self/fd'):
         descriptor = int(name)
         try:
             path = Path(os.readlink(f'/proc/self/fd/{descriptor}'))
-            if (path.name != 'owner' or path.parent.parent != parent
-                    or not path.parent.name.startswith('run-')):
+            scratch_owner = (path.name == 'owner' and path.parent.parent == parent
+                             and path.parent.name.startswith('run-'))
+            if not scratch_owner and path != producer:
                 continue
             info = os.fstat(descriptor)
             if (stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
                     and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1):
+                if path == producer:
+                    current = os.stat(path, follow_symlinks=False)
+                    if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+                        raise ValueError('fixture producer lease was replaced')
                 descriptors.add(descriptor)
         except OSError as error:
             if error.errno not in (errno.ENOENT, errno.EBADF):

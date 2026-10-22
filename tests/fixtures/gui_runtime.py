@@ -39,6 +39,7 @@ def tree_sources(source):
 
 def build_runtime(destination, *, inputs=None):
     """Fill a new runtime /usr tree; return its architecture and ELF loader."""
+    from tools.test_storage import scratch_descriptors
     destination = Path(destination)
     if inputs is None:
         destination.mkdir(parents=True, exist_ok=True)
@@ -89,7 +90,8 @@ def build_runtime(destination, *, inputs=None):
     # is a build failure, never a dependency-install or host-filesystem fallback.
     for source in roots:
         result = subprocess.run(['/usr/bin/ldd', str(source)], check=True,
-                                text=True, capture_output=True, env={'LC_ALL': 'C', 'PATH': '/usr/bin:/bin'})
+                                text=True, capture_output=True, env={'LC_ALL': 'C', 'PATH': '/usr/bin:/bin'},
+                                pass_fds=scratch_descriptors())
         if 'not found' in result.stdout:
             raise RuntimeError('GUI fixture has unresolved ELF dependencies')
         for line in result.stdout.splitlines():

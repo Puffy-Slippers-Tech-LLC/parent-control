@@ -28,6 +28,7 @@ Session media and encoder scratch still use the ordinary shared scratch route.
 | --- | --- |
 | Disposable pytest files | `tmp_path` or `tmp_path_factory` through the maintained test launchers, which configure disk scratch. |
 | Disposable standalone scratch | `tools.test_storage.scratch_directory()` as the parent of `TemporaryDirectory`, temporary files or subprocess scratch. |
+| Host fixture production | `tools.fixture_producer.Store().producer(...)` reserves one durable slot in `tools.test_storage.fixture_directory()`. Register each scratch/staging child with `Producer.allocate()` before payload writes; use `Producer.environment()` for compiler scratch. |
 | Retained reports, artifacts or failure evidence | `tools.test_retention.allocate(tempfile.mkdtemp, prefix='onpc-...')` inside the owning retention session. Register the empty allocation before writing payloads. |
 | Atomic qualification evidence export | `tools.test_retention.Store.publication()` and its single `allocate` method, with complete verification before commit/recovery retirement; use the maintained [bundle route](../../tests/README.md#complete-qualification-evidence-bundles). |
 | Qualification evidence | `tests.integration.qualification_storage.session()` and its `allocate` helper; reuse an existing qualification session. |
@@ -94,6 +95,20 @@ Build and launcher subprocess layers must forward
 `tools.test_storage.scratch_descriptors()` through `pass_fds` when descendants
 use scratch, including through intermediate fixture builders. A coordinator's
 exit must not make a still-running descendant's scratch eligible for deletion.
+This forwarding includes the fixture producer lease in fresh interpreters.
+The producer context closes its own lease without unlocking descendants. A live
+descendant or interrupted deletion leaves the same reservation occupied;
+`Store.recover(transaction_id)` retries only that recorded cleanup after the
+last lease closes. New production refuses until cleanup settles. Cleanup audits
+every registered allocation's checkout-relative identity, owner, mode and mount
+before deleting any tree, preserving unknown and replaced paths. The lifetime
+record is outside those trees. It neither replaces an active execution's
+retention token nor uses evidence rotation for fixture versions.
+
+This delivered lifetime API owns unfinished production only. Immutable bundle
+construction, catalogue publication/pins and six-slot admission/retirement remain
+the separate fixture-plan tasks F02, F03/F14 and F04. There is no byte quota,
+quota setup or product installation in producer recovery.
 
 The only short-path exceptions for new producers are centrally owned socket
 runtime allocation and [explicit screenshot exports](#screenshot-export-and-cleanup).

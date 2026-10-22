@@ -311,7 +311,11 @@ from regression_resources import HOST_WORKERS
 # Its unit classification is compatible as well.
 # Synthetic recording labels replace deployed VM names without changing any
 # file, socket, lease or cleanup lifetime; both inventories remain compatible.
+# Fixture producer safety owns only tiny pytest-private storage/locks and small
+# bounded, waited Python descendants. No shared fixture cache, VM, bus, display,
+# socket or external service; compatible in cleanup and unit inventories.
 REVIEWED = frozenset('''
+fixture_producer
 recording_storage
 e2e_natural_expiry
 kiosk_reminder_journey

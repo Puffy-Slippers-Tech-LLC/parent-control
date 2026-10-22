@@ -1,13 +1,13 @@
 # Test evidence and export infrastructure queue
 
-The [master](Export-Execution-Plan.md) owns the sole next-task pointer. All rows
-are pending and bind the [proposed design](Export-Design.md). Host acceptance
+The [master](Export-Execution-Plan.md) owns the sole next-task pointer. Remaining
+rows bind the [proposed design](Export-Design.md). Host acceptance
 means infrastructure checks only, including synthetic privileged/target metadata.
 No product acceptance or live VM work belongs to this queue.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | E01 | [Audit history, producers and retirement paths](Export-Tasks/E01-design.md) | Baseline | Verify historical fixes and map finite producer, consumer, retirement and controller-dependency inventories to delivery and regressions | 45–60 min |
+| [x] | E01 | [Audit history, producers and retirement paths](Export-Design.md#e01-source-and-history-audit) | Baseline | Verify historical fixes and map finite producer, consumer, retirement and controller-dependency inventories to delivery and regressions | Reviewed 2026-10-21: all 15 histories; producer/consumer, retirement and controller maps with reuse anchors and P01–P12 planned histories. Source cross-check findings resolved; 321 metadata/adapter checks passed ([report](../../output/test-runs/host/plans/643d1e71b404620c98e268576999c6fd3cf8a728c1c844f648f480b1ff2dfb3c/accepted-evidence.json)); links and plan check passed. Helpers finished; no temporary resources remain. |
 | [ ] | E01a | [Design identity, capture and lifetime protocols](Export-Tasks/E01a-protocols.md) | E01 | Propose concrete versioned schemas, exact helper/reference interfaces, authenticated handoff, lock/budget/recovery and compatibility protocols | 45–60 min |
 | [ ] | E01b | [Independently review and freeze delivery](Export-Tasks/E01b-freeze.md) | E01a | Freeze historical failure inventory, all producer/consumer dispositions, interfaces, schemas and independent design review | 45–60 min |
 | [ ] | E02 | [Resolve stable evidence identities](Export-Tasks/E02-identities.md) | E01b | Exact task/check/attempt/target/input/member identities and verified references independent of physical report paths | 45–60 min |

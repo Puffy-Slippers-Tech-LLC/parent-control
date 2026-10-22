@@ -1,12 +1,13 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E01 — [Audit history, producers and retirement paths](Export-Tasks/E01-design.md)**.
+Next task: **E01a — [Design identity, capture and lifetime protocols](Export-Tasks/E01a-protocols.md)**.
 
 Reduce repeated missing, wrong, outdated and expired evidence references through
 shared test infrastructure. The [target design](Export-Design.md) records the
-investigated failure families, proposed changes and quality boundary. Everything
-in this queue is pending; authoring a plan supplies no implementation credit.
+investigated failure families, proposed changes and quality boundary. E01's source
+audit is complete; protocol design, independent freeze and runtime delivery remain
+pending. Authoring a plan supplies no implementation credit.
 
 ## Scope and execution
 

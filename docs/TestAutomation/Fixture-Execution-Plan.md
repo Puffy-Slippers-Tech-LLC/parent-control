@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F05 — [Qualify Ubuntu fixture provisioning](Fixture-Tasks/F05-ubuntu-provision.md)**.
+Next task: **F12 — [Decouple Fedora snapshots from fixture payloads](Fixture-Tasks/F12-fedora-snapshots.md)**.
 
 ## Outcome and status
 
@@ -24,9 +24,10 @@ retirement, standalone app reuse and dependency/product invalidation proof.
 F53 delivered package-owned native policy bootstrap and a separate fresh-boot
 readiness step. Restored Ubuntu baseline/app captures passed active-service,
 read-only database, vendor preservation and complete fixture-absence checks.
-F05's qualification selector is registered but still has no installed provisioning
-acceptance. Later tasks remain unimplemented;
-runner dispatch stays unavailable until target qualification. Host inputs and
+F05 qualified Ubuntu's shared provisioning on clean baseline/app attempts,
+including exact activation, runtime use, no-write repeats and failure recovery.
+Later tasks remain unimplemented;
+runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.
 
 ## Launcher

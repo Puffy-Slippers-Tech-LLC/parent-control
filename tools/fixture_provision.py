@@ -145,8 +145,17 @@ class SSHBoundary:
         # The helper imports these shared finite declarations/primitives. Install
         # modules in memory, keeping source and build tools off the guest disk.
         modules = [(name, inspect.getsource(module)) for name, module in (
-            ('guest_files', guest_files), ('native_assets', native_assets),
-            ('baseline_assets', baseline_assets), ('native_trust', native_trust))]
+            ('guest_files', guest_files), ('native_assets', native_assets))]
+        # Ship only movable placement declarations, without importing the
+        # persistent environment settings or changing checkout import routes.
+        placement = ('from pathlib import Path\nfrom native_assets import ('
+            'ASSETS,GUI_FILES,PREFIX,TRUSTED_NATIVE,ACTIVITY_PREFIX,ACTIVITY_EXECUTABLE,'
+            'trusted_file_modes,desktop_entry,desktop_id,legacy_executable_paths)\n')
+        for name in ('MECHANICAL', 'NATIVE', 'CATALOG_PREFIX', 'CATALOG_ENTRIES'):
+            placement += name + '=' + repr(getattr(baseline_assets, name)) + '\n'
+        for name in ('native_files', 'catalogue_files'):
+            placement += inspect.getsource(getattr(baseline_assets, name)) + '\n'
+        modules.extend((('baseline_assets', placement), ('native_trust', inspect.getsource(native_trust))))
         finite = ('import hashlib\nfrom pathlib import Path\nfrom types import SimpleNamespace\nimport native_assets,baseline_assets\n'
                   + 'SUBSETS=' + repr(fixture_manifest.SUBSETS) + '\n'
                   + 'ABSENCES=' + repr(fixture_manifest.ABSENCES) + '\n')
@@ -262,6 +271,25 @@ class Provisioner:
                                                    'labels': True}, 'readback')
         require(self._step('witness', request) == {'ready': True}, 'witness')
         return expected
+
+    def wait_environment(self):
+        """Observe native startup before an independent fixture-free audit."""
+        acquired = self._shared['lock'].acquire(blocking=False)
+        try:
+            require(acquired, 'concurrent-provisioning')
+            state = self._guard()
+            request = {'binding': {'vm_uuid': state['domain_uuid'], 'run': state['run'],
+                                   'boot_sha256': self._boot()}}
+            result = self._step('inspect', request)
+            require(type(result) is dict and set(result) == {'accounts', 'target'}, 'inspect')
+            accepted_accounts(result['accounts'])
+            return result
+        except BaseException:
+            self.failed, self._receipt = True, None
+            raise
+        finally:
+            if acquired:
+                self._shared['lock'].release()
 
     def provision(self, selection, subsets, *, attempt_id):
         """Preflight all members before mutation; any exception poisons this owner.

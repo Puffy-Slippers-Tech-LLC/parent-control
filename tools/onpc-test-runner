@@ -96,6 +96,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     integration = categories.add_parser('integration', allow_abbrev=False)
     integration.add_argument('test', nargs='?', help='check_* basename, with optional .py suffix')
     integration.add_argument('--list', action='store_true')
+    integration.add_argument('--fixture-selection', help=argparse.SUPPRESS)
     system = categories.add_parser('system', allow_abbrev=False)
     system.add_argument('--artifacts', type=Path)
     system.add_argument('--previous-artifacts', type=Path)
@@ -204,6 +205,21 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 args.action, *map(str, args.keys),
                 *(['--new-name', args.new_name] if args.new_name is not None else [])]
     if args.category == 'integration':
+        fixture_options = []
+        if args.fixture_selection is not None:
+            if args.list or args.test is None or args.test.removesuffix('.py') != 'check_fixture_provisioning':
+                raise ValueError('test-runner:unexpected-fixture-selection')
+            if len(args.fixture_selection) > 8192:
+                raise ValueError('test-runner:invalid-fixture-selection')
+            sys.path.insert(0, str(root))
+            try:
+                from tools.fixture_execution import Selection
+            finally:
+                sys.path.pop(0)
+            selected = Selection.from_record(json.loads(args.fixture_selection))
+            if configured.name != 'onpc-Ubuntu26.04' or selected.target != 'ubuntu':
+                raise ValueError('test-runner:fixture-target-not-qualified')
+            fixture_options = ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
         if args.list:
             if args.test is not None:
                 raise ValueError('test-runner:list-does-not-select-test')
@@ -215,7 +231,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         if not re.fullmatch(r'check_[a-z][a-z0-9_]*', name):
             raise ValueError('test-runner:invalid-test-name')
         target = confined_file(root, f'tests/integration/{name}.py')
-        return ['/usr/bin/python3', '-B', str(target)]
+        return ['/usr/bin/python3', '-B', str(target), *fixture_options]
     if args.category == 'e2e':
         target = confined_file(root, 'tests/e2e/runner.py')
         options = [*vm_args, *(['--list'] if args.list else [])]

@@ -13,6 +13,7 @@ import pwd
 import re
 import stat
 import subprocess
+import time
 from types import SimpleNamespace
 
 try:
@@ -240,6 +241,57 @@ class Native:
                 and native_trust.file_backend_config(data, self.target['os']) == data,
                 'native-backend')
         self.command([self.cli, '--check-config'])
+        self._started()
+
+    def _service(self):
+        raw = self.command(['/usr/bin/systemctl', 'show', 'fapolicyd.service',
+            '--property=MainPID', '--property=InvocationID', '--property=ActiveState']).decode()
+        fields = dict(line.split('=', 1) for line in raw.splitlines())
+        require(set(fields) == {'MainPID', 'InvocationID', 'ActiveState'}
+                and fields['ActiveState'] == 'active'
+                and fields['MainPID'].isdigit() and int(fields['MainPID']) > 0
+                and re.fullmatch(r'[0-9a-f]{32}', fields['InvocationID']), 'native-service')
+        return fields
+
+    def _journal(self, identity, *, after=None):
+        argv = ['/usr/bin/journalctl', '--boot', '--unit=fapolicyd.service',
+                '--output=json', '--no-pager', '--all', '--lines=1000']
+        if after is not None:
+            argv += ['--after-cursor', after]
+        argv += ['_PID=' + identity['MainPID'],
+                 '_SYSTEMD_INVOCATION_ID=' + identity['InvocationID']]
+        rows = [json.loads(line) for line in self.command(argv).decode().splitlines()]
+        require(len(rows) <= 1000, 'native-journal-size')
+        for row in rows:
+            require(type(row) is dict and row.get('_PID') == identity['MainPID']
+                    and row.get('_SYSTEMD_INVOCATION_ID') == identity['InvocationID']
+                    and type(row.get('MESSAGE')) is str
+                    and type(row.get('__CURSOR')) is str and 0 < len(row['__CURSOR']) <= 4096,
+                    'native-journal-identity')
+        return rows
+
+    def _event(self, message, identity, *, after=None):
+        deadline = time.monotonic() + 180
+        while True:
+            require(self._service() == identity, 'native-service-changed')
+            rows = self._journal(identity, after=after)
+            require(self._service() == identity, 'native-service-changed')
+            if any(row['MESSAGE'] == message or row['MESSAGE'].endswith(': ' + message)
+                   for row in rows):
+                return rows[-1]['__CURSOR']
+            require(time.monotonic() < deadline, 'native-event-timeout:' + message)
+            time.sleep(min(0.2, max(0, deadline - time.monotonic())))
+
+    def _started(self):
+        # Type=forking becomes active before the packaged daemon loads trust.
+        # Its current invocation's startup event follows initialization; querying
+        # LMDB sooner can race the daemon replacing that database.
+        identity = self._service()
+        cursor = self._event('Starting to listen for events', identity)
+        return identity, cursor
+
+    def ready(self):
+        self._backend()
 
     def _tools(self):
         """Authenticate native tools with their package's complete checksum rows.
@@ -374,6 +426,7 @@ class Native:
     def activate(self, request):
         trusted, rules = self._trusted(request), self._rules(request)
         f = self.files
+        identity, cursor = self._started()
         if self.target['os'] == 'fedora':
             for member in request['members'].values():
                 self.command(['/usr/sbin/restorecon', '-F', '--', member['destination']])
@@ -387,6 +440,11 @@ class Native:
             if self.target['os'] == 'fedora':
                 self.command(['/usr/sbin/restorecon', '-F', '--', TRUST])
             self.command([self.cli, '--update'])
+            # The sole update is asynchronous. Observe its daemon's completion
+            # after the pre-update cursor before opening LMDB, without resending
+            # the mutation or retrying a failed database command.
+            self._event('Updated', identity, after=cursor)
+            self.verify_database(request)
         for path, data in rules.items():
             f.write(path, data, gid=self.gid, mode=0o644)
             self.command(['/usr/sbin/restorecon', '-F', '--', path])
@@ -413,10 +471,14 @@ class Native:
             fields = native_trust.database_row(line)
             if fields is not None and fields[1] in rows:
                 rows[fields[1]].append(fields)
-        for path in selected:
+        for path in sorted(selected):
             expected = ([['filedb', path, str(trusted[path]['size']), trusted[path]['sha256']]]
                         if path in trusted else [])
-            require(rows[path] == expected, 'native-database')
+            key = next(key for key, member in request['members'].items()
+                       if member['destination'] == path)
+            require(rows[path] == expected, 'native-database:' + json.dumps({
+                'member': key, 'expected': [[row[0], row[2], row[3]] for row in expected],
+                'observed': [[row[0], row[2], row[3]] for row in rows[path]]}, sort_keys=True))
 
     def verify(self, request):
         self._backend()
@@ -554,6 +616,7 @@ class Guest:
         if self.guard is not None:
             self.guard(request['binding'])
         if action == 'inspect':
+            self.native.ready()
             return {'accounts': self.accounts, 'target': self.target}
         self._validate(request)
         f, members, stage = self.files, request['members'], request['staging']

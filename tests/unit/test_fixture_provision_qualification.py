@@ -1,0 +1,347 @@
+"""Independent qualification assertions with private records and local doubles.
+
+No guest, subprocess, fixture producer, shared journal, service or cache is used.
+Only bounded in-memory data and pytest-private result files are owned here.
+"""
+from copy import deepcopy
+from contextlib import contextmanager, nullcontext
+import hashlib
+import json
+from types import SimpleNamespace
+from unittest.mock import MagicMock, Mock, call
+
+import pytest
+
+import fixture_provision_qualification as qualification
+from tools import fixture_execution, fixture_manifest
+
+
+@pytest.fixture
+def selection():
+    return fixture_execution.Selection('ubuntu', 'a' * 64,
+        '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
+        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64)
+
+
+@pytest.fixture
+def audit_case():
+    members, payloads = {}, {}
+    for key, declaration in fixture_manifest.declarations().items():
+        payloads[key] = b'private inert payload ' + key.encode()
+        members[key] = {name: value for name, value in declaration.items() if name != 'source'}
+        members[key].update(length=len(payloads[key]),
+                            sha256=hashlib.sha256(payloads[key]).hexdigest())
+    manifest = {'members': members, 'absences': deepcopy(fixture_manifest.ABSENCES)}
+    accounts = {role: {'uid': 1100 + index, 'gid': 2100 + index, 'home': '/home/' + role}
+                for index, role in enumerate(('parent', 'child', 'other'))}
+    accounts['system'] = {'uid': 0, 'gid': 0, 'home': '/root'}
+    subsets = ['trusted-hard', 'riley-grid']
+    keys = {key for key, member in members.items() if set(member['subsets']) & set(subsets)}
+    files, rows = {}, {}
+    for key in keys:
+        member = members[key]
+        owner = accounts[member['owner']]
+        path = member['destination']
+        for role, account in accounts.items():
+            path = path.replace('@' + role + '@', account['home'])
+        files[key] = {name: member[name] for name in ('sha256', 'length', 'mode')}
+        files[key].update(uid=owner['uid'], gid=owner['gid'], nlink=1, regular=True,
+                          device=5, inode=6, mtime_ns=7, ctime_ns=8)
+        rows[key] = ([['filedb', path, str(member['length']), member['sha256']]]
+                     if member['native_action'] == 'trust' else [])
+    binding = {'boot_sha256': 'd' * 64, 'vm_uuid': 'private-vm', 'run': 'e' * 32}
+    observed = dict(accounts=accounts, files=files, native_rows=rows, **binding,
+        unselected_present=[], staging=[], installed=False,
+        native_gid=975, native_active=True,
+        trust_entries={row[0][1]: {'length': int(row[0][2]), 'sha256': row[0][3]}
+                       for row in rows.values() if row},
+        preserved={'/etc/fapolicyd/private.rules': {'sha256': 'f' * 64},
+                   '@attempt-trust': {'uid': 0, 'gid': 975, 'mode': 0o600,
+                                      'regular': True, 'nlink': 1}},
+        vendor_database_sha256='0' * 64)
+    return SimpleNamespace(manifest=manifest, payloads=payloads, subsets=subsets,
+                           keys=keys, observed=observed, binding=binding)
+
+
+def test_readback_accepts_exact_independent_members_and_account_destinations(audit_case):
+    case = audit_case
+    before = deepcopy(case.manifest)
+    expected = qualification.validate_readback(case.observed, case.manifest,
+        case.subsets, case.binding, installed=False)
+    assert set(expected) == case.keys
+    for key, member in expected.items():
+        owner = case.observed['accounts'][member['owner']]
+        assert (member['uid'], member['gid']) == (owner['uid'], owner['gid'])
+        assert '@' not in member['destination']
+    assert case.manifest == before
+
+
+@pytest.mark.parametrize(('field', 'value'), [
+    ('sha256', '0' * 64), ('length', -1), ('mode', 0o777),
+    ('uid', 9999), ('gid', 9999), ('nlink', 2), ('regular', False),
+])
+def test_readback_rejects_payload_or_ownership_drift(audit_case, field, value):
+    case = audit_case
+    case.observed['files'][next(iter(case.keys))][field] = value
+    with pytest.raises(qualification.system.Error, match='independent-readback'):
+        qualification.validate_readback(case.observed, case.manifest,
+            case.subsets, case.binding, installed=False)
+
+
+@pytest.mark.parametrize('change', ['duplicate', 'wrong-source', 'missing', 'unselected'])
+def test_readback_requires_exact_native_database_rows(audit_case, change):
+    case = audit_case
+    rows = case.observed['native_rows']
+    key = next(key for key, value in rows.items() if value)
+    if change == 'duplicate':
+        rows[key] *= 2
+    elif change == 'wrong-source':
+        rows[key][0][0] = 'rpmdb'
+    elif change == 'missing':
+        rows[key] = []
+    else:
+        rows['unselected'] = []
+    with pytest.raises(qualification.system.Error, match='exact-native-trust|native-inventory'):
+        qualification.validate_readback(case.observed, case.manifest,
+            case.subsets, case.binding, installed=False)
+
+
+@pytest.mark.parametrize('field', ['boot_sha256', 'vm_uuid', 'run'])
+def test_readback_binds_actual_attempt_identity(audit_case, field):
+    case = audit_case
+    case.observed[field] = 'foreign'
+    with pytest.raises(qualification.system.Error, match='actual-attempt'):
+        qualification.validate_readback(case.observed, case.manifest,
+            case.subsets, case.binding, installed=False)
+
+
+@pytest.mark.parametrize('change', ['inactive', 'extra-entry', 'missing-entry',
+    'trust-owner', 'trust-group', 'trust-mode', 'trust-hardlink'])
+def test_readback_requires_active_exact_trust_and_safe_metadata(audit_case, change):
+    case = audit_case
+    if change == 'inactive':
+        case.observed['native_active'] = False
+    elif change == 'extra-entry':
+        case.observed['trust_entries']['/foreign'] = {'length': 1, 'sha256': 'a' * 64}
+    elif change == 'missing-entry':
+        case.observed['trust_entries'].pop(next(iter(case.observed['trust_entries'])))
+    else:
+        field, value = {'trust-owner': ('uid', 1000), 'trust-group': ('gid', 9999),
+                        'trust-mode': ('mode', 0o644), 'trust-hardlink': ('nlink', 2)}[change]
+        case.observed['preserved']['@attempt-trust'][field] = value
+    with pytest.raises(qualification.system.Error, match='native-activation|trust-metadata'):
+        qualification.validate_readback(case.observed, case.manifest,
+            case.subsets, case.binding, installed=False)
+
+
+@pytest.mark.parametrize('change', ['missing', 'extra', 'unselected', 'staging', 'installed'])
+def test_readback_refuses_nonminimal_runtime(audit_case, change):
+    case = audit_case
+    if change == 'missing':
+        case.observed['files'].pop(next(iter(case.keys)))
+    elif change == 'extra':
+        case.observed['files']['unselected'] = {}
+    elif change == 'unselected':
+        case.observed['unselected_present'] = ['unselected']
+    elif change == 'staging':
+        case.observed['staging'] = ['onpc-fixture-private']
+    else:
+        case.observed['installed'] = True
+    with pytest.raises(qualification.system.Error, match='minimal-runtime'):
+        qualification.validate_readback(case.observed, case.manifest,
+            case.subsets, case.binding, installed=False)
+
+
+@pytest.mark.parametrize('field', ['inode', 'mtime_ns', 'sha256', 'mode'])
+def test_repeat_detects_identity_time_content_or_mode_changes(audit_case, field):
+    before = audit_case.observed
+    qualification.verify_repeat(before, deepcopy(before))
+    after = deepcopy(before)
+    after['files'][next(iter(audit_case.keys))][field] = 'changed'
+    with pytest.raises(qualification.system.Error, match='repeat-wrote-state'):
+        qualification.verify_repeat(before, after)
+
+
+@pytest.mark.parametrize('change', ['policy', 'vendor-database'])
+def test_unrelated_policy_must_survive_provisioning(audit_case, change):
+    before = audit_case.observed
+    after = deepcopy(before)
+    after['preserved']['@attempt-trust'] = {'sha256': 'owned-change'}
+    qualification.unchanged_policy(before, after)
+    if change == 'policy':
+        after['preserved']['/etc/fapolicyd/private.rules']['sha256'] = 'changed'
+    else:
+        after['vendor_database_sha256'] = 'changed'
+    with pytest.raises(qualification.system.Error, match='unrelated-native-or-product-state-changed'):
+        qualification.unchanged_policy(before, after)
+
+
+def test_recording_boundary_delegates_exact_objects_and_records_only_sent_payloads(monkeypatch, audit_case):
+    transport, request, reply = object(), {'attempt': 'private'}, object()
+    delegate = Mock()
+    delegate.call.return_value = reply
+    constructor = Mock(return_value=delegate)
+    monkeypatch.setattr(qualification.fixture_provision, 'SSHBoundary', constructor)
+    boundary = qualification.RecordingBoundary(transport)
+    payloads = {key: audit_case.payloads[key] for key in audit_case.keys}
+    assert boundary.call('inspect', request) is reply
+    assert boundary.call('stage', request, payloads) is reply
+    constructor.assert_called_once_with(transport)
+    assert delegate.call.call_args_list == [call('inspect', request, None), call('stage', request, payloads)]
+    assert delegate.call.call_args.args[1] is request
+    assert delegate.call.call_args.args[2] is payloads
+    assert boundary.actions == ['inspect', 'stage']
+    assert boundary.transfers == [{key: {'length': len(value),
+        'sha256': hashlib.sha256(value).hexdigest()} for key, value in payloads.items()}]
+    assert set(boundary.transfers[0]) == audit_case.keys
+
+
+@pytest.mark.parametrize('failure', ['missing', 'authentication', 'corrupt', 'incompatible', 'target'])
+def test_invalid_selection_refuses_before_suite_or_acquire(monkeypatch, tmp_path, selection, failure):
+    suite = Mock(side_effect=AssertionError('must not construct a VM suite'))
+    monkeypatch.setattr(qualification, 'Suite', suite)
+    pin = Mock(return_value=nullcontext())
+    monkeypatch.setattr(qualification, 'authenticated_input', pin)
+    verify = Mock(return_value={})
+    authenticate = Mock(return_value={})
+    monkeypatch.setattr(fixture_execution, 'verify', verify)
+    monkeypatch.setattr(qualification.fixture_provision, 'authenticated_bundle', authenticate)
+    record = selection.record()
+    if failure == 'missing':
+        record = None
+    elif failure == 'authentication':
+        pin.side_effect = ValueError('untrusted input')
+    elif failure == 'target':
+        record['target'] = 'fedora'
+        record['allocation'] = record['allocation'].replace('ubuntu', 'fedora')
+    elif failure == 'corrupt':
+        verify.side_effect = ValueError('corrupt input')
+    else:
+        authenticate.side_effect = ValueError('incompatible input')
+    with pytest.raises((ValueError, qualification.system.Error)):
+        qualification.qualify(tmp_path, tmp_path / 'unused-assets', record)
+    suite.assert_not_called()
+    if failure in ('missing', 'authentication', 'target'):
+        verify.assert_not_called()
+    if failure != 'incompatible':
+        authenticate.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', [None, 'foreign', 'fresh-minimal', 'installed-union'])
+def test_qualification_closes_suite_and_exits_lease_after_attempts(monkeypatch, tmp_path, selection, failure):
+    events = []
+    pinned = False
+
+    @contextmanager
+    def pin(record):
+        nonlocal pinned
+        assert record == selection.record()
+        pinned = True
+        events.append('pin-enter')
+        try:
+            yield
+        finally:
+            events.append('pin-exit')
+            pinned = False
+
+    monkeypatch.setattr(qualification, 'authenticated_input', pin)
+
+    def cleanup(name):
+        assert pinned, 'input pin released before VM recovery and suite cleanup'
+        events.append(name)
+
+    lease = MagicMock()
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean'}}
+    lease.__enter__.side_effect = lambda: cleanup('enter')
+    lease.__exit__.side_effect = lambda *args: cleanup('exit') or False
+    source = SimpleNamespace(domain=SimpleNamespace(name=lambda: qualification.TARGET))
+    suite = Mock()
+    suite.acquire.return_value = (source, None, lease)
+    suite.close.side_effect = lambda: cleanup('close')
+    monkeypatch.setattr(qualification, 'Suite', Mock(return_value=suite))
+    monkeypatch.setattr(fixture_execution, 'verify', Mock(return_value={'private': 'manifest'}))
+    monkeypatch.setattr(qualification.fixture_provision, 'authenticated_bundle', Mock())
+    monkeypatch.setattr(qualification.fixture_provision, 'reset_after_restore', Mock())
+    monkeypatch.setattr(qualification.system, 'artifact_source', Mock(return_value='private-assets'))
+    monkeypatch.setattr(qualification.system, 'stage_assets', Mock())
+    monkeypatch.setattr(qualification, 'preflight_source', Mock())
+
+    def attempt(actual_suite, directory, frozen, manifest, *args, **kwargs):
+        assert actual_suite is suite and frozen == selection and pinned
+        events.append(directory.name)
+        if directory.name == failure:
+            raise ValueError('private attempt failure')
+        return {'actual_boot_sha256': directory.name,
+                'binding': {'boot_sha256': directory.name, 'attempt_id': directory.name}}
+
+    monkeypatch.setattr(qualification, 'foreign_attempt', attempt)
+    monkeypatch.setattr(qualification, 'successful_attempt', attempt)
+    if failure:
+        with pytest.raises(ValueError, match='private attempt failure'):
+            qualification.qualify(tmp_path, tmp_path / 'unused-assets', selection.record())
+        assert (tmp_path / 'private/controller-error.txt').is_file()
+    else:
+        result = qualification.qualify(tmp_path, tmp_path / 'unused-assets', selection.record())
+        assert result['owned_baseline_restoration_verified'] is True
+        assert set(result['attempts']) == {'foreign', 'fresh-minimal', 'installed-union'}
+        assert lease.prepare.call_count == 3 and lease.stop.call_count == 2
+    assert events[:2] == ['pin-enter', 'enter']
+    assert events[-3:] == ['exit', 'close', 'pin-exit']
+    assert not pinned
+    suite.acquire.assert_called_once()
+    suite.close.assert_called_once()
+    lease.__exit__.assert_called_once()
+
+
+def test_missing_installed_helper_closure_refuses_before_vm_acquisition(monkeypatch, tmp_path, selection):
+    suite = Mock()
+    suite.input_bundle.side_effect = ValueError('missing installed helper')
+    monkeypatch.setattr(qualification, 'Suite', Mock(return_value=suite))
+    monkeypatch.setattr(qualification, 'authenticated_input', lambda _: nullcontext())
+    monkeypatch.setattr(fixture_execution, 'verify', Mock(return_value={}))
+    monkeypatch.setattr(qualification.fixture_provision, 'authenticated_bundle', Mock())
+    monkeypatch.setattr(qualification.system, 'artifact_source', Mock())
+    monkeypatch.setattr(qualification.system, 'stage_assets', Mock())
+    monkeypatch.setattr(qualification, 'preflight_source', Mock())
+    with pytest.raises(ValueError, match='missing installed helper'):
+        qualification.qualify(tmp_path, tmp_path / 'assets', selection.record())
+    suite.acquire.assert_not_called()
+    suite.close.assert_called_once()
+
+
+@pytest.mark.parametrize('diagnostic_failure', [False, True])
+def test_failed_provision_retains_independent_audit_without_retry(monkeypatch, tmp_path, diagnostic_failure):
+    transport = object()
+    monkeypatch.setattr(qualification, 'baseline_transport', Mock(return_value=transport))
+    before = {'files': {}, 'unselected_present': [], 'staging': [],
+              'preserved': {'@attempt-trust': None}}
+    observation = {'private': 'independent observation'}
+    audit = Mock(side_effect=[before, ValueError('diagnostic failed') if diagnostic_failure else observation])
+    monkeypatch.setattr(qualification, 'audit', audit)
+    failure = ValueError('original provisioning failure')
+    controller = Mock()
+    controller.provision.side_effect = failure
+    monkeypatch.setattr(qualification.fixture_provision, 'Provisioner', Mock(return_value=controller))
+    monkeypatch.setattr(qualification, 'RecordingBoundary', Mock())
+    with pytest.raises(ValueError) as caught:
+        qualification.successful_attempt(Mock(), tmp_path, object(), {}, ['trusted-hard'], installed=False)
+    assert caught.value is failure
+    controller.provision.assert_called_once()
+    assert audit.call_args_list == [call(transport, {}, ['trusted-hard'])] * 2
+    if diagnostic_failure:
+        assert 'diagnostic failed' in (tmp_path / 'failure-audit-error.txt').read_text()
+    else:
+        assert json.loads((tmp_path / 'failure-audit.json').read_bytes()) == observation
+
+
+def test_main_retains_input_preflight_error_before_suite_exists(monkeypatch, tmp_path):
+    monkeypatch.setattr(qualification.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(qualification.os, 'umask', Mock())
+    monkeypatch.setattr(qualification.prepare_vm.vm_config, 'selected',
+                        lambda: SimpleNamespace(name=qualification.TARGET))
+    monkeypatch.setattr(qualification, 'session', nullcontext)
+    monkeypatch.setattr(qualification, 'allocate', lambda *args, **kwargs: str(tmp_path))
+    monkeypatch.setattr(qualification, 'qualify', Mock(side_effect=ValueError('input preflight detail')))
+    assert qualification.main(assets='unused', selection={}) == 1
+    assert 'input preflight detail' in (tmp_path / 'controller-error.txt').read_text()
+    assert not (tmp_path / 'result.json').exists()

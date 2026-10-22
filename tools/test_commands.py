@@ -512,6 +512,55 @@ def qualification_artifact_command(root, category, args):
     return python_file(root, 'tools/vm_artifacts.py', *flags, '--output', directory, *arguments())
 
 
+def qualification_fixture_options(root, category, args, *, control=None, environment=None):
+    """Freeze F05's caller-owned fixture input before the privileged VM lease.
+
+    The selection is a locator, not authority: the privileged consumer repeats
+    the authenticated journal and complete bundle checks before acquiring a VM.
+    Ordinary runners remain unavailable on clean captures.
+    """
+    if category != 'integration' or len(args) != 1 or args[0].removesuffix('.py') != 'check_fixture_provisioning':
+        return []
+    from vm_selection import selected
+    if selected().name != 'onpc-Ubuntu26.04':
+        raise ValueError('fixture provisioning qualification is Ubuntu-only')
+    from fixture_execution import Selection
+    if control is None:
+        from regression_process import Control
+        with Control().installed() as owned:
+            return qualification_fixture_options(root, category, args, control=owned,
+                                                 environment=host.environment(root))
+    # Build in an owned child: STOP must reach cold compilers/containers too.
+    # Control forwards the caller retention/producer descriptors and waits for
+    # its recorded child before the privileged consumer can acquire the VM.
+    pending, records, invalid = b'', [], False
+    prefix = b'fixture-execution: selection='
+    def output(data):
+        nonlocal pending, invalid
+        sys.stdout.write(data.decode('utf-8', errors='replace'))
+        sys.stdout.flush()
+        pending += data
+        while b'\n' in pending:
+            line, pending = pending.split(b'\n', 1)
+            if line.startswith(prefix):
+                if len(line) > 8192:
+                    invalid = True
+                else:
+                    records.append(line[len(prefix):])
+        if len(pending) > 65536:
+            invalid, pending = True, b''
+    status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', 'ubuntu'),
+                         cwd=root, env=environment, output=output, timeout=600.0)
+    if status:
+        raise ValueError('fixture preparation failed; status=' + str(status))
+    if invalid or len(records) != 1:
+        raise ValueError('fixture preparation returned no unique selection')
+    selection = Selection.from_record(json.loads(records[0]))
+    if selection.target != 'ubuntu':
+        raise ValueError('fixture preparation returned an incompatible selection')
+    return ['--fixture-selection', json.dumps(selection.record(), sort_keys=True)]
+
+
 def make_command(root, target, assignments=()):
     makefile = host.confined_file(root, 'Makefile')
     if not re.search(r'^' + re.escape(target) + r'\s*:', Path(makefile).read_text(), re.M):
@@ -837,6 +886,7 @@ def _main(argv=None, *, detached=False, checkpoint=None):
             status = subprocess.run(command, env=env, check=False).returncode
             if status:
                 return status if status > 0 else 128 - status
+        commands[-1] += qualification_fixture_options(root, category, args)
         if commands[-1][0] == '/usr/bin/pkexec':
             from dev_privileges import check
             check(commands[-1][1])

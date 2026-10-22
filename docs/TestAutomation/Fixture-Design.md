@@ -1,9 +1,9 @@
 # Host-owned fixture lifecycle: target design
 
 Status: **partially implemented**: producer lifetime, immutable host construction,
-execution-owned reuse, the host-validated SSH provisioner and Ubuntu's clean
-snapshot boundary are delivered. Provisioning qualification, Fedora snapshots,
-runner migration and live refresh remain proposed.
+execution-owned reuse, the shared SSH provisioner, Ubuntu's clean snapshot
+boundary and Ubuntu provisioning qualification are delivered. Fedora snapshots
+and provisioning qualification, runner migration and live refresh remain proposed.
 The [execution plan](Fixture-Execution-Plan.md) delivers this design. Current
 VM, storage and preparation rules remain effective until their owning tasks
 deliver and document a replacement.
@@ -328,9 +328,11 @@ new catalogue-ID, cache inspect/prune or quiesce option.
 
 `check_fixture_snapshots` is registered and qualified for Ubuntu only; use
 `tools/run-tests integration --list` for bindings. `check_fixture_provisioning`
-is registered for Ubuntu but remains unqualified. F53 delivered its native backend
-environment prerequisite through the [clean snapshot owner](../../tests/integration/Environment.md#ubuntu-clean-snapshots);
-F05 still owns installed provisioning acceptance.
+is registered and qualified for Ubuntu's fresh owned attempts. F53 delivered its
+native backend environment prerequisite through the
+[clean snapshot owner](../../tests/integration/Environment.md#ubuntu-clean-snapshots);
+F05 delivered installed provisioning acceptance through the
+[shared provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning).
 The seven matrix selectors and `check_fixture_live_refresh` remain **planned
 and unimplemented** until their own registration/listing; examples in briefs
 grant no operation. Ordinary runner dispatch remains unavailable.

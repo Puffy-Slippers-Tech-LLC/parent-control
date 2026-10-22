@@ -442,6 +442,8 @@ def category_run(root, category, argv, *, pipe=True):
                 return status
             commands, _ = test_commands.plan(root, category,
                 test_commands.prepared_vm_options(category, argv, directory))
+        commands[-1] += test_commands.qualification_fixture_options(
+            root, category, argv, control=control, environment=env)
         for command in commands:
             privileged = command[0] == '/usr/bin/pkexec'
             if privileged:

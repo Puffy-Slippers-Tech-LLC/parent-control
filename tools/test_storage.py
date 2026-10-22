@@ -94,6 +94,12 @@ def _directory(kind, *, root, create, owner, uid):
                 except FileExistsError:
                     pass
             child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            if create and owner == 'host' and uid == os.geteuid() and uid > 0 and candidate == base.parent:
+                try:
+                    _prepare_output_ancestor(fd, part, child, uid)
+                except BaseException:
+                    os.close(child)
+                    raise
             os.close(fd)
             fd = child
         info = os.fstat(fd)
@@ -103,6 +109,42 @@ def _directory(kind, *, root, create, owner, uid):
     finally:
         os.close(fd)
     return path
+
+
+def _prepare_output_ancestor(parent, name, descriptor, uid):
+    """Tighten only the caller's ordinary group-writable output directory.
+
+    Old build output may predate private test storage. Reconcile this one shared
+    ancestor through its pinned parent; never rewrite payloads or relax the
+    authenticated input reader. Root and read-only allocation skip this route.
+    """
+    if __package__:
+        from .test_retention import mount_id
+    else:
+        from test_retention import mount_id
+    before = os.fstat(descriptor)
+    mode = stat.S_IMODE(before.st_mode)
+    if before.st_uid != uid or mode & 0o022 and not (
+            mode == 0o775 and before.st_gid == os.getegid()):
+        raise ValueError('unsafe test output ancestor ownership or mode')
+    if mode != 0o775:
+        return
+    if mount_id(parent) != mount_id(descriptor):
+        raise ValueError('mounted test output ancestor refused')
+    identity = lambda info: (info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode),
+                             info.st_uid, info.st_gid)
+    current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    if identity(current) != identity(before) or stat.S_IMODE(current.st_mode) not in (0o755, 0o775):
+        raise ValueError('test output ancestor replaced')
+    # Another identical allocator may already have completed the same repair.
+    if stat.S_IMODE(current.st_mode) == 0o775:
+        os.fchmod(descriptor, 0o755)
+        os.fsync(descriptor)
+    after = os.fstat(descriptor)
+    current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    if (identity(after) != identity(before) or identity(current) != identity(after)
+            or stat.S_IMODE(after.st_mode) != 0o755 or stat.S_IMODE(current.st_mode) != 0o755):
+        raise ValueError('test output ancestor changed during preparation')
 
 
 def contains(path):

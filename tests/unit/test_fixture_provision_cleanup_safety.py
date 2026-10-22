@@ -6,6 +6,7 @@ cache or installed product. Small bounded I/O permits compatible unit overlap.
 """
 import copy
 import base64
+import builtins
 import hashlib
 import json
 import os
@@ -173,6 +174,24 @@ def assert_terminal(rig):
     assert rig.boundary.calls == calls
     rig.lease.restore.assert_not_called()
     rig.lease.cleanup.assert_not_called()
+
+
+def test_environment_wait_observes_only_and_never_releases_readiness(rig):
+    result = rig.control.wait_environment()
+    assert result['accounts'] == rig.boundary.accounts
+    assert [action for action, _ in rig.boundary.calls] == ['inspect']
+    assert not rig.registered and not rig.boundary.writes
+    rig.reader.assert_not_called()
+    with pytest.raises(ValueError, match='readiness-required'):
+        rig.control.require_ready(None)
+
+
+def test_environment_wait_failure_poisons_existing_lease(rig):
+    rig.boundary.fail = 'inspect'
+    with pytest.raises(OSError):
+        rig.control.wait_environment()
+    assert_terminal(rig)
+    assert not rig.registered
 
 
 @pytest.mark.parametrize('subsets', [(), ('mechanical',), ('native',),
@@ -660,6 +679,15 @@ class NativeCommands:
 
     def __call__(self, argv):
         self.calls.append(argv)
+        if argv[0] == '/usr/bin/systemctl':
+            return b'MainPID=123\nInvocationID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nActiveState=active\n'
+        if argv[0] == '/usr/bin/journalctl':
+            row = lambda message, cursor: {'_PID': '123',
+                '_SYSTEMD_INVOCATION_ID': 'a' * 32, 'MESSAGE': message, '__CURSOR': cursor}
+            rows = [] if '--after-cursor' in argv else [row('Starting to listen for events', 'start')]
+            if self.installed:
+                rows.append(row('Updated', 'updated'))
+            return b''.join(json.dumps(item).encode() + b'\n' for item in rows)
         if argv[:2] == ['dpkg-query', '-S']:
             return ('fapolicyd: ' + argv[2] + '\n').encode()
         if argv[:2] == ['dpkg-query', '-W']:
@@ -727,6 +755,133 @@ def test_real_native_uses_exact_public_trust_actions_and_preserves_environment(r
     r.native_api.preflight({**r.request, 'repeat': True})
     assert [argv for argv in r.commands.calls[len(before):]
             if argv[1:3] == ['--file', 'add'] or argv[1:] == ['--update']] == []
+
+
+def test_native_database_mismatch_retains_exact_fixture_diagnostic(real_native):
+    r = real_native
+    key, member = next((key, item) for key, item in r.request['members'].items()
+                       if item['native_action'] == 'trust')
+    request = {**r.request, 'members': {key: member}}
+    with pytest.raises(ValueError, match='native-database:') as failure:
+        r.native_api.verify_database(request)
+    diagnostic = json.loads(str(failure.value).split('native-database:', 1)[1])
+    assert diagnostic == {'member': key, 'observed': [],
+        'expected': [['filedb', str(member['length']), member['sha256']]]}
+    assert r.commands.calls == [[r.native_api.cli, '--dump-db']]
+
+
+def test_native_activation_observes_completion_before_dump_without_repeating_update(real_native, monkeypatch):
+    r = real_native
+    clock, observations, reads = [0.0], [], []
+    original = r.native_api.command
+
+    def command(argv):
+        if argv[0] == '/usr/bin/journalctl' and '--after-cursor' in argv:
+            observations.append(clock[0])
+            if len(observations) <= 2:
+                r.commands.calls.append(argv)
+                return b''
+        if argv == [r.native_api.cli, '--dump-db']:
+            reads.append(clock[0])
+        return original(argv)
+
+    monkeypatch.setattr(guest.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(guest.time, 'sleep', lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+    r.native_api.command = command
+    r.native_api.activate(r.request)
+    assert observations == [0.0, 0.2, 0.4]
+    assert reads == [0.4]
+    assert sum(argv[1:] == ['--update'] for argv in r.commands.calls) == 1
+
+
+def test_native_startup_observation_precedes_any_database_access(real_native, monkeypatch):
+    r = real_native
+    clock, observations = [0.0], []
+    original = r.native_api.command
+
+    def command(argv):
+        if argv[0] == '/usr/bin/journalctl':
+            observations.append(clock[0])
+            if len(observations) <= 2:
+                r.commands.calls.append(argv)
+                return b''
+        return original(argv)
+
+    monkeypatch.setattr(guest.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(guest.time, 'sleep', lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+    r.native_api.command = command
+    r.native_api.ready()
+    assert observations == [0.0, 0.2, 0.4]
+    assert not r.files.exists(guest.TRUST)
+    assert not any(argv[1:] in (['--dump-db'], ['--update']) for argv in r.commands.calls)
+
+
+@pytest.mark.parametrize('fault', ['restart', 'foreign-record', 'old-completion', 'command-error'])
+def test_native_event_wait_never_adopts_foreign_or_uncertain_observations(real_native, monkeypatch, fault):
+    r = real_native
+    identity = r.native_api._service()
+    service = Mock(return_value=identity)
+    journal = Mock(return_value=[])
+    monkeypatch.setattr(r.native_api, '_service', service)
+    monkeypatch.setattr(r.native_api, '_journal', journal)
+    if fault == 'restart':
+        service.side_effect = [identity, {**identity, 'InvocationID': 'b' * 32}]
+    elif fault == 'command-error':
+        journal.side_effect = OSError('read failed')
+    elif fault == 'foreign-record':
+        # Exercise the real journal parser's invocation pin independently.
+        monkeypatch.setattr(r.native_api, 'command', Mock(return_value=json.dumps({
+            '_PID': identity['MainPID'], '_SYSTEMD_INVOCATION_ID': 'b' * 32,
+            'MESSAGE': 'Updated', '__CURSOR': 'foreign'}).encode()))
+        with pytest.raises(ValueError, match='native-journal-identity'):
+            guest.Native._journal(r.native_api, identity)
+        return
+    else:
+        # The cursor is required for update observation, so old completions
+        # cannot be used. Simulate no post-cursor response until the deadline.
+        monkeypatch.setattr(guest.time, 'monotonic', Mock(side_effect=[0.0, 180.0]))
+    with pytest.raises((ValueError, OSError)):
+        r.native_api._event('Updated', identity, after='current-cursor')
+    journal.assert_called_once_with(identity, after='current-cursor')
+    assert not any(argv[1:] == ['--update'] for argv in r.commands.calls)
+
+
+def test_native_activation_missing_completion_times_out_without_second_update_or_dump(real_native, monkeypatch):
+    r = real_native
+    clock = [0.0]
+    original = r.native_api.command
+
+    def command(argv):
+        if argv[0] == '/usr/bin/journalctl' and '--after-cursor' in argv:
+            r.commands.calls.append(argv)
+            return b''
+        return original(argv)
+
+    monkeypatch.setattr(guest.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(guest.time, 'sleep', lambda seconds: clock.__setitem__(0, 180.0))
+    r.native_api.command = command
+    with pytest.raises(ValueError, match='native-event-timeout:Updated'):
+        r.native_api.activate(r.request)
+    assert not any(argv[1:] == ['--dump-db'] for argv in r.commands.calls)
+    assert sum(argv[1:] == ['--update'] for argv in r.commands.calls) == 1
+
+
+@pytest.mark.parametrize('fault', ['conflict', 'duplicate', 'control'])
+def test_native_activation_refuses_unsafe_rows_immediately(real_native, monkeypatch, fault):
+    r = real_native
+    trusted = next(m for m in r.request['members'].values() if m['native_action'] == 'trust')
+    row = f"filedb {trusted['destination']} {trusted['length']} {trusted['sha256']}"
+    if fault == 'conflict':
+        row = row.replace(trusted['sha256'], '0' * 64)
+    elif fault == 'control':
+        control = next(m for m in r.request['members'].values() if m['native_action'] != 'trust')
+        row = f"filedb {control['destination']} {control['length']} {control['sha256']}"
+    r.commands.extra_rows = [row]
+    monkeypatch.setattr(guest.time, 'sleep', Mock(side_effect=AssertionError('must not wait on unsafe rows')))
+    with pytest.raises(ValueError, match='native-database:'):
+        r.native_api.activate(r.request)
+    assert sum(argv[1:] == ['--dump-db'] for argv in r.commands.calls) == 1
+    assert sum(argv[1:] == ['--update'] for argv in r.commands.calls) == 1
 
 
 @pytest.mark.parametrize('fault', ['backend', 'pending', 'foreign-trust', 'database-trust', 'tool'])
@@ -832,11 +987,21 @@ def test_ssh_wire_embedded_modules_execute_only_over_private_guest(real_guest, t
         'guest_files', 'native_assets', 'baseline_assets', 'native_trust',
         'fixture_manifest', 'fixture_process', 'fixture_guest'}
     shipped = {}
-    for name, source in wire['modules']:
-        module = ModuleType(name)
-        monkeypatch.setitem(sys.modules, name, module)
-        exec(compile(source, '<shipped-' + name + '>', 'exec'), module.__dict__)
-        shipped[name] = module
+    original_import = builtins.__import__
+
+    def guest_import(name, *args, **kwargs):
+        assert name.split('.')[0] not in ('tests', 'tools'), 'checkout import in guest payload'
+        return original_import(name, *args, **kwargs)
+
+    # The real guest has no checkout package. Do not let this pytest process's
+    # imports conceal a missing dependency in the transferred module closure.
+    with monkeypatch.context() as isolated:
+        isolated.setattr(builtins, '__import__', guest_import)
+        for name, source in wire['modules']:
+            module = ModuleType(name)
+            monkeypatch.setitem(sys.modules, name, module)
+            exec(compile(source, '<shipped-' + name + '>', 'exec'), module.__dict__)
+            shipped[name] = module
     assert shipped['fixture_manifest'].declarations() == fixture_manifest.declarations()
     assert callable(shipped['fixture_process'].launch_native)
     assert callable(shipped['fixture_process'].terminate)

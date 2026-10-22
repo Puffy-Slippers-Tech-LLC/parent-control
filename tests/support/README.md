@@ -138,8 +138,18 @@ another provisioner cannot bypass them. Subset changes require a fresh clean
 attempt. After the existing VM owner has restored its snapshot and verified the
 guest off, `reset_after_restore(lease)` retires that generation before the next
 prepare. Old objects and receipts stay unusable. Reboot alone grants no reset.
-Live refresh also needs the later qualified idle-maintenance boundary. Runner dispatch and
-provisioning/runner engineering selectors remain unavailable until the
+Live refresh also needs the later qualified idle-maintenance boundary.
+`wait_environment()` observes native startup before an independent clean audit;
+it grants no fixture readiness. The shared guest boundary pins the active native
+daemon's PID and service invocation, observes its current-boot startup message,
+then observes update completion after a pre-update journal cursor before exact
+database readback. It never resends an update or retries a failed database command.
+The `check_fixture_provisioning` engineering selector is qualified on clean Ubuntu
+attempts: foreign-destination refusal, fresh minimal trusted-hard provisioning,
+and the installed native/activity/trusted/mechanical union, including harmless
+runtime use, verification without writes and normal baseline restoration. This
+does not qualify concurrent native updaters or Fedora.
+Ordinary runner dispatch and runner engineering selectors remain unavailable until the
 [fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies
 the actual target and preparation envelope. Host doubles supply no installed
 or customer acceptance. Ubuntu's delivered

@@ -83,6 +83,21 @@ def test_reader_pins_read_only_input_and_excludes_journal_writers(selected):
     assert payload.read_bytes() == b'immutable input'
 
 
+def test_allocator_repairs_output_before_handoff_without_weakening_reader(selected):
+    output = selected.root / 'output'
+    output.chmod(0o775)
+    before = (selected.journal / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='unsafe storage owner or mode'):
+        with storage.authenticated_input(selected.record, root=selected.root):
+            pytest.fail('reader accepted a writable ancestor')
+    assert output.stat().st_mode & 0o777 == 0o775
+    storage.directory('allocations', root=selected.root)
+    with storage.authenticated_input(selected.record, root=selected.root) as fd:
+        assert os.fstat(fd).st_ino == selected.record['inode']
+    assert output.stat().st_mode & 0o777 == 0o755
+    assert (selected.journal / 'current.json').read_bytes() == before
+
+
 def test_finished_run_remains_readable_only_while_descendant_holds_owner(selected):
     selected.state['finished'] = True
     (selected.journal / 'current.json').write_text(json.dumps(selected.state))

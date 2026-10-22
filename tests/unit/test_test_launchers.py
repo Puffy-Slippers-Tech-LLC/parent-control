@@ -2,6 +2,7 @@
 from tools.test_storage import named_input
 from tests.support.vm_registry import vm_name
 from dataclasses import replace
+from contextlib import nullcontext
 import ast
 import json
 import os
@@ -49,6 +50,9 @@ def test_every_named_input_consumer_prepares_before_dispatch(
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    fixture_options = ['--fixture-selection', '{"frozen":"fixture"}'] if name == 'check_fixture_provisioning' else []
+    freeze = Mock(return_value=fixture_options)
+    monkeypatch.setattr(commands, 'qualification_fixture_options', freeze)
     execute = Mock(side_effect=[build_status, 0])
     monkeypatch.setattr(regression_process.Control, 'run', execute)
     authorize = Mock()
@@ -63,12 +67,186 @@ def test_every_named_input_consumer_prepares_before_dispatch(
     if build_status:
         assert execute.call_count == 1
         authorize.assert_not_called()
+        freeze.assert_not_called()
     else:
         assert execute.call_count == 2
         authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
+        assert freeze.call_count == 1
+        assert freeze.call_args.args == (ROOT, 'integration', [selector])
+        assert isinstance(freeze.call_args.kwargs['control'], regression_process.Control)
+        assert freeze.call_args.kwargs['environment']['PYTHONUNBUFFERED'] == '1'
         assert execute.call_args.args[0] == [
             '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-            '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector, *vm_args]
+            '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector, *vm_args,
+            *fixture_options]
+
+
+@pytest.mark.parametrize(('category', 'args'), [
+    ('integration', ['check_future_feature']), ('integration', ['--list']),
+    ('integration', ['check_fixture_provisioning', '--list']),
+    ('system', ['check_fixture_provisioning']),
+])
+def test_fixture_qualification_ignores_unrelated_selections(monkeypatch, category, args):
+    control = Mock()
+    assert commands.qualification_fixture_options(ROOT, category, args, control=control) == []
+    control.run.assert_not_called()
+
+
+def test_fixture_qualification_refuses_other_target_before_preparing(monkeypatch):
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='onpc-Fedora44'))
+    control = Mock()
+    with pytest.raises(ValueError, match='Ubuntu-only'):
+        commands.qualification_fixture_options(ROOT, 'integration', ['check_fixture_provisioning'], control=control)
+    control.run.assert_not_called()
+
+
+def test_fixture_qualification_imports_in_standalone_launcher_context():
+    # pytest puts the checkout root on sys.path. The public launcher initially
+    # has only tools/, so a fresh isolated interpreter must exercise this route.
+    from tools.test_storage import scratch_descriptors
+    program = '''import json,os,pathlib,sys
+root=pathlib.Path(sys.argv[1]);sys.path.insert(0,str(root/'tools'))
+os.environ['ONPC_TEST_VM']='onpc-Ubuntu26.04'
+import test_commands
+record={'schema':'onpc-execution-fixture-v1','target':'ubuntu','key':'a'*64,
+ 'allocation':'/tmp/onpc-native-runtime-ubuntu-'+'a'*64+'-private',
+ 'device':1,'inode':2,'journal':'/tmp/retention-private','journal_device':3,
+ 'journal_inode':4,'run':'b'*32,'build_identity':'c'*64}
+class Control:
+ def run(self,command,**options):
+  assert command[-2:]==['--target','ubuntu']
+  assert options['timeout']==600.0
+  options['output'](('fixture-execution: selection='+json.dumps(record)+'\\n').encode())
+  return 0
+options=test_commands.qualification_fixture_options(root,'integration',
+ ['check_fixture_provisioning'],control=Control(),environment={})
+assert options[0]=='--fixture-selection' and json.loads(options[1])==record
+'''
+    result = subprocess.run(['/usr/bin/python3', '-IB', '-c', program, str(ROOT)],
+                            capture_output=True, text=True, timeout=15,
+                            pass_fds=scratch_descriptors(), check=False)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.fixture
+def frozen_fixture_selection():
+    from tools import fixture_execution
+    return fixture_execution.Selection('ubuntu', 'a' * 64,
+        '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
+        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64)
+
+
+@pytest.mark.parametrize('suffix', ['', '.py'])
+def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suffix, frozen_fixture_selection):
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='onpc-Ubuntu26.04'))
+    selected = frozen_fixture_selection
+    encoded = b'fixture-execution: selection=' + json.dumps(selected.record()).encode() + b'\n'
+
+    def execute(command, **kwargs):
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', 'ubuntu')
+        assert kwargs['cwd'] == ROOT and kwargs['env'] == {'PRIVATE': 'environment'}
+        assert kwargs['timeout'] == 600.0
+        # Split both the prefix and the JSON across callback invocations.
+        for chunk in (b'producer progress\n', encoded[:7], encoded[7:42], encoded[42:]):
+            kwargs['output'](chunk)
+        return 0
+
+    control = SimpleNamespace(run=Mock(side_effect=execute))
+    assert commands.qualification_fixture_options(ROOT, 'integration',
+        ['check_fixture_provisioning' + suffix], control=control,
+        environment={'PRIVATE': 'environment'}) == [
+            '--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
+    control.run.assert_called_once()
+
+
+@pytest.mark.parametrize('failure', ['missing', 'duplicate', 'malformed', 'oversized',
+    'unterminated', 'foreign-target', 'nonzero'])
+def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_fixture_selection, failure):
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='onpc-Ubuntu26.04'))
+    record = frozen_fixture_selection.record()
+    if failure == 'foreign-target':
+        record['target'] = 'fedora'
+        record['allocation'] = record['allocation'].replace('ubuntu', 'fedora')
+    line = b'fixture-execution: selection=' + json.dumps(record).encode() + b'\n'
+    output = {'missing': b'progress only\n', 'duplicate': line * 2,
+        'malformed': b'fixture-execution: selection={\n',
+        'oversized': b'fixture-execution: selection=' + b'x' * 8193 + b'\n',
+        'unterminated': line.rstrip(b'\n')}.get(failure, line)
+
+    def execute(command, **kwargs):
+        kwargs['output'](output)
+        return 9 if failure == 'nonzero' else 0
+
+    control = SimpleNamespace(run=Mock(side_effect=execute))
+    with pytest.raises(ValueError):
+        commands.qualification_fixture_options(ROOT, 'integration',
+            ['check_fixture_provisioning'], control=control, environment={})
+    control.run.assert_called_once()
+
+
+@pytest.mark.parametrize('route', ['category', 'direct'])
+@pytest.mark.parametrize('failure', ['none', 'package', 'fixture', 'malformed', 'duplicate'])
+def test_fixture_qualification_freezes_after_package_before_privilege(
+        monkeypatch, route, failure, frozen_fixture_selection):
+    import dev_privileges
+    import regression_process
+    import vm_selection
+    events = []
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='onpc-Ubuntu26.04'))
+    monkeypatch.setattr(commands, 'plan', lambda *args: (
+        [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
+          'integration', 'check_fixture_provisioning']], False))
+    monkeypatch.setattr(commands, 'qualification_artifact_command', lambda *args: ['package-preparation'])
+    frozen = frozen_fixture_selection.record()
+    monkeypatch.setattr(dev_privileges, 'check', lambda *args: events.append('privilege'))
+    executed = []
+
+    def execute(command, **kwargs):
+        executed.append(command)
+        if 'tools/fixture_execution.py' in ' '.join(command):
+            events.append('fixture')
+            line = b'fixture-execution: selection=' + json.dumps(frozen).encode() + b'\n'
+            if failure == 'malformed':
+                line = b'fixture-execution: selection={\n'
+            elif failure == 'duplicate':
+                line *= 2
+            kwargs['output'](line)
+            return 9 if failure == 'fixture' else 0
+        events.append('package' if command == ['package-preparation'] else 'dispatch')
+        status = 7 if command == ['package-preparation'] and failure == 'package' else 0
+        return status
+
+    control = SimpleNamespace(run=Mock(side_effect=execute))
+    monkeypatch.setattr(regression_process.Control, 'installed', Mock(return_value=nullcontext(control)))
+    if route == 'category':
+        run = lambda: regression_process.category_run(
+            ROOT, 'integration', ['check_fixture_provisioning'], pipe=False)
+        if failure in ('fixture', 'malformed', 'duplicate'):
+            with pytest.raises(ValueError):
+                run()
+        else:
+            assert run() == (7 if failure == 'package' else 0)
+    else:
+        monkeypatch.setattr(commands, 'vm_request', lambda argv: (argv, None))
+        monkeypatch.setattr(commands, 'host_only_request', lambda argv: True)
+        monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+        monkeypatch.setattr(commands.os, 'chdir', Mock())
+        monkeypatch.setattr(commands.subprocess, 'run',
+                            lambda command, **kwargs: SimpleNamespace(returncode=execute(command, **kwargs)))
+        import test_storage
+        monkeypatch.setattr(test_storage, 'scratch_descriptors', lambda: ())
+        assert commands._main(['integration', 'check_fixture_provisioning']) == (
+            {'package': 7, 'fixture': 2, 'malformed': 2, 'duplicate': 2}.get(failure, 0))
+    if failure == 'package':
+        assert events == ['package']
+    elif failure in ('fixture', 'malformed', 'duplicate'):
+        assert events == ['package', 'fixture']
+    else:
+        assert events == ['package', 'fixture', 'privilege', 'dispatch']
+        assert executed[-1][-2:] == ['--fixture-selection', json.dumps(frozen, sort_keys=True)]
 
 
 def test_named_artifact_build_uses_existing_builder_without_creating_output(monkeypatch):

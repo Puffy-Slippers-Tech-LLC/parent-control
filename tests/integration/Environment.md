@@ -310,6 +310,18 @@ additions and package removals refuse. Retained results bind those package versi
 Invoke authorized baseline refresh separately; this check never
 refreshes a baseline or grants provisioning, runner or customer acceptance.
 
+`tools/run-tests integration --vm onpc-Ubuntu26.04 check_fixture_provisioning`
+qualifies the shared provisioner in three separate watched attempts: refusal of
+a foreign destination, a minimal trusted-hard runtime on the clean baseline,
+and the native/activity/trusted/mechanical union on the installed app capture.
+It verifies exact native activation, intentionally untrusted controls, runtime
+use, unchanged vendor/product policy and repeated verification without writes.
+Native startup and update completion are observed before database reads through
+the [shared provisioning boundary](../support/README.md#attempt-owned-fixture-provisioning).
+The completed history restores the baseline and independently leaves the VM off.
+This Ubuntu infrastructure qualification enables no ordinary runner envelope
+and supplies no customer or Fedora acceptance.
+
 ### Verified finite native transaction inputs
 
 The native dependency input route is separate from released **product** upgrade

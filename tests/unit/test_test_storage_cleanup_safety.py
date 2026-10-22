@@ -191,6 +191,90 @@ def test_storage_refuses_linked_parent_before_creating_outside(tmp_path):
     assert not list(outside.iterdir())
 
 
+def test_allocator_tightens_only_owned_output_ancestor_and_preserves_payloads(tmp_path):
+    output = tmp_path / 'output'
+    output.mkdir(mode=0o775)
+    output.chmod(0o775)
+    payload = output / 'unrelated-build-result'
+    payload.write_bytes(b'preserve existing output')
+    before = payload.stat()
+    selected = storage.directory(root=tmp_path)
+    assert selected.stat().st_mode & 0o777 == 0o700
+    assert output.stat().st_mode & 0o777 == 0o755
+    assert payload.read_bytes() == b'preserve existing output'
+    after = payload.stat()
+    for name in ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_size',
+                 'st_mtime_ns', 'st_ctime_ns'):
+        assert getattr(after, name) == getattr(before, name)
+    assert storage.directory(root=tmp_path) == selected
+
+
+@pytest.mark.parametrize('fault', ['world-writable', 'setgid', 'owner', 'group', 'mount', 'replaced'])
+def test_output_ancestor_repair_refuses_unknown_or_substituted_state(tmp_path, monkeypatch, fault):
+    output = tmp_path / 'output'
+    output.mkdir()
+    output.chmod(0o775)
+    (output / 'preserved').write_bytes(b'original')
+    if fault == 'world-writable':
+        output.chmod(0o777)
+    elif fault == 'setgid':
+        output.chmod(0o2775)
+    elif fault == 'owner':
+        monkeypatch.setattr(storage.os, 'geteuid', lambda: os.getuid() + 1)
+    elif fault == 'group':
+        monkeypatch.setattr(storage.os, 'getegid', lambda: os.getgid() + 1)
+    elif fault == 'mount':
+        inode = output.stat().st_ino
+        monkeypatch.setattr(retention, 'mount_id',
+                            lambda fd: 2 if os.fstat(fd).st_ino == inode else 1)
+    elif fault == 'replaced':
+        original_stat = storage.os.stat
+        replaced = False
+        def replace(name, *args, **kwargs):
+            nonlocal replaced
+            if name == 'output' and 'dir_fd' in kwargs and not replaced:
+                replaced = True
+                output.rename(tmp_path / 'original-output')
+                output.mkdir()
+                output.chmod(0o775)
+            return original_stat(name, *args, **kwargs)
+        monkeypatch.setattr(storage.os, 'stat', replace)
+    mode = output.stat().st_mode & 0o7777
+    with pytest.raises(ValueError):
+        storage.directory(root=tmp_path)
+    assert output.stat().st_mode & 0o7777 == mode
+    original = tmp_path / 'original-output' if fault == 'replaced' else output
+    assert (original / 'preserved').read_bytes() == b'original'
+    assert original.stat().st_mode & 0o7777 == mode
+
+
+def test_read_only_and_privileged_allocator_do_not_normalize_host_output(tmp_path):
+    selected = storage.directory(root=tmp_path)
+    output = tmp_path / 'output'
+    output.chmod(0o775)
+    assert storage.directory(root=tmp_path, create=False) == selected
+    storage._directory('allocations', root=tmp_path, create=True,
+                       owner='privileged', uid=os.geteuid())
+    assert output.stat().st_mode & 0o777 == 0o775
+
+
+def test_concurrent_completed_output_repair_is_idempotent(tmp_path, monkeypatch):
+    output = tmp_path / 'output'
+    output.mkdir()
+    output.chmod(0o775)
+    original_stat = storage.os.stat
+    def repaired(name, *args, **kwargs):
+        if name == 'output' and 'dir_fd' in kwargs:
+            output.chmod(0o755)
+        return original_stat(name, *args, **kwargs)
+    monkeypatch.setattr(storage.os, 'stat', repaired)
+    def unexpected(*args):
+        pytest.fail('an already-completed repair rewrote output metadata')
+    monkeypatch.setattr(storage.os, 'fchmod', unexpected)
+    storage.directory(root=tmp_path)
+    assert output.stat().st_mode & 0o777 == 0o755
+
+
 def test_repeated_failures_and_recovery_are_byte_and_count_bounded(tmp_path, monkeypatch):
     monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', 24 * 1024)
     store = retention.Store(tmp_path / 'state')

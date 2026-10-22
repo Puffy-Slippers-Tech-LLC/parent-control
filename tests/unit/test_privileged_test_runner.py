@@ -60,6 +60,66 @@ def test_rejects_extra_arguments(checkout):
         select(checkout, ['integration', 'check_future_feature', '--command', 'id'])
 
 
+@pytest.fixture
+def fixture_selection(checkout):
+    from tools.fixture_execution import Selection
+    (checkout / 'tests/integration/check_fixture_provisioning.py').touch()
+    return Selection('ubuntu', 'a' * 64,
+        '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
+        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
+
+
+@pytest.mark.parametrize('suffix', ['', '.py'])
+def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selection, suffix):
+    command = runner['selection'](checkout, ['integration',
+        'check_fixture_provisioning' + suffix, '--vm', 'onpc-Ubuntu26.04',
+        '--fixture-selection', json.dumps(fixture_selection)])
+    assert command == ['/usr/bin/python3', '-B',
+        str(checkout / 'tests/integration/check_fixture_provisioning.py'),
+        '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
+
+
+@pytest.mark.parametrize('payload', ['{', 'null', '[]', '{}', 'x' * 8193])
+def test_fixture_selection_rejects_malformed_json_or_record(checkout, fixture_selection, payload):
+    with pytest.raises(ValueError):
+        runner['selection'](checkout, ['integration', 'check_fixture_provisioning',
+            '--vm', 'onpc-Ubuntu26.04', '--fixture-selection', payload])
+
+
+@pytest.mark.parametrize(('field', 'value'), [
+    ('schema', 'foreign-schema'), ('target', 'other'), ('key', 'not-a-digest'),
+    ('allocation', '/tmp/unrelated'), ('journal', '/tmp/unrelated'),
+    ('run', 'foreign-run'), ('device', True), ('inode', 0),
+    ('journal_device', -1), ('journal_inode', '4'), ('build_identity', 'foreign'),
+    ('command', '/bin/sh'),
+])
+def test_fixture_selection_rejects_foreign_identity(checkout, fixture_selection, field, value):
+    fixture_selection[field] = value
+    with pytest.raises(ValueError):
+        runner['selection'](checkout, ['integration', 'check_fixture_provisioning',
+            '--vm', 'onpc-Ubuntu26.04', '--fixture-selection', json.dumps(fixture_selection)])
+
+
+@pytest.mark.parametrize('args', [
+    ['check_future_feature'], ['--list'], ['check_fixture_provisioning', '--list'],
+])
+def test_fixture_selection_refuses_other_selector_or_listing(checkout, fixture_selection, args):
+    with pytest.raises(ValueError, match='unexpected-fixture-selection'):
+        runner['selection'](checkout, ['integration', *args, '--vm', 'onpc-Ubuntu26.04',
+            '--fixture-selection', json.dumps(fixture_selection)])
+
+
+@pytest.mark.parametrize(('target', 'vm'), [
+    ('fedora', 'onpc-Ubuntu26.04'), ('ubuntu', vm_name(1)),
+])
+def test_fixture_selection_refuses_unqualified_target(checkout, fixture_selection, target, vm):
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = '/tmp/onpc-native-runtime-' + target + '-' + 'a' * 64 + '-private'
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        runner['selection'](checkout, ['integration', 'check_fixture_provisioning',
+            '--vm', vm, '--fixture-selection', json.dumps(fixture_selection)])
+
+
 def test_rejects_symlink(checkout, tmp_path):
     (checkout / 'tests/integration/check_link.py').symlink_to(tmp_path / 'other.py')
     with pytest.raises(ValueError):

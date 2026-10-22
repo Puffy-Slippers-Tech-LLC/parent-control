@@ -51,6 +51,12 @@ it alone does not establish retention. Qualification helpers reuse an active
 session rather than open a second run.
 Keep the recorded allocation root private and stable through cleanup; use child
 directories for fixtures that intentionally change permissions or replace paths.
+When creating host storage, the unprivileged allocator may tighten its exact
+caller-owned `output/` ancestor from ordinary group-writable 0775 to 0755.
+It verifies the caller's group, pinned entry identity and mount boundary first;
+payloads, privileged/read-only routes and authenticated input guards remain
+unchanged. Foreign or otherwise writable ancestors refuse rather than being
+adopted or repaired.
 
 An empty named input is a reservation, not a verified bundle or permission to
 adopt its directory. `named_input()` preserves empty slots and selects a bounded

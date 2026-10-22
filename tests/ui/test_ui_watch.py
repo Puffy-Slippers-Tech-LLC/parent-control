@@ -36,12 +36,13 @@ def test_four_branch_tabs_grid_resize_stop_and_reconnect(
     control.write_text('start')
     wait(lambda: evidence.exists(), 'four workers publish their identities')
     runs = json.loads(evidence.read_text())['runs']
+    checkout_label = Path(__file__).resolve().parents[2].name
     wait(lambda: all(ui.showing(f'ui-watch-grid-{run}-test') for run in runs),
          'viewer independently discovers all four workers')
     for index, run in enumerate(runs):
         assert ui.text(f'ui-watch-grid-{run}-test') == f'case-{index + 1}'
         assert ui.showing(f'ui-watch-grid-{run}-display')
-        assert ui.text('watch-tab-ui-' + run) == f'UI - Worker {index + 1}'
+        assert ui.text('watch-tab-ui-' + run) == f'[{checkout_label}] UI - Worker {index + 1}'
         ui.activate('watch-tab-ui-' + run)
         wait(lambda: ui.showing('watch-page-ui-' + run), 'selected category is visible')
         wait(lambda: ui.text(f'ui-watch-grid-{run}-test') == f'case-{index + 1}',

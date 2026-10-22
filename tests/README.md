@@ -2187,9 +2187,11 @@ Unavailable measurements show a dash until a valid sample is available.
 The left terminal follows active VM `fix-tests`, then host `fix-tests` output before `run-tests`,
 using VS Code Light+ colors, wrapping and vertical scrollback. The initial
 horizontal split is 25%/75%, adjustable by dragging. The right viewer has one
-flat tab row: **All**, **UI - category** for each active UI worker category,
-and each registered VM's name. In the bottom **All** scope, category
-tabs are prefixed with **[branch]:**. Each VM has one tab in the bottom
+flat tab row: **All**, **[branch] UI - category** for each active UI worker
+category, and **[branch] VM name** for each registered VM, for example
+**[main] onpc-Ubuntu26.04**. UI and VM tabs share the same prefix in every scope.
+The prefix follows the source checkout and updates when activity moves to
+another worktree. Each VM has one tab in the bottom
 **All** scope, using the checkout with its current controller or running display.
 Idle VM tabs in the combined scope come from the watcher's initial checkout's
 current registry. Other worktrees' retired names remain available in their own

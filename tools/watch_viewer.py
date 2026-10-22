@@ -569,8 +569,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 previous = scope['buttons']['all']
                 for entry, (_content, label, _active, locked) in scoped.items():
                     key = self.entry_key(scope_name, entry)
-                    if scope_name == 'all' and entry[1].startswith('ui-'):
-                        label = '[' + self.checkout_buttons[entry[0]].get_label() + ']: ' + label
+                    label = '[' + self.checkout_buttons[entry[0]].get_label() + '] ' + label
                     if key not in scope['buttons']:
                         button = Gtk.ToggleButton()
                         set_automation_id(button, scope['prefix'] + 'watch-tab-' + key)

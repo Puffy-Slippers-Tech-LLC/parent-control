@@ -40,10 +40,10 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
              'active terminals split into equal vertical sections in bottom-tab order')
         titles = []
         for name in names:
-            titles.append(f'[{name}]: UI - Category A')
+            titles.append(f'[{name}] UI - Category A')
             if name == 'main':
-                titles.append(f'[{name}]: UI - Category B')
-        titles.append('Fixture-VM')
+                titles.append(f'[{name}] UI - Category B')
+        titles.append('[main] Fixture-VM')
         viewer_expected = {title: [index % 2, index // 2, 1, 1]
                            for index, title in enumerate(titles)}
         wait(lambda: evidence().get('viewer_cells') == viewer_expected,
@@ -51,10 +51,10 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
         top_titles = []
         for name in ('main', 'worktree', 'third'):
             if name in names:
-                top_titles.append(f'[{name}]: UI - Category A')
+                top_titles.append(f'[{name}] UI - Category A')
                 if name == 'main':
-                    top_titles.append(f'[{name}]: UI - Category B')
-        top_titles.append('Fixture-VM')
+                    top_titles.append(f'[{name}] UI - Category B')
+        top_titles.append('[main] Fixture-VM')
         assert evidence()['top_tabs'] == ['All', *top_titles]
         assert evidence()['blank'] == (len(titles) % 2 == 1)
         wait(lambda: len(evidence().get('terminal_heights', [])) == count and
@@ -66,12 +66,12 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
                  'each checkout shows its own runner transcript')
             assert ui.text('watch-checkout-heading-' + keys[name]) == name
     audit_owned_controls(ui, 'watch-window')
-    assert 'Retired-VM' not in evidence()['top_tabs']
+    assert '[worktree] Retired-VM' not in evidence()['top_tabs']
     ui.activate('watch-checkout-tab-' + keys['worktree'])
-    wait(lambda: 'Retired-VM' in evidence().get('top_tabs', []),
+    wait(lambda: '[worktree] Retired-VM' in evidence().get('top_tabs', []),
          'a worktree retains its own idle registry while All omits retired global entries')
     ui.activate('watch-checkout-tab-all')
-    wait(lambda: 'Retired-VM' not in evidence().get('top_tabs', []),
+    wait(lambda: '[worktree] Retired-VM' not in evidence().get('top_tabs', []),
          'the combined view uses current VM registrations for idle tabs')
     control.write_text('remote')
     wait(lambda: evidence().get('remote_exited') and evidence().get('remote_received'),
@@ -90,15 +90,17 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
     wait(lambda: evidence().get('viewer_cells') == viewer_expected, 'bottom All restores every viewer')
     vm_key = 'vm-' + 'Fixture-VM'.encode('ascii').hex()
     ui.activate('watch-all-watch-tab-' + vm_key)
-    wait(lambda: evidence().get('viewer_sources') == {'Fixture-VM': 'main'},
+    wait(lambda: evidence().get('viewer_sources') == {'[main] Fixture-VM': 'main'},
          'one VM tab shows its active checkout source')
+    assert ui.text('watch-all-watch-tab-' + vm_key) == '[main] Fixture-VM'
     control.write_text('finish-main')
-    wait(lambda: evidence().get('viewer_sources') == {'Fixture-VM': 'worktree'},
+    wait(lambda: evidence().get('viewer_sources') == {'[worktree] Fixture-VM': 'worktree'},
          'selected VM tab follows activity to another checkout without duplication')
     assert evidence()['selected_viewer'] == vm_key
-    assert evidence()['top_tabs'].count('Fixture-VM') == 1
+    assert evidence()['top_tabs'].count('[worktree] Fixture-VM') == 1
+    assert ui.text('watch-all-watch-tab-' + vm_key) == '[worktree] Fixture-VM'
     control.write_text('count-3')
-    wait(lambda: evidence().get('viewer_sources') == {'Fixture-VM': 'main'},
+    wait(lambda: evidence().get('viewer_sources') == {'[main] Fixture-VM': 'main'},
          'VM source reconnects on the same selected tab')
     ui.activate('watch-all-watch-tab-all')
     wait(lambda: evidence().get('viewer_cells') == viewer_expected, 'All restores matching tile headings')
@@ -110,8 +112,8 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
     ui.activate('watch-checkout-tab-' + keys['third'])
     wait(lambda: evidence().get('selected') == 'third', 'finished branch remains selectable')
     assert ui.showing('watch-checkout-page-' + keys['third'])
-    wait(lambda: evidence().get('top_tabs') == ['All', 'UI - Category A', 'Fixture-VM'],
-         'individual branch tabs have one unprefixed viewer tab row')
+    wait(lambda: evidence().get('top_tabs') == ['All', '[third] UI - Category A', '[third] Fixture-VM'],
+         'individual branch tabs prefix UI and VM names with their checkout')
     prefix = 'watch-checkout-' + keys['third'] + '-'
     assert 'third OUTPUT' in ui.content(prefix + 'watch-output', maximum=10000)
     ui.activate('watch-checkout-tab-all')
@@ -119,7 +121,7 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
     control.write_text('count-1')
     wait(lambda: evidence().get('cells') == {'main': [0, 0, 1, 1]}, 'one active checkout fills All')
     main_viewers = {title: [index % 2, index // 2, 1, 1]
-                    for index, title in enumerate((titles[0], titles[1], 'Fixture-VM'))}
+                    for index, title in enumerate((titles[0], titles[1], '[main] Fixture-VM'))}
     wait(lambda: evidence().get('viewer_cells') == main_viewers and evidence().get('blank'),
          'one branch still has three flat viewer cells and an empty final right cell')
     control.write_text('count-0')
@@ -182,8 +184,8 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
     control.write_text('both')
     wait(lambda: ui.showing(vm_prefix + '-progress'), 'VM viewer joins All')
     wait(lambda: ui.text(vm_prefix + '-progress') == 'VM first', 'VM progress is visible beside UI')
-    assert ui.text(vm_prefix + '-title') == vm_name
-    assert ui.text('watch-tab-' + vm_key) == vm_name
+    assert ui.text(vm_prefix + '-title') == '[Fixture] ' + vm_name
+    assert ui.text('watch-tab-' + vm_key) == '[Fixture] ' + vm_name
     assert ui.showing(f'ui-watch-grid-{run}-display') and ui.showing(vm_prefix + '-display')
     audit_owned_controls(ui, 'watch-window')
     control.write_text('split-check')
@@ -219,7 +221,7 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
     names = evidence()['vm_names']
     ids = evidence()['vm_ids']
     ordered_names = sorted(names, key=lambda name: int(ids[name]))
-    assert evidence()['top_tabs'] == ['All', *ordered_names]
+    assert evidence()['top_tabs'] == ['All', *('[Fixture] ' + name for name in ordered_names)]
     for count in (2, 3, 5):
         control.write_text('vms-' + str(count))
         expected = {name: [index % 2, index // 2, 1, 1]
@@ -228,7 +230,7 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
              'active VM tiles follow the same numeric ID order as their tab headers')
         for name in names[:count]:
             prefix = 'e2e-watch-vm-' + name.encode('ascii').hex()
-            assert ui.text(prefix + '-title') == name
+            assert ui.text(prefix + '-title') == '[Fixture] ' + name
         tabs = evidence()['vm_tabs']
         assert all(tabs[name] == 1 for name in names[:count])
         assert all(tabs[name] < .5 for name in names[count:])
@@ -249,7 +251,7 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
     control.write_text('double-click')
     third_key = 'vm-' + names[2].encode('ascii').hex()
     wait(lambda: ui.showing('watch-page-' + third_key), 'double click opens the cell VM tab')
-    assert ui.text('e2e-watch-' + third_key + '-title') == names[2]
+    assert ui.text('e2e-watch-' + third_key + '-title') == '[Fixture] ' + names[2]
     ui.activate('watch-tab-all')
     control.write_text('vms-1')
     wait(lambda: len(evidence().get('vm_cells', {})) == 1, 'remaining VM fills All')
@@ -274,16 +276,17 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
     # Registry updates arrive on a later viewer tick. A complete tree can
     # legitimately lack the new tab until then; keep that read pending.
     wait(lambda: (tab := ui.find('watch-tab-' + renamed_key)) is not None
-         and tab.get_name() == 'Renamed-Fixture-VM',
+         and tab.get_name() == '[Fixture] Renamed-Fixture-VM',
          'a registry rename creates the current VM tab without restarting the viewer')
     try:
-        wait(lambda: vm_name not in evidence().get('top_tabs', []) and evidence().get('selected') == 'all',
+        wait(lambda: '[Fixture] ' + vm_name not in evidence().get('top_tabs', [])
+             and evidence().get('selected') == 'all',
              'the retired selected tab is removed and returns to All')
     except AssertionError:
         print('Watcher registry rename evidence:', evidence())
         raise
-    assert evidence()['top_tabs'] == ['All', *sorted(evidence()['vm_names'],
-                                                   key=lambda name: int(evidence()['vm_ids'][name]))]
+    assert evidence()['top_tabs'] == ['All', *('[Fixture] ' + name for name in sorted(
+        evidence()['vm_names'], key=lambda name: int(evidence()['vm_ids'][name])))]
     control.write_text('close')
     wait(lambda: process.poll() is not None, 'closing viewer releases only its own resources')
     assert process.returncode == 0, log.read_text()

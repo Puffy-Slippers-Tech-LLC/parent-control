@@ -279,6 +279,94 @@ def test_private_reference_access_is_deferred_only_to_authenticated_target_reade
         assert not commands
 
 
+@pytest.mark.parametrize('binding, expected', [
+    (None, ['required']),
+    ('extra', ['required', 'extra']),
+    (dict(concurrency=2, vms=['extra', 'required', 'third']),
+     ['required', 'extra', 'third']),
+])
+def test_publication_targets_include_only_retained_selection(campaign, binding, expected):
+    run, state, _, _ = campaign.accepted('first')
+    state['task']['targets'] = ['required']
+    assert proof._targets(run, state) == ['required']  # Older retained runs.
+    (run / 'vm.json').write_bytes(bundle.encoded(dict(vm=binding)))
+    assert proof._targets(run, state) == expected
+    assert state['task']['targets'] == ['required']
+
+
+@pytest.mark.parametrize('saved', [
+    [], {}, dict(vm={}, extra=True), dict(vm=''), dict(vm=[]),
+    dict(vm=dict(concurrency=True, vms=['extra'])),
+    dict(vm=dict(concurrency=0, vms=['extra'])),
+    dict(vm=dict(concurrency=2, vms=[])),
+    dict(vm=dict(concurrency=2, vms=['extra', 'extra'])),
+    dict(vm=dict(concurrency=2, vms=['extra', {}])),
+])
+def test_invalid_retained_selection_refuses_without_downgrading_scope(campaign, saved):
+    run, state, _, _ = campaign.accepted('first')
+    (run / 'vm.json').write_bytes(bundle.encoded(saved))
+    with pytest.raises(ValueError, match='invalid retained VM selection'):
+        proof._targets(run, state)
+
+
+@pytest.mark.parametrize('task_targets', [[], ['linux-a']])
+def test_selected_vm_supporting_proof_publishes_through_real_bundle_reader(
+        campaign, monkeypatch, task_targets):
+    from contextlib import nullcontext
+    import vm_config
+
+    run, state, result, _ = campaign.accepted('first')
+    state['task']['targets'] = task_targets
+    (run / 'vm.json').write_bytes(bundle.encoded(dict(vm=dict(
+        concurrency=2, vms=['linux-b', 'linux-a', 'linux-c']))))
+    uid, gid = os.geteuid(), os.getegid()
+    monkeypatch.setattr(vm_config, 'registry', lambda: dict.fromkeys(
+        ['linux-a', 'linux-b', 'linux-c', 'unselected']))
+    # Exercise both target journal branches with real private files and locks,
+    # while keeping the test unprivileged and entirely within its own checkout.
+    target_sources = []
+    for journal_name in ('retention-linux-b', f'retention-{uid}-linux-c'):
+        store = bundle.retention.Store(bundle.storage.directory('state') / journal_name)
+        with store.session():
+            report = Path(bundle.retention.allocate(tempfile.mkdtemp,
+                prefix='onpc-selected-vm-', dir=bundle.storage.directory('allocations')))
+            (report / 'result.json').write_text(journal_name)
+        target_sources.append(report / 'result.json')
+    result['checks'][0]['evidence'] += ' ' + ' '.join(map(str, target_sources))
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    monkeypatch.setattr(proof, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: uid or 1000})))
+    monkeypatch.setattr(bundle, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: 0})))
+    monkeypatch.setattr(bundle, 'identity', lambda *_: nullcontext())
+    commands, published = [], []
+    def invoke(command, **kwargs):
+        commands.append(command)
+        targets = [command[index + 1] for index, value in enumerate(command) if value == '--target']
+        assert targets == list(dict.fromkeys([*task_targets, 'linux-b', 'linux-a', 'linux-c']))
+        assert 'unselected' not in targets
+        options = {flag: [command[index + 1] for index, value in enumerate(command) if value == flag]
+                   for flag in ('--source', '--bundle', '--reference')}
+        with bundle.Selection(campaign.plan.root, uid, gid, targets,
+                options['--source'], options['--bundle'],
+                plan_namespace=plan_namespace(campaign.plan.path),
+                references=options['--reference']) as selected:
+            assert all(str(path) in selected.files for path in target_sources)
+            if command[3] == 'bundle-plan':
+                value = dict(selection_sha256=selected.selection_sha256)
+            else:
+                value = bundle.export(selected, expected=command[command.index('--expect') + 1],
+                                      defer_cleanup=True)
+                published.append(value)
+        return SimpleNamespace(returncode=0, stdout=json.dumps(value))
+    monkeypatch.setattr(proof.subprocess, 'run', invoke)
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    assert [command[3] for command in commands] == ['bundle-plan', 'bundle-export']
+    assert len(published) == 1 and accepted == proof.recover(campaign.plan)
+    assert state['task']['targets'] == task_targets
+    for path in target_sources:
+        assert bundle.inspect(campaign.plan.root, uid, gid, accepted['bundle'],
+                              member=str(path)) == path.read_bytes()
+
+
 @pytest.mark.parametrize('failure', ['expired', 'permission', 'bad-json', 'foreign', 'duplicate', 'wrong-code'])
 def test_target_helper_only_renews_explicit_structured_missing_references(campaign, monkeypatch, failure):
     run, state, result, report = campaign.accepted('first')

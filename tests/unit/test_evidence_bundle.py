@@ -17,7 +17,8 @@ import pytest
 import evidence_bundle as bundle
 
 
-@pytest.mark.parametrize('targets', [[], ['guest-one'], ['guest-two', 'guest-one']])
+@pytest.mark.parametrize('targets', [[], ['guest-one'], ['guest-two', 'guest-one'],
+                                    ['guest-two', 'unused', 'guest-one']])
 @pytest.mark.parametrize('first_export', [False, True])
 def test_catalogue_includes_only_selected_targets_host_and_guest_journals(
         tmp_path, monkeypatch, targets, first_export):
@@ -32,6 +33,7 @@ def test_catalogue_includes_only_selected_targets_host_and_guest_journals(
     (state / f'recovery-diagnostics-{uid}').mkdir()
     (state / f'recovery-diagnostics-{uid + 1}').mkdir()
     for target in ('guest-one', 'guest-two', 'unregistered'):
+        (state / f'retention-{uid}-{target}').mkdir()
         (state / f'recovery-diagnostics-{uid}-{target}').mkdir()
     # Exercise the privileged catalogue without changing this test process's
     # identity or accessing any real journals, VM, or registry entries.
@@ -43,30 +45,54 @@ def test_catalogue_includes_only_selected_targets_host_and_guest_journals(
         return tmp_path / kind
 
     monkeypatch.setattr(bundle.storage, 'directory', directory)
-    monkeypatch.setattr(vm_config, 'registry', lambda: {'guest-one': None, 'guest-two': None})
+    monkeypatch.setattr(vm_config, 'registry', lambda: dict.fromkeys(['guest-one', 'guest-two', 'unused']))
     selection = bundle.Selection(tmp_path, uid, gid, targets, [], [])
     journals = selection.catalogue()
     fixed = {'retention-host', 'retention-batch', 'retention', 'standalone-reports'}
+    populated = [target for target in targets if target != 'unused']
     assert {(path.name, owner, group) for path, owner, group in journals} == {
         *((name, uid, gid) for name in fixed),
-        *((f'retention-{target}', uid, gid) for target in targets),
-        *((f'retention-{uid}-{target}', 0, 0) for target in targets),
-        *((f'recovery-diagnostics-{uid}-{target}', 0, 0) for target in targets),
+        *((f'retention-{target}', uid, gid) for target in populated),
+        *((f'retention-{uid}-{target}', 0, 0) for target in populated),
+        *((f'recovery-diagnostics-{uid}-{target}', 0, 0) for target in populated),
         (f'recovery-diagnostics-{uid}', 0, 0),
     }
-    assert len(journals) == len(fixed) + 3 * len(targets) + 1
+    assert len(journals) == len(fixed) + 3 * len(populated) + 1
     with pytest.raises(ValueError, match='registered canonical targets'):
         bundle.Selection(tmp_path, uid, gid, ['unregistered'], [], []).catalogue()
 
 
+def test_inaccessible_selected_target_journal_remains_a_refusal(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    import vm_config
+
+    monkeypatch.setattr(bundle, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: 0})))
+    monkeypatch.setattr(bundle, 'identity', lambda *_: nullcontext())
+    monkeypatch.setattr(bundle.storage, 'directory', lambda *_args, **_kwargs: tmp_path)
+    monkeypatch.setattr(vm_config, 'registry', lambda: {'guest': None})
+    target = tmp_path / f'retention-{os.geteuid()}-guest'
+    original = Path.lstat
+    def lstat(path, *args, **kwargs):
+        if path == target:
+            raise PermissionError('target journal inaccessible')
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'lstat', lstat)
+    with pytest.raises(PermissionError, match='target journal inaccessible'):
+        bundle.Selection(tmp_path, os.geteuid(), os.getegid(), ['guest'], [], []).catalogue()
+
+
 @pytest.mark.parametrize('missing_error', [FileNotFoundError, PermissionError])
-def test_host_only_catalogue_without_privileged_storage(tmp_path, monkeypatch, missing_error):
+@pytest.mark.parametrize('targets', [[], ['unused']])
+def test_host_only_catalogue_without_privileged_storage(tmp_path, monkeypatch, missing_error, targets):
+    import vm_config
+
     state = tmp_path / 'state'
     state.mkdir()
     (state / 'retention-host').mkdir()
     uid, gid = os.geteuid(), os.getegid()
     monkeypatch.setattr(bundle, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: 0})))
     monkeypatch.setattr(bundle, 'identity', lambda *_: nullcontext())
+    monkeypatch.setattr(vm_config, 'registry', lambda: {'unused': None})
     reads = []
 
     def directory(kind, **_):
@@ -78,7 +104,7 @@ def test_host_only_catalogue_without_privileged_storage(tmp_path, monkeypatch, m
         return state
 
     monkeypatch.setattr(bundle.storage, 'directory', directory)
-    selection = bundle.Selection(tmp_path, uid, gid, [], [], [])
+    selection = bundle.Selection(tmp_path, uid, gid, targets, [], [])
     if missing_error is PermissionError:
         with pytest.raises(PermissionError):
             selection.catalogue()

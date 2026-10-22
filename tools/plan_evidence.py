@@ -753,6 +753,32 @@ def _references(plan, result, state):
     return sorted(found)
 
 
+def _targets(run, state):
+    """Read evidence from the retained execution selection as well as task targets."""
+    targets = list(state['task']['targets'])
+    try:
+        saved = bundle.decoded(_read(Path(run) / 'vm.json'))
+    except FileNotFoundError:
+        return targets  # Legacy and host-only callers have no saved VM binding.
+    if not isinstance(saved, dict) or set(saved) != {'vm'}:
+        raise ValueError('plan evidence: invalid retained VM selection')
+    binding = saved['vm']
+    if binding is None:
+        return targets
+    if isinstance(binding, str):
+        selected = [binding]
+    elif (isinstance(binding, dict) and set(binding) == {'concurrency', 'vms'}
+            and type(binding['concurrency']) is int and binding['concurrency'] > 0
+            and isinstance(binding['vms'], list) and binding['vms']):
+        selected = binding['vms']
+    else:
+        raise ValueError('plan evidence: invalid retained VM selection')
+    if (any(not isinstance(target, str) or not target for target in selected)
+            or len(set(selected)) != len(selected)):
+        raise ValueError('plan evidence: invalid retained VM selection')
+    return list(dict.fromkeys([*targets, *selected]))
+
+
 def preserve(plan, run, state, result):
     """Retain a validated completion before its run or acceptance reports rotate."""
     previous = recover(plan)
@@ -773,6 +799,7 @@ def preserve(plan, run, state, result):
     if not inputs:
         raise ValueError('plan evidence: exact selected inputs were not captured before execution')
     run = Path(run)
+    targets = _targets(run, state)
     source_run = _source(plan, run, state, result)
     result_data = _read(source_run / 'agent-result.json')
     if bundle.decoded(result_data) != result:
@@ -821,12 +848,12 @@ def preserve(plan, run, state, result):
                   if path not in sources and path not in bundles]
     _parent(plan, create=True)
     sources, bundles = list(dict.fromkeys(sources)), list(dict.fromkeys(bundles))
-    if state['task']['targets'] and os.geteuid() != 0:
+    if targets and os.geteuid() != 0:
         # Privileged target journals remain behind the maintained authenticated
         # reader; the controller never adopts their directories or runs as root.
         command = ['pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-artifacts']
         operands = ['--plan', plan.path]
-        for flag, values in (('--target', state['task']['targets']), ('--source', sources),
+        for flag, values in (('--target', targets), ('--source', sources),
                              ('--bundle', bundles), ('--reference', references)):
             for value in values:
                 operands.extend((flag, value))
@@ -852,7 +879,7 @@ def preserve(plan, run, state, result):
         selected = helper('bundle-plan', '--summary')
         helper('bundle-export', '--expect', selected['selection_sha256'], '--defer-cleanup')
     else:
-        with bundle.Selection(plan.root, os.geteuid(), os.getegid(), state['task']['targets'],
+        with bundle.Selection(plan.root, os.geteuid(), os.getegid(), targets,
                               sources, bundles, plan_namespace=plan_namespace(plan.path),
                               references=references) as selected:
             bundle.export(selected, expected=selected.selection_sha256, defer_cleanup=True)

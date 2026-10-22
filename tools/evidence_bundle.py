@@ -226,21 +226,24 @@ class Selection:
                     or any(target not in registry for target in self.targets)):
                 raise ValueError('bundle: expected registered canonical targets')
         result = []
-        if self.targets:
-            if os.geteuid() != 0:
-                raise ValueError('bundle: target evidence requires the installed helper')
-            parent = storage.directory('state', root=self.checkout, create=False)
-            result += [(parent / f'retention-{self.uid}-{target}', 0, 0)
-                       for target in sorted(self.targets)]
-            result += [(parent / f'recovery-diagnostics-{self.uid}-{target}', 0, 0)
-                       for target in sorted(self.targets)
-                       if (parent / f'recovery-diagnostics-{self.uid}-{target}').exists()]
+        if self.targets and os.geteuid() != 0:
+            raise ValueError('bundle: target evidence requires the installed helper')
         if os.geteuid() == 0:
             try:
                 parent = storage.directory('state', root=self.checkout, create=False)
             except FileNotFoundError:
                 pass  # Host-only checkouts may have no privileged storage yet.
             else:
+                for target in sorted(self.targets):
+                    journal = parent / f'retention-{self.uid}-{target}'
+                    try:
+                        journal.lstat()
+                    except FileNotFoundError:
+                        continue  # A selected VM may not have produced evidence yet.
+                    result.append((journal, 0, 0))
+                result += [(parent / f'recovery-diagnostics-{self.uid}-{target}', 0, 0)
+                           for target in sorted(self.targets)
+                           if (parent / f'recovery-diagnostics-{self.uid}-{target}').exists()]
                 diagnostics = parent / f'recovery-diagnostics-{self.uid}'
                 if diagnostics.exists():
                     result.append((diagnostics, 0, 0))

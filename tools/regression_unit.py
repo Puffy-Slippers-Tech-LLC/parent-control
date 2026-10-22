@@ -1566,6 +1566,9 @@ def buckets(nodeids):
 # compatible unit scheduling; cleanup/UI inventories gain no module or resource.
 # Target-journal catalogue checks use private paths and process-local identity/
 # registry doubles; they neither switch credentials nor inspect real journals.
+# Saved-selection publication also uses those private host/target journals and
+# synchronous helper doubles, including multi-VM and unselected-target controls.
+# It adds no process, privileged identity, VM or shared resource owner.
 # Publication-renewal checks retain the same private trees and synchronous
 # controller doubles. Rotated-report and corrupted/replaced-source controls use
 # tiny local archives; no new shared paths, child processes or resource owners

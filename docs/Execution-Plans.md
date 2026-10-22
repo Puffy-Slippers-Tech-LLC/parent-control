@@ -68,6 +68,12 @@ split independent large work before execution without reducing acceptance.
 Before an ordinary plan closes an accepted task, the controller preserves its
 selected plan/queue/brief inputs, exact result, prompt, command record, referenced
 reports and owned-cleanup record through the shared verified bundle publication.
+Publication explicitly selects the union of the task's declared targets and the
+run's saved VM selection, so supporting proof from other selected VMs retains its
+recorded journal ownership. This evidence-read scope changes neither the task's
+acceptance targets nor VM-operation authority. Runs without a saved selection
+retain their declared-target scope. A selected VM with no evidence journal yet
+contributes no sources; inaccessible or unsafe journals still refuse.
 The plan namespace has its own bounded publication journal, separate from model
 sessions and ordinary artifact exports. Each generation carries forward all
 previous accepted proof within the existing limits; missing or changed proof and

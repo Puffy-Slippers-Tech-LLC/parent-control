@@ -91,23 +91,23 @@ def test_build_io_gate_recovers_without_holding_ordinary_host_work():
     # Current host run 20260914T025211Z-d6979e89, monotonic 119153.582034563.
     state.sample = Sample(20, 2.2162029056882537, 32733339648, 11046166528,
                           .3569413056258864, 0, 7.194374158303749, False)
-    assert admission.allows('ui-screen', ['unit'])
+    assert admission.allows('ui-request', ['unit'])
     state.now += 2
     state.sample = replace(state.sample, io_pressure=10)
-    assert admission.allows('ui-screen', ['unit'])
+    assert admission.allows('ui-request', ['unit'])
     assert not admission.allows('publish', ['unit'])
     assert admission.reason == 'waiting for I/O pressure to recover'
-    assert not admission.allows('ui-screen', ['publish'])
+    assert not admission.allows('ui-request', ['publish'])
     assert admission.reason == 'waiting for I/O pressure to recover'
     state.sample = replace(state.sample, io_pressure=0)
     for _ in range(2):
         state.now += 2
-        assert admission.allows('ui-screen', ['unit'])
+        assert admission.allows('ui-request', ['unit'])
         assert not admission.allows('publish', ['unit'])
-        assert not admission.allows('ui-screen', ['publish'])
+        assert not admission.allows('ui-request', ['publish'])
     state.now += 2
     assert admission.allows('publish', ['unit'])
-    assert admission.allows('ui-screen', ['publish'])
+    assert admission.allows('ui-request', ['publish'])
 
 
 @pytest.mark.parametrize('kind', sorted(PARALLEL | {'cleanup', 'cleanup-exclusive', 'ui-exclusive'}))
@@ -163,7 +163,7 @@ def test_two_ui_buckets_keep_growth_headroom_and_unreviewed_modules_stay_exclusi
     assert admission.allows('ui', [])
 
 
-@pytest.mark.parametrize('kind', ['ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui'])
+@pytest.mark.parametrize('kind', ['ui-accessible', 'ui-watch', 'ui-identity'])
 def test_reviewed_ui_modules_keep_resource_and_pairing_limits(kind):
     state, admission = gate()
     warm(state, admission, active=('ui-layout', 'ui-feedback'))
@@ -179,7 +179,7 @@ def test_reviewed_ui_modules_keep_resource_and_pairing_limits(kind):
 
 
 @pytest.mark.parametrize('build', ['publish'])
-@pytest.mark.parametrize('companion', ['unit', 'component', 'ui-screen', 'ui-request'])
+@pytest.mark.parametrize('companion', ['unit', 'component', 'ui-request'])
 def test_build_pairings_are_symmetric_and_still_require_headroom(build, companion):
     state, admission = gate()
     assert not admission.allows(build, [companion])
@@ -193,19 +193,19 @@ def test_build_pairings_are_symmetric_and_still_require_headroom(build, companio
 
 
 @pytest.mark.parametrize('candidate,active,required_gib', [
-    ('unit', ['ui-screen'], 5),
-    ('ui-layout', ['ui-screen'], 7),
+    ('unit', ['ui-request'], 5),
+    ('ui-layout', ['ui-request'], 7),
     ('ui-preview', ['ui-request'], 7),
     ('publish', ['unit'], 9),
     ('unit', ['publish'], 5),
     ('component', ['publish'], 4),
-    ('ui-screen', ['publish'], 7),
-    ('publish', ['ui-screen'], 9),
-    ('ui-layout', ['ui-screen', 'ui-request'], 8),
+    ('ui-request', ['publish'], 7),
+    ('publish', ['ui-request'], 9),
+    ('ui-layout', ['ui-request', 'ui-about'], 8),
     ('component', ['publish', 'unit'], 5),
-    ('component', ['ui-screen', 'unit', 'static'], 5),
-    ('component', ['ui-request', 'ui-screen', 'ui-preview'], 5),
-    ('ui-shell', ['ui-request', 'ui-screen', 'unit'], 8),
+    ('component', ['ui-request', 'unit', 'static'], 5),
+    ('component', ['ui-request', 'ui-about', 'ui-preview'], 5),
+    ('ui-shell', ['ui-request', 'ui-about', 'unit'], 8),
     ('ui-request', [], 6),
     ('artifacts', ['artifacts'], 7),
     ('artifacts', ['publish', 'unit'], 8),
@@ -227,9 +227,9 @@ def test_host_memory_boundary_reserves_candidate_and_active_growth(candidate, ac
 def test_seven_gib_available_admits_host_companions_independent_of_installed_ram(total_gib):
     state, admission = gate()
     state.sample = replace(healthy(), total_memory=total_gib * GIB, available_memory=7 * GIB)
-    warm(state, admission, active=('ui-screen',))
-    assert admission.allows('unit', ['ui-screen'])
-    assert admission.allows('ui-layout', ['ui-screen'])
+    warm(state, admission, active=('ui-request',))
+    assert admission.allows('unit', ['ui-request'])
+    assert admission.allows('ui-layout', ['ui-request'])
 
 
 @pytest.mark.parametrize('candidate', ['ui-feedback', 'ui-shell'])
@@ -238,7 +238,7 @@ def test_recorded_idle_branch_memory_sample_respects_reduced_worker_cap(candidat
     # branch 4 was idle; five established jobs made the old growth sum demand
     # 11 GiB despite 9.57 GiB available and all other admission gates passing.
     state, admission = gate()
-    active = ['ui-request', 'ui-screen', 'ui-preview', 'ui-layout', 'unit']
+    active = ['ui-request', 'ui-about', 'ui-preview', 'ui-layout', 'unit']
     state.sample = Sample(20, 5.772238514173997, 32733339648, 10280558592,
                           1.2861386787729767, 0, .7075686650497106, False)
     warm(state, admission, active=active)
@@ -248,7 +248,7 @@ def test_recorded_idle_branch_memory_sample_respects_reduced_worker_cap(candidat
 
 def test_memory_growth_pool_never_caps_startup_or_uses_a_stale_sample():
     state, admission = gate()
-    active = ['ui-request', 'ui-screen']
+    active = ['ui-request', 'ui-about']
     warm(state, admission, active=active)
     admission.started('ui-layout')
     active.append('ui-layout')
@@ -287,20 +287,20 @@ def test_fourth_category_checks_all_companions_and_total_cpu_budget():
     state, admission = gate()
     active = ['unit', 'component', 'static']
     warm(state, admission, active=active)
-    assert admission.allows('ui-screen', active)
+    assert admission.allows('ui-request', active)
     assert not admission.allows('publish', active)
     assert admission.allows('artifacts', active)
     state.now += 2
     state.sample = replace(healthy(), busy=9)
-    assert admission.allows('ui-screen', active[:2])
-    assert not admission.allows('ui-screen', active)
+    assert admission.allows('ui-request', active[:2])
+    assert not admission.allows('ui-request', active)
 
 
 @pytest.mark.parametrize('slots,limit', [(3, 9), (4, 8)])
 @pytest.mark.parametrize('excess,allowed', [(0, True), (.01, False)])
 def test_ui_buckets_budget_measured_cpu_plus_active_growth(slots, limit, excess, allowed):
     state, admission = gate()
-    active = ['ui-request', 'ui-screen', 'ui-preview'][:slots - 1]
+    active = ['ui-request', 'ui-about', 'ui-preview'][:slots - 1]
     warm(state, admission, active=active)
     state.now += 2
     state.sample = replace(healthy(), busy=limit + excess)
@@ -314,7 +314,7 @@ def test_cpu_startup_reservation_waits_for_fresh_sample_and_restarts_on_launch()
     state, admission = gate()
     warm(state, admission, active=())
     state.sample = replace(healthy(), busy=6)
-    active = ['ui-request', 'ui-screen', 'ui-preview']
+    active = ['ui-request', 'ui-about', 'ui-preview']
     for kind in active:
         admission.started(kind)
     state.now += 2
@@ -345,17 +345,17 @@ def test_startup_reservation_requires_fresh_sample_and_restarts_for_next_launch(
     warm(state, admission)
     state.now += 2
     state.sample = replace(healthy(), available_memory=7 * GIB)
-    admission.started('ui-screen')
-    assert not admission.allows('ui-layout', ['ui-screen'])
+    admission.started('ui-request')
+    assert not admission.allows('ui-layout', ['ui-request'])
     state.now += 19
-    assert not admission.allows('ui-layout', ['ui-screen'])
+    assert not admission.allows('ui-layout', ['ui-request'])
     state.now += 1
     # The cached sample predates the end of startup, even though time elapsed.
-    assert not admission.allows('ui-layout', ['ui-screen'])
+    assert not admission.allows('ui-layout', ['ui-request'])
     state.now += 1
-    assert admission.allows('ui-layout', ['ui-screen'])
-    admission.started('ui-screen')
-    assert not admission.allows('ui-layout', ['ui-screen'])
+    assert admission.allows('ui-layout', ['ui-request'])
+    admission.started('ui-request')
+    assert not admission.allows('ui-layout', ['ui-request'])
 
 
 @pytest.mark.parametrize('kind', ['system', 'e2e'])
@@ -507,7 +507,7 @@ def test_marginal_io_hysteresis_only_gates_build_overlap(io_pressure):
     state.sample = replace(healthy(), io_pressure=io_pressure)
     warm(state, admission, active=('unit',))
     assert admission.open and not admission.io_open
-    assert admission.allows('ui-screen', ['unit'])
+    assert admission.allows('ui-request', ['unit'])
     assert not admission.allows('publish', ['unit'])
     state.now += 2
     state.sample = healthy()

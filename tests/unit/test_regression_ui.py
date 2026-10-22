@@ -25,20 +25,6 @@ def test_partition_covers_all_cases_once_and_keeps_modules_together():
         ('tests/ui/test_child_shell_lifecycle.py',)]
 
 
-def test_established_identity_and_fixture_gui_modules_are_parallel_buckets():
-    nodes = [
-        'tests/ui/test_automation_identity.py::test_public_ids',
-        'tests/ui/test_fixture_gui.py::test_payload[native]',
-    ]
-
-    plan = buckets(nodes)
-
-    assert [(bucket.name, bucket.kind) for bucket in plan] == [
-        ('UI — Automation identity', 'ui-identity'),
-        ('UI — Fixture GUI', 'ui-fixture-gui'),
-    ]
-
-
 def test_about_checks_do_not_share_preview_matrix_deadline():
     preview = [f'tests/ui/test_preview_smoke.py::test_matrix[{index}]'
                for index in range(41)]

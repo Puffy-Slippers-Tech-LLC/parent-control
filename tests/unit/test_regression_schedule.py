@@ -27,7 +27,7 @@ class Capacity:
 def test_host_work_fills_four_branches_despite_background_io(io_pressure, category):
     nodes = [f'tests/ui/{name}::test_case' for name in (
         'test_request_layout.py', 'test_parent_feedback.py',
-        'test_automation_identity.py', 'test_fixture_gui.py')]
+        'test_automation_identity.py', 'test_about_release.py')]
     plan = buckets(nodes)
     if category == 'unit':
         # These previously formed eleven exclusive jobs behind the four unit
@@ -86,7 +86,7 @@ def test_cold_admission_starts_companions_promptly_and_keeps_startup_memory_rese
     state = SimpleNamespace(now=0)
     sample = Sample(20, 2, 32 * GIB, 13 * GIB, 0, 0, 0, False, io_pressure_avg10=4)
     admission = Admission(SimpleNamespace(sample=lambda: sample), lambda: state.now)
-    kinds = ['ui-request', 'ui-screen', 'ui-preview', 'unit']
+    kinds = ['ui-request', 'ui-about', 'ui-preview', 'unit']
     started, finished = {}, []
 
     def begin(job):
@@ -108,7 +108,7 @@ def test_cold_admission_starts_companions_promptly_and_keeps_startup_memory_rese
                       admission=admission, begin=begin, run_command=command, tick=tick)
     assert maximum == 4
     assert started['ui-request'] == 0
-    assert started['ui-screen'] == started['unit'] == 4
+    assert started['ui-about'] == started['unit'] == 4
     assert started['ui-preview'] == 20
     assert set(finished) == set(kinds)
 
@@ -164,7 +164,7 @@ def test_real_admission_fills_ui_branches_after_startup_at_low_cpu_load(slots, a
     admission.update()
     state.now = 20
     admission.update()
-    kinds = ['ui-request', 'ui-screen', 'ui-preview', 'ui-layout', 'ui-feedback', 'ui-shell'][:slots]
+    kinds = ['ui-request', 'ui-about', 'ui-preview', 'ui-layout', 'ui-feedback', 'ui-shell'][:slots]
     started, finished = [], []
 
     def begin(job):
@@ -194,7 +194,7 @@ def test_real_admission_fills_ui_branches_after_startup_at_low_cpu_load(slots, a
     assert set(finished) == set(kinds)
 
 
-@pytest.mark.parametrize('companion', ['ui-screen', 'ui-request'])
+@pytest.mark.parametrize('companion', ['ui-request'])
 def test_publishing_refills_when_unit_and_component_are_exhausted(companion):
     release = threading.Event()
     state = SimpleNamespace(now=0, sample=Sample(20, 4, 32 * GIB, 8 * GIB, 0, 0, 0, False))
@@ -245,7 +245,7 @@ def test_publishing_refills_when_unit_and_component_are_exhausted(companion):
 
 def test_recorded_observations_admit_request_after_io_and_cpu_recovery():
     # Run 20260914T172159Z-eb26d6e2: component completion at 23417.663,
-    # with publishing, screen and units still active. Replay its next samples.
+    # with publishing, a UI companion and units still active. Replay its samples.
     observations = [
         (23416.465, 2.711, 13.873, 23215812608),
         (23418.470, 3.963, 2.949, 23041966080),
@@ -255,11 +255,11 @@ def test_recorded_observations_admit_request_after_io_and_cpu_recovery():
     ]
     state = SimpleNamespace(now=23402.303, sample=None)
     admission = Admission(SimpleNamespace(sample=lambda: state.sample), lambda: state.now)
-    for kind, started in [('publish', 23402.303), ('ui-screen', 23406.385),
+    for kind, started in [('publish', 23402.303), ('ui-request', 23406.385),
                           ('unit', 23406.424)]:
         state.now = started
         admission.started(kind)
-    active = ['publish', 'ui-screen', 'unit']
+    active = ['publish', 'ui-request', 'unit']
     for index, (now, busy, io, memory) in enumerate(observations):
         state.now = now
         state.sample = Sample(20, busy, 32733335552, memory, .521, 0, io, False)

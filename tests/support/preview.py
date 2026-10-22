@@ -87,8 +87,6 @@ def preview_applications(session, directory):
             identity = "com.puffyslippers.OhNoParentControl"
         elif name == 'kiosk_notification_preview':
             identity = 'com.puffyslippers.OhNoParentControl.KioskNotifications'
-        elif name in ("e2e_watch_window_probe", "ui_watch_window_probe", "watch_window_probe"):
-            identity = "org.onpc.E2EWatch"
         else:
             identity = None  # Other launchers need their own explicit contract.
         application_ids[process] = identity

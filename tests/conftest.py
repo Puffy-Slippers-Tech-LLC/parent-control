@@ -112,7 +112,6 @@ CONTRACT_MODULES = frozenset(
         "test_prepare_vm_contract.py",
         "test_service_contract.py",
         "test_systemd_unit.py",
-        "test_support_architecture.py",
     }
 )
 

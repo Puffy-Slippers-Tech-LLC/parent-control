@@ -17,6 +17,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Temporary storage and retained evidence | [test_storage.py](../../tools/test_storage.py), [test_retention.py](../../tools/test_retention.py) | Launchers configure disk scratch for pytest fixtures. Retained evidence uses a registered allocation in its owning journal; short sockets use `short_runtime` or `runtime_directory`. |
 | Fixture producer lifetime | [fixture_producer.py](../../tools/fixture_producer.py) | `Store.producer(transaction_id=..., compatibility_key=..., build_key=...)` owns one unfinished slot. Allocate scratch/staging before writes, pass `Producer.environment()` to build commands and forward `scratch_descriptors()` through every subprocess layer. `Producer.verifying()` records the verification phase. Context exit cleans only recorded allocations after every descendant lease closes; failed cleanup requires exact `Store.recover(transaction_id)` before another reservation. |
 | Immutable native fixture construction | [fixture_bundle.py](../../tools/fixture_bundle.py), [fixture_manifest.py](../../tools/fixture_manifest.py) | Use the [frozen bundle contract](#frozen-native-fixture-bundles). Existing full fixture/package callers remain on their current route until the fixture plan migrates them. |
+| Attempt-owned SSH fixture provisioning | [fixture_provision.py](../../tools/fixture_provision.py) | Use the [provisioning boundary](#attempt-owned-fixture-provisioning). Runner dispatch remains unavailable until target qualification. |
 | Checkout paths and script imports | [paths.py](paths.py), [modules.py](modules.py) | Normal imports use `pyproject.toml`'s `pythonpath`. `load_module(name, path)` loads a fresh standalone script with a unique test-only name; failures restore the registry. |
 | Broker configuration and recording adapters | [configuration.py](configuration.py), [broker.py](broker.py) | Fresh mutable state, explicit clocks/callbacks/failures and no OS calls. |
 | Unit orchestration without GTK construction | [objects.py](objects.py) | Bind actual class methods to explicit state instead of copying method source. |
@@ -79,8 +80,8 @@ with separate optional launcher subsets. Mechanical, command, whitespace,
 pattern, retention and catalogue retain their exact comparisons; compatibility
 selects the separate legacy S runtime. `legacy` selects the complete declaration.
 No subset has a separate build version. Account homes remain symbolic until an
-accepted guest account mapping exists. Guest provisioning remains a later
-fixture-plan task; a constructed bundle alone does not authorize guest input.
+accepted guest account mapping exists. A constructed bundle alone does not
+authorize guest input; use the separately guarded provisioning boundary below.
 
 `tools/run-tests fixtures prepare --kind native-runtime --target ubuntu|fedora`
 selects an execution-owned input through
@@ -107,6 +108,36 @@ the existing writer lock for reading and verifies the selected frozen bundle
 through directory descriptors. A privileged consumer never writes caller-owned
 inputs or registers them in another journal. Runner integration remains with
 the subsequent fixture-plan tasks.
+
+## Attempt-owned fixture provisioning
+
+[`fixture_provision.Provisioner`](../../tools/fixture_provision.py) reads an
+immutable execution selection through the authenticated input owner and sends
+only the finite selected runtime union through the existing guarded, watched SSH
+transport. The caller holds the exclusive VM lease and registers the staging
+intent with its existing attempt owner before the first guest write. The
+provisioner owns no VM restoration, retention journal or rollback mechanism.
+
+`provision(selection, subsets, attempt_id=...)` preflights the target, accepted
+account roles, complete selected destinations, absence controls and native
+metadata. Private staging precedes placement, exact native activation, labels,
+independent byte/metadata readback and a harmless runtime witness. A repeated
+identical request verifies without rewriting matching state. Failure or an
+uncertain reply prevents readiness and leaves staging and diagnostics to the
+existing attempt's snapshot recovery; never retry an uncertain command or signal.
+
+Readiness binds the manifest/content, subsets, VM UUID, boot and attempt.
+Call `require_ready(receipt)` at the input boundary; a saved receipt by itself
+authorizes nothing. Failure and readiness belong to the lease, so constructing
+another provisioner cannot bypass them. Subset changes require a fresh clean
+attempt. After the existing VM owner has restored its snapshot and verified the
+guest off, `reset_after_restore(lease)` retires that generation before the next
+prepare. Old objects and receipts stay unusable. Reboot alone grants no reset.
+Live refresh also needs the later qualified idle-maintenance boundary. Runner dispatch and
+engineering selectors remain unavailable until the
+[fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies
+the actual target and preparation envelope. Host doubles supply no installed
+or customer acceptance.
 
 ## Host and guest boundaries
 

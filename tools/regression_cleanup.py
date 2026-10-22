@@ -328,7 +328,11 @@ from regression_resources import HOST_WORKERS
 # journals, tiny inert bundles, local descriptors and bounded waited Python
 # children. No shared build/cache, VM, display, socket or service is acquired;
 # the same compatible ownership applies in the unit inventory.
+# Fixture provisioning uses pytest-private descriptor trees and in-memory
+# transport/native/lease doubles. No VM, service, shared cache or child process;
+# compatible here and in the unit inventory.
 REVIEWED = frozenset('''
+fixture_provision
 fixture_execution fixture_handoff
 fixture_producer fixture_bundle
 recording_storage

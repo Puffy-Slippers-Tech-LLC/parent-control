@@ -1087,7 +1087,11 @@ from regression_ui import Bucket
 # inert bundles, local locks and bounded waited Python children. No live build,
 # VM, display, socket, external service or shared cache; compatible in unit and
 # cleanup scheduling. Retention capability checks use those same private locks.
+# Fixture provisioning uses pytest-private descriptor trees and in-memory
+# transport/native/lease doubles. No VM, service, shared cache or child process;
+# compatible in both unit and cleanup inventories.
 REVIEWED = frozenset("""
+fixture_provision_cleanup_safety
 fixture_execution_cleanup_safety fixture_handoff_cleanup_safety
 fixture_manifest fixture_container fixture_bundle_cleanup_safety
 fixture_producer_cleanup_safety

@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F15 — [Provision through one fail-closed SSH boundary](Fixture-Tasks/F15-guest-transactions.md)**.
+Next task: **F11 — [Decouple Ubuntu snapshots from fixture payloads](Fixture-Tasks/F11-ubuntu-snapshots.md)**.
 
 ## Outcome and status
 
@@ -18,8 +18,9 @@ the existing single-producer lifetime and safety checks. F02 delivered frozen
 host construction, complete runtime manifests and independent verification for
 both target ABIs. F03 delivered verified execution-owned publication/reuse,
 immutable selections, authenticated read-only handoff and inherited retention
-ownership. F15 and later tasks remain unimplemented; these host inputs supply
-no guest provisioning or installed acceptance.
+ownership. F15 delivered the host-validated, fail-closed SSH provisioning boundary.
+F11 and later tasks remain unimplemented; runner dispatch stays unavailable until
+target qualification. Host inputs and host checks supply no installed acceptance.
 
 ## Launcher
 

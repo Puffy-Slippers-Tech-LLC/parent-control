@@ -1,7 +1,8 @@
 # Host-owned fixture lifecycle: target design
 
-Status: **partially implemented**: producer lifetime and immutable host construction
-are delivered. Input reuse and guest lifecycle work remain proposed.
+Status: **partially implemented**: producer lifetime, immutable host construction,
+execution-owned reuse and the host-validated SSH provisioner are delivered.
+Target qualification, snapshot and runner migration, and live refresh remain proposed.
 The [execution plan](Fixture-Execution-Plan.md) delivers this design. Current
 VM, storage and preparation rules remain effective until their owning tasks
 deliver and document a replacement.
@@ -149,7 +150,9 @@ silent replacement. Source edits during an attempt cannot change its selection.
 
 ## Owned SSH provisioning and readiness
 
-F15 provides one shared provisioner for every runner and maintenance caller.
+F15 delivered one shared [provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning)
+for every runner and maintenance caller. Dispatch remains unavailable until the
+later target qualification and runner migration tasks pass.
 It runs only under the existing exclusive VM lease and guarded, watched SSH.
 First provision happens after restoration/transport readiness and before any
 fixture launch or scenario input.

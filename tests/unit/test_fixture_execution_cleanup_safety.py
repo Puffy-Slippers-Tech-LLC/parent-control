@@ -9,14 +9,13 @@ import json
 import os
 from pathlib import Path
 import select
-import struct
 import subprocess
 import sys
 from types import SimpleNamespace
 
 import pytest
 
-from tests.support.fixture_bundles import compiler_record, environment_record
+from tests.support.fixture_bundles import compiler_record, environment_record, inert_elf
 from tools import artifact_inputs, fixture_bundle as bundle, fixture_execution as execution
 from tools import fixture_manifest, fixture_producer, test_retention as retention
 from tools import test_storage as storage
@@ -24,30 +23,6 @@ from tools import test_storage as storage
 SOURCE = 'tests/fixtures/onpc_test_application.c'
 GUI = 'tests/fixtures/gui_application.py'
 AUTOMATION = 'common/oh_no_parent_control_ui/gtk_automation.py'
-
-
-def inert_elf(identity):
-    """A never-executed finite ELF64 fixture accepted by the real ABI reader."""
-    data, base = bytearray(768), 0x400000
-    loader = b'/lib64/ld-linux-x86-64.so.2\0'
-    strings = b'\0libc.so.6\0GLIBC_2.2.5\0'
-    struct.pack_into('<16sHHIQQQIHHHHHH', data, 0,
-                     b'\x7fELF\x02\x01\x01' + bytes(9), 2, 62, 1,
-                     base + 700, 64, 0, 0, 64, 56, 3, 0, 0, 0)
-    for index, segment in enumerate((
-            (1, 5, 0, base, base, len(data), len(data), 1),
-            (3, 4, 256, base + 256, base + 256, len(loader), len(loader), 1),
-            (2, 4, 320, base + 320, base + 320, 96, 96, 1))):
-        struct.pack_into('<IIQQQQQQ', data, 64 + index * 56, *segment)
-    data[256:256 + len(loader)] = loader
-    for index, entry in enumerate(((5, base + 512), (10, len(strings)), (1, 1),
-                                   (0x6fffffff, 1), (0x6ffffffe, base + 600), (0, 0))):
-        struct.pack_into('<qQ', data, 320 + index * 16, *entry)
-    data[512:512 + len(strings)] = strings
-    struct.pack_into('<HHIII', data, 600, 1, 1, 1, 16, 0)
-    struct.pack_into('<IHHII', data, 616, 0, 0, 2, 11, 0)
-    data[700:700 + len(identity)] = identity.encode()
-    return bytes(data)
 
 
 @pytest.fixture

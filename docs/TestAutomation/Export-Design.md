@@ -154,6 +154,10 @@ with their existing owners.
 
 ### Bounded collections, capacity and reuse
 
+Retention uses the existing build/run and saved-generation counts. E04 adds no
+stricter aggregate disk-size or file-count quota. Existing finite archive/input
+validation and earlier storage safety guards remain in place.
+
 Disposable execution/export output keeps normal rotation. Working and accepted
 required proof lives in its owning workflow's bounded cumulative publication,
 independent of unrelated execution/export sessions. Required original bytes stay
@@ -265,6 +269,10 @@ actual-file-byte worker histories cover both modules with the original eight sou
 continuation, rejected-result recovery and answered blockers. `test_activity.py`
 remains unchanged advisory coordination and is not imported by the capture
 authority or ordinary controller; its prior conditional exclusion still applies.
+Required-recording capture makes `tools/recording_storage.py` part of that
+retained-decision closure too: its case lease, exact source declaration and
+receipt checks govern capture recovery and source retirement. The same real-byte
+worker histories cover changes to that dependency.
 
 Extend `plan_launcher.response_validator_sources()` and its existing content-change
 regressions as shared dependencies are changed or introduced. E01 inventories

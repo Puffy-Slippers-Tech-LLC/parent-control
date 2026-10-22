@@ -91,6 +91,10 @@ writes schema 1; versioned publication is delivered separately.
 Publication recovery verifies the committed payload and publishes its matching
 locator before retiring recorded older generations. Ordinary session and export
 rotation remains bounded and unchanged.
+Before replacing an accepted locator, recovery verifies that the new cumulative
+archive retains every original member and provenance from its predecessor.
+Task renewal preserves the earlier attempt's bytes as well. Retention uses the
+existing generation lifetime without adding an aggregate storage quota.
 Every fresh controller carries exact active and suspended task inputs, including
 an unpublished accepted result's command and cleanup records. Failed startup
 retries its recorded allocation before admitting another retention slot; changed

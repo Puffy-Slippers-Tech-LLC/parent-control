@@ -145,6 +145,17 @@ def test_paths_environment_and_plain_objects_cannot_mint_authority(producer, han
     assert producer.result.read_bytes() == PAYLOAD
 
 
+@pytest.mark.parametrize('intent', [None, [], 'recording_source'])
+def test_malformed_optional_source_intent_refuses_as_invalid_metadata(producer, intent):
+    producer.finalize()
+    charge = json.loads((producer.store.path / 'current.json').read_bytes())['captures'][0]
+    registration = capture._registration(charge)
+    registration['intent'] = intent
+    with pytest.raises(ValueError, match='invalid capture intent'):
+        capture._checked_registration(registration)
+    assert producer.result.read_bytes() == PAYLOAD
+
+
 def test_environment_run_without_held_store_owner_cannot_issue_a_handle(producer):
     unowned = retention.Store(producer.store.path.with_name('retention-unowned'))
     with pytest.raises(ValueError):

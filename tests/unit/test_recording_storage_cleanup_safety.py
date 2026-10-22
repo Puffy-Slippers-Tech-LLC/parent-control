@@ -1,8 +1,10 @@
 """Private fixture files only: latest-recording ownership and crash boundaries."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import socket
+from types import SimpleNamespace
 
 import pytest
 
@@ -143,6 +145,31 @@ def test_idle_abandoned_stage_is_reclaimed_without_touching_previous_or_unknown(
     with store.begin('e2e', 150):
         assert not stage.exists()
         assert previous.is_file() and unknown.read_bytes() == b'unknown'
+
+
+def test_reopened_case_owner_never_recreates_a_missing_lease(store):
+    previous = publish(store)
+    lease = store.path / '.e2e-150.lock'
+    lease.unlink()
+    before = set(store.path.iterdir())
+    with pytest.raises(FileNotFoundError):
+        store.owner('e2e', 150)
+    assert set(store.path.iterdir()) == before
+    assert previous.read_bytes() == b'playable fixture'
+
+
+def test_explicit_case_owner_close_preserves_abandoned_stage(store):
+    previous = publish(store)
+    abandoned = store.begin('e2e', 150)
+    write(abandoned, b'incomplete owned recording')
+    stage = abandoned.path
+    abandoned.close(abort=False)
+    before = (store.path / '.e2e-150.json').read_bytes()
+    owner = store.owner('e2e', 150)
+    owner.close()
+    assert stage.read_bytes() == b'incomplete owned recording'
+    assert (store.path / '.e2e-150.json').read_bytes() == before
+    assert previous.read_bytes() == b'playable fixture'
 
 
 @pytest.mark.parametrize('boundary', ['intent', 'rename', 'current', 'delete', 'finished'])
@@ -611,3 +638,327 @@ def test_root_caller_lookup_never_moves_legacy_directory(tmp_path, legacy_record
     with pytest.raises(ValueError, match='unprivileged owner'):
         test_storage.recordings_directory(root=tmp_path)
     assert previous.is_file() and legacy.is_dir()
+
+
+@pytest.fixture
+def recording_workflow(tmp_path, monkeypatch):
+    """Real private workflow/case/seal/bundle locks; no processes or VM access."""
+    import recording_storage as recordings
+    import evidence_capture as capture
+    import evidence_bundle as bundle
+    import test_retention as retention
+    import test_storage as shared
+    checkout = tmp_path / 'capture-checkout'
+    checkout.mkdir(mode=0o700)
+    monkeypatch.setattr(shared, 'ROOT', checkout)
+    monkeypatch.setattr(shared, 'BASE', checkout / 'output/test-runs')
+    monkeypatch.delenv(retention.VARIABLE, raising=False)
+    workflow = retention.Store(shared.directory('state') / 'retention-host')
+    clips = recordings.Store(root=checkout)
+    previous = publish(clips)
+    consumer = 'a' * 64
+    value = SimpleNamespace(clips=clips, previous=previous, workflow=workflow,
+        capture=capture, bundle=bundle, retention=retention, checkout=checkout, consumer=consumer)
+
+    def issue_handle(*, consumers=None, dependencies=(), check='recording-source'):
+        value.handle = capture.issue_session(workflow, repository=checkout,
+            workflow='required-recording-fixture', task='E04', check=check,
+            inputs_sha256='c' * 64, sources_sha256='d' * 64,
+            consumers=consumers if consumers is not None else {
+                consumer: dict(consumer_id=consumer, revision_sha256='b' * 64)},
+            dependencies=dependencies)
+
+    def seal():
+        with clips.owner('e2e', 150) as owner:
+            return owner.require_capture(value.handle, consumer_ids=[consumer])
+
+    def publish_required(identifier):
+        with bundle.Selection(checkout, os.geteuid(), os.getegid(),
+                              [], [], [], captures=[identifier]) as selected:
+            return bundle.export(selected, expected=selected.selection_sha256)
+
+    def acknowledge():
+        with clips.owner('e2e', 150) as owner:
+            return owner.acknowledge_required(session_handle=value.handle)
+
+    value.issue_handle, value.seal = issue_handle, seal
+    value.publish, value.acknowledge = publish_required, acknowledge
+    return value
+
+
+@pytest.fixture
+def required_recording(recording_workflow):
+    value = recording_workflow
+    with value.workflow.session():
+        value.issue_handle()
+        yield value
+
+
+@pytest.mark.parametrize('same_name', [False, True])
+def test_required_recording_preserved_until_complete_destination_acknowledgement(
+        required_recording, same_name):
+    value = required_recording
+    before = value.previous.stat()
+    identifier = value.seal()
+    names = ('onpc-Alpha', 'onpc-Beta') if same_name else ('onpc-Beta',)
+    with pytest.raises(ValueError, match='not durably acknowledged'):
+        publish(value.clips, names=names, data=b'playable successor')
+    assert value.previous.read_bytes() == b'playable fixture'
+    assert value.previous.stat().st_ino == before.st_ino
+    receipt = value.publish(identifier)
+    # Publication alone must not release the original case-owned recording.
+    with pytest.raises(ValueError, match='not durably acknowledged'):
+        value.clips.begin('e2e', 150)
+    value.acknowledge()
+    with value.clips.begin('e2e', 150):
+        latest = value.clips.path / ('e2e-150-' + '-'.join(n.removeprefix('onpc-') for n in names) + '.webm')
+        assert latest.read_bytes() == b'playable successor'
+        assert latest.stat().st_ino != before.st_ino
+        assert latest == value.previous or not value.previous.exists()
+    assert Path(receipt['path']).is_file()
+    required = manifest(value.clips)['required']
+    assert required['retired'] is True
+    request = required['acknowledgement']['request']
+    assert request['record']['status'] == 'diagnostic'
+    assert {member['role'] for member in request['record']['members']} == {'media', 'diagnostic'}
+    assert all(member['required'] for member in request['record']['members'])
+    media = next(member for member in request['record']['members'] if member['role'] == 'media')
+    assert media['original_path'] == str(value.previous)
+    assert media['sha256'] == hashlib.sha256(b'playable fixture').hexdigest()
+    origin = required['origin']['payload']
+    assert origin['identity'][0:2] == [before.st_dev, before.st_ino]
+    assert origin['identity'][6] == before.st_size
+    assert origin['provenance']['vm_names'] == ['onpc-Alpha', 'onpc-Beta']
+
+
+@pytest.mark.parametrize('same_name', [False, True])
+@pytest.mark.parametrize('fault', ['missing', 'replaced', 'corrupt'])
+def test_stale_recording_acknowledgement_revalidates_before_overwrite_or_unlink(
+        required_recording, same_name, fault):
+    value = required_recording
+    identifier = value.seal()
+    receipt = value.publish(identifier)
+    value.acknowledge()
+    archive = Path(receipt['path'])
+    if fault == 'missing':
+        archive.unlink()
+    elif fault == 'replaced':
+        archive.rename(archive.with_suffix('.held'))
+        archive.write_bytes(b'unknown replacement')
+        archive.chmod(0o600)
+    else:
+        with archive.open('r+b') as stream:
+            stream.write(b'changed')
+    names = ('onpc-Alpha', 'onpc-Beta') if same_name else ('onpc-Beta',)
+    with pytest.raises((ValueError, OSError)):
+        publish(value.clips, names=names, data=b'playable successor')
+    assert value.previous.read_bytes() == b'playable fixture'
+    assert manifest(value.clips)['required']['retired'] is False
+
+
+def test_recording_failed_seal_reuses_exact_intent_and_preserves_original(
+        required_recording, monkeypatch):
+    value = required_recording
+    def interrupt(stage):
+        if stage == 'sealing':
+            raise KeyboardInterrupt
+    with monkeypatch.context() as local:
+        local.setattr(value.capture, 'checkpoint', interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            value.seal()
+    required = manifest(value.clips)['required']
+    before = json.loads((value.workflow.path / 'current.json').read_bytes())['captures'][0]
+    assert required['capture_id'] is None
+    assert value.previous.read_bytes() == b'playable fixture'
+    identifier = value.seal()
+    after = json.loads((value.workflow.path / 'current.json').read_bytes())['captures'][0]
+    assert before == after and after['capture_id'] == identifier
+    value.publish(identifier)
+    value.acknowledge()
+    latest = publish(value.clips, names=('onpc-Beta',), data=b'playable recovered')
+    assert latest.read_bytes() == b'playable recovered'
+    assert not value.previous.exists()
+
+
+@pytest.mark.parametrize('boundary', ['recording.required', 'required', 'sealing', 'finished', 'sealed'])
+def test_required_recording_capture_resumes_after_fresh_workflow_session(
+        recording_workflow, monkeypatch, boundary):
+    value = recording_workflow
+    with value.workflow.session() as run:
+        value.issue_handle()
+        stale = value.handle
+        def interrupt(stage):
+            if stage == boundary:
+                raise KeyboardInterrupt
+        with monkeypatch.context() as local:
+            local.setattr(value.capture, 'checkpoint', interrupt)
+            with pytest.raises(KeyboardInterrupt):
+                value.seal()
+        saved = manifest(value.clips)['required']
+        assert saved is not None and saved['acknowledgement'] is None
+    assert value.previous.read_bytes() == b'playable fixture'
+    with value.workflow.session(run=run):
+        with pytest.raises(ValueError, match='stale'):
+            value.capture.session_context(stale)
+        with value.clips.owner('e2e', 150) as owner:
+            value.handle = owner.resume_capture_session(value.workflow)
+            assert value.capture.session_context(value.handle) == saved['context']
+            identifier = owner.require_capture(value.handle, consumer_ids=[value.consumer])
+        value.publish(identifier)
+        value.acknowledge()
+        latest = publish(value.clips, names=('onpc-Beta',), data=b'playable resumed recording')
+        assert latest.read_bytes() == b'playable resumed recording'
+        assert not value.previous.exists()
+
+
+@pytest.mark.parametrize('boundary', ['recording.receipt', 'acknowledgement', 'recording.acknowledged'])
+def test_required_recording_acknowledgement_resumes_after_fresh_workflow_session(
+        recording_workflow, monkeypatch, boundary):
+    value = recording_workflow
+    with value.workflow.session() as run:
+        value.issue_handle()
+        identifier = value.seal()
+        value.publish(identifier)
+        def interrupt(stage):
+            if stage == boundary:
+                raise KeyboardInterrupt
+        with monkeypatch.context() as local:
+            local.setattr(value.capture, 'checkpoint', interrupt)
+            with pytest.raises(KeyboardInterrupt):
+                value.acknowledge()
+        saved = manifest(value.clips)['required']
+        assert saved['acknowledgement'] is not None
+    with value.workflow.session(run=run):
+        with value.clips.owner('e2e', 150) as owner:
+            value.handle = owner.resume_capture_session(value.workflow)
+        acknowledgement = value.acknowledge()
+        assert acknowledgement == saved['acknowledgement']
+        assert manifest(value.clips)['required']['parent_acknowledged'] is True
+        latest = publish(value.clips, names=('onpc-Beta',), data=b'playable acknowledged retry')
+        assert latest.read_bytes() == b'playable acknowledged retry'
+        assert not value.previous.exists()
+
+
+def test_required_recording_capacity_refusal_resumes_in_original_workflow_session(
+        recording_workflow, monkeypatch):
+    value = recording_workflow
+    with value.workflow.session() as run:
+        value.issue_handle()
+        with monkeypatch.context() as local:
+            local.setattr(value.retention, 'MAX_RETAINED_BYTES', 4096)
+            with pytest.raises(ValueError, match='capacity'):
+                value.seal()
+        required = manifest(value.clips)['required']
+        assert required['capture_id'] is None
+    with value.workflow.session(run=run):
+        with value.clips.owner('e2e', 150) as owner:
+            value.handle = owner.resume_capture_session(value.workflow)
+            identifier = owner.require_capture(value.handle, consumer_ids=[value.consumer])
+        value.publish(identifier)
+        value.acknowledge()
+        latest = publish(value.clips, names=('onpc-Beta',), data=b'playable capacity retry')
+        assert latest.read_bytes() == b'playable capacity retry'
+        assert not value.previous.exists()
+
+
+def test_large_supported_recording_declaration_is_durable_and_resumes(recording_workflow, monkeypatch):
+    value = recording_workflow
+    consumers = {f'{index:064x}': dict(consumer_id=f'{index:064x}', revision_sha256='b' * 64)
+                 for index in range(256)}
+    with value.workflow.session() as run:
+        # A supported long selector makes the boundary independent of the
+        # runner's temporary-path length; the complete declaration must exceed
+        # the legacy cap before any parent charge exists.
+        value.issue_handle(consumers=consumers, check='recording-source-' + 'x' * 4000)
+        def interrupt(stage):
+            if stage == 'recording.required':
+                raise KeyboardInterrupt
+        with monkeypatch.context() as local:
+            local.setattr(value.capture, 'checkpoint', interrupt)
+            with value.clips.owner('e2e', 150) as owner:
+                with pytest.raises(KeyboardInterrupt):
+                    owner.require_capture(value.handle, consumer_ids=sorted(consumers))
+        path = value.clips.path / '.e2e-150.json'
+        assert path.stat().st_size > 65536
+        saved = manifest(value.clips)['required']
+        assert saved['consumers'] == consumers
+        assert saved['capture_id'] is None
+    with pytest.raises(ValueError, match='not durably acknowledged'):
+        publish(value.clips, names=('onpc-Beta',), data=b'playable pending copy')
+    assert value.previous.read_bytes() == b'playable fixture'
+    with value.workflow.session(run=run):
+        with value.clips.owner('e2e', 150) as owner:
+            value.handle = owner.resume_capture_session(value.workflow)
+            identifier = owner.require_capture(value.handle, consumer_ids=sorted(consumers))
+        value.publish(identifier)
+        value.acknowledge()
+        assert manifest(value.clips)['required']['acknowledgement']['request']['consumers'] == consumers
+        latest = publish(value.clips, names=('onpc-Beta',), data=b'playable large declaration')
+        assert latest.read_bytes() == b'playable large declaration'
+        assert not value.previous.exists()
+
+
+def test_recording_capacity_refusal_preserves_exact_required_original(required_recording, monkeypatch):
+    value = required_recording
+    with monkeypatch.context() as local:
+        local.setattr(value.retention, 'MAX_RETAINED_BYTES', 4096)
+        with pytest.raises(ValueError, match='capacity'):
+            value.seal()
+    assert value.previous.read_bytes() == b'playable fixture'
+    required = manifest(value.clips)['required']
+    assert required is not None and required['acknowledgement'] is None
+    with pytest.raises(ValueError, match='not durably acknowledged'):
+        publish(value.clips, names=('onpc-Beta',), data=b'playable later')
+
+
+def test_recording_case_lease_and_issued_workflow_handle_cannot_be_forged(required_recording):
+    value = required_recording
+    with value.clips.owner('e2e', 150) as owner:
+        for handle in (None, {}, str(value.workflow.path), object()):
+            with pytest.raises((ValueError, TypeError)):
+                owner.require_capture(handle, consumer_ids=[value.consumer])
+        with pytest.raises(ValueError, match='another recorder'):
+            value.clips.owner('e2e', 150)
+    assert manifest(value.clips)['required'] is None
+    assert value.previous.read_bytes() == b'playable fixture'
+
+
+def test_consecutive_required_recordings_wait_for_parent_cleanup_and_reuse_one_origin(recording_workflow):
+    value = recording_workflow
+    old_witness = None
+    retained_ids = []
+    for generation in range(5):
+        with value.workflow.session():
+            value.issue_handle()
+            identifier = value.seal()
+            retained_ids.append(identifier)
+            current = manifest(value.clips)['required']
+            witness = value.clips.path / current['origin']['file']['name']
+            if old_witness is not None:
+                assert not old_witness.exists()
+            assert witness.is_file()
+            assert len(list(value.clips.path.glob('.e2e-150-origin-*.json'))) == 1
+            receipt = value.publish(identifier)
+            value.acknowledge()
+            previous = value.clips.path / current['original']['name']
+            previous_identity = previous.stat().st_ino
+            latest = publish(value.clips, names=('onpc-Beta',),
+                             data=('playable generation %d' % generation).encode())
+            assert latest.stat().st_ino != previous_identity
+            assert previous == latest or not previous.exists()
+            with value.clips.owner('e2e', 150) as owner:
+                with pytest.raises(ValueError, match='finish prior recording source cleanup'):
+                    owner.require_capture(value.handle, consumer_ids=[value.consumer])
+            assert witness.exists()
+            old_witness = witness
+        # Ordinary generation rotation owns the old capture charge. The
+        # recording origin remains exactly available until that cleanup finishes.
+        for _ in range(4):
+            with value.workflow.session():
+                pass
+        state = json.loads((value.workflow.path / 'current.json').read_bytes())
+        assert not any(charge['capture_id'] == identifier for entry in [*state['history'], state]
+                       for charge in entry.get('captures', []))
+        assert witness.is_file()
+        archived = value.bundle.inspect(value.checkout, os.geteuid(), os.getegid(), receipt['path'])
+        assert len(archived['manifest']['records']) == len(retained_ids)

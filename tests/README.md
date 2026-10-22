@@ -2472,6 +2472,27 @@ input, command and cleanup bytes, including failed and partial interrupted proof
 These shared-mechanism checks do not replace the producer/consumer integrations
 assigned to later export tasks.
 
+Required recordings use the same sealed publication route before latest-only
+replacement. `recording_storage.Store.owner()` holds an existing case without
+allocating or recovering a recording. Its `require_capture()` requires both that
+case lease and a live issued workflow handle; the case manifest records the exact
+media and machine-generated origin witness before copying. The complete two-member
+diagnostic closure preserves original identities and provenance. Publication alone
+cannot release it: `acknowledge_required()` durably records the independently
+verified receipt in both owners. Overwrite and unlink pin and reverify that copy.
+Failed capture, missing acknowledgement and stale destinations preserve the old
+recording. A later requirement waits for ordinary cleanup of the exact previous
+parent charge, then removes only its recorded witness. Disposable recordings keep
+their existing latest-only policy; producer wiring remains with its owning task.
+After interruption, `resume_capture_session()` reissues the declaration's exact
+attempt only while its original workflow run and case are held. This also covers
+interruption before the parent charge exists; the saved context, consumers and
+dependencies supply the recovery inputs. A new attempt cannot replace that
+pending declaration. Lost acknowledgement replies retry the same receipt.
+Required-recording manifests use the shared evidence metadata bound so valid
+consumer and dependency records fit; legacy recording manifests keep their
+existing smaller input bound.
+
 ### Handling test failures
 
 On resume, reconcile the current working tree, the active runner's actual

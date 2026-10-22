@@ -701,6 +701,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     'launcher_git.py', 'onpc-test-artifacts', 'launcher_question.py',
     'plan_reconciliation.py', 'vm_selection.py', '../tests/integration/vm_config.py',
     'evidence_identity.py', 'evidence_capture.py', 'capture_publication.py',
+    'recording_storage.py',
 )
 
 

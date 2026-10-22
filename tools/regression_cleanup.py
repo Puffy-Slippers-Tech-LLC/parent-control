@@ -34,6 +34,10 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Capture retirement and resumable-publication checks add only private journals,
 # files and local descriptors with synchronous interruption doubles. They own no
 # child, VM, display, socket, bus, service or shared cache; compatible in both inventories.
+# E04 complete-closure retirement and recording replacement histories use tiny
+# pytest-private files/archives and real local descriptor locks with synchronous
+# failure/privilege doubles. They add no child, VM, service, shared cache/path,
+# display, bus or socket; existing compatible cleanup and unit overlap holds.
 # Batch-input transfer coverage adds paired private journals/local locks and
 # synchronous verifier/interruption doubles to those same fixtures. No live VM,
 # shared path or child lifetime is added; its compatible classification holds.

@@ -6,6 +6,7 @@ snapshot owner. They never inspect the active producer journal.
 """
 from contextlib import contextmanager, ExitStack
 import copy
+import hashlib
 import os
 from pathlib import Path
 import pwd
@@ -281,7 +282,18 @@ def _pin_record(parent, name, stack, pins):
 
 
 @contextmanager
-def _source(member, state, store, run, *, guards=None):
+def _source(member, state, store, run, *, guards=None, recording_owner=None,
+            recording_source=None):
+    if recording_source is not None:
+        if recording_owner is None:
+            raise ValueError('capture: a held recording source owner is required')
+        allocation = member['source_allocation']
+        if (allocation['journal'] != str(store.path) or allocation['run'] != run
+                or allocation['path'] != recording_source['path']):
+            raise ValueError('capture: recording belongs to a foreign workflow')
+        with recording_owner._capture_source(member, recording_source, guards=guards) as value:
+            yield value
+        return
     allocation = member['source_allocation']
     if allocation['journal'] != str(store.path) or allocation['run'] != run:
         raise ValueError('capture: member belongs to a foreign producer')
@@ -372,12 +384,18 @@ def _checked_registration(value, charge=None):
     logical._choice(value['state'], {'required', 'sealing', 'sealed'})
     retention.publication_record(value['slot'])
     logical._integer(value['reserved_bytes'])
-    logical._object(value['intent'], {'producer', 'record', 'consumers', 'dependencies', 'originals'}, 'capture intent')
+    intent_fields = {'producer', 'record', 'consumers', 'dependencies', 'originals'}
+    if type(value['intent']) is not dict:
+        raise ValueError('capture: invalid capture intent')
+    logical._object(value['intent'], intent_fields | ({'recording_source'}
+                    if 'recording_source' in value['intent'] else set()), 'capture intent')
     intent = value['intent']
     _validate_producer(intent['producer'])
     logical._record(intent['record'])
     _dependency_records(intent['record'], intent['dependencies'])
     _consumers(intent['consumers'])
+    if 'recording_source' in intent:
+        _validate_recording_source(intent['recording_source'], intent['record'])
     logical._ordered(intent['originals'], lambda item: item['member_id'], 'original identities')
     members = {item['member_id']: item for item in intent['record']['members']}
     if {item['member_id'] for item in intent['originals']} != set(members):
@@ -545,7 +563,208 @@ def _capacity(state, proposed, intent):
                          (current, current + proposed, retention.MAX_RETAINED_BYTES))
 
 
-def finalize_capture(session_handle, *, record, consumer_ids):
+def _check_recording_owner(owner):
+    if __package__:
+        from .recording_storage import Recording
+    else:
+        from recording_storage import Recording
+    if type(owner) is not Recording or owner.fd is None or owner.lock is None:
+        raise ValueError('capture: a live recording case owner is required')
+    owner._root_guard()
+
+
+def _validate_recording_source(value, record):
+    logical._object(value, {'category', 'case_id', 'required_id', 'path', 'root', 'lock'},
+                    'recording source authority')
+    import re
+    if (not isinstance(value['category'], str)
+            or re.fullmatch(r'[a-z][a-z0-9]*', value['category']) is None
+            or type(value['case_id']) is not int or value['case_id'] <= 0):
+        raise ValueError('capture: invalid recording case')
+    logical._hex(value['required_id'])
+    repository = record['context']['repository']
+    # Derive the only admissible source root, without accepting a caller path
+    # or giving retention any cleanup claim over this shared directory.
+    root = storage.recordings_directory(root=repository['root'], create=False,
+        **({'caller_uid': repository['uid']} if os.geteuid() == 0 else {}))
+    if value['path'] != str(root):
+        raise ValueError('capture: recording source is outside shared recordings')
+    logical._object(value['root'], {'device', 'inode', 'mode', 'uid', 'gid'}, 'recording root identity')
+    logical._object(value['lock'], {'name', 'device', 'inode'}, 'recording case lease identity')
+    for key in ('device', 'inode'):
+        logical._integer(value['root'][key], minimum=1)
+        logical._integer(value['lock'][key], minimum=1)
+    key = '%s-%d' % (value['category'], value['case_id'])
+    if value['lock']['name'] != '.' + key + '.lock':
+        raise ValueError('capture: recording case lease changed')
+    if (record['status'] != 'diagnostic' or record['completeness'] != 'complete'
+            or len(record['members']) != 2):
+        raise ValueError('capture: required recording must be complete diagnostic media and origin')
+    if not all(item['required'] for item in record['members']) or {
+            item['role'] for item in record['members']} != {'media', 'diagnostic'}:
+        raise ValueError('capture: incomplete recording origin closure')
+    for member in record['members']:
+        if Path(member['original_path']).parent != root or member['source_allocation']['path'] != str(root):
+            raise ValueError('capture: recording member outside exact case root')
+
+
+def resume_recording_session(store, recording_owner):
+    """Resume even when interruption preceded the parent's capture registration.
+
+    The case's private required declaration supplies the attempt. A held case
+    and the exact original live workflow owner jointly authorize reissuance;
+    caller JSON and a path cannot mint a handle.
+    """
+    _check_recording_owner(recording_owner)
+    required = recording_owner.state['required']
+    if required is None or required['retired']:
+        raise ValueError('capture: no pending required recording to resume')
+    recording_owner._validate_required(required)
+    recording_owner._check_source_binding(recording_owner._source_binding(required))
+    recording_owner._verify(required['original'])
+    context = required['context']
+    binding = store.producer_binding()
+    if (str(store.path) != context['owner']['journal'] or binding[3] != context['run']
+            or _directory_identity(os.fstat(binding[1])) != context['owner']['identity']):
+        raise ValueError('capture: recording resume requires the original live workflow run')
+    handle = issue_session(store, repository=context['repository']['root'],
+        workflow=context['workflow'], task=context['task'], check=context['check'], target=context['target'],
+        inputs_sha256=context['inputs_sha256'], sources_sha256=context['sources_sha256'],
+        consumers=required['consumers'], dependencies=required['dependencies'])
+    if ({key: value for key, value in _handles[handle]['context'].items() if key != 'attempt'} !=
+            {key: value for key, value in context.items() if key != 'attempt'}):
+        raise ValueError('capture: resumed recording producer binding changed')
+    _handles[handle]['context']['attempt'] = context['attempt']
+    return handle
+
+
+def finalize_recording_capture(session_handle, recording_owner, *, consumer_ids):
+    """Adapt one case-owned recording without adopting its shared directory.
+
+    The existing case journal owns the pending requirement and source witness;
+    the existing workflow journal owns and budgets the ordinary sealed capture.
+    """
+    _check_recording_owner(recording_owner)
+    session = _session(session_handle)
+    owner = recording_owner
+    context = session['context']
+    if (owner.store.path != storage.recordings_directory(root=context['repository']['root'], create=False)
+            or context['owner']['caller'] != _authenticated_caller()
+            or os.geteuid() != context['owner']['caller']['uid']):
+        raise ValueError('capture: recording belongs to another checkout or caller')
+    if (type(consumer_ids) not in (tuple, list) or not consumer_ids
+            or list(consumer_ids) != sorted(set(consumer_ids))
+            or any(item not in session['consumers'] for item in consumer_ids)):
+        raise ValueError('capture: expected finite owner-issued recording consumers')
+    consumers = {key: session['consumers'][key] for key in consumer_ids}
+    required = owner.state['required']
+    if required is not None and required['retired']:
+        # A new immutable requirement may replace the prior one only after its
+        # recorded parent charge has actually completed normal cleanup.
+        prior = retention.Store(required['context']['owner']['journal'])
+        with prior.opened() as prior_fd, prior.locked(prior_fd, 'writer.lock', shared=True):
+            if _directory_identity(os.fstat(prior_fd)) != required['context']['owner']['identity']:
+                raise ValueError('capture: prior recording workflow owner changed')
+            state = prior.read(prior_fd)
+            if state is None or any(charge['capture_id'] == required['capture_id']
+                    for entry in [*state['history'], state] for charge in entry.get('captures', [])):
+                raise ValueError('capture: finish prior recording source cleanup before another requirement')
+        owner._remove(required['origin']['file'])
+        owner.state['required'] = required = None
+        owner._save()
+    if required is None:
+        original = owner.state['current']
+        if original is None or owner.state['pending'] is not None:
+            raise ValueError('capture: select an existing finalized recording before replacement')
+        owner._verify(original)
+        source = owner._open(original)
+        try:
+            origin = dict(schema='onpc-recording-origin-v1', category=owner.category,
+                case_id=owner.case_id, path=str(owner.store.path / original['name']),
+                identity=_fingerprint(os.fstat(source)), sha256=original['sha256'],
+                provenance=copy.deepcopy(owner.state['provenance']), context=copy.deepcopy(context),
+                root=_directory_identity(os.fstat(owner.fd)), lock=copy.deepcopy(owner.lock_identity))
+        finally:
+            os.close(source)
+        payload = logical.encoded(origin)
+        # Register the empty witness in the case owner before writing bytes.
+        name = '.' + owner.key + '-origin-' + uuid.uuid4().hex + '.json'
+        with _registration_window():
+            witness = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                              0o600, dir_fd=owner.fd)
+            try:
+                info = os.fstat(witness)
+                required = dict(id=logical.digest(dict(context=context, consumers=consumers,
+                    dependencies=session['dependencies'], origin=origin)),
+                    original=copy.deepcopy(original), origin=dict(file=dict(name=name,
+                    device=info.st_dev, inode=info.st_ino), payload=origin), context=copy.deepcopy(context),
+                    consumers=copy.deepcopy(consumers), dependencies=copy.deepcopy(session['dependencies']),
+                    record=None, capture_id=None,
+                    acknowledgement=None, parent_acknowledged=False, retired=False)
+                owner.state['required'] = required
+                owner.state['version'] = 2
+                owner._save()
+            finally:
+                os.close(witness)
+        checkpoint('recording.required')
+    if (required['context'] != context or required['consumers'] != consumers
+            or required['dependencies'] != session['dependencies'] or required['retired']):
+        raise ValueError('capture: resume the exact required recording attempt and consumers')
+    owner._check_source_binding(owner._source_binding(required))
+    owner._verify(required['original'])
+    source = owner._open(required['original'])
+    try:
+        if _fingerprint(os.fstat(source)) != required['origin']['payload']['identity']:
+            raise ValueError('capture: required recording original identity changed')
+    finally:
+        os.close(source)
+    payload = logical.encoded(required['origin']['payload'])
+    witness_record = required['origin']['file']
+    witness = owner._open(witness_record)
+    try:
+        existing = os.pread(witness, len(payload) + 1, 0)
+    finally:
+        os.close(witness)
+    if existing != payload:
+        if required['record'] is not None or required['capture_id'] is not None:
+            raise ValueError('capture: finalized recording witness changed')
+        witness = os.open(witness_record['name'], os.O_WRONLY | os.O_NOFOLLOW, dir_fd=owner.fd)
+        with os.fdopen(witness, 'wb') as stream:
+            if (os.fstat(stream.fileno()).st_dev, os.fstat(stream.fileno()).st_ino) != (
+                    witness_record['device'], witness_record['inode']):
+                raise ValueError('capture: recording witness was replaced')
+            os.ftruncate(stream.fileno(), 0)
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.fsync(owner.fd)
+    allocation = dict(path=str(owner.store.path), device=required['origin']['payload']['root']['device'],
+        inode=required['origin']['payload']['root']['inode'], mode=0o700,
+        journal=str(session['store'].path), run=context['run'])
+    draft = dict(schema=logical.SCHEMA, version=1, context=copy.deepcopy(context),
+        status='diagnostic', completeness='complete', members=[
+            dict(role='media', original_path=str(owner.store.path / required['original']['name']),
+                source_allocation=allocation, bytes=required['original']['size'],
+                sha256=required['original']['sha256'], required=True),
+            dict(role='diagnostic', original_path=str(owner.store.path / witness_record['name']),
+                source_allocation=allocation, bytes=len(payload), sha256=hashlib.sha256(payload).hexdigest(), required=True)],
+        dependencies=sorted([dict(record_id=item['record_id'], closure_sha256=item['closure_sha256'])
+            for item in session['dependencies']], key=lambda item: item['record_id']),
+        cleanup=dict(state='not_applicable', record_members=[],
+                     scope=dict(owner=copy.deepcopy(context['owner']), resources=[])))
+    record = logical.finalize_record(draft)
+    if required['record'] is not None and required['record'] != record:
+        raise ValueError('capture: required recording closure changed')
+    required['record'] = record
+    owner._save()
+    identifier = finalize_capture(session_handle, record=record, consumer_ids=consumer_ids,
+                                  _recording_owner=owner)
+    required['capture_id'] = identifier
+    owner._save()
+    return identifier
+
+
+def finalize_capture(session_handle, *, record, consumer_ids, _recording_owner=None):
     """Seal exactly one immutable record; retry the same durable intent/slot."""
     session = _session(session_handle)
     record = copy.deepcopy(record)
@@ -563,6 +782,17 @@ def finalize_capture(session_handle, *, record, consumer_ids):
     if sum(item['bytes'] for item in record['members']) > logical.MAX_BYTES:
         raise ValueError('capture: sealed source exceeds 1 GiB limit')
     store, fd, run = session['store'], session['binding'][1], session['binding'][3]
+    recording_source = None
+    if _recording_owner is not None:
+        _check_recording_owner(_recording_owner)
+        required = _recording_owner.state['required']
+        if (required is None or required['record'] != record
+                or required['context'] != session['context']
+                or required['consumers'] != consumers):
+            raise ValueError('capture: required recording context changed')
+        recording_source = _recording_owner._source_binding(required)
+        _validate_recording_source(recording_source, record)
+        _recording_owner._check_source_binding(recording_source)
     with store.locked(fd, 'writer.lock'):
         state = store.read(fd)
         matches = [item for item in state.get('captures', [])
@@ -573,7 +803,8 @@ def finalize_capture(session_handle, *, record, consumer_ids):
     with ExitStack() as sources:
         originals, opened, source_guards = [], {}, []
         for member in record['members']:
-            source, info = sources.enter_context(_source(member, state, store, run, guards=source_guards))
+            source, info = sources.enter_context(_source(member, state, store, run, guards=source_guards,
+                recording_owner=_recording_owner, recording_source=recording_source))
             before = _fingerprint(info)
             if _hash(source, member['bytes']) != member['sha256'] or _fingerprint(os.fstat(source)) != before:
                 raise ValueError('capture: finalized source changed')
@@ -584,6 +815,8 @@ def finalize_capture(session_handle, *, record, consumer_ids):
                             owner=record['context']['owner'], run=run, attempt=record['context']['attempt'], nonce=uuid.uuid4().hex)
             intent = dict(producer=producer, record=record, consumers=consumers,
                           dependencies=session['dependencies'], originals=originals)
+            if recording_source is not None:
+                intent['recording_source'] = recording_source
             capture_id = logical.digest(producer)
             with _registration_window(), store.locked(fd, 'writer.lock'):
                 state = store.read(fd)
@@ -628,6 +861,8 @@ def finalize_capture(session_handle, *, record, consumer_ids):
             capture_id = charge['capture_id']
             if charge['intent']['record'] != record or charge['intent']['consumers'] != consumers or charge['intent']['originals'] != originals:
                 raise ValueError('capture: resumed finalized allowlist or source identity changed')
+            if charge['intent'].get('recording_source') != recording_source:
+                raise ValueError('capture: resumed recording authority changed')
         with retention.directory_descriptor(charge['path']) as slot:
             info = os.fstat(slot)
             if (info.st_dev, info.st_ino) != (charge['device'], charge['inode']):
@@ -965,7 +1200,35 @@ def _destination_originals(charge, verified):
 
 
 @contextmanager
-def _original_scope(store, entry, charge, *, missing=False):
+def _recording_scope(charge, owner=None):
+    binding = charge['intent'].get('recording_source')
+    if binding is None:
+        if owner is not None:
+            raise ValueError('capture: unexpected recording owner')
+        yield None
+        return
+    if __package__:
+        from .recording_storage import Store
+    else:
+        from recording_storage import Store
+    producer = charge['intent']['producer']
+    caller = producer['caller']
+    with ExitStack() as stack:
+        stack.enter_context(_identity(caller['uid'], caller['gid']))
+        if owner is None:
+            owner = stack.enter_context(Store(root=producer['repository']['root'], create=False).owner(
+                binding['category'], binding['case_id']))
+        _check_recording_owner(owner)
+        required = owner._check_source_binding(binding)
+        if (required['record'] != charge['intent']['record']
+                or required['context'] != charge['intent']['record']['context']
+                or required['consumers'] != charge['intent']['consumers']):
+            raise ValueError('capture: required recording closure changed')
+        yield owner
+
+
+@contextmanager
+def _original_scope(store, entry, charge, *, missing=False, recording_owner=None):
     """Keep present original descriptors pinned; only retirement retries omit bytes."""
     intent = charge['intent']
     originals = {item['member_id']: item['identity'] for item in intent['originals']}
@@ -974,7 +1237,9 @@ def _original_scope(store, entry, charge, *, missing=False):
     with ExitStack() as stack:
         for member in intent['record']['members']:
             try:
-                source, info = stack.enter_context(_source(member, entry, store, entry['run']))
+                source, info = stack.enter_context(_source(member, entry, store, entry['run'],
+                    recording_owner=recording_owner,
+                    recording_source=intent.get('recording_source')))
             except FileNotFoundError:
                 if missing:
                     continue
@@ -985,7 +1250,8 @@ def _original_scope(store, entry, charge, *, missing=False):
         yield
 
 
-def acknowledge_capture(checkout, uid, gid, capture_id, *, expected, session_handle=None):
+def acknowledge_capture(checkout, uid, gid, capture_id, *, expected, session_handle=None,
+                        _recording_owner=None):
     """Record custody only under the exact live or finished source owner.
 
     Destination ownership is acquired before the source writer. The public helper
@@ -1014,6 +1280,15 @@ def acknowledge_capture(checkout, uid, gid, capture_id, *, expected, session_han
         delivery = publication.read_delivery(checkout, uid, gid, capture_id)
         verified = stack.enter_context(publication.verified_delivery(
             checkout, uid, gid, capture_id, request, delivery))
+        # Inspect the immutable private charge to acquire the case lease before
+        # the source writer; never upgrade ownership while holding that writer.
+        with store.locked(fd, 'writer.lock', shared=True):
+            before = store.read(fd)
+            selected = [charge for entry in [*before['history'], before]
+                        for charge in entry.get('captures', []) if charge['capture_id'] == capture_id]
+        if len(selected) != 1:
+            raise ValueError('capture: missing exact source intent for acknowledgement')
+        recording_owner = stack.enter_context(_recording_scope(selected[0], _recording_owner))
         # The independent destination lease remains held through durable save.
         with store.locked(fd, 'writer.lock'):
             state = store.read(fd)
@@ -1023,9 +1298,11 @@ def acknowledge_capture(checkout, uid, gid, capture_id, *, expected, session_han
             if len(matches) != 1:
                 raise ValueError('capture: missing exact source intent for acknowledgement')
             entry, charge = matches[0]
+            if charge != selected[0]:
+                raise ValueError('capture: source intent changed while acquiring recording ownership')
             _charge_owner(store, fd, entry, charge)
             _destination_originals(charge, verified)
-            with _original_scope(store, entry, charge):
+            with _original_scope(store, entry, charge, recording_owner=recording_owner):
                 with _identity(uid, gid):
                     caller_path = _slot_path(producer['repository'], capture_id)
                     with retention.directory_descriptor(caller_path) as caller_fd:
@@ -1036,6 +1313,14 @@ def acknowledge_capture(checkout, uid, gid, capture_id, *, expected, session_han
                 acknowledgement = dict(schema='onpc-capture-acknowledgement', version=1,
                     request=request, delivery=delivery, caller_slot=caller_slot)
                 _acknowledgement(charge, acknowledgement)
+                if recording_owner is not None:
+                    required = recording_owner.state['required']
+                    if required['acknowledgement'] not in (None, acknowledgement):
+                        raise ValueError('capture: recording acknowledgement changed')
+                    required['capture_id'] = capture_id
+                    required['acknowledgement'] = copy.deepcopy(acknowledgement)
+                    recording_owner._save()
+                    checkpoint('recording.receipt')
                 previous = charge.get('acknowledgement')
                 if previous is not None and previous != acknowledgement:
                     raise ValueError('capture: source acknowledgement changed')
@@ -1052,6 +1337,10 @@ def acknowledge_capture(checkout, uid, gid, capture_id, *, expected, session_han
                     checkpoint('acknowledgement')
                     charge['acknowledgement'] = acknowledgement
                     store.save(fd, state)
+                if recording_owner is not None:
+                    recording_owner.state['required']['parent_acknowledged'] = True
+                    recording_owner._save()
+                    checkpoint('recording.acknowledged')
                 checkpoint('acknowledged')
                 return copy.deepcopy(acknowledgement)
 
@@ -1080,7 +1369,7 @@ def retirement_scope(store, fd):
                     raise ValueError('capture: conflicting required source claims')
     with ExitStack() as destinations:
         publication = _publication_module() if charges else None
-        verified, failures = {}, {}
+        verified, failures, recording_owners = {}, {}, {}
         # Deterministic trusted journal ordering; no source writer is held here.
         ordered = sorted(charges.items(), key=lambda pair: (
             pair[1][1].get('acknowledgement', {}).get('delivery', {}).get('journal', ''), pair[0]))
@@ -1094,6 +1383,13 @@ def retirement_scope(store, fd):
                     producer['repository']['root'], caller['uid'], caller['gid'], identifier,
                     acknowledgement['request'], acknowledgement['delivery']))
                 _destination_originals(charge, replacement)
+                recording_owner = destinations.enter_context(_recording_scope(charge))
+                if recording_owner is not None:
+                    required = recording_owner.state['required']
+                    if (not required['parent_acknowledged']
+                            or required['acknowledgement'] != acknowledgement):
+                        raise ValueError('capture: recording owner has not durably retained this acknowledgement')
+                    recording_owners[identifier] = recording_owner
                 verified[identifier] = charge
             except (KeyError, ValueError, OSError) as error:
                 failures[identifier] = error
@@ -1109,7 +1405,8 @@ def retirement_scope(store, fd):
                                      'finish its recorded publication') from failures.get(identifier)
                 _charge_owner(store, fd, entry, charge)
                 if not cleanup:
-                    with _original_scope(store, entry, charge, missing=True):
+                    with _original_scope(store, entry, charge, missing=True,
+                            recording_owner=recording_owners.get(identifier)):
                         pass
                 retention.remove({key: charge[key] for key in ('path', 'device', 'inode', 'mode')},
                                  validate_only=True)

@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 import fcntl
+import hashlib
 import io
 import json
 import os
@@ -108,6 +109,283 @@ def pending_capture(store, tmp_path, *, oldest=False):
         entry['captures'] = [charge]
         store.save(fd, state)
     return slot, charge
+
+
+def required_report_history(tmp_path, monkeypatch, phase):
+    """Real multi-member capture with unpublished and suspended consumers.
+
+    Only the allocator root and process authentication are private fixture
+    inputs. Sealing, publication, acknowledgement and retirement locks stay real.
+    """
+    import evidence_bundle as bundle
+    import evidence_capture as capture
+    import evidence_identity as logical
+    import test_retention as live_retention
+    import test_storage as storage
+    import capture_publication as publication
+
+    checkout = tmp_path / 'checkout'
+    checkout.mkdir(mode=0o700)
+    monkeypatch.setattr(storage, 'ROOT', checkout)
+    monkeypatch.setattr(storage, 'BASE', checkout / 'output/test-runs')
+    monkeypatch.delenv(live_retention.VARIABLE, raising=False)
+    store = live_retention.Store(storage.directory('state') / 'retention-host')
+    consumers = {identifier: dict(consumer_id=identifier, revision_sha256='c' * 64)
+                 for identifier in ('a' * 64, 'b' * 64)}
+    payloads = {
+        'result': b'{"verdict":"passed","invocations":1}\n',
+        'input': b'exact original selected inputs\n',
+        'command': b'one recorded command, no rerun\n',
+        'cleanup': b'{"state":"complete","resources":[]}\n',
+    }
+    with store.session() as run:
+        source = Path(live_retention.allocate(tempfile.mkdtemp,
+                                             prefix='onpc-report-history-'))
+        for role, payload in payloads.items():
+            path = source / f'{role}.json'
+            path.write_bytes(payload)
+            path.chmod(0o600)
+        handle = capture.issue_session(
+            store, repository=checkout, workflow='retirement-history', task='E04',
+            check='complete-report', inputs_sha256='d' * 64, sources_sha256='e' * 64,
+            consumers=consumers)
+        context = capture.session_context(handle)
+        info = source.stat()
+        allocation = dict(path=str(source), device=info.st_dev, inode=info.st_ino,
+                          mode=0o700, journal=str(store.path), run=run)
+        record = logical.finalize_record(dict(
+            schema=logical.SCHEMA, version=1, context=context,
+            status='passed', completeness='complete', dependencies=[],
+            members=[dict(role=role, original_path=str(source / f'{role}.json'),
+                          source_allocation=allocation, bytes=len(payload),
+                          sha256=hashlib.sha256(payload).hexdigest(), required=True)
+                     for role, payload in payloads.items()],
+            cleanup=dict(state='complete', record_members=[],
+                         scope=dict(owner=context['owner'], resources=[]))))
+        identifier = capture.finalize_capture(handle, record=record,
+                                              consumer_ids=sorted(consumers))
+        request = capture.inspect_capture(checkout, os.geteuid(), os.getegid(), identifier)
+
+        def publish():
+            with bundle.Selection(checkout, os.geteuid(), os.getegid(), [], [], [],
+                                  captures=[identifier]) as selected:
+                return bundle.export(selected, expected=selected.selection_sha256)
+
+        receipt = None
+        if phase == 'failed':
+            def interrupted(point):
+                if point == 'publication.copied':
+                    raise SimulatedInterrupt('fixture interrupted publication')
+            with monkeypatch.context() as local:
+                local.setattr(publication, 'checkpoint', interrupted)
+                with pytest.raises(SimulatedInterrupt):
+                    publish()
+        elif phase == 'capacity':
+            # Use the real projected-size refusal before allocating a destination.
+            with bundle.Selection(checkout, os.geteuid(), os.getegid(), [], [], [],
+                                  captures=[identifier]) as selected:
+                with monkeypatch.context() as local:
+                    local.setattr(live_retention, 'MAX_RETAINED_BYTES', 1)
+                    with pytest.raises(ValueError, match='budget|capacity'):
+                        bundle.export(selected, expected=selected.selection_sha256)
+        else:
+            receipt = publish()
+        if phase == 'acknowledged':
+            capture.acknowledge_capture(
+                checkout, os.geteuid(), os.getegid(), identifier,
+                expected=request['request_sha256'], session_handle=handle)
+    return SimpleNamespace(store=store, source=source, record=record, request=request,
+                           consumers=consumers, payloads=payloads, publish=publish,
+                           receipt=receipt, capture=capture, bundle=bundle,
+                           retention=live_retention, checkout=checkout,
+                           allocation_bytes=live_retention.allocation_bytes)
+
+
+def retirement_history_route(history, monkeypatch, route):
+    """Exercise actual startup dispatch; simulate only its privilege/VM boundary."""
+    store = history.store
+    if route == 'ordinary':
+        for _ in range(2):
+            with store.session():
+                pass
+        def rotate():
+            with store.session():
+                pass
+        return rotate
+
+    allocation_bytes = history.retention.allocation_bytes
+    def oversized_source(record, **kwargs):
+        # Keep historical bundle provenance valid; only the owned original is large.
+        if Path(record['path']) == history.source:
+            return history.retention.MAX_RETAINED_BYTES + 1
+        return allocation_bytes(record, **kwargs)
+    monkeypatch.setattr(history.retention, 'allocation_bytes', oversized_source)
+    if route == 'host':
+        import test_recovery
+        monkeypatch.setattr(test_recovery.test_activity, 'activity',
+                            lambda *args, **kwargs: nullcontext())
+        monkeypatch.setattr(test_recovery.test_activity, 'retention_path',
+                            lambda root: store.path)
+        return lambda: test_recovery.cleanup_host(history.checkout)
+
+    import check_test_recovery as recovery
+    from contextlib import contextmanager
+    import test_storage
+    monkeypatch.setattr(recovery, 'ROOT', Path.cwd())
+    monkeypatch.setattr(recovery, 'os', SimpleNamespace(
+        geteuid=lambda: 0, environ={'PKEXEC_UID': str(os.geteuid() or 1000)}))
+    monkeypatch.setattr(recovery.sys, 'argv', ['check_test_recovery'])
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: store.path)
+    monkeypatch.setattr(recovery, 'reconcile_vm', lambda root: None)
+    held = False
+    @contextmanager
+    def lease(root):
+        nonlocal held
+        assert not held
+        held = True
+        try:
+            yield
+        finally:
+            held = False
+    monkeypatch.setattr(recovery.runpy, 'run_path', lambda path: {'retention_lease': lease})
+    def unused(paths):
+        assert held and paths == {str(history.source)}
+    monkeypatch.setattr(recovery, 'unused', unused)
+    remove = history.retention.remove
+    def pinned_remove(record, *, validate_only=False):
+        if record['path'] == str(history.source) and not validate_only:
+            assert held
+        return remove(record, validate_only=validate_only)
+    monkeypatch.setattr(history.retention, 'remove', pinned_remove)
+    return recovery.main
+
+
+def assert_complete_report(history, receipt):
+    verified = history.bundle.inspect(history.checkout, os.geteuid(), os.getegid(),
+                                      receipt['path'])
+    assert verified['manifest']['records'] == [history.record]
+    assert history.request['consumers'] == history.consumers
+    for member in history.record['members']:
+        content = history.bundle.inspect(
+            history.checkout, os.geteuid(), os.getegid(), receipt['path'],
+            record_id=history.record['record_id'], member_id=member['member_id'],
+            closure_sha256=history.record['closure_sha256'])
+        assert content == history.payloads[member['role']]
+        assert hashlib.sha256(content).hexdigest() == member['sha256']
+
+
+@pytest.mark.parametrize('route', ['ordinary', 'host', 'privileged'])
+@pytest.mark.parametrize('phase', ['failed', 'published', 'capacity', 'suspended'])
+def test_report_rotation_preserves_required_original_until_durable_acknowledgement(
+        tmp_path, monkeypatch, route, phase):
+    history = required_report_history(tmp_path, monkeypatch, phase)
+    rotate = retirement_history_route(history, monkeypatch, route)
+    before = (history.store.path / 'current.json').read_bytes()
+    charge = next(item for entry in [*json.loads(before)['history'], json.loads(before)]
+                  for item in entry.get('captures', []))
+    assert 'acknowledgement' not in charge
+    originals = {path: (path.stat().st_dev, path.stat().st_ino, path.read_bytes())
+                 for path in history.source.iterdir()}
+    with pytest.raises(ValueError, match='capture|acknowledgement'):
+        rotate()
+    assert (history.store.path / 'current.json').read_bytes() == before
+    for path, original in originals.items():
+        assert (path.stat().st_dev, path.stat().st_ino, path.read_bytes()) == original
+
+    # Simulated capacity is only a retirement input; finish the exact recorded
+    # publication and owner acknowledgement using the original source usage.
+    with monkeypatch.context() as local:
+        if route != 'ordinary':
+            local.setattr(history.retention, 'allocation_bytes', history.allocation_bytes)
+        receipt = history.publish()
+        history.capture.acknowledge_capture(
+            history.checkout, os.geteuid(), os.getegid(), charge['capture_id'],
+            expected=history.request['request_sha256'])
+    rotate()
+    assert not history.source.exists()
+    assert not Path(charge['path']).exists()
+    for _ in range(4):
+        with history.store.session():
+            pass
+    assert_complete_report(history, receipt)
+    state = json.loads((history.store.path / 'current.json').read_bytes())
+    assert not any(entry.get('captures') for entry in [*state['history'], state])
+
+
+@pytest.mark.parametrize('route', ['ordinary', 'host', 'privileged'])
+@pytest.mark.parametrize('change', ['missing-destination', 'replaced-destination',
+                                    'wrong-attempt', 'wrong-closure'])
+def test_stale_owner_acknowledgement_cannot_release_required_report(
+        tmp_path, monkeypatch, route, change):
+    history = required_report_history(tmp_path, monkeypatch, 'acknowledged')
+    if change.endswith('destination'):
+        archive = Path(history.receipt['path'])
+        archive.rename(archive.with_name('original-evidence.zip'))
+        if change == 'replaced-destination':
+            archive.write_bytes(b'foreign replacement must survive\n')
+            archive.chmod(0o600)
+    else:
+        with history.store.opened() as fd, history.store.locked(fd, 'writer.lock'):
+            state = history.store.read(fd)
+            acknowledgement = state['captures'][0]['acknowledgement']
+            if change == 'wrong-attempt':
+                acknowledgement['request']['record']['context']['attempt'] = 'f' * 32
+            else:
+                acknowledgement['request']['record']['members'].pop()
+            history.store.save(fd, state)
+    rotate = retirement_history_route(history, monkeypatch, route)
+    before = (history.store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='capture|acknowledgement'):
+        rotate()
+    assert (history.store.path / 'current.json').read_bytes() == before
+    for role, payload in history.payloads.items():
+        assert (history.source / f'{role}.json').read_bytes() == payload
+    if change == 'replaced-destination':
+        assert archive.read_bytes() == b'foreign replacement must survive\n'
+
+
+@pytest.mark.parametrize('route', ['ordinary', 'host', 'privileged'])
+@pytest.mark.parametrize('replace_remaining', [False, True])
+def test_required_report_partial_retirement_keeps_exact_remaining_identity(
+        tmp_path, monkeypatch, route, replace_remaining):
+    history = required_report_history(tmp_path, monkeypatch, 'acknowledged')
+    rotate = retirement_history_route(history, monkeypatch, route)
+    before = (history.store.path / 'current.json').read_bytes()
+    original_record = next(record for _, record in history.retention.latest_allocations(
+        [*json.loads(before)['history'], json.loads(before)])
+        if record['path'] == str(history.source))
+    remove = history.retention.remove
+    failed = False
+    def interrupted(record, *, validate_only=False):
+        nonlocal failed
+        if record == original_record and not validate_only and not failed:
+            failed = True
+            (history.source / 'command.json').unlink()
+            raise SimulatedInterrupt('fixture partially retired one original allocation')
+        return remove(record, validate_only=validate_only)
+    with monkeypatch.context() as local:
+        local.setattr(history.retention, 'remove', interrupted)
+        with pytest.raises(SimulatedInterrupt):
+            rotate()
+    assert failed and history.source.is_dir()
+    assert (history.store.path / 'current.json').read_bytes() == before
+    assert (history.source / 'result.json').read_bytes() == history.payloads['result']
+    if replace_remaining:
+        saved = history.source.with_name('owned-remaining-original')
+        history.source.rename(saved)
+        history.source.mkdir(mode=0o700)
+        (history.source / 'foreign').write_bytes(b'foreign bytes\n')
+        with pytest.raises(ValueError, match='replaced|capture|acknowledgement'):
+            rotate()
+        assert (history.source / 'foreign').read_bytes() == b'foreign bytes\n'
+        assert (history.store.path / 'current.json').read_bytes() == before
+        # Restore only the fixture-owned exact remaining allocation for recovery.
+        (history.source / 'foreign').unlink()
+        history.source.rmdir()
+        saved.rename(history.source)
+    rotate()
+    assert not history.source.exists()
+    assert_complete_report(history, history.receipt)
 
 
 @pytest.mark.parametrize('operation', ['count', 'prune', 'reconcile', 'privileged-prune',

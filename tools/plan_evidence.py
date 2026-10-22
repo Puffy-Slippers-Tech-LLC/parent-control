@@ -661,6 +661,34 @@ def _verify_index(plan, index):
             raise ValueError('plan evidence: accepted index does not match verified proof')
 
 
+def _replacement_closure(plan, current, intent):
+    """A new locator must keep every member the previous locator required.
+
+    Run under the publication owner/writer, before publishing the locator. The
+    journal, rather than paths in a document, supplies both allocation identities.
+    A renewed task may select a later result, but its earlier proof still survives.
+    """
+    if current is None:
+        return
+    original = intent['original']
+    records = ([] if original is None else [record for _, record in
+        bundle.retention.latest_allocations([*original['history'], original])])
+    matches = [record for record in records
+               if str(Path(record['path']) / 'evidence.zip') == current.get('bundle')]
+    if current.get('schema') != 1 or len(matches) != 1:
+        raise ValueError('plan evidence: previous locator has no exact publication owner')
+    with bundle.verified_record(matches[0], os.geteuid(), checkout=plan.root) as (old, read):
+        if _verified_ledger(matches[0], plan, old, read)[1] != current:
+            raise ValueError('plan evidence: previous locator does not match retained proof')
+        with bundle.verified_record(intent['staging'], os.geteuid(), checkout=plan.root) as (new, _):
+            files = {entry['path']: entry for entry in new['manifest']['files']}
+            for entry in old['manifest']['files']:
+                replacement = files.get(entry['path'], {})
+                if ({key: value for key, value in entry.items() if key != 'member'} !=
+                        {key: value for key, value in replacement.items() if key != 'member'}):
+                    raise ValueError('plan evidence: replacement omits or changes required proof')
+
+
 def recover(plan):
     """Publish the verified locator before completing any committed retirement."""
     parent = _parent(plan)
@@ -683,6 +711,7 @@ def recover(plan):
                     if current != replacement:
                         if _digest(raw) != ledger['previous_index_sha256']:
                             raise ValueError('plan evidence: accepted index changed during publication')
+                        _replacement_closure(plan, current, intent)
                         _atomic(index_path, bundle.encoded(replacement))
                 bundle.retention.recover_publication(store, fd,
                     verify=lambda record: _ledger(record, plan), authorize=authorize)

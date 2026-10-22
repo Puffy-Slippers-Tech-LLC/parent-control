@@ -610,6 +610,39 @@ def test_interrupted_precommit_preserves_previous_publication(campaign, monkeypa
     assert proof.recover(campaign.plan) == old
 
 
+def test_compaction_cannot_publish_a_locator_that_drops_required_accepted_proof(campaign, monkeypatch):
+    run, state, result, report = campaign.accepted('first')
+    old = proof.preserve(campaign.plan, run, state, result)
+    before = proof.locator(campaign.plan).read_bytes()
+    run, state, result, _ = campaign.accepted('second')
+    original_write, original_load = proof._write, bundle.Selection.load
+
+    def incomplete_ledger(path, data):
+        if Path(path).name == 'accepted-ledger.json':
+            value = bundle.decoded(data)
+            value['tasks'].pop('first')
+            data = bundle.encoded(value)
+        return original_write(path, data)
+
+    def incomplete_compaction(selection):
+        selection.bundles = []
+        return original_load(selection)
+
+    # Simulate a faulty compactor producing a valid new task/archive while
+    # forgetting the predecessor's required closure. Verification of the new
+    # archive alone is insufficient to authorize replacement of the locator.
+    monkeypatch.setattr(proof, '_write', incomplete_ledger)
+    monkeypatch.setattr(bundle.Selection, 'load', incomplete_compaction)
+    with pytest.raises(ValueError, match='replacement omits or changes required proof'):
+        proof.preserve(campaign.plan, run, state, result)
+    assert proof.locator(campaign.plan).read_bytes() == before
+    assert Path(old['bundle']).exists()
+    assert (report / 'result.md').read_bytes() == b'Exact report for first'
+    with pytest.raises(ValueError, match='replacement omits or changes required proof'):
+        proof.recover(campaign.plan)
+    assert proof.locator(campaign.plan).read_bytes() == before
+
+
 def test_failed_publication_pending_source_survives_more_than_three_new_runs(campaign, monkeypatch):
     original_run, state, result, _ = campaign.accepted('first')
     state['pending_completion'] = result

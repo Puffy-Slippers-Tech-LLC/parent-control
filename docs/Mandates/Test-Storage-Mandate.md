@@ -23,6 +23,10 @@ ordinary bounded run retention and host/privileged directory split; it does not
 change any other artifact's lifetime. Only the unprivileged recorder creates
 this directory; privileged controllers use authenticated read-only discovery.
 Session media and encoder scratch still use the ordinary shared scratch route.
+An explicitly required recording must complete the owner-issued
+[sealed capture and acknowledgement](../../tests/README.md#sealed-producer-handoffs)
+before either rename overwrite or unlink can retire it. Latest-only publication
+and legacy diagnostic migration alone are not durable copies of required proof.
 
 | Need | Required route |
 | --- | --- |

@@ -1567,6 +1567,11 @@ def buckets(nodeids):
 # evidence_capture and plan_evidence. Oversized-startup checks inject source
 # usage, never large payloads. No process, shared cache or cleanup/UI owner is
 # added; both existing compatible unit classifications remain appropriate.
+# E04 lifetime/recovery histories use tiny private journals, archives, recording
+# files and descriptor locks with synchronous failure/privilege doubles. They
+# add no VM, service, process, shared cache, display, bus or socket. Retention,
+# recording, bundle and plan-evidence modules keep compatible unit overlap;
+# retention/recording cleanup classifications retain the same private ownership.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

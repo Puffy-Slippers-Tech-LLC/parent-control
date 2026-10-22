@@ -421,16 +421,26 @@ def read_delivery(checkout, uid, gid, capture_id):
 @contextmanager
 def verified_delivery(checkout, uid, gid, capture_id, request, delivery):
     """Pin current cumulative proof independently through acknowledgement/deletion."""
+    with delivery_scope(checkout, uid, gid, request) as verify:
+        yield verify(capture_id, request, delivery)
+
+
+@contextmanager
+def delivery_scope(checkout, uid, gid, request):
+    """Verify one pinned workflow generation for multiple exact deliveries.
+
+    Reuse lasts only while its journal locks and verified archive remain open.
+    Each delivery still authenticates its caller, repository and full request.
+    """
     capture._validate_request(request)
-    logical._object(delivery, {'schema', 'capture_id', 'request_sha256', 'journal'}, 'capture delivery')
     stack = ExitStack()
     try:
         with bundle.identity(uid, gid):
             repository = capture._repository(checkout, dict(uid=uid, gid=gid))
-            parent = bundle.plan_parent(checkout, _namespace(request))
+            namespace = _namespace(request)
+            parent = bundle.plan_parent(checkout, namespace)
             store = retention.Store(parent / 'retention')
-            if (type(delivery['schema']) is not int or delivery != _delivery(request, store.path)
-                    or capture_id != request['capture_id'] or request['producer']['repository'] != repository
+            if (request['producer']['repository'] != repository
                     or request['producer']['caller'] != dict(uid=uid, gid=gid)):
                 raise ValueError('capture publication: foreign delivery')
             fd, current, intent = stack.enter_context(_selection_owner(store))
@@ -446,11 +456,23 @@ def verified_delivery(checkout, uid, gid, capture_id, request, delivery):
                 raise ValueError('capture publication: destination allocation is not retained')
             verified, read = stack.enter_context(bundle.verified_record(allocation, uid, checkout=checkout))
             _verify_generation(generation, verified)
-            result = dict(receipt=copy.deepcopy(generation['receipt']), manifest=verified['manifest'],
-                          allocation=copy.deepcopy(allocation), delivery=copy.deepcopy(delivery))
+
+        def verify(capture_id, request, delivery):
+            capture._validate_request(request)
+            logical._object(delivery, {'schema', 'capture_id', 'request_sha256', 'journal'}, 'capture delivery')
+            if (type(delivery['schema']) is not int or delivery != _delivery(request, store.path)
+                    or capture_id != request['capture_id'] or _namespace(request) != namespace
+                    or request['producer']['repository'] != repository
+                    or request['producer']['caller'] != dict(uid=uid, gid=gid)):
+                raise ValueError('capture publication: foreign delivery')
+            if request not in generation['requests']:
+                raise ValueError('capture publication: request is not published')
+            return dict(receipt=copy.deepcopy(generation['receipt']), manifest=verified['manifest'],
+                        allocation=copy.deepcopy(allocation), delivery=copy.deepcopy(delivery))
+
         # Preserve the authenticated helper's entry identity while source-owner
         # acknowledgement/deletion runs; only destination reads drop identity.
-        yield result
+        yield verify
         with bundle.identity(uid, gid):
             if _read(fd) != state:
                 raise ValueError('capture publication: workflow journal changed during verification')

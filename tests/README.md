@@ -1613,6 +1613,12 @@ Scratch initialization publishes a complete owner atomically from a recorded
 staging slot; interrupted initialization and deletion can resume without
 adopting unknown payloads or losing the directory identity.
 
+During retention recovery, captures from the same workflow share one verified
+cumulative archive while its journal locks and file descriptors remain pinned.
+Each capture still requires its exact authenticated request and original-file
+provenance. Releasing that scope ends reuse; later recovery verifies the archive
+again, including corruption and replacement checks.
+
 Artifact exports also use a bounded journal: each export starts a retention
 session, so exporting the same report repeatedly can evict a different report
 still needed for close-out. Reuse an existing retained export, preserve required

@@ -1389,7 +1389,7 @@ def retirement_scope(store, fd):
                     raise ValueError('capture: conflicting required source claims')
     with ExitStack() as destinations:
         publication = _publication_module() if charges else None
-        verified, failures, recording_owners = {}, {}, {}
+        verified, failures, recording_owners, workflows = {}, {}, {}, {}
         # Deterministic trusted journal ordering; no source writer is held here.
         ordered = sorted(charges.items(), key=lambda pair: (
             pair[1][1].get('acknowledgement', {}).get('delivery', {}).get('journal', ''), pair[0]))
@@ -1399,9 +1399,13 @@ def retirement_scope(store, fd):
                 acknowledgement = _acknowledgement(charge, charge['acknowledgement'])
                 producer = acknowledgement['request']['producer']
                 caller = producer['caller']
-                replacement = destinations.enter_context(publication.verified_delivery(
-                    producer['repository']['root'], caller['uid'], caller['gid'], identifier,
-                    acknowledgement['request'], acknowledgement['delivery']))
+                request = acknowledgement['request']
+                checkout = producer['repository']['root']
+                workflow = (checkout, caller['uid'], caller['gid'], publication._namespace(request))
+                if workflow not in workflows:
+                    workflows[workflow] = destinations.enter_context(publication.delivery_scope(
+                        checkout, caller['uid'], caller['gid'], request))
+                replacement = workflows[workflow](identifier, request, acknowledgement['delivery'])
                 _destination_originals(charge, replacement)
                 recording_owner = destinations.enter_context(_recording_scope(charge))
                 if recording_owner is not None:

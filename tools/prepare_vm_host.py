@@ -29,9 +29,13 @@ def build_worker(package_format, result_fd):
     import test_retention
     from regression_process import Control
     from prepare_appsnapshot import build_artifacts
+    from runner_evidence import recover_pending
     baseline.require(os.geteuid() != 0, 'build:unprivileged-caller-required')
     with test_activity.activity(ROOT, named_vm=True):
-        with test_retention.Store(test_activity.retention_path(ROOT)).session(), Control().installed() as control:
+        store = test_retention.Store(test_activity.retention_path(ROOT))
+        # Finish source-owned captures before a newer run supersedes their owner.
+        recover_pending(ROOT, store)
+        with store.session(), Control().installed() as control:
             path, status = build_artifacts(ROOT, package_format, control,
                 test_launcher.environment(ROOT), label='prepare-vm')
             if status:

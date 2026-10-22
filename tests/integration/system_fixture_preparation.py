@@ -34,7 +34,7 @@ def guest_target(guest):
 
 def qualified_guest(guest, *, installed=False):
     target = guest_target(guest)
-    return target == 'ubuntu' if installed else target is not None
+    return target is not None
 
 
 def require_installed_restore(lease):
@@ -71,9 +71,9 @@ def validate_input(value, target=None):
     return record
 
 
-def installed_selection(value):
+def installed_selection(value, target=None):
     record = selection_record(value)
-    if record['target'] != 'ubuntu':
+    if target is not None and record['target'] != target:
         raise ValueError('fixtures:system-installed-target-not-qualified')
     return record
 
@@ -98,7 +98,7 @@ def prepare(vm, lease, directory, selection, *, installed=False):
                          + '-target-not-qualified')
     if installed:
         require_installed_restore(lease)
-        selection = installed_selection(selection)
+        selection = installed_selection(selection, target=guest_target(lease.capture.state['guest']))
     selection = validate_input(selection, target=guest_target(lease.capture.state['guest']))
     identity = attempt_id(directory)
     controller = fixture_provision.Provisioner(lease, vm,

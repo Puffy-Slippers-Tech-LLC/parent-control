@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify Ubuntu installed-system offline preparation before system input."""
+"""Qualify Ubuntu/Fedora installed-system offline preparation before system input."""
 import argparse
 import json
 import sys

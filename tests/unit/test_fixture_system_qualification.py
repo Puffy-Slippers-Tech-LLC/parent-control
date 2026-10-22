@@ -94,11 +94,12 @@ def test_unqualified_target_never_opens_an_input_or_suite(monkeypatch, tmp_path,
     suite.assert_not_called()
 
 
-def test_selected_target_accepts_both_canonical_targets(monkeypatch, selection):
+@pytest.mark.parametrize('installed', [False, True])
+def test_selected_target_accepts_both_canonical_targets(monkeypatch, selection, installed):
     name = target_name(selection.target)
     monkeypatch.setattr(qualification.proof.prepare_vm.vm_config, 'selected',
                         lambda: SimpleNamespace(name=name))
-    assert qualification.selected_target() == name
+    assert qualification.selected_target(installed=installed) == name
 
 
 def test_qualification_target_mismatch_never_pins_input_or_acquires_suite(
@@ -247,7 +248,8 @@ def test_real_runner_seam_owns_two_restorations_and_suite_closes_on_failure(
     assert staged[0] == tmp_path / 'history-1/input'
 
 
-def test_authenticated_pin_outlives_all_runner_cleanup(monkeypatch, tmp_path, selection):
+@pytest.mark.parametrize('installed', [False, True])
+def test_authenticated_pin_outlives_all_runner_cleanup(monkeypatch, tmp_path, selection, installed):
     from contextlib import contextmanager
     events = []
 
@@ -257,31 +259,31 @@ def test_authenticated_pin_outlives_all_runner_cleanup(monkeypatch, tmp_path, se
         yield 17
         events.append('unpin-runtime' if record == selection.record() else 'unpin-source')
 
-    monkeypatch.setattr(qualification, 'selected_target', lambda: target_name(selection.target))
+    monkeypatch.setattr(qualification, 'selected_target', lambda **_: target_name(selection.target))
     monkeypatch.setattr(qualification.fixture_execution, 'validate_source_selection', lambda *args: {})
     monkeypatch.setattr(qualification, 'authenticated_input', pin)
     monkeypatch.setattr(qualification.fixture_execution, 'verify', lambda _: {'private': 'manifest'})
     monkeypatch.setattr(qualification.fixture_provision, 'authenticated_bundle', Mock())
     monkeypatch.setattr(qualification, 'source_edit_proof', Mock())
 
-    def run(*args):
+    def run(*args, **options):
         assert events == ['pin-runtime', 'pin-source']
+        assert options == ({'installed': True} if installed else {})
         events.append('runner-and-cleanup')
         return {'accepted': True}
 
     monkeypatch.setattr(qualification, 'qualify_pinned', run)
-    assert qualification.qualify(tmp_path, tmp_path / 'assets', selection.record(), {}) == {'accepted': True}
+    assert qualification.qualify(tmp_path, tmp_path / 'assets', selection.record(), {},
+                                 installed=installed) == {'accepted': True}
     assert events == ['pin-runtime', 'pin-source', 'runner-and-cleanup', 'unpin-source', 'unpin-runtime']
 
 
 @pytest.fixture
-def installed_selection():
-    return fixture_execution.Selection('ubuntu', 'a' * 64,
-        '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
-        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64)
+def installed_selection(selection):
+    return selection
 
 
-@pytest.mark.parametrize('target', ['onpc-Fedora44', 'onpc-Ubuntu24.04', 'unknown'])
+@pytest.mark.parametrize('target', ['onpc-Fedora43', 'onpc-Ubuntu24.04', 'unknown'])
 def test_installed_target_refuses_before_authentication_or_suite(
         monkeypatch, tmp_path, installed_selection, target):
     monkeypatch.setattr(qualification.proof.prepare_vm.vm_config, 'selected',
@@ -298,7 +300,8 @@ def test_installed_target_refuses_before_authentication_or_suite(
 
 def test_installed_missing_and_incompatible_refuse_before_staging(tmp_path, installed_selection):
     vm = Mock()
-    lease = SimpleNamespace(capture=SimpleNamespace(state={'guest': guest_for('ubuntu')}),
+    lease = SimpleNamespace(capture=SimpleNamespace(state={
+        'guest': guest_for(installed_selection.target)}),
         installed_online=False, online_pending=False,
         installed_name='onpc-private', _restored_name='onpc-private')
     assert qualification.refused_inputs({'vm': vm, 'lease': lease, 'directory': tmp_path},
@@ -315,12 +318,13 @@ def test_installed_qualification_reenters_offline_prepare_case_for_both_historie
     q = qualification
     real_suite = q.Suite(lambda: None)
     snapshots = SimpleNamespace(getXMLDesc=lambda _: 'private-offline-snapshot')
-    domain = SimpleNamespace(name=lambda: 'onpc-Ubuntu26.04',
+    domain = SimpleNamespace(name=lambda: target_name(installed_selection.target),
         snapshotLookupByName=lambda name, flags: snapshots)
     source = SimpleNamespace(domain=domain)
     lease = SimpleNamespace(state={'phase': 'complete'},
         view=SimpleNamespace(domain_id=None, snapshot=lambda: (None, True)),
-        capture=SimpleNamespace(state={'guest': guest_for('ubuntu'), 'proof': {'name': 'baseline'}}),
+        capture=SimpleNamespace(state={'guest': guest_for(installed_selection.target),
+                                      'proof': {'name': 'baseline'}}),
         source=source, installed_online=False, online_pending=False,
         installed_name=None, _restored_name='baseline', prepare=Mock())
     restores = []
@@ -329,7 +333,7 @@ def test_installed_qualification_reenters_offline_prepare_case_for_both_historie
         restores.append(lease._restored_name)
     lease.stop = stop
     monkeypatch.setattr(q.proof.prepare_vm.vm_config, 'selected',
-                        lambda: SimpleNamespace(name='onpc-Ubuntu26.04'))
+                        lambda: SimpleNamespace(name=target_name(installed_selection.target)))
     suite = real_suite
     suite.lease = lease
     suite.acquire = Mock(return_value=(source, None, lease))
@@ -393,14 +397,16 @@ def test_installed_qualification_reenters_offline_prepare_case_for_both_historie
         assert all(call.kwargs['mode'] == 'offline' and call.kwargs['overwrite'] is False
                    for call in suite.prepare_installed.call_args_list)
     suite.close.assert_called_once_with()
-    resolve.assert_called_once_with('authorization', target_package_format='deb')
+    resolve.assert_called_once_with('authorization',
+        target_package_format='rpm' if installed_selection.target == 'fedora' else 'deb')
     assert all(call.kwargs == {'package_only': True} for call in stage.call_args_list)
 
 
 @pytest.mark.parametrize('online,restored', [(True, 'onpc-private'), (False, 'baseline')])
 def test_installed_observer_refuses_wrong_restore_before_guest_reads(
         monkeypatch, tmp_path, installed_selection, online, restored):
-    lease = SimpleNamespace(capture=SimpleNamespace(state={'guest': guest_for('ubuntu')}),
+    lease = SimpleNamespace(capture=SimpleNamespace(state={
+        'guest': guest_for(installed_selection.target)}),
         installed_online=online, online_pending=False,
         installed_name='onpc-private', _restored_name=restored)
     audit = Mock()

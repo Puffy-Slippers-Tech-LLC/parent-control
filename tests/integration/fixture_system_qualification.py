@@ -25,7 +25,7 @@ from tools import fixture_bundle, fixture_execution, fixture_manifest, fixture_p
 from tools.test_storage import authenticated_input
 
 TARGETS = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
-INSTALLED_TARGETS = {'onpc-Ubuntu26.04': 'ubuntu'}
+INSTALLED_TARGETS = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
 
 
 def selected_target(*, installed=False):
@@ -217,6 +217,7 @@ def qualify_pinned(directory, assets, selection, manifest, source_allocation, *,
         suite.snapshot_mode = 'offline'
     result = {'target': target, 'selection': selection.record(), 'attempts': []}
     try:
+        suite.commands = system.EvidenceCommands(private)
         suite.commands.directory = private
         source_assets = system.artifact_source(assets)
         # Verify the complete named input without copying its fixture collection

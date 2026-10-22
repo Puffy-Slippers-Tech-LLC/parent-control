@@ -111,10 +111,12 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                     if installed:
                         if lease.capture.state['guest'].get('fixture_boundary') == 'clean':
                             from system_fixture_preparation import (qualified_guest, validate_input,
-                                                                    installed_selection)
+                                                                    installed_selection, guest_target)
                             system.require(qualified_guest(lease.capture.state['guest'], installed=True),
                                            'fixtures:system-installed-target-not-qualified')
-                            validate_input(installed_selection(fixture_selection), target='ubuntu')
+                            target = guest_target(lease.capture.state['guest'])
+                            validate_input(installed_selection(fixture_selection, target=target),
+                                           target=target)
                             if (suite.prepared and
                                     lease._restored_name != lease.installed_name):
                                 # A preceding invocation/history may finish at

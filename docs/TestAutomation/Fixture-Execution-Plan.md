@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F17 — [Integrate Fedora installed-system preparation](Fixture-Tasks/F17-fedora-installed-system.md)**.
+Next task: **F18 — [Integrate Ubuntu installed E2E preparation](Fixture-Tasks/F18-ubuntu-installed-e2e.md)**.
 
 ## Outcome and status
 
@@ -60,9 +60,23 @@ Affected host checks passed; one worker deadline's unfinished checks passed in a
 focused rerun. Independent Sol High review found no remaining issues after a
 diagnostic-storage finding was resolved. Watched baseline, producer, credential,
 staging, input-retention and transport cleanup passed; Ubuntu independently ended
-off. The [installed report](../../output/test-runs/host/reports/20261022T174825Z-4752b1f0/report.md)
+off. The [installed report](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json)
 records the exact selector and retained evidence. This supplies no customer/E2E
 acceptance.
+F17 delivered Fedora's installed-system boundary with two actual offline
+restores, independent hard-only byte checks, Riley runtime use, input refusals,
+fresh readiness, no-write repeats and immutable selection after producer-source
+edits. Enforcing SELinux and exact native policy/labels were preserved. Offline
+snapshot creation now performs the required post-install restart before unchanged
+verification; preparation also recovers pending evidence before opening a newer
+retention run. Affected Ubuntu installed acceptance was renewed after automatic
+baseline refresh. Host checks and independent Sol High review passed. Watched
+restoration, fresh exact-domain off-state audits and owned cleanup passed on both
+targets. The [installed results](../../output/test-runs/host/exports/onpc-evidence-bundle-7ccxwyqp/evidence.zip)
+retain both histories; the queue links their command and host evidence. A later
+shared-helper replacement prevented the extra status command and its standard
+refresh; the completed installed audits already observed each owned VM off.
+This supplies no customer/E2E acceptance.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

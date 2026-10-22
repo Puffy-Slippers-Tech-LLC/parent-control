@@ -1256,8 +1256,6 @@ Signed-By:
 def test_clean_bootstrap_requires_explicit_qualified_target_branch(
         tmp_path, enabled, guest, accepted, branch):
     commands, lease, guestfs = Mock(), Mock(), Mock()
-    if branch == 'system_installed':
-        accepted = accepted and guest.get('ubuntu_version') == '26.04'
     options = {branch: enabled}
     lease.installed_online = lease.online_pending = False
     lease.installed_name = lease._restored_name = 'onpc-v1.4'
@@ -1295,20 +1293,44 @@ def test_clean_bootstrap_requires_explicit_qualified_target_branch(
 
 
 @pytest.mark.parametrize('os_id,major,minor', [('ubuntu', 26, 10), ('fedora', 43, 0)])
+@pytest.mark.parametrize('branch', ['system_product_free', 'system_installed'])
 def test_clean_bootstrap_rejects_unqualified_inspected_release_before_guest_writes(
-        tmp_path, os_id, major, minor):
+        tmp_path, os_id, major, minor, branch):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
         'guest': {'fixture_boundary': 'clean', **({'ubuntu_version': '26.04'}
             if os_id == 'ubuntu' else {'os_id': 'fedora', 'version': '44'})}}
     lease.state = {'run': RUN}
+    lease.installed_online = lease.online_pending = False
+    lease.installed_name = lease._restored_name = 'onpc-v1.4'
     g, _ = bootstrap_guest()
     g.inspect_get_distro.return_value = os_id
     g.inspect_get_major_version.return_value = major
     g.inspect_get_minor_version.return_value = minor
     guestfs.GuestFS.return_value = g
     with pytest.raises(runner.baseline.guest_contract.PreparationError, match=r'\[guard:os\]'):
-        runner.bootstrap(commands, lease, tmp_path, guestfs, system_product_free=True)
+        runner.bootstrap(commands, lease, tmp_path, guestfs, **{branch: True})
+    g.write.assert_not_called()
+    g.command.assert_not_called()
+
+
+@pytest.mark.parametrize('captured,inspected', [('ubuntu', 'fedora'), ('fedora', 'ubuntu')])
+def test_installed_bootstrap_rejects_other_qualified_disk_before_guest_writes(
+        tmp_path, captured, inspected):
+    commands, lease, guestfs = Mock(), Mock(), Mock()
+    guest = ({'ubuntu_version': '26.04'} if captured == 'ubuntu'
+             else {'os_id': 'fedora', 'version': '44'})
+    lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
+                           'guest': {'fixture_boundary': 'clean', **guest}}
+    lease.state = {'run': RUN}
+    lease.installed_online = lease.online_pending = False
+    lease.installed_name = lease._restored_name = 'onpc-v1.4'
+    g, _ = bootstrap_guest(inspected)
+    guestfs.GuestFS.return_value = g
+    with patch.object(runner.baseline.guest_contract, 'inspected_release',
+                      return_value=(inspected, '44' if inspected == 'fedora' else '26.04')):
+        with pytest.raises(runner.Error, match='system-installed-target-not-qualified'):
+            runner.bootstrap(commands, lease, tmp_path, guestfs, system_installed=True)
     g.write.assert_not_called()
     g.command.assert_not_called()
 

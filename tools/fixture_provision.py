@@ -409,8 +409,9 @@ class Provisioner:
                     and state['domain_uuid'] == readiness.binding['vm_uuid']
                     and state['run'] == readiness.binding['run'], 'stale-readiness')
             require(readiness.binding['subsets'] == ['trusted-hard']
-                    and self._request['target'] == {'os': 'ubuntu', 'release': '26.04',
-                                                     'architecture': 'x86_64'},
+                    and self._request['target'] in (
+                        {'os': 'ubuntu', 'release': '26.04', 'architecture': 'x86_64'},
+                        {'os': 'fedora', 'release': '44', 'architecture': 'x86_64'}),
                     'reboot-renewal-not-qualified')
             boot = self._boot()
             require(boot != readiness.binding['boot_sha256'], 'reboot-required')

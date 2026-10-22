@@ -67,7 +67,8 @@ def test_product_free_preparation_precedes_all_input_and_never_collects_engineer
 
 
 @pytest.mark.parametrize('installed,guest', [
-    (True, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}),
+    (True, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '43'}),
+    (True, {'fixture_boundary': 'clean', 'ubuntu_version': '26.10'}),
     (False, {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '43'}),
     (False, {'fixture_boundary': 'clean', 'ubuntu_version': '26.10'}),
 ])
@@ -222,7 +223,7 @@ def test_clean_installed_attempt_refuses_before_snapshot_preparation_or_boot(
     monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
     suite = Mock(verified=None, lease=legacy_lease(state={'run': RUN}))
     lease = suite.lease
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'}}
+    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '43'}}
     lease.__enter__ = Mock(return_value=lease)
     lease.__exit__ = Mock(return_value=False)
     bootstrap = Mock()
@@ -239,7 +240,7 @@ def test_clean_installed_attempt_refuses_before_snapshot_preparation_or_boot(
 
 @pytest.mark.parametrize('area', ['authorization', 'enforcement', 'session'])
 def test_clean_installed_attempt_uses_offline_restore_and_shared_hard_preparation(
-        tmp_path, monkeypatch, area):
+        tmp_path, monkeypatch, area, qualified_guest):
     import guest_inputs
     import vm_transport
     import system_fixture_preparation as preparation
@@ -250,14 +251,16 @@ def test_clean_installed_attempt_uses_offline_restore_and_shared_hard_preparatio
     suite.prepared = True
     lease = suite.lease
     lease.state = {'run': RUN}
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     lease.__enter__ = Mock(return_value=lease)
     lease.__exit__ = Mock(return_value=False)
     lease._restored_name = 'onpc-baseline'
     lease.installed_name = 'onpc-v1.4'
     active = []
-    record = {'target': 'ubuntu', 'frozen': 'same-caller-input'}
-    monkeypatch.setattr(preparation, 'validate_input', lambda value, target=None: value)
+    target = preparation.guest_target(qualified_guest)
+    record = {'target': target, 'frozen': 'same-caller-input'}
+    validate = Mock(side_effect=lambda value, target=None: value)
+    monkeypatch.setattr(preparation, 'validate_input', validate)
     monkeypatch.setattr(preparation, 'selection_record', lambda value, target=None: value)
 
     def restore(case, *args, **kwargs):
@@ -289,6 +292,7 @@ def test_clean_installed_attempt_uses_offline_restore_and_shared_hard_preparatio
         fixture_selection=record, preparation_only=True,
         preparation_observer=lambda stage, context: active.append(stage) or stage)
     assert result == ['ready']
+    validate.assert_called_once_with(record, target=target)
     assert active == ['offline-restore', 'bootstrap', 'ssh-ready', 'boot-complete',
                       'before', 'provision', 'ready']
     bootstrap.assert_called_once_with(suite.commands, lease, tmp_path / ('attempt-' + area),
@@ -301,9 +305,9 @@ def test_clean_installed_attempt_uses_offline_restore_and_shared_hard_preparatio
 
 
 @pytest.mark.parametrize('fault', ['online', 'pending', 'wrong-restore', 'missing-name'])
-def test_clean_installed_offline_restore_guard_precedes_transport(tmp_path, fault):
+def test_clean_installed_offline_restore_guard_precedes_transport(tmp_path, fault, qualified_guest):
     lease, vm = legacy_lease(), Mock()
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     lease.installed_online = lease.online_pending = False
     lease.installed_name = lease._restored_name = 'onpc-v1.4'
     if fault == 'online':
@@ -317,12 +321,13 @@ def test_clean_installed_offline_restore_guard_precedes_transport(tmp_path, faul
     selected = system.resolve_selection('authorization', inventories=INVENTORIES)
     with pytest.raises(ValueError, match='offline-restore-required'):
         system.installed_run(vm, lease, tmp_path, selected, already_installed=True,
-                             fixture_selection={'target': 'ubuntu'})
+                             fixture_selection={'target': qualified_guest.get('os_id', 'ubuntu')})
     assert vm.mock_calls == []
 
 
 @pytest.mark.parametrize('failure', ['missing-input', 'incompatible-input'])
-def test_clean_installed_bad_input_refuses_before_app_preparation(tmp_path, monkeypatch, failure):
+def test_clean_installed_bad_input_refuses_before_app_preparation(
+        tmp_path, monkeypatch, failure, qualified_guest):
     import guest_inputs
     import system_fixture_preparation as preparation
     selected = system.resolve_selection('authorization', inventories=INVENTORIES)
@@ -330,32 +335,62 @@ def test_clean_installed_bad_input_refuses_before_app_preparation(tmp_path, monk
     monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
     suite = Mock(verified=None)
     lease = suite.lease
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     lease.__enter__ = Mock(return_value=lease)
     lease.__exit__ = Mock(return_value=False)
-    monkeypatch.setattr(preparation, 'installed_selection', lambda value: value)
+    monkeypatch.setattr(preparation, 'installed_selection', lambda value, target=None: value)
     validate = Mock(side_effect=ValueError(failure))
     monkeypatch.setattr(preparation, 'validate_input', validate)
     bootstrap = Mock()
     monkeypatch.setattr(system, 'bootstrap', bootstrap)
+    target = preparation.guest_target(qualified_guest)
     with pytest.raises(ValueError, match=failure):
         snapshots.run_attempts(suite, tmp_path, selected, {}, 'selected', system.RunLedger(),
-                               fixture_selection={'target': 'ubuntu'})
-    validate.assert_called_once_with({'target': 'ubuntu'}, target='ubuntu')
+                               fixture_selection={'target': target})
+    validate.assert_called_once_with({'target': target}, target=target)
+    suite.prepare_case.assert_not_called()
+    bootstrap.assert_not_called()
+    lease.start.assert_not_called()
+
+
+def test_clean_installed_other_target_input_refuses_before_app_preparation(
+        tmp_path, monkeypatch, qualified_guest):
+    import guest_inputs
+    import system_fixture_preparation as preparation
+    selected = system.resolve_selection('authorization', inventories=INVENTORIES)
+    (tmp_path / 'input').mkdir()
+    monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
+    suite = Mock(verified=None)
+    lease = suite.lease
+    lease.capture.state = {'guest': qualified_guest}
+    lease.__enter__ = Mock(return_value=lease)
+    lease.__exit__ = Mock(return_value=False)
+    target = 'ubuntu' if preparation.guest_target(qualified_guest) == 'fedora' else 'fedora'
+    record = preparation.fixture_execution.Selection(target, 'a' * 64,
+        '/tmp/onpc-native-runtime-' + target + '-' + 'a' * 64 + '-private',
+        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
+    verify = Mock()
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
+    bootstrap = Mock()
+    monkeypatch.setattr(system, 'bootstrap', bootstrap)
+    with pytest.raises(ValueError, match='fixtures:system-installed-target-not-qualified'):
+        snapshots.run_attempts(suite, tmp_path, selected, {}, 'selected', system.RunLedger(),
+                               fixture_selection=record)
+    verify.assert_not_called()
     suite.prepare_case.assert_not_called()
     bootstrap.assert_not_called()
     lease.start.assert_not_called()
 
 
 def test_repeated_clean_installed_histories_use_real_suite_offline_reuse_after_baseline_cleanup(
-        tmp_path, monkeypatch):
+        tmp_path, monkeypatch, qualified_guest):
     import guest_inputs
     import vm_transport
     import system_fixture_preparation as preparation
     from suite_lease import Suite
     selected = system.resolve_selection('authorization', inventories=INVENTORIES)
     lease = legacy_lease(state={'run': RUN})
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     lease.installed_online = lease.online_pending = False
     lease.installed_name = None
     lease._restored_name = 'onpc-baseline'
@@ -387,9 +422,10 @@ def test_repeated_clean_installed_histories_use_real_suite_offline_reuse_after_b
     for name in ('first', 'second'):
         directory = tmp_path / name
         (directory / 'input').mkdir(parents=True)
-        (directory / 'input/package.deb').write_bytes(b'frozen-package')
+        (directory / ('input/package.' + system.package_format(qualified_guest))).write_bytes(b'frozen-package')
         assert snapshots.run_attempts(suite, directory, selected, {}, 'selected', system.RunLedger(),
-            fixture_selection={'target': 'ubuntu'}, preparation_only=True) == [None]
+            fixture_selection={'target': preparation.guest_target(qualified_guest)},
+            preparation_only=True) == [None]
         assert lease._restored_name == 'onpc-baseline'
     assert suite.prepare_installed.call_count == 2
     for call in suite.prepare_installed.call_args_list:
@@ -399,14 +435,14 @@ def test_repeated_clean_installed_histories_use_real_suite_offline_reuse_after_b
 
 @pytest.mark.parametrize('failure', [None, 'initial-boot', 'reboot-boot', 'renewal'])
 def test_clean_installed_session_renews_same_controller_after_reboot_before_phase(
-        tmp_path, monkeypatch, failure):
+        tmp_path, monkeypatch, failure, qualified_guest):
     import system_fixture_preparation as preparation
     selected = system.resolve_selection('session', inventories=INVENTORIES)
     lease, vm = legacy_lease(state={'run': RUN}), Mock()
-    lease.capture.state = {'guest': {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}
+    lease.capture.state = {'guest': qualified_guest}
     lease.installed_online = lease.online_pending = False
     lease.installed_name = lease._restored_name = 'onpc-v1.4'
-    record = {'target': 'ubuntu'}
+    record = {'target': preparation.guest_target(qualified_guest)}
     monkeypatch.setattr(preparation, 'selection_record', lambda value, target=None: value)
     controller = Mock()
     events = []

@@ -163,8 +163,9 @@ alias compositions. It selects only trusted-hard after SSH readiness and before
 installation input. Its dedicated engineering selector also verifies immutable
 selection after edits to the actual private producer source checkout, across
 two restored boots. Ubuntu's [installed-system preparation](../integration/README.md#ubuntu-installed-system-preparation)
-uses that same hard-only boundary after explicit offline app restoration and
-fresh SSH bootstrap. Read-only readiness renewal after its session reboot
+and the same [Fedora boundary](../integration/README.md#fedora-installed-system-preparation)
+use that same hard-only boundary after explicit offline app restoration and
+fresh SSH bootstrap. Read-only readiness renewal after a session reboot
 checks the same selected bytes and native state without resetting scenario
 mutations. Other ordinary runner branches and engineering selectors
 remain unavailable until the

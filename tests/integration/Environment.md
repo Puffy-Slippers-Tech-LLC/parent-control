@@ -378,7 +378,10 @@ This supplies snapshot infrastructure acceptance only. Fedora's separate
 [provisioning qualification](../support/README.md#attempt-owned-fixture-provisioning)
 now passed on these clean captures, including enforcing labels, exact admissions,
 untrusted runtime controls and interrupted-stage recovery, with renewed Ubuntu
-proof. Ordinary runner envelopes remain gated pending their own qualification.
+proof. Fedora's [installed-system preparation](README.md#fedora-installed-system-preparation)
+uses explicit offline app restoration, fresh SSH bootstrap and hard-only
+provisioning with enforcing labels and exact native readback. Other runner
+envelopes remain gated pending their own qualification.
 
 ### Verified finite native transaction inputs
 

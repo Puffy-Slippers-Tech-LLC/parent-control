@@ -151,8 +151,11 @@ unchanged native admission sources, compiled rules and public rule listing.
 
 ### Ubuntu installed-system preparation
 
-On clean Ubuntu 26.04, `system_snapshots._run_attempts(installed=True)` explicitly
-selects the offline app-snapshot mode through `Suite.prepare_case`. The restored
+On clean Ubuntu 26.04 and Fedora 44, `system_snapshots._run_attempts(installed=True)` explicitly
+selects the offline app-snapshot mode through `Suite.prepare_case`. Creating a
+new app capture installs, restarts, verifies and shuts down the guest before
+taking its disk-only snapshot. Both capture modes keep post-restart package,
+configuration and service verification. The restored
 app is bootstrapped with fresh attempt credentials; an online resume cannot
 qualify this branch. After SSH readiness and system startup completion,
 `system_runner.installed_run` uses the
@@ -165,6 +168,7 @@ require an active daemon and its current-boot initialization event.
 
 ```sh
 tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_system_installed
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_system_installed
 ```
 
 This engineering selector exercises two actual offline app restores. It stops
@@ -173,8 +177,16 @@ manifest bytes and Riley's headless runtime witness, and proves input refusals,
 fresh readiness, no-write repeats and unchanged selection after producer-source
 edits. Results retain package metadata and frozen helpers, without the complete
 fixture collection. Watched baseline restoration and owned credential, staging,
-input and transport cleanup remain required. Fedora installed-system and other
-unmigrated envelopes remain gated. This supplies no customer or E2E acceptance.
+input and transport cleanup remain required. Other unmigrated envelopes remain
+gated. This supplies no customer or E2E acceptance.
+
+### Fedora installed-system preparation
+
+Fedora 44 uses the same explicit offline app restore and installed-system
+selector above. Independent readback also requires enforcing SELinux, exact
+labels, finite native trust and unchanged native admission sources, compiled
+rules and public rule listing. Read-only readiness renewal after a session
+reboot preserves the selected bytes and scenario mutations.
 
 ## Retained-session native dependency update
 

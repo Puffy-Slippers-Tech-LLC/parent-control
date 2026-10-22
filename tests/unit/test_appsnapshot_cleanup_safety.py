@@ -92,7 +92,7 @@ def test_clean_snapshot_refuses_missing_frozen_installation_helper(tmp_path):
     {'os_id': 'fedora', 'version': '44', 'fixture_boundary': 'clean'},
     {'ubuntu_version': '26.04'}, {'os_id': 'fedora', 'version': '44'}])
 @pytest.mark.parametrize('mode', ['online', 'offline'])
-def test_app_capture_selects_clean_payload_without_changing_install_sequence(
+def test_app_capture_selects_clean_payload_and_verifies_after_required_restart(
         tmp_path, monkeypatch, guest, mode):
     import installed_setup
     import online_snapshot
@@ -118,8 +118,12 @@ def test_app_capture_selects_clean_payload_without_changing_install_sequence(
     verified = Mock()
     monkeypatch.setattr(provenance, 'VerifiedInputs', Mock(return_value=verified))
     transport = Mock()
+    events = []
+    transport.reboot.side_effect = lambda: events.append('reboot')
+    transport.call.side_effect = lambda *args, **kwargs: events.append('verify')
     monkeypatch.setattr(vm_transport, 'Transport', Mock(return_value=transport))
     setup = Mock()
+    setup.run.side_effect = lambda *args, **kwargs: events.append('install')
     monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock(return_value=setup))
     monkeypatch.setattr(online_snapshot, 'disconnected_network', lambda _: nullcontext())
     publish = Mock()
@@ -132,6 +136,12 @@ def test_app_capture_selects_clean_payload_without_changing_install_sequence(
     assert bootstrap.call_args.kwargs == ({'snapshot_capture': True} if clean else {})
     provenance.VerifiedInputs.assert_called_once_with(lease=lease, assets=assets, root=ROOT)
     setup.run.assert_called_once_with(lease.guard, verify=mode == 'online')
+    assert events == (['install', 'reboot', 'verify'] if mode == 'offline'
+                      else ['install', 'verify'])
+    if mode == 'offline':
+        transport.reboot.assert_called_once_with()
+    else:
+        transport.reboot.assert_not_called()
     transport.probe_ready.assert_called_once_with()
     transport.call.assert_called_once_with(system.guest_command('a' * 32, 'verify-snapshot'),
                                            timeout=660)

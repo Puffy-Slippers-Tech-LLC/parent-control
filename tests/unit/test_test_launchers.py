@@ -64,14 +64,6 @@ def test_every_named_input_consumer_prepares_before_dispatch(
     authorize = Mock()
     monkeypatch.setattr(dev_privileges, 'check', authorize)
     selector = name + suffix
-    if name == 'check_fixture_system_installed' and target != 'onpc-Ubuntu26.04':
-        with pytest.raises(ValueError, match='target is unavailable'):
-            regression_process.category_run(ROOT, 'integration', [selector], pipe=False)
-        allocate.assert_not_called()
-        execute.assert_not_called()
-        authorize.assert_not_called()
-        freeze.assert_not_called()
-        return
     assert regression_process.category_run(
         ROOT, 'integration', [selector], pipe=False) == build_status
     allocate.assert_called_once_with(output)
@@ -206,15 +198,18 @@ def test_source_proof_option_refuses_other_integration_selectors(monkeypatch, se
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
 def test_installed_system_freezes_original_input_and_actual_source_proof(
-        monkeypatch, frozen_fixture_selection, suffix):
+        monkeypatch, frozen_fixture_selection, suffix, vm, target):
     import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='onpc-Ubuntu26.04'))
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
+    frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
+        allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     record = frozen_fixture_selection.record()
     source = source_proof_selection(frozen_fixture_selection)
     def execute(command, **options):
         assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
-            '--target', 'ubuntu', '--qualify-source-edit')
+            '--target', target, '--qualify-source-edit')
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n'
             + 'fixture-execution: source-edit=' + json.dumps(source) + '\n').encode())
         return 0
@@ -223,14 +218,14 @@ def test_installed_system_freezes_original_input_and_actual_source_proof(
         ['check_fixture_system_installed' + suffix], control=control, environment={})
     assert options == ['--fixture-selection', json.dumps(record, sort_keys=True),
                        '--fixture-source-selection', json.dumps(source, sort_keys=True)]
-    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+    monkeypatch.setenv('ONPC_TEST_VM', vm)
     dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
     command = dispatch(ROOT, ['integration', 'check_fixture_system_installed' + suffix,
-                              '--vm', 'onpc-Ubuntu26.04', *options])
+                              '--vm', vm, *options])
     assert command[3:] == options
 
 
-@pytest.mark.parametrize('vm', ['onpc-Fedora44', 'unqualified-target'])
+@pytest.mark.parametrize('vm', ['unqualified-target'])
 @pytest.mark.parametrize('suffix', ['', '.py'])
 def test_installed_system_target_refuses_before_any_input(monkeypatch, vm, suffix):
     import vm_selection

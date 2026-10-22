@@ -227,7 +227,15 @@ def test_identical_repeat_verifies_without_writes_or_registration(rig):
         'inspect', 'preflight', 'readback', 'witness']
 
 
-def test_installed_hard_reboot_renews_only_readiness_and_preserves_scenario_mutations(rig):
+def configure_target(rig, target):
+    record = bundle_input(target)['manifest']['inputs']['target']
+    rig.input['manifest']['inputs']['target'] = record
+    rig.boundary.target = copy.deepcopy(record)
+
+
+@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
+def test_installed_hard_reboot_renews_only_readiness_and_preserves_scenario_mutations(rig, target):
+    configure_target(rig, target)
     first = execute(rig, ('trusted-hard',))
     scenario = rig.boundary.path('/home/child/scenario-document')
     scenario.parent.mkdir(parents=True)
@@ -251,10 +259,13 @@ def test_installed_hard_reboot_renews_only_readiness_and_preserves_scenario_muta
     assert_terminal(rig)
 
 
+@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
 @pytest.mark.parametrize('fault', ['same-boot', 'foreign-receipt', 'failed', 'subset',
-                                  'fedora', 'changed-accounts', 'changed-target',
+                                  'unsupported-release', 'unsupported-architecture',
+                                  'changed-accounts', 'changed-target',
                                   'modified', 'missing', 'preflight', 'readback', 'witness'])
-def test_installed_reboot_renewal_refuses_without_writes_or_repair(rig, fault):
+def test_installed_reboot_renewal_refuses_without_writes_or_repair(rig, fault, target):
+    configure_target(rig, target)
     ready = execute(rig, ('mechanical',) if fault == 'subset' else ('trusted-hard',))
     writes, registered = rig.boundary.writes[:], rig.registered[:]
     rig.boundary.calls.clear()
@@ -265,8 +276,10 @@ def test_installed_reboot_renewal_refuses_without_writes_or_repair(rig, fault):
         ready.binding['attempt_id'] = 'foreign-attempt'
     elif fault == 'failed':
         rig.control.failed = True
-    elif fault == 'fedora':
-        rig.control._request['target'] = {'os': 'fedora', 'release': '44', 'architecture': 'x86_64'}
+    elif fault == 'unsupported-release':
+        rig.control._request['target']['release'] = 'unsupported'
+    elif fault == 'unsupported-architecture':
+        rig.control._request['target']['architecture'] = 'aarch64'
     elif fault == 'changed-accounts':
         rig.boundary.accounts['child']['uid'] += 10
     elif fault == 'changed-target':

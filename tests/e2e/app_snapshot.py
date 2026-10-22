@@ -197,9 +197,11 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
         'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
         'run': lease.state['run']}, suite.commands, guard=lambda _: lease.guard(), lease=lease)
     transport.probe_ready()
-    # Online snapshots capture activated services after a verified reboot.
-    # Offline snapshots retain the original install/verify/shutdown sequence.
+    # Both modes verify activated services after the installation's required
+    # reboot. Offline snapshots then shut down before disk-only capture.
     InstalledSetup(setup, verified, transport).run(lease.guard, verify=mode == 'online')
+    if mode == 'offline':
+        transport.reboot()
     transport.call(system.guest_command(lease.state['run'], 'verify-snapshot'), timeout=660)
     lease.guard()
     verified.recheck()

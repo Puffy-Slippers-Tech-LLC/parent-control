@@ -1778,7 +1778,7 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
     require(type(snapshot_capture) is bool, 'fixtures:invalid-snapshot-capture')
     require(type(system_product_free) is bool, 'fixtures:invalid-system-product-free')
     require(type(system_installed) is bool, 'fixtures:invalid-system-installed')
-    from system_fixture_preparation import qualified_guest, require_installed_restore
+    from system_fixture_preparation import qualified_guest, require_installed_restore, guest_target
     require(not system_installed or (not system_product_free and not snapshot_capture
             and not observation_only and qualified_guest(lease.capture.state['guest'], installed=True)),
             'fixtures:system-installed-target-not-qualified')
@@ -1803,7 +1803,9 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
         os_id, version = baseline.guest_contract.inspected_release(g, root)
         require(not system_product_free or (os_id, version) in (('ubuntu', '26.04'), ('fedora', '44')),
                 'fixtures:system-product-free-target-not-qualified')
-        require(not system_installed or (os_id, version) == ('ubuntu', '26.04'),
+        require(not system_installed or (os_id, version) in (('ubuntu', '26.04'), ('fedora', '44')),
+                'fixtures:system-installed-target-not-qualified')
+        require(not system_installed or os_id == guest_target(lease.capture.state['guest']),
                 'fixtures:system-installed-target-not-qualified')
         package = directory / 'input' / ('package.rpm' if os_id == 'fedora' else 'package.deb')
         if not observation_only:

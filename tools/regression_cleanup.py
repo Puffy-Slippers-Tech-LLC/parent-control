@@ -1,5 +1,10 @@
 """Balance cleanup work across the existing branches without splitting fixtures.
 
+Fedora installed-system reboot-renewal checks retain fixture_provision's
+pytest-private files and in-memory native/lease/transport doubles. No VM,
+subprocess, service, display, socket, shared cache or new cleanup owner is added;
+the compatible cleanup classification remains valid. UI gains no resources.
+
 Reviewed modules use pytest-private temporary trees, process-local doubles and
 explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their

@@ -88,18 +88,21 @@ def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selec
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-def test_installed_system_dispatch_is_bound_to_ubuntu(checkout, fixture_selection, suffix):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_installed_system_dispatch_is_bound_to_qualified_target(checkout, fixture_selection, suffix, vm, target):
     name = 'check_fixture_system_installed'
     (checkout / 'tests/integration' / (name + '.py')).touch()
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     command = runner['selection'](checkout, ['integration', name + suffix,
-        '--vm', 'onpc-Ubuntu26.04', '--fixture-selection', json.dumps(fixture_selection)])
+        '--vm', vm, '--fixture-selection', json.dumps(fixture_selection)])
     assert command == ['/usr/bin/python3', '-B',
         str(checkout / 'tests/integration' / (name + '.py')),
         '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
-    for arguments in ([], ['--fixture-selection', json.dumps(fixture_selection)]):
-        with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-            runner['selection'](checkout, ['integration', name + suffix,
-                '--vm', 'onpc-Fedora44', *arguments])
+    other = 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04'
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        runner['selection'](checkout, ['integration', name + suffix,
+            '--vm', other, '--fixture-selection', json.dumps(fixture_selection)])
 
 
 @pytest.mark.parametrize('payload', ['{', 'null', '[]', '{}', 'x' * 8193])

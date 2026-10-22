@@ -1,5 +1,11 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Fedora installed-system coverage extends fixture_system_qualification,
+system_snapshots, system_runner, fixture_provision_cleanup_safety and
+test_launchers with existing pytest-private files and process-local lease,
+guestfs, transport and native doubles. No new live resource, subprocess or
+shared state is owned; compatible unit classifications remain valid.
+
 Fedora product-free system coverage extends fixture_system_qualification,
 system_snapshots, system_runner, parent_setup_cleanup_safety,
 privileged_test_runner and test_launchers using pytest-private source/results

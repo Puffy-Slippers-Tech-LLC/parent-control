@@ -248,7 +248,10 @@ All other matrix entries retain their separate gates.
 F16 adds Ubuntu's [installed-system preparation](../../tests/integration/README.md#ubuntu-installed-system-preparation)
 through explicit offline app restoration, fresh bootstrap and the same hard-only
 readiness boundary. Its `check_fixture_system_installed` selector exercises the
-real installed branch before system input; Fedora retains its F17 gate.
+real installed branch before system input. F17 extends that boundary to
+[Fedora 44](../../tests/integration/README.md#fedora-installed-system-preparation),
+including enforcing SELinux, exact labels/native policy and read-only readiness
+renewal after a system reboot. Other matrix entries retain their own gates.
 
 ### Runner acceptance matrix
 

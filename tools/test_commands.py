@@ -531,7 +531,7 @@ def fixture_execution_target(category, args):
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
     if installed:
-        if target != 'ubuntu':
+        if target is None:
             raise ValueError('fixture installed system target is unavailable')
         return target
     if provisioning:

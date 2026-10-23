@@ -665,7 +665,9 @@ def _closeout(plan, spec, run, state):
         if spec.push:
             if state.get('pull_intent') is not None:
                 _, head = validate_pull_identity(plan.root, state, git=git_output)
-                if committed is not None and head != committed:
+                if (committed is not None and head != committed
+                        and git_output(plan.root, 'merge-base', '--is-ancestor', committed,
+                                       head, check=False).returncode):
                     raise ValueError('HEAD changed after completion commit; inspect retained checkpoint before push')
             pushed = git_output(plan.root, 'push', check=False)
             if pushed.returncode:

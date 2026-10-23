@@ -708,8 +708,11 @@ pre-existing staged work refuses close-out rather than committing that work.
 A staging, commit or push
 failure retains the accepted result; restart retries close-out without repeating
 valid acceptance. Commit intent is checkpointed before Git writes. Recovery
-recognizes only the matching immediate commit with unchanged owned files, avoiding
-a duplicate after interruption; an unexpected HEAD or changed files refuse.
+recognizes the matching immediate commit with unchanged owned files and saves
+its identity. A saved completion or propagation identity also permits recovery
+from a descendant HEAD after verifying the original committed tree against the
+intent; later edits remain untouched. Unrecorded HEAD changes or mismatched
+completion contents refuse, avoiding duplicate or unrelated completion credit.
 Push recovery retries the push after recognizing the existing commit.
 Structured E2E results use optional `checks` with the ordinary
 `onpc-plan-evidence` version-1 declaration. The shared reader authenticates the

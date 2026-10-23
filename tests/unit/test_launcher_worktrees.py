@@ -143,14 +143,33 @@ def test_interrupted_writes_resume_without_duplicate_merge_or_lost_work(trees, b
     with pytest.raises(OSError, match='after Git write'):
         propagation.propagate(f.root, f.run, {}, commit, git=git)
     saved = json.loads((f.run / 'checkpoint.json').read_text())
+    if boundary == 'merge':
+        # Other work can advance the source while this transaction is retained.
+        f.change(f.root, 'shared', 'later source task\n')
+    source_head = f.git(f.root, 'rev-parse', 'HEAD').stdout
     def resolve(root, phase, details):
         assert phase == 'restore'
         assert (root / 'unstaged').read_text() == 'active destination work\n'
     propagation.propagate(f.root, f.run, saved, commit, git=f.git, resolve=resolve)
+    assert f.git(f.root, 'rev-parse', 'HEAD').stdout == source_head
     assert f.git(f.other, 'rev-parse', 'HEAD').stdout.strip() == commit
     assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() == commit
     assert (f.other / 'unstaged').read_text() == 'active destination work\n'
     assert not f.git(f.other, 'stash', 'list').stdout
+
+
+def test_propagation_starts_from_verified_completion_after_source_advances(trees):
+    f = trees
+    commit = f.change(f.root, 'shared', 'completed task\n')
+    later = f.change(f.root, 'shared', 'later task\n')
+    with pytest.raises(ValueError, match='exact pushed completion commit'):
+        propagation.propagate(f.root, f.run, {}, commit, git=f.git)
+    state = dict(commit_intent=dict(commit=commit))
+    propagation.propagate(f.root, f.run, state, commit, git=f.git)
+    assert f.git(f.root, 'rev-parse', 'HEAD').stdout.strip() == later
+    assert f.git(f.other, 'rev-parse', 'HEAD').stdout.strip() == commit
+    assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() == commit
+    assert state['worktree_propagation']['targets'][0]['phase'] == 'done'
 
 
 def test_all_configured_destinations_and_source_exclusion(trees):

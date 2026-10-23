@@ -1681,6 +1681,7 @@ def test_commit_recovery_refuses_external_changes(commit_checkout, mutation):
     paths = workflow.stage_completion(root, state, reply('task_complete', 'passed'))
     workflow.finish_commit(root, root, state, paths)
     if mutation == 'head':
+        state['commit_intent'].pop('commit')  # Legacy intent with no recorded commit.
         subprocess.run(['git', 'commit', '--allow-empty', '-qm', 'External commit'], cwd=root, check=True)
     else:
         (root / workflow.PLAN).write_text('External edit')

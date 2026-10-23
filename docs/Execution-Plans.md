@@ -638,6 +638,11 @@ or creating a duplicate completion commit. Missing upstream configuration or
 credentials is a close-out failure; the launcher never changes Git configuration.
 Commit recovery checks the retained branch and upstream before pushing. A legacy
 pending commit without that identity requires explicit Git reconciliation.
+The shared Git helper checkpoints the verified completion commit identity.
+Recovery can reuse that exact commit after HEAD advances, provided it remains
+an ancestor and its parent, subject, owned paths and committed entries still
+match the saved intent. Legacy propagation checkpoints supply the same pinned
+identity. Later task edits stay untouched and earn no acceptance credit.
 E2E retains its own Git and optimization workflow.
 Already-running backends keep their original policy; attaching does not reload
 code or defaults. Stop at a session boundary and start a fresh run to load a
@@ -691,9 +696,10 @@ One repository-wide lock covers source Git close-out and propagation, serializin
 reverse-direction updates before either source writes its completion commit.
 Competing close-outs wait unattended, with cancellation still available.
 Checkpoint each destination's stash, fetch, merges, restoration, push and stash
-retirement. Restart reuses the source task commit and completed destinations;
+retirement. Restart reuses the source task commit and completed destinations,
+including when the source HEAD has advanced to a descendant of that exact commit;
 an interrupted stash application is inspected by the automatic resolver before
-any replay. Changed checkout/branch/upstream/HEAD identities preserve pending
+any replay. Changed checkout/branch/upstream or destination HEAD identities preserve pending
 work and refuse unsafe recovery. Conflict resolution checks branch, upstream and
 HEAD before and after each turn, including incomplete turns. A changed HEAD
 reports its expected and observed identities and stops before another turn or

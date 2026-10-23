@@ -292,22 +292,39 @@ def finish_commit(root, run, state, paths, message, *, git=None):
     if intent is not None:
         if intent['message'] != message or intent['paths'] != paths:
             raise ValueError('completion commit scope changed; inspect retained checkpoint')
-        if parent != intent['parent']:
+        recorded = intent.get('commit') or state.get('worktree_propagation', {}).get('commit')
+        if parent != intent['parent'] or recorded:
             # A worker may die after Git commits but before the checkpoint is saved.
-            # Only the exact immediate commit and unchanged owned files earn credit.
-            subject = git(root, 'log', '-1', '--format=%s').stdout.strip()
-            parents = git(root, 'log', '-1', '--format=%P').stdout.strip()
+            # Once recorded, verify that immutable commit rather than later task
+            # edits. Older propagation checkpoints already pin the same identity.
+            commit = recorded or parent
+            if git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode:
+                raise ValueError('HEAD changed outside pending completion commit; inspect checkpoint')
+            subject = git(root, 'log', '-1', '--format=%s', commit).stdout.strip()
+            parents = git(root, 'log', '-1', '--format=%P', commit).stdout.strip()
             changed = git(root, 'diff-tree', '--root', '--no-commit-id',
-                                 '--name-only', '-r', '-z', 'HEAD').stdout.split('\0')
-            matches = (not paths or (
-                git(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
-                           '--', *paths).stdout == intent['entries']
-                and not git(root, '--literal-pathspecs', 'status', '--porcelain',
-                                   '--untracked-files=all', '--ignored', '-z', '--', *paths).stdout))
+                                 '--name-only', '-r', '-z', commit).stdout.split('\0')
+            tree = (git(root, '--literal-pathspecs', 'ls-tree', '-r', '-z', commit,
+                        '--', *paths).stdout if paths else '')
+            entries = ''
+            for entry in filter(None, tree.split('\0')):
+                metadata, path = entry.split('\t', 1)
+                mode, _kind, identity = metadata.split()
+                entries += f'{mode} {identity} 0\t{path}\0'
+            matches = entries == intent['entries']
+            if commit == parent:
+                matches = matches and (not paths or (
+                    git(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
+                               '--', *paths).stdout == intent['entries']
+                    and not git(root, '--literal-pathspecs', 'status', '--porcelain',
+                                '--untracked-files=all', '--ignored', '-z', '--', *paths).stdout))
             if (subject != message or parents != (intent['parent'] or '')
                     or not set(filter(None, changed)).issubset(paths) or not matches):
                 raise ValueError('HEAD changed outside pending completion commit; inspect checkpoint')
-            return parent
+            if intent.get('commit') != commit:
+                intent['commit'] = commit
+                launcher.atomic(run / 'checkpoint.json', state)
+            return commit
     else:
         entries = (git(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
                              '--', *paths).stdout if paths else '')

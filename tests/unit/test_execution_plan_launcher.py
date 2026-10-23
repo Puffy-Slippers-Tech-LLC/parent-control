@@ -3807,6 +3807,41 @@ def test_dirty_overlap_requests_scoped_reconciliation_without_autostash(git_plan
     assert f.git('stash', 'list').stdout == ''
 
 
+@pytest.mark.parametrize('record', ['commit', 'propagation'])
+def test_pending_commit_recovers_original_ancestor_without_adopting_later_edits(git_plan, record):
+    f = git_plan
+    state = {}
+    message = 'TA: Completed task 001'
+    launcher_git.pull_before_commit(f.root, f.run, state)
+    (f.root / 'task.py').write_text('accepted task\n')
+    paths = launcher_git.stage_task(f.root, ['task.py'])
+    commit = launcher_git.finish_commit(f.root, f.run, state, paths, message)
+    if record == 'propagation':
+        state['commit_intent'].pop('commit')  # Checkpoint from an older launcher.
+        state['worktree_propagation'] = dict(commit=commit, targets=[])
+    (f.root / 'task.py').write_text('later committed task changes\n')
+    f.git('add', '--', 'task.py')
+    f.git('commit', '-qm', 'Later work')
+    (f.root / 'task.py').write_text('later staged work\n')
+    f.git('add', '--', 'task.py')
+    (f.root / 'task.py').write_text('later unstaged work too\n')
+    head = f.git('rev-parse', 'HEAD').stdout
+    index = f.git('ls-files', '--stage', '-z').stdout
+    assert launcher_git.finish_commit(f.root, f.run, state, paths, message) == commit
+    assert f.git('rev-parse', 'HEAD').stdout == head
+    assert f.git('ls-files', '--stage', '-z').stdout == index
+    assert (f.root / 'task.py').read_text() == 'later unstaged work too\n'
+    # The recorded identity cannot stand in for the accepted tree or ancestry.
+    entries = state['commit_intent']['entries']
+    state['commit_intent']['entries'] = ''
+    with pytest.raises(ValueError, match='HEAD changed outside pending completion'):
+        launcher_git.finish_commit(f.root, f.run, state, paths, message)
+    state['commit_intent']['entries'] = entries
+    f.git('update-ref', 'HEAD', state['commit_intent']['parent'])
+    with pytest.raises(ValueError, match='HEAD changed outside pending completion'):
+        launcher_git.finish_commit(f.root, f.run, state, paths, message)
+
+
 @pytest.mark.parametrize('change', ['branch', 'upstream', 'missing-identity'])
 def test_pending_commit_recovery_preserves_branch_and_upstream_identity(git_plan, change):
     f = git_plan

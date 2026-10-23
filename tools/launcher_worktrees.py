@@ -189,11 +189,13 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
         targets = configured_targets(root, git=git)
         if not targets:
             return
-        if not commit or _head(git, root) != commit:
+        if (not commit or (_head(git, root) != commit
+                           and state.get('commit_intent', {}).get('commit') != commit)):
             raise ValueError('worktree propagation requires the exact pushed completion commit')
         transaction = state['worktree_propagation'] = dict(commit=commit, targets=targets)
         launcher.atomic(run / 'checkpoint.json', state)
-    if transaction['commit'] != commit or _head(git, root) != commit:
+    if (transaction['commit'] != commit
+            or git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode):
         raise ValueError('worktree propagation source commit changed')
     resolve = resolve or (lambda target, phase, details: resolve_conflicts(
         target, run, phase, dict(details, source_root=str(root.resolve()))))

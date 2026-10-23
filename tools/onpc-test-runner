@@ -218,6 +218,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                              'check_parent_input', 'check_parent_standard_input')
         installed = name == 'check_fixture_system_installed'
         transfer = name == 'check_fixture_transfer'
+        serial = name in ('check_graphical_serial', 'check_fixture_serial')
         sys.path.insert(0, str(root / 'tools'))
         try:
             from test_commands import INSTALLED_E2E_FIXTURE_SELECTORS, PRODUCT_FREE_E2E_FIXTURE_SELECTORS
@@ -225,6 +226,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             sys.path.pop(0)
         installed_e2e = name in INSTALLED_E2E_FIXTURE_SELECTORS
         product_free_e2e = name in PRODUCT_FREE_E2E_FIXTURE_SELECTORS
+        if serial and not args.list and configured.name != 'onpc-Ubuntu26.04':
+            raise ValueError('test-runner:fixture-target-not-qualified')
         if transfer and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if (product_free_e2e or name == 'check_e2e_gdm_product_free') and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
@@ -242,7 +245,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 or args.fixture_selection is None):
             raise ValueError('test-runner:unexpected-fixture-source-selection')
         if args.fixture_selection is not None:
-            if args.list or not (bootstrap or installed or installed_e2e or product_free_e2e or transfer or name == 'check_fixture_provisioning'):
+            if args.list or not (bootstrap or installed or installed_e2e or product_free_e2e or transfer or serial or name == 'check_fixture_provisioning'):
                 raise ValueError('test-runner:unexpected-fixture-selection')
             if len(args.fixture_selection) > 8192:
                 raise ValueError('test-runner:invalid-fixture-selection')
@@ -275,6 +278,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         target = confined_file(root, f'tests/integration/{name}.py')
         return ['/usr/bin/python3', '-B', str(target), *fixture_options]
     if args.category == 'e2e':
+        if (args.qualify_install or args.qualify_install_refusal) and configured.name != 'onpc-Ubuntu26.04':
+            raise ValueError('test-runner:fixture-target-not-qualified')
         target = confined_file(root, 'tests/e2e/runner.py')
         options = [*vm_args, *(['--list'] if args.list else [])]
         if args.ready:
@@ -294,8 +299,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         if args.artifacts is not None:
             options.append('--artifacts=' + str(args.artifacts))
         if args.fixture_selection is not None:
-            if (args.list or configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44')
-                    or args.qualify_install or args.qualify_install_refusal):
+            if args.list or configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
                 raise ValueError('test-runner:unexpected-fixture-selection')
             if len(args.fixture_selection) > 8192:
                 raise ValueError('test-runner:invalid-fixture-selection')

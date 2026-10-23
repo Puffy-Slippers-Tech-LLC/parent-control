@@ -27,9 +27,11 @@ from tools.test_storage import authenticated_input
 from tests.fixtures import native_assets
 
 
-def selected_target():
+def selected_target(*, serial=False):
     name = proof.prepare_vm.vm_config.selected().name
     system.require(name in proof.TARGETS, 'fixture-transfer:target-not-qualified')
+    if serial:
+        system.require(proof.TARGETS[name] == 'ubuntu', 'fixture-serial:target-not-qualified')
     return name
 
 
@@ -108,12 +110,19 @@ def preparation_backend(directory, lease, commands, host_key, ledger, expected_i
     lease.start()
     boundary = smoke.Smoke(directory, lease, commands, host_key,
         transfer=options['transfer'], fixture_selection=options['fixture_selection'],
-        fixture_observer=options['fixture_observer'])
+        fixture_observer=options['fixture_observer'],
+        **({'authenticate': options.get('credentials') is not None, 'serial': True}
+           if options.get('serial', False) else {}))
     (directory / 'ready.request.json').write_text(json.dumps({'stage': 'ready', 'screenshot': None}))
     boundary.step()
     system.require(len(boundary.steps) == 1 and boundary.steps[0]['stage'] == 'ready',
                    'fixture-transfer:preparation-not-complete')
     system.require((directory / 'ready.reply.json').is_file(), 'fixture-transfer:ready-reply-missing')
+    if options.get('serial', False):
+        reply = json.loads((directory / 'ready.reply.json').read_text())
+        system.require(options.get('credentials') is not None and reply['serial'] is True
+            and reply['authenticate'] is False and reply['install'] is False
+            and reply['install_refusal'] is False, 'fixture-serial:ready-boundary')
     return {'preparation_only': True}
 
 
@@ -123,9 +132,10 @@ class PreparationQualification(smoke.Qualification):
         self.result.setdefault('checkpoints', []).append(event)
 
 
-def qualify_pinned(directory, assets, selection, manifest):
+def qualify_pinned(directory, assets, selection, manifest, *, serial=False):
     suite = Suite(open_source)
-    result = {'target': selected_target(), 'selection': selection.record(),
+    result = {'target': selected_target(**({'serial': True} if serial else {})),
+              'selection': selection.record(),
               'restore_owner': 'Qualification.execute / SuiteLease.prepare',
               'preparation_owner': 'Smoke ready / AssetTransfer.provision'}
     private = directory / 'private'
@@ -139,10 +149,12 @@ def qualify_pinned(directory, assets, selection, manifest):
                                          package_only=True)
         (directory / 'input').mkdir(mode=0o700)
         (directory / 'input/selected-inputs.json').write_bytes(system.baseline.encode(smoke.inputs()))
+        credentials = smoke.FixtureCredentials() if serial else None
         ledger = system.RunLedger()
         suite.acquire(ledger)
         qualification = PreparationQualification(directory, suite.commands, ledger,
-            None, {}, suite.host_before, assets=directory / 'assets')
+            None, {}, suite.host_before, assets=directory / 'assets',
+            **({'credentials': credentials, 'serial': True} if serial else {}))
         qualification.fixture_selection = selection.record()
         qualification.fixture_observer = observer(selection, manifest, result)
         with suite.lease:
@@ -155,37 +167,45 @@ def qualify_pinned(directory, assets, selection, manifest):
             and suite.lease.view.snapshot()[1] and suite.lease.view.domain_id is None,
             'fixture-transfer:attempt-cleanup-incomplete')
         result['qualification'] = qualification.result
+        if serial:
+            system.require(qualification.result.get('fixture_credentials', {}).get(
+                'passwords_verified') is True and qualification.result.get('serial_getty') ==
+                'stock-password-authentication', 'fixture-serial:preboot-preparation-missing')
+            result.update(serial_preparation=True, serial_console_attached=False,
+                serial_input_released=False, authentication_started=False,
+                installation_started=False)
     finally:
         suite.close()
     result.update(owned_baseline_restoration_verified=True, outcome='passed')
     return result
 
 
-def qualify(directory, assets, selection):
-    target = proof.TARGETS[selected_target()]
+def qualify(directory, assets, selection, *, serial=False):
+    target = proof.TARGETS[selected_target(**({'serial': True} if serial else {}))]
     selection = fixture_execution.Selection.from_record(preparation.validate_input(selection, target=target))
     with authenticated_input(selection.record()):
         manifest = fixture_execution.verify(selection)
         fixture_provision.authenticated_bundle(selection)
-        return qualify_pinned(directory, assets, selection, manifest)
+        return qualify_pinned(directory, assets, selection, manifest, **({'serial': True} if serial else {}))
 
 
-def main(*, assets, selection):
+def main(*, assets, selection, serial=False):
     directory = None
+    label = 'fixture-serial' if serial else 'fixture-transfer'
     try:
         system.require(os.geteuid() == 0, 'fixture-transfer:root-required')
-        selected_target()
+        selected_target(**({'serial': True} if serial else {}))
         os.umask(0o077)
         with session():
-            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-fixture-transfer-'))
-            result = qualify(directory, assets, selection)
+            directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + label + '-'))
+            result = qualify(directory, assets, selection, **({'serial': True} if serial else {}))
             (directory / 'result.json').write_bytes(system.baseline.encode(result))
-        print('fixture-transfer: passed; evidence=' + str(directory), flush=True)
+        print(label + ': passed; evidence=' + str(directory), flush=True)
         return 0
     except (Exception, KeyboardInterrupt) as error:
         if directory is not None:
             (directory / 'controller-error.txt').write_text(traceback.format_exc())
-        print('fixture-transfer: ' + system.error_category(error), file=sys.stderr, flush=True)
+        print(label + ': ' + system.error_category(error), file=sys.stderr, flush=True)
         if directory is not None:
-            print('fixture-transfer: evidence=' + str(directory), file=sys.stderr, flush=True)
+            print(label + ': evidence=' + str(directory), file=sys.stderr, flush=True)
         return 1

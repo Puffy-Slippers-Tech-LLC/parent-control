@@ -589,13 +589,21 @@ def fixture_execution_target(category, args):
     transfer = ((category == 'integration' and len(args) == 1
                  and args[0].removesuffix('.py') == 'check_fixture_transfer')
                 or category == 'e2e' and '--qualify-transfer' in args)
+    serial = ((category == 'integration' and len(args) == 1
+               and args[0].removesuffix('.py') in ('check_graphical_serial', 'check_fixture_serial'))
+              or category == 'e2e' and any(argument in (
+                  '--qualify-install', '--qualify-install-refusal') for argument in args))
     scenarios = (category == 'e2e' and not any(argument in (
         '--qualify-transfer', '--qualify-install', '--qualify-install-refusal') for argument in args))
-    if not provisioning and not bootstrap and not installed and not installed_e2e and not product_free_e2e and not transfer and not scenarios and category != 'system':
+    if not provisioning and not bootstrap and not installed and not installed_e2e and not product_free_e2e and not transfer and not serial and not scenarios and category != 'system':
         return None
     from vm_selection import selected
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
+    if serial:
+        if target != 'ubuntu':
+            raise ValueError('fixture serial target is unavailable')
+        return target
     if transfer:
         if target is None:
             raise ValueError('fixture transfer target is unavailable')

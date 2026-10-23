@@ -296,8 +296,8 @@ and verifies product absence, no preboot payload, no-write repeats and current
 attempt/boot readiness. Focused host checks protect input refusal, immutable
 selection and ordering; unchanged shared uncertain-transfer/recovery proof is
 reused. It stops before graphical or customer input. Watched baseline restoration
-and owned staging, input and transport cleanup remain required. All
-standalone/recorded serial aliases retain their separate gates. This
+and owned staging, input and transport cleanup remain required. Fedora standalone
+serial and all recorded serial aliases retain their separate gates. This
 supplies no customer or E2E acceptance.
 
 ### Fedora standalone transfer preparation
@@ -314,6 +314,31 @@ no-write repeats, product absence and no-preboot-payload checks apply. Fedora
 also preserves enforcing SELinux, exact native admissions and labels. The check
 stops before graphical or customer input and finishes watched baseline
 restoration and owned cleanup. It supplies no customer or E2E acceptance.
+
+### Ubuntu standalone serial preparation
+
+`check_graphical_serial` and `runner --qualify-install` / `--qualify-install-refusal`
+select the immutable native input before restoration. The real standalone
+`Qualification.execute` retains credential verification and the stock serial
+getty check before boot. It bootstraps SSH only, then reuses Smoke's shared
+post-SSH native readiness step before the first reply. Package-bearing aliases
+defer their separate package-only transfer until that runtime is ready; bare
+serial needs no package input.
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_serial
+```
+
+This preparation-only selector exercises one actual serial credential/getty
+history, independently reads the native selection, runs A harmlessly as Riley,
+and checks product absence, no preboot payload, no-write repeats and current
+attempt/boot readiness. It stops before attaching a serial console or releasing
+graphical, authentication, installation or worker input. Focused host checks bind
+the aliases and retain recording seals, fresh secret recipients, single-use
+input, successful-install reboot and refused-install logout/no-reboot assertions.
+Watched restoration and owned credential/staging/input/transport cleanup remain
+required. Fedora standalone and all recorded serial paths remain gated. This
+supplies no customer or E2E acceptance.
 
 ## Retained-session native dependency update
 

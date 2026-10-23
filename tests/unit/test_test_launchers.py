@@ -40,7 +40,7 @@ def named_qualification_inputs():
 
 @pytest.mark.parametrize(('name', 'options', 'target'), [
     (name, options, target) for name, options in named_qualification_inputs()
-    for target in (vm_name(0), vm_name(1))])
+    for target in ((vm_name(0),) if name == 'check_fixture_serial' else (vm_name(0), vm_name(1)))])
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('build_status', [0, 7])
 def test_every_named_input_consumer_prepares_before_dispatch(
@@ -59,7 +59,7 @@ def test_every_named_input_consumer_prepares_before_dispatch(
                        if name in ('check_fixture_provisioning', 'check_fixture_system_installed',
                                    *PRODUCT_FREE_FIXTURE_SELECTORS,
                                    *commands.INSTALLED_E2E_FIXTURE_SELECTORS,
-                                   'check_fixture_transfer') else [])
+                                   'check_fixture_transfer', 'check_fixture_serial') else [])
     freeze = Mock(return_value=fixture_options)
     monkeypatch.setattr(commands, 'qualification_fixture_options', freeze)
     execute = Mock(side_effect=[build_status, 0])
@@ -93,7 +93,7 @@ def test_every_named_input_consumer_prepares_before_dispatch(
 @pytest.mark.parametrize(('category', 'args'), [
     ('integration', ['check_future_feature']), ('integration', ['--list']),
     ('integration', ['check_fixture_provisioning', '--list']),
-    ('system', ['--list']), ('e2e', ['--qualify-install']),
+    ('system', ['--list']), ('integration', ['check_e2e_watch']),
 ])
 @pytest.mark.parametrize('vm', ['onpc-Ubuntu26.04', 'onpc-Fedora44'])
 def test_fixture_qualification_ignores_unrelated_selections(monkeypatch, category, args, vm):
@@ -147,6 +147,41 @@ def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatc
         commands.qualification_fixture_options(ROOT, category, arguments, control=control)
     if category == 'integration':
         with pytest.raises(ValueError, match='fixture transfer target is unavailable'):
+            commands.qualification_artifact_command(ROOT, category, arguments)
+    control.run.assert_not_called()
+
+
+@pytest.mark.parametrize(('category', 'arguments'), [
+    ('integration', ['check_graphical_serial']),
+    ('integration', ['check_graphical_serial.py']),
+    ('integration', ['check_fixture_serial']),
+    ('integration', ['check_fixture_serial.py']),
+    ('e2e', ['--qualify-install']), ('e2e', ['--qualify-install-refusal']),
+])
+def test_serial_freezes_ubuntu_input_and_refuses_fedora_before_preparation(
+        monkeypatch, frozen_fixture_selection, category, arguments):
+    record = frozen_fixture_selection.record()
+    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+    def execute(command, **options):
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', 'ubuntu')
+        options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
+        return 0
+    assert commands.qualification_fixture_options(ROOT, category, arguments,
+        control=SimpleNamespace(run=execute), environment={}) == [
+            '--fixture-selection', json.dumps(record, sort_keys=True)]
+    if category == 'integration':
+        # Bare serial needs no assets; qualification retains its readback witness.
+        expected = ({'vm_source': True, 'fixture_source': True}
+                    if arguments[0].removesuffix('.py') == 'check_fixture_serial' else None)
+        assert commands.qualification_input_options(ROOT, arguments[0]) == expected
+        if expected is None:
+            assert commands.qualification_artifact_command(ROOT, category, arguments) is None
+    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Fedora44')
+    control = Mock()
+    with pytest.raises(ValueError, match='fixture serial target is unavailable'):
+        commands.qualification_fixture_options(ROOT, category, arguments, control=control)
+    if category == 'integration':
+        with pytest.raises(ValueError, match='fixture serial target is unavailable'):
             commands.qualification_artifact_command(ROOT, category, arguments)
     control.run.assert_not_called()
 

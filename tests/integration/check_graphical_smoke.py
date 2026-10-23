@@ -619,9 +619,16 @@ class Qualification:
             if selected is not None:
                 from smoke_fixture_preparation import validate_input
                 from system_fixture_preparation import guest_target
-                require(self.assets is not None and not any((self.serial, self.install,
-                        self.install_refusal, self.credentials is not None,
-                        self.vt6_prompt, self.vt6_auth)), 'fixtures:transfer-branch-not-qualified')
+                if self.serial:
+                    require(self.credentials is not None and not any((self.vt6_prompt, self.vt6_auth))
+                            and (not (self.install or self.install_refusal) or self.assets is not None),
+                            'fixtures:serial-branch-not-qualified')
+                    require(guest_target(lease.capture.state['guest']) == 'ubuntu',
+                            'fixtures:serial-target-not-qualified')
+                else:
+                    require(self.assets is not None and not any((self.install,
+                            self.install_refusal, self.credentials is not None,
+                            self.vt6_prompt, self.vt6_auth)), 'fixtures:transfer-branch-not-qualified')
                 selected = validate_input(selected, target=guest_target(lease.capture.state['guest']))
                 require(guest_target(lease.capture.state['guest']) in ('ubuntu', 'fedora'),
                         'fixtures:transfer-target-not-qualified')
@@ -635,7 +642,7 @@ class Qualification:
                 lease.guard(off=True)
                 lease.save('isolated')
                 self.verified = VerifiedInputs(lease=lease, assets=self.assets,
-                    **({'package_only': True} if selected is not None else {}))
+                    **({'package_only': True} if selected is not None and self.assets is not None else {}))
                 self.result['provenance'] = self.verified.inputs
                 self.checkpoint('inputs-captured')
                 if self.credentials is not None:
@@ -1545,6 +1552,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
         require(selected().name in targets, 'fixtures:transfer-target-not-qualified')
         fixture_selection = validate_input(fixture_selection, target=targets[selected().name])
+    if serial:
+        from smoke_fixture_preparation import validate_input
+        from vm_config import selected
+        require(selected().name == 'onpc-Ubuntu26.04', 'fixtures:serial-target-not-qualified')
+        fixture_selection = validate_input(fixture_selection, target='ubuntu')
     if product_free_entry or gdm_product_free:
         from vm_config import selected
         require(selected().name in ('onpc-Ubuntu26.04', 'onpc-Fedora44'),
@@ -1555,7 +1567,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     if gdm_product_free:
         require(fixture_selection is None, 'fixtures:e2e-product-free-empty-selection')
     credentials = FixtureCredentials() if provision_credentials else None
-    require(assets is not None or len(sys.argv) == 1, 'smoke:invalid-arguments')
+    require(assets is not None or serial or len(sys.argv) == 1, 'smoke:invalid-arguments')
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
     require(Path.cwd() == ROOT == runner.baseline.guest_contract.CHECKOUT, 'smoke:checkout')
     os.umask(0o077)
@@ -2351,7 +2363,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     qualification.fixture_selection = fixture_selection
                 elif fixture_selection is not None:
                     from parent_setup_qualification import KioskEntryQualification, ProductFreeEntryQualification
-                    require((transfer_entry and qualification_class is Qualification) or
+                    require(((transfer_entry or serial) and qualification_class is Qualification) or
                             issubclass(qualification_class, (KioskEntryQualification, ProductFreeEntryQualification)),
                             'fixtures:e2e-installed-branch-not-qualified')
                     qualification.fixture_selection = fixture_selection

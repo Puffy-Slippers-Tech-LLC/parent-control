@@ -6,6 +6,8 @@ import json
 import runpy
 import shutil
 import subprocess
+import sys
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -98,13 +100,11 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
     import tempfile
     with tempfile.TemporaryDirectory(prefix='onpc-transfer-test-', dir='/tmp') as directory:
         options = [option, '--artifacts=' + directory]
-        selection = None
-        if option == '--qualify-transfer':
-            from tools.fixture_execution import Selection
-            selection = Selection('ubuntu', 'a' * 64,
-                '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private', 1, 2,
-                '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
-            options.extend(('--fixture-selection', json.dumps(selection, sort_keys=True)))
+        from tools.fixture_execution import Selection
+        selection = Selection('ubuntu', 'a' * 64,
+            '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private', 1, 2,
+            '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
+        options.extend(('--fixture-selection', json.dumps(selection, sort_keys=True)))
         plan = runner['preflight'](options)
         assert plan == {'mode': mode, 'artifacts': directory,
                         **({'fixture_selection': selection} if selection else {})}
@@ -136,6 +136,38 @@ def test_transfer_requires_immutable_selection_and_matching_target(monkeypatch, 
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['preflight'](['--vm',
             'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
+
+
+@pytest.mark.parametrize('option', ['--qualify-install', '--qualify-install-refusal'])
+def test_authenticated_serial_requires_ubuntu_selection_before_artifact_or_password_reads(
+        monkeypatch, tmp_path, option):
+    password = Mock(side_effect=AssertionError('password read before input refusal'))
+    monkeypatch.setattr(test_account_password, 'read_password', password)
+    with pytest.raises(ValueError, match='execution-selection-required'):
+        runner['preflight'](['--vm', 'onpc-Ubuntu26.04', option])
+    with pytest.raises(ValueError, match='serial-target-not-qualified'):
+        runner['preflight'](['--vm', 'onpc-Fedora44', option])
+    password.assert_not_called()
+
+
+@pytest.mark.parametrize(('mode', 'flag'), [
+    ('authenticated-installation-qualification', 'install'),
+    ('deliberate-installation-refusal-qualification', 'install_refusal'),
+])
+def test_authenticated_serial_main_forwards_frozen_selection(monkeypatch, mode, flag):
+    from pathlib import Path
+    selection = {'frozen': 'selected-before-preparation'}
+    plan = {'mode': mode, 'artifacts': '/tmp/onpc-assets', 'fixture_selection': selection}
+    monkeypatch.setitem(runner['main'].__globals__, 'preflight', lambda argv: plan)
+    session = Mock(return_value=nullcontext())
+    execute = Mock(return_value=7)
+    monkeypatch.setitem(sys.modules, 'qualification_storage', SimpleNamespace(session=session))
+    monkeypatch.setitem(sys.modules, 'check_graphical_smoke', SimpleNamespace(main=execute))
+    monkeypatch.delenv('ONPC_QUALIFICATION_RETENTION_RUN', raising=False)
+    assert runner['main'](['--vm', 'onpc-Ubuntu26.04']) == 7
+    session.assert_called_once_with(run=None, require_owner=True)
+    execute.assert_called_once_with(assets=Path('/tmp/onpc-assets'), provision_credentials=True,
+                                    serial=True, fixture_selection=selection, **{flag: True})
 
 
 @pytest.mark.parametrize('selector,count', [('E2E-001', 1), ('E2E-023/fullscreen', 1)])
@@ -328,7 +360,8 @@ def test_invalid_id_list_refuses_before_execution(value):
 
 
 @pytest.mark.parametrize('status', [0, 7])
-def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, status):
+@pytest.mark.parametrize('selection', ['--ready', '--qualify-install', '--qualify-install-refusal'])
+def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, status, selection):
     import tempfile
     import regression
     # Bare e2e now belongs to the complete-phase aggregate. Keep this direct
@@ -345,7 +378,7 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
         monkeypatch.setattr(commands.os, 'execve', execute)
         monkeypatch.setattr(commands, 'qualification_fixture_options', fixtures)
         monkeypatch.setattr(dev_privileges, 'check', Mock())
-        result = commands._main(['e2e', '--ready', *VM_ARGS])
+        result = commands._main(['e2e', selection, *VM_ARGS])
         aggregate.assert_not_called()
         assert build.call_count == (1 if status else 2)
         assert build.call_args_list[0].args[0] == [
@@ -357,10 +390,10 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
             fixtures.assert_not_called()
         else:
             execute.assert_not_called()
-            fixtures.assert_called_once_with(ROOT, 'e2e', ['--ready', '--artifacts=' + directory])
+            fixtures.assert_called_once_with(ROOT, 'e2e', [selection, '--artifacts=' + directory])
             assert build.call_args.args[0] == [
                 '/usr/bin/pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-runner',
-                'e2e', *VM_ARGS, '--ready', '--artifacts=' + directory,
+                'e2e', *VM_ARGS, selection, '--artifacts=' + directory,
                 '--fixture-selection', 'frozen-selection']
 
 

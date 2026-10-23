@@ -70,24 +70,75 @@ def test_standalone_clean_input_and_serial_gates_precede_prepare(
     lease.prepare = Mock()
     result = {'steps': []}
     controller = smoke.Qualification(tmp_path, Mock(), smoke.runner.RunLedger(), Mock(), result,
-        'host', assets=tmp_path, serial=serial, install=install)
+        'host', assets=tmp_path, serial=serial, install=install,
+        credentials=Mock() if serial else None)
     controller.checkpoint = Mock()
     controller.fixture_selection = selection.record() if supplied else None
-    if supplied and not serial:
+    if supplied and (not serial or selection.target == 'ubuntu'):
         # The qualified branch reaches the real preparation boundary.
         lease.prepare.side_effect = RuntimeError('preparation-boundary')
         code = 'preparation-boundary'
     else:
         code = ('execution-selection-required' if not supplied else
-                'transfer-branch-not-qualified')
+                'serial-target-not-qualified')
     with pytest.raises((ValueError, RuntimeError, smoke.EvidenceError), match=code):
         controller.execute(lease, Mock())
     assert lease.prepare.call_count == int(code == 'preparation-boundary')
 
 
+@pytest.mark.parametrize('assets,refusal', [(False, False), (True, False), (True, True)])
+def test_serial_preboot_guards_and_deferred_assets_precede_ready_boundary(
+        monkeypatch, tmp_path, assets, refusal):
+    import check_graphical_smoke as smoke
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', Mock())
+    events = []
+    lease = lease_for('ubuntu')
+    lease.prepare = lambda: events.append('restore')
+    lease.guard = lambda **_: None
+    lease.save = lambda _: None
+    credentials = Mock()
+    credentials.provision.side_effect = lambda *_: events.append('credentials') or {}
+    monkeypatch.setattr(smoke.runner, 'bootstrap',
+        lambda *_, **kwargs: events.append(('bootstrap', kwargs)) or 'key')
+    verified = Mock(inputs={}, source_files={})
+    monkeypatch.setattr(smoke, 'VerifiedInputs', Mock(return_value=verified))
+    monkeypatch.setattr(smoke, 'provision_getty', lambda *_: events.append('getty'))
+    transfer = Mock()
+    transfer.provision.side_effect = lambda *_, **kwargs: events.append(('defer', kwargs)) or {}
+    monkeypatch.setattr(smoke, 'AssetTransfer', Mock(return_value=transfer))
+    boundary = Mock()
+    monkeypatch.setattr(smoke, 'InstallationBoundary', boundary)
+    def backend(*_, **options):
+        assert options['serial'] and options['credentials'] is credentials
+        assert options['fixture_selection'] == record
+        assert options['transfer'] is (transfer if assets else None)
+        events.append('ready-boundary')
+        return {}
+    monkeypatch.setattr(smoke, 'run_backend', backend)
+    controller = smoke.Qualification(tmp_path, Mock(), smoke.runner.RunLedger(), Mock(), {},
+        'host', assets=tmp_path if assets else None, credentials=credentials,
+        serial=True, install=assets and not refusal, install_refusal=refusal)
+    controller.checkpoint = Mock()
+    record = fixture_execution.Selection('ubuntu', 'a' * 64,
+        '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
+        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
+    controller.fixture_selection = record
+    controller.execute(lease, Mock())
+    assert events == ['restore', ('bootstrap', {'observation_only': True,
+        'environment_only': False, 'e2e_product_free': True}), 'credentials', 'getty',
+        *([('defer', {'fixture_selection': record})] if assets else []), 'ready-boundary']
+    smoke.VerifiedInputs.assert_called_once_with(lease=lease, assets=tmp_path if assets else None,
+        **({'package_only': True} if assets else {}))
+    if assets:
+        boundary.assert_called_once_with(None, verified, transfer, refusal=refusal)
+    else:
+        boundary.assert_not_called()
+
+
+@pytest.mark.parametrize('mode', ['transfer', 'serial', 'install', 'refusal'])
 @pytest.mark.parametrize('stale', [False, True])
 def test_smoke_transfer_provisions_after_ssh_and_checks_before_first_reply(
-        monkeypatch, tmp_path, stale):
+        monkeypatch, tmp_path, stale, mode):
     import json
     import check_graphical_smoke as smoke
     import smoke_fixture_preparation as transfer_preparation
@@ -116,9 +167,13 @@ def test_smoke_transfer_provisions_after_ssh_and_checks_before_first_reply(
     def observed(stage, _):
         assert not (tmp_path / 'ready.reply.json').exists()
         events.append('observe-' + stage)
+    installation = Mock(refusal=mode == 'refusal') if mode in ('install', 'refusal') else None
+    if installation is not None:
+        installation.transfer = assets
     control = smoke.Smoke(tmp_path, lease, Mock(), 'key',
         progress=lambda stage, data: events.append('progress-' + ('start' if data is None else 'done')),
-        transfer=assets, fixture_selection={'frozen': True}, fixture_observer=observed)
+        transfer=assets, fixture_selection={'frozen': True}, fixture_observer=observed,
+        serial=mode != 'transfer', authenticate=mode != 'transfer', installation=installation)
     if stale:
         with pytest.raises(ValueError, match='stale-readiness'):
             control.step()
@@ -590,12 +645,10 @@ def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch
                 with pytest.raises(CommandError, match='^fixtures:e2e-installed-branch-not-qualified$'):
                     exec(selection_guard, scope)
                 assert not hasattr(scope['qualification'], 'fixture_selection')
-            if cls is smoke.Qualification and any(kwargs.get(name, False) for name in
-                    ('serial', 'install', 'install_refusal')):
+            if cls is smoke.Qualification and kwargs.get('serial', False):
                 scope.update(qualification=SimpleNamespace(), fixture_selection={'private': True})
-                with pytest.raises(CommandError, match='^fixtures:e2e-installed-branch-not-qualified$'):
-                    exec(selection_guard, scope)
-                assert not hasattr(scope['qualification'], 'fixture_selection')
+                exec(selection_guard, scope)
+                assert scope['qualification'].fixture_selection == {'private': True}
             if path.stem in test_commands.INSTALLED_E2E_FIXTURE_SELECTORS:
                 assert issubclass(cls, KioskEntryQualification), (path.stem, cls.__name__)
             if issubclass(cls, KioskEntryQualification):

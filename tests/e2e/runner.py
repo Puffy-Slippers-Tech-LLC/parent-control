@@ -57,8 +57,11 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
             args.list or args.scenario is not None or args.id is not None or args.ready):
         raise ValueError('e2e:qualification-cannot-select-scenarios')
     fixture_selection = None
+    serial = args.qualify_install or args.qualify_install_refusal
+    if serial and configured is not None and configured.name != 'onpc-Ubuntu26.04':
+        raise ValueError('fixtures:serial-target-not-qualified')
     if args.fixture_selection is not None:
-        if (args.list or args.qualify_install or args.qualify_install_refusal
+        if (args.list
                 or configured is not None and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44')):
             raise ValueError('e2e:unexpected-fixture-selection')
         if len(args.fixture_selection) > 8192:
@@ -74,6 +77,10 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
                 and selected.target != targets.get(configured.name)):
             raise ValueError('e2e:fixture-target-not-qualified')
         fixture_selection = selected.record()
+        if serial and selected.target != 'ubuntu':
+            raise ValueError('fixtures:serial-target-not-qualified')
+    if serial and fixture_selection is None and not allow_missing_artifacts:
+        raise ValueError('fixtures:execution-selection-required')
     if args.qualify_transfer:
         if configured is not None and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
             raise ValueError('fixtures:transfer-target-not-qualified')
@@ -87,13 +94,15 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     if args.qualify_transfer or args.qualify_install or args.qualify_install_refusal:
         if args.list or args.scenario is not None or args.id is not None or args.ready:
             raise ValueError('e2e:qualification-cannot-select-scenarios')
-        validate_artifact_path(args.artifacts)
-        if not args.artifacts.is_dir():
-            raise ValueError('e2e:missing-artifact-directory')
+        if args.artifacts is not None or not allow_missing_artifacts:
+            validate_artifact_path(args.artifacts)
+            if not args.artifacts.is_dir():
+                raise ValueError('e2e:missing-artifact-directory')
         return {'mode': ('deliberate-installation-refusal-qualification'
                          if args.qualify_install_refusal else
                          'authenticated-installation-qualification' if args.qualify_install
-                         else 'asset-transfer-qualification'), 'artifacts': str(args.artifacts),
+                         else 'asset-transfer-qualification'),
+                **({'artifacts': str(args.artifacts)} if args.artifacts is not None else {}),
                 **({'fixture_selection': fixture_selection} if fixture_selection is not None else {})}
     if args.list and args.artifacts is not None:
         raise ValueError('e2e:listing-does-not-use-artifacts')
@@ -180,11 +189,13 @@ def main(argv=None):
                 import check_graphical_smoke
                 if plan['mode'] == 'authenticated-installation-qualification':
                     return check_graphical_smoke.main(assets=Path(plan['artifacts']),
-                                                     provision_credentials=True, serial=True, install=True)
+                                                     provision_credentials=True, serial=True, install=True,
+                                                     fixture_selection=plan['fixture_selection'])
                 if plan['mode'] == 'deliberate-installation-refusal-qualification':
                     return check_graphical_smoke.main(assets=Path(plan['artifacts']),
                                                      provision_credentials=True, serial=True,
-                                                     install_refusal=True)
+                                                     install_refusal=True,
+                                                     fixture_selection=plan['fixture_selection'])
                 return check_graphical_smoke.main(assets=Path(plan['artifacts']),
                     transfer_qualification=True, fixture_selection=plan['fixture_selection'])
             if plan['mode'] == 'execution-preflight':

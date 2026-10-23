@@ -400,10 +400,17 @@ class ReportEvidence:
             receipt = bundle.export(selected, expected=selected.selection_sha256)
             # Keep workflow publication serialized through custody transfer.
             # Leave startup required until every terminal acknowledgement succeeds.
-            for item in [*self._prepared[1:], self._prepared[0]]:
-                request = capture.inspect_capture(self.root, caller['uid'], caller['gid'], item['capture_id'])
-                capture.acknowledge_capture(self.root, caller['uid'], caller['gid'], item['capture_id'],
-                    expected=request['request_sha256'], session_handle=item['handle'])
+            startup = self._prepared[0]
+            startup_request = capture.inspect_capture(
+                self.root, caller['uid'], caller['gid'], startup['capture_id'])
+            with publication.delivery_scope(self.root, caller['uid'], caller['gid'],
+                                            startup_request) as verify_delivery:
+                for item in [*self._prepared[1:], startup]:
+                    request = (startup_request if item is startup else capture.inspect_capture(
+                        self.root, caller['uid'], caller['gid'], item['capture_id']))
+                    capture.acknowledge_capture(self.root, caller['uid'], caller['gid'], item['capture_id'],
+                        expected=request['request_sha256'], session_handle=item['handle'],
+                        _delivery_verifier=verify_delivery)
         records = [item['record'] for item in self._prepared]
         references = [dict(schema=1, workflow=self.workflow, record_id=record['record_id'],
                            member_id=member['member_id'], closure_sha256=record['closure_sha256'])

@@ -1361,13 +1361,21 @@ generating their hundreds of input seals, using module-local OS references.
 Their publication, interruption, acknowledgement and retirement boundaries keep
 real sync. Small file/directory sync-failure regressions preserve required-source
 and same-slot retry coverage without repeating those flushes for every input.
-Bulk evidence ZIP writes synchronize at most 256 KiB at a time and pace copying
+Bulk evidence ZIP writes synchronize at most 4 MiB at a time and pace copying
 at 4 MiB/s, including failed-run publication. Each batch has its own time budget;
 slow reads cannot accumulate credit for a later write burst. Every bulk flush
-also leaves recovery time of nine times its duration, even when a slow flush
-exhausts the throughput budget. The final sync has less
-than 256 KiB of queued archive writes. Small bundles keep their normal final sync;
-large publication takes longer to avoid a short full-disk write burst.
+also leaves recovery time equal to its duration, capped at one second, even when
+a slow flush exhausts the throughput budget. This bounds dirty archive writes
+while avoiding thousands of tiny syncs and multiplied disk-contention delays.
+Small bundles keep their normal final sync. Ordinary-plan completion publishes
+the durable closed turn together with accepted proof in one cumulative archive;
+continuations and rejected turns still publish before another session can replace
+their evidence. Final verification and interrupted-publication recovery remain
+required before acceptance or retirement.
+Runner terminal acknowledgements share one verified cumulative archive while
+its ownership locks and descriptors remain pinned. Each sealed record still
+checks its exact request, delivery and source provenance; later scopes verify
+the archive again.
 The detached coordinator also spaces capture and retention journal syncs by at
 least 100 ms, with an additional recovery interval of nine times a slow sync's
 duration. Every sync still executes and failures propagate. Pacing is local to

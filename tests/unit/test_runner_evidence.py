@@ -77,6 +77,42 @@ def exact_reference(result, member):
                 if reference['member_id'] == member['member_id'])
 
 
+def test_terminal_batch_verifies_one_pinned_archive_for_all_acknowledgements(environment, monkeypatch):
+    root, store = environment
+    delivery_scope = runner.publication.delivery_scope
+    verified_record = bundle.verified_record
+    scopes, verifications, active = [], [], []
+
+    @contextmanager
+    def scope(*args, **kwargs):
+        scopes.append(args)
+        active.append(True)
+        try:
+            with delivery_scope(*args, **kwargs) as verify:
+                yield verify
+        finally:
+            active.pop()
+
+    @contextmanager
+    def verified(*args, **kwargs):
+        if active:
+            verifications.append(args)
+        with verified_record(*args, **kwargs) as value:
+            yield value
+
+    monkeypatch.setattr(runner.publication, 'delivery_scope', scope)
+    monkeypatch.setattr(bundle, 'verified_record', verified)
+    with store.session():
+        report = runner.ReportEvidence(root, allocate())
+        for sequence in range(3):
+            report.command(command(sequence=sequence + 1))
+        result = finish(report)
+        assert len(result['capture_ids']) == 5  # Startup, three commands, aggregate.
+        assert len(scopes) == len(verifications) == 1
+        charges = json.loads((store.path / 'current.json').read_bytes())['captures']
+        assert all(charge.get('acknowledgement') for charge in charges)
+
+
 def test_concurrent_report_publication_waits_and_preserves_both_custody_transfers(
         environment, monkeypatch):
     root, store = environment

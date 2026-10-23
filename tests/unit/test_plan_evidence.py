@@ -213,8 +213,8 @@ def test_completion_publishes_once_and_local_turn_survives_restart(campaign, mon
         return original_export(*args)
 
     monkeypatch.setattr(proof, '_export', export)
-    turn = proof.retain_turn(campaign.plan, run, state, result)
-    assert proof.retain_turn(campaign.plan, run, state, result) == turn
+    turn = proof.retain_turn(campaign.plan, run, state, result, publish=False)
+    assert proof.retain_turn(campaign.plan, run, state, result, publish=False) == turn
     assert not exports and not proof.locator(campaign.plan).exists()
     commands = (turn / 'agent-commands.log').read_bytes()
     state.update(pending_completion=result, recovery_run=str(run))

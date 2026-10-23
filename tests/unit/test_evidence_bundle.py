@@ -442,8 +442,8 @@ def test_bulk_archive_writes_are_paced_and_sync_failure_preserves_prior_proof(
             if sync_failure:
                 raise OSError('injected archive batch sync failure')
             if len(sizes) == 1:
-                # A slow first flush needs recovery even though it has
-                # already exhausted the batch's throughput budget.
+                # Slow flushes retain a bounded recovery interval rather than
+                # multiplying disk contention into minutes of launcher delay.
                 clock[0] += 10
         real_sync(fd)
 
@@ -463,7 +463,7 @@ def test_bulk_archive_writes_are_paced_and_sync_failure_preserves_prior_proof(
         assert (evidence.exports.path / 'current.json').read_bytes() == before
         assert not (evidence.exports.path / bundle.retention.PUBLICATION).exists()
     else:
-        assert waits[0] == pytest.approx(90)
+        assert waits[0] == pytest.approx(1)
         assert len(waits) >= len(payload) // batch
         assert waits[1:] == pytest.approx([batch / rate] * (len(waits) - 1))
         assert evidence.inspect(result['path'], member=str(source / 'result.log'), count=len(payload)) == payload

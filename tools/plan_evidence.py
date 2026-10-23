@@ -120,15 +120,15 @@ def _turn(path, task_id, *, plan=None):
     return value, dict(contents, **{'turn.json': raw})
 
 
-def retain_turn(plan, run, state, result=None):
+def retain_turn(plan, run, state, result=None, *, publish=True):
     """Keep a closed response/error before the next session replaces its files.
 
     This records history, never acceptance. Malformed responses and provider
     failures retain their original bytes without manufacturing a valid result.
     The caller finishes nested owners before this handoff; failed cleanup must
-    not be converted into a closed turn by this routine. Completed tasks keep
-    their durable local turn for preserve(), which publishes it with acceptance
-    in one transaction instead of copying the cumulative archive twice.
+    not be converted into a closed turn by this routine. A controller proceeding
+    directly to preserve() may defer publication: the durable local turn is then
+    published with acceptance instead of copying the cumulative archive twice.
     """
     run = Path(run)
     contents = {}
@@ -161,7 +161,7 @@ def retain_turn(plan, run, state, result=None):
         if (saved['attempt'] == value['attempt'] and saved['session'] == value['session']
                 and {name: hashed for name, hashed in saved['files'].items() if name != 'checkpoint.json'}
                     == {name: hashed for name, hashed in value['files'].items() if name != 'checkpoint.json'}):
-            if result is None or result.get('status') != 'task_complete':
+            if publish:
                 _publish_turn(plan, run, state, result, Path(previous))
             return Path(previous)
     parent = run / 'plan-turns'
@@ -185,7 +185,7 @@ def retain_turn(plan, run, state, result=None):
         with bundle.retention.directory_descriptor(parent) as fd:
             os.fsync(fd)
     state.setdefault('evidence_turns', []).append(str(target))
-    if result is None or result.get('status') != 'task_complete':
+    if publish:
         _publish_turn(plan, run, state, result, target)
     return target
 

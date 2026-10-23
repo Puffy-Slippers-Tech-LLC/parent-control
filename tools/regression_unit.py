@@ -1,9 +1,12 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
 Archive pacing checks in evidence_bundle retain private files, real sync failure
-propagation and process-local clock doubles. Smaller batches and recovery after
-slow syncs reduce I/O demand; compatible unit scheduling remains appropriate,
-with no cleanup/UI resource owner or new shared state.
+propagation and process-local clock doubles. Coarser sync batches reduce flush
+count while retaining the write-rate cap. Deferred completion publication uses
+the existing tiny private journals and restart allocations; compatible unit
+scheduling remains appropriate, with no cleanup/UI owner or new shared state.
+Terminal-batch verification likewise uses the existing runner_evidence private
+journals and process-local reader counters, without a new resource owner.
 
 evidence_policy uses bounded in-memory declarations only. E10's plan/document
 integration checks use pytest-private documents, existing tiny owned journals,

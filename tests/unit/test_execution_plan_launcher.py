@@ -49,7 +49,7 @@ def synthetic_plan_evidence(monkeypatch, request):
     monkeypatch.setattr(workflow.plan_evidence, 'preserve', lambda *_: None)
     monkeypatch.setattr(workflow.plan_evidence, 'recover', lambda *_: None)
     monkeypatch.setattr(workflow.plan_evidence, 'rewrite_references', lambda *_: None)
-    monkeypatch.setattr(workflow.plan_evidence, 'retain_turn', lambda *_: None)
+    monkeypatch.setattr(workflow.plan_evidence, 'retain_turn', lambda *_, **__: None)
 
 
 @pytest.fixture(params=[
@@ -2591,7 +2591,9 @@ def test_real_consumer_resolves_two_expired_reports_through_authenticated_helper
         assert target.path not in inspected and live not in opened and active not in opened
         assert all(not path.exists() for path in originals)
     assert calls == ['001', '002']
-    assert [command[0] for command in commands] == ['bundle-plan', 'bundle-export'] * 2
+    # Completion carries the closed turn in its accepted publication, so the
+    # authenticated helper plans and exports the cumulative evidence only once.
+    assert [command[0] for command in commands] == ['bundle-plan', 'bundle-export']
     assert commands[0][commands[0].index('--bundle') + 1] == first['bundle']
     for command in commands:
         assert '--bundle' in command

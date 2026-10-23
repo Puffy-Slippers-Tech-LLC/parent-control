@@ -1015,7 +1015,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             # run. Freeze its closed proof before another turn replaces the
             # result, prompt and nested-owner inventory.
             launcher.finish_nested(root, run)
-            plan_evidence.retain_turn(plan, run, state, result)
+            plan_evidence.retain_turn(plan, run, state, result,
+                                      publish=result['status'] != 'task_complete')
             state.pop('result_recovery', None)
             state.pop('capacity_recovery', None)
             state.update(summary=result['summary'], handoff=result['handoff'], in_flight=False)

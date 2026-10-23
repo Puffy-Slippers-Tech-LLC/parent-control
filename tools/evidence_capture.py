@@ -1272,7 +1272,7 @@ def _original_scope(store, entry, charge, *, missing=False, recording_owner=None
 
 
 def acknowledge_capture(checkout, uid, gid, capture_id, *, expected, session_handle=None,
-                        _recording_owner=None):
+                        _recording_owner=None, _delivery_verifier=None):
     """Record custody only under the exact live or finished source owner.
 
     Destination ownership is acquired before the source writer. The public helper
@@ -1299,8 +1299,12 @@ def acknowledge_capture(checkout, uid, gid, capture_id, *, expected, session_han
             with store.locked(fd, 'writer.lock'):
                 retention.finished_owner(fd, store.read(fd))
         delivery = publication.read_delivery(checkout, uid, gid, capture_id)
-        verified = stack.enter_context(publication.verified_delivery(
-            checkout, uid, gid, capture_id, request, delivery))
+        # A live producer may share one pinned delivery_scope across its finite
+        # terminal batch. Every request still passes the scope's exact checks.
+        verified = (_delivery_verifier(capture_id, request, delivery)
+                    if _delivery_verifier is not None else
+                    stack.enter_context(publication.verified_delivery(
+                        checkout, uid, gid, capture_id, request, delivery)))
         # Inspect the immutable private charge to acquire the case lease before
         # the source writer; never upgrade ownership while holding that writer.
         with store.locked(fd, 'writer.lock', shared=True):

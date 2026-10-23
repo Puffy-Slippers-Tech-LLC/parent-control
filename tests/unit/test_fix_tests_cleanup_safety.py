@@ -129,7 +129,7 @@ def test_changed_dependency_bytes_reload_before_validation_retry_or_answer_conti
     assert 'Reloading automatically in the same run' in output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['kind'] for call in calls] == (
-        ['test', 'agent', 'test'] if result == 'test_fixed' else ['test', 'agent', 'agent', 'test'])
+        ['test', 'agent', 'test', 'test'] if result == 'test_fixed' else ['test', 'agent', 'agent', 'test', 'test'])
     state = json.loads((run / 'checkpoint.json').read_text())
     assert list(state['session_counts'].values()) == [1 if result == 'test_fixed' else 2]
     assert 'controller_restart' in state
@@ -174,7 +174,7 @@ def test_reload_preserves_diagnostic_execution_and_interpretation(controller_che
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0, output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert [call['kind'] for call in calls] == ['test', 'agent', 'test', 'agent', 'test']
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'test', 'agent', 'test', 'test']
     assert 'Interpret these observations' in calls[3]['prompt']
     assert all('-k' in call['args'] and 'selected' in call['args'] for call in calls if call['kind'] == 'test')
     usage = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
@@ -194,7 +194,7 @@ def test_reload_retains_completed_runner_output_and_rounds(controller_checkout, 
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0, output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert len([call for call in calls if call['kind'] == 'test']) == 2
+    assert len([call for call in calls if call['kind'] == 'test']) == (3 if rounds == 1 else 2)
     assert all('selected' in call['args'] for call in calls if call['kind'] == 'test')
     limits = json.loads((run / 'limits.json').read_text())
     assert limits['started'] == limits['completed'] == rounds
@@ -279,7 +279,7 @@ def test_failed_agent_stops_once_and_explicit_fresh_run_can_retry(checkout):
     output = io.StringIO()
     assert fix_tests.follow(resumed, output) == 0, output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert [call['kind'] for call in calls] == ['test', 'agent', 'test', 'agent', 'test']
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'test', 'agent', 'test', 'test']
     usage = [json.loads(line) for line in (resumed / 'agent-usage.jsonl').read_text().splitlines()]
     assert [row['repair_session'] for row in usage if row['event'] == 'turn'] == [1]
     assert json.loads((resumed / 'checkpoint.json').read_text())['repairs'] == {}
@@ -385,7 +385,31 @@ def test_verified_case_is_pushed_before_repairing_the_next_failure(checkout):
     assert (root / 'owned.py').read_text() == 'unrelated staged work\n'
 
 
-def test_failed_push_resumes_before_tests_without_duplicate_commit(checkout):
+def test_case_closeout_finishes_before_remaining_tests_start(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=['A', None, None], structured=True,
+        record_git=True, wait_test=2)))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    wait_for(root / 'test-ready')
+    try:
+        calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+        tests = [call for call in calls if call['kind'] == 'test']
+        assert '--resume-case=A' in tests[1]['args']
+        assert '--resume-case-only' in tests[1]['args']
+        assert not any(arg.startswith('--resume-case=') for arg in tests[2]['args'])
+        assert tests[2]['pushed_subject'] == 'TA: Fixed unit A'
+        state = json.loads((run / 'checkpoint.json').read_text())
+        assert state['repairs'] == {}
+        assert not (run / 'result.json').exists()
+    finally:
+        (root / 'release').touch()
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0, output.getvalue()
+
+
+def test_failed_push_resumes_before_remaining_tests_without_duplicate_commit(checkout):
     root, _ = checkout
     hook = root / 'remote.git/hooks/pre-receive'
     hook.write_text('#!/bin/sh\nexit 1\n')
@@ -405,7 +429,11 @@ def test_failed_push_resumes_before_tests_without_duplicate_commit(checkout):
     resumed, started = fix_tests.select(root, categories=('unit',), resume=True)
     output = io.StringIO()
     assert started and fix_tests.follow(resumed, output) == 0, output.getvalue()
-    assert (root / 'calls').read_text() == before
+    after = (root / 'calls').read_text()
+    assert after.startswith(before)
+    remaining, = [json.loads(line) for line in after[len(before):].splitlines()]
+    assert remaining['kind'] == 'test' and '--resume' in remaining['args']
+    assert not any(arg.startswith('--resume-case=') for arg in remaining['args'])
     assert subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root, capture_output=True,
                           text=True, check=True, timeout=10).stdout == head
     assert subprocess.run(['git', 'rev-parse', '@{upstream}'], cwd=root, capture_output=True,
@@ -413,7 +441,7 @@ def test_failed_push_resumes_before_tests_without_duplicate_commit(checkout):
     assert json.loads((resumed / 'checkpoint.json').read_text())['repairs'] == {}
 
 
-def test_structured_verified_push_retry_carries_original_proof_without_another_attempt(checkout):
+def test_structured_verified_push_retry_carries_original_proof_before_remaining_tests(checkout):
     import repair_evidence
 
     root, _ = checkout
@@ -437,9 +465,13 @@ def test_structured_verified_push_retry_carries_original_proof_without_another_a
     resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
     output = io.StringIO()
     assert fix_tests.follow(resumed, output) == 0, output.getvalue()
-    assert (root / 'calls').read_bytes() == before
+    after = (root / 'calls').read_bytes()
+    assert after.startswith(before)
+    remaining, = [json.loads(line) for line in after[len(before):].splitlines()]
+    assert remaining['kind'] == 'test' and '--resume' in remaining['args']
+    assert not any(arg.startswith('--resume-case=') for arg in remaining['args'])
     carried = json.loads((resumed / 'checkpoint.json').read_text())
-    assert carried['repairs'] == {} and len(carried['runner_attempts']) == 2
+    assert carried['repairs'] == {} and len(carried['runner_attempts']) == 3
     assert Path(carried['turns'][0]['path']).parent == resumed
     assert carried['turns'][0]['sha256'] == state['turns'][0]['sha256']
     for attempt in carried['runner_attempts']:
@@ -560,7 +592,10 @@ def test_diagnostic_overlap_verifies_once_and_resumes_failed_push(checkout):
     resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
     output = io.StringIO()
     assert fix_tests.follow(resumed, output) == 0, output.getvalue()
-    assert (root / 'calls').read_bytes() == calls
+    after = (root / 'calls').read_bytes()
+    assert after.startswith(calls)
+    remaining, = [json.loads(line) for line in after[len(calls):].splitlines()]
+    assert remaining['kind'] == 'test' and remaining['pushed_subject'] == 'TA: Fixed unit C'
     assert subprocess.run(['git', 'show', '@{upstream}:owned.py'], cwd=root,
                           capture_output=True, text=True, check=True, timeout=10).stdout == 'fixture repair 3\n'
     assert subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
@@ -677,7 +712,7 @@ def test_unreported_repair_edits_require_a_corrected_handoff_before_verification
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0, output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert [call['kind'] for call in calls] == ['test', 'agent', 'agent', 'test']
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'agent', 'test', 'test']
     assert 'repair omitted changed files from stage_paths' in calls[2]['prompt']
 
 
@@ -800,7 +835,7 @@ def test_resume_interrupted_clean_verification_repeats_the_whole_pass(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-script')
     (root / 'script.json').write_text(json.dumps(dict(
-        agents=['test_fixed'], tests=[None, None, None, 'ui-case', None, None], wait_test=5)))
+        agents=['test_fixed'], tests=[None, None, None, 'ui-case', None, None, None], wait_test=6)))
     run, _ = fix_tests.select(root, categories=('unit', 'ui'), rounds=2)
     wait_for(root / 'test-ready')
     assert fix_tests.select(root, categories=('unit', 'ui'), stop=True) == (run, False)
@@ -815,7 +850,7 @@ def test_resume_interrupted_clean_verification_repeats_the_whole_pass(checkout):
     assert started and fix_tests.follow(resumed, io.StringIO()) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     tests = [call for call in calls if call['kind'] == 'test']
-    assert [call['category'] for call in tests] == ['unit', 'ui', 'unit', 'ui', 'ui', 'unit', 'unit', 'ui']
+    assert [call['category'] for call in tests] == ['unit', 'ui', 'unit', 'ui', 'ui', 'ui', 'unit', 'unit', 'ui']
     assert '--resume' in tests[-2]['args'] and '--resume' not in tests[-1]['args']
 
 
@@ -835,7 +870,7 @@ def test_repair_replays_original_selection_after_another_run_replaces_checkpoint
     tests = [call for call in calls if call['kind'] == 'test']
     original = ['--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()]
     assert [call['args'] for call in tests] == [
-        original, ['--resume', *original[:-2], '--resume-case=failed-case', *original[-2:]], original]
+        original, ['--resume', *original[:-2], '--resume-case=failed-case', '--resume-case-only', *original[-2:]], original]
     assert len([call for call in calls if call['kind'] == 'agent']) == 1
     assert 'replaying the requested category from the start with its original selectors' in output.getvalue()
     from test_checkpoint import Checkpoint
@@ -1021,7 +1056,7 @@ def test_rejected_handoff_is_corrected_before_verification_without_promotion(che
     run, _ = fix_tests.select(root, categories=('unit',))
     assert fix_tests.follow(run, io.StringIO()) == 0
     invocations = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert [call['kind'] for call in invocations] == ['test', 'agent', 'agent', 'test']
+    assert [call['kind'] for call in invocations] == ['test', 'agent', 'agent', 'test', 'test']
     agents = [call for call in invocations if call['kind'] == 'agent']
     assert 'controller rejected' in agents[1]['prompt']
     assert 'fixture result 1' in agents[1]['prompt']
@@ -1318,7 +1353,7 @@ def test_repair_budget_is_per_case_and_stalled_diagnosis_stops_early(checkout, s
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == len(statuses)
-    assert len(calls) == len(statuses) + len(tests)
+    assert len(calls) == len(statuses) + len(tests) + int(expected == 0)
     usage = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
     turns = [row for row in usage if row['event'] == 'turn']
     assert all(row['repair_session'] <= 5 for row in turns)
@@ -1448,7 +1483,7 @@ def test_mixed_and_aggregate_runs_choose_ladder_per_failure_category(checkout, c
     (root / 'mode').write_text('agent-script')
     (root / 'script.json').write_text(json.dumps({
         'agents': ['uncertain', 'fixed', 'uncertain', 'fixed'],
-        'tests': ['same-case', None, 'same-case', None, None, None]}))
+        'tests': ['same-case', None, None, 'same-case', None, None, None, None]}))
     run, _ = fix_tests.select(root, categories=categories)
     assert fix_tests.follow(run, io.StringIO()) == 0
     rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
@@ -1496,8 +1531,10 @@ def test_diagnostic_experiment_retains_evidence_and_selectors_without_repair_cla
     assert [call['args'] for call in tests] == [
         ['--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()],
         *[[*(['--resume'] if case else []), '--stop-on-error', 'unit', '-k', 'selected', '-q',
-           *(['--resume-case=' + case] if case else []), '--vm', vm_name()]
-          for case in retries]]
+           *(['--resume-case=' + case] if case else []),
+           *(['--resume-case-only'] if index == len(retries) - 1 else []), '--vm', vm_name()]
+          for index, case in enumerate(retries)],
+        ['--resume', '--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()]]
     rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
     diagnostics = [row for row in rows if row['event'] == 'diagnostic_execution']
     assert diagnostics and all(row['failure']['case'] == 'A' for row in diagnostics)

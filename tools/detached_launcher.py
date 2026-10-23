@@ -117,7 +117,8 @@ def environment():
     result = dict(os.environ)
     for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
                  'ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', 'ONPC_REGRESSION_EVENTS',
-                 'ONPC_REGRESSION_INVENTORY', FRAME_DIRECTORY, WORKFLOW_DIRECTORY):
+                 'ONPC_REGRESSION_INVENTORY', 'ONPC_TEST_RETRY_CASE', 'ONPC_TEST_COMPLETED_CASES',
+                 FRAME_DIRECTORY, WORKFLOW_DIRECTORY):
         result.pop(name, None)
     result['PYTHONUNBUFFERED'] = '1'
     return result

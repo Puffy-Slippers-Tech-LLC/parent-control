@@ -175,7 +175,7 @@ def _select(root, argv):
                 with nested_operation(root, run):
                     from test_checkpoint import request_record
                     request_record(root, 'run-tests', {'argv': [arg for arg in requested
-                                   if not arg.startswith('--resume-case=')]})
+                                   if arg != '--resume-case-only' and not arg.startswith('--resume-case=')]})
                     subprocess.Popen(command, cwd=root, env=environment,
                                      stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
                                      start_new_session=True,
@@ -287,7 +287,10 @@ def owned_worker(root, argv, run, owner):
                 if replay:
                     if len(categories) != 1:
                         raise ValueError('case retry requires one category')
-                    checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
+                    if '--resume-case-only' in argv:
+                        checkpoint.retry(categories[0], replay[0])
+                    else:
+                        checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
                 before_run(root, argv, categories=categories)
             from vm_recording import recording
             with recording(root, enabled=not host_only_selection([(kind, []) for kind in categories])) as media:

@@ -66,6 +66,13 @@ def emit(kind, **fields):
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
+    retry = os.environ.get('ONPC_TEST_RETRY_CASE')
+    if retry is not None:
+        completed_cases(json.dumps([retry]))
+        omitted = [item for item in items if item.nodeid != retry]
+        items[:] = [item for item in items if item.nodeid == retry]
+        if omitted:
+            config.hook.pytest_deselected(items=omitted)
     value = os.environ.get('ONPC_TEST_COMPLETED_CASES')
     if value is None:
         return

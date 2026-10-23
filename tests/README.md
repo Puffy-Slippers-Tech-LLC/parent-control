@@ -360,17 +360,21 @@ or with `--vm NAME` for one registered VM, to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
 arguments, until each passes. After a failure, a fresh Codex process receives
 that run's generated investigation prompt, applies a repair, exits, and the
-script reruns that category with `run-tests --resume`, retrying the repaired case
-and remaining cases without repeating its completed passes. Failures without a
+script uses `run-tests --resume --resume-case=CASE --resume-case-only` to retry that exact case
+under its original selectors and on its failing VM, retaining required lifecycle
+prerequisites. A passing retry leaves the category incomplete. The launcher
+closes out the verified repair before resuming the remaining cases with
+`run-tests --resume`, without repeating completed passes. Failures without a
 case ID replay the original category selection without saved passes, including
 diagnostic execution and its subsequent repair verification. Each newly entered
 category and each fresh verification pass starts without `--resume`.
 After confirming that the specific repaired case passed, the launcher stages
 the repair's explicit owned files, commits them as `TA: Fixed CATEGORY CASE`
-(with the VM name when applicable), and runs `git push` before another repair
-session or category. It also completes
+(with the VM name when applicable), and runs `git push` before any remaining
+case, another repair session or category. It also completes
 [shared worktree propagation](../docs/Execution-Plans.md#shared-worktree-propagation)
 before advancing. This uses the current branch's configured upstream.
+This per-case close-out applies to every category, whether host or VM.
 Case verification requires the runner's teardown-complete pass for that exact
 case and VM under the original selectors; a different failure alone does not
 prove a pass. Non-case failures require a successful replay of their category.

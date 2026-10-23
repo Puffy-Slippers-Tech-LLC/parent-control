@@ -19,6 +19,7 @@ else:
     from test_storage import directory
 
 EXCLUDE = 'ONPC_TEST_COMPLETED_CASES'
+ONLY = 'ONPC_TEST_RETRY_CASE'
 SAVE_INTERVAL = 5
 RESUME_SELECTION_MISMATCH = 'resume selection differs from checkpoint; start without --resume to reset it'
 
@@ -71,6 +72,7 @@ class Checkpoint:
         from test_commands import CATEGORIES, suite_inventory, AGGREGATES
         from vm_selection import VARIABLE, BATCH
         groups = {}
+        self.retry_case = None
         for kind, args in selections:
             if kind in AGGREGATES:
                 expanded = [(name, entry['args']) for name, entry in suite_inventory([kind]).items()]
@@ -162,6 +164,13 @@ class Checkpoint:
     def entry(self, kind):
         return self.state['categories'].get(kind) if kind in self.selected else None
 
+    def retry(self, kind, case):
+        completed_cases(json.dumps([case]))
+        if self.selected != {kind}:
+            raise ValueError('case retry requires one category')
+        self.retry_case = case
+        self.event(kind, dict(kind='failure', nodeid=case), set())
+
     def passed(self, kind):
         entry = self.entry(kind)
         return set(entry['passed']) if entry else set()
@@ -236,6 +245,6 @@ class Checkpoint:
     def finish(self, categories):
         for kind in self.selected:
             items = [item for item in categories if item.retry_category == kind and item.count_overall]
-            if items and all(item.state == 'Passed' for item in items):
+            if not self.retry_case and items and all(item.state == 'Passed' for item in items):
                 self.entry(kind)['complete'] = True
         self.save()

@@ -449,7 +449,7 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
             # A non-case failure has no identity to invalidate in the saved
             # checkpoint. Replay its original category selection so diagnostics
             # and repairs cannot be certified by already completed passes.
-            failure = (resume_test(category, retry_case=target[1], fresh=not target[1])
+            failure = (resume_test(category, retry_case=target[1], retry_vm=target[2], fresh=not target[1])
                        if resume_test else test(category))
             passed = outcome(failure, target)
             if isinstance(previous, dict):
@@ -544,13 +544,15 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         vm_args = execution_arguments() if selected(required=False) is not None else []
         declaration = json.loads(test_args)
         options = declaration['args'] if isinstance(declaration, dict) else declaration
+        if isinstance(declaration, dict) and declaration.get('vm'):
+            vm_args = ['--vm', declaration['vm']]
         resume = '--resume' in options
         command = [str(root / 'tools/run-tests'), *(['--resume'] if resume else []),
                    '--stop-on-error', category, *[arg for arg in options if arg != '--resume'], *vm_args]
         os.environ['ONPC_RUNNER_INVOCATION'] = json.dumps(declaration['invocation']
             if isinstance(declaration, dict) else dict(
             repair_run=str(run), attempt=uuid.uuid4().hex,
-            selection=[[category, [arg for arg in options if arg != '--resume'
+            selection=[[category, [arg for arg in options if arg not in ('--resume', '--resume-case-only')
                                    and not arg.startswith('--resume-case=')]]]))
     elif kind == 'recovery':
         from vm_selection import execution_arguments, execution_binding
@@ -720,22 +722,22 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if (run / 'cancel').exists():
             raise Stopped()
 
-    def execute(kind, category='', options=(), *, agent_model=None, agent_effort=None):
+    def execute(kind, category='', options=(), *, agent_model=None, agent_effort=None, vm=None):
         nonlocal runner_handoffs, latest_attempt, test_replay
         check_stop()
         check_controller()
         if test_replay is not None:
             replay, test_replay = test_replay, None
             def selectors(values):
-                return [arg for arg in values if arg != '--resume' and not arg.startswith('--resume-case=')]
+                return [arg for arg in values if arg not in ('--resume', '--resume-case-only') and not arg.startswith('--resume-case=')]
             if (kind != replay['kind'] or category != replay['category']
-                    or selectors(options) != selectors(replay['options'])):
+                    or selectors(options) != selectors(replay['options']) or vm != replay.get('vm')):
                 raise ValueError('retained controller operation differs from the original selection')
             return replay['status']
         invocation = dict(repair_run=str(run), attempt=uuid.uuid4().hex,
-                          selection=[[category, [arg for arg in options if arg != '--resume'
+                          selection=[[category, [arg for arg in options if arg not in ('--resume', '--resume-case-only')
                                                  and not arg.startswith('--resume-case=')]]]) if kind == 'test' else None
-        arguments = dict(args=options, invocation=invocation) if kind == 'test' else options
+        arguments = dict(args=options, invocation=invocation, vm=vm) if kind == 'test' else options
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--supervise', str(root), str(run), str(owner), kind, category,
                    agent_model or model, agent_effort or effort or DEFAULT_EFFORT,
@@ -766,12 +768,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             compact_log(run / 'last-test.log')
         check_stop()
         if kind != 'agent':
-            test_replay = dict(kind=kind, category=category, options=list(options), status=status)
+            test_replay = dict(kind=kind, category=category, options=list(options), status=status, vm=vm)
             check_controller()
             test_replay = None
         return status
 
-    def test(category, *, resume=False, retry_case='', fresh=False):
+    def test(category, *, resume=False, retry_case='', retry_vm='', fresh=False):
         nonlocal pending, verifying_fix
         # A stopped source guard owns an unvalidated response, not permission
         # to skip its repair handoff because a later test happens to pass.
@@ -781,6 +783,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 return response['failure']
         checking_fix = verifying_fix
         verifying_fix = False
+        # Close each validated repair before executing the remaining selection.
+        # Retained status also restores this boundary after controller restart.
+        repaired = next((entry for entry in commits.state['repairs'].values()
+                         if entry['failure'] == [category, retry_case, retry_vm]
+                         and entry.get('status') in ('fixed', 'test_fixed')), None) if retry_case else None
+        focused = repaired is not None
+        verification_vm = (retry_vm or None) if focused else None
+        checking_fix = checking_fix or focused
         resume = not fresh and (resume or (resuming and (category == pending or
                             (category == 'all' and pending is not None and round_number > 1))))
         pending = category
@@ -790,9 +800,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                     checkpoint.entry(kind)['complete'] = False
             checkpoint.state['pending'] = category
             checkpoint.save()
-        def run_requested(requested, options, description):
+        def run_requested(requested, options, description, *, vm=None):
             while True:
-                status = execute('test', requested, options)
+                status = execute('test', requested, options, vm=vm)
                 # run-tests consumes an active/unread predecessor before honoring
                 # new arguments. Its result must never count as our requested run.
                 with (run / 'last-test.log').open('rb') as stream:
@@ -820,14 +830,24 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             status_line = category_status(category, categories)
             print(f'\nfix-tests: running {category}', flush=True)
             options = [*inventory.get(category, {}).get('args', []), *(['--resume'] if resume else []),
-                       *(['--resume-case=' + retry_case] if resume and retry_case else [])]
+                       *(['--resume-case=' + retry_case] if resume and retry_case else []),
+                       *(['--resume-case-only'] if resume and focused else [])]
             status = run_requested(category, options,
-                                   'the requested category')
+                                   'the repaired case' if focused else 'the requested category', vm=verification_vm)
             previous = repair_progress(run, read_progress(run))
             publish_progress(run, previous[-1]['key'], previous[-1]['lines'])
             if status == 0:
                 if checking_fix:
                     panel({'status': 'Testing fix, previous error point passed'})
+                if focused and resume:
+                    close_verified(category=category)
+                    if commits.key(tuple(repaired['failure'])) in commits.state['repairs']:
+                        raise ValueError('repair case has no confirmed pass; remaining cases were not started')
+                    focused, verification_vm, checking_fix = False, None, False
+                    retry_case = ''
+                    resume = True
+                    print('fix-tests: repair close-out complete; resuming remaining cases.', flush=True)
+                    continue
                 if checkpoint is not None:
                     for kind in categories if category == 'all' else (category,):
                         if checkpoint.entry(kind) is not None:
@@ -870,6 +890,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if status_line is not None:
                 print(status_line, flush=True)
             failure = handoff(run, root=root, runner_handoffs=runner_handoffs)
+            close_verified(category=category)
             failed(category)
             return failure
 

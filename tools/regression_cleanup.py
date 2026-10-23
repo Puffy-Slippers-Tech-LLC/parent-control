@@ -80,6 +80,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # guest, display, socket or new cleanup owner; compatible in unit and cleanup.
 # Repair Git close-out uses tiny pytest-private checkouts/bare remotes and finite
 # waited local Git children, including diagnostic overlap/restart checks.
+# Per-case close-out pauses that same bounded runner double and reads only its
+# private bare remote/checkpoint; resource ownership and teardown are unchanged.
 # It adds no external network, shared Git state, VM,
 # bus/display or asynchronous owner; compatible unit/cleanup scheduling holds.
 # Repair resume checks reuse fix_tests_cleanup_safety's private checkpoint trees

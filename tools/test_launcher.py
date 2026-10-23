@@ -2,6 +2,7 @@
 """Validated command construction shared by the checkout test launchers."""
 
 import argparse
+import json
 import os
 from pathlib import Path
 import pwd
@@ -134,10 +135,13 @@ def environment(root, *, scratch=True):
                'XDG_RUNTIME_DIR', 'XDG_SESSION_TYPE', 'XDG_CURRENT_DESKTOP',
                'PYTEST_DISABLE_PLUGIN_AUTOLOAD')
     result = {key: os.environ[key] for key in allowed if key in os.environ}
-    from test_checkpoint import EXCLUDE, completed_cases
+    from test_checkpoint import EXCLUDE, ONLY, completed_cases
     if EXCLUDE in os.environ:
         completed_cases(os.environ[EXCLUDE])
         result[EXCLUDE] = os.environ[EXCLUDE]
+    if ONLY in os.environ:
+        completed_cases(json.dumps([os.environ[ONLY]]))
+        result[ONLY] = os.environ[ONLY]
     result.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', PYTHONDONTWRITEBYTECODE='1',
                   PYTHONNOUSERSITE='1',
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')

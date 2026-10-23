@@ -94,7 +94,7 @@ def main():
                           for name in ('unit', 'ui', 'system', 'e2e')}))
         return 0
     mode = (root / 'mode').read_text()
-    test_args = [arg for arg in args if arg != '--resume' and not arg.startswith('--resume-case=')]
+    test_args = [arg for arg in args if arg not in ('--resume', '--resume-case-only') and not arg.startswith('--resume-case=')]
     category = test_args[1] if kind == 'test' else kind
     record = {'kind': kind, 'category': category, 'pid': os.getpid(), 'args': args}
     record['frame_directory'] = os.environ.get('ONPC_TEST_FRAME_DIRECTORY')
@@ -159,7 +159,9 @@ def main():
                 deadline = time.monotonic() + 15
                 while not (root / 'release').exists() and time.monotonic() < deadline:
                     time.sleep(.02)
-            case = script['tests'][index]
+            # A focused retry and the remaining category can both reach the
+            # script's declared terminal outcome; never invent a passing result.
+            case = script['tests'][min(index, len(script['tests']) - 1)]
             # Model runner-owned completion evidence, including the exact case
             # after teardown. Different failures remain unknown unless listed.
             passed = script.get('passed', {}).get(str(index), [])

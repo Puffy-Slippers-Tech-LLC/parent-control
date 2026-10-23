@@ -1245,6 +1245,25 @@ def test_stop_on_error_reaches_the_selected_coordinator(monkeypatch):
         test_commands.validate(ROOT, ['--stop-on-error', 'all', '--continue-on-errors'])
 
 
+def test_case_verification_runs_only_on_its_failing_vm(tmp_path, monkeypatch):
+    import vm_selection
+
+    monkeypatch.setenv('ONPC_RUNNER_INVOCATION', '{}')
+    monkeypatch.setattr(vm_selection, 'selected', lambda **_: object())
+    monkeypatch.setattr(vm_selection, 'execution_arguments', lambda: ['--vm', 'first,second'])
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(detached_launcher, 'supervise', execute)
+    invocation = dict(selection=[['e2e', ['--id=6']]])
+    declaration = dict(args=['--id=6', '--resume', '--resume-case=case'],
+                       invocation=invocation, vm='second')
+    assert fix_tests.supervise(ROOT, tmp_path, 123, 'test', 'e2e', 'gpt-6.1-sol', 'medium',
+                               json.dumps(declaration)) == 0
+    command = execute.call_args.args[4]
+    assert command == [str(ROOT / 'tools/run-tests'), '--resume', '--stop-on-error',
+                       'e2e', '--id=6', '--resume-case=case', '--vm', 'second']
+    assert json.loads(os.environ['ONPC_RUNNER_INVOCATION']) == invocation
+
+
 @pytest.mark.parametrize('enabled', [False, True])
 def test_selected_fail_fast_persists_failure_before_cancelling(tmp_path, monkeypatch, enabled):
     monkeypatch.setattr(regression, 'source_identity', lambda _: 'fixed')

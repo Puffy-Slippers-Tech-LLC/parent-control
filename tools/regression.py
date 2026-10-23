@@ -884,8 +884,10 @@ class Run:
         kind = ('ui' if Path(command[0]).name == 'run-ui-tests' else
                 command[1] if Path(command[0]).name == 'run-tests' and len(command) > 1 else None)
         if self.checkpoint is not None and kind in ('unit', 'component', 'ui', 'fixture-runtime', 'coverage'):
-            from test_checkpoint import EXCLUDE
+            from test_checkpoint import EXCLUDE, ONLY
             environment[EXCLUDE] = self.checkpoint.environment(kind)
+            if self.checkpoint.retry_case:
+                environment[ONLY] = self.checkpoint.retry_case
         return environment
 
     def system_resume_cases(self, options):
@@ -943,13 +945,22 @@ class Run:
     def resume_command(self, item, command):
         kind = item.retry_category
         passed = self.checkpoint.passed(kind) if self.checkpoint is not None else set()
-        if not passed or kind not in ('system', 'e2e'):
+        retry = self.checkpoint.retry_case if self.checkpoint is not None else None
+        if (not passed and not retry) or kind not in ('system', 'e2e'):
             return command
         if kind == 'system':
             groups = self.checkpoint.entry(kind)['args']
             selected = passed
-            if groups and isinstance(groups[0], list):
+            if retry or groups and isinstance(groups[0], list):
                 selected, passed = Run.system_resume_cases(self, command[2:])
+            if retry:
+                if retry not in selected:
+                    raise ValueError('case retry is outside the selected system inventory')
+                if passed - selected:
+                    raise ValueError('selection:resume-inventory-changed')
+                # The installed runner preserves any required lifecycle history.
+                # These omissions are selection, never saved passing results.
+                return [*command, '--completed-cases=' + json.dumps(sorted(selected - {retry}))]
             item.resumed_nodeids = tuple(sorted(passed & selected))
             if not passed:
                 return command
@@ -958,7 +969,10 @@ class Run:
         options = [arg for arg in command[2:] if arg != '--unattended']
         runner = runpy.run_path(str(self.root / 'tests/e2e/runner.py'))
         plan = runner['preflight'](options, root=self.root, allow_missing_artifacts=True)
-        remaining = [case for case in plan['cases'] if case['case_id'] not in passed]
+        remaining = [case for case in plan['cases'] if
+                     (case['case_id'] == retry if retry else case['case_id'] not in passed)]
+        if retry and not remaining:
+            raise ValueError('case retry is outside the selected E2E inventory')
         # If only suite finalization failed, rerun its final case to exercise
         # the controller and its cleanup rather than claiming an empty pass.
         remaining = remaining or plan['cases'][-1:]
@@ -977,7 +991,7 @@ class Run:
         item.nodeids = tuple(case['case_id'] for case in remaining)
         item.total = len(remaining)
         item.resumed_nodeids = tuple(case['case_id'] for case in plan['cases']
-                                    if case not in remaining)
+                                    if case not in remaining and case['case_id'] in passed)
         return [*command[:2], '--unattended', *filtered]
 
     def execute(self, item, command, *, collect=False, events=False, units=None):

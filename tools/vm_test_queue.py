@@ -105,6 +105,7 @@ def split(root, argv):
     guests = [(kind, options) for kind, options in selected if kind in ('system', 'e2e', 'integration')]
     def flatten(groups):
         result = [*(['--resume'] if '--resume' in argv else []),
+                  *(['--resume-case-only'] if '--resume-case-only' in argv else []),
                   *[arg for arg in argv if arg.startswith('--resume-case=')],
                   *(['--stop-on-error'] if stop else []),
                   *(value for kind, options in groups for value in (kind, *options))]
@@ -291,7 +292,10 @@ def worker(argv):
             groups = selections(root, args)
             if len(groups) != 1:
                 raise ValueError('case retry requires one category')
-            checkpoint.event(groups[0][0], dict(kind='failure', nodeid=replay[0]), set())
+            if '--resume-case-only' in args:
+                checkpoint.retry(groups[0][0], replay[0])
+            else:
+                checkpoint.event(groups[0][0], dict(kind='failure', nodeid=replay[0]), set())
         return _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
 
 

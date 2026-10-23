@@ -20,7 +20,7 @@ import regression
 import regression_events
 import regression_selection
 import test_commands
-from test_checkpoint import Checkpoint, EXCLUDE, request_record, resume_arguments
+from test_checkpoint import Checkpoint, EXCLUDE, ONLY, request_record, resume_arguments
 from tests.support.paths import ROOT
 from tests.support.launcher import synthetic_report_evidence
 
@@ -49,6 +49,51 @@ def test_failed_teardown_revokes_an_earlier_completion(tmp_path):
     event(checkpoint, 'finished', 'case')
     event(checkpoint, 'failure', 'case')
     assert Checkpoint(tmp_path, [('unit', [])], resume=True).passed('unit') == set()
+
+
+def test_focused_retry_preserves_other_passes_without_completing_the_category(tmp_path):
+    checkpoint = Checkpoint(tmp_path, [('unit', [])])
+    event(checkpoint, 'finished', 'earlier')
+    event(checkpoint, 'finished', 'repaired')
+    checkpoint.retry('unit', 'repaired')
+    assert checkpoint.passed('unit') == {'earlier'}
+    event(checkpoint, 'finished', 'repaired')
+    checkpoint.finish([SimpleNamespace(retry_category='unit', count_overall=True, state='Passed')])
+    resumed = Checkpoint(tmp_path, [('unit', [])], resume=True)
+    assert resumed.passed('unit') == {'earlier', 'repaired'}
+    assert not resumed.complete('unit')
+    assert resumed.retry_case is None
+
+
+def test_retry_filter_never_reports_unexecuted_cases_as_resumed(monkeypatch):
+    monkeypatch.setenv(ONLY, 'repaired')
+    monkeypatch.setenv(EXCLUDE, '["earlier"]')
+    items = [SimpleNamespace(nodeid=name) for name in ('earlier', 'repaired', 'remaining')]
+    session = SimpleNamespace()
+    config = SimpleNamespace(hook=SimpleNamespace(pytest_deselected=Mock()))
+    regression_events.pytest_collection_modifyitems(session, config, items)
+    assert [item.nodeid for item in items] == ['repaired']
+    assert session.onpc_resumed_nodeids == ()
+    assert not session.onpc_resume_empty
+
+
+def test_retry_filter_runs_only_the_case_and_missing_case_is_not_a_pass(tmp_path):
+    (tmp_path / 'test_sample.py').write_text(
+        'def test_repaired():\n    pass\ndef test_remaining():\n    assert False\n')
+    environment = dict(os.environ, PYTHONPATH=str(ROOT), PYTEST_DISABLE_PLUGIN_AUTOLOAD='1',
+                       ONPC_REGRESSION_EVENTS='1', ONPC_REGRESSION_INVENTORY='1')
+    environment.pop(EXCLUDE, None)
+    command = ['/usr/bin/python3', '-B', '-m', 'pytest', '-p', 'no:cacheprovider',
+               '-p', 'tools.regression_events', '--rootdir=.', '-q', 'test_sample.py']
+    for case, expected in [('test_repaired', 0), ('test_missing', 5)]:
+        environment[ONLY] = 'test_sample.py::' + case
+        result = subprocess.run(command, cwd=tmp_path, env=environment,
+                                capture_output=True, text=True, timeout=30)
+        assert result.returncode == expected, result.stdout + result.stderr
+        events = [json.loads(line[len(regression_events.PREFIX):])
+                  for line in result.stdout.splitlines() if line.startswith(regression_events.PREFIX)]
+        assert [event['nodeid'] for event in events if event['kind'] == 'finished'] == (
+            [environment[ONLY]] if expected == 0 else [])
 
 
 def test_large_resume_checkpoint_batches_passes_but_saves_failure_and_shutdown(
@@ -491,6 +536,33 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
     assert system_runner.resume_selection(upgrade, completed, fresh_install=True).executions == upgrade.executions
 
 
+@pytest.mark.parametrize('history', [False, True])
+def test_system_case_retry_selects_its_required_history_without_crediting_omissions(
+        tmp_path, monkeypatch, history):
+    import system_runner
+    from tests.support.vm_registry import vm_name
+    from tests.support.vm_runner import RECOVERY_INVENTORIES
+    from vm_selection import VARIABLE, vm_config
+
+    monkeypatch.setenv(VARIABLE, vm_name())
+    monkeypatch.setattr(vm_config.VMConfig, 'require_package_format', lambda _: 'deb')
+    inventories = {**RECOVERY_INVENTORIES, 'authorization': ('test_a', 'test_b')}
+    monkeypatch.setattr(system_runner, 'collect_area_cases', inventories.__getitem__)
+    plan = system_runner.resolve_selection(inventories=inventories, target_package_format='deb')
+    retry = ('rollback::test_aborted_cleanup_rollback_retry' if history else 'authorization::test_b')
+    checkpoint = Checkpoint(tmp_path, [('system', [])])
+    checkpoint.retry('system', retry)
+    item = regression.Category('System', retry_category='system')
+    command = [str(ROOT / 'tools/run-tests'), 'system', '--unattended']
+    resumed = regression.Run.resume_command(SimpleNamespace(root=ROOT, checkpoint=checkpoint), item, command)
+    omitted = set(json.loads(resumed[-1].split('=', 1)[1]))
+    selected = system_runner.resume_selection(plan, omitted)
+    assert retry in {execution.phase + '::' + execution.case_id for execution in selected.executions}
+    assert (selected.phases == system_runner.ROLLBACK_PHASES if history else
+            [execution.case_id for execution in selected.executions] == ['test_b'])
+    assert item.resumed_nodeids == () and checkpoint.passed('system') == set()
+
+
 @pytest.mark.parametrize('pending_phase', ['rollback', 'rollback-rearmed-rebooted'])
 def test_system_recovery_resume_replays_whole_unfinished_history_only(pending_phase):
     import system_runner
@@ -742,14 +814,18 @@ def test_fresh_vm_queue_resets_queued_progress_even_when_host_fails(tmp_path, mo
 
 
 @pytest.mark.parametrize('selectors', [('--scenario', 'selected'), ('--id=1,2',)])
-def test_e2e_resume_filters_passed_cases_and_preserves_execution_options(tmp_path, monkeypatch, selectors):
+@pytest.mark.parametrize('retry', [False, True])
+def test_e2e_resume_filters_passed_cases_and_preserves_execution_options(tmp_path, monkeypatch, selectors, retry):
     import runpy
     checkpoint = Checkpoint(tmp_path, [('e2e', [])])
     checkpoint.event('e2e', dict(kind='finished', nodeid='passed'), set())
+    if retry:
+        checkpoint.retry('e2e', 'retry')
     runner = SimpleNamespace(root=ROOT, checkpoint=checkpoint)
     item = regression.Category('E2E', retry_category='e2e')
     preflight = Mock(return_value={'cases': [dict(case_id='passed', coverage_id=1),
-                                           dict(case_id='retry', coverage_id=2)]})
+                                           dict(case_id='retry', coverage_id=2),
+                                           *([dict(case_id='remaining', coverage_id=3)] if retry else [])]})
     monkeypatch.setattr(runpy, 'run_path', lambda _: {'preflight': preflight})
     command = [str(ROOT / 'tools/run-tests'), 'e2e', '--unattended', *selectors,
                '--artifacts=/private/artifacts', '--vm', 'guest']

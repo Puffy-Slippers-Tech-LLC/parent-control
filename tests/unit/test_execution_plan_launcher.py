@@ -2736,6 +2736,7 @@ def test_real_handoffs_survive_five_restarts_and_git_retry_after_raw_rotation(
 def test_structured_acceptance_survives_runner_rotations_and_fresh_git_retry(
         rig, monkeypatch, real_plan_evidence):
     import evidence_capture as capture
+    import regression
     import runner_evidence as runner
 
     bundle = real_plan_evidence.bundle
@@ -2745,29 +2746,89 @@ def test_structured_acceptance_survives_runner_rotations_and_fresh_git_retry(
                         lambda: dict(uid=os.geteuid(), gid=os.getegid()))
     monkeypatch.setattr(runner.regression_inputs, 'identity', lambda root: 'f' * 64)
     reports = bundle.retention.Store(bundle.storage.directory('state') / 'retention-host')
+    foreign = rig.root / 'foreign-resource'
+    foreign.write_bytes(b'unrelated owner bytes\n')
+    foreign_identity = foreign.stat()
+    admissions, delivery_verifications, active_delivery = [], [], []
+    delivery_scope, verified_record = runner.publication.delivery_scope, bundle.verified_record
+
+    @contextmanager
+    def delivery(*args, **kwargs):
+        if kwargs.get('defer_verification'):
+            # Startup retirement owns a separate pinned read scope.
+            with delivery_scope(*args, **kwargs) as verify:
+                yield verify
+            return
+        active_delivery.append(True)
+        delivery_verifications.append(0)
+        try:
+            with delivery_scope(*args, **kwargs) as verify:
+                yield verify
+        finally:
+            active_delivery.pop()
+
+    @contextmanager
+    def verified(*args, **kwargs):
+        if active_delivery:
+            delivery_verifications[-1] += 1
+        with verified_record(*args, **kwargs) as value:
+            yield value
+
+    monkeypatch.setattr(runner.publication, 'delivery_scope', delivery)
+    monkeypatch.setattr(bundle, 'verified_record', verified)
 
     def produce(payload):
         with reports.session():
-            allocation = Path(bundle.retention.allocate(tempfile.mkdtemp,
-                prefix='onpc-structured-retry-', dir=bundle.storage.directory('reports')))
-            report = allocation / 'report.md'
-            report.write_bytes(payload)
-            report.chmod(0o600)
-            producer = runner.ReportEvidence(rig.root, allocation)
-            published = producer.finalize(members=[dict(path=report, role='result')],
-                categories=[dict(name='unit', selected_ids=['exact-case'])],
-                status='passed', cleanup='complete', sources_sha256='f' * 64,
-                inputs=dict(selector=['unit', 'exact-case']))
+            producer = regression.Report(rig.root)
+            admissions.append(producer.directory)
+            producer.write(payload)
+            report = producer.directory / 'report.md'
+            log = producer.directory / 'command.log'
+            log.write_bytes(b'exact selected command output\n')
+            log.chmod(0o600)
+            producer.member(log, 'command')
+            producer.command(dict(check='unit', category='unit', target='',
+                argv=['tools/run-tests', 'unit', 'exact-case'],
+                selected_ids=['exact-case'], resumed_ids=[], completed_ids=['exact-case'],
+                failed_ids=[], exit_status=0, status='passed', cleanup='complete',
+                provenance='worker', sequence=1, log=str(log)))
+            categories = [regression.Category('unit', total=1, done=1, state='Passed',
+                                             nodeids=('exact-case',))]
+            producer.snapshot(categories)
+            producer.close(defer_capture=True)
+            published = producer.finalize(categories=categories, status='passed',
+                                          cleanup='complete', sources_sha256='f' * 64)
+            expected = {(record['record_id'], member['member_id']):
+                        Path(member['original_path']).read_bytes()
+                        for record in published['records'] for member in record['members']}
         record = published['records'][-1]
         member = next(item for item in record['members'] if item['original_path'] == str(report))
         reference = next(item for item in published['references']
                          if item['member_id'] == member['member_id'])
         consumer = next(item for item in published['consumers']
                         if item['expected_context'] == record['context'])
-        return report, dict(schema='onpc-plan-evidence', version=1,
-                            reference=reference, consumer=consumer, record=record)
+        return report, published, expected, dict(schema='onpc-plan-evidence', version=1,
+            reference=reference, consumer=consumer, record=record)
 
-    original, declaration = produce(b'exact original structured acceptance\n')
+    original, published, expected, declaration = produce('exact original structured acceptance\n')
+    document = rig.root / 'docs/001.md'
+    selector = dict(kind='evidence', **{key: declaration['reference'][key]
+        for key in ('record_id', 'member_id', 'closure_sha256')})
+    scope = proof.reference_scope(rig.plan, document='docs/001.md', workflow='regression')
+    destination = proof.generate_reference(consumer=declaration['consumer'],
+                                          selector=selector, read_scope=scope)
+    document.write_text(document.read_text() + f'\nOriginal proof: [Report A]({destination}).\n')
+    # Real startup admissions retire A before the ordinary worker first accepts it.
+    for _ in range(5):
+        produce('unrelated later runner result\n')
+    assert len(admissions) == 6 and admissions.count(original.parent) == 1
+    assert not original.parent.exists() and not Path(published['receipt']['path']).exists()
+    resolved = proof.resolve_reference(destination, consumer=declaration['consumer'], read_scope=scope)
+    assert resolved['record'] == declaration['record']
+    assert resolved['closure'] == {record['record_id']: record for record in published['records']}
+    assert resolved['data'] == expected[(selector['record_id'], selector['member_id'])]
+    assert {member['role'] for record in published['records'] for member in record['members']} >= {
+        'result', 'input', 'command', 'cleanup'}
     calls, results = [], []
     def execute(root, spec, run, owner):
         state = json.loads((run / 'checkpoint.json').read_text())
@@ -2790,15 +2851,22 @@ def test_structured_acceptance_survives_runner_rotations_and_fresh_git_retry(
     accepted = proof.recover(rig.plan)
     saved = json.loads((rig.run / 'checkpoint.json').read_text())
     assert saved['pending_completion'] == results[0]
+    assert len(saved['evidence_consumers']) == 1
     assert TaskBudget(rig.run).read()['completed'] == 0
     for _ in range(5):
         state = real_plan_evidence.restart()
-        produce(b'unrelated later runner result\n')
         assert state['task_sessions'] == state['total_sessions'] == 1
         assert state['pending_completion'] == results[0]
     assert not accepted_run.exists() and not original.exists()
-    assert runner.resolve_reference(rig.root, declaration['reference'],
-        consumer=declaration['consumer']) == b'exact original structured acceptance\n'
+    for record in published['records']:
+        consumer = next(item for item in published['consumers']
+                        if item['expected_context'] == record['context'])
+        for member in record['members']:
+            reference = next(item for item in published['references']
+                if item['record_id'] == record['record_id'] and item['member_id'] == member['member_id'])
+            data = runner.resolve_reference(rig.root, reference, consumer=consumer)
+            assert data == expected[(record['record_id'], member['member_id'])]
+            assert bundle.digest(data) == member['sha256']
     failing[0] = False
     assert rig.worker(state) == 0
     assert calls == [('001', 1, 1)] and len(results) == 1
@@ -2807,6 +2875,20 @@ def test_structured_acceptance_survives_runner_rotations_and_fresh_git_retry(
     assert current['tasks']['001'] == accepted['tasks']['001']
     assert json.loads(bundle.inspect(rig.root, os.geteuid(), os.getegid(), current['bundle'],
         member=current['tasks']['001']['result'], count=bundle.MAX_READ)) == results[0]
+    assert len(admissions) == 6 and delivery_verifications == [1] * 6
+    assert destination in document.read_text()
+    assert proof.resolve_reference(destination, consumer=declaration['consumer'],
+        read_scope=scope)['record'] == declaration['record']
+    for journal in (reports.path, real_plan_evidence.runs.path,
+                    runner.reference_locator(rig.root, 'regression').parent):
+        retained = json.loads((journal / 'current.json').read_bytes())
+        assert len(retained['history']) + 1 <= bundle.retention.RUNS_TO_KEEP
+    assert foreign.read_bytes() == b'unrelated owner bytes\n'
+    current_identity = foreign.stat()
+    assert (current_identity.st_dev, current_identity.st_ino, current_identity.st_mode,
+            current_identity.st_uid, current_identity.st_gid) == (
+        foreign_identity.st_dev, foreign_identity.st_ino, foreign_identity.st_mode,
+        foreign_identity.st_uid, foreign_identity.st_gid)
 
 
 @pytest.mark.parametrize('failure', ['pull', 'stage', 'commit', 'push'])

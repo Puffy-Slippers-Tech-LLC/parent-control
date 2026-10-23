@@ -83,8 +83,16 @@ def test_failure_context_bounds_data_and_refuses_linked_sources(tmp_path, monkey
     saved = tmp_path / 'snapshot.json'
     repair_evidence.capture(tmp_path, saved, handoff, 'runner output')
     evidence = json.loads(saved.read_text())
+    assert evidence['bounded_tails'] is True
     assert evidence['limit_reached']
     assert sum(len(item['tail'].encode()) for item in evidence['files']) <= 32
+    partial = next(item for item in evidence['files']
+                   if item['source'].endswith('category-002.log'))
+    assert partial['tail'] == 'x' * 30
+    assert partial['tail_limit_bytes'] == 30
+    assert partial['may_be_truncated'] is True
+    complete = next(item for item in evidence['files'] if item['source'] == str(handoff))
+    assert complete['may_be_truncated'] is False
     assert any(item['source'].endswith('category-001.log')
                for item in evidence['read_failures'])
     assert 'do not copy this' not in saved.read_text()

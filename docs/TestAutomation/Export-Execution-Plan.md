@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E14 — [Qualify the composed infrastructure](Export-Tasks/E14-composition.md)**.
+Next task: **E14a — [Independently review final delivery](Export-Tasks/E14a-review.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

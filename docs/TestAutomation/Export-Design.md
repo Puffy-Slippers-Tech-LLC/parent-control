@@ -646,6 +646,57 @@ is explicit and cannot satisfy active acceptance. All inventoried consumers rece
 a delivered migration or an explicit compatibility disposition. Independent final
 review checks those outcomes against the source and original failure inventory.
 
+### E14 composed qualification disposition
+
+The original [history and family inventories](#e01-source-and-history-audit)
+remain audit snapshots. This map records their delivered owners and the focused
+composition used by E14; exact selections, results and input identities belong
+to the E14 queue record's normal runner evidence. Earlier owner-level safety
+results remain applicable on unchanged implementation inputs. The
+[document-consumer map](#e09-document-consumer-disposition) covers every declared
+document family; none acquires authority from a plausible path or nearby prose.
+
+| Audit family | Delivered boundary and regression disposition |
+| --- | --- |
+| P01: initialization and aggregate/category/worker/standalone reports | `regression.Report` and `runner_evidence` own registration and terminal closure. `test_runner_evidence.py::test_report_a_survives_original_and_publication_generation_rotation_without_rerun` retains direct producer coverage. `test_execution_plan_launcher.py::test_structured_acceptance_survives_runner_rotations_and_fresh_git_retry` now composes the actual report, generated exact document link, all dependency bytes and ordinary acceptance after five startup admissions retire A; A runs once. Worker selection/cleanup and late outer records retain their E06 owner checks. |
+| P02: required-source retirement | `test_retention` and `evidence_capture.retirement_scope` share the source gate. `test_test_retention_cleanup_safety.py::test_report_rotation_preserves_required_original_until_durable_acknowledgement` and `::test_stale_owner_acknowledgement_cannot_release_required_report` cover ordinary and host/privileged oversized startup, failed/capacity/unacknowledged capture, stale attempts and incomplete closures. Disposable oversized evidence still retires. |
+| P03: capture authority and durable transitions | `evidence_capture` and `capture_publication` retain E03's immutable subset, live-owner authority, same-stage interruption recovery and verified acknowledgement checks. E14 reuses these safety results, including active siblings, foreign/changed sources and lost replies, rather than repeating their matrix. |
+| P04: file and grouped bundle exports | `artifact_export`, `evidence_bundle` and `test_retention.Publication` retain E05's identical-request reuse, distinct same-basename provenance, overlapping readers, pinned verification and atomic-group/interruption coverage. Shared-root migration and invoking-checkout relocation retain their original storage and installation safety checks; no helper interface changes here. |
+| P05: archived selection during unrelated production | `plan_evidence`, authenticated `onpc-test-artifacts bundle-plan` and real `Selection.catalogue/load` compose in `test_execution_plan_launcher.py::test_real_consumer_resolves_two_expired_reports_through_authenticated_helper_during_active_producer`. Both missing originals resolve exactly, without inspecting the active target journal, reading its payload, rotating it or changing its checkpoint. E05a retains distinct missing, denied, corrupt, wrong-context and active-source refusals. |
+| P06: qualification, system/E2E collectors and diagnostics | `qualification_storage`, `system_runner`, E2E `private_artifacts/execution` and `runner_evidence` retain E06a's finite producer/collector closure coverage. Focused `test_qualification_storage_cleanup_safety.py` histories recheck real failed recovery, pending recovery before next startup, partial probe failure and the exact 16-KiB baseline tail/native-log availability after rotation. Diagnostic verdicts and pending cleanup remain nonpassing. |
+| P07: repair and specialized E2E compatibility | `repair_evidence`, `fix_tests` and `write_e2e` keep their distinct acceptance/session policies and E07a results. The existing repair-tail bounds test now asserts explicit partial-tail metadata. `test_fix_tests_cleanup_safety.py` rechecks original-selector replay and malformed/VM-selection refusals; E2E diagnostic promotion and retained Git-retry guards stay with their earlier owner coverage. |
+| P08: ordinary adapters, handoffs and accepted Git retry | All ordinary adapters share `plan_launcher.PlanWorkflow` and `plan_evidence`. `test_real_handoffs_survive_five_restarts_and_git_retry_after_raw_rotation` covers continuation, blocked/rejected responses and suspension with real evidence. Real-evidence capacity histories retain failed-turn bytes, removed briefs and partial prerequisite edits. The extended P01 history also verifies accepted Git retry without another producer or agent invocation. Reconnect/pending-start allocation retains the existing exact-allocation recovery checks. |
+| P09: identity, documents and proportional gates | `evidence_identity`, `document_checks`, `evidence_policy` and `plan_evidence` retain shared parser/context safety. Focused document-policy checks verify harmless spelling/optional presentation, strict required roles, wrong-but-existing destinations and nonpassing historical loss. Queue claims, briefs/master/handoffs, catalogue/design prose, report links, instructions and inert examples use their existing explicit consumer dispositions. |
+| P10: legacy discovery, migration and historical loss | `plan_evidence.inventory_references` and the protected recovery owner retain E11–E13's finite preview/apply and revision-bound availability. The [E13 pending dispositions](#e13-historical-availability-disposition) remain pending: missing proof, unknown claim context and access/foreign-checkout refusals are separate. Protected external application still requires its recorded authority and baselines; E14 changes no historical claim or checkpoint and grants no product acceptance. |
+| P11: dependency-byte compatibility | `plan_launcher.response_validator_sources` owns the explicit current dependency closure. `test_execution_plan_launcher.py` feeds real changed dependency files into worker decisions through `validator_checkout`, covering rejected responses, continuation, blocked answers, suspension and fresh recovery; unchanged bytes do not restart. Specialized controllers retain their E07a safe-boundary guards. Advisory activity coordination and rendering remain excluded for the reasons in the compatibility inventory. |
+| P12: bounded capacity and separate lifetimes | Shared storage/retention/publication owners retain E03–E05 and E08p's simultaneous-copy, file/metadata and cumulative-history bounds. E14 checks bounded generations, one pinned terminal verification and unchanged foreign identity in the extended history, and rechecks partial capacity compatibility. Required media keeps its separately declared capture/receipt closure; latest-only recording, screenshot and disposable scratch policies remain unchanged. |
+
+Every [retirement entry](#retirement-entry-points) uses its existing owner:
+session/count/prune/reconcile and both privileged startup calls share the pending
+source gate; publication commit/finish/recovery verifies replacement bytes before
+retirement; accepted-plan replacement verifies the cumulative archive and locator.
+Completed and unpublished-input discard retain explicit authority and full identity
+audits. Input transfer moves cleanup claims only and retains its pending-writer
+guard. Legacy cleanup/migration keeps its finite manifest and verified-copy
+authority. Scratch/runtime/media cleanup retains its separate identity/lifetime
+policy. These unchanged routes reuse their inventoried regressions, including
+partial-deletion recovery; E14 introduces no cleanup mechanism or permission.
+
+The changed histories use existing pytest-private trees, real local descriptor
+locks and process-local authentication/agent/Git doubles. They add no shared
+cache/path, child, socket, bus, display, service, VM or build resource. Existing
+unit classifications remain compatible; cleanup and UI inventories gain no owner.
+E14a separately owns independent final review of this map and the retained results.
+
+E14's inventory comparison retains E13's 245 pending claim/reference identities
+and records three new occurrences: two presently missing destinations from the
+concurrent fixture-plan close-out and E14's live report without an inventory-owner
+declaration yet. The refreshed snapshot therefore has 248 pending occurrences
+(121 missing, 103 unknown contexts, 24 distinct refusals), including 54 protected
+occurrences. The three new entries remain strict; unknown relevance gains no
+historical advisory. Their owning workflows must supply context and exact proof
+before any migration. No foreign claim, checkpoint or acceptance state was changed.
+
 ## E01a protocol proposal
 
 E01a's protocol review is historical. The strict identity and reference formats

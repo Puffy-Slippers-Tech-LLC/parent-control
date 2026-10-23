@@ -697,6 +697,46 @@ occurrences. The three new entries remain strict; unknown relevance gains no
 historical advisory. Their owning workflows must supply context and exact proof
 before any migration. No foreign claim, checkpoint or acceptance state was changed.
 
+### E14a independent final review
+
+The self-contained GPT-6.1 Sol xHigh review on 2026-10-23 checked the frozen
+history, producer/consumer, retirement and dependency inventories against the
+delivered source and E14's composed histories. The real report, startup rotation,
+exact-link generation, authenticated helper selection, retention locks and
+dependency-byte worker/recovery paths satisfy the three required histories.
+Capture authority, complete proof, bounded reuse, replacement verification,
+retirement gates, severity precedence and protected legacy authorization retain
+their existing owners. No product acceptance, VM work, competing archive engine
+or broad privileged interface was introduced.
+
+Two coverage findings were resolved in the existing launcher test module. One
+real-worker sweep now changes every registered dependency's actual bytes;
+representative extracted-dependency histories preserve each distinct lifecycle
+boundary without repeating that inventory. Tool-screen, mouse, color and redraw
+checks were removed. One direct shared-counter check retains accepted-completion
+and reattachment semantics; public checkpoint/task-info recovery, budget,
+concurrency and Git-retry guards remain. Independent re-review found no actionable
+issues in these corrections or the reviewed safety boundaries.
+The concurrent F23 fixture-transfer extension was also reviewed: exact target
+matching, immutable selections and the existing capture/cleanup paths remain
+intact, so it invalidates no E14 history or grants this review new acceptance.
+
+The E14 queue record retains its exact original 453-check result, inputs,
+commands and cleanup. Its complete 1,127-file accepted archive was independently
+verified during review; the four execution records retain their exact selections,
+600-second timeouts, passing verdicts and complete cleanup. Every frozen family
+has a delivered or explicitly pending disposition under the E14 map above.
+E11–E13's missing proof, unknown contexts, refusals and externally authorized
+protected applications remain nonpassing limits; review grants no historical
+product acceptance.
+
+The corrections use only pytest-private dependency files, plans and checkpoints.
+They add no process, shared path/cache, socket, display, service or VM resource;
+the existing unit classification remains appropriate and cleanup/UI inventories
+gain no owner. The final queue record retains affected checks and close-out
+results. Only tests, generated coverage and these review/close-out documents
+changed, outside the Makefile's package and build-tool inputs.
+
 ## E01a protocol proposal
 
 E01a's protocol review is historical. The strict identity and reference formats

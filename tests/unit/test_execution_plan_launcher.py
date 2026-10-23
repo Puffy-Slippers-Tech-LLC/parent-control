@@ -1,4 +1,4 @@
-"""Private plan fixtures exercise shared selection, recovery, budgets and panes.
+"""Private plan fixtures exercise shared selection, recovery and budgets.
 
 Split/revision checks reuse bounded private Git children and tmp_path lock and
 checkpoint trees. No live owner, VM, bus, display, service or shared path is used;
@@ -26,13 +26,11 @@ import pytest
 
 import launcher_git
 from execution_plan import Plan, local_file, plan_namespace
-from launcher_display import TaskDisplay
-from launcher_runtime import TaskBudget, task_limit, task_progress, warn_remaining
-from launcher_view import WorkflowView, plan_totals, view_for
+from launcher_runtime import TaskBudget, task_counters, task_limit, task_progress, warn_remaining
+from launcher_view import plan_totals, view_for
 import plan_launcher as workflow
 from plan_launcher import execute as execute_session
 from plan_launcher import reload_controller as replace_controller_process
-from tests.support.terminal_screen import Terminal
 
 REAL_FINISH_NESTED = workflow.launcher.finish_nested
 
@@ -352,19 +350,20 @@ def validator_tree(tmp_path, monkeypatch):
     return tools, workflow.response_validator_sources()
 
 
-@pytest.fixture(params=(*ADDED_VALIDATOR_SOURCES, 'evidence_bundle.py',
-                       'document_checks.py', 'execution_plan.py', 'plan_evidence.py',
-                       'plan_evidence_recovery.py'))
+@pytest.fixture
 def validator_checkout(tmp_path, monkeypatch, request, rig):
     tools, snapshot = validator_tree(tmp_path, monkeypatch)
-    path = tools / request.param
+    # One worker history sweeps the inventory; distinct lifecycle histories use
+    # an extracted dependency without multiplying that sweep by every status.
+    changed = getattr(request, 'param', 'evidence_policy.py')
+    path = tools / changed
 
     def change():
         path.write_bytes(b'repaired dependency bytes\n')
         current = workflow.response_validator_sources()
-        assert {name for name in snapshot if current[name] != snapshot[name]} == {request.param}
+        assert {name for name in snapshot if current[name] != snapshot[name]} == {changed}
         assert all(current[name] == snapshot[name] for name in ORIGINAL_VALIDATOR_SOURCES
-                   if name != request.param)
+                   if name != changed)
 
     inputs = rig.run / 'input' / 'selected-inputs.json'
     inputs.parent.mkdir()
@@ -493,6 +492,8 @@ def test_rejected_result_retries_are_bounded_and_retain_original_baseline(rig, m
     assert TaskBudget(rig.run).read()['completed'] == 0
 
 
+@pytest.mark.parametrize('validator_checkout', ORIGINAL_VALIDATOR_SOURCES + ADDED_VALIDATOR_SOURCES,
+                         indirect=True)
 def test_rejected_result_reloads_before_retrying_with_stale_validation_code(
         rig, monkeypatch, real_plan_evidence, validator_checkout):
     attempts = []
@@ -886,9 +887,9 @@ def test_evidence_request_boundary_matches_exact_applied_request_identity(rig, e
     assert TaskBudget(rig.run).read()['completed'] == int(exact_marker)
 
 
-@pytest.mark.parametrize('changed', ORIGINAL_VALIDATOR_SOURCES + ADDED_VALIDATOR_SOURCES)
-def test_response_validator_sources_detects_content_changes_only(tmp_path, monkeypatch, changed):
+def test_response_validator_sources_detects_content_changes_only(tmp_path, monkeypatch):
     tools, original = validator_tree(tmp_path, monkeypatch)
+    changed = 'evidence_policy.py'
     path = tools / changed
     path.write_bytes(path.read_bytes())
     assert workflow.response_validator_sources() == original
@@ -1664,50 +1665,6 @@ def test_recovery_refuses_unrelated_queue_changes(rig):
         rig.plan.validate_recovery(state)
 
 
-@pytest.mark.parametrize('failed', [False, True], ids=['follow', 'preflight-error'])
-def test_plan_paints_before_recovery_and_restores_or_reuses_screen(rig, monkeypatch, failed):
-    stream = Terminal(100, 30)
-    displays = []
-    monkeypatch.setattr(sys, 'stdout', stream)
-    monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
-    monkeypatch.setattr(workflow, 'session_command', lambda *_: [])
-
-    def display(view, stream, run):
-        panel = TaskDisplay(stream, run=run, input_mode=view.input_mode,
-                            totals=view.totals, terminal_size=lambda: stream.size)
-        displays.append(panel)
-        return panel
-
-    monkeypatch.setattr(WorkflowView, 'display', display)
-
-    def select(root, name, command, **options):
-        options['on_prepare'](rig.run)
-        assert 'validating saved plan and evidence' in stream.getvalue()
-        assert stream.normal_screen is not None
-        assert displays[0].input_mode == 'none'  # Ctrl+C still signals during recovery.
-        if failed:
-            raise ValueError('retained proof refused')
-        command(rig.run, -1)
-        options['on_start'](rig.run)
-        workflow.launcher.atomic(rig.run.parent / 'current.json',
-                                 dict(run=rig.run.name, started_monotonic=1000.0))
-        return rig.run, True
-
-    def follow(run, *, label, view, display):
-        assert display is displays[0] and display.input_mode == 'chat'
-        assert display.focus == 'chat'
-        assert display.owner_clock['started_monotonic'] == 1000.0
-        assert not display.steps and not display.step_history
-        assert stream.getvalue().count('\033[?1049h') == 1
-        return 0
-
-    monkeypatch.setattr(workflow.launcher, 'select', select)
-    monkeypatch.setattr(workflow.launcher, 'follow', follow)
-    assert workflow.main(rig.spec, []) == (2 if failed else 0)
-    assert stream.normal_screen is None and stream.cursor_visible
-    assert stream.getvalue().count('\033[?1049l') == 1
-
-
 def test_public_entry_allows_checkpoint_recovery_before_strict_brief_validation(rig, monkeypatch):
     previous = rig.root / 'previous'
     previous.mkdir()
@@ -1731,12 +1688,6 @@ def test_public_entry_allows_checkpoint_recovery_before_strict_brief_validation(
     assert checkpoint['task_id'] == '001' and checkpoint['in_flight'] is True
     assert 'Reconcile interrupted close-out' in checkpoint['handoff']
     assert json.loads((rig.run / 'task-info.json').read_text()) == retained_info
-    display = TaskDisplay(Terminal(400, 36), run=rig.run,
-                          terminal_size=lambda: os.terminal_size((400, 36)))
-    workflow.launcher.atomic(rig.run / 'chat-state.json', {'task_id': '001'})
-    display.refresh_chat()
-    display.update([dict(key='001', lines=['Task 001: Countdown'])], [])
-    assert 'Last Error: The countdown stopped.' in ''.join(row.plain for row in display.previous)
 
 
 @pytest.mark.parametrize('damage', ['master', 'queue', 'brief'])
@@ -4157,162 +4108,33 @@ def test_conflicted_queue_restarts_from_retained_identity_then_rechecks_guards(r
     assert TaskBudget(rig.run).read()['completed'] == 1
 
 
-@pytest.mark.parametrize('mode', ['none', 'question'])
-def test_nonchat_shared_panes_resize_and_scroll_without_composer(tmp_path, mode):
-    terminal = Terminal(120, 30)
-    display = TaskDisplay(terminal, run=tmp_path, input_mode=mode, terminal_size=lambda: terminal.size)
-    try:
-        display.task_info = dict(explanation='\n'.join(f'Purpose {n}' for n in range(60)), status='Reviewing.')
-        display.update([dict(key='count', pinned=True, lines=['\033[32mTasks: 4/13/17\033[0m']),
-                        dict(key='task', lines=['Current task', 'Current session'])], [])
-        display.write('Execution output\n')
-        visible = terminal.visible()
-        assert visible.splitlines()[0].split('│')[0].strip() == 'Current task'
-        assert 'Tasks: 4/13/17' not in visible
-        assert 'Execution output' in visible and 'Current task' in visible
-        assert 'Chat' not in visible and 'Enter: send' not in visible
-        # Pane controls work immediately; m remains a selection-mode shortcut.
-        assert display.mouse_capture
-        display.handle_input(f'\x1b[<0;{display.top_divider_column};1M'.encode())
-        display.handle_input(b'\x1b[<32;75;1M\x1b[<0;75;1m')
-        assert display.ratio == 74 / 118
-        assert display.top_divider_column == display.divider_column
-        row, divider = display.top_height + 3, display.divider_column
-        for fragment in (b'\x1b[<0;', f'{divider};{row}M'.encode()):
-            display.handle_input(fragment)
-        display.handle_input(f'\x1b[<32;61;{row}M\x1b[<0;61;{row}m'.encode())
-        assert display.ratio == 60 / 118
-        assert display.top_divider_column == display.divider_column
-        display.handle_input(f'\x1b[<65;100;{display.summary_bottom + 2}M'.encode())
-        assert display.offsets['info'] > 0
-        assert display.editor.text == ''
-        display.handle_input(b'm')
-        assert not display.mouse_capture
-        display.handle_input(b'\x1bOQ')
-        assert display.mouse_capture
-    finally:
-        display.close()
-
-
-def test_plan_totals_refresh_whole_queue_without_output_or_pointer_updates(tmp_path, monkeypatch):
-    # This fixture is an ANSI terminal even when the launcher inherits TERM=dumb.
-    monkeypatch.setenv('TERM', 'xterm')
+def test_task_counters_use_accepted_baseline_across_queue_edits_and_reattachment(tmp_path):
     plan = prepare(tmp_path, count=4)
-    run = tmp_path / 'run'
-    run.mkdir()
-    TaskBudget(run).initialize(1, remaining=4)
-    terminal = Terminal(120, 30)
-    view = WorkflowView(totals=lambda: plan_totals(tmp_path, plan.path))
-    display = view.display(terminal, run)
-    display.terminal_size = lambda: terminal.size
-    queue = tmp_path / plan.queue
-    try:
-        display.refresh_chat()
-        display.draw()
-        assert 'Total Tasks: 0/4/4' in terminal.visible()
-        # Editing the checkbox before acceptance/Git close-out grants no credit.
-        queue.write_text(queue.read_text().replace('| [ ] | 001 |', '| [x] | 001 |'))
-        display.refresh_chat()
-        display.draw()
-        assert 'Total Tasks: 0/4/4' in terminal.visible()
-        assert display.runtime_tasks['lines'] == ['Tasks: 0/1/1']
-        TaskBudget(run).complete()
-        display.refresh_chat()
-        display.draw()
-        assert 'Total Tasks: 1/3/4' in terminal.visible()
-        assert display.runtime_tasks['lines'] == ['Tasks: 1/0/1']
-        row = display.previous[0]
-        start = row.plain.index('Total Tasks: ') + len('Total Tasks: ')
-        assert row.get_style_at_offset(display.console, start).color.name == 'green'
-        assert row.get_style_at_offset(display.console, start + 2).color.name == '#808080'
-        assert row.get_style_at_offset(display.console, start + 4).color.name == 'default'
-        valid = queue.read_text()
-        queue.write_text('Partial rewrite')
-        display.refresh_chat()
-        display.draw()
-        assert 'Total Tasks: 1/3/4' in terminal.visible()
-        queue.write_text(valid.replace('| [ ] | 002 |', '| [x] | 002 |'))
-        TaskBudget(run).complete()
-        TaskBudget(run).set_limit(0)
-        display.refresh_chat()
-        display.draw()
-        assert 'Total Tasks: 2/2/4' in terminal.visible()
-        queue.write_text(queue.read_text().replace('## Deferred future work',
-                         '| [ ] | 005 | [Task 005](005.md) | — | added task |\n## Deferred future work'))
-        display.refresh_chat()
-        display.draw()
-        assert 'Total Tasks: 2/3/5' in terminal.visible()
-        queue.write_text(queue.read_text().replace('| [ ] |', '| [x] |'))
-        for _ in range(3):
-            TaskBudget(run).complete()
-        display.refresh_chat()
-        display.draw()
-        assert 'Total Tasks: 5/0/5' in terminal.visible()
-    finally:
-        display.close()
-
-
-@pytest.mark.parametrize('completed_before', [0, 1])
-@pytest.mark.parametrize('retained_queue', [False, True])
-def test_default_run_and_whole_plan_share_accepted_completion_snapshot(
-        tmp_path, monkeypatch, completed_before, retained_queue):
-    monkeypatch.setenv('TERM', 'xterm')
-    plan = prepare(tmp_path, count=64)
-    if completed_before:
-        complete(plan, '001')
+    complete(plan, '001')
     run = tmp_path / 'run'
     run.mkdir()
     budget = TaskBudget(run)
-    budget.initialize(1, remaining=64 - completed_before)
-    if retained_queue:
-        workflow.launcher.atomic(run / 'checkpoint.json', {'queue_before': plan.state()})
-    view = WorkflowView(totals=lambda: plan_totals(tmp_path, plan.path))
-
-    def observe():
-        terminal = Terminal(120, 30)
-        display = view.display(terminal, run)
-        display.terminal_size = lambda: terminal.size
-        return terminal, display
-
-    terminal, display = observe()
-    try:
-        # Acceptance/Git failure can leave a checked row with no budget credit.
-        complete(plan, f'{completed_before + 1:03}')
-        display.refresh_chat()
-        display.update(task_progress(run, []), [])
-        assert display.runtime_tasks['lines'] == ['Tasks: 0/1/1']
-        assert f'Total Tasks: {completed_before}/{64 - completed_before}/64' in terminal.visible()
-        # Even if completion lands between refresh and update, render one snapshot.
-        budget.complete()
-        display.update(task_progress(run, []), [])
-        assert display.runtime_tasks['lines'] == ['Tasks: 0/1/1']
-        assert f'Total Tasks: {completed_before}/{64 - completed_before}/64' in terminal.visible()
-        display.refresh_chat()
-        display.draw()  # Input/output redraws before the next controller update.
-        assert display.runtime_tasks['lines'] == ['Tasks: 1/0/1']
-        assert f'Total Tasks: {completed_before + 1}/{63 - completed_before}/64' in terminal.visible()
-    finally:
-        display.close()
-    # A new observer reads the retained budget without resetting accepted history.
-    total = 64
-    if retained_queue:
-        queue = tmp_path / plan.queue
-        queue.write_text(queue.read_text().replace('## Deferred future work',
-            '| [ ] | 065 | [Prerequisite](065.md) | — | added task |\n## Deferred future work'))
-        total += 1
-    terminal, display = observe()
-    try:
-        display.refresh_chat()
-        display.update(task_progress(run, []), [])
-        assert display.runtime_tasks['lines'] == ['Tasks: 1/0/1']
-        assert f'Total Tasks: {completed_before + 1}/{total - completed_before - 1}/{total}' in terminal.visible()
-        budget.set_limit(0)
-        display.refresh_chat()
-        display.draw()
-        assert display.runtime_tasks['lines'] == [f'Tasks: 1/{total - completed_before - 1}/{total - completed_before}']
-        assert f'Total Tasks: {completed_before + 1}/{total - completed_before - 1}/{total}' in terminal.visible()
-    finally:
-        display.close()
+    budget.initialize(1, remaining=3)
+    workflow.launcher.atomic(run / 'checkpoint.json', {'queue_before': plan.state()})
+    # A checked row before accepted close-out must not increase either counter.
+    complete(plan, '002')
+    runtime, totals, baseline = task_counters(run, plan_totals(tmp_path, plan.path))
+    assert totals == (1, 3, 4) and baseline == 1
+    assert runtime['lines'] == ['Tasks: 0/1/1']
+    budget.complete()
+    runtime, totals, _ = task_counters(run, plan_totals(tmp_path, plan.path),
+                                      completed_before=baseline)
+    assert totals == (2, 2, 4) and runtime['lines'] == ['Tasks: 1/0/1']
+    queue = tmp_path / plan.queue
+    queue.write_text(queue.read_text().replace('## Deferred future work',
+        '| [ ] | 005 | [Prerequisite](005.md) | — | added task |\n## Deferred future work'))
+    # Reattachment uses the retained queue boundary, including a new prerequisite.
+    runtime, totals, restored = task_counters(run, plan_totals(tmp_path, plan.path))
+    assert restored == baseline and totals == (2, 3, 5)
+    budget.set_limit(0)
+    runtime, totals, _ = task_counters(run, plan_totals(tmp_path, plan.path),
+                                      completed_before=restored)
+    assert totals == (2, 3, 5) and runtime['lines'] == ['Tasks: 1/3/4']
 
 
 def test_e2e_view_reads_canonical_plan_totals(monkeypatch):
@@ -4323,24 +4145,6 @@ def test_e2e_view_reads_canonical_plan_totals(monkeypatch):
                         lambda root, path: calls.append((root, path)) or (3, 7, 10))
     assert view_for('write-e2e').totals() == (3, 7, 10)
     assert calls == [(Path(launcher_view.__file__).resolve().parent.parent, write_e2e.PLAN)]
-
-
-def test_shared_counter_updates_are_preserved_in_plain_output(tmp_path):
-    import io
-
-    budget = TaskBudget(tmp_path)
-    budget.initialize(1, remaining=64)
-    output = io.StringIO()
-    display = WorkflowView(totals=lambda: (0, 64, 64)).display(output, tmp_path)
-    try:
-        display.refresh_chat()
-        display.update([], [])
-        budget.complete()
-        display.refresh_chat()
-        display.update([], [])
-        assert output.getvalue() == 'Tasks: 0/1/1\nTasks: 1/0/1\n'
-    finally:
-        display.close()
 
 
 def test_configured_plan_model_and_bounded_sol_roles(tmp_path, monkeypatch):

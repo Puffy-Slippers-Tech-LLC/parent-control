@@ -108,6 +108,67 @@ def test_git_retry_reuses_only_the_exact_verified_result(campaign):
         proof.preserve(campaign.plan, run, state, dict(result, summary='changed'))
 
 
+def test_publication_survives_worktree_propagation_and_live_control_writes(
+        campaign, tmp_path_factory, monkeypatch):
+    import subprocess
+    import launcher_worktrees
+    from detached_launcher import atomic
+
+    root = campaign.plan.root
+    private = tmp_path_factory.mktemp('publication-worktrees')
+    def git(checkout, *args, check=True):
+        return subprocess.run(['git', *args], cwd=checkout, capture_output=True,
+            text=True, check=check, timeout=10, env=dict(os.environ, LC_ALL='C'))
+
+    (root / '.gitignore').write_text('output/\n')
+    (root / 'config').mkdir()
+    (root / 'config/worktree.json').write_text(json.dumps(dict(worktrees=['main', 'worktree'])))
+    (root / 'shared.py').write_text('before merge\n')
+    (root / 'active.py').write_text('before task\n')
+    git(root, 'init', '-qb', 'main')
+    git(root, 'config', 'user.name', 'Publication test')
+    git(root, 'config', 'user.email', 'publication@example.invalid')
+    git(root, 'add', '.')
+    git(root, 'commit', '-qm', 'baseline')
+    remote, other = private / 'remote.git', private / 'worktree'
+    git(root, 'init', '--bare', '-q', str(remote))
+    git(root, 'remote', 'add', 'origin', str(remote))
+    git(root, 'push', '-qu', 'origin', 'main')
+    git(root, 'worktree', 'add', '-qb', 'worktree', str(other))
+    (other / 'shared.py').write_text('merged from other launcher\n')
+    git(other, 'add', 'shared.py')
+    git(other, 'commit', '-qm', 'other task')
+    git(other, 'push', '-qu', 'origin', 'worktree')
+    commit = git(other, 'rev-parse', 'HEAD').stdout.strip()
+    propagation_run = private / 'propagation'
+    propagation_run.mkdir(mode=0o700)
+
+    run, state, result, report = campaign.accepted('current')
+    (root / 'active.py').write_text('current launcher active work\n')
+    write = bundle.Selection.write
+    propagated = {}
+    def merge_during_copy(selection, destination):
+        # Reproduce an observer's atomic control update after inventory while
+        # another launcher's real stash/merge/restore/push reaches this checkout.
+        atomic(run / 'chat-inbox.json', {'messages': ['continue']})
+        launcher_worktrees.propagate(other, propagation_run, propagated, commit,
+            git=git, resolve=lambda *_: pytest.fail('nonconflicting merge needed resolution'))
+        return write(selection, destination)
+
+    monkeypatch.setattr(bundle.Selection, 'write', merge_during_copy)
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    assert git(root, 'rev-parse', 'HEAD').stdout.strip() == commit
+    assert (root / 'shared.py').read_text() == 'merged from other launcher\n'
+    assert (root / 'active.py').read_text() == 'current launcher active work\n'
+    assert not git(root, 'stash', 'list').stdout
+    assert propagated['worktree_propagation']['targets'][0]['phase'] == 'done'
+    def read(path):
+        return bundle.inspect(root, os.geteuid(), os.getegid(), accepted['bundle'], member=str(path))
+    assert json.loads(read(accepted['tasks']['current']['result'])) == result
+    assert read(report / 'result.md') == b'Exact report for current'
+    assert read(Path(accepted['tasks']['current']['result']).parent / 'prompt.txt') == b'Exact prompt for current'
+
+
 @pytest.mark.parametrize('status', ['continue', 'blocked', 'task_complete'])
 def test_closed_turns_retain_exact_response_commands_and_scope_after_restarts(campaign, status):
     run, state, result, _ = campaign.accepted('consumer')

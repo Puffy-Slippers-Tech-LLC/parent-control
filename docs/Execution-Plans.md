@@ -83,6 +83,11 @@ and verified destinations in previously completed rows move to that locator
 only after verification, retaining their labels and claims. Unfinished consumers
 remain protected. A locator alone is no acceptance.
 
+Publication uses the [bundle selection boundary](../tests/README.md#complete-qualification-evidence-bundles):
+live launcher control updates and unrelated worktree merges do not invalidate
+unchanged proof. Changed acceptance inputs still require the normal controller
+validation and reconciliation; retained evidence keeps its original source identity.
+
 The accepted-evidence reader supports strict locator/ledger schemas 1 and 2.
 Schema 2 binds the exact ledger member, segment receipts, task proof and logical
 record closures described in the [evidence wire contract](TestAutomation/Export-Design.md#canonical-identities-and-wire-records).

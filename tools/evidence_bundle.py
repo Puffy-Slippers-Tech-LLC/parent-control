@@ -264,6 +264,7 @@ class Selection:
         self.reader_uid, self.reader_gid = os.geteuid(), os.getegid()
         self.records, self.files, self.archives = {}, {}, {}
         self.directories = {}
+        self.selected_directories = {}
         self.bundle_identities = {}
         self.receipt_identities = {}
         self.session_owners = {}
@@ -838,14 +839,23 @@ class Selection:
             yield fd, os.fstat(fd)
 
     def check_directory(self, path, info):
-        previous = self.directories.setdefault(str(path), fingerprint(info))
-        if fingerprint(info) != previous:
-            raise ValueError('bundle: source directory changed after inventory')
+        key = str(path)
+        current = fingerprint(info)
+        # Traversal ancestors can contain live launcher control files and other
+        # capsules. Their membership is outside the selected proof. Keep path,
+        # owner and permission identity strict without freezing sibling writes.
+        previous = self.directories.setdefault(key, current[:5])
+        if (current[:5] != previous or key in self.selected_directories
+                and current != self.selected_directories[key]):
+            raise ValueError(f'bundle: source directory changed after inventory: {path}')
 
     def walk(self, fd, path, record, *, depth):
         if depth > 32:
             raise ValueError('bundle: selection nesting exceeds limit')
         before, names = fingerprint(os.fstat(fd)), sorted(os.listdir(fd))
+        # A recursively selected tree includes its membership, unlike an
+        # ancestor used only to reach that tree or an explicitly selected file.
+        self.selected_directories.setdefault(str(path), before)
         for name in names:
             child_path = path / name
             privacy(child_path)

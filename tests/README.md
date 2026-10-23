@@ -2168,6 +2168,13 @@ mutation, mount escapes, credentials and incomplete publications refuse. Private
 group metadata is allowed only when that group admits the caller and root.
 Sources remain unchanged; sharing retains the raw-export privacy restriction.
 
+Only recursively selected directories freeze their membership and content
+metadata. Ancestors used to reach selected proof retain strict identity,
+ownership, permission and mount checks, while unselected sibling writes remain
+allowed. Live launcher chat/checkpoint updates and worktree propagation can
+therefore coexist with publication without invalidating unchanged proof. Selected
+file/tree mutations and ancestor substitutions still refuse.
+
 For an explicit validation boundary, append `--defer-cleanup` to export. Inspect
 the returned bundle, finish the required safety checks, then run:
 

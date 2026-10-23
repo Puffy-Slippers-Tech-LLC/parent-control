@@ -528,6 +528,52 @@ def test_inventory_to_copy_mutation_is_refused(evidence, change):
     assert not (evidence.exports.path / bundle.retention.PUBLICATION).exists()
 
 
+def test_unselected_sibling_updates_do_not_invalidate_selected_proof(evidence, monkeypatch):
+    root = evidence.allocate({'proof/result.json': b'exact proof', 'chat.json': b'old chat'})
+    source = root / 'proof'
+    write = bundle.Selection.write
+
+    def update_siblings(selection, destination):
+        # Atomic launcher control writes change the allocation's timestamps,
+        # size and link count without changing the selected proof subtree.
+        temporary = root / 'chat-new.json'
+        temporary.write_bytes(b'new chat')
+        temporary.replace(root / 'chat.json')
+        (root / 'another-capsule').mkdir(mode=0o700)
+        return write(selection, destination)
+
+    with evidence.select([source]) as selection:
+        expected = selection.plan()['selection_sha256']
+        monkeypatch.setattr(bundle.Selection, 'write', update_siblings)
+        exported = bundle.export(selection, expected=expected)
+    manifest = evidence.inspect(exported['path'])
+    assert {entry['path'] for entry in manifest['files']} == {str(source / 'result.json')}
+    assert evidence.inspect(exported['path'], member=str(source / 'result.json')) == b'exact proof'
+    assert (root / 'chat.json').read_bytes() == b'new chat'
+
+
+@pytest.mark.parametrize('change', ['add', 'remove', 'replace-parent', 'parent-mode'])
+def test_selected_tree_and_traversal_identity_changes_still_refuse(evidence, change):
+    root = evidence.allocate({'ancestor/proof/result.json': b'exact proof',
+                              'ancestor/proof/extra.json': b'extra proof'})
+    parent = root / 'ancestor'
+    source = parent / 'proof'
+    with evidence.select([source]) as selection:
+        if change == 'add':
+            (source / 'new.json').write_bytes(b'new proof')
+        elif change == 'remove':
+            (source / 'extra.json').unlink()
+        elif change == 'replace-parent':
+            parent.rename(root / 'previous')
+            parent.mkdir(mode=0o700)
+            (root / 'previous/proof').rename(source)
+        else:
+            parent.chmod(0o500)
+        with pytest.raises(ValueError, match='directory changed'):
+            bundle.export(selection, expected=selection.selection_sha256)
+    assert not (evidence.exports.path / bundle.retention.PUBLICATION).exists()
+
+
 @pytest.mark.parametrize('phase', ['inventory', 'copy'])
 def test_mutation_during_streaming_is_refused(evidence, monkeypatch, phase):
     root = evidence.allocate({'result.json': b'original'})

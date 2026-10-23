@@ -1663,6 +1663,10 @@ def buckets(nodeids):
 # Every descriptor closes in its owner; there is no live launcher, VM, network,
 # display, shared cache, service or subprocess. Both plan evidence modules retain
 # compatible unit scheduling; cleanup/UI inventories gain no module or resource.
+# Concurrent-publication checks add private sibling/control-file writes and one
+# plan_evidence history with local Git worktrees, a bare remote and bounded,
+# waited Git children. They use no network, shared paths/cache, VM, UI or service;
+# evidence_bundle and plan_evidence retain compatible overlap and no new owner.
 # Target-journal catalogue checks use private paths and process-local identity/
 # registry doubles; they neither switch credentials nor inspect real journals.
 # Saved-selection publication also uses those private host/target journals and

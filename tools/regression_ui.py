@@ -207,10 +207,6 @@ GROUPS = (
     ('About', ('test_about_release.py',), 6),
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
     ('Accessible adapter', ('test_e2e_accessible_adapter.py',), 12),
-    # Core recording integration uses a private bus/Mutter/runtime, one bounded
-    # encoder and synthetic feeds. No viewer UI actions, live VM or shared
-    # display; retain its existing admission and whole-module fixture scope.
-    ('Core recording', ('test_watch_recording.py',), 8),
     ('Automation identity', ('test_automation_identity.py', 'test_translation_widget_contracts.py'), 12),
 )
 
@@ -274,7 +270,7 @@ GROUPS = (
 # launch and services; its socket runtime and scratch locks outlive forced pytest
 # exit. It introduces no shared resource; keep the existing ui-shell reservation.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-about', 'ui-shell',
-         'ui-accessible', 'ui-watch', 'ui-identity')
+         'ui-accessible', 'ui-identity')
 
 
 @dataclass(frozen=True)

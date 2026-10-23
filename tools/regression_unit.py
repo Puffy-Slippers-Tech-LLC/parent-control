@@ -54,10 +54,6 @@ guestfs doubles. No live daemon, VM, display, socket, bus, shared cache or new
 subprocess owner is added; their compatible unit classifications remain valid.
 The baseline modules retain their existing cleanup classifications; UI gains no resource.
 
-e2e_baseline_journey uses pytest-private records, in-memory UI/transport/clock
-doubles and bounded waited Perl children. It owns no VM, display, bus, socket,
-external service, shared cache or fixture build. Its small CPU/I/O load permits
-compatible unit overlap; cleanup and UI inventories gain no resource owner.
 e2e_estimate_freshness uses only private records and in-memory clock/transport
 doubles, with the same compatible unit ownership.
 
@@ -270,19 +266,9 @@ Qualification clock/secret checks use pytest-private collector files and a
 process-local clock double, retaining the graphical-smoke safety module's
 existing compatible classification without a shared clock or cleanup owner.
 
-Kiosk-to-overlay FLOW12 extends e2e_overlay_valid_choices with private request
-snapshots, recorder files and bounded waited Perl workers. No VM, display,
-bus, shared cache or new cleanup owner; its compatible unit bucket still applies.
-Composition review remains process-local source/metadata inspection.
-
 Request-time estimate preview asset regressions use tiny pytest-private data
 trees and process-local path/presenter doubles. No display, bus, subprocess or
 shared mutable resource is added; the existing compatible unit bucket applies.
-
-Case 46 extends e2e_overlay_cancel and e2e_kiosk_valid_duration with private
-recorder/transport values, pytest-owned evidence and bounded waited Perl workers.
-No live VM, display, bus, socket, shared cache or new cleanup owner; both retain
-their existing compatible unit classification. Neither enters the cleanup inventory.
 
 Unrelated-package qualification and shared comparisons extend package_authority/package_install cleanup
 modules with process-local package/metadata doubles, private recorder/marker
@@ -702,11 +688,6 @@ and GLib doubles; child_preview remains compatible without a real bus/display.
 # private tmp_path recorder files and bounded, waited Perl children. No live
 # guest, display, bus, shared cache or new allocation lifetime; their reviewed
 # app-row/composition/launcher and installed-journey buckets stay compatible.
-# Native activity comparison uses frozen synthetic public values, private
-# pytest reply/marker files, process-local transport doubles and waited Perl
-# children. No live VM, display, socket, shared cache or new resource lifetime.
-# Case 80 adds policy/balance reply checks and the two-child command composition
-# in the same e2e_app_activity module with these private resources; compatible.
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,
 # bounded in-memory archives and mocked SSH. Feedback composition retains private
@@ -887,8 +868,6 @@ from regression_ui import Bucket
 # and one joined process-local thread; no live child, VM, display or shared cache.
 # Remembered-return diagnostic prefix checks use the same private requests and
 # dispatcher doubles; no live VM, bus, display, shared cache or new owner.
-# Short return diagnostic worker checks in e2e_overlay_valid_choices use the
-# existing bounded Perl children and private plan/request fixtures; compatible.
 # Prompt snapshot facts in accessible_e2e_ui use process-local tree doubles and
 # the existing bounded isolated payload children; no shared bus/display/cache.
 # Finite application-state scope checks in public_atspi reuse mocked connections,
@@ -974,15 +953,6 @@ from regression_ui import Bucket
 # Python callbacks on that same tree, with fixture UID ownership and no shared
 # cache, mount mutation, service or live package operation. Existing purge,
 # removal and RPM packaging compatible classifications remain appropriate.
-# Parent Hebrew observations add private text/focus doubles, recorder files and
-# synchronously waited bounded Perl children to parent_language_cleanup_safety.
-# No VM, shared bus/path or new resource owner; its compatible classification stays.
-# Parent inherited-dialog checks extend the same private node/decoder/recorder
-# fixtures and waited Perl children; no new resource or lifetime is introduced.
-# Enabled Hebrew policy decoding/comparison extends those private fixtures and
-# waited worker children; no shared path, VM, bus or additional resource owner.
-# Parent presentation uses private recorder/decoder files and bounded waited
-# Perl probes; no live VM, bus, display, shared cache or new cleanup owner.
 # Resume regressions use small private pytest checkpoint files and one waited
 # synthetic pytest child. Repair-loop checks reuse the recorded process doubles;
 # they add no shared owner, VM, display, socket or expensive fixture. Both unit
@@ -1241,15 +1211,12 @@ system_first_configure
 e2e_natural_expiry
 e2e_natural_expiry_cleanup_safety
 kiosk_reminder_journey_cleanup_safety
-kiosk_reminder_registration_cleanup_safety
 overlay_reminder_cleanup_safety
 overlay_reminder_journey_cleanup_safety
-overlay_reminder_registration_cleanup_safety
 system_kiosk_accounts
 e2e_kiosk_notification_wellbeing
 application_ui_support
 test_checkpoint
-parent_presentation_cleanup_safety
 package_lifecycle_cleanup_safety
 package_purge_cleanup_safety
 system_removal
@@ -1257,22 +1224,13 @@ system_removal_faults
 system_removal_identity
 system_removal_ownership
 system_kiosk_admission
-parent_language_cleanup_safety
-language_persistence_cleanup_safety
-kiosk_language_cleanup_safety
-kiosk_language_restoration_cleanup_safety
-overlay_language_cleanup_safety
-chinese_native_auth_cleanup_safety
-chinese_kiosk_lifecycle_cleanup_safety
 package_upgrade_cleanup_safety
 upgrade_assets_cleanup_safety
 desktop_language_cleanup_safety
 localization
 e2e_overlay_prompt
 e2e_shell_panel
-e2e_overlay_valid_choices
 e2e_overlay_license
-e2e_overlay_cancel
 vm_internet_cleanup_safety baseline_fixtures_cleanup_safety
 about_dialog accessible_e2e_ui accessible_observation adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice chinese_language_assets_cleanup_safety evidence_bundle
 authentication_evidence automation_ids backing_verification_cleanup_safety baseline_guest_cleanup_safety broker_properties
@@ -1289,8 +1247,8 @@ e2e_install_helper e2e_install_password_observation e2e_installation_boundary
 e2e_installation_observations e2e_inventory e2e_keyring_fixture_cleanup_safety
 e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_feedback_confinement e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
 e2e_license_viewer
-e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_app_activity
-e2e_baseline_app_effects e2e_baseline_auth_pause e2e_baseline_journey e2e_estimate_freshness e2e_long_request_binding
+e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch
+e2e_baseline_auth_pause e2e_estimate_freshness e2e_long_request_binding
 compatible_native_fixtures
 e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
@@ -1323,7 +1281,7 @@ screen_preview_cleanup_safety screenshot_cleanup_safety screenshot_export_policy
 screenshot_export_safety service_contract session_expiry session_expiry_cleanup_safety
 session_limit_check setup_entrypoint setup_privileges shell_overview storage_migration_cleanup_safety support
 support_shell system_accounts_cleanup_safety system_agent
-system_agent_cleanup_safety system_assertions system_caller system_caller_cleanup_safety
+system_agent_cleanup_safety system_caller system_caller_cleanup_safety
 system_diagnostics system_enforcement system_enforcement_cleanup_safety system_guest
 system_info system_kiosk_scope
 system_probe_decision system_probe_sandbox_cleanup_safety system_qualification

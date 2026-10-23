@@ -1,6 +1,6 @@
 """Refuse the unqualified Shell public-ID search route before input.
 
-Retained search behavior regressions remain in test_accessible_e2e_ui.py.
+Search behavior is validated through product-facing workflows.
 The fresh Parent route uses a separately scoped external-provider adapter.
 """
 

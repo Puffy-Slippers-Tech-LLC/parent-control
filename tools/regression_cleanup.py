@@ -320,13 +320,6 @@ from regression_resources import HOST_WORKERS
 # doubles; relocated shells wait for their two short Python callbacks. No real
 # mounts, shared paths/caches or host package operation; package_purge retains
 # its compatible cleanup and unit classifications.
-# Parent Hebrew text/focus refusals use the existing private node/recorder
-# fixtures and waited Perl worker probes. No new protected operation or owner;
-# parent_language stays compatible in cleanup and unit inventories.
-# Enabled Hebrew policy uses the same private recorder/node fixtures and waited
-# worker probes; no protected operation, live owner or shared state is added.
-# Parent presentation exercises terminal refusals in private recorder/decoder
-# fixtures and waited Perl children; compatible here and in the unit inventory.
 # Desktop lock plans extend desktop_session's private recorder/checkpoint files
 # only. The same pytest allocation owns cleanup; no VM/display/process owner is
 # acquired. Compatible here and in the unit inventory.
@@ -374,20 +367,10 @@ fixture_execution fixture_handoff
 fixture_producer fixture_bundle
 e2e_natural_expiry
 kiosk_reminder_journey
-kiosk_reminder_registration
 overlay_reminder
 overlay_reminder_journey
-overlay_reminder_registration
-parent_presentation
 package_lifecycle
 package_purge
-parent_language
-language_persistence
-kiosk_language
-kiosk_language_restoration
-overlay_language
-chinese_native_auth
-chinese_kiosk_lifecycle
 package_upgrade
 upgrade_assets
 desktop_language

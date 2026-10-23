@@ -518,6 +518,10 @@ budgets without loading old repair conversations; new verification rounds still
 execute the complete requested selection. After a repair within verification,
 the next clean pass clears previous category completions before queuing work;
 an interruption can resume only that pass's completions.
+Fresh startup preserves unfinished repairs and Git ownership but defers their
+verification until the requested categories run again, so a replaced runner
+checkpoint cannot block startup. Already accepted Git close-out still finishes
+before tests.
 
 Use `tools/fix-tests --resume` without repeating the original arguments to
 restore the saved selection and VM queue. Its startup line lists retained passed

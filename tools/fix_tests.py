@@ -1116,9 +1116,11 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         commits.save()
         check_stop()
         commits.finish_pending()  # Retry accepted Git work before tests or another agent.
-        # A worker can stop after runner cleanup but before its verification
-        # callback. Recover only the exact retained case pass and source bytes.
-        if not reloading:
+        # Only an explicit resume may recover a pass left before the verification
+        # callback. A fresh run must execute its categories first: another run
+        # may have replaced the shared runner checkpoint since this repair stopped.
+        # Retained repairs still close out against their new category results.
+        if resuming and not reloading:
             close_verified()
         for entry in commits.state['repairs'].values():
             category = entry['failure'][0]

@@ -289,6 +289,22 @@ class TaskDisplay(LauncherDisplay):
                 self.console.print(text, soft_wrap=True)
             else:
                 self.stream.write(f'{label} {value}\n')
+        try:
+            result = json.loads((self.run / 'result.json').read_text())
+            checkpoint = json.loads((self.run / 'checkpoint.json').read_text())
+            queue_complete = (result.get('status') == 0
+                              and checkpoint.get('reason') == 'queue complete')
+        except (OSError, ValueError, AttributeError):
+            queue_complete = False
+        if queue_complete:
+            message = 'QUEUE COMPLETE'
+            border = '=' * len(message)
+            if self.tty:
+                self.console.print(Text(border, style='green'), soft_wrap=True)
+                self.console.print(Text(message, style='bold green'), soft_wrap=True)
+                self.console.print(Text(border, style='green'), soft_wrap=True)
+            else:
+                self.stream.write(f'{border}\n{message}\n{border}\n')
         self.stream.flush()
 
     def update_question(self, question, send):

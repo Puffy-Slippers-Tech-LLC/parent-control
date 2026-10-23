@@ -694,6 +694,13 @@ summaries, including when no task summary is available:
   start clock used by `Total Duration`. Older backends without that clock use
   elapsed time since observer attachment.
 
+When the entire execution-plan queue finishes successfully, append a final banner
+after the recap and timing: `QUEUE COMPLETE` in bold green uppercase, with one
+green line of `=` characters above and below it, each matching the message's
+character length. The bottom border is the last output line.
+Plain output retains the banner text without terminal styling. Task limits,
+stops, cancellation and failures do not count as queue completion.
+
 Only the `Ended:` and `Duration:` labels are bold terminal text; their values
 use normal weight. Cancellation, exceptions and handled termination signals
 retain this footer after terminal restoration; uncatchable termination cannot

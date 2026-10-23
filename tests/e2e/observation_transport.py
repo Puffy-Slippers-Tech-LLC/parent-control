@@ -78,7 +78,7 @@ class ReadOnlyObservations:
         """
         require(not self._failed, 'observation:previous-failure')
         try:
-            require(isinstance(name, str) and name in ('assets', 'assets-upgrade', 'greeter', 'parent-session',
+            require(isinstance(name, str) and name in ('assets', 'assets-upgrade', 'assets-upgrade-rpm', 'greeter', 'parent-session',
                                                       'serial-password', 'serial-session', 'boot',
                                                       'vt6-getty', 'vt6-password', 'vt6-session', 'vt6-install-password',
                                                       'vt6-reboot-password',
@@ -94,6 +94,7 @@ class ReadOnlyObservations:
             program, timeout = {
                 'assets': (guest_observations.ASSETS, 120),
                 'assets-upgrade': (guest_observations.UPGRADE_ASSETS, 120),
+                'assets-upgrade-rpm': (guest_observations.UPGRADE_ASSETS_RPM, 120),
                 'greeter': (guest_observations.GREETER, 110),
                 'parent-session': (guest_observations.PARENT_SESSION, 110),
                 'serial-password': (guest_observations.SERIAL_PASSWORD, 20),
@@ -255,25 +256,29 @@ class ReadOnlyObservations:
                 # booleans-as-counts, and unexpected private fields.
                 result = json.loads(raw)
                 require(isinstance(result, dict) and set(result) == (
-                            {'files', 'sha256', 'packages'} if name == 'assets-upgrade' else {'files', 'sha256'})
+                            {'files', 'sha256', 'packages'} if name in ('assets-upgrade', 'assets-upgrade-rpm') else {'files', 'sha256'})
                         and type(result['files']) is int and 0 < result['files'] <= 100000
                         and isinstance(result['sha256'], str)
                         and re.fullmatch(r'[0-9a-f]{64}', result['sha256'])
                         and raw == (json.dumps(result, sort_keys=True) + '\n').encode(),
                         'observation:invalid-output')
-                if name == 'assets-upgrade':
+                if name in ('assets-upgrade', 'assets-upgrade-rpm'):
                     packages = result['packages']
+                    architecture, previous_version = {
+                        'assets-upgrade': ('amd64', '1.2+ppa1~ubuntu26.04.1'),
+                        'assets-upgrade-rpm': ('x86_64', '0:1.3-0.1.dev.fc44'),
+                    }[name]
                     require(type(packages) is dict and set(packages) == {'current', 'previous'}
                             and all(type(item) is dict and set(item) == {
                                 'name', 'version', 'architecture', 'sha256'}
                                 and item['name'] == 'oh-no-parent-control'
-                                and item['architecture'] == 'amd64'
+                                and item['architecture'] == architecture
                                 and type(item['version']) is str
                                 and re.fullmatch(r'[0-9][0-9A-Za-z.+:~\-]{0,127}', item['version'])
                                 and type(item['sha256']) is str
                                 and re.fullmatch(r'[0-9a-f]{64}', item['sha256'])
                                 for item in packages.values())
-                            and packages['previous']['version'] == '1.2+ppa1~ubuntu26.04.1'
+                            and packages['previous']['version'] == previous_version
                             and packages['current']['sha256'] != packages['previous']['sha256'],
                             'observation:invalid-output')
             print('e2e:observation-' + name + '-verified', file=sys.stderr, flush=True)

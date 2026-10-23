@@ -127,21 +127,17 @@ def test_shared_journey_setup_checks_readiness_after_asset_transfer(monkeypatch,
     assert setup.provision.call_args.kwargs == {'fixture_selection': selection.record()}
 
 
-@pytest.mark.parametrize('value', [None, 'fedora'])
 def test_product_free_missing_or_incompatible_input_refuses_before_mutation(
-        monkeypatch, tmp_path, value):
-    selection = fixture_execution.Selection('fedora', 'a' * 64,
-        '/tmp/onpc-native-runtime-fedora-' + 'a' * 64 + '-private',
-        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64)
+        monkeypatch, tmp_path, selection):
+    import fixture_e2e_product_free_qualification as product_free
     verify, factory, vm = Mock(), Mock(), Mock()
     monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
     monkeypatch.setattr(preparation.fixture_provision, 'Provisioner', factory)
-    lease = lease_for('ubuntu')
+    lease = lease_for(selection.target)
     lease.installed_name = None
-    with pytest.raises(ValueError, match=('execution-selection-required' if value is None
-                                          else 'target-not-qualified')):
-        preparation.prepare(vm, lease, tmp_path,
-                            None if value is None else selection.record(), product_free=True)
+    assert product_free.refused_inputs({'vm': vm, 'lease': lease, 'directory': tmp_path},
+        selection) == {'missing': 'fixtures:execution-selection-required',
+                      'incompatible': 'fixtures:e2e-product-free-target-not-qualified'}
     verify.assert_not_called()
     factory.assert_not_called()
     assert not vm.mock_calls and not list(tmp_path.iterdir())
@@ -151,6 +147,8 @@ def test_product_free_missing_or_incompatible_input_refuses_before_mutation(
 def test_product_free_bootstrap_refuses_incompatible_envelopes_before_mutation(tmp_path, invalid):
     import system_runner
     lease = lease_for('fedora' if invalid == 'target' else 'ubuntu')
+    if invalid == 'target':
+        lease.capture.state['guest']['version'] = '43'
     lease.capture.state['proof'] = {'name': 'baseline'}
     lease.installed_name = 'installed' if invalid == 'installed' else None
     lease.online_pending = invalid == 'pending'
@@ -163,10 +161,10 @@ def test_product_free_bootstrap_refuses_incompatible_envelopes_before_mutation(t
     assert not list(tmp_path.iterdir())
 
 
-def test_empty_product_free_setup_has_no_native_input_or_asset_dependency(monkeypatch, tmp_path):
+def test_empty_product_free_setup_has_no_native_input_or_asset_dependency(monkeypatch, tmp_path, selection):
     import installed_journey
     import installed_setup
-    lease = lease_for('ubuntu')
+    lease = lease_for(selection.target)
     lease.installed_name = None
     context = SimpleNamespace(directory=tmp_path, lease=lease)
     prepare, verify, setup = Mock(), Mock(), Mock()
@@ -213,11 +211,11 @@ def test_empty_entry_audits_all_declarations_without_native_input(monkeypatch, t
 
 @pytest.mark.parametrize('stale', [False, True])
 def test_product_free_setup_requires_readiness_after_transfer_and_final_guard(
-        monkeypatch, tmp_path, stale):
+        monkeypatch, tmp_path, stale, selection):
     import installed_journey
     import installed_setup
     events = []
-    lease = lease_for('ubuntu')
+    lease = lease_for(selection.target)
     lease.installed_name = None
     selection = {'selected': 'private'}
     monkeypatch.setattr(preparation, 'validate_input',
@@ -336,7 +334,7 @@ def test_smoke_product_free_input_guards_precede_storage_and_credentials(monkeyp
     program = compile(ast.Module(body=[node for _, node in guards], type_ignores=[]),
                       smoke.__file__, 'exec')
     monkeypatch.setattr(vm_config, 'selected', lambda: SimpleNamespace(
-        name='onpc-Fedora44' if mode == 'target' else 'onpc-Ubuntu26.04'))
+        name='unqualified-target' if mode == 'target' else 'onpc-Fedora44'))
     verify = Mock()
     monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
     scope = dict(vars(smoke), product_free_entry=not mode.startswith('gdm'),
@@ -371,7 +369,12 @@ def test_unqualified_native_closures_refuse_before_worker(
     assert not list(tmp_path.iterdir())
 
 
-def test_authenticated_selections_outlive_every_history_and_cleanup(monkeypatch, tmp_path, selection):
+@pytest.mark.parametrize('product_free', [False, True])
+def test_authenticated_selections_outlive_every_history_and_cleanup(monkeypatch, tmp_path, selection, product_free):
+    if product_free:
+        import fixture_e2e_product_free_qualification as subject
+    else:
+        subject = qualification
     events = []
     @contextmanager
     def pin(record):
@@ -379,19 +382,22 @@ def test_authenticated_selections_outlive_every_history_and_cleanup(monkeypatch,
         yield 11
         events.append('unpin-runtime' if record == selection.record() else 'unpin-source')
     target_name = {'ubuntu': 'onpc-Ubuntu26.04', 'fedora': 'onpc-Fedora44'}[selection.target]
-    monkeypatch.setattr(qualification, 'selected_target', lambda: target_name)
-    monkeypatch.setattr(preparation, 'validate_input', lambda value, **_: value)
-    monkeypatch.setattr(qualification.fixture_execution, 'validate_source_selection', lambda *_: {})
-    monkeypatch.setattr(qualification, 'authenticated_input', pin)
-    monkeypatch.setattr(qualification.fixture_execution, 'verify', lambda _: {})
-    monkeypatch.setattr(qualification.fixture_provision, 'authenticated_bundle', Mock())
-    monkeypatch.setattr(qualification.shared, 'source_edit_proof', Mock())
+    monkeypatch.setattr(subject, 'selected_target', lambda: target_name)
+    def validate(value, **options):
+        assert options == {'target': selection.target, **({'product_free': True} if product_free else {})}
+        return value
+    monkeypatch.setattr(preparation, 'validate_input', validate)
+    monkeypatch.setattr(subject.fixture_execution, 'validate_source_selection', lambda *_: {})
+    monkeypatch.setattr(subject, 'authenticated_input', pin)
+    monkeypatch.setattr(subject.fixture_execution, 'verify', lambda _: {})
+    monkeypatch.setattr(subject.fixture_provision, 'authenticated_bundle', Mock())
+    monkeypatch.setattr(subject.shared, 'source_edit_proof', Mock())
     def run(*_):
         assert events == ['pin-runtime', 'pin-source']
         events.append('histories-and-cleanup')
         return {'passed': True}
-    monkeypatch.setattr(qualification, 'qualify_pinned', run)
-    assert qualification.qualify(tmp_path, tmp_path / 'assets', selection.record(), {}) == {'passed': True}
+    monkeypatch.setattr(subject, 'qualify_pinned', run)
+    assert subject.qualify(tmp_path, tmp_path / 'assets', selection.record(), {}) == {'passed': True}
     assert events == ['pin-runtime', 'pin-source', 'histories-and-cleanup',
                       'unpin-source', 'unpin-runtime']
 

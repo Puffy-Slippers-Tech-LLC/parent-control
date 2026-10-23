@@ -1774,7 +1774,7 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
     if e2e_product_free:
         require(observation_only and not any((system_installed, system_product_free,
                 snapshot_capture, environment_only, e2e_installed))
-                and guest_target(lease.capture.state['guest']) == 'ubuntu'
+                and guest_target(lease.capture.state['guest']) is not None
                 and (getattr(lease, 'installed_name', None) is None or
                      getattr(lease, '_restored_name', None) == lease.capture.state['proof']['name'])
                 and getattr(lease, 'online_pending', False) is False,
@@ -1809,7 +1809,8 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
     lease.save('ssh-bootstrap')
     with mounted_guest(guestfs, lease, with_root=True) as (g, root):
         os_id, version = baseline.guest_contract.inspected_release(g, root)
-        require(not e2e_product_free or (os_id, version) == ('ubuntu', '26.04'),
+        require(not e2e_product_free or ((os_id, version) in (('ubuntu', '26.04'), ('fedora', '44'))
+                and os_id == guest_target(lease.capture.state['guest'])),
                 'fixtures:e2e-product-free-target-not-qualified')
         require(not e2e_installed or ((os_id, version) in (('ubuntu', '26.04'), ('fedora', '44'))
                 and os_id == guest_target(lease.capture.state['guest'])),

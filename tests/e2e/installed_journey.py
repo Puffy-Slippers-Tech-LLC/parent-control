@@ -341,7 +341,9 @@ def prepare_product_free_setup(context, transport, guard, *, observer=None):
     if transfer is None:
         require(selection is None, 'fixtures:e2e-product-free-empty-selection')
     else:
-        selection = validate_input(selection, target='ubuntu', product_free=True)
+        from e2e_fixture_preparation import guest_target
+        selection = validate_input(selection,
+            target=guest_target(context.lease.capture.state['guest']), product_free=True)
     guard()
     preparation_context = {'vm': transport, 'lease': context.lease,
                            'directory': context.directory}

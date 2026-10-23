@@ -235,6 +235,65 @@ def test_exact_booted_guest_program_reads_real_package_metadata_and_tree(upgrade
         assert execute() == receipt
 
 
+@pytest.mark.parametrize('fault', ['', 'architecture', 'previous-version', 'not-newer', 'mixed'])
+def test_rpm_readback_uses_fixed_rpm_probe_and_rejects_incompatible_packages(upgrade, capsys, fault):
+    _, transfer, api = captured(upgrade)
+    guest = upgrade[3]
+    transfer.provision(upgrade[2], api)
+    root = guest.path(asset_transfer.DESTINATION)
+    for directory in (root, root / 'previous'):
+        (directory / 'package.deb').rename(directory / 'package.rpm')
+    if fault == 'mixed':
+        (root / 'package.deb').write_bytes(b'ambiguous format')
+    files = {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+             for p in root.rglob('*') if p.is_file()}
+    commands = []
+    def run(argv, **kwargs):
+        commands.append(argv)
+        assert argv[0] == '/usr/bin/rpm'
+        if argv[1] == '--eval':
+            return SimpleNamespace(stdout='0\n' if fault == 'not-newer' else '1\n')
+        assert argv[1:3] == ['-qp', '--queryformat']
+        previous = Path(argv[-1]).parent.name == 'previous'
+        version = '0:1.3-0.1.dev.fc44' if previous else '0:1.4-0.1.dev.fc44'
+        if fault == 'previous-version' and previous:
+            version = '0:1.2-0.1.dev.fc44'
+        return SimpleNamespace(stdout='oh-no-parent-control\n' + version + '\n' +
+                               ('amd64' if fault == 'architecture' else 'x86_64') + '\n')
+    class GuestPath(type(root)):
+        def lstat(self):
+            info = super().lstat()
+            return SimpleNamespace(st_uid=0, st_gid=0, st_mode=info.st_mode, st_nlink=info.st_nlink)
+    def imported(name, *args, **kwargs):
+        if name == 'pathlib':
+            return SimpleNamespace(Path=lambda value: GuestPath(guest.path(value)),
+                                   PurePosixPath=Path)
+        if name == 'subprocess':
+            return SimpleNamespace(run=run)
+        return builtins.__import__(name, *args, **kwargs)
+    capsys.readouterr()
+    def execute():
+        exec(compile(guest_observations.UPGRADE_ASSETS_RPM, '<rpm-asset-oracle>', 'exec'),
+             {'__builtins__': {**vars(builtins), '__import__': imported}})
+        return json.loads(capsys.readouterr().out)
+    if fault:
+        with pytest.raises(AssertionError):
+            execute()
+        return
+    receipt = execute()
+    assert receipt['files'] == len(files) and receipt['sha256'] == provenance.digest(files)
+    for label, name in (('current', 'package.rpm'), ('previous', 'previous/package.rpm')):
+        assert receipt['packages'][label]['sha256'] == files[name]
+    transfer = asset_transfer.AssetTransfer(SimpleNamespace(
+        asset_files=files, upgrade_inputs=receipt['packages']))
+    transfer._receipt = receipt
+    transport = SimpleNamespace(config={'run': 'owned'}, guard=Mock(), call=Mock(
+        return_value=(json.dumps(receipt, sort_keys=True) + '\n').encode()))
+    assert transfer.observe(ReadOnlyObservations(transport)) == receipt
+    assert transport.call.call_args.args[0][2] == guest_observations.UPGRADE_ASSETS_RPM
+    assert commands and all(argv[0] == '/usr/bin/rpm' for argv in commands)
+
+
 @pytest.mark.parametrize('fault', ['name', 'architecture', 'old-version', 'current-version',
                                   'reversed', 'same', 'old-source', 'current-source',
                                   'changed', 'missing', 'symlink', 'hardlink', 'fifo', 'owner', 'writable'])
@@ -415,7 +474,7 @@ def test_mixed_upgrade_bundle_refuses_before_release_or_identity_reads(
 @pytest.mark.parametrize('fault', ['', 'deb-source', 'wrong-commit', 'architecture',
                                   'old-version', 'current-version', 'same-bytes'])
 def test_pinned_rpm_upgrade_binds_release_architecture_versions_and_bytes(upgrade, monkeypatch, fault):
-    assets, source, *_ = upgrade
+    assets, source, lease, _ = upgrade
     (source / 'data').mkdir()
     (source / 'data/app.json').write_text('{"version":"1.4"}')
     release = builder.PREVIOUS_RELEASES['rpm']
@@ -455,6 +514,12 @@ def test_pinned_rpm_upgrade_binds_release_architecture_versions_and_bytes(upgrad
         assert result['sources']['previous']['revision'] == release['commit']
         assert result['sources']['previous']['release_tag'] == release['tag']
         compare.assert_called_once_with('0:1.4-0.1.dev.fc44', release['version'], package_format='rpm')
+        lease.capture.state['guest'] = {'os_id': 'fedora', 'version': '44'}
+        lease.state['baseline_sha256'] = provenance.digest(lease.capture.state)
+        verified = provenance.VerifiedInputs(assets=assets, root=source, lease=lease, upgrade=True)
+        assert verified.upgrade_inputs == result
+        assert verified.asset_files['package.rpm'] == result['packages']['current']['sha256']
+        assert verified.asset_files['previous/package.rpm'] == result['packages']['previous']['sha256']
 
 
 @pytest.mark.parametrize('changed', [False, True])

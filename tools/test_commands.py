@@ -594,7 +594,7 @@ def fixture_execution_target(category, args):
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
     if product_free_e2e:
-        if target != 'ubuntu':
+        if target is None:
             raise ValueError('fixture product-free E2E target is unavailable')
         return target
     if installed_e2e:

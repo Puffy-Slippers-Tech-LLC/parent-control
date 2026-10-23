@@ -52,6 +52,38 @@ subprocess.run(['/usr/bin/dpkg','--compare-versions',packages['current']['versio
 print(json.dumps({'files':len(files),'sha256':hashlib.sha256(encoded).hexdigest(),
                   'packages':packages},sort_keys=True))''')
 
+# Separate fixed RPM probe; the caller selects it from its verified package
+# alias, already matched to the VM's explicit package_format declaration.
+UPGRADE_ASSETS_RPM = ASSETS.replace("print(json.dumps({'files':len(files),'sha256':hashlib.sha256(encoded).hexdigest()},sort_keys=True))", '''import re,subprocess
+assert 'package.rpm' in files and 'previous/package.rpm' in files
+assert 'package.deb' not in files and 'previous/package.deb' not in files
+packages={}
+for label,name in (('current','package.rpm'),('previous','previous/package.rpm')):
+    values=subprocess.run(['/usr/bin/rpm','-qp','--queryformat',
+                          '%{NAME}\\n%{EPOCHNUM}:%{VERSION}-%{RELEASE}\\n%{ARCH}\\n',str(root/name)],
+                          check=True,capture_output=True,text=True,timeout=30).stdout.splitlines()
+    assert len(values)==3 and all(value and '\\t' not in value for value in values)
+    assert values[0]=='oh-no-parent-control' and values[2]=='x86_64'
+    assert 0<len(values[1])<=128
+    packages[label]={'name':values[0],'version':values[1],
+                     'architecture':values[2],'sha256':files[name]}
+assert packages['previous']['version']=='0:1.3-0.1.dev.fc44'
+assert packages['current']['sha256']!=packages['previous']['sha256']
+versions=[re.fullmatch(r'([0-9]+):([A-Za-z0-9][A-Za-z0-9._+~^]*)-([A-Za-z0-9][A-Za-z0-9._+~^]*)',
+                      packages[label]['version']) for label in ('current','previous')]
+assert all(versions)
+for current,previous in zip(versions[0].groups(),versions[1].groups()):
+    comparison=subprocess.run(['/usr/bin/rpm','--eval',
+        '%{lua:print(rpm.vercmp("'+current+'","'+previous+'"))}'],
+        check=True,capture_output=True,text=True,timeout=30).stdout.strip()
+    if comparison=='1':
+        break
+    assert comparison=='0'
+else:
+    raise AssertionError('RPM upgrade must be newer')
+print(json.dumps({'files':len(files),'sha256':hashlib.sha256(encoded).hexdigest(),
+                  'packages':packages},sort_keys=True))''')
+
 
 # All session names and identifiers stay inside this guest process. This is a
 # read-only corroboration, never a replacement for graphical input/screens.

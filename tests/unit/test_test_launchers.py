@@ -326,7 +326,8 @@ def source_proof_selection(selected):
 
 
 @pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
-def test_installed_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fixture_selection, vm, target):
+@pytest.mark.parametrize('selector', ['check_fixture_e2e_installed', 'check_fixture_e2e_product_free'])
+def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fixture_selection, vm, target, selector):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
     selected = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('runtime-ubuntu-', 'runtime-' + target + '-'))
@@ -339,13 +340,14 @@ def test_installed_e2e_qualification_freezes_input_and_source_proof(monkeypatch,
             + 'fixture-execution: source-edit=' + json.dumps(source) + '\n').encode())
         return 0
     options = commands.qualification_fixture_options(ROOT, 'integration',
-        ['check_fixture_e2e_installed'], control=SimpleNamespace(run=execute), environment={})
+        [selector], control=SimpleNamespace(run=execute), environment={})
     assert options == ['--fixture-selection', json.dumps(record, sort_keys=True),
                        '--fixture-source-selection', json.dumps(source, sort_keys=True)]
-    assert commands.qualification_input_options(ROOT, 'check_fixture_e2e_installed') == {
-        'vm_source': True, 'fixture_source': True}
+    assert commands.qualification_input_options(ROOT, selector) == {
+        'vm_source': True, 'fixture_source': True,
+        **({'upgrade_source': True} if selector == 'check_fixture_e2e_product_free' else {})}
     dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
-    command = dispatch(ROOT, ['integration', 'check_fixture_e2e_installed',
+    command = dispatch(ROOT, ['integration', selector,
                              '--vm', vm, *options])
     assert command[3:] == options
 

@@ -16,7 +16,7 @@ def selection_record(value, target=None, *, product_free=False):
         raise ValueError('fixtures:execution-selection-required')
     selection = fixture_execution.Selection.from_record(
         value.record() if isinstance(value, fixture_execution.Selection) else value)
-    if (selection.target not in (('ubuntu',) if product_free else ('ubuntu', 'fedora'))
+    if (selection.target not in ('ubuntu', 'fedora')
             or (target is not None and selection.target != target)):
         raise ValueError('fixtures:e2e-' + ('product-free' if product_free else 'installed')
                          + '-target-not-qualified')
@@ -30,8 +30,8 @@ def validate_input(value, target=None, *, product_free=False):
 
 
 def require_product_free_restore(lease):
-    """Only the qualified Ubuntu empty baseline may release graphical input."""
-    if guest_target(lease.capture.state['guest']) != 'ubuntu':
+    """Only a qualified empty baseline may release graphical input."""
+    if guest_target(lease.capture.state['guest']) is None:
         raise ValueError('fixtures:e2e-product-free-target-not-qualified')
     if (getattr(lease, 'online_pending', False) is True
             or (getattr(lease, 'installed_name', None) is not None

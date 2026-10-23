@@ -1252,13 +1252,16 @@ Signed-By:
     (True, {'fixture_boundary': 'clean', 'ubuntu_version': '26.10'}, False),
     (True, {'fixture_boundary': 'clean', 'os_id': 'unknown', 'version': '44'}, False),
 ])
-@pytest.mark.parametrize('branch', ['system_product_free', 'system_installed'])
+@pytest.mark.parametrize('branch', ['system_product_free', 'system_installed', 'e2e_product_free'])
 def test_clean_bootstrap_requires_explicit_qualified_target_branch(
         tmp_path, enabled, guest, accepted, branch):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     options = {branch: enabled}
     lease.installed_online = lease.online_pending = False
     lease.installed_name = lease._restored_name = 'onpc-v1.4'
+    if branch == 'e2e_product_free':
+        options['observation_only'] = True
+        lease.installed_name = None
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
                            'guest': {**guest, 'preparation_record_sha256': 'e' * 64}}
     lease.state = {'run': RUN, 'baseline_sha256': 'd' * 64}
@@ -1293,7 +1296,7 @@ def test_clean_bootstrap_requires_explicit_qualified_target_branch(
 
 
 @pytest.mark.parametrize('os_id,major,minor', [('ubuntu', 26, 10), ('fedora', 43, 0)])
-@pytest.mark.parametrize('branch', ['system_product_free', 'system_installed'])
+@pytest.mark.parametrize('branch', ['system_product_free', 'system_installed', 'e2e_product_free'])
 def test_clean_bootstrap_rejects_unqualified_inspected_release_before_guest_writes(
         tmp_path, os_id, major, minor, branch):
     commands, lease, guestfs = Mock(), Mock(), Mock()
@@ -1303,20 +1306,24 @@ def test_clean_bootstrap_rejects_unqualified_inspected_release_before_guest_writ
     lease.state = {'run': RUN}
     lease.installed_online = lease.online_pending = False
     lease.installed_name = lease._restored_name = 'onpc-v1.4'
+    if branch == 'e2e_product_free':
+        lease.installed_name = None
     g, _ = bootstrap_guest()
     g.inspect_get_distro.return_value = os_id
     g.inspect_get_major_version.return_value = major
     g.inspect_get_minor_version.return_value = minor
     guestfs.GuestFS.return_value = g
     with pytest.raises(runner.baseline.guest_contract.PreparationError, match=r'\[guard:os\]'):
-        runner.bootstrap(commands, lease, tmp_path, guestfs, **{branch: True})
+        runner.bootstrap(commands, lease, tmp_path, guestfs, **{branch: True},
+                         observation_only=branch == 'e2e_product_free')
     g.write.assert_not_called()
     g.command.assert_not_called()
 
 
 @pytest.mark.parametrize('captured,inspected', [('ubuntu', 'fedora'), ('fedora', 'ubuntu')])
+@pytest.mark.parametrize('branch', ['system_installed', 'e2e_product_free'])
 def test_installed_bootstrap_rejects_other_qualified_disk_before_guest_writes(
-        tmp_path, captured, inspected):
+        tmp_path, captured, inspected, branch):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     guest = ({'ubuntu_version': '26.04'} if captured == 'ubuntu'
              else {'os_id': 'fedora', 'version': '44'})
@@ -1325,12 +1332,17 @@ def test_installed_bootstrap_rejects_other_qualified_disk_before_guest_writes(
     lease.state = {'run': RUN}
     lease.installed_online = lease.online_pending = False
     lease.installed_name = lease._restored_name = 'onpc-v1.4'
+    if branch == 'e2e_product_free':
+        lease.installed_name = None
     g, _ = bootstrap_guest(inspected)
     guestfs.GuestFS.return_value = g
     with patch.object(runner.baseline.guest_contract, 'inspected_release',
                       return_value=(inspected, '44' if inspected == 'fedora' else '26.04')):
-        with pytest.raises(runner.Error, match='system-installed-target-not-qualified'):
-            runner.bootstrap(commands, lease, tmp_path, guestfs, system_installed=True)
+        with pytest.raises(runner.Error, match=(
+                'system-installed' if branch == 'system_installed' else 'e2e-product-free')
+                + '-target-not-qualified'):
+            runner.bootstrap(commands, lease, tmp_path, guestfs, **{branch: True},
+                             observation_only=branch == 'e2e_product_free')
     g.write.assert_not_called()
     g.command.assert_not_called()
 

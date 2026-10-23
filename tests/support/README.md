@@ -174,6 +174,12 @@ and the same [Fedora boundary](../integration/README.md#fedora-installed-e2e-pre
 use the immutable native selection after online resume/credential rebind or
 explicit offline restoration, before setup releases scenario input. Its
 preparation-only selector retains separate proof of both restore branches.
+Ubuntu's [product-free E2E preparation](../integration/README.md#ubuntu-product-free-e2e-preparation)
+and the same [Fedora boundary](../integration/README.md#fedora-product-free-e2e-preparation)
+provision the native closure after owned SSH readiness and before package-only
+scenario transfer. Entry, package and upgrade retain distinct histories;
+GDM-only entry requires no native input or movable payload. Customer input and
+product assertions remain outside fixture preparation acceptance.
 Other ordinary runner branches and engineering selectors
 remain unavailable until the
 [fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies

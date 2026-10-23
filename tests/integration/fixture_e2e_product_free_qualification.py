@@ -33,7 +33,7 @@ from tests.fixtures import native_assets
 
 def selected_target():
     name = proof.prepare_vm.vm_config.selected().name
-    system.require(name == 'onpc-Ubuntu26.04',
+    system.require(name in proof.TARGETS,
                    'fixture-e2e-product-free:target-not-qualified')
     return name
 
@@ -53,8 +53,9 @@ def refuse_previous(previous, result):
 
 def refused_inputs(context, selection):
     wrong = deepcopy(selection.record())
-    wrong['target'] = 'fedora'
-    wrong['allocation'] = wrong['allocation'].replace('runtime-ubuntu-', 'runtime-fedora-')
+    wrong['target'] = 'fedora' if selection.target == 'ubuntu' else 'ubuntu'
+    wrong['allocation'] = wrong['allocation'].replace(
+        'runtime-' + selection.target + '-', 'runtime-' + wrong['target'] + '-')
     result = {}
     for label, value, reason in (
             ('missing', None, 'fixtures:execution-selection-required'),
@@ -271,9 +272,9 @@ def qualify_pinned(directory, assets, selection, manifest, source):
 
 
 def qualify(directory, assets, selection, source_selection):
-    selected_target()
+    target = proof.TARGETS[selected_target()]
     selection = fixture_execution.Selection.from_record(
-        preparation.validate_input(selection, target='ubuntu', product_free=True))
+        preparation.validate_input(selection, target=target, product_free=True))
     source_selection = fixture_execution.validate_source_selection(source_selection, selection)
     with authenticated_input(selection.record()):
         with authenticated_input(source_selection) as source:

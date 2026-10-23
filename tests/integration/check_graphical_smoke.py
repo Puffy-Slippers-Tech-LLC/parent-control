@@ -1490,7 +1490,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         fixture_selection = selection_record(json.loads(parser.parse_args().fixture_selection))
     if product_free_entry or gdm_product_free:
         from vm_config import selected
-        require(selected().name == 'onpc-Ubuntu26.04',
+        require(selected().name in ('onpc-Ubuntu26.04', 'onpc-Fedora44'),
                 'fixtures:e2e-product-free-target-not-qualified')
     if product_free_entry:
         from e2e_fixture_preparation import validate_input

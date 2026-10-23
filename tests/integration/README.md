@@ -252,8 +252,29 @@ after actual producer-source edits. Every history proves product absence and
 stops before customer package input, worker input or product assertions. Ordered
 host composition binds all 13 declared smoke exceptions to their real boundary.
 Watched baseline restoration and owned producer, credential, staging, input and
-transport cleanup remain required. Fedora and other envelopes retain their own
-gates. This supplies no customer or E2E acceptance.
+transport cleanup remain required. Other envelopes retain their own gates.
+This supplies no customer or E2E acceptance.
+
+### Fedora product-free E2E preparation
+
+Clean Fedora 44 graphical attempts use the same
+[product-free preparation boundary](#ubuntu-product-free-e2e-preparation),
+including distinct entry, package, upgrade and empty GDM histories. The selected
+VM must explicitly declare its package format in [the registry](../../config/test-vm.json);
+Fedora declares `rpm`, with no default or fallback. Upgrade preparation verifies
+the pinned earlier Fedora release and current RPM sources, versions, architecture
+and exact bytes. Native provisioning preserves enforcing SELinux, exact finite
+admissions and labels. GDM-only entry has no native input dependency or movable
+payload. Dormant guards and customer checkpoints remain unchanged.
+
+```sh
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_product_free
+```
+
+The same independent readback/runtime, refusal, no-write repeat, fresh readiness,
+source-edit immunity and product-absence checks apply. Stop before customer or
+worker input and product assertions; finish watched baseline restoration and
+owned cleanup. This supplies no customer or E2E acceptance.
 
 ## Retained-session native dependency update
 

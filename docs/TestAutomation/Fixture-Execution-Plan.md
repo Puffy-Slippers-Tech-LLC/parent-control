@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F21 — [Integrate Fedora product-free E2E preparation](Fixture-Tasks/F21-fedora-product-free-e2e.md)**.
+Next task: **F22 — [Integrate Ubuntu transfer qualification](Fixture-Tasks/F22-ubuntu-transfer-qualification.md)**.
 
 ## Outcome and status
 
@@ -74,7 +74,7 @@ baseline refresh. Host checks and independent Sol High review passed. Watched
 restoration, fresh exact-domain off-state audits and owned cleanup passed on both
 targets. After the shared lifecycle merge, both baselines were refreshed through
 the maintained auto route and both installed histories passed again. The
-[verified recovery bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-lrtvdhbg/evidence.zip)
+[verified recovery bundle](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json)
 retains the original installed results, fresh Fedora/Ubuntu results, exact
 command/input records, renewed host selections (3,641, 45 and 321 checks) and
 315 passing close-out consistency checks.
@@ -119,6 +119,18 @@ without changing customer assertions. Independent Sol High review found no
 remaining issues. Watched restoration and owned cleanup passed; Ubuntu ended off.
 The queue records the exact retained evidence. This supplies no customer/E2E
 acceptance.
+F21 delivered the same [Fedora product-free E2E preparation](../../tests/integration/README.md#fedora-product-free-e2e-preparation).
+Distinct entry, package and upgrade paths passed independent 12-file/native-runtime
+checks, input refusals, no-write repeats, source-edit immunity and fresh readiness.
+Empty GDM entry required no native input or movable payload. All four preserved
+product absence, enforcing SELinux and owned baseline restoration before any
+customer/worker input or product assertions. Fedora's explicit RPM declaration
+now reaches both upgrade provenance and independent RPM header/version readback;
+the old Ubuntu-only checks were repaired without changing its DEB route.
+Focused host checks preserve alias composition and dormant guards. Shared
+provisioning/ownership proof remains applicable, so no Ubuntu live renewal was
+needed. The queue records exact evidence and cleanup. This supplies no
+customer/E2E acceptance.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

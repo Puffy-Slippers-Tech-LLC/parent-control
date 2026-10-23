@@ -239,7 +239,7 @@ class AssetTransfer:
         return self._provision_running(lease, transport, product_free=False)
 
     def provision_product_free(self, lease, transport):
-        """Transfer current/upgrade inputs only after native readiness on Ubuntu."""
+        """Transfer current/upgrade inputs only after qualified native readiness."""
         return self._provision_running(lease, transport, product_free=True)
 
     def _provision_running(self, lease, transport, *, product_free):
@@ -388,7 +388,9 @@ class AssetTransfer:
         require(self._failure is None and self._receipt is not None,
                 'transfer:verified-provisioning-required')
         try:
-            observed = observations.read('assets-upgrade' if self.verified.upgrade_inputs else 'assets')
+            probe = ({'package.deb': 'assets-upgrade', 'package.rpm': 'assets-upgrade-rpm'}[
+                package_filename(self.verified.asset_files)] if self.verified.upgrade_inputs else 'assets')
+            observed = observations.read(probe)
             require(observed == self._receipt, 'transfer:booted-assets-mismatch')
             return dict(self._receipt)
         except BaseException:

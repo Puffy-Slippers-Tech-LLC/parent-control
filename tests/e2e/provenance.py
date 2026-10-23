@@ -254,12 +254,11 @@ class VerifiedInputs:
                 require(filename == ('package.rpm' if self._baseline['environment_id'].startswith(
                     'fedora44-') else 'package.deb'), 'provenance:package-platform')
                 if upgrade:
-                    require(filename == 'package.deb', 'provenance:historical-release-ubuntu-only')
                     self._upgrade = build_test_artifacts.verify_upgrade(
                         self.assets, staged=True, repository=self.root,
                         **({'package_only': True} if package_only else {}))
-                    require(self._assets['files']['package.deb'] == package_sha256
-                            and self._assets['files']['previous/package.deb'] ==
+                    require(self._assets['files'][filename] == package_sha256
+                            and self._assets['files']['previous/' + filename] ==
                             self._upgrade['packages']['previous']['sha256'],
                             'provenance:upgrade-alias-mismatch')
             self._inputs = {

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify Ubuntu product-free E2E preparation before customer or worker input."""
+"""Qualify Ubuntu/Fedora product-free E2E preparation before customer or worker input."""
 import argparse
 import json
 import sys

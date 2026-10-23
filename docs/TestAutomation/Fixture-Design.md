@@ -293,7 +293,12 @@ GDM-only history uses an empty closure with no native input or movable payload.
 All histories preserve product absence; selected-byte/runtime checks, refusals,
 no-write repeats, fresh readiness, producer-source edit immunity and watched
 restoration passed. Ordered host composition binds all 13 declared smoke
-exceptions and retains dormant guards. Fedora keeps its separate gate.
+exceptions and retains dormant guards. F21 delivered the same
+[Fedora boundary](../../tests/integration/README.md#fedora-product-free-e2e-preparation),
+including enforcing SELinux, exact admissions/labels and independent RPM upgrade
+readback. Each VM retains its explicit package-format declaration; there is no
+default. The RPM probe verifies the pinned v1.3/current package pair without
+changing Ubuntu's v1.2/current readback or releasing customer input.
 
 ### Runner acceptance matrix
 
@@ -310,7 +315,7 @@ exceptions and retains dormant guards. Fedora keeps its separate gate.
 `check_fixture_system_product_free` and `check_fixture_system_installed` are
 registered and qualified on both targets. `check_fixture_e2e_installed` is
 registered and qualified on Ubuntu 26.04 and Fedora 44.
-`check_fixture_e2e_product_free` is registered and qualified on Ubuntu 26.04 only.
+`check_fixture_e2e_product_free` is registered and qualified on both targets.
 The other three matrix selectors
 are planned `check_fixture_SUFFIX` names, not executable until registered/listed.
 Each invokes the real preparation branch, reads selected bytes

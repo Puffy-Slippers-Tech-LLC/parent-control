@@ -37,6 +37,40 @@ validation need, through the existing prerequisite contract. The already inserte
 E03p-auth/E03p-capture work and suspended E03 keep their identities and progress.
 E14 composes earlier safety checks; E14a independently reviews the result.
 
+### Remaining delivery boundaries
+
+E10–E14a finish the existing path. Keep their IDs, order, scopes and acceptance;
+use the following division to avoid rebuilding the same mechanism in later tasks.
+
+| Task | Smallest delivery and handoff |
+| --- | --- |
+| E10 | Add severity and dependency relevance to existing validation results and wire the missing lifecycle gates. Own the exact claim/role revision binding and historical-advisory decision used by later tasks. |
+| E11 | Discover a finite tracked/registered reference set with the shared parser and classify it through existing authenticated readers and E10 policy. Retain one deterministic inventory in normal launcher artifacts. |
+| E12 | Consume that inventory through E09's document preview/apply APIs. Revalidate documents and proof before each write; use existing protected recovery where required. Update the same dispositions. |
+| E13 | Finish unavailable-history dispositions using E10's policy, the same inventory and existing exact disclosure recovery. Add code only for a demonstrated remaining gap. |
+| E14 | Map delivered regressions to the original failure families and run the three required integration histories. Extend existing histories only where a real boundary remains uncovered. |
+| E14a | Independently review delivered source, the coverage mapping and retained results against current contracts. Resolve findings without reopening superseded protocol proposals. |
+
+The inventory is a bounded report and migration input, not a new authority,
+database or retention journal. Preserve its original claim/identity and record
+resolved or pending outcomes there; regenerate affected entries after relevant
+input changes. Discovery may list a legacy reference without enough context to
+prove it. Leave it unresolved until an owning record supplies that context;
+never infer task, target or result from nearby prose or a plausible filename.
+
+E12 needs per-document atomic writes and repeatable preview/revalidation, not a
+new repository-wide transaction. After interruption, reread the finite selection:
+verified destinations already applied are no-ops, unchanged pending destinations
+can resume, and conflicting edits remain pending. Protected controller changes
+still use their existing durable recovery transaction. No new migration launcher,
+controller or general mutation command is required by this plan.
+
+Keep severity decisions in the existing validation owner unless source coupling
+demonstrates a need to extract a small shared module. Historical advisories are
+bound to exact claim/role revisions in existing owner records; they need no
+background notifier or second debt ledger. Required semantic failures remain
+strict regardless of presentation or historical classification.
+
 ## Scope and quality boundary
 
 Change test tools, support, launchers, metadata and their documentation only.

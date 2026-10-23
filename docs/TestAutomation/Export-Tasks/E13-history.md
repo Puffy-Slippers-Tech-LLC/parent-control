@@ -12,6 +12,13 @@ the [master](../Export-Execution-Plan.md),
 remaining dispositions, delivered reference status/diagnostics and the complete
 `plan_evidence_recovery` exact-authorization/queue/checkpoint transaction.
 
+Finish E11/E12's same finite inventory using E10's revision-bound advisory policy
+and existing `plan_evidence_recovery`, following the
+[remaining delivery boundaries](../Export-Design.md#remaining-delivery-boundaries).
+First identify what remains undelivered. If those owners already provide the
+required behavior, deliver dispositions and verification without another policy
+module, historical-debt database, notifier or recovery protocol.
+
 Represent already unavailable historical proof explicitly, with the exact old
 claim/identity, surviving records, missing dependencies and whether any active
 consumer still requires it. Retain original test verdicts and proof-loss limits;

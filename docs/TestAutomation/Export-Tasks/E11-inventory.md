@@ -11,6 +11,14 @@ Deliver deterministic read-only inventory under the
 frozen document/consumer list, delivered parser/resolver, accepted-evidence ledger,
 historical recovery and authorized artifact-reading interfaces.
 
+Use the shared parser for bounded discovery and the delivered authenticated
+resolver for proof under the
+[remaining delivery boundaries](../Export-Design.md#remaining-delivery-boundaries).
+Discovery does not itself supply a structured consumer identity: if surviving
+owner records cannot establish the exact claim context, record an unresolved
+disposition. Do not synthesize selectors from prose. Register the finite
+inspection route with the existing reader rather than creating another launcher.
+
 Scan tracked relevant documents plus explicitly registered local catalogues.
 Classify exact live proof, exact archived proof, wrong/ambiguous destination,
 unavailable history, example and operational path. Report consumer/line, claim
@@ -21,6 +29,12 @@ filesystem search, mutate a live checkpoint, acquire a competing controller or
 renew any product acceptance. Treat denied/untrusted sources distinctly from
 missing. Emit only bounded local metadata through shared storage; no raw secret
 or transcript dump and no new ad hoc evidence document.
+
+Retain one bounded inventory in normal launcher artifacts for E12 and E13.
+Bind its entries to original document/claim bytes and relevant proof digests;
+record each entry's resolved or pending disposition there. It is a report and
+revalidated migration input, never evidence authority or a new database. E10 owns
+severity and revision matching; reuse them instead of adding inventory policy.
 
 ## Validation and close-out
 

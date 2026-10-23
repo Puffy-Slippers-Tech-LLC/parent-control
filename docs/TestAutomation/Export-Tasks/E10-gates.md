@@ -10,6 +10,15 @@ under the [master](../Export-Execution-Plan.md). Read delivered resolver/parser/
 capture APIs, runner startup and terminal publication, plan preflight/closeout,
 reader diagnostics and existing validation/recovery contracts.
 
+Keep this as policy on existing results under the
+[remaining delivery boundaries](../Export-Design.md#remaining-delivery-boundaries).
+Reuse `plan_evidence` collection, preview/apply and authenticated resolution,
+`document_checks` syntax and the existing runner/controller gates. Identify the
+missing gate at each affected boundary before adding code; do not replace already
+strict publication or retirement verification with a second validation engine.
+E10 owns the claim/role revision binding and historical-advisory decision that
+E11–E13 reuse. Extract a policy module only if actual callers need it.
+
 Classify required references from structured consumers and owning contracts.
 Perform scoped early required-closure/capacity preflight and revalidate at actual
 publication/retirement. Block wrong identities, corruption, unsafe ownership,
@@ -46,6 +55,8 @@ so advisory presentation policy cannot suppress identity or claim failures.
 Test absent/conflicting consumer-role declarations and a required-to-optional
 role change against the owning contract. None may inherit an old advisory or
 bypass strict validation of changed claims and protected labels.
-Check clean-checkout `--check`, bounded diagnostics, no secrets/authentication retry,
-and one verification per unchanged pinned scope. Run scoped host checks, update
+Check clean-checkout `--check` without local historical output, while required
+semantic preflight still refuses the same missing proof. Check bounded diagnostics,
+no secrets/authentication retry and one verification per unchanged pinned scope.
+Run scoped host checks, update
 current contracts to delivered policy and follow the master's owned close-out.

@@ -10,6 +10,11 @@ Deliver the original E14 independent final-review obligation under the
 [infrastructure acceptance](../Export-Design.md#infrastructure-acceptance).
 Read the E01b-frozen history/producer/consumer/retirement/dependency inventories,
 delivered source boundaries, existing owning contracts and exact E14 results.
+Use the [remaining delivery boundaries](../Export-Design.md#remaining-delivery-boundaries)
+and E14's coverage mapping with E11–E13's final dispositions. Review the original
+failure obligations against current contracts; superseded protocol proposals do
+not require implementation. Reuse these records instead of commissioning another
+inventory, migration engine or test matrix.
 Apply the master's [mandate boundaries](../Export-Execution-Plan.md#delivery)
 when assessing coverage: every family needs a disposition, while shared core
 guarantees need focused direct checks and only distinct composition checks.

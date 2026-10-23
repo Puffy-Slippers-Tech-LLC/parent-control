@@ -16,24 +16,20 @@ coverage here.
 E14a separately owns independent final review, preserving the original E14 review
 obligation without combining its allowance with this implementation task.
 
-Build private producer/controller/helper fixture histories spanning capture,
-export, generated document reference, validation, rotation, restart and recovery.
-Include more than three source sessions and unrelated exports, duplicate
-basenames/targets, attempts with changed inputs, punctuation/spaces/worktrees,
-concurrent readers and identical exporters, legacy schemas, missing proof, unsafe
-live sources, denied owner, file/byte capacity and distinct durable recovery
-transitions. Reuse direct checks at their shared owners; combine representative
-inputs only where a cross-owner interaction can reveal a new failure. Do not
-multiply the full matrix across consumers or retest private fixture/helper logic.
-Exercise continue, suspension and accepted Git retry without models,
-VMs, real remote writes or product suites. Assert exact evidence/dependency bytes,
-bounded allocation/verification cost and unchanged foreign resources. Verify
-trivialities continue while wrong-but-existing or required missing proof blocks.
-Include two expired earlier report links with exact retained members while an
-unrelated synthetic producer on the same target holds its journal active. Resolve
-both without source rotation, checkpoint changes, or reading/adopting active
-mutable payloads. Missing archive members remain unavailable; denied access,
-corruption and foreign-active ownership keep their distinct refusal classes.
+Map each inventoried failure/consumer family to its delivered owner, regression
+and resolved or pending disposition in normal launcher artifacts. Reuse E11–E13's
+inventory and earlier safety results under the
+[remaining delivery boundaries](../Export-Design.md#remaining-delivery-boundaries).
+The original inventory supplies behavioral obligations; its superseded protocol
+freeze does not require new mechanisms. Identify a concrete missing cross-owner
+interaction before extending existing private histories and helpers.
+
+Cover the [infrastructure acceptance](../Export-Design.md#infrastructure-acceptance)
+boundaries through that mapping, with focused composition for uncovered interactions.
+Exercise continue, suspension and accepted Git retry without models, VMs, real
+remote writes or product suites. Assert exact evidence/dependency bytes, bounded
+allocation/verification cost and unchanged foreign resources. Verify trivialities
+continue while wrong-but-existing or required missing proof blocks.
 Run all three [required regression histories](../Export-Design.md#required-regression-histories)
 through the actual producer, authenticated selection and ordinary-plan consumer
 paths: report A survives later startup rotation; failed/unacknowledged capture

@@ -81,6 +81,13 @@ their real boundaries and E14a independently reviews the result. Estimates are
 planning aids, not time caps or permission to drop checks. A plan edit completes
 no queue task.
 
+Follow the [remaining delivery boundaries](Export-Design.md#remaining-delivery-boundaries):
+E10 owns the shared policy; E11 produces one finite inventory; E12 and E13 consume
+and update it through delivered preview/apply and protected recovery. E14 reuses
+the resulting safety checks and E14a reviews the final result. Add an interface,
+module or transaction only for a concrete gap in an existing owner. Discovery,
+verification, authorized mutation and acceptance remain separate operations.
+
 ## Validation and close-out
 
 Apply [proportional validation](Export-Design.md#proportional-validation).

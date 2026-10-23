@@ -209,7 +209,7 @@ are shared with `host`; each module and its fixtures stay in one worker. Workers
 use private pytest temporary trees, disabled shared caches and process-local
 doubles. Package/native fixtures build into private staging directories.
 Unknown modules run exclusively as a runtime safeguard. The retained fixture
-output-refusal and manifest checks use small private files and ordinary unit
+output-refusal checks use small private files and ordinary unit
 packing; fixture construction runs through its normal builder workflow.
 This selection adds no other categories or cleanup prerequisite inventory.
 

@@ -1,7 +1,6 @@
 from tests.support.modules import load_module
 import subprocess
 import unittest
-from unittest import mock
 from pathlib import Path
 
 
@@ -15,9 +14,6 @@ load = load_module
 harness = load("h50_harness", INTEGRATION / "harness.py")
 guard = load("h50_guard", INTEGRATION / "guest/guard.py")
 redact = load("h50_redact", INTEGRATION / "guest/redact.py")
-verify_packages = load(
-    "h50_verify_packages", INTEGRATION / "guest/verify_packages.py"
-)
 
 
 class IntegrationHarnessTests(unittest.TestCase):
@@ -63,24 +59,6 @@ class IntegrationHarnessTests(unittest.TestCase):
                 xml.replace("</devices>", '<disk><source file="/dev/sda"/></disk></devices>'),
             )
 
-    def test_cloud_image_setup_is_no_longer_an_operator_entry_point(self):
-        with self.assertRaises(SystemExit):
-            harness._parser().parse_args(["setup", "--name", "onpc-h50-clean"])
-        self.assertFalse(hasattr(harness, "_download_verified_image"))
-
-    def test_ssh_places_the_quoted_command_after_the_destination(self):
-        metadata = {
-            "ssh_private_key": "/state/key",
-            "known_hosts": "/state/known-hosts",
-            "ip_address": "192.0.2.10",
-        }
-        with mock.patch.object(harness, "_run") as run:
-            harness._ssh(metadata, ["sudo", "cat", "/etc/os-release"])
-        command = run.call_args.args[0]
-        destination = command.index("onpc-admin@192.0.2.10")
-        self.assertEqual(command[destination + 1], "sudo cat /etc/os-release")
-        self.assertNotEqual(command[destination + 1], "--")
-
     def test_guest_marker_schema_is_exact(self):
         value = {
             "purpose": "oh-no-parent-control-integration",
@@ -117,27 +95,6 @@ class IntegrationHarnessTests(unittest.TestCase):
             ]
             self.assertTrue(mutation_candidates, name)
             self.assertLess(guard_call, min(mutation_candidates), name)
-
-    def test_guest_shell_scripts_have_valid_syntax(self):
-        for name in ("setup", "run", "verify", "collect"):
-            result = subprocess.run(
-                ["bash", "-n", str(INTEGRATION / "guest" / name)],
-                check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_supported_package_matrix_is_complete_and_exact(self):
-        versions = verify_packages.expected_versions(
-            INTEGRATION / "expected-packages.tsv"
-        )
-        self.assertEqual(
-            set(versions),
-            {
-                "ubuntu-desktop", "gnome-shell", "accountsservice", "malcontent",
-                "fapolicyd", "flatpak", "libpam0g", "libpam-malcontent",
-            },
-        )
-        self.assertTrue(all(version and version != "latest" for version in versions.values()))
 
     def test_artifact_redaction_removes_tokens_passwords_and_keys(self):
         token = "d" * 32

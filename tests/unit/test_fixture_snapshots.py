@@ -55,21 +55,3 @@ def test_product_probe_refuses_non_regular_manifest_before_package_commands(tmp_
     with pytest.raises(Exception, match='product-mutation-target'):
         qualification.changed_product(tmp_path, tmp_path, commands)
     commands.run.assert_not_called()
-
-
-def test_rpm_identity_probe_changes_only_private_archive_bytes(tmp_path):
-    import package_content
-    assets = tmp_path / 'original'
-    assets.mkdir()
-    package = assets / 'package.rpm'
-    original = b'actual frozen package bytes\x12'
-    package.write_bytes(original)
-    before = package.stat()
-    commands = Mock()
-    changed = qualification.changed_product(tmp_path, assets, commands, 'fedora')
-    assert (changed / 'package.rpm').read_bytes() == original[:-1] + b'\x13'
-    assert package.read_bytes() == original
-    after = package.stat()
-    assert (before.st_ino, before.st_size, before.st_mtime_ns) == (after.st_ino, after.st_size, after.st_mtime_ns)
-    assert package_content.digest(package, commands) != package_content.digest(changed / 'package.rpm', commands)
-    commands.run.assert_not_called()

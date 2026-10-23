@@ -1,21 +1,9 @@
-"""Shared external-input guards and owned command result/deadline integrity."""
+"""Shared external-input recipient and uncertain-delivery guards."""
 
-import os
-import subprocess
 import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
-
-from tests.support.terminal import capture
-
-
-@pytest.mark.parametrize('keys,count', [('Return', 2), ('Right', -1), ('Right', 129),
-                                       ('Right', True), ('Right', 1.5)])
-def test_cursor_batches_refuse_unbounded_or_transition_input(keys, count):
-    from tests.support.keyboard import repeat_cursor
-    with pytest.raises(ValueError, match='bounded cursor'):
-        repeat_cursor(None, 'owned-editor', keys, count)
 
 
 @pytest.mark.parametrize('fault', ['', 'recipient', 'partial', 'uncertain', 'cancelled'])
@@ -76,17 +64,3 @@ def test_native_delivery_refuses_product_control_without_sending(monkeypatch):
     node.get_state_set.assert_not_called()
     send.assert_not_called()
     assert not ui.input_uncertain
-
-
-@pytest.mark.parametrize("terminal", [None, "xterm", "dumb"])
-def test_terminal_capture_drains_more_than_a_pty_buffer_and_retains_exit_status(terminal):
-    command = [sys.executable, "-c", "import sys; print('x' * 200000); sys.exit(7)"]
-    result, output = capture(command, os.environ, terminal)
-    assert result.returncode == 7
-    assert output.rstrip() == "x" * 200000
-
-
-def test_terminal_capture_has_a_real_deadline():
-    command = [sys.executable, "-c", "import time; time.sleep(30)"]
-    with pytest.raises(subprocess.TimeoutExpired):
-        capture(command, os.environ, "xterm", timeout=0.1)

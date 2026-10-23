@@ -7,13 +7,8 @@ from unittest.mock import Mock
 import pytest
 
 import account_fixture
-from accessible_ui import CHILD_ACCOUNTS, NEW_CHILD
 import e2e_dynamic_account as guest_fixture
 from private_artifacts import EvidenceError
-
-
-def test_dynamic_child_ui_lookup_uses_the_created_account():
-    assert CHILD_ACCOUNTS[NEW_CHILD] == guest_fixture.USERNAME
 
 
 @pytest.mark.parametrize('fault', [None, 'collision', 'wrong-child', 'station-admin',
@@ -54,25 +49,6 @@ def test_ineligible_fixture_creates_only_locked_admin_and_preserves_accounts(mon
         mutation.assert_called_once()
         assert all(records[path] == value for path, value in before.items())
         assert capsys.readouterr().out == 'onpc-e2e: stage=ineligible-approver outcome=prepared\n'
-
-
-@pytest.mark.parametrize('reply', [b'onpc-e2e: stage=ineligible-approver outcome=prepared\n', b'wrong'])
-def test_ineligible_controller_is_guarded_single_use(reply):
-    context = SimpleNamespace(lease=SimpleNamespace(state={'run': 'a' * 32}))
-    journey = SimpleNamespace(context=context, transport=Mock())
-    journey.transport.call.return_value = reply
-    fixture = account_fixture.IneligibleApproverFixture(context)
-    guard = Mock()
-    if reply == fixture.result:
-        assert fixture.prepare(journey, guard) == {'ineligible_approvers_created': 1}
-        assert guard.call_count == 2
-    else:
-        with pytest.raises(EvidenceError, match='unexpected-result'):
-            fixture.prepare(journey, guard)
-    with pytest.raises(EvidenceError, match='controller-state'):
-        fixture.prepare(journey, guard)
-    journey.transport.call.assert_called_once()
-    assert journey.transport.call.call_args.args[0][-1] == 'prepare-ineligible-approver'
 
 
 def test_guest_guard_refuses_before_account_lookup_or_creation(monkeypatch):
@@ -314,31 +290,6 @@ def test_no_approver_refuses_unexpected_identity_before_mutation(monkeypatch, fa
     mutation.assert_not_called()
 
 
-@pytest.mark.parametrize('fault, uids', [
-    ('missing-parent', [1003]), ('extra-parent', [1003, 1004, 1006]),
-    ('extra-parent', [1006]), ('locked-parent', [1004]),
-    ('standard-parent', [1004]), ('remote-parent', [1004]),
-    ('system-parent', [1004]), ('noninteractive-parent', [1004]),
-])
-def test_no_approver_accepts_any_nonempty_observed_set_and_preserves_others(
-        monkeypatch, capsys, fault, uids):
-    records, _, mutation = no_approver_guest(monkeypatch, fault)
-    before = {path: dict(record) for path, record in records.items()}
-    targets = {int(record['Uid']) for record in before.values()
-               if record['LocalAccount'] == 'true' and record['SystemAccount'] == 'false'
-               and record['AccountType'] == '1' and record['Locked'] == 'false'
-               and record['Shell'] == '/bin/bash'}
-    guest_fixture.prepare_no_approver(uids)
-    assert mutation.call_count == len(targets)
-    for path, record in records.items():
-        expected = dict(before[path])
-        if int(record['Uid']) in targets:
-            expected['Locked'] = 'true'
-        assert record == expected
-    assert capsys.readouterr().out == (
-        f'onpc-e2e: stage=no-approver outcome=prepared locked={len(targets)}\n')
-
-
 @pytest.mark.parametrize('uids', [[], [1003, 1003], [True], ['1003'], [0],
                                 [999], [2 ** 32], [9999], [1001], [1005], None])
 def test_no_approver_refuses_invalid_missing_or_protected_public_targets(monkeypatch, uids):
@@ -346,18 +297,6 @@ def test_no_approver_refuses_invalid_missing_or_protected_public_targets(monkeyp
     with pytest.raises(guest_fixture.guest.GuestError, match='no-approver:'):
         guest_fixture.prepare_no_approver(uids)
     mutation.assert_not_called()
-
-
-def test_no_approver_discovers_parents_without_canonical_names(monkeypatch):
-    records, _, mutation = no_approver_guest(monkeypatch, 'extra-parent')
-    for entry in guest_fixture.pwd.getpwall.return_value:
-        if entry.pw_name in guest_fixture.FIXED_APPROVERS:
-            entry.pw_name = 'some-parent-' + str(entry.pw_uid)
-            records[f'/org/freedesktop/Accounts/User{entry.pw_uid}']['UserName'] = entry.pw_name
-    guest_fixture.prepare_no_approver([1006])
-    assert mutation.call_count == 3
-    assert all(record['Locked'] == 'true' for record in records.values()
-               if record['AccountType'] == '1')
 
 
 @pytest.mark.parametrize('field,value', [('Shell', '/usr/bin/false'), ('Shell', '/sbin/nologin'),

@@ -59,8 +59,8 @@ inside module-private pytest disk scratch, then renders rules in memory. It
 owns no GUI/runtime packaging, display, bus, VM, shared cache or background
 process. Compatible unit overlap is appropriate; cleanup/UI inventories gain
 no module. The existing native/baseline cleanup modules retain their private
-file/double ownership. test_test_applications now uses only private files for
-output-refusal and manifest integrity checks, with no build or child process;
+file/double ownership. test_test_applications uses only private files for
+output-refusal checks, with no build or child process;
 it shares ordinary unit packing.
 Scheduled-collection regressions use private checkout files and an in-process
 owned-controller double. No execution lease, cleanup, display or subprocess is

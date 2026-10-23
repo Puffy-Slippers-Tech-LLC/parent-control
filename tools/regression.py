@@ -1567,7 +1567,6 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                 categories=run.categories if run else (),
                 status='passed' if status == 0 else 'interrupted' if status == 130 else 'failed',
                 cleanup=cleanup, sources_sha256=run.inputs if run else None)
-            print('Runner evidence: ' + json.dumps(report.capture_result, separators=(',', ':')), flush=True)
         except (OSError, ValueError) as error:
             status = 1
             print(f'Regression evidence capture failed; original evidence preserved: {error}',

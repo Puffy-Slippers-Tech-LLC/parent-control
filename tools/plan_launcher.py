@@ -23,7 +23,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
-from execution_plan import Plan, Task, local_file, local_path, plan_namespace
+from execution_plan import Plan, Task, local_file, local_path, plan_namespace, queue_state
 from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequired,
                           closeout_lock, commit_push_propagate, git_output,
                           pull_before_commit, reconciliation_instructions, stage_task,
@@ -245,6 +245,10 @@ def refresh_live_plan(plan, state):
         return  # Finish the recorded Git transaction before reading conflicted metadata.
     try:
         tasks = plan.state(selected=state.get('selected_tasks', state.get('queue_before')))
+        if state.get('result_recovery') and not tasks:
+            # Selected-row reads permit an empty queue. A rejected partial edit
+            # must not erase recovery merely because no rows remain parseable.
+            queue_state(plan.root, plan.path, plan.queue, validate_pointer=False)
     except ValueError:
         if (any(state.get(key) for key in ('in_flight', 'pending_completion', 'result_recovery'))
                 or capacity_session_recovery(state)):

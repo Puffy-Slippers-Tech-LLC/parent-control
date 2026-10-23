@@ -2239,6 +2239,45 @@ def test_registration_failure_removes_only_the_new_empty_allocation(tmp_path, mo
         assert not list(tmp_path.glob('allocation-*'))
 
 
+def test_unchanged_pruning_audits_allocations_without_repeating_journal_syncs(tmp_path,
+                                                                          monkeypatch):
+    store = retention.Store(tmp_path / 'state')
+    calls = []
+    real_sync = os.fsync
+
+    def sync(fd):
+        calls.append('directory' if stat.S_ISDIR(os.fstat(fd).st_mode) else 'file')
+        real_sync(fd)
+
+    monkeypatch.setattr(os, 'fsync', sync)
+    with store.session() as run:
+        evidence = allocated(tmp_path, 'evidence')
+        assert calls == ['file', 'directory'] * 2
+        before = (store.path / 'current.json').stat()
+        with store.opened() as fd, store.locked(fd, 'writer.lock'):
+            store.prune(fd, store.read(fd))
+            after = (store.path / 'current.json').stat()
+            assert (after.st_ino, after.st_mtime_ns, after.st_ctime_ns) == (
+                before.st_ino, before.st_mtime_ns, before.st_ctime_ns)
+            # Skipping a journal write must not skip the allocation audit.
+            evidence.chmod(0o777)
+            try:
+                with pytest.raises(ValueError, match='ownership|mode'):
+                    store.prune(fd, store.read(fd))
+            finally:
+                evidence.chmod(0o700)
+        assert calls == ['file', 'directory'] * 2
+    assert calls == ['file', 'directory'] * 3
+    assert json.loads((store.path / 'current.json').read_bytes())['finished']
+
+    # Reopening the same owner still commits both lifecycle transitions.
+    calls.clear()
+    with store.session(run=run):
+        assert not json.loads((store.path / 'current.json').read_bytes())['finished']
+    assert calls == ['file', 'directory'] * 2
+    assert (evidence / 'test.log').read_bytes() == b'evidence' * 128
+
+
 @pytest.mark.parametrize('fault', [None, 'file-sync', 'replace', 'directory-sync'])
 def test_registration_syncs_before_return_and_preserves_evidence_on_io_failure(tmp_path, monkeypatch,
                                                                              fault):

@@ -496,7 +496,12 @@ class Store:
         if oversized or expire == len(entries):
             state['paths'] = []
             state.pop('captures', None)
-        self.save(fd, state)
+        # Session entry/closure already committed their lifecycle transition.
+        # Keep every audit above, but do not rewrite and fsync that same journal
+        # again when pruning retired no records. Real retirement must still be
+        # committed before returning (including before an oversized refusal).
+        if expire or oversized:
+            self.save(fd, state)
         # Archives are small recovery receipts, not a second retention queue.
         live = {entry['run'] for entry in [*state['history'], state]}
         for name in os.listdir(fd):

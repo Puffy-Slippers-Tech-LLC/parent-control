@@ -42,6 +42,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # open only their real private child retention session.
 # E05 publication reuse uses private fixture journals and descriptor locks only;
 # it adds no shared mutable resource or cleanup owner and remains compatible.
+# No-op pruning/sync checks retain private journals and synchronous fsync
+# observation; they add no child, shared path or new resource lifetime.
 # Capture retirement and resumable-publication checks add only private journals,
 # files and local descriptors with synchronous interruption doubles. They own no
 # child, VM, display, socket, bus, service or shared cache; compatible in both inventories.

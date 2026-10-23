@@ -1632,6 +1632,8 @@ def buckets(nodeids):
 # leases/live references; transfer fingerprints use bounded in-memory archives
 # and private files. Retention and vm_transport stay compatible; no live guest,
 # shared storage, process or additional resource lifetime is introduced.
+# No-op pruning/sync checks use those same private journals and synchronous
+# fsync observation; no shared path, child or new resource lifetime is added.
 # Evidence bundles and publication transactions use small pytest-private journals,
 # ZIP files, descriptors and synchronous metadata/failure doubles. They start no
 # subprocess, VM, network, display or service and mutate no shared cache/path;

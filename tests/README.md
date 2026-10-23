@@ -1612,6 +1612,9 @@ subprocesses forward inherited scratch leases through the fixture builder too.
 Scratch initialization publishes a complete owner atomically from a recorded
 staging slot; interrupted initialization and deletion can resume without
 adopting unknown payloads or losing the directory identity.
+Pruning always audits registered allocations and budgets, but rewrites its
+journal only when retiring records. Session lifecycle and allocation changes
+still synchronize before returning; unchanged pruning adds no duplicate flushes.
 
 During retention recovery, captures from the same workflow share one verified
 cumulative archive while its journal locks and file descriptors remain pinned.

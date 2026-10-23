@@ -497,8 +497,9 @@ def test_real_startup_steps_reply_before_any_language_capture(tmp_path, monkeypa
     import installed_journey
     import installed_setup
     context = SimpleNamespace(directory=tmp_path, installed_snapshot='installed-test',
-        host_key='public-host-key', verified=Mock(), commands=Mock(),
+        host_key='public-host-key', verified=Mock(fixture_prepared=None), commands=Mock(),
         lease=SimpleNamespace(source=SimpleNamespace(uuid='vm-identity'),
+            capture=SimpleNamespace(state={'guest': {'fixture_boundary': 'legacy'}}),
             view=SimpleNamespace(domain_id=1), state={'run': 'attempt'}, guard=Mock()))
     transport = Mock()
     setup = Mock()

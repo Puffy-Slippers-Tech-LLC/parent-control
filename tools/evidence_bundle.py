@@ -145,6 +145,21 @@ def plan_parent(checkout, namespace, *, create=False):
     return parent / 'evidence'
 
 
+def bundle_parent(checkout, path):
+    """Derive a selected archive's fixed publication owner, never a raw producer."""
+    if path.name != 'evidence.zip' or not path.parent.name.startswith('onpc-evidence-bundle-'):
+        raise ValueError('bundle: expected a published evidence bundle')
+    base = Path(checkout) / 'output/test-runs'
+    parts = path.relative_to(base).parts if path.is_relative_to(base) else ()
+    if len(parts) == 6 and parts[0] == 'host' and parts[1] == 'plans' and parts[3] == 'evidence':
+        parent = plan_parent(checkout, parts[2])
+    else:
+        parent = storage.directory('exports', root=checkout, create=False)
+    if path.parent.parent != parent:
+        raise ValueError('bundle: bundle must be in retained exports')
+    return parent
+
+
 def fingerprint(info):
     return [info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
             info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_blocks]
@@ -275,13 +290,6 @@ class Selection:
             # Derive only established publication owners, never a caller-supplied
             # journal or an archive's historical source journal.
             with identity(self.uid, self.gid):
-                parents = set()
-                if self.plan_namespace is not None:
-                    parents.add(self.publication_parent())
-                try:
-                    parents.add(storage.directory('exports', root=self.checkout, create=False))
-                except FileNotFoundError:
-                    pass
                 selected = set()
                 if plan_sources:
                     # Local controller capsules have one fixed authenticated
@@ -289,16 +297,15 @@ class Selection:
                     # merely to combine them with already archived proof.
                     selected.add(self.publication_parent().parent / 'retention')
                 for value in archives:
-                    path = path_text(value)
-                    if (path.name != 'evidence.zip'
-                            or not path.parent.name.startswith('onpc-evidence-bundle-')
-                            or path.parent.parent not in parents):
-                        raise ValueError('bundle: bundle must be in retained exports for this plan')
-                    selected.add(path.parent.parent / 'retention')
+                    selected.add(bundle_parent(self.checkout, path_text(value)) / 'retention')
                 # Preserve the destination budget snapshot when it exists.
-                destination = self.publication_parent() / 'retention'
-                if present(destination):
-                    selected.add(destination)
+                try:
+                    destination = self.publication_parent() / 'retention'
+                except FileNotFoundError:
+                    pass  # A first export can inherit a runner publication.
+                else:
+                    if present(destination):
+                        selected.add(destination)
                 return [(path, self.uid, self.gid) for path in sorted(selected)]
         if os.geteuid() == 0:
             try:
@@ -341,12 +348,24 @@ class Selection:
             for parent in self.session_parents():
                 if any(path.is_relative_to(parent) for path in selected) and present(parent / 'retention'):
                     result.append((parent / 'retention', self.uid, self.gid))
+            # A workflow may explicitly cite a runner's cumulative archive.
+            # Authenticate that exact publication just as inspect() does, even
+            # when live reports require the ordinary producer catalogue too.
+            for value in (*self.bundles, *self.references):
+                path = path_text(value)
+                if path.name == 'evidence.zip':
+                    journal = bundle_parent(self.checkout, path) / 'retention'
+                    entry = (journal, self.uid, self.gid)
+                    if present(journal) and entry not in result:
+                        result.append(entry)
             try:
                 exports = storage.directory('exports', root=self.checkout, create=False)
             except FileNotFoundError:
                 return result  # The first bundle has no existing export journal.
             if present(exports / 'retention'):
-                result.append((exports / 'retention', self.uid, self.gid))
+                entry = (exports / 'retention', self.uid, self.gid)
+                if entry not in result:
+                    result.append(entry)
         return result
 
     def session_parents(self):
@@ -477,14 +496,14 @@ class Selection:
             else:
                 import capture_publication
             capture_publication.prepare_selection(self)
-        missing, archived = [], []
+        missing, archived, absent_archives = [], [], []
         for value in self.references:
             path = path_text(value)
             privacy(path)
             if path.name == 'evidence.zip':
                 if not path.parent.name.startswith('onpc-evidence-bundle-'):
                     raise ValueError('bundle: expected a retained evidence bundle')
-                (archived if present[value] else missing).append(value)
+                (archived if present[value] else absent_archives).append(value)
         for value in [*self.bundles, *archived]:
             path = path_text(value)
             if path.name != 'evidence.zip' or not path.parent.name.startswith('onpc-evidence-bundle-'):
@@ -509,6 +528,15 @@ class Selection:
                 if manifest['schema'] == 2:
                     logical.validate_records(manifest['records'], manifest['member_map'],
                                              manifest['files'], repository=self.repository())
+                    if value in archived:
+                        # A legacy path citation selects the archive itself,
+                        # not its logical claims. Keep the verified bytes and
+                        # receipt intact alongside ordinary controller files;
+                        # mixing those files into schema 2 would invent claims.
+                        self.bundle_identities[value] = before
+                        self.load_source(path)
+                        self.load_source(path.parent / 'receipt.json')
+                        continue
                     self.logical_records.extend(manifest['records'])
                     physical_files = {item['member']: item for item in manifest['files']}
                     for mapping in manifest['member_map']:
@@ -525,6 +553,12 @@ class Selection:
                                           files=len(manifest['files'])))
                 for entry in manifest['files']:
                     self.add_entry(entry, ('bundle', value, entry['member']))
+        for value in absent_archives:
+            if value not in self.files:
+                missing.append(value)
+            else:
+                self.absent_references.add(value)
+                self.reference_context(path_text(value))
         for value in self.sources:
             self.load_source(path_text(value))
         for value in self.references:
@@ -591,6 +625,10 @@ class Selection:
         shared = {'retention-host', 'retention-batch', 'retention', 'standalone-reports'}
         allowed = {base / 'host/state' / name for name in shared}
         allowed.add(base / 'host/exports/retention')
+        if path.name == 'evidence.zip':
+            # An exact archive retained as a legacy payload keeps its own
+            # canonical publication provenance after the original rotates.
+            allowed.add(bundle_parent(self.checkout, path) / 'retention')
         allowed.update(parent / 'retention' for parent in self.session_parents())
         allowed.add(base / 'privileged/state' / f'recovery-diagnostics-{self.uid}')
         for target in self.targets:
@@ -1153,14 +1191,7 @@ def inspect(checkout, uid, gid, path, *, member=None, offset=0, count=8000,
     if type(offset) is not int or type(count) is not int or offset < 0 or not 0 <= count <= MAX_READ:
         raise ValueError('bundle: invalid inspection byte range')
     with identity(uid, gid):
-        base = Path(checkout) / 'output/test-runs'
-        parts = path.relative_to(base).parts if path.is_relative_to(base) else ()
-        if len(parts) == 6 and parts[0] in ('host', 'privileged') and parts[1] == 'plans' and parts[3] == 'evidence':
-            parent = plan_parent(checkout, parts[2])
-        else:
-            parent = storage.directory('exports', root=checkout, create=False)
-        if path.parent.parent != parent:
-            raise ValueError('bundle: bundle must be in retained exports')
+        parent = bundle_parent(checkout, path)
         with retention.Store(parent / 'retention').inspection(include_committed=True) as state:
             if state is None:
                 raise ValueError('bundle: bundle has no recorded owner')

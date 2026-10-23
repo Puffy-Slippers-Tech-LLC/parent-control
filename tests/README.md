@@ -2064,6 +2064,18 @@ copy cannot publish a partial group or retire earlier exports.
 Earlier verified bundles are flattened with new evidence; identical original
 records deduplicate and conflicting records refuse. Every selected file is
 preserved, including host selection/results. No file is silently omitted.
+An explicitly selected archive may belong to another caller-owned workflow's
+publication namespace, including a runner's cumulative capture archive. Discovery
+derives only that archive's canonical publication journal and verifies its recorded
+allocation, receipt and complete contents, using the same owner checks as bundle
+inspection. This applies alongside live reports and controller records too; it
+does not admit the other workflow's raw allocations or register acceptance claims.
+For a legacy `--reference` to a schema-2 archive, preserve the fully verified ZIP
+and receipt as exact payload files instead of flattening logical records together
+with unstructured controller files. Their original publication provenance survives
+rotation. This grants no structured acceptance; use the runner-issued reference
+and consumer for an exact logical claim. Explicit `--bundle` inputs retain the
+normal flattening and complete logical-inventory requirements.
 
 Schema-2 bundles add strict `onpc-evidence-record` version-1 identities and an
 exact logical-member map to the existing ZIP format. Repository, owner, workflow,

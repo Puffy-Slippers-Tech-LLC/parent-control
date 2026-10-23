@@ -1751,3 +1751,7 @@ def buckets(nodeids):
 # Native guest import closure uses one bounded, waited isolated Python child;
 # preflight short-write coverage owns only an auto-closed anonymous descriptor.
 # Both stay within these modules' existing compatible private resource scope.
+# Cross-workflow archive preservation in plan_evidence uses tiny pytest-private
+# runner captures, journals and ZIPs with in-process descriptor locks. It adds no
+# live helper, shared storage, subprocess or cleanup/UI owner; compatible overlap
+# and the existing evidence-module classifications remain appropriate.

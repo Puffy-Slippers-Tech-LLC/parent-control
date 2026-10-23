@@ -393,6 +393,78 @@ def test_ordinary_consumer_authenticates_exact_runner_closure_after_source_rotat
     assert state['task']['targets'] == [] and state['task_sessions'] == 1
 
 
+@pytest.mark.parametrize('mode', ['accepted', 'rejected', 'export', 'unregistered', 'receipt', 'raw'])
+def test_legacy_runner_archive_citation_authenticates_its_publication_owner(campaign, monkeypatch, mode):
+    import capture_publication
+    declaration, _ = _runner_declaration(campaign, monkeypatch)
+    namespace = capture_publication._namespace(dict(record=declaration['record']))
+    parent = bundle.plan_parent(campaign.plan.root, namespace)
+    with bundle.retention.Store(parent / 'retention').inspection() as owner:
+        records = bundle.retention.latest_allocations([*owner['history'], owner])
+        archive = Path(records[-1][1]['path']) / 'evidence.zip'
+    if mode == 'export':
+        with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [], [],
+                              [str(archive)]) as selected:
+            archive = Path(bundle.export(selected, expected=selected.selection_sha256)['path'])
+    expected = archive.read_bytes()
+    receipt = (archive.parent / 'receipt.json').read_bytes()
+    run, state, result, _ = campaign.accepted('consumer')
+    assert namespace != plan_namespace(campaign.plan.path)
+    result['checks'][0]['evidence'] += f' Supporting runner archive: `{archive}`.'
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    from detached_launcher import finish_nested
+    finish_nested(campaign.plan.root, run)
+    before = copy.deepcopy(state)
+    if mode == 'unregistered':
+        # A correctly named copy is still not an authenticated publication.
+        replacement = archive.parent.with_name('onpc-evidence-bundle-unregistered')
+        archive.parent.rename(replacement)
+        archive = replacement / archive.name
+        result['checks'][0]['evidence'] = str(archive)
+        (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    elif mode == 'receipt':
+        (archive.parent / 'receipt.json').write_bytes(b'{}')
+    elif mode == 'raw':
+        # An archive citation grants no access to raw allocations of that plan.
+        raw = parent.parent / ('b' * 32)
+        raw.mkdir(mode=0o700)
+        with bundle.retention.Store(parent.parent / 'retention').session():
+            bundle.retention.retain(raw)
+        (raw / 'private.json').write_bytes(b'not selected proof')
+        result['checks'][0]['evidence'] += f' `{raw / "private.json"}`'
+        (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    if mode in ('unregistered', 'receipt', 'raw'):
+        with pytest.raises(ValueError):
+            proof.retain_turn(campaign.plan, run, state)
+        assert not proof.locator(campaign.plan).exists()
+        return
+    # Cover archive-only discovery as well as publication mixed with live proof.
+    with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [], [], [],
+                          plan_namespace=plan_namespace(campaign.plan.path),
+                          references=[str(archive)]) as selected:
+        assert selected.manifest['schema'] == 1
+        assert selected.files[str(archive)][0]['sha256'] == bundle.digest(expected)
+    turn = proof.retain_turn(campaign.plan, run, state,
+                             None if mode == 'rejected' else result)
+    retained = proof.recover(campaign.plan)
+    assert retained['tasks'] == {}
+    assert bundle.decoded(bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+        retained['bundle'], member=str(turn / 'agent-result.json'))) == result
+    if mode == 'accepted':
+        for _ in range(3):
+            with bundle.retention.Store(parent / 'retention').session():
+                pass
+        assert not archive.exists()
+        retained = proof.preserve(campaign.plan, run, state, result)
+        assert set(retained['tasks']) == {'consumer'}
+    assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+        retained['bundle'], member=str(archive), count=bundle.MAX_READ) == expected
+    assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+        retained['bundle'], member=str(archive.parent / 'receipt.json')) == receipt
+    assert state['task'] == before['task'] and state['task_sessions'] == before['task_sessions']
+    assert 'evidence_consumers' not in state  # Legacy prose registers no structured claim.
+
+
 @pytest.mark.parametrize('defect', ['target', 'member', 'closure', 'context', 'failed', 'partial', 'claim'])
 def test_ordinary_structured_consumer_refuses_mismatched_or_nonpassing_proof(campaign, monkeypatch, defect):
     declaration, _ = _runner_declaration(campaign, monkeypatch,

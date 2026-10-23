@@ -32,7 +32,7 @@ MAX_MANIFEST = 64 * 1024 ** 2
 MAX_READ = 16 * 1024 ** 2
 MAX_BYTES = 1024 ** 3
 SCHEMA = 1
-ARCHIVE_SYNC_BYTES = 1024 ** 2
+ARCHIVE_SYNC_BYTES = 256 * 1024
 ARCHIVE_BYTES_PER_SECOND = 4 * 1024 ** 2
 
 
@@ -59,12 +59,18 @@ class _ArchiveWriter:
             offset += count
             self.pending += count
             if self.pending == ARCHIVE_SYNC_BYTES:
+                syncing = time.monotonic()
                 self.destination.flush()
                 os.fsync(self.destination.fileno())
+                finished = time.monotonic()
                 self.pending = 0
                 # Each batch has its own budget; slow source processing must
                 # never accumulate credit for a later burst of archive writes.
-                delay = ARCHIVE_SYNC_BYTES / ARCHIVE_BYTES_PER_SECOND - (time.monotonic() - self.started)
+                # A slow flush also needs recovery time, even after it exhausts
+                # the throughput budget, rather than keeping the disk busy.
+                delay = max(
+                    ARCHIVE_SYNC_BYTES / ARCHIVE_BYTES_PER_SECOND - (finished - self.started),
+                    9 * (finished - syncing))
                 if delay > 0:
                     time.sleep(delay)
         return offset

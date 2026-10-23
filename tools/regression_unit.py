@@ -1,5 +1,10 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Archive pacing checks in evidence_bundle retain private files, real sync failure
+propagation and process-local clock doubles. Smaller batches and recovery after
+slow syncs reduce I/O demand; compatible unit scheduling remains appropriate,
+with no cleanup/UI resource owner or new shared state.
+
 evidence_policy uses bounded in-memory declarations only. E10's plan/document
 integration checks use pytest-private documents, existing tiny owned journals,
 in-process reader doubles and bounded waited Git children on private repositories;

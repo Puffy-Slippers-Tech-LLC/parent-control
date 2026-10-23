@@ -1361,10 +1361,12 @@ generating their hundreds of input seals, using module-local OS references.
 Their publication, interruption, acknowledgement and retirement boundaries keep
 real sync. Small file/directory sync-failure regressions preserve required-source
 and same-slot retry coverage without repeating those flushes for every input.
-Bulk evidence ZIP writes synchronize at most 1 MiB at a time and pace copying
+Bulk evidence ZIP writes synchronize at most 256 KiB at a time and pace copying
 at 4 MiB/s, including failed-run publication. Each batch has its own time budget;
-slow reads cannot accumulate credit for a later write burst. The final sync has less
-than 1 MiB of queued archive writes. Small bundles keep their normal final sync;
+slow reads cannot accumulate credit for a later write burst. Every bulk flush
+also leaves recovery time of nine times its duration, even when a slow flush
+exhausts the throughput budget. The final sync has less
+than 256 KiB of queued archive writes. Small bundles keep their normal final sync;
 large publication takes longer to avoid a short full-disk write burst.
 The detached coordinator also spaces capture and retention journal syncs by at
 least 100 ms, with an additional recovery interval of nine times a slow sync's

@@ -431,7 +431,7 @@ def test_bulk_archive_writes_are_paced_and_sync_failure_preserves_prior_proof(
     real_sync = os.fsync
 
     def sleep(delay):
-        assert 0 < delay <= batch / rate
+        assert delay > 0
         waits.append(delay)
         clock[0] += delay
 
@@ -442,7 +442,8 @@ def test_bulk_archive_writes_are_paced_and_sync_failure_preserves_prior_proof(
             if sync_failure:
                 raise OSError('injected archive batch sync failure')
             if len(sizes) == 1:
-                # A slow first batch must not buy an unpaced remainder.
+                # A slow first flush needs recovery even though it has
+                # already exhausted the batch's throughput budget.
                 clock[0] += 10
         real_sync(fd)
 
@@ -462,7 +463,9 @@ def test_bulk_archive_writes_are_paced_and_sync_failure_preserves_prior_proof(
         assert (evidence.exports.path / 'current.json').read_bytes() == before
         assert not (evidence.exports.path / bundle.retention.PUBLICATION).exists()
     else:
-        assert waits and sum(waits) >= (len(payload) // batch - 1) * batch / rate
+        assert waits[0] == pytest.approx(90)
+        assert len(waits) >= len(payload) // batch
+        assert waits[1:] == pytest.approx([batch / rate] * (len(waits) - 1))
         assert evidence.inspect(result['path'], member=str(source / 'result.log'), count=len(payload)) == payload
     assert Path(previous['path']).exists()
     assert (source / 'result.log').read_bytes() == payload
@@ -569,8 +572,12 @@ def test_selected_tree_and_traversal_identity_changes_still_refuse(evidence, cha
             (root / 'previous/proof').rename(source)
         else:
             parent.chmod(0o500)
-        with pytest.raises(ValueError, match='directory changed'):
-            bundle.export(selection, expected=selection.selection_sha256)
+        try:
+            with pytest.raises(ValueError, match='directory changed'):
+                bundle.export(selection, expected=selection.selection_sha256)
+        finally:
+            if change == 'parent-mode':
+                parent.chmod(0o700)
     assert not (evidence.exports.path / bundle.retention.PUBLICATION).exists()
 
 

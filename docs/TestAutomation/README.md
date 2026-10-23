@@ -36,7 +36,6 @@ edits supply no reason to discard valid results or overwrite unrelated work.
 | [Task queue](E2E-Task-Queue.md) | Single ordered checklist, including provider prerequisites and retained regressions, and delivered task scope | Current block or scenario readiness |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
 | [Fixture design](Fixture-Design.md) | Immutable host inputs, minimal guest closure, provisioning/readiness and compatibility boundaries; runtime guides own current target availability | New runner capability or customer acceptance merely from the design |
-| [Fixture migration plan](Fixture-Execution-Plan.md), [queue](Fixture-Task-Queue.md) and `Fixture-Tasks/` | Separate implementation sequence for host-owned fixture infrastructure | Current VM/storage policy changes, customer scenario acceptance or completion of the E2E queue |
 | [Evidence/export design](Export-Design.md) | Test evidence identity, capture, export and lifetime design; runtime contracts remain authoritative | Product acceptance, VM operations or new passing results |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |
 

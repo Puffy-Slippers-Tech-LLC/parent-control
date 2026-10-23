@@ -16,7 +16,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | --- | --- | --- |
 | Temporary storage and retained evidence | [test_storage.py](../../tools/test_storage.py), [test_retention.py](../../tools/test_retention.py) | Launchers configure disk scratch for pytest fixtures. Retained evidence uses a registered allocation in its owning journal; short sockets use `short_runtime` or `runtime_directory`. |
 | Fixture producer lifetime | [fixture_producer.py](../../tools/fixture_producer.py) | `Store.producer(transaction_id=..., compatibility_key=..., build_key=...)` owns one unfinished slot. Allocate scratch/staging before writes, pass `Producer.environment()` to build commands and forward `scratch_descriptors()` through every subprocess layer. `Producer.verifying()` records the verification phase. Context exit cleans only recorded allocations after every descendant lease closes; failed cleanup requires exact `Store.recover(transaction_id)` before another reservation. |
-| Immutable native fixture construction | [fixture_bundle.py](../../tools/fixture_bundle.py), [fixture_manifest.py](../../tools/fixture_manifest.py) | Use the [frozen bundle contract](#frozen-native-fixture-bundles). Existing full fixture/package callers remain on their current route until the fixture plan migrates them. |
+| Immutable native fixture construction | [fixture_bundle.py](../../tools/fixture_bundle.py), [fixture_manifest.py](../../tools/fixture_manifest.py) | Use the [frozen bundle contract](#frozen-native-fixture-bundles). Full fixture/package callers retain their separate input contracts. |
 | Attempt-owned SSH fixture provisioning | [fixture_provision.py](../../tools/fixture_provision.py) | Use the [provisioning boundary](#attempt-owned-fixture-provisioning). Runner dispatch remains unavailable until target qualification. |
 | Checkout paths and script imports | [paths.py](paths.py), [modules.py](modules.py) | Normal imports use `pyproject.toml`'s `pythonpath`. `load_module(name, path)` loads a fresh standalone script with a unique test-only name; failures restore the registry. |
 | Broker configuration and recording adapters | [configuration.py](configuration.py), [broker.py](broker.py) | Fresh mutable state, explicit clocks/callbacks/failures and no OS calls. |
@@ -203,9 +203,9 @@ input and fresh readiness to recorder provenance before the ready reply. Its
 preparation check also finishes recorder cleanup without starting a serial worker.
 Fedora retains enforcing SELinux and exact native admissions/labels.
 Other ordinary runner branches and engineering selectors
-remain unavailable until the
-[fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies
-their actual target and preparation envelope. Host doubles supply no installed
+require qualification of their actual target and preparation envelope under the
+[fixture design](../../docs/TestAutomation/Fixture-Design.md#runner-integration).
+Host doubles supply no installed
 or customer acceptance. Ubuntu's delivered
 [clean-capture check](../integration/Environment.md#ubuntu-clean-snapshots)
 supplies snapshot infrastructure acceptance only.

@@ -165,7 +165,7 @@ argument validation, task authorization and VM/Polkit guards still apply.
 Simulated checkouts must copy that complete inventory too:
 `test_rules_render_for_a_checkout_with_spaces` in the
 [installation regressions](../tests/unit/test_dev_tool_installation.py)
-covers this. A missing fixture launcher is a test-fixture failure, not a reason
+covers this. A missing required launcher is a test-fixture failure, not a reason
 to weaken rendering validation or refresh host permissions.
 
 Dedicated Polkit actions bind these exact executable paths and default to `no`,
@@ -373,7 +373,7 @@ The [rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/
 matches literal argument prefixes; the strictest decision wins.
 `match`/`not_match` examples test rules, not runtime arguments.
 
-`tools/read-only evidence-inventory --plan 'docs/TestAutomation/Fixture-Execution-Plan.md'`
+`tools/read-only evidence-inventory --plan 'docs/Plan.md'`
 inspects tracked Markdown names from Git and their bounded legacy references.
 Repeat `--catalogue 'checkout-relative.md'` to register a finite local Markdown
 catalogue, including an untracked handoff; repeat `--owner-plan 'docs/Other.md'`

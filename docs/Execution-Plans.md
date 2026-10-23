@@ -238,7 +238,7 @@ Passed checks require complete, cleaned required evidence; diagnostic proof cann
 replace installed acceptance. Legacy exact paths and schema-1 accepted ledgers
 remain supported. All ordinary adapters use this shared route, including
 `execute-plan`, `reliability-plan`, `kiosk-prompt`, `kiosk-desktop`,
-`kiosk-prompt-new`, `fixture` and `export`, with their existing policies unchanged.
+`kiosk-prompt-new` and `export`, with their existing policies unchanged.
 The shared bundle reader resolves explicit plan references under its authorized
 identity, including root-private target sources through the authenticated helper.
 It reports exact missing references separately from ownership, permission and
@@ -924,7 +924,6 @@ The current adapters use these components according to their workflow:
 | `kiosk-prompt` | The same ordinary plan driver and shared lifecycle | [Kiosk baseline validation for v1.4](Kiosk-Session-Confinement-Plan.md#execution), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 | `kiosk-desktop` | The same ordinary plan driver and shared lifecycle | [Unrestricted graphical desktop prevention](Kiosk-Desktop-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 | `kiosk-prompt-new` | The same ordinary plan driver and shared lifecycle | [Remaining confinement improvements](Kiosk-Session-Confinement-New-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
-| `fixture` | The same ordinary plan driver and shared lifecycle | [Host-owned fixture migration](TestAutomation/Fixture-Execution-Plan.md#execution-and-acceptance), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 
 Run `tools/reliability-plan --check` to validate its plan, or
 `tools/reliability-plan --tasks 0` to execute its remaining queue. It defaults to

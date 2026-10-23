@@ -68,8 +68,6 @@ prefix_rule(
         "./tools/execute-plan",
         "tools/fix-tests",
         "./tools/fix-tests",
-        "tools/fixture",
-        "./tools/fixture",
         "tools/generate_test_coverage.sh",
         "./tools/generate_test_coverage.sh",
         "tools/kiosk-desktop",

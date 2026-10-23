@@ -121,6 +121,34 @@ without a verified matching member remains insufficient proof.
 
 ## Capture and publication
 
+### E09 document consumer disposition
+
+The delivered [document evidence route](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
+collects finite owner-declared occurrences, generates exact verified destinations,
+and previews destination-only changes against original bytes before revalidation
+and authorized apply. Production runner references use their authenticated
+cumulative publication; schema-2 plan references use the accepted locator.
+Schema-1 queue rewriting remains legacy navigation and does not invent logical
+records. E10 owns lifecycle gating and severity; E11–E13 own historical inventory
+and migration. No repository-wide scan or checkpoint rewrite is activated here.
+
+| Frozen document consumer | Delivered/shared disposition |
+| --- | --- |
+| Result `checks[].evidence` | Existing structured `consume` authenticates runner context and exact selection; legacy prose remains compatibility capture. |
+| Selected and completed queue Estimate cells | Exact document preview/apply uses the existing narrow simple-inline destination boundary and requires owning task state. |
+| Unfinished/suspended queue claims | Explicit semantic inspection is allowed; generic document apply grants no destination repair exception. |
+| Briefs and master plans | Explicit document collection/preview/apply; labels, metadata and selected input snapshots retain their existing owners. |
+| Ordinary, repair and E2E handoffs | Same declared Markdown route; structured handoff identity and acceptance policy remain with their existing controllers. |
+| Building-block/coverage catalogues, design/specification and kiosk verification prose | Same explicit prose route, including nested document-relative and reference-definition destinations; no inferred passing claim. |
+| Report links | Same member/context/digest verification; wrong-but-existing originals and generic locators refuse. Missing originals can use exact archived proof. |
+| Required instruction links | Shared local-link and fragment reader; document instructions gain no fabricated evidence context. |
+| Examples and operational paths | Shared parser exclusions and fixed helper dispatch keep text inert; no undeclared source scan or execution. |
+| Required media and disposable exports/storage | Exact selected media retains its dependency closure and bounded metadata reads; separate recording/screenshot/scratch lifetimes remain unchanged. Generated destinations never select disposable exports. |
+
+Composition coverage lives in the existing plan-evidence and runner-evidence host
+modules; identity, parser, bundle, protected-plan and actual-byte controller
+histories remain shared owner coverage rather than a consumer Cartesian matrix.
+
 ### Finalized capture authority and durable transitions
 
 Reuse the producer session handle and independently finished sealed subset from
@@ -378,6 +406,12 @@ E08 keeps Markdown parsing in the already registered `document_checks.py` owner;
 the document reader, plan collection, protected comparison and recovery consume
 its shared structures. Actual-byte restart histories include that owner and the
 changed plan/recovery consumers without adding a second parser dependency.
+
+E09 keeps exact document generation and runner metadata resolution in the already
+registered `plan_evidence.py` and `runner_evidence.py` owners. Their actual-byte
+restart histories retain the same controller boundary. `tools/read-only` is a
+fixed inspection adapter, outside the controller's retained acceptance decisions;
+it adds no independent validation implementation or restart dependency.
 
 Change actual dependency-file bytes in fixtures, including an extracted module
 while the original eight guarded files remain unchanged. Assert session-boundary

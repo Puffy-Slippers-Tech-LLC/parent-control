@@ -746,13 +746,26 @@ def recover_pending(root, store):
     return results
 
 
-def resolve_reference(root, reference, *, consumer=None, offset=0, count=None):
+def reference_locator(root, workflow):
+    """Derive the authenticated workflow locator, never a caller-chosen path."""
+    logical._text(workflow)
+    caller = capture._authenticated_caller()
+    repository = capture._repository(Path(root), caller)
+    namespace = publication._namespace(dict(record=dict(context=dict(
+        repository=repository, workflow=workflow))))
+    with bundle.identity(caller['uid'], caller['gid']):
+        return bundle.plan_parent(root, namespace) / 'retention' / 'capture-publication.json'
+
+
+def resolve_reference(root, reference, *, consumer=None, offset=0, count=None, metadata=False):
     """Resolve exact bytes through the workflow's current verified publication.
 
     The original capture slot and receipt generation may already have retired.
     The existing cumulative publication journal remains the only locator. A
     whole-member read exceeding the shared read bound requires explicit ranges.
     """
+    if type(metadata) is not bool:
+        raise ValueError('runner evidence: invalid metadata selection')
     logical._object(reference, {'schema', 'workflow', 'record_id', 'member_id', 'closure_sha256'},
                     'runner evidence reference')
     if type(reference['schema']) is not int or reference['schema'] != 1:
@@ -781,7 +794,22 @@ def resolve_reference(root, reference, *, consumer=None, offset=0, count=None):
                 publication._verify_generation(state['published'], verified)
                 selectors = {key: reference[key]
                              for key in ('record_id', 'member_id', 'closure_sha256')}
-                _, member = bundle.resolve_member(verified['manifest'], consumer=consumer, **selectors)
+                selected, member = bundle.resolve_member(verified['manifest'], consumer=consumer, **selectors)
                 if count is None:
                     count = max(0, member['bytes'] - offset)
-                return read(offset=offset, count=count, **selectors)
+                data = read(offset=offset, count=count, **selectors)
+                if not metadata:
+                    return data
+                records = {item['record_id']: item for item in verified['manifest']['records']}
+                closure, pending = {}, [selected['record_id']]
+                while pending:
+                    key = pending.pop()
+                    if key not in closure:
+                        closure[key] = records[key]
+                        pending.extend(item['record_id'] for item in records[key]['dependencies'])
+                return dict(record=selected, member=member, closure=closure, data=data,
+                            provenance=next(item['original_provenance'] for item in
+                                verified['manifest']['member_map'] if item['record_id'] == selected['record_id']
+                                and item['member_id'] == member['member_id']),
+                            data_complete=offset == 0 and len(data) == member['bytes'],
+                            bundles=[str(Path(record['path']) / 'evidence.zip')])

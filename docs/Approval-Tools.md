@@ -353,6 +353,16 @@ existing narrower grammar and conservative code masking: images, references,
 titles, angle destinations, escapes and nested parentheses remain literal
 protected claims.
 
+`tools/read-only evidence-links --plan 'docs/Plan.md' --declarations 'declarations.json'`
+provides read-only semantic validation and a finite destination-change preview.
+The declaration file is bounded regular UTF-8 JSON with exactly `schema:
+"onpc-evidence-documents"`, `version: 1`, and `documents` (at most 256 explicit
+document declarations under the [document evidence contract](Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)).
+It uses authenticated plan/runner readers, never executes link text, scans the
+repository, starts a launcher or writes documents. Exit 0 returns JSON previews;
+exit 2 refuses malformed, unavailable, unsafe or mismatched evidence. Mutation
+has no command-line switch: an authorized owner uses the separate apply API.
+
 The [rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/rules#understand-rule-fields)
 matches literal argument prefixes; the strictest decision wins.
 `match`/`not_match` examples test rules, not runtime arguments.

@@ -52,6 +52,29 @@ def test_document_routes_pin_implementation_and_keep_inputs_as_data():
                        '--after=--command', '--before=$(touch sentinel)', '--', '--output=sentinel']
 
 
+def test_evidence_links_dispatch_pins_reader_and_cannot_forward_mutations(tmp_path):
+    plan, declarations = '--apply', '$(touch sentinel).json'
+    implementation = Path(reader['__file__']).with_name('plan_evidence.py').resolve()
+    assert reader['command'](['evidence-links', '--plan=' + plan,
+                              '--declarations=' + declarations]) == [
+        '/usr/bin/python3', '-IB', str(implementation),
+        '--plan=' + plan, '--declarations=' + declarations]
+    for option in ('--apply', '--output=sentinel', '--command=arbitrary'):
+        with pytest.raises(ValueError):
+            reader['command'](['evidence-links', '--plan=docs/Plan.md',
+                               '--declarations=claims.json', option])
+    # Exercise the actual isolated child, not just the argv or in-process main.
+    request = tmp_path / '$(touch sentinel).json'
+    request.write_text('{"schema":"onpc-evidence-documents","version":1,"documents":[]}')
+    (tmp_path / 'evidence_bundle.py').write_text('raise RuntimeError("untrusted import")\n')
+    result = subprocess.run(reader['command'](['evidence-links',
+        '--plan=docs/TestAutomation/Export-Execution-Plan.md', '--declarations=' + str(request)]),
+        cwd=tmp_path, capture_output=True, text=True, check=False, timeout=10)
+    assert result.returncode == 2 and not result.stdout
+    assert result.stderr == 'evidence-links: semantic preview refused (ValueError)\n'
+    assert not (tmp_path / 'sentinel').exists()
+
+
 @pytest.mark.parametrize('action', ['search', 'files'])
 def test_path_globs_select_files_and_directories_without_broadening(tmp_path, monkeypatch, action):
     monkeypatch.chdir(tmp_path)

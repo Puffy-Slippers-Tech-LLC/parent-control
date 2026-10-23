@@ -2129,6 +2129,22 @@ returns verified metadata/closure plus a bounded diagnostic slice, explicitly
 marking an incomplete slice for large members. No capture or custody operation
 is introduced by this reader interface.
 
+For authored evidence links, use the explicit
+[document evidence interfaces](../docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
+and `tools/read-only evidence-links --plan ... --declarations ...`. Generated
+destinations select one authenticated record/member/closure; disposable report
+and export paths are permitted only as exact original inputs to a verified
+preview, never as new enduring destinations. `runner_evidence.reference_locator`
+derives the workflow's cumulative publication journal from authenticated checkout
+identity. `runner_evidence.resolve_reference(..., metadata=True, count=0)` returns
+the verified record, member, dependency closure and bundle paths without copying
+payload bytes. Its default byte-reader behavior is unchanged. The document
+resolver also accepts `count=0` for metadata-only verification. A generic journal
+or accepted locator supplies navigation alone. Owner declarations retain the
+original target, attempt, inputs, verdict, cleanup and selected member digest;
+same bytes from another claim do not satisfy them. Preview/apply introduces no
+new acceptance, role downgrade, historical migration or publication gate.
+
 Bundles contain at most 60,000 files, a 64-MiB manifest and 1 GiB total projected
 output. Source depth is at most 32, with at most 256 explicit selections. The
 unchanged export journal accounts all simultaneous old and staging allocations;

@@ -10,10 +10,16 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 import uuid
 from contextlib import ExitStack, contextmanager
 
+# The fixed read-only launcher uses isolated Python; load only checkout siblings.
+if __name__ == '__main__':
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import evidence_bundle as bundle
+import document_checks
 from document_checks import evidence_prose, local_destination, references, simple_inline_references
 from execution_plan import plan_namespace
 
@@ -693,7 +699,7 @@ def _verified_index_v2(plan, index, *, record_id=None):
             actual = {entry['record_id']: entry for entry in verified['manifest'].get('records', [])}
             if actual.get(key) != logical:
                 raise ValueError('plan evidence: ledger logical record does not match its segment')
-        files, readers = {}, {}
+        files, readers, provenance = {}, {}, {}
         for verified, read in opened.values():
             for entry in verified['manifest']['files']:
                 if entry['path'] in files and {
@@ -704,10 +710,12 @@ def _verified_index_v2(plan, index, *, record_id=None):
             physical = {entry['member']: entry for entry in verified['manifest']['files']}
             logical_records = {item['record_id']: item for item in verified['manifest'].get('records', [])}
             for mapping in verified['manifest'].get('member_map', []):
-                provenance = mapping['original_provenance']
-                original = provenance['original_path']
+                original_provenance = mapping['original_provenance']
+                provenance[(mapping['record_id'], mapping['member_id'])] = original_provenance
+                original = original_provenance['original_path']
                 entry = dict(physical[mapping['physical_member']], path=original,
-                             allocation=provenance['source_allocation'], identity=provenance['identity'])
+                             allocation=original_provenance['source_allocation'],
+                             identity=original_provenance['identity'])
                 if original in files and {
                         key: value for key, value in files[original].items() if key != 'member'} != {
                         key: value for key, value in entry.items() if key != 'member'}:
@@ -722,7 +730,7 @@ def _verified_index_v2(plan, index, *, record_id=None):
                 raise ValueError('plan evidence: exact proof member is missing')
             return readers[path](path, **kwargs)
         _validate_task_proofs(dict(value, tasks=tasks), plan, files, read_original)
-        def read_member(key, member_id):
+        def read_member(key, member_id, *, count=bundle.MAX_READ):
             logical = required[key]
             members = [member for member in logical['members'] if member['member_id'] == member_id]
             if len(members) != 1:
@@ -733,21 +741,28 @@ def _verified_index_v2(plan, index, *, record_id=None):
             # held archive scope opened. A diagnostic slice must not exclude
             # large media members from exact metadata/closure resolution.
             return read(record_id=key, member_id=member_id,
-                        closure_sha256=logical['closure_sha256'], count=bundle.MAX_READ)
-        yield dict(index=index, ledger=value, records=required, read=read_member,
+                        closure_sha256=logical['closure_sha256'], count=count)
+        yield dict(index=index, ledger=value, records=required, read=read_member, provenance=provenance,
                    bundles=[str(Path(item['bundle']) / 'evidence.zip') for item in index['segments']
                             if item['id'] in opened])
 
 
 class _ReferenceScope:
-    def __init__(self, plan, document):
+    def __init__(self, plan, document, workflow=None):
         self.plan, self.checkout = plan, Path(plan.root)
+        self.workflow = workflow
         self.document = Path(document)
         if not self.document.is_absolute():
             self.document = self.checkout / self.document
         self.document = Path(os.path.abspath(self.document))
         if not self.document.is_relative_to(self.checkout):
             raise ValueError('plan evidence: declaring document escapes checkout')
+
+    def locator(self):
+        if self.workflow is None:
+            return locator(self.plan)
+        import runner_evidence
+        return runner_evidence.reference_locator(self.checkout, self.workflow)
 
     @contextmanager
     def __call__(self, path, *, record_id):
@@ -773,14 +788,16 @@ class _ReferenceScope:
                 raise ValueError('plan evidence: locator changed during resolution')
 
 
-def reference_scope(plan, *, document):
+def reference_scope(plan, *, document, workflow=None):
     """Authorize one validated plan locator; JSON provenance grants no access."""
-    return _ReferenceScope(plan, document)
+    return _ReferenceScope(plan, document, workflow)
 
 
-def resolve_reference(reference, *, consumer, read_scope):
+def resolve_reference(reference, *, consumer, read_scope, count=bundle.MAX_READ):
     """Resolve an immutable selector inside a trusted caller-owned read scope."""
     import evidence_identity as identities
+    if type(count) is not int or not 0 <= count <= bundle.MAX_READ:
+        raise ValueError('plan evidence: invalid member read bound')
     identities.validate_consumer(consumer)
     destination, selector = identities.parse_reference(reference)
     if selector is None:
@@ -797,6 +814,13 @@ def resolve_reference(reference, *, consumer, read_scope):
     expected_reference = dict(kind='evidence', **selector)
     if expected_reference not in consumer['references']:
         raise identities.EvidenceContextError('plan evidence: selector is not declared by its consumer')
+    if getattr(read_scope, 'workflow', None) is not None:
+        if path != read_scope.locator():
+            raise identities.EvidenceContextError('plan evidence: locator is outside the trusted runner scope')
+        import runner_evidence
+        return runner_evidence.resolve_reference(checkout,
+            dict(schema=1, workflow=read_scope.workflow, **selector), consumer=consumer,
+            count=count, metadata=True)
     try:
         with read_scope(path, record_id=selector['record_id']) as verified:
             record = verified['records'][selector['record_id']]
@@ -811,12 +835,171 @@ def resolve_reference(reference, *, consumer, read_scope):
             member = next((item for item in record['members'] if item['member_id'] == selector['member_id']), None)
             if member is None:
                 raise bundle.LogicalEvidenceUnavailable([selector])
+            data = verified['read'](selector['record_id'], selector['member_id'], count=count)
             return dict(record=record, member=member, closure=verified['records'],
-                        data=verified['read'](selector['record_id'], selector['member_id']),
-                    data_complete=member['bytes'] <= bundle.MAX_READ,
+                        provenance=verified['provenance'][(selector['record_id'], selector['member_id'])],
+                        data=data, data_complete=len(data) == member['bytes'],
                         bundles=verified['bundles'])
     except _RecordUnavailable:
         raise bundle.LogicalEvidenceUnavailable([selector]) from None
+
+
+def generate_reference(*, consumer, selector, read_scope):
+    """Generate only a verified exact member destination, relative to its document."""
+    reference, _ = _generated_reference(consumer, selector, read_scope)
+    return reference
+
+
+def _generated_reference(consumer, selector, read_scope):
+    import evidence_identity as identities
+    identities.validate_consumer(consumer)
+    identities._object(selector, {'kind', 'record_id', 'member_id', 'closure_sha256'}, 'selector')
+    if selector not in consumer['references'] or selector['kind'] != 'evidence':
+        raise identities.EvidenceContextError('plan evidence: undeclared exact member')
+    destination = os.path.relpath(read_scope.locator(), read_scope.document.parent)
+    reference = destination + '#onpc-evidence-v1:' + ':'.join(
+        selector[key] for key in ('record_id', 'member_id', 'closure_sha256'))
+    resolved = resolve_reference(reference, consumer=consumer, read_scope=read_scope, count=0)
+    return reference, resolved
+
+
+def collect_document_references(plan, declaration):
+    """Collect explicit occurrences only; prose never manufactures a claim/context."""
+    import evidence_identity as identities
+    from execution_plan import local_file
+    identities._object(declaration, {'document', 'sha256', 'references'}, 'document declaration')
+    identities._text(declaration['document'])
+    identities._hex(declaration['sha256'])
+    path = local_file(plan.root, declaration['document'])
+    text = document_checks.read_text(path)
+    if _digest(text.encode('utf-8')) != declaration['sha256']:
+        raise ValueError('plan evidence: document changed since declaration')
+    claims = declaration['references']
+    if type(claims) is not list or not 1 <= len(claims) <= 256:
+        raise ValueError('plan evidence: expected 1..256 explicit document references')
+    links = list(references(text))
+    by_start = {link.start: link for link in links}
+    selected, seen = [], set()
+    for claim in claims:
+        identities._object(claim, {'start', 'consumer', 'selector', 'workflow'}, 'document claim')
+        identities._integer(claim['start'])
+        identities.validate_consumer(claim['consumer'])
+        if claim['workflow'] is not None:
+            identities._text(claim['workflow'])
+        if claim['start'] in seen or claim['start'] not in by_start:
+            raise ValueError('plan evidence: duplicate or absent declared link occurrence')
+        seen.add(claim['start'])
+        selected.append((by_start[claim['start']], claim))
+    # A reference definition can serve several claims. Rewriting it must not
+    # silently change an undeclared use or a use requesting another member.
+    spans = {(link.destination_start, link.destination_end) for link, _ in selected}
+    if any(link.start not in seen and (link.destination_start, link.destination_end) in spans
+           for link in links):
+        raise ValueError('plan evidence: shared definition has undeclared uses')
+    return path, text, selected
+
+
+def _document_source(plan, path, link, resolved, scope):
+    """An old spelling must select the proven member, never another existing report."""
+    target = local_destination(link.destination)
+    if target is None:
+        raise ValueError('plan evidence: evidence destination must be local')
+    source = Path(os.path.abspath(path.parent / target.path))
+    if target.fragment is not None:
+        # Strict parser refuses generic headings, malformed selectors and URL tricks.
+        actual = resolve_reference(link.destination, consumer=scope[0], read_scope=scope[1], count=0)
+        if (actual['record'] != resolved['record'] or actual['member'] != resolved['member']):
+            raise ValueError('plan evidence: existing link selects another member')
+    member = resolved['member']
+    if target.fragment is None and str(source) != member['original_path']:
+        raise ValueError('plan evidence: destination is not the selected original member')
+    source = Path(member['original_path'])
+    if not source.is_relative_to(plan.root):
+        raise ValueError('plan evidence: original destination escapes checkout')
+    if any(parent.is_symlink() for parent in (source, *source.parents)):
+        raise ValueError('plan evidence: original destination follows a symlink')
+    try:
+        source.lstat()
+    except FileNotFoundError:
+        return  # Exact archive was already verified; no recreated original.
+    # Reappearance is not archive-only authority. Normal source discovery holds
+    # the live owner and verifies its allocation and complete file identity.
+    with bundle.Selection(plan.root, os.geteuid(), os.getegid(),
+            [resolved['record']['context']['target']] if resolved['record']['context']['target'] else [],
+            [], [], references=[str(source)], plan_namespace=plan_namespace(plan.path)) as selected:
+        entry = selected.files[str(source)][0]
+        if (entry['sha256'] != member['sha256'] or entry['bytes'] != member['bytes']
+                or entry['allocation'] != member['source_allocation']
+                or entry['identity'] != resolved['provenance']['identity']):
+            raise ValueError('plan evidence: live original does not match selected proof')
+
+
+def _queue_destination_allowed(text, link, state):
+    if state is None:
+        return False
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        cells = line.split('|')
+        if (len(cells) >= 8 and cells[1].strip() in ('[ ]', '[x]')
+                and (cells[2].strip() == state['task_id']
+                     or state.get('queue_before', {}).get(cells[2].strip()) is True)):
+            start = offset + sum(len(cell) + 1 for cell in cells[:6])
+            if any(start + item.destination_start == link.destination_start
+                   and start + item.destination_end == link.destination_end
+                   for item in simple_inline_references(cells[6])):
+                return True
+        offset += len(line)
+    return False
+
+
+def preview_document_links(plan, declaration, *, state=None):
+    """Verify finite declared claims and return destination-only edits; never write."""
+    path, text, selected = collect_document_references(plan, declaration)
+    edits = {}
+    for link, claim in selected:
+        scope = reference_scope(plan, document=declaration['document'], workflow=claim['workflow'])
+        destination, resolved = _generated_reference(claim['consumer'], claim['selector'], scope)
+        _document_source(plan, path, link, resolved, (claim['consumer'], scope))
+        before = text[link.destination_start:link.destination_end]
+        if (path == plan.root / plan.queue and before != destination
+                and not _queue_destination_allowed(text, link, state)):
+            raise ValueError('plan evidence: protected queue destination is outside authorized Estimate cells')
+        edit = dict(start=link.destination_start, end=link.destination_end, before=before,
+                    after=destination, selector=claim['selector'],
+                    member_sha256=resolved['member']['sha256'])
+        span = (edit['start'], edit['end'])
+        if span in edits and edits[span] != edit:
+            raise ValueError('plan evidence: shared definition has conflicting claims')
+        edits[span] = edit
+    # Canonical JSON detaches caller-owned mutable inputs from the preview.
+    preview = dict(schema='onpc-evidence-link-preview', version=1,
+                   declaration=declaration, edits=sorted(edits.values(), key=lambda item: item['start']))
+    preview['sha256'] = bundle.digest(bundle.encoded(preview))
+    return bundle.decoded(bundle.encoded(preview))
+
+
+def apply_document_links(plan, preview, *, state=None):
+    """Apply an authorized preview only after rechecking its exact document and proof."""
+    if (not isinstance(preview, dict) or set(preview) != {'schema', 'version', 'declaration', 'edits', 'sha256'}
+            or preview['schema'] != 'onpc-evidence-link-preview'
+            or type(preview['version']) is not int or preview['version'] != 1):
+        raise ValueError('plan evidence: invalid document preview')
+    if preview['sha256'] != bundle.digest(bundle.encoded(
+            {key: value for key, value in preview.items() if key != 'sha256'})):
+        raise ValueError('plan evidence: document preview or exact proof changed')
+    fresh = preview_document_links(plan, preview['declaration'], state=state)
+    if fresh != preview:
+        raise ValueError('plan evidence: document preview or exact proof changed')
+    path, text, _ = collect_document_references(plan, preview['declaration'])
+    updated = text
+    for edit in reversed(fresh['edits']):
+        updated = updated[:edit['start']] + edit['after'] + updated[edit['end']:]
+    if updated == text:
+        return False
+    if document_checks.read_text(path) != text:
+        raise ValueError('plan evidence: document changed before rewrite')
+    _atomic(path, updated.encode('utf-8'))
+    return True
 
 
 def _verify_index(plan, index):
@@ -1230,3 +1413,36 @@ def rewrite_references(plan, state, index):
     if changed:
         _atomic(path, ''.join(lines).encode())
     return changed
+
+
+def main(argv=None):
+    """Read-only, explicit semantic preview; no launcher or mutation options."""
+    import sys
+    from execution_plan import Plan
+    import evidence_identity as identities
+    parser = document_checks.Parser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--plan', required=True)
+    parser.add_argument('--declarations', required=True)
+    try:
+        args = parser.parse_args(argv)
+        root = Path(__file__).resolve().parents[1]
+        plan = Plan.load(root, args.plan)
+        declaration = bundle.decoded(document_checks.read_text(args.declarations))
+        identities._object(declaration, {'schema', 'version', 'documents'}, 'document request')
+        if (declaration['schema'] != 'onpc-evidence-documents'
+                or type(declaration['version']) is not int or declaration['version'] != 1
+                or type(declaration['documents']) is not list
+                or not 1 <= len(declaration['documents']) <= 256):
+            raise ValueError('plan evidence: expected 1..256 explicit document declarations')
+        previews = [preview_document_links(plan, item) for item in declaration['documents']]
+        print(json.dumps(dict(schema='onpc-evidence-link-previews', version=1, previews=previews),
+                         sort_keys=True, separators=(',', ':')))
+        return 0
+    except (ValueError, OSError) as exc:
+        # Do not echo raw declarations, link text, commands or private transcripts.
+        print('evidence-links: semantic preview refused (' + type(exc).__name__ + ')', file=sys.stderr)
+        return 2
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

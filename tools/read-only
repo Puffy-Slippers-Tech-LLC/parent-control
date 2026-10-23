@@ -48,9 +48,16 @@ def command(argv):
     words.add_argument('--after')
     words.add_argument('--before')
     words.add_argument('path')
+    evidence = actions.add_parser('evidence-links', allow_abbrev=False,
+                                  help='verify explicitly declared evidence and preview destinations')
+    evidence.add_argument('--plan', required=True)
+    evidence.add_argument('--declarations', required=True)
     args = parser.parse_args(argv)
     if any(any(ord(c) < 32 for c in item) for item in argv):
         raise ValueError('control characters are not supported')
+    if args.action == 'evidence-links':
+        return ['/usr/bin/python3', '-IB', str(Path(__file__).with_name('plan_evidence.py').resolve()),
+                '--plan=' + args.plan, '--declarations=' + args.declarations]
     if args.action in ('links', 'words'):
         selected = ['/usr/bin/python3', '-IB', str(Path(__file__).with_name('document_checks.py').resolve()),
                     args.action]

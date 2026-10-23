@@ -1608,3 +1608,164 @@ def test_structured_helper_selection_refuses_unregistered_consumer(campaign):
                 plan_namespace=plan_namespace(campaign.plan.path),
                 record_references=[selected.reference], consumer=selected.consumer):
             pytest.fail('caller JSON supplied consumer authority')
+
+
+def _declared_document(campaign, selected, text, *, document='docs/nested/Evidence.md'):
+    path = campaign.plan.root / document
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding='utf-8')
+    declaration = dict(document=document, sha256=bundle.digest(path.read_bytes()),
+        references=[dict(start=link.start, consumer=copy.deepcopy(selected.consumer),
+            selector=copy.deepcopy(selected.consumer['references'][0]), workflow=None)
+            for link in proof.references(text)])
+    return path, declaration
+
+
+def test_declared_nested_prose_rewrites_only_destinations_and_shared_definition(campaign):
+    selected = _structured_publication(campaign)
+    original = Path(next(item['original_path'] for item in selected.record['members']
+                         if item['member_id'] == selected.consumer['references'][0]['member_id']))
+    document = campaign.plan.root / 'docs/nested/Evidence.md'
+    relative = os.path.relpath(original, document.parent)
+    before = ('# Résultat\n\nAccepted **claim** [exact](<' + relative + '> "kept title").\n'
+              'The [first][proof] and [second][proof] share proof.\n\n'
+              '[proof]: <' + relative + '> "kept definition title"\n'
+              '`$(touch sentinel)` stays authored text.\n')
+    path, declaration = _declared_document(campaign, selected, before)
+    # Retained proof must work after the disposable original has gone away.
+    original.unlink()
+    collected_path, text, claims = proof.collect_document_references(campaign.plan, declaration)
+    assert collected_path == path and text == before and len(claims) == 3
+    scope = proof.reference_scope(campaign.plan, document=declaration['document'])
+    destination = proof.generate_reference(consumer=selected.consumer,
+        selector=selected.consumer['references'][0], read_scope=scope)
+    assert destination == os.path.relpath(proof.locator(campaign.plan), path.parent) + selected.reference[
+        selected.reference.index('#'):]
+    preview = proof.preview_document_links(campaign.plan, declaration)
+    assert path.read_text() == before
+    assert len(preview['edits']) == 2
+    assert proof.apply_document_links(campaign.plan, preview)
+    assert path.read_text() == before.replace(relative, destination)
+    assert not original.exists()
+    assert not (campaign.plan.root / 'sentinel').exists()
+
+
+def test_declared_shared_definition_requires_every_use(campaign):
+    selected = _structured_publication(campaign)
+    path, declaration = _declared_document(campaign, selected,
+        '[first][proof] and [second][proof].\n\n[proof]: ' + selected.reference + '\n')
+    declaration['references'].pop()
+    before = path.read_bytes()
+    with pytest.raises(ValueError, match='shared definition has undeclared uses'):
+        proof.collect_document_references(campaign.plan, declaration)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize('changed', ['document', 'preview', 'declaration'])
+def test_declared_apply_refuses_changed_document_or_preview_without_writing(campaign, changed):
+    selected = _structured_publication(campaign)
+    path, declaration = _declared_document(campaign, selected,
+        '[proof](' + selected.reference + ')\n', document=campaign.plan.path)
+    preview = proof.preview_document_links(campaign.plan, declaration)
+    if changed == 'document':
+        path.write_text(path.read_text() + 'Unrelated concurrent edit.\n')
+    elif changed == 'preview':
+        preview['edits'][0]['after'] = 'wrong-existing.md'
+    else:
+        preview['declaration']['references'][0]['consumer']['revision_sha256'] = 'a' * 64
+    before = path.read_bytes()
+    with pytest.raises(ValueError, match='document changed|preview or exact proof changed'):
+        proof.apply_document_links(campaign.plan, preview)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize('field,value', [
+    ('attempt', '7' * 32), ('target', 'other-target'), ('inputs_sha256', '8' * 64),
+])
+def test_declared_context_refuses_same_archived_bytes_for_other_claim(campaign, field, value):
+    selected = _structured_publication(campaign)
+    path, declaration = _declared_document(campaign, selected, '[proof](' + selected.reference + ')\n',
+                                          document=campaign.plan.path)
+    before = path.read_bytes()
+    # Only the consuming claim changes; the selected archive/member bytes do not.
+    declaration['references'][0]['consumer']['expected_context'][field] = value
+    with pytest.raises(identities.EvidenceContextError):
+        proof.preview_document_links(campaign.plan, declaration)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize('wrong', ['existing-member', 'generic-locator'])
+def test_declared_destination_must_already_identify_selected_member(campaign, wrong):
+    selected = _structured_publication(campaign)
+    if wrong == 'existing-member':
+        member = next(item for item in selected.record['members']
+            if item['member_id'] != selected.consumer['references'][0]['member_id']
+            and Path(item['original_path']).is_file())
+        destination = os.path.relpath(member['original_path'],
+                                      (campaign.plan.root / campaign.plan.path).parent)
+    else:
+        destination = selected.reference.partition('#')[0]
+        assert proof.locator(campaign.plan).is_file()
+    path, declaration = _declared_document(campaign, selected, '[proof](' + destination + ')\n',
+                                          document=campaign.plan.path)
+    before = path.read_bytes()
+    with pytest.raises(ValueError, match='destination is not the selected original member'):
+        proof.preview_document_links(campaign.plan, declaration)
+    assert path.read_bytes() == before
+
+
+def test_declared_queue_rewrite_keeps_task_state_and_protected_claims(campaign):
+    selected = _structured_publication(campaign)
+    member = next(item for item in selected.record['members']
+                  if item['member_id'] == selected.consumer['references'][0]['member_id'])
+    queue = campaign.plan.root / campaign.plan.queue
+    original = os.path.relpath(member['original_path'], queue.parent)
+    state = dict(task_id='first', queue_before={'earlier': True, 'suspended': False})
+    frozen = copy.deepcopy(state)
+    for task, completion, column, authorized in [
+            ('first', '[x]', 'estimate', True), ('earlier', '[x]', 'estimate', True),
+            ('suspended', '[ ]', 'estimate', False), ('first', '[x]', 'scope', False)]:
+        link = '[exact](' + original + ')'
+        scope, estimate = (link, '1 min') if column == 'scope' else ('fixed scope', '1 min; ' + link)
+        before = f'| {completion} | {task} | fixed label | Baseline | {scope} | {estimate} |\n'
+        path, declaration = _declared_document(campaign, selected, before, document=campaign.plan.queue)
+        if authorized:
+            preview = proof.preview_document_links(campaign.plan, declaration, state=state)
+            assert proof.apply_document_links(campaign.plan, preview, state=state)
+            assert path.read_text() == before.replace(original, selected.reference)
+        else:
+            with pytest.raises(ValueError, match='protected queue destination'):
+                proof.preview_document_links(campaign.plan, declaration, state=state)
+            assert path.read_text() == before
+        assert state == frozen
+    before = '| [x] | first | task | Baseline | scope | [exact](' + original + ') |\n'
+    path, declaration = _declared_document(campaign, selected, before, document=campaign.plan.queue)
+    with pytest.raises(ValueError, match='protected queue destination'):
+        proof.preview_document_links(campaign.plan, declaration)
+    assert path.read_text() == before
+    before = ('| [x] | first | task | Baseline | scope | [exact][proof] |\n\n'
+              '[proof]: ' + original + '\n')
+    path, declaration = _declared_document(campaign, selected, before, document=campaign.plan.queue)
+    with pytest.raises(ValueError, match='protected queue destination'):
+        proof.preview_document_links(campaign.plan, declaration, state=state)
+    assert path.read_text() == before
+    assert state == frozen
+
+
+@pytest.mark.parametrize('spelling', ['original', 'exact'])
+def test_declared_original_reappearance_cannot_bypass_live_source_guards(campaign, spelling):
+    selected = _structured_publication(campaign)
+    original = Path(next(item['original_path'] for item in selected.record['members']
+                         if item['member_id'] == selected.consumer['references'][0]['member_id']))
+    destination = (selected.reference if spelling == 'exact' else
+                   os.path.relpath(original, (campaign.plan.root / campaign.plan.path).parent))
+    path, declaration = _declared_document(campaign, selected,
+        '[proof](' + destination + ')\n', document=campaign.plan.path)
+    original.unlink()
+    preview = proof.preview_document_links(campaign.plan, declaration)
+    original.symlink_to(proof.locator(campaign.plan))
+    before = path.read_bytes()
+    with pytest.raises((ValueError, OSError)):
+        proof.apply_document_links(campaign.plan, preview)
+    assert path.read_bytes() == before
+    assert original.is_symlink()

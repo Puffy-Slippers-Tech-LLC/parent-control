@@ -94,6 +94,34 @@ preserves the logical selector. Generic/schema 1 locators remain navigation and
 cannot satisfy a structured reference. The ordinary preservation producer still
 writes schema 1; versioned publication is delivered separately.
 
+For explicitly declared document evidence, `plan_evidence.generate_reference`
+verifies a consumer's exact selector before returning a document-relative link.
+`reference_scope(plan, document=..., workflow=...)` selects the authenticated
+runner publication when a workflow is supplied; omitting it selects the plan's
+schema-2 accepted locator. Neither route accepts an arbitrary publication path.
+`collect_document_references`, `preview_document_links` and `apply_document_links`
+share bounded declarations and the Markdown parser. A declaration contains
+`document` (checkout-relative Markdown), `sha256` (original UTF-8 bytes), and
+`references`: at most 256 objects with `start` (the link's original character
+offset), `consumer`, `selector` (kind/record/member/closure), and `workflow`
+(runner workflow or null). The consumer comes from the owning producer/contract;
+document JSON grants no evidence or rewrite authority.
+
+Previews bind original document bytes, requested contexts, exact member digests
+and dependency closures. They change destination spans only, including shared
+reference definitions; all uses of a changed definition must be declared with
+the same selection. Existing links must already identify that exact member,
+either by selector or its original path. Generic locators and wrong existing
+reports fail. An absent original can use verified archived proof; a present
+original still undergoes normal live-source ownership/identity checks.
+Apply recomputes the preview and proof before the authorized write, refusing
+changed documents or declarations. Canonical queue changes additionally require
+the owning task state and remain confined to simple inline Estimate destinations
+for the selected task or previously completed rows. Unfinished/suspended claims,
+labels, checkpoints and unrelated work receive no new rewrite permission.
+The existing schema-1 queue rewrite remains compatibility navigation, not exact
+proof. Lifecycle publication gates and historical migration are separate work.
+
 Publication recovery verifies the committed payload and publishes its matching
 locator before retiring recorded older generations. Ordinary session and export
 rotation remains bounded and unchanged.

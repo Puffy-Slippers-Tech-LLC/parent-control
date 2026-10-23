@@ -72,6 +72,84 @@ def exact_reference(result, member):
                 if reference['member_id'] == member['member_id'])
 
 
+def test_generated_document_link_uses_exact_runner_proof_after_rotation(environment, monkeypatch, capsys):
+    import plan_evidence as proof
+    root, store = environment
+    docs = root / 'docs'
+    docs.mkdir()
+    (docs / 'Plan.md').write_text('Task queue: [Queue](Queue.md).\n')
+    (docs / 'Queue.md').write_text('Unchanged queue.\n')
+    plan = SimpleNamespace(root=root, path='docs/Plan.md', queue='docs/Queue.md')
+    with store.session():
+        producer = regression.Report(root)
+        producer.write('original document proof\n')
+        producer.command(command())
+        producer.close(defer_capture=True)
+        first = producer.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
+    record = next(item for item in first['records'] if item['context']['check'] == 'unit')
+    member = next(item for item in record['members'] if item['role'] == 'result')
+    consumer = next(item for item in first['consumers'] if item['expected_context'] == record['context'])
+    selector = dict(kind='evidence', **{key: exact_reference(first, member)[key]
+        for key in ('record_id', 'member_id', 'closure_sha256')})
+    document = docs / 'nested/Evidence.md'
+    document.parent.mkdir()
+    original = Path(member['original_path'])
+    text = '[$(touch sentinel)](' + os.path.relpath(original, document.parent) + ')\n'
+    document.write_text(text)
+    declaration = dict(document='docs/nested/Evidence.md', sha256=bundle.digest(document.read_bytes()),
+        references=[dict(start=0, consumer=consumer, selector=selector, workflow='regression')])
+    # Four real producer admissions retire the original; no acceptance rerun.
+    for index in range(4):
+        with store.session():
+            later = regression.Report(root)
+            later.command(command())
+            later.close(defer_capture=True)
+            latest = later.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
+    assert not original.exists()
+    new_record = next(item for item in latest['records'] if item['context']['check'] == 'unit')
+    new_member = next(item for item in new_record['members'] if item['role'] == 'result')
+    assert new_member['sha256'] == member['sha256']  # Equal payload, different actual attempt.
+    assert new_record['context']['attempt'] != record['context']['attempt']
+    other_attempt = dict(declaration, references=[dict(declaration['references'][0],
+        consumer=dict(consumer, expected_context=new_record['context']))])
+    with pytest.raises(ValueError, match='context mismatch'):
+        proof.preview_document_links(plan, other_attempt)
+    with store.session():
+        active = regression.Report(root)
+        try:
+            preview = proof.preview_document_links(plan, declaration)
+            destination = preview['edits'][0]['after']
+            assert destination == os.path.relpath(runner.reference_locator(root, 'regression'),
+                                                document.parent) + '#onpc-evidence-v1:' + ':'.join(
+                selector[key] for key in ('record_id', 'member_id', 'closure_sha256'))
+            resolved = proof.resolve_reference(destination, consumer=consumer,
+                read_scope=proof.reference_scope(plan, document=declaration['document'], workflow='regression'),
+                count=0)
+            assert resolved['record'] == record and resolved['member'] == member
+            assert resolved['data'] == b'' and resolved['closure'][record['record_id']] == record
+            request = root / 'declarations.json'
+            request.write_bytes(bundle.encoded(dict(schema='onpc-evidence-documents', version=1,
+                                                   documents=[declaration])))
+            monkeypatch.setattr(proof, '__file__', str(root / 'tools/plan_evidence.py'))
+            assert proof.main(['--plan=docs/Plan.md', '--declarations=' + str(request)]) == 0
+            output = json.loads(capsys.readouterr().out)
+            assert output['previews'] == [preview] and document.read_text() == text
+            for malformed in (None, 42, ['docs/nested/Evidence.md']):
+                bad = dict(declaration, document=malformed)
+                request.write_bytes(bundle.encoded(dict(schema='onpc-evidence-documents', version=1,
+                                                       documents=[bad])))
+                assert proof.main(['--plan=docs/Plan.md', '--declarations=' + str(request)]) == 2
+                refusal = capsys.readouterr()
+                assert not refusal.out and 'semantic preview refused' in refusal.err
+            assert proof.apply_document_links(plan, preview)
+            assert document.read_text() == text.replace(os.path.relpath(original, document.parent), destination)
+            assert not original.exists() and not (root / 'sentinel').exists()
+        finally:
+            active.command(command(check='active-completed'))
+            active.close(defer_capture=True)
+            active.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
+
+
 def test_report_a_survives_original_and_publication_generation_rotation_without_rerun(environment):
     root, store = environment
     invocations = 0

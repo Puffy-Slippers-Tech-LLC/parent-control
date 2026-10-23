@@ -4142,7 +4142,7 @@ def test_relocated_public_cli_checks_plan_without_an_agent(tmp_path):
     source = Path(workflow.__file__).parent
     for name in ['execute-plan', 'plan_launcher.py', 'detached_launcher.py', 'execution_plan.py',
                  'document_checks.py', 'launcher_git.py', 'launcher_progress.py', 'launcher_question.py',
-                 'launcher_runtime.py', 'test_storage.py', 'test_retention.py', 'test_input_transfer.py',
+                 'launcher_runtime.py', 'test_storage.py', 'test_retention.py', 'test_io.py', 'test_input_transfer.py',
                  'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py']:
         shutil.copy2(source / name, tools / name)
     for name in workflow.RESPONSE_VALIDATOR_SOURCES:
@@ -4418,7 +4418,7 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
         'launcher_git.py', 'launcher_runtime.py', 'launcher_progress.py',
         'launcher_question.py', 'launcher_view.py', 'launcher_display.py',
         'launcher_chat.py', 'launcher_render.py', 'watch_output.py', 'vm_selection.py', 'vm_pool.py',
-        'test_storage.py', 'test_retention.py', 'test_input_transfer.py',
+        'test_storage.py', 'test_retention.py', 'test_io.py', 'test_input_transfer.py',
         'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py',
         'plan_response.schema.json', 'plan_monitor.toml', 'plan_worker.toml',
     ]

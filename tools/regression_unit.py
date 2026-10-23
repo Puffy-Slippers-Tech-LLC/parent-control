@@ -101,6 +101,14 @@ socket, bus, display, VM, service or heavy build is acquired. document_checks,
 read_only_launcher, plan_evidence, plan_evidence_recovery and
 execution_plan_launcher retain compatible unit overlap; cleanup/UI inventories
 gain no resource owner.
+E09 document previews and runner link composition add only pytest-private
+Markdown/JSON files, bounded tiny retained ZIPs, local journal locks and
+process-local authentication/CLI doubles. Four later private producer sessions
+exercise actual rotation, with no shared cache, live VM, display, socket, bus,
+service or fixture build. The read-only dispatch check adds one bounded, waited
+isolated Python child with a private hostile-import fixture. plan_evidence, runner_evidence and
+read_only_launcher retain compatible overlap and existing estimates; cleanup/UI
+inventories gain no module or resource owner.
 launcher_worktrees uses pytest-private Git checkouts, worktrees, bare remotes,
 stash objects and checkpoint/lock trees, bounded waited Git children and a
 private supervised Python agent double. It owns no live service, network, VM, bus, display,

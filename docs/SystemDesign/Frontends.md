@@ -2,1030 +2,405 @@
 
 [System design overview](../System-Design.md)
 
-Read this for management flow, child/kiosk request behavior, shared GUI
-responsibilities, and remembered selectors.
+The Parent App manages policy; the child extension presents remaining time and
+opens a request overlay; the dedicated kiosk offers requests without desktop
+management. Overlay and kiosk share one GTK request form.
 
-Implementation: [parent main.py](../../parent/oh_no_parent_control_parent/main.py), [parent client.py](../../parent/oh_no_parent_control_parent/client.py), [child extension.js](../../child/extension.js), [kiosk main.py](../../kiosk/oh_no_parent_control_kiosk/main.py), [request_content.py](../../kiosk/oh_no_parent_control_kiosk/request_content.py), [selection_store.py](../../kiosk/oh_no_parent_control_kiosk/selection_store.py).
+Implementation: [Parent](../../parent/oh_no_parent_control_parent/main.py),
+[child extension](../../child/extension.js),
+[request application](../../kiosk/oh_no_parent_control_kiosk/main.py),
+[request content](../../kiosk/oh_no_parent_control_kiosk/request_content.py),
+[selector storage](../../kiosk/oh_no_parent_control_kiosk/selection_store.py).
 
 ## Main flows
 
-1. **Manage:** The Parent App selects one child, loads preferences, child-specific
-   launchers, and time status, then serializes automatic saves in interaction
-   order. App policy applies immediately, including stopping the selected
-   child's newly blocked running applications in every retained session.
-   Screen-time changes go through
-   `SetParentControl`; revocation goes through `RevokeOneTimeGrant` after a
-   confirmation that running blocked apps will close. Opening confirmation
-   queries the selected child's running soft-blocked policy IDs. The dialog
-   shows matching catalogue entries as bullets with icons beneath “These
-   running soft blocked apps will be closed:”; the section is omitted when
-   none are running. Names and icons reuse App Limits' loaded catalogue and
-   icon renderer, including replacement-launcher policy matching. The confirmed
-   action stays bound to the child whose apps were reviewed.
-   While the window remains open it refreshes the broker's current managed-user
-   list every five seconds. Overlapping reads are coalesced, an unchanged list
-   does not rebuild the picker, and a newly created account does not disturb the
-   selected child's displayed settings. If the selected account disappears, the
-   first remaining child is loaded; an empty result shows the existing visible
-   explanation. This activates with the next Parent App process and changes no
-   saved data.
-2. **Child session entry:** On extension startup and after an unlock transition,
-   the child component calls `PrepareOwnSession`. The broker re-reads the grant
-   under the shared transaction lock. It reconciles and terminates only for an
-   expired grant; a current replacement grant returns without changing policy
-   or processes.
-3. **Child request:** Selecting the panel indicator launches the kiosk GTK form
-   as a fullscreen overlay. `GetOwnAccount` fixes and collapses the child
-   selector. The overlay loads shared per-child request choices, uses the
-   child-only mute preference for future use, and calls `RequestOwnAccess`. Cancel or Escape closes
-   the overlay; approval briefly confirms success and then closes it.
-4. **Kiosk request:** The dedicated GNOME session lists eligible children and
-   approvers, loads the selected child's request choices, and calls
-   `RequestAccess`. The GNOME session is declared as a kiosk session, which
-   disables every XDG autostart desktop file. Its systemd target starts the kiosk
-   compositor, request station, notification provider, and authentication agent.
-   The target also conflicts with Ubuntu's `update-notifier-crash.path` and
-   `update-notifier-crash.service`: those systemd units bypass XDG autostart and
-   could otherwise open Apport above the station. This exclusion applies only
-   to the kiosk user's session; ordinary desktops retain crash reporting.
-   It remains request-only. Cancel or
-   Escape returns to the sign-in screen, and approval does so after a brief
-   confirmation. The app registers its client with GNOME's public session
-   manager while idle and acknowledges its logout protocol before exiting,
-   avoiding registration on Cancel and the clientless query timeout. An external
-   cancelled logout leaves an idle form open. A 750 ms deadline starting at the
-   exit action bounds this handoff; app-unit
-   `OnSuccess` shutdown remains the fallback if registration or logout fails.
+- **Manage:** Parent selects a child, loads preferences, applications and time
+  status, and serializes automatic saves in interaction order. App-policy saves
+  can close that child's newly blocked applications across retained sessions.
+  Screen-time changes use `SetParentControl`. Revocation confirms that blocked
+  apps will close, lists running soft-blocked apps using catalogue names/icons,
+  and stays bound to the reviewed child.
+- **Session entry:** Extension startup and unlock call `PrepareOwnSession`.
+  The broker restores strict app policy only for a nonzero expired grant;
+  current grants and zero-duration records are no-ops.
+- **Child request:** The panel opens the fullscreen shared form. `GetOwnAccount`
+  fixes the child selector; submission uses `RequestOwnAccess`. Cancel/Escape
+  closes the overlay; successful approval confirms for three seconds then closes.
+- **Kiosk request:** The form selects eligible children and approvers and calls
+  `RequestAccess`. Cancel/Escape or successful confirmation returns to sign-in.
+  The kiosk GNOME session disables XDG autostart, starts its compositor, station,
+  notification provider and authentication agent, and excludes Ubuntu's
+  systemd-started Apport units only within that session. GNOME session-manager
+  registration happens while idle; logout acknowledgement and a 750 ms exit
+  deadline bound handoff, with app-unit `OnSuccess` shutdown as fallback.
+  An externally cancelled logout leaves the idle form open.
 
-The child overlay and kiosk deliberately use the same GTK request form and
-validation. They differ in child selection, remembered selector ownership,
-mute field, broker request method, exit behavior, and external Help/About/file
-actions. Both forms disable submission until accounts and preferences have
-loaded and the selected child's saved screen-time toggle is enabled. The
-broker's kiosk method has a broader contract; see
-[grant transactions](Broker.md#authorization-and-grant-transactions).
+Both forms require loaded accounts/preferences, an enabled screen-time toggle
+and no pending request. The kiosk broker method has broader permission than
+this UI guard; see [transactions](Broker.md#authorization-and-grant-transactions).
+Invalid custom text leaves Request enabled but validation rejects submission
+before preference saving or authentication.
 
-Each submission snapshots the child, approver, duration and soft-app choice.
-Agent preparation uses the current resolved language after preferences save,
-preserving a child-language read that completes during that save.
-Preference-save, agent-preparation and approval callbacks
-belong to that one request and its current stage. A completed, failed or destroyed
-request cannot dispatch another approval or update a later request's result.
-Destroying the form discards its pending callbacks; this local result handling
-does not cancel a broker transaction that has already been admitted. The broker
-owns session/disconnect cancellation and effect admission. Neither frame timing
-nor time spent choosing a language or entering a password gates submission.
+Submission snapshots child, approver, duration and soft-app choice. Preference
+save, authentication-agent preparation and approval callbacks belong to that
+request and stage; disposed or completed requests cannot affect a later one.
+Agent preparation uses the resolved language after preference saving. Destroying
+the form invalidates callbacks; the broker separately owns cancellation and
+[effect admission](Broker.md#request-lifetime-and-effect-admission). Language
+selection and human password-entry time do not gate request lifetime.
 
-The overlay's `com.puffyslippers.OhNoParentControl.ChildRequest` application ID
-has a matching, publicly readable desktop entry using the product launcher icon.
-The entry is hidden from the app grid and launches `oh-no-parent-control-child`;
-GNOME uses it to identify overlay windows in the dock. It activates on package
-installation/update and the next overlay launch, without a service restart or
-saved-data migration.
+The hidden, publicly readable desktop entry for application ID
+`com.puffyslippers.OhNoParentControl.ChildRequest` supplies the overlay's dock
+identity and product icon without adding an app-grid entry.
 
 ## Application UI API
 
-Parent, kiosk/child request windows, their shared dialogs and the child panel
-expose the versioned session-bus `ApplicationUI1` protocol. The
-[API reference and control inventory](../TestAutomation/Application-UI-API.md) owns methods,
-canonical values, endpoints and dynamic identity families. Python consumers can
-use `UIClient.getElementById`, value/text properties or `ui.setText(id, text)`.
-Other languages use the same JSON-valued D-Bus methods.
+Parent, request windows, shared dialogs and the child panel expose the versioned
+session-bus `ApplicationUI1` protocol. The
+[API reference](../TestAutomation/Application-UI-API.md) owns methods, endpoints,
+canonical values and dynamic IDs.
 
-Transport and clients are desktop-neutral. A GTK adapter resolves native
-Buildable identities and effective control state; the child panel uses a thin
-GNOME adapter for its session and panel availability. A future desktop adapter
-can implement the same public contract without changing consumer IDs/operations.
-The shared GTK request form continues to serve both overlay and kiosk.
+Desktop-neutral clients call GTK/Shell adapters that use existing widgets,
+signals and user handlers. Language-independent selector values survive
+translation and popup changes. Page visibility, sensitivity, modal ownership,
+target uniqueness and broker authorization remain authoritative. Registration
+follows application lifetime. Same-user credentials, bounded operations,
+owner-pinned clients and single-use mutations prevent stale input or silent
+retries. Input completion does not prove a backend save.
 
-Inputs use existing UI widgets/signals and shared user handlers, including
-normal validation, automatic saving, dialog responses and editor draft updates.
-Selectors expose canonical language-independent values independently of their
-translated captions and popup lifetime. No AT-SPI tree, geometry, display scale,
-keyboard focus or desktop-specific pointer stream is involved. Application page
-visibility, effective sensitivity, modal ownership, target uniqueness and broker
-authorization still apply. External authentication and file choosers retain
-their separate provider boundaries.
-
-Registration follows application/extension lifetime. Same-user credentials,
-bounded arguments and operations, owner-pinned clients and single-use mutations
-prevent stale processes or uncertain calls from becoming silent input retries.
-Input completion does not establish a completed backend save. The existing
-accessibility routes below remain available; UI and E2E share the public API
-facade described in the test inventory. GTK changes load in a new
-frontend process; the child payload follows `session-renewal`. No migration is
-needed.
+External authentication and file choosers retain separate provider boundaries.
+Arbitrary DOM selectors, supplied JavaScript, HTML injection and geometry are
+not substitutes for a missing product API operation.
 
 ## Public automation identities
 
-The following accessibility metadata remains available to assistive technology
-and identified harness fixtures. Product UI and E2E tests use the
-[Application UI API](#application-ui-api) for both observations and input;
-these compatibility interfaces are not alternate product automation routes.
+Stable semantic IDs also remain available to assistive technology. GTK helpers
+set Builder IDs and effective disabled state; Shell helpers publish ATK IDs.
+CSS/actor names and translated labels alone are not identities. Product tests
+use the [Application UI API](#application-ui-api), with control inventory owned
+by its reference.
 
-The custom daily allowance entry publishes validation rejection in its public
-accessible description, alongside the existing visual error. Accepted custom
-input restores the ordinary instruction description. This metadata changes with
-the next Parent process and changes neither validation bounds nor saved values.
+Compatibility metadata includes identified window-control owners, menu/row
+activation actions, mapped-window focus actions and explicit dialog owner
+relations. Toolkit-generated title buttons are permitted only below the
+identified `*-window-controls` owner. Validation errors appear in accessible
+descriptions as well as visually.
 
-The shared GTK `set_automation_id`/`describe_control` helpers assign a
-GtkBuilder object ID as well as the widget's CSS name. GTK 4.22 publishes the
-Builder ID through the public AT-SPI `AccessibleId` property. The child
-extension's platform-specific `describeControl` helper publishes the same
-property through the Shell actor's public ATK object. The CSS or Clutter actor
-name alone is not an accessibility identity. Labels and descriptions remain
-human-readable and are not selector fallbacks. See the
-[GTK implementation](https://gitlab.gnome.org/GNOME/gtk/-/blob/gtk-4-22/gtk/gtkwidget.c),
-[AT-SPI provider](https://gitlab.gnome.org/GNOME/gtk/-/blob/gtk-4-22/gtk/a11y/gtkatspicontext.c),
-and [ATK accessible-ID contract](https://gnome.pages.gitlab.gnome.org/at-spi2-core/atk/method.Object.set_accessible_id.html).
+Parent's read-only `Accessibility1.GetNativeSurfaceTransform("parent-window")`
+returns a fresh GTK native offset only for one mapped, visible, active window.
+It synchronizes the display and revalidates ownership before returning; it
+exposes neither input nor policy. This geometry metadata is not a product-test
+input route.
 
-GTK creates the minimize, maximize and close descendants of `GtkWindowControls`
-internally, so application code cannot identify those implementation nodes.
-Owned header bars disable implicit title buttons and add one non-extensible
-`GtkWindowControls` owner with a stable `*-window-controls` ID. Inventory checks
-permit anonymous toolkit buttons only below that identified owner; application
-controls elsewhere still require their own IDs, and automation does not select
-the internal buttons by translated names, roles, order or geometry.
+Dynamic account IDs use UIDs in separate child/approver namespaces. App rows use
+launcher hashes with explicit state and match-rule suffixes; match dialogs also
+identify their app. Feedback content exposes stable DOM IDs through WebKitGTK's
+public attributes; WebKit's transient `AccessibleId` is not the DOM ID.
+The finite packaged editor adapter supplies product input/readback.
 
-ID-addressable GTK menu buttons also publish a `menu.popup` action through
-their public widget action group. GTK's generic menu-button AT-SPI interface
-does not expose its activate signal as a click action and may list inherited
-application actions. Accessibility clients can select the unique `menu.popup`
-action after ID lookup. Product tests instead set a canonical menu command
-through the UI API; when opening a menu is necessary, its ordinary API
-`activate` operation owns it.
-This accessibility addition activates with the next frontend process (`none`)
-and requires no saved-data migration.
-
-Identified list rows publish `row.activate` through the same widget-action
-mechanism. It emits GTK's documented native
-[row activation signal](https://docs.gtk.org/gtk4/signal.ListBoxRow.activate.html)
-while the row is sensitive. The preview resolution selector uses this action;
-its harness consumers resolve the row by ID and independently observe the result.
-Product selector tests use canonical API values. This also activates on the next frontend process
-(`none`) and changes no saved data.
-
-Identified native windows/dialogs publish `focus.<automation-id>` actions for
-their contained controls. GTK Entry's specialized AT-SPI Action interface does
-not expose arbitrary inserted action groups, and GTK's Component provider does
-not implement `GrabFocus`/`ScrollTo`. The owning surface action requests normal
-GTK focus, including scrolling into view, only for its mapped, visible, sensitive
-control in the active native window. These actions remain accessibility
-compatibility features. Product tests use API text/value setters and ordinary
-activation; keyboard focus and the WebKit Component interface do not gate them.
-
-Parent also publishes the read-only session-bus interface
-`com.puffyslippers.OhNoParentControl.Accessibility1` at its existing application
-object path `/com/puffyslippers/OhNoParentControl/Parent`.
-`GetNativeSurfaceTransform("parent-window")` returns the fresh pair of doubles
-from GTK's public `Gtk.Native.get_surface_transform()` for exactly one mapped,
-visible, active Parent window. Missing, ambiguous or unavailable surfaces refuse.
-Before returning coordinates, the provider uses `Gdk.Display.sync()` and
-revalidates the same window. This finishes queued window-system requests,
-including prior popup teardown, before a separate native-input connection binds
-the compositor's focused window. GTK's active toplevel alone does not prove that
-a dismissed popup has released compositor focus.
-The interface registers and unregisters with the application; it exposes no
-policy data or input operation and needs no new service or saved-data migration.
-
-GTK's AT-SPI WINDOW bounds omit this native offset, including window shadows.
-The interface remains compatibility metadata and supplies no permitted route for
-product tests. Parent allowance selection uses the scoped API canonical value
-and independent saved-value readback, with no geometry or native stream binding.
-
-Dialogs publish their originating window/dialog through `CONTROLS`, using the
-public [Gtk.AccessibleList](https://docs.gtk.org/gtk4/struct.AccessibleList.html)
-boxed value required by the language binding. GTK supplies the inverse AT-SPI
-`CONTROLLED_BY`; unmapping removes the relation. The UI API reports the owning
-surface through `parent_id`; product readers use the pinned application/PID and
-that explicit surface scope. Preview readers also bind the application to its
-recorded launch process. Closure requires a complete fresh negative observation
-and a positive identified surrounding surface. Read-only waits discard
-incomplete inventories and reacquire within the original deadline; incomplete
-reads never prove absence and input is not replayed. These GTK
-metadata changes activate on the next frontend process (`none`) without a
-saved-data migration.
-
-Identified GTK controls publish `DISABLED` from their effective
-[`is_sensitive()`](https://docs.gtk.org/gtk4/method.Widget.is_sensitive.html)
-state, including inherited disabling. The shared helper updates it on state-flag
-changes and local sensitivity notifications: GTK's own accessibility update in
-[`set_sensitive()`](https://github.com/GNOME/gtk/blob/gtk-4-22/gtk/gtkwidget.c)
-otherwise reports the local property, even under a disabled container. This
-keeps the public control state consistent with actual interaction availability;
-it does not change widget sensitivity or management policy. It activates on the
-next frontend process (`none`) and changes no saved data.
-
-The Parent child selector additionally publishes `child.focus-<uid>` actions for
-accessibility compatibility. Product tests set `parent-child-selector` to the
-declared account UID through the UI API;
-`parent-child-selected-<uid>` supplies independent selected-child readback.
-Menu and filter identifiers are explicit semantic keys, independent of their
-display labels.
-
-App Limits publishes its row collection as `parent-app-rows`. Each row uses
-`parent-app-<launcher hash>` and its access controls retain their explicit state
-suffixes. The current match value publishes `parent-app-<launcher hash>-match-pattern`
-or `-match-precise` beneath its match button. These public IDs allow complete
-bounded policy observations without inspecting saved preferences. They activate
-with the next Parent process (`none`) and do not change stored policy.
-The match button's public description includes `Current match rule: <rule>`.
-The editor content publishes `parent-match-rule-app-<launcher hash>` so an
-independently opened dialog can be bound to its app before input. Its entry
-retains the shared `parent-match-rule-entry` ID and public native focus action.
-
-Request account choices use their account UID within separate child and
-approver namespaces, independently of list order. Each selector keeps its ID
-fixed and publishes `kiosk-child-selected-<uid>` or
-`kiosk-approver-selected-<uid>` on its selected value (`selected-none` while
-empty). Readers resolve this identity first and verify the accessible description
-as meaning. Duration choices distinguish zero seconds (rest of day) from custom
-duration. Their `Gtk.ToggleButton` selection is exposed as AT-SPI `PRESSED`;
-switch/checkbox values use `CHECKED`. GTK metadata
-changes activate with the next frontend process (`none` package activation).
-Child panel metadata activates with the next graphical session
-(`session-renewal`). Neither requires a saved-data migration.
-
-The ID provider does not establish compliance for every consumer. Product tests
-resolve stable IDs through the UI API, independent of AT-SPI ID exposure.
-External GDM, authentication dialogs, GTK file choosers and document viewers
-instead follow the provider-specific exception in `AGENTS.md`: prefer available
-IDs, then qualify scoped public accessibility semantics and ordinary keyboard
-navigation with ownership, ambiguity, input and result guards. Geometry or image
-matching is confined to an explicit provider adapter when accessibility actions
-and keyboard navigation cannot work reliably. Missing IDs alone do not block an
-external-provider adapter. Existing passing tests do not waive its qualification
-requirements.
-
-The child panel publishes `child-request-button` for the primary request action
-and `child-countdown-animation-toggle` for its context-menu setting. The latter
-is also reachable with the standard keyboard context-menu action. Product tests
-use the `child-panel` API to activate the request action, set/read the animation
-boolean and read countdown/tooltip text without native gestures or focus.
-
-The feedback editor publishes the GTK-level `feedback-webview` identity. Its
-in-memory document also assigns stable DOM IDs and accessible labels to the
-actual generated contenteditable editor, formatting controls, style choices and
-link editor. WebKitGTK publishes those explicit IDs in the public AT-SPI
-`GetAttributes` map (`toolkit=WebKitGTK`, `id=<control ID>`). Its `AccessibleId`
-property instead holds a transient accessibility object number; looking for
-DOM IDs there incorrectly reports missing descendants even when the tree is
-present. See the [WebKitGTK provider implementation](https://github.com/WebKit/WebKit/blob/webkitgtk-2.52.6/Source/WebCore/accessibility/atspi/AccessibilityObjectAtspi.cpp).
-The shared `public_automation_id` reader retains this provider normalization for
-accessibility compatibility. Product preview and installed consumers use the
-finite packaged editor adapter in the [Application UI API](#application-ui-api).
-They set plain text, retained selection, formatting and history through fixed
-operations and independently read the public document delta. An outer-only
-WebView accessibility tree is no longer a product-test blocker. Missing API
-capabilities still refuse; arbitrary DOM selectors, caller-supplied JavaScript,
-HTML injection and geometry are not alternate routes.
+Missing or incomplete observations do not prove absence. Closure requires a
+fresh complete negative observation and a positive surrounding surface.
+External providers require scoped ownership, ambiguity, input and result guards
+under the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD).
 
 ## Personal language selection
 
-Parent and child overlay read `GetOwnLanguage` asynchronously at startup.
-Kiosk reads `GetChildLanguageContext` for the selected child at startup and on each
-child selection, applying that child's saved language or using its AccountsService
-desktop language and opening setup when unset.
-An empty value opens a modal language chooser. Parent retains its
-[own dialog UI](../../parent/oh_no_parent_control_parent/language_dialog.py);
-kiosk and child overlay use a separate
-[metal-board dialog](../../kiosk/oh_no_parent_control_kiosk/preference_dialog.py).
-Both choosers belong to the owning GTK application, remain transient and modal,
-and restore chooser focus if an outside click activates their parent. Outside
-clicks and window-manager close requests do not dismiss them; Save and Cancel
-own dismissal.
-Its default is the primary session message language from `GLib.get_language_names`,
-except kiosk uses the selected child's desktop language when available,
-resolved against the shared
-[catalogue](../../common/oh_no_parent_control_ui/languages.json); unsupported locales
-use English. The [locale resolution policy](Localization.md#language-catalogue-and-resolution)
-owns regional/script choices and aliases, including separate Portuguese and
-Chinese variants. Both lists scroll through the catalogue's hardcoded priority
-order while keeping Save and Cancel outside the list.
+Parent/overlay load their caller's language; kiosk loads the selected child's
+saved language and AccountsService desktop-language fallback. Empty preferences
+open a modal chooser. Parent and request screens have separate chooser UIs,
+sharing catalogue order, native names, locale resolution and search across
+native/English names and IDs. Unsupported defaults resolve to English.
 
-Parent fades its window shade in when the language chooser maps and out when it
-unmaps, respecting GTK's animation setting. After a successful save, the chooser
-is destroyed before relabeling the existing management controls; reopening
-Preferences does not relabel an unchanged active language. For first-time
-setup, the chooser paints before management loading starts in a later main-loop
-iteration behind it. The main window's blank layout already exists;
-a saved language is applied before revealing its content.
-If account loading fails fatally, Parent dismisses the language chooser immediately
-and shows the error report instead. Management stays disabled, and closing that
-report exits the app. Dismissal does not save or apply the chooser's candidate;
-outstanding language replies cannot reopen setup or update its destroyed controls.
+The chooser remains transient/modal; outside clicks and window-manager close
+do not dismiss it. Selection translates the chooser privately in place.
+Cancel discards the candidate and continues with the default, leaving an unset
+preference to prompt next launch or kiosk child selection. Save persists through
+the caller-scoped or kiosk-selected-child API before applying the new context.
+Failure retains the candidate for retry. Preferences reopens the chooser.
 
-The chooser lists native names in catalogue order. Search matches native names,
-English names and language IDs, with case-insensitive partial and wildcard matching.
-Both dialog UIs use the
-heading “Choose your language”. Save
-and Cancel are available on all surfaces, including first-time setup.
-Selection immediately translates the existing chooser controls in a private
-context without remapping the window. Cancel continues without saving or applying
-the candidate to the owning frontend; an unset language
-prompts again next launch, or when that child is next selected in kiosk.
-Save persists the
-current user's selection through `SetOwnLanguage`, or the selected child's
-selection through kiosk-only `SetChildLanguage`, before closing; failures keep
-the selection visible and permit retry. A nonempty saved value suppresses the
-startup dialog. The top-right menu's Preferences action opens the same chooser
-with the saved selection. Successful saves apply the new presentation context
-under the [translation lifecycle](Localization.md#translation-lifecycle-and-shared-ui),
-preserving in-progress work and operating-system locale settings.
-The overlay uses the child's personal setting; the kiosk
-uses the selected child's setting, independently of the approver.
-Child changes discard superseded language replies. Relabeling updates existing
-widgets in one main-loop turn; unchanged languages skip relabeling, and child
-changes retain the visible form without sensitivity flashes or reconstruction.
-All dialogs reuse `selected_language` in the shared catalogue module for saved
-selection and session fallback. Request controls wait for startup language setup.
+Parent paints setup before beginning management loading, and applies saved
+language before revealing content. Fatal discovery dismisses setup and shows
+the startup error report; late replies cannot reopen destroyed UI.
+Kiosk child changes invalidate superseded language replies. Relabeling existing
+widgets preserves drafts and avoids rebuilding the form. Request controls wait
+for initial setup completion. Shared dialogs inherit their owner's context.
 
-Both dialog UIs publish `language-dialog`, `language-search`, `language-list`,
-`language-choice-<lowercase-id>`
-and `language-continue` (the Save action), plus `language-cancel` on all surfaces,
-scoped to their owning
-application and window, with the
-shared public owner relation and control metadata. The main content publishes
-`parent-language-loading` or `kiosk-language-loading` until the initial
-choice is saved, setup is cancelled or an existing selection is read,
-then the matching `*-language-ready`.
-The common host/E2E `complete_language_setup` helper waits for this
-startup result, clicks Save once if needed, and independently observes
-closure and readiness. It leaves a subsequently opened Preferences dialog alone.
-Host preview launch and installed entry checkpoints use its
-`complete_parent_language_setup` and `complete_request_language_setup` wrappers.
+Chooser IDs include `language-dialog`, `language-search`, `language-list`,
+`language-choice-<lowercase-id>`, `language-continue` and `language-cancel`;
+owning content exposes language-loading/ready state. Resolution and translation
+lifecycle belong to [Localization](Localization.md).
 
 ## Parent release notes
 
-Parent asynchronously queries `GetOwnWhatsNew` after constructing management.
-The broker owns current-version selection, audience, fresh-install/upgrade
-eligibility and persistence under the [backend contract](State.md#whats-new-backend).
-No matching Parent record hides the “What's New” menu item; a matching record
-adds it immediately before About, including after acknowledgement.
+Parent queries current-version notes asynchronously. The
+[backend](State.md#whats-new-backend) owns audience, installation eligibility and
+acknowledgement. Matching notes remain manually available before About even
+after acknowledgement; no match hides the menu item.
 
-Automatic presentation waits for language setup and successful account discovery.
-Save applies the selected language before opening notes; Cancel destroys the
-chooser before notes use the session default. Other visible Parent modals defer
-automatic presentation. Fatal discovery and window closure discard late replies.
-Each window attempts automatic presentation at most once; query or presentation
-alone never persists acknowledgement. Closing a successfully mapped note, through
-Close, the top close control, Escape or window close, calls
-`AcknowledgeOwnWhatsNew`. A failed write leaves broker eligibility unchanged and
-reports a nonfatal notice; a later manual close or launch can retry.
+Automatic presentation waits for language setup, successful account discovery
+and absence of another modal. Each window attempts it once. Fatal startup or
+closure invalidates late replies. Closing a successfully mapped note acknowledges
+it; failed persistence retains eligibility and reports a nonfatal notice.
+Querying or attempting presentation alone never consumes eligibility.
 
-The Parent-only [dialog](../../parent/oh_no_parent_control_parent/whats_new_dialog.py)
-uses the logo, a version heading, a scrollable notes card and persistent footer
-actions. It inherits the Parent translation context. The versioned release-note
-catalogue translates Markdown before the
-[native renderer](../../parent/oh_no_parent_control_parent/release_markdown.py)
-builds headings, paragraphs, ordered/unordered lists, quotes, separators, fenced
-code and inline bold/italic/strike/code/HTTP(S) links. Raw HTML and image syntax
-stay literal and load no external resources. The optional See More action is
-shown only for a supplied HTTP(S) link and uses the system URI handler.
-The shared parser also serves the child release-note dialog below.
+The native Markdown renderer supports headings, paragraphs, lists, quotes,
+separators, fenced code, inline emphasis/code and HTTP(S) links. Raw HTML and
+images remain literal and load no resources. Notes inherit the Parent context,
+with versioned catalogue translation. Supplied See More links use the system
+URI handler.
 
 ### Kiosk and child overlay release notes
 
-Both request surfaces use the
-[presenter](../../kiosk/oh_no_parent_control_kiosk/whats_new.py) and
-[metal-board dialog](../../kiosk/oh_no_parent_control_kiosk/whats_new_dialog.py).
-The overlay calls `GetOwnWhatsNew`/`AcknowledgeOwnWhatsNew`; kiosk calls
-`GetChildWhatsNew`/`AcknowledgeChildWhatsNew` for the selected child. Only matching
-current `:Child` records expose the menu item immediately before About.
-The broker owns upgrade eligibility and shared child acknowledgement.
+Request surfaces use the same child audience and acknowledgement record.
+Overlay uses own-account methods; kiosk uses selected-child methods.
+Automatic notes wait for language setup, an idle request page and no owned
+modal, with at most one attempt per child/window. Child changes dismiss old
+dialogs without acknowledgement and invalidate pending reads/writes.
 
-Automatic notes wait for completed language setup, the request page, an idle
-request and absence of another owned modal. Save applies the preference before
-presentation; Cancel retains the session default, or the selected child's
-desktop language in kiosk. Each child gets at most one automatic attempt per
-window; acknowledged notes remain manually available. Account switches invalidate
-outstanding reads and acknowledgements, dismiss old dialogs without acknowledging
-them and load the new child's notes. Shutdown cancels deferred presentation.
-Optional-note failures log only a classified error and leave request/setup usable;
-failed acknowledgements preserve eligibility and permit retry on manual close or
-next launch.
-
-The dialog inherits the request translation context and translates metadata
-Markdown with the versioned catalogue before using the
-[shared renderer](../../common/oh_no_parent_control_ui/release_markdown.py).
-Its riveted frame, pixel typography, cyan scrollable notes card and green armored
-Continue action share the session chrome. A translated subtitle below the title
-explains that these are updates for the child and parent updates are omitted.
-Continue, top close, Escape and normal
-window close acknowledge only a successfully mapped dialog. Kiosk displays link
-labels as text and omits See More; the overlay exposes supplied HTTP(S) links.
-Both reuse the Parent `whats-new-*` public dialog IDs.
+Continue, close or Escape acknowledges only successfully mapped notes.
+Optional-note failures leave requests usable and acknowledgement failures retain
+eligibility. Both surfaces share the renderer and `whats-new-*` IDs. The overlay
+opens HTTP(S) links; kiosk shows labels as text and omits See More.
 
 ## Child reminder preferences
 
-The shared request-screen preferences window has Language, Reminders and Preset
-Times tabs. The menu and request-title action use the same gear icon; the title
-action has a translated Preferences tooltip and ordinary hover/focus feedback.
-Language keeps its existing search, native-name choices, public IDs and private
-candidate translation context. The tabs use the same list frame and scrollbar
-CSS; the armored Cancel/Save actions stay outside the lists. Close uses the
-same metal finish and hardware as Cancel.
+The shared preferences window has Language, Reminders and Preset Times tabs,
+with persistent Cancel/Save controls. Backend lists are authoritative, including
+empty lists; failed loads offer retry rather than invented defaults.
+Editor Save changes a dialog draft; editor Cancel discards the edit; main
+Cancel discards all unsaved changes.
 
-Preset Times reads the selected child's authoritative time-grant preset API
-when the tab first opens. The request selector reads the same personal field
-from `GetPreferences`; backend defaults, validation, sorting and fixed choices
-are reused rather than maintaining a frontend list. Rows show sorted editable
-durations followed by locked Rest of the day and Custom value rows. No redundant
-footer is shown. Add/Edit opens a modal editor whose title reflects the action.
-It shares the reminder editor's duration-entry, step buttons and unit-selector
-presentation, decimal syntax and invalid-number footer. Both editors accept `6.`
-as a whole-number entry and reject nonnumeric, nonfinite or exponent input with
-the same red message. Each editor separately applies its backend's duration
-constraints; reminders still require whole values. Both editor footers use the
-same Cancel/Save actions for new and existing entries. Presets offer minutes and
-hours; entries with more than one decimal
-place round to one decimal using half-up rounding before validation. Backend
-values that need more precision retain their exact whole seconds until the user
-changes the time or unit; opening and saving them does not round stored data. A trailing
-decimal point, such as `6.`, is a valid integer entry. Their backend owns the
-6–86400 whole-second bounds, uniqueness and list-size limit. Invalid or duplicate
-durations cannot be saved. Editor Save updates only the dialog draft;
-Cancel/Close discards the edit. Main Cancel/Close discards unsaved presets.
-Add initially proposes the largest preset plus one hour, or plus one minute
-when an hour would exceed the backend maximum, or the largest preset itself
-when neither fits. An empty list starts at 30 minutes. A duplicate proposal
-still requires a different duration before Add is enabled.
+Preset Times displays sorted editable durations plus locked Rest of the day
+and Custom value choices. Backend bounds, uniqueness and list limits apply.
+Editors accept decimal minutes/hours, reject nonnumeric, nonfinite or exponent
+input, accept a trailing decimal point, and round new values half-up to one
+decimal before validation. Existing whole-second values keep their precision
+until edited. A removed selected preset becomes its equivalent Custom value;
+an empty list retains the two fixed choices. New-duration suggestions start at
+30 minutes for an empty list, otherwise the largest duration plus an hour (or
+minute when necessary); duplicates cannot save.
 
-Main Save writes changed presets, changed reminders, then language. A later
-failure retains the draft and records which earlier writes succeeded, so retry
-does not repeat them. Load/save failures offer retry without inventing defaults.
-A successful preset write refreshes the request choices while preserving the
-current request and soft-app selection. A removed selected or remembered preset
-becomes its equivalent Custom value. An empty saved list retains the two fixed
-choices. Kiosk child changes reload that child's list; stale callbacks cannot
-apply another child's data. These changes activate in a new request process,
-without a schema migration or broker change.
+Reminder rows sort by trigger seconds and show literal custom text or translated
+default text plus trigger duration. Editors require whole minute/second values
+and reject equal trigger times across units. New text is limited to 50
+characters; longer existing backend text may remain unchanged while its trigger
+is edited. The fullscreen switch preserves its saved value while disabled
+during loading/saving or for an empty list.
 
-Reminders loads the selected child's authoritative backend configuration on
-first opening that tab. Defaults come from the backend, and saved empty lists
-remain empty. Rows sort by ascending trigger seconds. The larger caption is
-literal custom text or the translated default; the smaller gray caption is
-always the translated trigger duration. There is no synthetic custom preset.
+Main Save writes changed presets, reminders, then language. A later failure
+retains the draft and tracks earlier successful writes so retry does not repeat
+them. Preset updates preserve current request/soft-app choices. Child revisions
+and dialog disposal invalidate stale replies. API ownership and limits are in
+[State](State.md); dialog lifetime IDs bind automation to the current draft.
 
-Add/Edit opens a separate modal metal-board editor with reminder text, a
-character counter and minute/second timing controls. New text is limited to 50
-characters; existing longer backend text can be retained unchanged when editing
-its trigger. Equal trigger seconds, including minute/second equivalents, show a
-footer warning and disable editor Save. The edited reminder excludes its own ID
-from that comparison. Editor Save updates only the preferences draft; Cancel
-discards that edit. Preview beside the text field sends the current literal text
-or translated default duration through the child extension's reminder-preview
-service, using the same `reminderBanner.js` renderer as real countdown reminders.
-Desktop previews pass the editor's language through `PreviewLocalized` and use
-a private translation context for controls and countdown captions, independent
-of the panel's cached language. Legacy preview methods remain supported.
-Pressing Preview changes its icon to an up arrow and its translated label to
-“See screen top” for three seconds, then restores Preview. Another press restarts
-the three seconds; closing the editor cancels the label timer.
-The dedicated kiosk uses its own freedesktop notification provider. Both use
-the product logo and Critical urgency even when the fullscreen
-preference is disabled. It does not save the draft. Invalid timing disables
-Preview; delivery failures retain the edit and show an error. Dismissal closes
-the preview, including a delivery reply arriving after editor disposal. Preview
-does not change reminder thresholds or saved settings. Main Cancel discards the draft;
-main Save persists changed reminders and then the language selection. If the
-subsequent language write fails, the reminder write has already committed; the
-dialog retains the language candidate for retry. Below the reminder list, a
-single “Show reminders in full screen apps (games, videos, etc.)” switch edits
-the selected child's account-wide `show_in_fullscreen` field in the same draft.
-It has a standard-font caption without a subtitle. Its flat clickable row and
-rounded switch retain the reminder styling, with shared request-form row hover/focus feedback.
-The row and switch are disabled until the
-configuration loads, when the reminder list is empty, and while saving. Its
-saved value is preserved while disabled. Notification urgency belongs to the
-notification backend, not the dialog.
+Reminder Preview uses the editor's literal text or translated default, duration
+and language without saving or altering real thresholds. Invalid timing disables
+Preview; failures retain the edit. Previews always use Critical urgency even
+when real reminders are configured to wait outside fullscreen.
+Closing the editor also dismisses replies
+arriving after disposal. The button temporarily indicates “See screen top”.
 
-The dedicated session starts `oh-no-parent-control-notifications.service`, a
-bounded freedesktop notification provider with one active banner. It uses GNOME
-Kiosk 50's documented `gnome-kiosk-notification` client tag to keep the banner
-above fullscreen windows without making it fullscreen. A transparent monitor-wide
-top strip centers its bounded banner card within the tagged surface; the default
-tag's top-left positioning does not position the card itself. This provider does not
-start in ordinary child desktops, where GNOME Shell owns notifications. The
-provider reads only packaged logo/banner artwork, supports literal escaped body text,
-replacement and dismissal, and does not log reminder content. Its user unit
-and kiosk target changes activate with session renewal.
+Ordinary child desktops use the extension's bounded
+`ReminderPreview` session-bus service. It validates sender credentials, limits
+text/concurrent lookups, rejects locked/greeter sessions and closes on sender
+loss/disposal. Legacy preview methods remain compatible; sender-scoped IDs
+prevent an old close from dismissing a newer banner. Real reminders and previews
+share one slot; a threshold replaces a preview immediately.
 
-The child extension owns `com.puffyslippers.OhNoParentControl.ReminderPreview`
-at `/com/puffyslippers/OhNoParentControl/ReminderPreview`. `Preview(s text, u replaces)`
-returns a persistent preview ID for legacy callers. `PreviewTimed(s text,
-u replaces, u seconds)` includes the editor's selected duration; `Close(u id)`
-only dismisses that sender's current preview.
-The service validates session-bus Unix credentials, bounds text and concurrent
-credential lookups, refuses locked/greeter sessions, and closes on sender loss
-or extension disposal. It accepts literal rendered editor text, not saved policy.
-Desktop delivery never falls back to a generic Shell application notification.
-Countdown and preview share one banner slot: a new threshold replaces a preview
-immediately, and closing an old preview cannot close a newer countdown banner.
+The dedicated kiosk instead runs a bounded freedesktop notification provider
+with one active banner, packaged artwork and escaped literal text. It does not
+log reminder content or start in ordinary desktops. GNOME Kiosk's notification
+client tag keeps its monitor-wide transparent top strip above fullscreen apps.
 
-Child and kiosk reminders share packaged SVG rails/action icons, a pale lavender
-face, dark sans-serif heading and thin cyan countdown. The slim cyan/violet
-rails have rounded corners with small stepped accents and white highlights;
-light action faces use fine gradient outlines, a blue gear and blue dismiss mark.
-The 20-pixel semibold heading sits above the progress bar without a subtitle.
-The countdown uses 12 pixels so fallback
-glyphs, including dense Chinese and Japanese scripts, remain readable.
-The product logo is 56 pixels and action icons
-are 32 pixels, with no extra button padding and a six-pixel gap;
-the Shell card starts at 561 logical pixels and grows with the
-translated action widths, bounded by the monitor width. Both renderers retain
-12-pixel frame insets plus six pixels of inner padding and centered action icons.
-The CSS border reserves the full painted border-image slices in both toolkits,
-so the logo, heading, progress bar and buttons stay clear of the rails and corners.
-Height follows the content. Literal reminder
-text wraps naturally.
-Shell banner and tooltip positions round to whole stage pixels so centering an
-odd-width card on an even-width monitor does not soften the entire actor tree.
-Shell labels paint directly while opaque, using automatic offscreen redirection
-only when needed for group opacity, rather than always sampling a label texture.
-Action caption widgets are removed; their translations remain for tooltips
-and accessibility. The icon buttons
-share a centered horizontal action row and retain translated accessible names.
-Hovering either icon shows its translated caption in a tooltip; Shell tooltip
-chrome is owned and destroyed with the banner, and kiosk uses native GTK tooltips.
-Each countdown segment represents one second and empties as a whole block;
-adjacent fills form a continuous thin track, but it never drains continuously
-within a segment. Both renderers inherit the desktop interface font and its normal
-language fallbacks instead of forcing the generic sans-serif family.
-The child renderer owns only its own Shell chrome and notification model,
-without registering it with the message tray: the tray's fixed noncritical
-timeout cannot express persistence independently of fullscreen urgency.
-High urgency waits outside fullscreen; Critical appears above fullscreen.
-Banner and tooltip use Shell's top chrome above application window groups,
-including unmanaged X11 surfaces. Both follow the focused application's monitor,
-with the active primary or first active monitor as fallback; fullscreen gating
-uses the selected monitor. Focus, window-monitor and display changes reposition
-the current banner without restarting its deadline or taking application focus.
-The public `addTopChrome` layer also sits above Mutter's override-redirect
-window group; `trackFullscreen` controls hiding rather than stacking.
-While the card is visible, the renderer also holds Mutter's public
-`disable_unredirect()` inhibition, matching
-[GNOME Shell's message tray](https://raw.githubusercontent.com/GNOME/gnome-shell/50.1/js/ui/messageTray.js).
-Top chrome alone does not prevent fullscreen direct scanout from bypassing
-composition. Repeated updates retain one hold; hiding, monitor loss, dismissal,
-replacement, locking and construction failure release only that banner's hold
-with `enable_unredirect()`. Suppressed banners acquire no hold. No application
-focus or fullscreen state is changed.
-The renderer attaches both actors before measuring themed controls.
-An unlocked visible delivery at 60 seconds or more starts a five-second
-monotonic deadline and five-segment countdown. Shorter positive deliveries use
-the same bar with one segment per remaining second at delivery (59 seconds
-means 59 segments), retaining that total as whole segments go dark. The child
-bar follows verified balance updates even for custom text; usable time keeps
-running while fullscreen suppresses presentation. These shorter banners persist
-until dismissed, replaced or locked, including after their bar reaches zero.
-Legacy previews with no duration remain persistent without a bar.
-New banners dispose the old source, actor, signals and timer. Locking, extension
-disposal and editor dismissal also retire the owned banner. Old preview IDs
-cannot dismiss a newer banner. Preferences dismisses the banner and activates
-the existing request application's `preferences` action, or launches the child
-overlay with `--preferences` when needed. Both banner entry paths select the
-Reminders tab, including in an already-open Preferences dialog. The request
-screen's menu and startup language setup open Language. Dismiss retires only
-that banner.
-The kiosk provider receives the duration/language in bounded notification
-hints and uses the same timing rule and shared application action.
-These payload changes activate with session renewal and need no migration.
+Both renderers share a wrapped, scalable card with product logo, discrete
+one-second progress segments and Preferences/Dismiss icon actions with translated
+accessible names/tooltips. They inherit desktop fonts and language fallbacks.
+At delivery, 60 seconds or more uses a five-second/five-segment display; shorter
+positive durations use one segment per remaining second and persist after zero
+until dismissed, replaced or locked. Legacy previews without duration have no
+bar. Live child balances update the bar even with custom text.
 
-Read failures show a retry action without substituting defaults. Save failures
-retain the draft and allow retry. Dialog disposal and selected-child revisions
-discard stale asynchronous replies. The overlay uses caller-scoped notification
-methods; kiosk uses selected-child methods with the same kiosk/eligible-child
-authorization boundary as its language methods.
+The child renderer uses owned Shell top chrome and notification models without
+registering with the message tray, whose timeout cannot express this persistence.
+High urgency waits outside fullscreen; Critical appears above it. The banner
+follows the focused app's monitor, falling back to an active display, and
+repositions without stealing focus or restarting its deadline. Visible chrome
+holds one balanced Mutter unredirect inhibition; hiding, replacement, lock,
+monitor loss, failure and disposal release it. Suppressed banners take no hold.
+Timers, signals, actors and tooltips are disposed with their banner.
 
-The shared `language-dialog` exposes an opaque per-dialog lifetime value through
-the Application UI API. Kiosk reminder automation binds it with the selected
-child and draft so a replaced dialog cannot reuse a previous input receipt.
-
-Public controls are `preferences-tabs` (canonical `language`/`reminders`),
-`preferences-tab-language`, `preferences-tab-reminders`,
-`preferences-close`, `reminder-list`, `reminder-status`, `reminder-add`, `reminder-retry`,
-`reminder-show-in-fullscreen` (boolean), and
-`reminder-<stored-id>-text|trigger|edit|delete`. The separate editor publishes
-`reminder-editor-dialog`, `reminder-text`, `reminder-text-count`, `reminder-value`,
-`reminder-value-increase|decrease`, `reminder-unit` (canonical `minute`/`second`),
-`reminder-duplicate-warning`, `reminder-editor-error`, and
-`reminder-editor-preview`, `reminder-editor-save|cancel|close`. Stored IDs remain stable through edits;
-new rows receive unique IDs. Host checks establish local behavior only; installed
-acceptance remains planned in the task queue.
+Preferences dismisses the banner and opens the existing request app's Reminders
+tab, or launches the overlay with `--preferences`. Request menu/setup opens
+Language. See [notification delivery](Screen-Time.md#remaining-time-notifications)
+for threshold scheduling and enforcement independence.
 
 ## Localization infrastructure
 
-See [Localization](Localization.md) for the shared GNU gettext infrastructure,
-language resolution, settings backend, GTK and Shell translation contexts,
-message authoring, packaging and validation. Shared dialogs inherit their owning
-frontend's context; language changes preserve the frontend's model and active
-work. This module owns the chooser surfaces and their public UI identities.
+[Localization](Localization.md) owns gettext contexts, language resolution,
+catalogues, formatting, packaging and translation lifecycle. Language changes
+preserve frontend models and in-progress work.
 
 ## Parent controls and shared information
 
-Parent immediately presents its main window with blank framed sections and
-separators, then checks broker permission on a worker. Reactivation reuses that
-window and closing it prevents a late reply from reopening UI. Successful startup
-continues in the same window. Header and navigation content appears after language
-resolution, the account section after account discovery, and the complete Screen
-Limits card after preferences and time status (or its final unavailable result).
-Unfinished sections reserve their content's space and hide their controls.
-Only the broker's exact `Error.RebootRequired` status opens the shared restart
-modal in Parent, kiosk and child overlay. It is not inferred from generic
-service errors or the operating system's global reboot marker. Parent startup
-replaces the blank main window with only the restart dialog; Close exits the app.
-Request forms retain a restart result and their
-ordinary exit action.
-Repeated callbacks reuse one modal and cannot overwrite the known reboot reason
-with a generic language-loading failure.
-Kiosk-only read endpoints remain available before reboot so its remembered
-eligible child and language can be resolved. A pending restart notice waits
-for that initial language read, skips the language chooser and inherits the
-request window's translation context. Policy and language writes
-remain unavailable until reboot.
-The broker uses the shared GTK-independent
-[product reboot detector](../../common/oh_no_parent_control_ui/reboot.py) for
-both fresh installation and upgrade requests; apps do not duplicate marker
-interpretation. The notice asks for a restart without assuming an upgrade.
+Parent first shows blank framed sections, then checks broker permission on a
+worker and reveals each section as its data becomes ready. Reactivation reuses
+the window; closure invalidates late replies.
 
-The modal defaults to Close, which does not reboot. **Reboot now** uses GTK's
-standard `destructive-action` style and asynchronously calls logind's public
-`Reboot(true)` as the frontend user. Normal system authorization and inhibitor
-policy remain in force; no product privilege grant or forced-reboot fallback is
-added. Pending requests disable repeated activation; refusal shows a localized
-error and restores the choices. Tests substitute only this transport, never
-rebooting the development host. The notice and button share all 62 catalogues.
+Only exact `Error.RebootRequired` opens the shared restart modal; generic errors
+and global OS reboot markers do not. Parent replaces its blank window; request
+forms retain ordinary exit behavior. Kiosk's available read endpoints resolve
+the selected child's language before showing the notice, bypassing setup.
+Repeated callbacks share one modal. Close exits without reboot; Reboot now
+calls logind `Reboot(true)` as the user, preserving OS authorization/inhibitors.
+Failures restore choices with a localized error; repeated activation is disabled
+while pending. Only exact Parent `AccessDenied` instead shows Administrator
+Required without a password challenge. Outages use startup error reporting.
 
-Manually launching `/usr/bin/oh-no-parent-control-parent` as a standard user
-shows a branded **Administrator Required** notice with the packaged app logo,
-explaining that an administrator must
-sign in to manage parental controls. Only the broker's exact `AccessDenied`
-reply selects this notice. The blank main window is replaced before any management
-content is revealed; no authentication challenge is created. Close exits.
-Broker outages retain the startup error-report flow.
-This Parent-only change activates on the next app process (`none` package
-activation); it changes no saved data or child/kiosk behavior.
+Screen Limits offers 0/15/30/45-minute presets, then half-hours through 1410;
+custom whole minutes are 0–1439. The backend also accepts 1440. Editing is
+disabled while control is off, retaining the displayed allowance. Custom saves
+debounce 350 ms and commit on Enter/focus leave; unchanged values do not save.
+Draft/focus/caret survive successful saves, while interacting controls remain
+serialized. Invalid edits keep the last saved value; reload clears rejected
+drafts.
 
-Screen Limits offers presets 0, 15, 30 and 45 minutes, then half-hour increments
-from 60 through 1410, and custom whole minutes 0–1439. The broker/schema also
-accept 1440, but that is not an offered Parent UI value. Custom edits debounce
-for 350 ms and also commit on Enter or focus leave. Unchanged custom commits do
-not start another save. During a custom save the textbox keeps focus and its
-caret, allowing more digits; the allowance picker also stays usable so a click
-from the textbox opens it immediately. Subsequent custom and preset commits
-remain serialized in interaction order. Conflicting controls stay disabled until
-the queue drains.
-Keyboard controllers on the allowance selector and its popup collect explicit
-`m`/`h` preset input silently and display a matching offered option as a pending
-choice, including its popup selection marker and accessible description, while
-the popup stays open. The committed index changes only on confirmation.
-Each exact preset match clears the accumulated text while retaining its pending
-index, allowing another complete choice to be typed immediately before confirmation.
-An explicit GTK viewport scrolls each buffered preset into view using
-`Gtk.Viewport.scroll_to`, without moving keyboard focus. Custom remains in the
-fixed footer outside the scrolling list.
-Incomplete or invalid typed text leaves the committed option displayed;
-raw input never replaces the label. Up/Down buffer adjacent options, and `c`
-buffers Custom. Enter confirms a buffered choice through the existing selection
-handler and closes the popup; confirming Custom focuses the inline entry.
-Escape closes the popup without changing the allowance. Focus leave, popup
-closure and preference reload also discard unconfirmed input. The custom entry is outside these
-controllers. Typed values must exactly match a preset; no rounding is applied.
-The allowance MenuButton subclass makes the identified selector its single
-closed-popup tab stop and public focus recipient, while the opened popup uses
-GTK's native traversal. This avoids delegating focus to an anonymous internal
-toggle and leaves keyboard recipient checks addressable by the selector ID.
-Invalid edits retain the last saved value. Reloading a child's preferences also
-restores that value in the custom editor and clears the rejected-draft error,
-including when the saved allowance is a preset. Successful autosaves preserve
-the active draft, focus and caret. This takes effect on the next Parent process
-and requires no saved-data migration. The allowance picker and custom editor are insensitive while
-screen-time control is off; the saved value remains displayed. Time status uses
-`GetTimeStatus` with no direct cross-account AccountsService read, and retries
-temporary failures before showing unavailable.
-Revocation is enabled while the form is idle when the last loaded calculated
-total is positive or the broker detects running soft-blocked apps for the
-selected child, including in a locked desktop with zero time. At zero time,
-Parent includes `HasRunningSoftBlockedApps` in its periodic status refresh.
-The grant balance itself may be zero. The broker still
-restores strict app policy and terminates blocked apps in that case, leaving
-daily time unchanged.
+Keyboard preset input buffers exact `m`/`h` matches or Custom without changing
+the committed choice. Enter confirms, Escape/closure/focus leave/reload discards.
+An exact match clears buffered text while retaining its pending choice, allowing
+another complete choice before confirmation; no rounding selects a preset.
+The popup scrolls pending choices into view and keeps Custom visible. Controls
+have an identified focus recipient and native popup traversal.
 
-App Limits loads the selected child's catalogue asynchronously on child selection
-and creates rows in batches. The loading mask shows a spinner during discovery,
-then adds a percentage based on completed rows out of the returned catalogue,
-updated after each batch. The numeric percentage applies in every language;
-the existing loading message remains translated. The mask stays visible until the complete
-table has its saved policies, filters and enabled state applied and GTK has
-finished a frame with that table underneath it. Removing the mask then reveals
-the prepared list without a further row-loading delay. The mask belongs to the
-page viewport outside the scrolling content, so growing the list cannot move
-its centered message out of view. Its background, spinner and message share
-one visibility lifetime and disappear together. A new catalogue cancels
-the previous frame wait; closing Parent disconnects it.
-Unlike the account list, it has no periodic refresh:
-reselect another child and back, or reopen Parent, to display installed/removed
-launchers. Save-time target resolution at the broker is independent of this UI
-snapshot. Search combines with independent match/access filters, each allowing
-multiple or no selected categories. Access-rule buttons autosave; the match-rule
-dialog has Save, Cancel and Reset to Default.
-Isolated rule-generation failures leave the Parent window functional. It queries
-the target-authorized `GetPolicyWarnings` method on child selection, after saves,
-and with the 30-second status refresh. A persistent `parent-policy-warning`
-label identifies affected apps and explains that they or updated versions may
-be unrestricted while other controls remain usable. A changed warning set opens
-the ordinary error report once; closing it keeps management open. Saved wildcard
-choices remain unchanged and recover on a successful broker rescan. Local app
-identities never enter the automatic report draft. Transient child-discovery
-refresh errors also keep an already-authorized window open and retry; explicit
-authorization denial and failure before initial authorization remain closed.
-Saved overrides survive a change to allowed at the storage boundary; disappeared
-launchers' saved policies survive later visible-row saves. A failed save rebuilds
-the controls from the last confirmed preferences using the restoration path
-described below. An irreversible termination failure may already have retained
-stricter broker preferences; reopening reloads the actual state.
-An empty or unrelated precise rule is rejected locally and leaves the editor
-open. The entry's public accessibility description carries the exact rejection
-explanation and returns to its input guidance when edited. A wildcard rule
-reaches broker validation after the dialog closes, so a
-rejected pattern uses the normal failed-save/report path. A basename without
-slashes is expanded against the app's sole native target directory. Save of
-the detected default and Reset to Default both clear the override; Reset saves
-immediately without a second confirmation.
+Parent refreshes managed accounts every five seconds, coalesces reads and keeps
+selection stable. If the selected account disappears it loads the first remaining
+child; empty lists show an explanation. Time status refreshes every 30 seconds.
+Revoke is available when idle with positive total remaining time or running
+soft-blocked apps, including zero-time locked desktops. Revocation leaves daily
+allowance intact.
 
-There is a current precise-override restoration limitation. A saved explicit
-precise choice has `user_saved_match_rule=true` and no patterns, but
-`_apply_app_policies` restores `_default_match_rule` for that combination.
-For an app with `suggested_patterns`, the displayed choice therefore becomes
-the suggested wildcard after child reselection, window reopening or failed-save
-restoration; a subsequent `_app_policy_value` can save that wildcard. Custom
-wildcard overrides restore from their saved pattern.
-The storage contract does not establish correct precise-choice round trips in
-this case, and existing E2E declarations do not qualify that branch.
+App Limits loads on child selection, builds rows in batches and reveals a fully
+prepared table after a GTK frame. The loading mask remains fixed to the viewport.
+Unlike account discovery, the catalogue does not periodically refresh:
+reselection/reopening is required for added/removed launchers. Broker save-time
+target resolution still uses current state. Search combines independent
+multi-category match/access filters. Access changes autosave; match editing has
+Save, Cancel and immediate Reset to Default.
 
-In both request forms, `_update_controls` gates Request on loaded accounts,
-preferences, the enabled toggle and no pending request, not custom-value
-validity. Invalid custom text displays validation feedback while Request stays
-enabled; `selected()` rejects it before preferences are saved or Polkit starts.
-Decimals use `.` and accepted fractional minutes are rounded to seconds. On a
-successful approval, both forms count down three seconds before their respective
-exit actions. Denial and cancellation restore the same editable choices.
+Isolated rule-generation warnings identify affected apps, explain possible
+unrestricted versions and open one error report per changed warning set while
+management stays usable. Warnings refresh on selection/save/status polling.
+Local app identities do not enter automatic drafts. Transient discovery errors
+retry in an already-authorized window; denial and pre-authorization failure
+remain closed.
 
-Parent and child overlay offer Help and active About website/privacy/support/
-license/legal links. Kiosk About is informational with external launches disabled.
-The parent has an ordinary Send Feedback action. All three roles share error
-reporting, including reporting-only startup failures. Request errors offer an
-initially enabled Report this error choice before exit; success and normal
-authentication cancellation do not. Kiosk reports hide file choosers and
-external privacy links. See [feedback](Logging-and-Feedback.md#feedback-and-diagnostic-export)
-for editor, draft, collection, privacy and delivery contracts.
+Saved overrides and disappeared-launcher policy survive later visible-row saves.
+Failed saves restore confirmed preferences; after irreversible termination
+failure the broker may have retained stricter state, loaded on reopen.
+Empty/unrelated precise rules reject locally. Basenames expand against a sole
+native target directory; wildcard rejection follows broker save/report handling.
+Saving the detected default or Reset clears the override.
 
-The Parent App's allowance and app-filter popovers use native menu buttons
-and scrollable contents that can shrink to the space supplied by the compositor.
-Before each opening, the allowance popover measures the space above and below
-its button within the current window, chooses the roomier side and caps its
-natural height to fit. This keeps its arrow attached to the button on short
-displays, including after scrolling or resizing; the presets scroll while
-the custom-amount action stays visible.
-Its pages scroll on shorter displays. App Limits shows an information icon
-immediately to the right of search, with a translated **Show legend** tooltip.
-Its toggle opens a floating legend panel with a close button. Clicking outside
-also dismisses the panel; either dismissal resets the toggle. The existing disclosure ID, boolean API and content
-ID remain unchanged. Legend text wraps without imposing a wide minimum window
-size. A grid measures the panel's two columns at their allocated widths, with
-each rule's description below its title.
-The shared About window can resize and scroll so its
-legal notices remain reachable on scaled displays. These layout changes load
-with the next app process and do not change saved data.
+**Known limitation:** explicit precise overrides have
+`user_saved_match_rule=true` with no patterns, but restoration selects
+`_default_match_rule`. For apps with suggested wildcards, reselection, reopening
+or failed-save recovery displays that wildcard; a later save may persist it.
+Custom wildcard overrides round-trip correctly.
+
+Request decimals use `.` and fractional minutes round to seconds.
+Denial/cancellation restores editable choices. Help and active About links are
+available in Parent/overlay; kiosk remains informational. All roles can report
+errors, including startup failures. Error exits initially offer reporting;
+success and normal cancellation do not. Kiosk hides external/file actions.
+See [feedback](Logging-and-Feedback.md#feedback-and-diagnostic-export).
+
+Pages and About scroll on small/scaled displays. Allowance/filter popovers fit
+available space; allowance chooses the roomier side and keeps Custom fixed.
+The App Limits legend wraps, closes explicitly or on outside click, and retains
+its existing boolean API.
 
 ## Child panel preference
 
-The panel's primary action opens one request overlay. Its hover text reports the
-remaining time and identifies the primary and right-click actions. The latter
-opens **One minute count down animation**, backed by
-`com.puffyslippers.oh-no-parent-control.child`'s
-`one-minute-countdown-animation` key in the child's GSettings database. The
-[schema](../../child/schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml)
-defaults to false. The setting controls final-minute flashing and final-ten-second
-icon rotation, applies immediately and survives login/reboot. It neither changes
-enforcement nor enables the request form's disabled sound/lightning. There is
-no separate child preferences window. Persistence and operability are functional
-acceptance; rendering of the effect is outside the specification's scope.
+The primary panel action opens one overlay. Its tooltip explains remaining time
+and primary/context actions. The child-owned
+`one-minute-countdown-animation` GSettings boolean defaults false, applies
+immediately and survives login/reboot. It controls final-minute flashing and
+final-ten-second rotation, with no policy or request-media authority. There is
+no separate child settings window.
 
 ## Responsive request layout
 
-`make preview-kiosk` and `make preview-child-overlay` use the
-[screen preview launcher](../../kiosk/oh_no_parent_control_kiosk/preview.py).
-The preview-only **Change Screens** dialog selects physical dimensions and a
-GNOME scale label. A disposable Mutter 50 virtual monitor supplies the real
-Wayland surface scale and fullscreen allocation; app layout does not simulate
-display scale with font sizes or widget transforms. The launcher applies
-temporary configurations over its explicit private D-Bus connection, using
-Mutter's mode-specific supported scales (including GNOME's rounded fractional
-scale labels). It waits for the app to acknowledge the expected allocation and
-surface scale and the viewer's receipt of full-resolution video before replacing
-an existing session. A failed replacement leaves
-the prior session running. Each service and viewer has its own recorded direct
-Popen child; cleanup signals only those unreaped children. No host display
-settings or product saved data change. Development activation is on the next
-preview invocation; no package/service activation or migration is needed.
+Both surfaces use GTK monitor scaling with a 14-pixel logical base font.
+Screen dimensions do not introduce another zoom. The gateway uses up to 40%
+of desktop width; through 1200 logical pixels of height its/form preferred widths
+cap at 640/384, then grow proportionally with height. Narrow windows preserve
+readable controls and fit form content into the opening.
 
-The operator authorized a development-only exception for Mutter's private
-ScreenCast/RemoteDesktop interfaces on 2026-09-09. The
-[viewer](../../kiosk/oh_no_parent_control_kiosk/preview_viewer.py) captures the
-existing monitor with `RecordMonitor`; it does not create another output.
-The launcher checks Mutter 50.x, the viewer requires an explicitly private bus,
-and production entry points never import the viewer. PipeWire carries raw RGB
-frames to GStreamer's GTK4 paintable sink, with no video encoding or application
-layout substitution. A private WirePlumber `policy` profile connects the stream
-without discovering audio/camera hardware. Input shares the capture session;
-pointer coordinates are expressed in captured physical pixels and converted by
-Mutter to the screen's logical coordinates. The virtual seat is initialized
-before the app maps. Key/button state is released on viewer focus loss.
+Backdrop bands fit independently; scenery uses uniform scaling and anchored
+bases rather than stretching silhouettes. Lightning follows the same transforms.
+Chains share a coarse pixel grid with nearest-neighbour enlargement.
+Duration choices reflow into one/two columns, account labels stack as needed,
+and wrapped text/vertical scrolling retain corner controls and stationary frames.
+External scrollbar allocation follows the projected viewport so its input target
+matches its visible track. Results share the same sizing/overflow container.
 
-The interactive child Shell preview starts private WirePlumber and relies on Devkit's
-single visible monitor. Supplying an additional command-line virtual monitor
-would allow the overlay to open on a screen the viewer does not show. Child
-preview overlays use the same fullscreen behavior as production.
-On Ubuntu it explicitly selects the installed Yaru Shell resources through a
-[private presentation mode](../../child/preview-session.json), and selects
-Ubuntu's compiled desktop settings defaults. The private mode omits Ubuntu's
-system extensions; only the checkout extension is enabled. Other GNOME hosts
-use the standard user mode. Both interactive and automated child previews
-require GNOME Shell 50.x and share the isolated presentation and payload setup.
-The preview renders the current checkout; an installed extension needs package activation and session renewal
-to render changed payloads. Compare equivalent versions, monitor scales and
-viewer zoom when reviewing screenshots.
+Development previews use real disposable Mutter surfaces/scales on an explicit
+private bus, leaving host displays and saved data unchanged. Their viewer/input
+support is a manual review aid, not an automation or installed-acceptance route.
+Child previews require GNOME Shell 50 and isolated payload/presentation state.
+Production extension changes require package activation and session renewal.
 
-Automated child component checks use the shared lifecycle runner's headless
-Shell with one virtual Wayland output. They exercise the real extension and
-overlay through the Application UI API, retaining process ownership, lifecycle
-and semantic result checks. They do not require the interactive viewer, outer
-compositor, PipeWire/WirePlumber, screenshots or geometry validation. The virtual
-output is infrastructure for the Shell and overlay, not an acceptance oracle.
-
-The rendering contract follows GTK's
-[surface scale](https://docs.gtk.org/gdk4/method.Surface.get_scale.html) and
-Mutter's [DisplayConfig interface](https://github.com/GNOME/mutter/blob/50.1/data/dbus-interfaces/org.gnome.Mutter.DisplayConfig.xml).
-Viewer fitting is a presentation zoom: it does not change the virtual screen.
-The 100% pixels mode sizes the captured image in host physical pixels and allows
-scrolling. Automated request-form checks use public IDs to select accounts and
-durations, submit at supported scales and verify the submitted values. The screen
-dialog checks validate its public scale choices, invalid-dimension feedback and
-cancel/recovery behavior. These checks do not compare pixels, geometry or viewer
-frames. Manual preview rendering and retained images remain useful review aids;
-they establish neither functional acceptance nor installed kiosk/child-session
-qualification. The viewer's manual input support is not an automation route.
-
-Both request surfaces use a compact 14-pixel logical base font and GTK's monitor
-scaling for HiDPI. Screen dimensions do not add a second zoom to the rendered
-interface, and corner controls retain their native logical sizes. At the
-reported 1920×1200 output and 125% scale, GTK allocates 1536×960 logical pixels.
-The gateway uses 40% of that width. Through 1200 logical pixels of height, the
-gateway and form prefer at most 640 and 384 logical pixels of width. Taller
-desktops increase both preferred widths in proportion to height, preserving the
-1920×1200 gateway proportions while allocating wider form rows with native text
-and controls. At 3840×1600 and 100%, these widths are about 853 and 512 pixels.
-The gateway still uses at most 40% of desktop width; smaller windows allow a
-larger fraction to retain readable controls, and the form fits the opening.
-Form content fills the allocated board width so wider frames give their rows
-more space instead of adding empty side gutters.
-
-The scene fits three horizontal backdrop bands independently. The central band
-uses the original gateway artwork. The side bands use a clean sky/floor plate
-and distribute the original crystal, island and moon silhouettes across the
-available space. Each silhouette uses one uniform scale for both axes, bounded
-by its band's horizontal and vertical scale. Bottom anchors keep stone bases
-on the floor, and foreground formations retain their outer screen edge.
-Only the original four floating formations move. Lightning sources use the
-same silhouette transform and floating offset; targets, lava and snow
-exclusions follow the central gateway. No scenery silhouette is stretched to
-fill unused screen width.
-The form measures against the gateway opening and reserves space above and
-below for the curved chains. Both request views render the chains on a shared
-coarse pixel grid with nearest-neighbour enlargement. Stepped iron links use
-flat cyan and purple highlights, retaining the curved hang and rail attachments
-at each display size. Layout diagnostics log allocations, monitor scale,
-gateway dimensions, scenery scale and chain gaps without account information.
-
-Duration choices reflow between two columns and one, with wrapped captions when
-needed. Account captions sit beside selectors on desktop widths and above them
-on narrow displays; compact rows show one avatar so names retain space. Request
-and Cancel share a row. The normal and custom-duration forms fit the laptop's
-1536×960 allocation. Smaller screens, expanded selectors and long messages use
-a vertical scrollbar inset from the stationary frame and chain lugs. The
-transformed viewport remains within the gateway and leaves space for corner
-controls on narrow displays. An external GTK scrollbar shares the viewport's
-adjustment and occupies its projected inset rectangle with a 2D allocation, so
-its narrow pointer target aligns with the visible track. Results use the same
-sizing and overflow container.
-Existing request data and package activation classifications are unchanged;
-new request windows load the updated UI.
-
-Package staging precomputes the lava's two fixed RGBA treatments from the shipped
-PNG through [lava_artwork.py](../../kiosk/oh_no_parent_control_kiosk/lava_artwork.py).
-The compressed cache binds its version, dimensions and exact source digest, and
-has a bounded, exact-length decoder. Runtime loads it into native memory textures
-instead of scanning the artwork's pixels in Python on every session entry.
-Missing, damaged or stale caches use the original calculation, including edited
-checkout previews. The narrow build-only PNG reader rejects unsupported color
-profiles and transparency formats; native-GDK pixel equivalence is checked on
-the actual shipped source. No additional package prerequisite is needed.
+Package staging precomputes fixed lava RGBA treatments with a version/dimension/
+source-digest bound cache and exact-length decoding. Missing/damaged/stale caches
+fall back to the original calculation, including edited checkout previews.
 
 ## Lightning audio
 
-Both request surfaces use [thunder.py](../../kiosk/oh_no_parent_control_kiosk/thunder.py)
-for generated thunder, with no background music or recorded audio assets. Each
-visible flash triggers one short crack followed by a rolling, fading rumble;
-its current brightness controls gain and its screen position controls stereo
-placement. Return flashes layer over existing tails. Missed flashes are not
-replayed after a delayed frame. The stream uses GStreamer's supported
-[appsrc interface](https://gstreamer.freedesktop.org/documentation/app/appsrc.html)
-with short live PCM buffers to keep attacks near the animation.
+Sound/lightning are currently disabled through `REQUEST_MEDIA_ENABLED`; the
+mute control is hidden/insensitive and audio import/synthesis/pipeline creation
+is skipped. Separate saved per-child/surface mute values remain compatible.
 
-Sound and lightning are temporarily disabled on both request surfaces, and the
-mute/unmute button is hidden and insensitive. `REQUEST_MEDIA_ENABLED` retains a
-single restoration switch; saved per-child mute values and handlers remain in
-place, but cannot unmute the current UI. While disabled, the window skips the
-audio module import, sound-bank synthesis and pipeline construction entirely.
-When enabled, muting flushes voices and playback;
-unmuting waits for a fresh visible flash. Successful dismissal fades remaining
-effects, and window destruction releases the pipeline. Missing audio output
-disables sound without preventing requests. Logs report state and error codes,
-excluding device names and backend debug strings.
-
-This retains the kiosk payload's `session-renewal` package activation class;
-new request windows load the updated code. The runtime package uses GStreamer Base and Good plug-ins
-for PCM playback and audio output; the former MP3 decoder dependency is removed.
-Saved preferences are unchanged and require no migration.
+When enabled, generated thunder follows visible flashes, gain and stereo
+position through short GStreamer PCM buffers; missed flashes are not replayed.
+Mute flushes playback, unmute waits for a fresh flash, successful dismissal fades
+tails and destruction releases the pipeline. Missing audio never blocks requests.
+Logs contain fixed state/error codes, excluding device names/debug text.
 
 ## Remaining-time explanations
 
-Parent remaining-time labels and the child/kiosk estimate use the shared
-`common.oh_no_parent_control_ui.duration.format_duration` formatter: `1h 17m`,
-`2h` for exact hours, and seconds when needed to preserve partial minutes.
+The shared duration formatter preserves partial minutes with seconds and uses
+compact hours/minutes. Parent always shows daily remaining, grant remaining and
+their maximum, including zero operands. With control off, zero daily/total is
+not itself an access restriction.
 
-The Parent App's expandable explanation always shows daily remaining, grant
-remaining and their maximum, including when the configured allowance is zero
-or today's allowance is exhausted. `_time_status_subtitle` does not branch on
-the configured allowance. With screen-time control off, the calculated daily
-operand is zero; a displayed zero total is not itself an access restriction.
-It does not show an additional request operand or internal property names.
-
-The shared child/kiosk form uses its existing footer for the estimated time
-remaining if approved. Fixed-duration choices query `GetTimeStatus` with the
-selected child and requested additional seconds. Interactive changes use a
-250 ms debounce; completed preference and approver loads queue the read without
-that delay. Both paths dispatch asynchronously, serialize reads and discard
-replies for superseded selections. The
-form refreshes every 30 seconds while idle; rest-of-day requests instead say
-that access lasts until midnight. Approval still recalculates the actual grant.
-Loading, validation, denial and approval-in-progress messages take precedence.
-An unavailable estimate does not prevent submitting a request. Closing the window
-removes refresh timers and makes outstanding estimate replies inert.
+Fixed request estimates query `GetTimeStatus` with additional seconds.
+Interactive changes debounce 250 ms; completed preference/approver loads queue
+immediately. Reads are asynchronous/serialized, discard superseded replies and
+refresh every 30 idle seconds. Rest-of-day says until midnight. Higher-priority
+validation/loading/approval messages win. Estimate failure never blocks submission;
+approval recalculates the real grant. Disposal removes timers and invalidates reads.
 
 ## Request-selector state
 
-Request selector defaults are non-authoritative UI state stored per operating
-system user at `$XDG_STATE_HOME/oh-no-parent-control/request-selections.json`
-(normally `~/.local/state/oh-no-parent-control/request-selections.json`). Kiosk
-remembers the last child and approver; the child overlay remembers only the
-approver and always obtains its child from `GetOwnAccount`. Remembered UIDs
-are matched against current broker account lists, with the first eligible
-account used when a remembered account is unavailable. Local approver selection
-takes precedence over the broker's per-child request preference, including when
-preferences arrive asynchronously. With a production `SelectionStore`, an absent
-local approver does not fall back to `last_selected_approver_uid`; the initial
-eligible selection remains. Preview windows have no local store and may use
-the broker field, but do not persist selectors.
+Non-authoritative selector defaults live in each requesting OS user's
+`$XDG_STATE_HOME/oh-no-parent-control/request-selections.json`. Kiosk remembers
+child/approver; overlay fixes its own child and remembers approver. Saved UIDs
+must remain eligible, otherwise the first current account is selected.
+Production local approver choice wins over broker preferences, including late
+loads; absent local choice does not restore the broker's saved approver.
+Previews have no local store and may read that field without persisting it.
 
-Duration, custom value/unit and the soft-app choice still come from the shared
-per-child record, so those values follow the child between surfaces. The kiosk's
-last selected child and approver instead belong to the kiosk OS user, and each
-child overlay has its own OS user's approver selection. Sound settings are
-stored separately per child/surface but are not actionable while media is
-disabled.
-
-The custom duration entry has inline grouped Minutes and Hours radio buttons.
-The row shares the duration tray and soft-app toggle's side margins inside the
-board, aligning the textbox with their outer borders. The entry stays four characters
-wide, leaving surplus width to the radio group. Each layout measures the current
-translated radio captions, indicators and entry using GTK requisitions; it stacks
-the entry and unit group, then the radios themselves when needed. Labels can wrap
-within narrow allocations, and language changes retain the entered value.
-Their normal toggle handler updates the shared unit value and persists changes
-through the existing request-choice path. The Application UI API retains
-`kiosk-custom-duration-units` with canonical `minutes`/`hours` values and selected
-caption text, while the individual choice IDs address the actual radios.
-Escape follows the form's normal exit action. New request processes load the
-change; saved values and translations need no migration.
+Duration, custom value/unit and soft-app choice belong to the shared per-child
+record. Mute values remain separate per surface but inactive while media is off.
+Custom Minutes/Hours radio choices reflow with translated labels, retain entered
+values across language changes and persist through the existing request-choice
+path. The API keeps canonical `minutes`/`hours` values; Escape uses the form's
+normal exit action.
 
 ## Related design
 
-- For changing D-Bus calls, read [method permissions](Broker.md#broker-interface-and-roles); for approval behavior, read [grant transactions](Broker.md#authorization-and-grant-transactions).
-- For countdown/lock behavior, read [expiry enforcement](Screen-Time.md#countdown-and-expiry-enforcement).
-- For changing saved request fields, read [State](State.md).
-- For feedback, attachments, and diagnostics, read [feedback and diagnostic export](Logging-and-Feedback.md#feedback-and-diagnostic-export).
-- For kiosk startup and login ordering, read [Lifecycle](Lifecycle.md#startup-login-and-update-lifecycle).
-- For the restricted station's account, execution boundary and escape defenses, read [Kiosk confinement](Kiosk-Confinement.md).
+- [Broker permissions](Broker.md#broker-interface-and-roles) and
+  [grant transactions](Broker.md#authorization-and-grant-transactions).
+- [Countdown/enforcement](Screen-Time.md#countdown-and-expiry-enforcement),
+  [saved state](State.md) and [kiosk confinement](Kiosk-Confinement.md).
+- [Feedback](Logging-and-Feedback.md#feedback-and-diagnostic-export) and
+  [startup lifecycle](Lifecycle.md#startup-login-and-update-lifecycle).

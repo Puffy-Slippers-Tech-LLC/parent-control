@@ -63,7 +63,7 @@ crosses below one minute. Delayed policy replies use the latest balance, and
 language refresh retains that balance. Editor previews retain their draft duration.
 The [Application UI API](../TestAutomation/Application-UI-API.md#child-panel)
 exposes current notification content and urgency; it does not claim native
-banner visibility. Installed acceptance is queued, not implemented.
+banner visibility or installed acceptance.
 
 ### Native Wellbeing banner suppression
 
@@ -124,11 +124,8 @@ not automatically included in feedback exports.
 This is best-effort presentation suppression: queued banners and startup races
 can escape, and other noncritical Wellbeing banners share the window. An eligible
 saved reminder need not actually be visible. No broker/AccountsService policy,
-grant, PAM or fapolicyd mutation participates. Node cases cover timing, ownership
-and client failure isolation; private-bus component cases exercise the real GJS
-service and production suppression client with a persistent isolated GSettings
-backend, including crash recovery and reacquisition after helper replacement.
-These checks do not establish native GNOME banner or installed-system acceptance.
+grant, PAM or fapolicyd mutation participates.
+Engineering checks do not establish native banner or installed-system acceptance.
 
 `SetPreferences` cannot alter `parent_control_enabled`. `SetParentControl`
 applies screen-time settings to the account and controls child-extension
@@ -242,13 +239,7 @@ identities cross that diagnostic boundary. The helper
 is loaded on its next invocation (`none` activation); adapter logging changes
 activate with the broker's `process-restart` classification.
 
-The parent status client loads on the next Parent App launch (`none` package
-activation). It reuses the existing `GetTimeStatus(uu) -> (uuuu)` contract and
-needs no broker, Polkit, or saved-data change. Regression coverage in
-[test_parent_client.py](../../tests/unit/test_parent_client.py) checks reads
-without retained AccountsService authorization, fresh grant status, and error
-propagation without sensitive logging. The broker role-revalidation regression
-is in [test_core.py](../../tests/unit/test_core.py).
+Parent retains the `GetTimeStatus(uu) -> (uuuu)` status contract.
 
 ## Countdown and expiry enforcement
 
@@ -384,10 +375,9 @@ two seconds; later interruptions and observation expiry are diagnostic, not a
 claim that native callbacks were cancelled. No private callback manipulation or
 unlock/relock cycle attempts to alter that native behavior. Native failure or
 pre-dispatch expiry retains ordinary authentication and enforcement.
-Both the observer and continuation are excluded
-from nested previews, which have no owned logind session. Host adapter tests
-cover the race, authority, cancellations and lifetime; installed single-entry
-return after a grant still requires validation in a renewed child session.
+Both observer and continuation are excluded from nested previews, which have
+no owned logind session. Installed single-entry return after a grant still
+requires validation in a renewed child session.
 Remove this compatibility controller when supported Shell versions refresh the
 native admission decision before processing logind's Unlock.
 
@@ -407,12 +397,11 @@ successful recovery. Terminal refresh diagnostics distinguish the timer read,
 local allowance calculation and broker calculation, plus loaded/locked/greeter
 booleans. Categories come only from Gio error domains/codes or the recognized
 timer Busy names; raw remote names, messages and stacks never enter events. New event
-IDs preserve the historical field-free `child.estimate-failed` contract. The
+IDs preserve the field-free `child.estimate-failed` contract. The
 shared catalogue and child enum validator must ship together with the broker;
 child changes require session renewal and the broker loads the catalogue on
-process restart. No saved-data migration is needed. Regression coverage uses
-isolated Node adapter contexts and real GJS error classification; it does not
-claim installed suspend/resume acceptance.
+process restart. No saved-data migration is needed; local checks do not establish
+installed suspend/resume acceptance.
 
 The [locked-session focus controller](../../child/lockedSessionFocus.js) owns a
 GNOME 50 compatibility workaround for keyboard-device reactivation. Mutter can
@@ -453,9 +442,8 @@ GNOME screen-lock enforcement is unavailable.
 This prevents even a one-second grant from creating a kill timer while GNOME
 starts. The account check's denial remains authoritative; exempt and confirmed
 unrestricted accounts skip both modules, and other resource limits are preserved.
-The former external helper ran before `pam_systemd`, when no session scope
-existed, and could not modify the caller's PAM handle. Broker startup also
-attempts to clear caps on existing managed graphical GDM sessions, requiring
+Broker startup also attempts to clear caps on existing managed graphical GDM
+sessions, requiring
 logind's user class, Wayland/X11 type, and GDM service. Expiry therefore locks the
 child instead of logging out that child or
 ending another user's foreground session. Expiry does not itself terminate

@@ -35,7 +35,8 @@ edits supply no reason to discard valid results or overwrite unrelated work.
 | [Execution contracts](E2E-Execution-Contracts.md) | Detailed sizing, provider qualification, live verification and close-out rules delegated by the execution plan | A second task queue, alternate selection or optional acceptance |
 | [Task queue](E2E-Task-Queue.md) | Single ordered checklist, including provider prerequisites and retained regressions, and delivered task scope | Current block or scenario readiness |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
-| [Fixture migration plan](Fixture-Execution-Plan.md), [queue](Fixture-Task-Queue.md) and `Fixture-Tasks/` | Separate ordinary-plan sequence for host-owned fixture infrastructure; [target design](Fixture-Design.md) is proposed until delivered | Current VM/storage policy changes, customer scenario acceptance or completion of the E2E queue |
+| [Fixture design](Fixture-Design.md) | Immutable host inputs, minimal guest closure, provisioning/readiness and compatibility boundaries; runtime guides own current target availability | New runner capability or customer acceptance merely from the design |
+| [Fixture migration plan](Fixture-Execution-Plan.md), [queue](Fixture-Task-Queue.md) and `Fixture-Tasks/` | Separate implementation sequence for host-owned fixture infrastructure | Current VM/storage policy changes, customer scenario acceptance or completion of the E2E queue |
 | [Evidence/export design](Export-Design.md) | Test evidence identity, capture, export and lifetime design; runtime contracts remain authoritative | Product acceptance, VM operations or new passing results |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |
 

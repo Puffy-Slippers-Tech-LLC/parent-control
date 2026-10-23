@@ -20,17 +20,11 @@ The existing package exclusion marker prevents old/new broker writers from
 running while migration changes records. Unsupported older brokers cannot read
 version 4; downgrades remain unsupported.
 
-The optional version-4 notification field uses compatible read normalization,
-as described in [State](State.md#persistent-and-derived-state). Existing migration
-functions are unchanged. Missing fields receive reminder defaults, while saved
-customizations and explicitly empty reminder lists survive migration retries
-and future package upgrades.
-
-The optional version-4 time grant preset field follows the same compatibility
-rule: absent receives shipped durations, while saved customizations and empty
-lists remain authoritative. Current validation sorts numeric durations without
-repopulating deleted presets. Released migration functions are unchanged; see
-the [backend contract](State.md#time-grant-preset-backend).
+Optional version-4 reminders, time-grant presets and release acknowledgements
+use compatible read normalization; released migrations remain unchanged.
+Missing fields receive their defined defaults, while saved customizations and
+explicitly empty lists survive upgrades/retries. Presets normalize numeric order
+without restoring deleted entries. [State](State.md) owns field contracts.
 
 ## Package lifecycle
 
@@ -82,7 +76,7 @@ acknowledgement and garbage collection.
 
 ## Adding a preference migration
 
-The implementation is in `broker/oh_no_parent_control/data_migration.py`. When a preference change is not readable and writable with the existing schema:
+When a preference change is not readable and writable with the existing schema:
 
 1. Increment `FORMAT_VERSION` in `preferences.py`.
 2. Add a pure `migrate_preferences_vN_to_vN_plus_1()` function.

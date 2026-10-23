@@ -168,24 +168,20 @@ Missing historical proof, unknown context and access refusals remain nonpassing
 until their prerequisites are resolved. Migration creates no new test verdict or
 product acceptance.
 
-## Required regression histories
+<a id="required-regression-histories"></a>
 
-Use private stores and simulated authentication boundaries with real capture,
-publication, selection and retention code. Reuse shared owner coverage under the
-[test scope mandate](../Mandates/Test-Scope-Mandate.md).
+## Verification boundaries
 
-1. Rotate an original report through more than three later runs and exports.
-   Resolve its exact retained bytes and dependencies without rerunning the check.
-   Failed capture or stale acknowledgement must preserve required originals;
-   unreferenced disposable output must still rotate.
-2. Resolve two expired reports from exact archived members while an unrelated
-   producer remains active. Preserve its journal and mutable files, and keep
-   missing, denied, corrupt and wrong-context outcomes distinct.
-3. Change a retained-decision dependency during an active workflow. Stop at its
-   supported boundary and resume with fresh code, preserving inputs, responses,
-   counters, ownership and accepted results.
+Shared infrastructure coverage must establish exact archived resolution after
+more than three rotations, preservation on failed capture/stale acknowledgement,
+and normal rotation of disposable output. Resolve multiple archived reports
+without touching an unrelated active producer. Keep missing, denied, corrupt
+and wrong-context outcomes distinct.
 
-Cover interruption and capacity failures at shared durable boundaries, including
-concurrent reuse and partial deletion. Assert exact provenance, bounded storage
-and unchanged foreign resources. These infrastructure checks require no product
-installation, VM operation or historical acceptance rerun.
+When a retained-decision dependency changes, stop at the supported boundary and
+resume with fresh code while preserving inputs, responses, counters, ownership
+and accepted results. Interruption, capacity refusal, concurrent reuse and
+partial deletion must preserve provenance, bounded storage and foreign resources.
+Use real shared code with private stores and simulated authentication under the
+[test scope mandate](../Mandates/Test-Scope-Mandate.md); product installation,
+VM operation and historical acceptance reruns are unnecessary.

@@ -61,11 +61,9 @@ Machine configuration is separate at
 the kiosk UID, and the minimum successful-request interval; it does not
 duplicate child preferences.
 
-Language uses the same `PreferenceStore`, directory, per-user record,
-validation, atomic writer and package migration chain as policy and request
-settings. Version 4 adds a `personal` section containing `language`. The
-`3 -> 4` migration retains all policy and request choices and adds an empty
-language; direct upgrades from versions 1 and 2 run every intermediate step.
+Language shares the preference store and migration chain. Version 4 adds
+`personal.language`; migration adds an empty selection while retaining policy
+and request choices, including direct multi-version upgrades.
 
 A personal-only account's on-disk record contains `version` and `personal`,
 without policy fields. Reads normalize missing policy to the usual defaults.
@@ -75,10 +73,9 @@ excluding language-only accounts from uninstall enforcement cleanup. Root,
 administrator and kiosk language records use this same infrastructure; they
 do not require a separate settings directory or data family.
 
-The mode-`0700` directory and mode-`0600` records remain root-private. The
-shared writer flushes the file and directory before success. Missing records
-use defaults. Duplicate keys, invalid records and unsupported schema versions
-are rejected; language saves never replace them.
+The mode-`0700` directory remains root-private. The shared writer flushes both
+file and directory before success. Missing records use defaults; duplicate keys,
+invalid records and unsupported schemas refuse replacement.
 
 Request-choice updates read, validate and merge under the writer lock. A request
 that repeats an identical normalized record avoids another replacement and
@@ -199,8 +196,7 @@ retains them; purge removes them with the preference directory.
 The shared request form reads this field from `GetPreferences`, and its
 [Preset Times tab](Frontends.md#child-reminder-preferences) edits the same list
 through these APIs. Request choices use the backend helper and range definitions.
-Broker changes activate on process restart and frontend changes on a new request
-process; no schema increment or released migration edit is required.
+Broker/frontend readers load on restart; this compatible field needs no migration.
 
 ## What's New backend
 
@@ -216,27 +212,9 @@ Kiosk and child overlay notes come from
 `/usr/share/oh-no-parent-control/whats-new-child.toml`. Authors edit TOML with a
 top-level `version = 1` and at most one `[[records]]` block per release.
 Each record requires `ProductVersion` and `Content`; `SeeMore` is optional.
-The source determines the audience; there is no `ShowIn` field. For example:
-
-```toml
-version = 1
-
-[[records]]
-ProductVersion = "1.4"
-SeeMore = "https://example.com/releases/1.4"
-Content = '''
-## New features
-
-- **Formatted** release notes
-'''
-```
-
-Type Markdown with normal line breaks inside the triple-single-quoted literal
-string. Quotes and backslashes need no escaping; TOML removes the first newline
-after the opening delimiter and preserves subsequent whitespace. Three
-consecutive single quotes delimit the string and cannot occur inside it; use a
-triple-double-quoted TOML string with TOML escaping if that content is needed.
-For an empty catalogue, use `version = 1` and `records = []`.
+The source determines the audience; there is no `ShowIn` field. Content is
+literal Markdown, conventionally a multiline TOML literal string. An empty
+catalogue uses `version = 1` and `records = []`.
 
 Versions are numeric dotted product versions, independent of DEB/RPM revisions.
 Comparison is numeric (`1.10` follows `1.9`); trailing zero components normalize

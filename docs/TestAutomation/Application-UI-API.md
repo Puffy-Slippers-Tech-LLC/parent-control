@@ -29,13 +29,6 @@ ui.setValue("parent-child-selector", "1001")  # Known eligible account UID.
 ui.setValue("parent-screen-limit-toggle", True)
 ui.setValue("parent-daily-limit-selector", "15m")
 assert ui.getValue("parent-daily-limit-selector") == "15m"
-
-ui.setValue("parent-daily-limit-selector", "custom")
-ui.setText("parent-custom-daily-limit", "15m")
-assert ui.getText("parent-custom-daily-limit") == "15"
-entry = ui.getElementById("parent-custom-daily-limit")
-entry.text = "30"
-entry.activate()  # The normal Enter/validation path.
 ```
 
 This example demonstrates input and widget readback. Completion of a setter
@@ -118,13 +111,11 @@ Duration tokens use ASCII digits, `.` and `m`/`h`, independent of `LANG`,
 presentation; `getValue` and `getChoices` supply language-independent semantics.
 Raw text entry remains literal so invalid-input validation can be exercised.
 
-The GTK implementation uses supported GTK/GObject and session D-Bus interfaces.
-It has no distro/desktop branches, AT-SPI dependency, toolkit-private field access,
-window coordinates, pointer injection, focus checks or rendering acceptance.
-Composite selectors operate available logical choices without opening their
-popups. Clipping, covering by another window, and scroll position do not change
-target identity. An inactive application page, disabled form, modal dialog or
-genuinely hidden control still restricts input.
+The GTK implementation uses public GTK/GObject and session D-Bus interfaces,
+independently of desktop, AT-SPI, coordinates or focus. Composite selectors use
+logical choices without opening popups. Clipping, covering windows and scrolling
+do not change identity; inactive pages, disabled forms, modal dialogs and hidden
+controls still restrict input.
 Collapsed revealer content is hidden logical state; transition progress does
 not gate input. The GTK adapter uses the public
 [revealer state](https://docs.gtk.org/gtk4/method.Revealer.get_reveal_child.html).
@@ -140,11 +131,8 @@ do not require running the GNOME desktop. The normal test facade has no desktop
 detection or adapter imports, and a language with its own D-Bus library can use
 the wire protocol directly.
 
-GNOME Shell is isolated in the child-panel adapter because the product's panel
-extension is itself GNOME-specific. The GTK Parent and request interfaces do not
-depend on that adapter. External Polkit/login prompts and operating-system file
-choosers keep their provider APIs: this service neither collects passwords nor
-injects attachments into application state.
+External Polkit/login prompts and OS file choosers keep their provider APIs:
+this service neither collects passwords nor injects attachments into application state.
 
 ## Parent controls
 

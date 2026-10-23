@@ -7,9 +7,7 @@ PAM restoration, execution-policy baselines, and retry behavior.
 
 Implementation: [prerm](../../packaging/lifecycle/prerm.in), [postrm](../../packaging/lifecycle/postrm.in), [postinst](../../packaging/lifecycle/postinst.in), [uninstall.py](../../broker/oh_no_parent_control/uninstall.py), [package_activation.py](../../packaging/package_activation.py).
 
-`make install` installs the built Debian package through APT on Debian-family systems.
-`make uninstalldeb` runs `sudo apt remove oh-no-parent-control` (plain `apt`
-when root), retaining APT's confirmation and installed maintainer scripts.
+Native package-manager removal invokes the installed lifecycle scripts.
 The lifecycle targets clean installations: conflicting accounts, hooks, or
 fallback rules require administrator resolution and are never adopted or
 overwritten.
@@ -160,16 +158,13 @@ product's enforcement as pre-existing administrator policy. Systemd reloads
 the removed display-manager dependency before stopping fapolicyd, so dependency
 stop propagation cannot end the desktop session.
 
-**Acknowledgement limitation:** the current adapter and final CLI reloads verify
-command completion, not active daemon policy. The
-[generation-witness design gate](Applications.md#generation-witness-design-gate)
-requires a fresh rollback receipt and a removal witness that survives deletion
-of the account-policy file. If implemented as a separate generated file, it
-must be removed before `postrm` tests whether administrator rules remain;
-otherwise it changes the empty-directory/baseline branch. Ship its ownership,
-retry and cleanup handling with the witness, and qualify final baseline
-restoration separately. This design does not qualify removal or change the
-current file layout.
+**Acknowledgement limitation:** adapter and final CLI reloads verify command
+completion, not the daemon's active generation. No generation receipt currently
+qualifies rollback or baseline restoration; see
+[application-policy verification](Applications.md#generation-witness-design-gate).
+Any future witness must survive account-policy deletion long enough to verify
+removal, then retire before the administrator-rule emptiness check. Ownership,
+retry/cleanup and final baseline verification must preserve the existing branch.
 
 ## Remove, purge, and retry
 
@@ -216,8 +211,7 @@ APT `DPkg::Post-Invoke` hook prints
 `*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***`
 after dpkg's triggers as the last printed output, in bold red on a capable
 terminal and plain text in redirected output.
-`make uninstalldeb` uses this same production APT integration without a
-checkout helper. The hook is self-contained because the executable payload
+The hook is self-contained because the executable payload
 has already been removed. Its APT conffile survives ordinary removal and
 reminds on later package transactions while this package's reboot request
 is outstanding; purge removes the conffile. Direct dpkg removal records the

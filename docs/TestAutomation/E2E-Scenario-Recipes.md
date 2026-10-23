@@ -3,195 +3,114 @@
 [scenarios.json](../../tests/e2e/scenarios.json) owns customer-readable steps,
 persistent case IDs, matrices and current readiness. This document supplies the
 exact block compositions and finite data. The [documentation map](README.md)
-separates recipe, block, queue and runtime status ownership. Do not copy recipes
-into task briefs or silently substitute inputs. In an implementation session,
-read only the selected family's branches, applicable finite-data rows and common
+separates recipe, block and runtime status ownership. Preserve these inputs and
+compositions rather than duplicating them. Read the selected family's branches,
+applicable finite-data rows and common
 entry/time rules.
 
-E2E-028, E2E-029 and E2E-034 are retired; their former coverage IDs 140–150
-remain system-test obligations outside the UI inventory. Preserve all current
-ready inventory bindings and their functional assertions. Each family below records
-current implementation context, not an independent readiness authority. Follow
-the [close-out contract](E2E-Execution-Contracts.md#completion-and-document-cleanup) after
-a complete scenario pass. A block qualification alone leaves its scenario
-pending.
+E2E-028, E2E-029 and E2E-034 are retired; former coverage IDs 140–150
+remain engineering obligations outside the UI inventory. Preserve current
+bindings and functional assertions. A block qualification does not establish
+a complete scenario result; the inventory owns readiness.
 
-## C04b baseline public-use slice
+<a id="c04b-baseline-public-use-slice"></a>
 
-This finite map is the C04b handoff to C04u/C04f and C04's readiness audit,
-then C05u/C05f on `onpc-Ubuntu26.04` and `onpc-Fedora44`. It implements no
-scenario. The [operation applicability table](E2E-Building-Blocks.md#c04b-baseline-operation-applicability)
-classifies every constituent and records the exact historical scope and gaps.
-The thin `baseline_journey.PLAN` / `BaselineJourney` composition is registered
-through `check_e2e_baseline_journey`; its installed qualification is pending.
-Preserve the existing inventory and stable IDs; pending broader compositions
-remain pending. C04 must verify the complete both-target results before readiness.
+## Baseline public-use slice
 
-C04j's first passing complete history on each target is also eligible for
-C05u/C05f baseline acceptance under the
-[complete baseline evidence-reuse contract](E2E-Execution-Contracts.md#complete-baseline-evidence-reuse).
-Retain every finite input, ordered core assertion and cleanup result below, with
-per-target candidate applicability. C05 verifies that evidence when selected and
-executes only missing or invalidated complete histories; no row or broader E2E
-case completes automatically from this handoff.
-
-The [C04f qualification](E2E-Building-Blocks.md#c04f-fedora-qualification-and-ubuntu-renewal)
-now supplies the exact fixed entry/approval operation on both targets, including
-prompt Cancel, form Cancel/reentry, approved exit and independent Parent grant
-read with daily 900 and initial grant zero. This does not qualify the zero-daily
-downstream journey below, wrong-password effects, overlay or human pauses.
-B1–B4 remain C04 readiness gaps. Removed private receipts, view generations and
-all-process censuses are not recipe prerequisites; engineering session identity
-observations cannot replace any public result.
-
-General feature automation belongs to the E2E queue under the
-[cross-plan reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse).
-The complete confinement baseline history covers core request/grant/use/revoke,
-negative effects and repeated entry. Language, request-choice, reminder and About
-regressions reuse existing qualification separately; do not replay their feature
-matrices inside that history. Human pauses check that confinement does not force
-logout or lose a live request. Saved-preset editing, Hours and What's New are
-separate E2E tasks 314/315, not baseline gates.
+The core baseline composes request, grant, app use, revocation and repeated entry
+on Ubuntu 26.04 and Fedora 44. It uses
+`baseline_journey.PLAN` / `BaselineJourney` and `onpc_baseline_journey::run`.
+The [operation catalogue](E2E-Building-Blocks.md#c04b-baseline-operation-applicability)
+owns qualified scopes and current gaps. Complete-history evidence is target
+specific; partial operations and supporting session identity do not establish
+a complete customer result.
 
 ### Baseline inputs and public results
 
-Use the registered fixture roles, not names as selectors. Riley is
-`fixture-child` / worker `child`, Jamie is `fixture-parent`; Jordan is
-`existing-fixture-child` / worker `other-child`. The existing fixed approval
-operation binds Riley/Jamie; changing it to Jordan is additional qualification,
-not a harmless alias. Keep Jordan untouched as the other-child control.
-Start from the matching installed snapshot, no grant, controls off and default
-Allowed app rules. Set all tested policy through Parent. Read saved settings,
-balances, choices and app effects independently through public interfaces.
+Use registered fixture roles rather than names as selectors: Riley is
+`fixture-child` / worker `child`, Jamie is `fixture-parent`, and Jordan is
+`existing-fixture-child` / worker `other-child`. Changing a qualified account
+binding requires its own qualification. Keep Jordan as the untouched other-child
+control. Begin with the matching installed snapshot, no grant, controls off and
+default Allowed rules. Set policy through Parent and independently read saved
+settings, balances, choices and app effects through public interfaces.
 
-| Slice / inputs, in order | Existing selector/caller and required result | Binding state / gap |
-| --- | --- | --- |
-| Parent setup: enable Riley; zero daily allowance, zero grant | FLOW16's zero binding uses `onpc_parent::set_allowance`; PARENT09 must read daily/grant/total = 0/0/0. Retained case 49 instead prepares daily 900 and cannot stand for this zero-daily baseline. | Reuse exact unchanged setup leaves after evidence verification; current entry and combined history need qualification. |
-| App rules: native A Allowed, H hard (`permanent`), S soft (`conditional`) | Reuse 313a/313's exact compatible A/H/S profile, declared desktop IDs and precise A/H / version-pattern S. Read all three saved rows; later launch by native command only. Preserve A Allowed and H's whitespace-path denial. | B2 waits for E2E 313a/313's finite fixture/feature delivery; no new policy/fixture implementation under the kiosk queue. No Snap/Flatpak/grid matrix. |
-| Passwordless kiosk entry; select Riley/Jamie | REQUEST01 → REQUEST03/04 / FLOW04. Observe one owned usable form, exact eligible UID sets, selected child/parent and enabled Request. No kiosk password, diagnostic-only page or census substitute. | Changed; C04u/f fixed shared entry/approval qualification. |
-| Existing language coverage and confinement pause | Reuse `kiosk_language.PLAN`'s Jordan binding and existing Save/Cancel/persistence outcomes. Add only a guarded 90-second initial chooser wait and fresh same-session observation to prove no confinement logout; preserve choices and policy. The core Riley/Jamie request uses its existing English binding. | C04l renews the affected existing caller and checks session lifetime, without a new Riley language matrix or new general language qualifier. This separate feature evidence need not be replayed in the core history. |
-| Core request choices | Reuse the existing fixed Riley/Jamie/Custom Minutes/soft-included binding and independent estimate/remembered-choice comparisons after ordinary Cancel/reentry. Use only explicitly qualified durations, including 313's 600-second downstream binding. | Keep the single core request; the existing preset/rest-of-day/soft-choice feature history is separate below, not a new zero-daily feature matrix. |
-| Existing request choices, independently of the core history | Reuse `kiosk_valid_duration.PLAN`: 5-minute preset, Rest of day, Custom `1.25` Minutes and soft true/false, independent estimates, no authentication and normal Cancel/GDM return. | C04s consumes existing 012c coverage, renewing only invalidated scope. New saved-preset editing and Hours belong to E2E 314 and do not block the baseline. |
-| Existing reminder and About checks, independently of the core history | Reuse `kiosk_reminders.PLAN`'s exact saved-record/other-child-isolation checks and `restricted_station_about.PLAN`'s installed product/version, external-action absence and unchanged-request return. After the independent overlay 75-second read, delete only the created reminder ID, Save and reopen the original defaults. Sound/lightning stay disabled and mute absent. | C04r/C04i renew affected callers using existing selectors. No new reminder feature matrix, notification-delivery claim or What's New check; E2E 312/311/315 retain those distinct scopes. |
-| Wrong parent password, then independent password-free Cancel, before any approval | FLOW07(rejection) → observe explicit Request denied, preserved choices, Parent grant = 0 and saved H/S restrictions; normal exit/reentry. FLOW07(cancel) → no error, same choices, grant = 0 and same restrictions. At zero time require the qualified child entry denial rather than inspecting an unavailable desktop. | Changed fixed rejection/Cancel leaves; missing combined no-grant/restriction case B4 (E2E-013 cases 34/36 stay pending). Timeout or prompt disappearance is not denial. |
-| Confinement authentication pause, separately from the core history | `baseline_auth_pause.PLAN` / `check_e2e_baseline_auth_pause` reuses the fixed Riley/Jamie/English/75-second/soft-included request: FLOW04 → REQUEST09/AUTH01 → TIME03(45 seconds) → fresh same-challenge recipient checks → AUTH02 → explicit success/automatic GDM → independent grant read. | [C04w qualified both targets](E2E-Building-Blocks.md#c04w-parent-decision-pause). B3 session-lifetime check only; no new approval arithmetic matrix. Old proof freshness cannot span the wait. Reuse this evidence separately without replay inside C04j. |
-| Fresh correct core request | Reuse qualified FLOW04/AUTH01/02/REQUEST11/12 with the exact approved downstream duration, fresh recipient proofs, explicit success and automatic GDM return. | C04p/313 supply the finite operation; C04j owns ordered confinement entry/reentry. No secret enters product UI. |
-| Downstream child time and app use | Fresh FLOW15(Riley) → TIME01/02 reflects the qualified grant-only 600 seconds less real elapsed time; FLOW08(command,S) proves real usable Submit/result, H command is denied, A is usable. Saved rules stay unchanged. | C04p qualified the finite effects; C04j composes them with the negative and repeated requests. No hidden grant, clock manipulation or root-only probe. |
-| Shared overlay on the usable Riley desktop | REQUEST02 fixed-child entry → FLOW04 with Jamie/75/soft true → Shell genuine approval and explicit child-owned success/desktop return. Preserve the same activity and inspect current time, S usable/H denied. Separate wrong-password/Cancel observations retain no additional grant before a fresh correct request. | Shared form/broker changes require B1 renewal on both targets; MATE proof never qualifies Shell. B4 owns the ordered customer effects. |
-| Restore limits, switch and make a fresh request | Public Parent revoke/Confirm → grant 0, original H/S blocks and S no longer usable; observe expected time restriction. Switch to GDM, fresh passwordless kiosk entry, remembered choices and a new correct approval with distinct challenge; child reentry is usable again. Also cover ordinary form Cancel/close and automatic/immediate approved exits through their existing operation bindings. | Missing finite repeated-request/negative/effect composition B4. Case 49's 975-second countdown after a single approval and cases 50–52's desktop/terminal restriction attempts do not prove it. |
+| Ordered slice | Inputs and independent public results |
+| --- | --- |
+| Parent setup | Enable Riley, set daily allowance zero, and require daily/grant/total 0/0/0. Save native A Allowed/precise, H permanent/precise and S conditional/version-pattern using the [compatible fixture profile](E2E-Building-Blocks.md#c04p1-compatible-fixture-applicability). Independently read all saved rules. |
+| Kiosk rejection | Passwordless entry to one owned usable form with exact eligible UID sets; select Riley/Jamie, Custom `1.25` Minutes (75 seconds), soft included. Submit one wrong parent password, require explicit rejection and preserved choices, exit normally, then independently read grant zero and unchanged H/S rules. Timeout or prompt disappearance is insufficient. |
+| Kiosk Cancel | Reenter and cancel a fresh authentication prompt without a password. Require no error, preserved choices, normal exit and the same zero-grant/unchanged-rule result. At zero time require the qualified child-entry denial. |
+| First correct request | Fresh genuine Riley/Jamie approval, Custom `10` Minutes (600 seconds), soft included, fresh recipient proofs, explicit success and automatic GDM return. No secret enters product UI. |
+| Child activity | Fresh child entry; grant-only countdown within elapsed/precision bounds. Complete A-primary and S-secondary real Submit/results; require H command denial, A still usable and saved rules unchanged. |
+| Overlay negatives | Open the fixed-child overlay from that usable desktop. Select Jamie, 75 seconds and soft included. Separately reject one password and cancel a fresh prompt without one. Each result must preserve choices and the original activity and independently prove no added time. |
+| Overlay approval | A fresh genuine Shell approval for that same 75-second request, explicit child-owned success and immediate return to the same usable activity. Independently observe remaining time, S use and H denial. MATE qualification cannot authorize Shell input. |
+| Revoke | Parent revoke/Confirm; require grant zero, unchanged saved H/S rules, S no longer usable and the native time restriction. |
+| Fresh request after switching | Switch to GDM, passwordless station reentry, remembered choices, a distinct challenge and a new correct 600-second soft-included approval with automatic exit. Require usable retained child/S and H still denied. |
+| Restore | Set H/S Allowed and disable Riley's controls through Parent; independently read unchanged match rules, restored settings and zero daily/grant/total before owned envelope restoration. |
 
-The baseline uses revocation to restore restrictions; grant-only natural expiry
-remains an explicit alternative downstream binding to qualify before using it.
-Do not substitute the two-minute daily-only TIME04 qualification for grant-only
-expiry. Existing E2E-015 cases 44–49, E2E-013 34/36 and E2E-049's full ordered
-three-approval histories retain their original assertions. This finite baseline
-does not complete those broader histories, require real-game/fullscreen matrices,
-or close another plan's task.
+Revocation restores restrictions in this recipe; natural grant-only expiry is a
+separate binding. Daily-only expiry qualification cannot replace it. App use is
+by native command, preserving H's whitespace-path denial and distinct A/S
+instances; no grid, Snap, Flatpak, fullscreen or real-game matrix belongs here.
 
-E2E task 313 owns the existing bounded `check_e2e_baseline_app_effects` qualifier;
-C04p consumes its evidence. It binds an explicit
-longer request for the downstream native history: Custom `10` Minutes, 600
-seconds, Riley/Jamie and soft inclusion. The shared preparation and MATE
-recipient checks require that exact request and the complete ten-minute message;
-the 75-second binding remains separate. This history needs child admission,
-simultaneous A-primary/S-secondary Submit/results, H execution denial and a
-retained Parent return while the grant is still positive. It independently
-reads the grant-only countdown before and after app use (60-second precision,
-at most 180 seconds after the estimate), then Parent's positive grant with
-elapsed bounds before revoke/Confirm. After zero grant and unchanged saved
-rules, it activates the same locked Riley session, reads the native time
-restriction and requires an attributed permission error for S's command.
-The restriction is not treated as a usable desktop or a missing-window denial.
-It restores H/S to Allowed and disables Riley's controls through Parent before
-the envelope restores the owned baseline. Qualification is pending until E2E
-313a's compatible fixture delivery and both target histories pass; this is no
-repeated-baseline or natural-expiry claim.
+Feature histories remain separate: Jordan's existing language Save/Cancel and
+reentry, presets/Custom Minutes/Rest-of-day/soft choices and estimates, reminder
+saved-ID/other-child isolation, and restricted About's installed information,
+external-action absence and unchanged-request return. Preserve defaults by
+deleting only the created reminder ID after its independent 75-second overlay read.
+Sound/lightning stay disabled and mute absent. Saved-preset editing, Hours,
+What's New and notification delivery keep their own customer scope.
 
-### Commands, bounds and restoration
+Confinement lifetime checks also remain separate: wait 90 seconds in Jordan's
+initial language chooser, then freshly observe the same chooser/session/choices
+before Save; wait 45 seconds at a fixed Riley/Jamie/English/75-second
+authentication challenge, reacquire both fresh same-challenge proofs, approve
+once, observe automatic GDM and independently read the grant. These are human
+pauses, not extended startup timers or additional arithmetic matrices.
 
-The registered complete core selector is
-`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_baseline_journey'`.
-Its shared worker is `onpc_baseline_journey::run`; each target has its own
-1800-second bound. The composition owns only the following finite order:
-zero-daily Parent A/H/S setup; 75-second kiosk rejection and separate
-authentication Cancel, each followed by public zero-grant/unchanged-policy
-readback; zero-time child denial; fresh 600-second genuine kiosk approval;
-grant-only countdown and A/S Submit/results with H denied; retained native
-activity across separate overlay rejection, Cancel and genuine 75-second
-approval with immediate exit; S use/H denial; public revoke/Confirm and restored time/S restrictions;
-passwordless kiosk reentry with remembered choices and a distinct 600-second
-approval; usable retained child/S with H denied; public policy/time restoration.
-No baseline reset occurs between these effects. Existing language, request-choice,
-reminder, About and 90/45-second pause evidence remains separate.
-The kiosk approvals use automatic exit, so the complete history covers both
-approved exit modes without another request or a separate exit matrix.
+<a id="commands-bounds-and-restoration"></a>
 
-The two added remembered transitions are exactly kiosk 75→600 seconds with soft
-apps included and overlay 600→75 seconds with Jamie explicitly selected.
-Their API operations retain the full child/approver/form guards. A fresh public
-grant-only countdown supplies the elapsed/precision-bounded overlay estimate
-baseline; each negative overlay result independently proves no added time.
-Those negative comparisons refresh the exact unchanged 75-second request via
-equivalent public `1.25` → `1.250` → `1.25` edits. Guest-clock brackets contain
-each calculation; the original 120-second comparison bound remains, each read
-is at most 45 seconds, and total uncertainty must be less than the requested
-75 seconds. Cached label read time cannot stand for calculation time.
-Every positive Parent read binds its own preceding approval estimate.
-The overlay approval uses the same bounded public calculation refresh; its
-lower grant bound dates the calculation from the bracket's start, while the
-600-second freshness limit, displayed precision and upper bound stay unchanged.
-The core setup saves H/S access directly on the unfiltered App Limits page and
-independently reads their precise/version-pattern rules. It verifies A's existing
-Allowed/precise rule in the full saved-policy read before any request, rather
-than rewriting identical rules. Restoration saves H/S Allowed and checks their
-unchanged rules. The final request's initial form read also supplies its
-remembered-choice comparison. The composition also opts out of four duplicate
-same-user Parent desktop reads and five duplicate native-command desktop reads
-through the shared `desktop_observation=False` binding. Retained Parent reads
-still guard the fresh desktop and existing window; native commands still perform
-both fresh preflights around desktop preparation. Default callers are unchanged.
-These shared operations remove 74 redundant observations; the complete history
-has 256 public stages plus two setup observations and retains every core result.
+### Order, bounds and restoration
 
-Registered inspection is `tools/run-tests e2e --list`. Existing exact case
-selections are `tools/run-tests e2e --id '47,48,49'` for kiosk exits/countdown,
-and `--id '44,45,46'` for overlay exits; these are partial baseline ingredients,
-not a runnable complete baseline. Cases 50–52 add deliberate restriction attempts
-and belong to their own scope. Current integration leaves include
-`check_e2e_kiosk_entry`, `check_e2e_request_flow`,
-`check_e2e_kiosk_valid_duration`, `check_e2e_kiosk_approval`,
-`check_e2e_kiosk_rejection`, `check_e2e_kiosk_approved_flow` and
-`check_e2e_approval_flow`, selected through `tools/run-tests integration`.
-Feature/overlay selectors and exact scope are in the catalogue. C04u/f must
-register any changed bounded qualification before invocation; there is no
-implicit `C04` or `C05` selector. Each installed command must select its declared
-canonical VM through the maintained runner and pass the VM/input preflight.
+No baseline reset occurs between negative requests, approval and downstream
+effects. The remembered transitions are exactly kiosk 75→600 seconds and
+overlay 600→75 seconds with soft apps included and Jamie explicitly selected.
+Every result retains the shared child/approver/form, owner, single-use-input
+and independent-observation guards.
 
-Current case workers have 1800-second deadlines; keep that finite bound for each
-independent core baseline history. Separate confinement pause checks retain their
-declared 90/45-second human waits and own 1800-second attempt bounds; do not replay
-them inside the core history. Machine observations retain their 90-second kiosk / 45-second other
-deadlines and original attempt deadline. Human waits are explicit guarded stages,
-not extended startup timers. Take new balance/estimate reads around pauses and
-fresh recipient proofs after them: existing estimate comparisons allow 600 seconds,
-and case 49 permits only 180 seconds before its countdown comparison. Subsequent
-readback must allow ordinary elapsed time and display precision, not require an
-unelapsed 75-second balance. Require positive observed remaining time before
-downstream app and overlay work; keep that work within the observed grant's
-remaining bound. Longer feature checks precede approval. If this finite sequence
-cannot fit, its composition owner must qualify an explicit longer duration
-through the same public operation; a 75-second qualification does not cover it.
-No retry of uncertain input or reused proof.
+Read a fresh public grant-only countdown for the overlay estimate baseline.
+Refresh the unchanged 75-second calculation through equivalent public decimal
+edits `1.25` → `1.250` → `1.25`; each guest-clock bracket contains
+the actual calculation. Negative comparisons retain the 120-second bound,
+45-second read limit and total uncertainty below 75 seconds. Cached label
+read time cannot stand for calculation time. Every positive Parent read binds
+its own preceding estimate; its lower grant bound uses the calculation
+bracket's start, with the original 600-second freshness limit, precision and
+upper bound.
 
-Each history owns fresh initial state and its full ordered result; no reset
-between denial, Cancel, approval and downstream observations. Preserve exact
-candidate package/source/inventory/assets, baseline and provider identities in
-the runner record. Finish collection, private capture reconciliation, worker and
-callback shutdown, lease release and owned baseline restoration through the
-existing runner. Restore feature edits through public actions within the history;
-outer cleanup never supplies a missing product assertion. Retain original failure
-and cleanup outcomes. No development-host installation or live acceptance was
-performed for C04b.
+The initial full saved-policy read verifies A's existing Allowed/precise rule
+without an identical rewrite. H/S access saves use the unfiltered App Limits
+page and independent precise/version-pattern reads; restoration changes access
+without changing match rules. The final initial-form read also supplies the
+remembered-choice comparison. The shared `desktop_observation=False` binding
+may omit duplicate same-user desktop observations only while fresh input
+preflights and independent public results remain intact; defaults are unchanged.
+
+Each independent core history has an 1800-second worker bound. Observations
+retain 90-second kiosk / 45-second other deadlines; recipient proofs remain
+fresh for less than 30 seconds. The separate 90/45-second human waits keep
+their own 1800-second bounds. Refresh balances/proofs after waits; estimates
+allow at most 600 seconds, while the downstream countdown comparison allows
+180 seconds and 60-second display precision. Allow real elapsed use rather
+than demanding an unelapsed grant. Require positive observed time before app
+and overlay work and finish within that remaining bound. A longer request
+requires an explicitly qualified binding. Never replay uncertain input or proof.
+
+Retain exact candidate package/source/inventory/assets, baseline/provider
+identities, original failure and cleanup outcomes. Finish collection, private
+capture reconciliation, worker/callback shutdown, lease release and owned
+baseline restoration through the shared envelope. Restore feature edits publicly
+within the history; outer cleanup never supplies a missing product result.
 
 ## Independent entry, actions and observations
 
@@ -213,21 +132,14 @@ The [UI mandate](../Mandates/UI-Automation-Mandate.MD#route-selection) owns
 route selection. Cases 3, 4 and 180–182 use shared account helpers and independently
 observe the app's discovery, empty-state, eligibility and selector fallback.
 Case 1 is harness qualification. Retired IDs 140–150 remain engineering checks
-in system-test tasks 169–179.
+in engineering tests.
 
-All recipes use [product-focused journeys](E2E-Execution-Contracts.md#product-focused-journeys)
-and the [bounded supporting-work contract](E2E-Building-Blocks.md#keep-supporting-work-bounded).
-Reuse verified local fixtures, direct supporting commands and existing helpers.
-Preparation ends when the declared prerequisite is established; the following
-product action and independent customer result supply acceptance.
-Supporting qualification commands are not implicit recipe steps. Apply the
-[qualification separation](E2E-Execution-Contracts.md#product-focused-journeys)
-to every family: reuse unchanged qualified bindings and shared runtime guards;
-keep deliberate wrong-account and provider-refusal exercises in focused safety
-coverage. Changed bindings retain their required scoped qualification.
-Use the shared [supporting-operation and observation choices](E2E-Execution-Contracts.md#supporting-operations-and-observations)
-for all remaining families: await public results within deadlines, account for
-read latency, and keep incidental platform details in qualified shared adapters.
+Use the [bounded supporting-work contract](E2E-Building-Blocks.md#keep-supporting-work-bounded).
+Reuse verified local fixtures, direct supporting commands and shared guards;
+preparation ends when its prerequisite is established. Product action and
+independent public results supply acceptance. Deliberate wrong-account/provider
+refusals belong in safety qualification, not every consumer journey. Await fresh
+results within deadlines, accounting for read latency.
 
 Apply that scope to every family and finite branch below, including retained
 completed cases. Desktop, greeter, authentication-agent and chooser observations
@@ -635,9 +547,9 @@ window/activity capture before further edits. This supplies no complete overlay
 case or cross-user retention acceptance; those remain with their consumers.
 
 Implementation context: case 47 uses `kiosk_cancel.PLAN` / `onpc_kiosk_cancel::run`.
-Case 44 uses `overlay_cancel.PLAN` / `onpc_kiosk_cancel::run(exchange, 'overlay', ...)`.
+Case 44 uses `overlay_cancel.PLAN` / `onpc_kiosk_cancel::run(exchange, 'overlay',...)`.
 Case 45 uses `overlay_cancel.ESCAPE_PLAN` /
-`onpc_kiosk_cancel::run(exchange, 'overlay-escape', ...)` with the same preparation
+`onpc_kiosk_cancel::run(exchange, 'overlay-escape',...)` with the same preparation
 and retained-activity checks; its exit is shared `onpc_request_exit::escape`.
 Prepare Riley's enabled 15-minute daily allowance through Parent and independently
 read 900 daily seconds with zero grant before fresh child sign-in. Verify the
@@ -679,7 +591,7 @@ form open. A subsequent FLOW05 requires a new challenge. See the
 [overlay composition qualification](E2E-Building-Blocks.md#overlay-immediate-exit-and-approval-compositions).
 Consumers compose these shared declarations/workers and activity comparisons;
 the qualification plans supply no complete-case acceptance. Case 46 uses
-`overlay_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'overlay-approved', ...)`:
+`overlay_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'overlay-approved',...)`:
 take the immediate action after explicit success, independently compare the
 same usable child activity, submit the retained draft again and read the approved
 time through TIME01 before closing the app. `KioskRequestJourney` binds the
@@ -688,7 +600,7 @@ countdown to the immutable public `open-estimate`, already bounded by the earlie
 request. Its `estimate` binding retains one-second public precision, minute
 flooring and two-second sampling tolerance within 180 real elapsed seconds.
 
-Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved', ...)`, the shared
+Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved',...)`, the shared
 `approved_request(exit='immediate')` declaration and
 `onpc_request_flow::approve` with the qualified immediate-success/exit leaf.
 Prepare and independently read 900 daily seconds and zero grant through Parent;
@@ -723,14 +635,9 @@ absent form and usable GDM.
 Implementation status: Cases 50–52 use `restricted_station.PLAN`,
 `DENIED_PLAN` and `CANCELLED_PLAN`, with
 `onpc_restricted_station::run(exchange[, 'denied' | 'cancelled'])`.
-Case 52 passed in `20260926T185046Z-2140b0d4`, including password-free approval
-Cancel, FLOW07's preserved-form comparison, all three repeated restriction checks
-and form Cancel to usable GDM. Affected cases 50 and 51 passed separately in
-`20260926T185518Z-026edc31` and `20260926T185927Z-3a6cff95`.
-All passed collection, owned cleanup and baseline restoration.
 Cases 51 and 52 include the recipe's initial restriction cycle as well as the
-post-rejection or post-cancellation cycle. Both-target qualification scope and
-evidence limits for cases 50–52 are recorded in the
+post-rejection or post-cancellation cycle, preserved-form comparison and normal
+Cancel to usable GDM. Both-target qualification limits are recorded in the
 [kiosk confinement design](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits).
 About/Help and report restrictions remain under
 E2E-042 and E2E-045, outside this family's ordinary shortcut assertions.
@@ -745,12 +652,7 @@ Bindings: request = approved / denied / cancelled.
 
 ### E2E-017
 
-Implementation status: Cases 57, 54 and 55 passed complete live acceptance in runs
-`20260924T001910Z-3076f596`, `20260924T152534Z-98108590` and
-`20260924T175340Z-dd93d54f`, respectively,
-including collection, owned cleanup and baseline restoration;
-case 53 also passed in `20260926T193803Z-abb86806` and case 56 in
-`20260926T200913Z-2d372359`, with the same terminal outcomes.
+Implementation status belongs to the scenario inventory.
 `disabled_child.PLAN` / `onpc_disabled_child::run`
 keeps limits off, checks the exact eligible child choices,
 selects the disabled child, independently reads
@@ -765,64 +667,48 @@ public Parent disable/save preparation. Transient saving is not qualified.
 
 **Kiosk selection and unavailable requests.** Cases 53, 54, 55, 56, 57.
 
-FIX03's no-child profile and public station empty-state slice passed
-`check_e2e_kiosk_no_child` in run `20260924T064646Z-19f2aad6`, including
-wrong-entry refusal, exact empty child set/explanation, disabled Request,
-no authentication prompt, collection and owned baseline restoration.
+FIX03's no-child profile qualifies the exact empty child set/explanation,
+disabled Request and absence of authentication through
+`check_e2e_kiosk_no_child`; wrong-entry refusal stays qualification-only.
 Reuse `kiosk_no_child.PLAN`, `EmptyAccountFixture.prepare` and
 `AccessibleUI.kiosk_request_form(no_child=True)`. Complete case 54 is registered
 as `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run`: direct station entry,
 independent empty-form and unavailable-submission observations, then Cancel
-and public GDM return. Its complete live acceptance passed independently of
-the qualification-only wrong-entry checks.
+and public GDM return.
 
 Bindings: accounts = multiple / no-child / no-parent / ineligible-parent / disabled-child.
 
 The multiple profile is qualified through `kiosk_multiple.PLAN` /
-`onpc_kiosk_multiple::run` and `check_e2e_kiosk_multiple` in report run
-`20260926T191541Z-dc28d61d`; the shared original prompt binding regression passed
-in `20260926T192244Z-e74f7983`. Reuse the guarded canonical account profile,
+`onpc_kiosk_multiple::run` and `check_e2e_kiosk_multiple`. Reuse the guarded
+canonical account profile,
 public enable/save for both children, `select_kiosk_account`'s exact-set checks
 and representative `MULTIPLE_MATE_BINDINGS` Cancel operations. The fixed slice uses
 30 minutes with soft apps excluded for every pair and independently checks
 preserved selections after each prompt. Complete case 53 uses
-`kiosk_multiple.CASE_PLAN` / `onpc_kiosk_multiple::run`'s complete-case branch,
-historically adding explicit selector open/exact-set/collapse observations and
-unchanged-choice readback before selecting four pairs. A final preserved-form
-read precedes Cancel and GDM return. It passed in `20260926T193803Z-abb86806`,
-including reconciliation, collection, owned cleanup and baseline restoration.
-The shared collapse helper's disabled-child case 57 regression passed in
-`20260926T194240Z-ff1d1166` with the same terminal outcomes.
-Current acceptance uses the two pairs in the finite-data table and the final
-selected accounts, loaded settings and matching real approval prompts. Historical
-open/collapse and all-four-pair samples above remain evidence of the earlier run;
-they add no current acceptance requirement.
+`kiosk_multiple.CASE_PLAN` / `onpc_kiosk_multiple::run`'s complete-case branch.
+Use the two pairs in the finite-data table, independently read final selected
+accounts/settings and observe matching real prompts. A final preserved-form
+read precedes Cancel and GDM return; selector popup/collapse matrices are not
+customer acceptance requirements.
 
 The ineligible-parent profile uses `kiosk_multiple.INELIGIBLE_PLAN` with
 `IneligibleApproverFixture` to add one fixed locked administrator before Parent
 entry, preserving both eligible parents and both children. Its exact offered-set
-checks and all four real prompt/Cancel pairs passed the fixed qualification
-`check_e2e_eligible_kiosk_fixtures` in run `20260926T195528Z-eb3740b5`, with
-collection, owned cleanup and baseline restoration. Complete case 56 uses
+checks and four real prompt/Cancel pairs belong to the fixed qualification
+`check_e2e_eligible_kiosk_fixtures`. Complete case 56 uses
 `kiosk_multiple.INELIGIBLE_CASE_PLAN` / `execute_ineligible` with the fixed setup
-action and complete multiple-account worker, historically with explicit selector inspection
-and collapse, all four eligible pairs' real prompt cancellations, preserved form
-and Cancel/GDM return. It passed independently in `20260926T200913Z-2d372359`,
-including collection, owned cleanup and baseline restoration.
+action and complete multiple-account worker, with the same representative-pair
+acceptance, preserved form and Cancel/GDM return.
 
 The no-parent profile's composition is qualified through
 `kiosk_no_approver.PLAN` / `onpc_kiosk_no_approver::run` and
-`check_e2e_kiosk_fixtures` in run `20260924T173358Z-94d5db62`, including the
+`check_e2e_kiosk_fixtures`, including the
 starting parent observation, locking, Cancel/GDM/reentry and repeated empty-form
-readback. Shared station navigation's no-child regression passed in run
-`20260924T173643Z-8d742069`. Both attempts passed collection, owned cleanup and
-baseline restoration. Reuse `NoApproverFixture.prepare`,
+readback. Reuse `NoApproverFixture.prepare`,
 `AccessibleUI.kiosk_approver_baseline` and
 `AccessibleUI.kiosk_request_form(no_approver=True)` for complete case 55.
-Its `kiosk_no_approver.CASE_PLAN` / `onpc_no_parent::run` binding passed
-independent complete-case acceptance in run `20260924T175340Z-dd93d54f`,
-including capture reconciliation, collection, owned cleanup and baseline
-restoration. Wrong-entry refusal is qualification-only.
+Its complete binding is `kiosk_no_approver.CASE_PLAN` / `onpc_no_parent::run`.
+Wrong-entry refusal is qualification-only.
 
 1. Account profile is the declared setup. Enable available targets with FLOW16 except disabled-child and no-parent. No-parent keeps default limits off: first enter the request station and observe a listed parent, detect all eligible parents through the OS account service, temporarily lock that detected set regardless of names/count, Cancel to GDM and reopen the station. The observed parent must belong to the detected set. Preserve children/station and restore accounts through outer cleanup. No inaccessible administrator setup or hidden enabled-policy fixture is needed. Other profiles use G → REQUEST01.
 2. Read each enabled selector's exact eligible set, then REQUEST04 for representative child/approver pairs covering both identities. Independently read the selected accounts and loaded child settings; the matching real approval prompt verifies the selected approver's effect. Use canonical selector values without popup/focus navigation. The API surface close ends the request form, including retained `escape` bindings. Disabled/empty uses UI02/03 without input.
@@ -830,10 +716,9 @@ restoration. Wrong-entry refusal is qualification-only.
 
 ### E2E-018
 
-Implementation status: Cases 58–61 passed complete-case acceptance on Ubuntu 26.04 and
-Fedora 44; [exact scope and evidence](E2E-Building-Blocks.md#request-forms-and-remembered-choices).
-The affected cross-surface regression and case 61's required case-60 reverse-worker
-regression also passed on both.
+Implementation status belongs to the inventory; the
+[catalogue](E2E-Building-Blocks.md#request-forms-and-remembered-choices)
+owns exact reusable scopes.
 
 **Remember each child's choices across both request forms.** Cases 58, 59, 60, 61.
 
@@ -892,13 +777,12 @@ Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / secon
 ### E2E-019
 
 Implementation status: Case 80 is registered through `app_launch.PLAN` /
-`onpc_app_launch::run` and passed installed acceptance on Ubuntu and Fedora.
+`onpc_app_launch::run`.
 Case 81 is registered through `app_launch.DISABLED_PLAN` and the same worker's
-explicit disabled binding and passed installed acceptance on both platforms.
+explicit disabled binding.
 The [catalogue](E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
 records accepted scopes. Case 62 is registered through `app_launch.GRID_PLAN`
-and the same worker's explicit enabled/grid binding and passed installed
-acceptance on both platforms. Other cases remain pending.
+and the same worker's explicit enabled/grid binding. Other cases remain pending.
 
 **Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
 
@@ -1007,17 +891,17 @@ expiry wait. Case 22 alone owns the animation-enabled natural-lock check.
 Case 122 uses one continuous preparation and the same original grant:
 
 1. Perform step 1 with zero daily allowance and one real 2-minute grant. Restore
-   and capture both forms' saved choices after issuance without a second approval;
-   record the original deadline and recognizable Always Allowed work.
+ and capture both forms' saved choices after issuance without a second approval;
+ record the original deadline and recognizable Always Allowed work.
 2. TIME03(15-second idle) → C(retained) → TIME01 → UI12(positive reduced time,
-   original deadline) → APP04(compare). Read Parent settings and both forms
-   before editing. Access remains usable; all navigation consumes the same grant.
+ original deadline) → APP04(compare). Read Parent settings and both forms
+ before editing. Access remains usable; all navigation consumes the same grant.
 3. TIME03(idle through original deadline) → DESK08(specific time denial).
-   No reset, sign-out, clock change or intervening approval separates the returns.
+ No reset, sign-out, clock change or intervening approval separates the returns.
 4. DESK11 → REQUEST01 → REQUEST03(compare saved choices before editing) →
-   FLOW04(entry=open, real 3-minute replacement) → FLOW05 → C(retained) → TIME01 → FLOW08 →
-   APP04(compare original work). Confirm saved allowance/app rules and positive
-   usable time. Never compare old work on a newly created desktop.
+ FLOW04(entry=open, real 3-minute replacement) → FLOW05 → C(retained) → TIME01 → FLOW08 →
+ APP04(compare original work). Confirm saved allowance/app rules and positive
+ usable time. Never compare old work on a newly created desktop.
 
 ### E2E-023
 
@@ -1133,13 +1017,8 @@ no link invocation or external-handler/license-opening obligation is required.
 
 ### E2E-031
 
-Implementation status comes from the inventory. The UI/E2E allocation
-compositions passed independently: 152 in `20260928T164519Z-04c77547`, 153 in
-`20260928T165013Z-99382b18`, and 154 in `20260928T165312Z-34f506c3`, including
-collection and cleanup. Coverage was refreshed after each pass. Task 039's
-shared attachment, Privacy and window-switch qualifications also passed with
-owned cleanup. Case 155 passed its complete export journey in
-`20260929T203255Z-29d6637e`, including collection, owned cleanup and refreshed coverage.
+Implementation status comes from the inventory. Shared attachment, Privacy and
+window-switch qualification does not replace complete customer composition.
 
 **Feedback drafts, validation and attachment review.** Cases 152, 153, 154, 155.
 
@@ -1158,9 +1037,7 @@ after window switching, Privacy and dialog reopening, then observes empty text,
 reply address, formatting and customer-file list in the first feedback read after
 Parent exits/relaunches, before any new input. That complete read proves reset;
 another unchanged empty-state read adds no result. Fresh diagnostics remain
-separate from the customer draft. This shortened composition passed on Ubuntu
-26.04 in `20261010T171847Z-0b1bc336` and Fedora 44 in
-`20261010T171847Z-310d8f89`, including collection and owned cleanup.
+separate from the customer draft.
 
 Case 153 rejects an empty send, then types the shared ordinary body and reply.
 Closing/reopening must retain the authored body/reply and recover the usable
@@ -1189,10 +1066,7 @@ checks empty output after both Cancel and failed Save; each has a single-use
 read checkpoint under the same fixture owner. Compare captured same-dialog
 drafts after Cancel, failure, successful export and Privacy. ZIP inspection
 also rejects the declared synthetic account, email, body and file-content values.
-The complete case passed in `20260929T203255Z-29d6637e`; affected Save/Cancel
-and export qualifications passed in `20260929T203754Z-7b47ee7e` and
-`20260929T204158Z-388a25b4`, including collection, owned cleanup and baseline
-restoration. No valid Send or original-log inspection is permitted.
+No valid Send or original-log inspection is permitted.
 
 ### E2E-032
 
@@ -1228,12 +1102,9 @@ must not be reused. E2E-032 / case 156 retains visible service confirmation.
 
 ### E2E-035
 
-Implementation status comes from the inventory. Case 158's reduced installed
-composition passed in `20260928T165553Z-a580e06a`, including collection and
-cleanup; coverage was refreshed. Case 159 passed its complete save-order
-journey through `save_order.PLAN` / `onpc_feedback_states::run_save_order` in
-`20260929T070054Z-c0f58f19`, including the single Parent window projection,
-both named-child saved values and restart readback; coverage was refreshed.
+Implementation status comes from the inventory. Case 159 uses
+`save_order.PLAN` / `onpc_feedback_states::run_save_order`, with one Parent
+window, both named-child saved values and restart readback.
 
 Parent desktop preparation belongs to the shared installed envelope, with no
 case-specific idle step; see the [shared entry contract](../../tests/e2e/README.md#shared-system-and-account-entry-helpers).
@@ -1242,7 +1113,7 @@ Parent reopening uses `onpc_lifecycle::reopen(journey, 'parent', prior_window,
 'management')` with a fresh `prior-window` observation. Bind the stages in
 `journey_blocks.parent_reopen()`, also used by `app_restart.PLAN`, including
 `initial-selection`, before selecting each child
-to compare saved values. Task 028 qualifies only this LIFE01 slice.
+to compare saved values. Qualification covers only this LIFE01 slice.
 
 **Choose allowances and save edits.** Cases 158, 159.
 
@@ -1271,12 +1142,12 @@ are excluded.
 
 ### E2E-036
 
-Case 161's historical `zero_total.PLAN` / `onpc_zero_total::run` established
-local zero-balance Revoke availability, with no customer journey. It is excluded
+Case 161 checks local zero-balance Revoke availability without a customer
+journey. It is excluded
 from E2E scheduling and has no executable inventory binding. Its current owner
 is `tests/ui/test_preview_smoke.py::test_parent_zero_balance_keeps_revoke_unavailable_with_limits_on_and_off`,
-which passed focused UI validation. The stable case ID and completed task history
-remain; no replacement E2E task is created. Case 160 retains the actual daily-only
+which owns its behavior coverage. Preserve the stable case ID without replacement
+E2E scheduling. Case 160 retains the actual daily-only
 revocation result below.
 
 **Revoke when there is no active grant.** Cases 160, 161.
@@ -1342,7 +1213,7 @@ Implementation status: All cases pending.
 
 Bindings: change = remove-selected / remove-last-child / ineligible-approver.
 
-The duplicate add-child binding (case 179 / task 221) is removed; its ID must
+The duplicate add-child binding (case 179) is removed; its ID must
 not be reused. Completed [case 3](E2E-Building-Blocks.md#parent-discovery-block-contracts)
 retains adding a child while Parent stays open, selecting it and checking its
 settings. Shared account preparation remains for the branches below.
@@ -1373,10 +1244,10 @@ public row operations to that same child as described in the native contract.
 Case 184 opens Parent directly and selects Jordan through FLOW01, then reaches
 App Limits. Its shared child-selection read verifies Jordan's initial disabled,
 zero-allowance settings. Search/filter behavior needs no enabled time limit,
-allowance write, balance readback or child desktop. The historical 30-minute
-setup from task 226a remains a separate qualification, not this case's
-prerequisite. Carry the explicit `existing` child binding through selection and
-catalogue observations. Task 226b qualified the public
+allowance write, balance readback or child desktop. The qualifier's 30-minute
+setup is not this case's prerequisite. Carry the explicit `existing` child
+binding through selection and catalogue observations. The scoped qualifier
+covers the public
 access/match legend through `AccessibleUI.expand_policy_legend` /
 `read_policy_legend` and `onpc_app_rows::legend`, with independent full reads,
 wrong-entry refusals and unchanged policies. Reuse caller-owned stages from the
@@ -1391,13 +1262,8 @@ shared operations through `onpc_fresh_thirty_allowance::search_filters`.
 `native_fixtures.CataloguePolicyJourney` compares caller-declared immutable row
 endpoints and exact query/match/access intersections before durable replies;
 the plan's `catalogue_checks` declares the initial, name, filtered and unchanged
-row checks. Complete installed acceptance of the earlier time-prepared sequence
-passed in `20261001T054514Z-f7691e2f` on every enabled VM, including collection,
-owned cleanup and baseline restoration. The shortened setup passed on Ubuntu
-26.04 in `20261010T172702Z-f2ff759d`, including collection, owned cleanup and
-baseline restoration. Fedora 44 run `20261010T172703Z-e3e339fa` was cancelled
-at the developer's request; that target remains unverified for the shortened
-composition. This supplies no acceptance for other flows.
+row checks. The current shortened composition remains unverified on Fedora 44;
+qualification of another setup does not cover it or other matching flows.
 
 1. Search-filters: FLOW01(Jordan) → PARENT04(App Limits) → PARENT12(assets). Enforcement variants: FLOW16(ample daily) → PARENT04(App Limits) → PARENT12(assets).
 2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, shared FILE05 commands and LIFE01.
@@ -1408,9 +1274,8 @@ composition. This supplies no acceptance for other flows.
 Case 190's original Parent Help/About control checks are reallocated to
 `tests/ui/test_about_release.py::test_about_displays_release_notices` and shared
 UI coverage. Its stable ID remains pending and excluded from E2E scheduling,
-with no executable binding or replacement E2E task. The historical
-`parent_information.PLAN` / `onpc_parent_about::run_links` qualification remains
-engineering context. Rewriting it as About information and management return
+with no executable binding or replacement E2E scheduling. Rewriting it as
+About information and management return
 would duplicate [case 151](#e2e-030), which owns that installed customer result.
 Case 192 uses `kiosk_about.PLAN`,
 `request_composition.KioskRequestJourney` and `onpc_kiosk_about::run`; case 193 uses
@@ -1420,8 +1285,8 @@ Overlay information uses `journey_blocks.overlay_license_read(links='summary')`
 and `onpc_about::overlay_license` with the same finite binding. The fragment
 enters owned About, reads product/version, license and legal-notices information,
 then closes only About and reads the returned form. The full link-control
-qualification remains shared UI scope. Historical `overlay_license.INFORMATION_PLAN`
-qualification retains its original scope; case 191 supplies its own entry, finite choices, capture/return
+qualification remains shared UI scope; case 191 supplies its own entry,
+finite choices, capture/return
 endpoints and phases through `KioskRequestJourney.request_checks`.
 
 Case 191 declares `overlay_about.PLAN` and `onpc_parent_about::run_overlay`. Fresh
@@ -1467,7 +1332,7 @@ Implementation status: All cases pending.
 
 **Use local controls and approvals while offline.** Case 194.
 
-Binding: surface = both. Task 237 / case 195 is absorbed into this continuous
+Binding: surface = both. Case 195 is absorbed into this continuous
 journey; case ID 195 must not be reused. Complete installed acceptance remains
 pending.
 
@@ -1515,9 +1380,7 @@ on the two transition dates is no longer scheduled.
 ### E2E-045
 
 Implementation context: case 205 is registered through
-`parent_error_report.PLAN` / `onpc_fresh_thirty_allowance::parent_error_report`
-and passed complete live acceptance in `20261001T103654Z-6ee68021` on every
-enabled VM, including collection, owned cleanup and baseline restoration.
+`parent_error_report.PLAN` / `onpc_fresh_thirty_allowance::parent_error_report`.
 Child-overlay and kiosk report acceptance remains pending in E2E-039 cases
 176 and 178, respectively; former cases 206/207 are absorbed there.
 
@@ -1527,11 +1390,11 @@ Bindings: surface = parent. Request-surface review and decline use the combined
 [cooldown journeys](#e2e-039); case IDs 206/207 must not be reused.
 
 The Parent editor entry reuses the guarded PARENT13 operations and public input
-route delivered by [task 078a's Save/Cancel slice](E2E-Building-Blocks.md#match-editor-save-and-cancel).
+route in [the Save/Cancel slice](E2E-Building-Blocks.md#match-editor-save-and-cancel).
 The rejected input for native fixture `A.desktop` is
 `/opt/onpc-test-fixtures/Rejected/*.AppImage`, outside its native target directory.
 First save and capture `/opt/onpc-test-fixtures/Applications/Exact*.AppImage` as
-the last confirmed rule. `rejected_parent_rule.PLAN` declares task 186's
+the last confirmed rule. `rejected_parent_rule.PLAN` declares the
 qualification through `onpc_app_rows::rejected_parent_rule`; the reusable
 `parent_reports.report_review` / `onpc_feedback_privacy::review_parent_report`
 binding starts from the automatic report, reads the fixed public explanation
@@ -1584,7 +1447,7 @@ Implementation status: All cases pending.
 Bindings: flow = app-exit / overlay-stop / kiosk-stop / overlay-success / kiosk-success.
 
 Background reconnection is combined into [E2E-033 / case 157](#e2e-033),
-without a separate submission or task for former case 215.
+without a separate submission for former case 215.
 
 1. P → FEED01 or public-error prefix → FEED15. UI16 → FEED03; LIFE06(disconnect) for retry branches → FEED11 on the existing report surface. Reuse the reviewed profile and exact surface's qualified Privacy operation; no repeated disclosure tour is required for sending or exit behavior. Internet isolation needs no report-reactivation step.
 2. Perform the precise send-lifetime subrecipe below; FEED09 supplies sending/retry/success observations.
@@ -1604,22 +1467,22 @@ but pauses while the child is away at the station; grant time elapses on either
 surface. Removed cases 226 and 229 must not be reused. Every retained journey
 keeps the real 45-second prompt interval and the immediate second addition.
 
-Reuse the same TIME03 and fresh-recipient mechanics as C04w under the
+Reuse TIME03 and the fresh-recipient mechanics under the
 [cross-plan map](E2E-Building-Blocks.md#cross-plan-baseline-reuse). Its fixed
 confinement lifetime check supplies neither these balance/arithmetic assertions
 nor the six complete scenario passes; add no second wait framework.
 
 1. FLOW13 with the delayed-approval table below → P → PARENT09(capture D,G) → G.
-   Overlay C → REQUEST02; station REQUEST01. FLOW04(entry=open,custom=0.5,
-   soft=false,approver=Jamie for daily-only/grant-only, Sam otherwise) →
-   REQUEST08(capture estimate and time) → REQUEST09 → AUTH01.
+ Overlay C → REQUEST02; station REQUEST01. FLOW04(entry=open,custom=0.5,
+ soft=false,approver=Jamie for daily-only/grant-only, Sam otherwise) →
+ REQUEST08(capture estimate and time) → REQUEST09 → AUTH01.
 2. TIME03(45 seconds, same requesting session and prompt) → AUTH01(fresh) →
-   AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic).
+ AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic).
 3. C only for station → TIME01 → P → PARENT09 → UI12(expected interval from
-   public starting balances and elapsed active/away time). After five seconds
-   from success, return to the same form and use FLOW20 for an immediate
-   second 0.5-minute request. Read its increment too; a waiting estimate must
-   neither freeze the earlier balance nor extend a grant twice.
+ public starting balances and elapsed active/away time). After five seconds
+ from success, return to the same form and use FLOW20 for an immediate
+ second 0.5-minute request. Read its increment too; a waiting estimate must
+ neither freeze the earlier balance nor extend a grant twice.
 
 | Balance | Retained surfaces and cases | Public preparation for this family | Expected effect while waiting |
 | --- | --- | --- | --- |
@@ -1665,21 +1528,21 @@ Second-screen repeats 234, 235, 237, 240, 241, 244 and 245 are removed;
 their stable case IDs must not be reused.
 
 1. FLOW16(Jordan,on,30) → AppSet(A,H,S for the declared route) → C(fresh) →
-   FLOW08(A usable,H/S denied). Leave A with APP03 → APP04. All later child
-   returns retain this desktop; S supports a separate new-window launch.
+ FLOW08(A usable,H/S denied). Leave A with APP03 → APP04. All later child
+ returns retain this desktop; S supports a separate new-window launch.
 2. Run three rows, each as request-entry(surface) → FLOW20(entry=open) →
-   APP02/APP04(existing activities) → FLOW08(S via declared route). Requests
-   add 0.5 minutes: **Jamie/exclude → Sam/include → Jamie/exclude**.
-   Every row requires fresh authentication in a real prompt identifying the
-   selected approver, including Jamie's later repeat. Initial exclusion keeps
-   S unavailable; inclusion opens S and records a new activity; replacement
-   exclusion requires that activity's closure.
-   After each row A remains usable and a new H launch remains denied. If the
-   blocked grid entry is hidden, observe that and use the recipe's explicit
-   command denial witness; an included grid entry must become launchable.
+ APP02/APP04(existing activities) → FLOW08(S via declared route). Requests
+ add 0.5 minutes: **Jamie/exclude → Sam/include → Jamie/exclude**.
+ Every row requires fresh authentication in a real prompt identifying the
+ selected approver, including Jamie's later repeat. Initial exclusion keeps
+ S unavailable; inclusion opens S and records a new activity; replacement
+ exclusion requires that activity's closure.
+ After each row A remains usable and a new H launch remains denied. If the
+ blocked grid entry is hidden, observe that and use the recipe's explicit
+ command denial witness; an included grid entry must become launchable.
 3. P → PARENT12(A,H,S) → UI12(original saved choices). Temporary approval
-   must not rewrite the parent's access selections. Finish after the last
-   excluded result; no natural wait for the long combined grant.
+ must not rewrite the parent's access selections. Finish after the last
+ excluded result; no natural wait for the long combined grant.
 
 This covers all eight launch routes with both request screens for the ordinary
 app menu and one screen for each other route, spread across desktop and station.
@@ -1710,18 +1573,18 @@ the case's earlier work/game observations; it does not require another FLOW11
 qualification history.
 
 1. FLOW16(Jordan,on,0) → AppSet(W Always Allowed editor, S Soft Blocked real
-   offline game, H Hard Blocked). Prepare Riley's unrestricted W activity with
-   FLOW14. No grant exists. Stage a synthetic notes file for Jordan; FILE08
-   opens it and FILE09 records each cycle's distinct text when access permits.
+ offline game, H Hard Blocked). Prepare Riley's unrestricted W activity with
+ FLOW14. No grant exists. Stage a synthetic notes file for Jordan; FILE08
+ opens it and FILE09 records each cycle's distinct text when access permits.
 2. Execute every row of the repeated-routine table below for cycle **1, 2**.
-   `first` is overlay and `second` is kiosk. The six approvals in rows
-   2/3/4/5/7/8 use Jamie/Sam/Jamie/Sam/Jamie/Sam in cycle 1 and the reverse
-   parents in cycle 2. Every request uses a fresh system prompt. Before editing,
-   REQUEST03 compares shared fields with that child's latest choices on either
-   form, and the parent selector with this surface's own remembered parent.
+ `first` is overlay and `second` is kiosk. The six approvals in rows
+ 2/3/4/5/7/8 use Jamie/Sam/Jamie/Sam/Jamie/Sam in cycle 1 and the reverse
+ parents in cycle 2. Every request uses a fresh system prompt. Before editing,
+ REQUEST03 compares shared fields with that child's latest choices on either
+ form, and the parent selector with this surface's own remembered parent.
 3. P → LIFE01(Parent) → PARENT02(Jordan) → PARENT03/PARENT09/PARENT12 reads
-   enabled/zero allowance/zero grant and the original W/S/H choices. Visit
-   Riley with FLOW09. Only now end the attempt.
+ enabled/zero allowance/zero grant and the original W/S/H choices. Visit
+ Riley with FLOW09. Only now end the attempt.
 
 | Cycle row | Exact composition / finite input | Required result before the next row |
 | --- | --- | --- |
@@ -1767,33 +1630,33 @@ independently of the managing parent. These are explicit selected-parent inputs
 to FLOW20; no remembered selection is silently substituted.
 
 1. AppSet for both children → FLOW16(each,on,30) → G. For each child:
-   FLOW15(fresh) → FILE08(own synthetic notes file) → FILE09(`child role initial`,Save)
-   → APP04(capture own W) → DESK03. These independently supplied W observations
-   are the inputs to later FLOW09 visits, not an earlier test's windows.
-   Set Jordan's request custom 1.25/soft included, Riley's custom 2.5/soft
-   excluded, station approver Jamie, overlays Sam, using FLOW04/REQUEST12.
+ FLOW15(fresh) → FILE08(own synthetic notes file) → FILE09(`child role initial`,Save)
+ → APP04(capture own W) → DESK03. These independently supplied W observations
+ are the inputs to later FLOW09 visits, not an earlier test's windows.
+ Set Jordan's request custom 1.25/soft included, Riley's custom 2.5/soft
+ excluded, station approver Jamie, overlays Sam, using FLOW04/REQUEST12.
 2. Round 1 visits Jordan then Riley; round 2 visits Riley then Jordan.
-   Before editing the selected child, capture the untouched peer's current
-   Parent balances/app rules, visit its same W through FLOW09, and read its
-   remembered request choices with REQUEST03; close through REQUEST12 without
-   saving. These observations are the independent comparison inputs after the
-   selected child's changes. Then, for the selected child:
-   P → PARENT03/PARENT09/PARENT12(capture both children separately) →
-   FLOW16(selected allowance,final off) → UI17(on) → PARENT08/PARENT09.
-   This explicit off/on change clears that child's prior grant. Follow the
-   table's time/permission route, then FILE09(own W,`child role round N`,Save)
-   → APP04 → FLOW08(S expected,H denied); when included, APP05(windowed,level 1)
-   → APP03 → APP04 records playable game progress. Return to Parent, select the peer,
-   read **before** any edit and compare with the peer's last observation;
-   FLOW09(peer,W) and REQUEST03 on its declared next request-entry verify
-   independent work and remembered choices. Close that form with REQUEST12.
+ Before editing the selected child, capture the untouched peer's current
+ Parent balances/app rules, visit its same W through FLOW09, and read its
+ remembered request choices with REQUEST03; close through REQUEST12 without
+ saving. These observations are the independent comparison inputs after the
+ selected child's changes. Then, for the selected child:
+ P → PARENT03/PARENT09/PARENT12(capture both children separately) →
+ FLOW16(selected allowance,final off) → UI17(on) → PARENT08/PARENT09.
+ This explicit off/on change clears that child's prior grant. Follow the
+ table's time/permission route, then FILE09(own W,`child role round N`,Save)
+ → APP04 → FLOW08(S expected,H denied); when included, APP05(windowed,level 1)
+ → APP03 → APP04 records playable game progress. Return to Parent, select the peer,
+ read **before** any edit and compare with the peer's last observation;
+ FLOW09(peer,W) and REQUEST03 on its declared next request-entry verify
+ independent work and remembered choices. Close that form with REQUEST12.
 3. After round 2, make Riley daily-only through UI17(off/on) with its saved
-   allowance still 24 → PARENT08/PARENT09(D≥120,G=0). Require unchanged saved
-   app/request choices, usable retained W and restored S/H launch blocks. Read
-   Jordan before that edit and compare afterward; its original grant must remain.
-   Then confirm Revoke for **only Jordan**, the grant-only child. Jordan can no
-   longer unlock; Riley continues the same work on daily time with S/H blocked.
-   PARENT03/PARENT09/PARENT12 on both children and FLOW09(Riley) finish the case.
+ allowance still 24 → PARENT08/PARENT09(D≥120,G=0). Require unchanged saved
+ app/request choices, usable retained W and restored S/H launch blocks. Read
+ Jordan before that edit and compare afterward; its original grant must remain.
+ Then confirm Revoke for **only Jordan**, the grant-only child. Jordan can no
+ longer unlock; Riley continues the same work on daily time with S/H blocked.
+ PARENT03/PARENT09/PARENT12 on both children and FLOW09(Riley) finish the case.
 
 | Round | Jordan | Riley |
 | --- | --- | --- |
@@ -1826,8 +1689,8 @@ Use Jamie/Jordan fixture roles, never the reporting household's account names.
 FIX05 requires the [manually prepared real-app profile](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
 after normal restore. The profile contract separates launch/Quit, tray
 close/restore, specific denial, Minecraft entry/activity and allowed/denied
-continuous login qualification; the [canonical queue](E2E-Task-Queue.md) owns
-their split task IDs and prerequisites before complete case composition.
+continuous login qualification. Complete case composition requires each
+matching binding to be qualified.
 Bind exact original AppImage path, integrated launcher,
 same-directory `Lunar Client-*.AppImage` pattern, tray/autostart settings, local
 world and one observable in-world action before implementation. The ordinary
@@ -1881,7 +1744,7 @@ saved rows and, when stated, using the app as the child.
 | Case | Exact block/data expansion |
 | --- | --- |
 | 184 search-filters | PARENT10 exact-name query → PARENT11 precise plus Allowed → UI13/UI12 exact expected intersection of the real declared catalogue; clear query/restore filters and compare PARENT12 initial policies. Compose `onpc_app_rows::search` / `filter` / `read_rows` with caller-owned stages and `journey_blocks.filter_screens`; use `native_fixtures.catalogue_rows` for the exact expected set. The native profile is Jordan-bound (`existing` text/filter child bindings and `existing-parent-app-rows`); unprefixed rows target Riley. A fresh case plan owns its lifecycle, rather than inheriting `CatalogueJourney`. UI's `test_preview_smoke.py::test_catalogue_query_and_representative_filter_results` checks each query source, individual categories, empty sets and representative query/filter intersections, without multiplying independent choices. |
-| 185 match-editor | PARENT13 → UI16 → PARENT15 saves a same-directory wildcard. Save a wildcard for a different directory and observe the real broker's failed-save report, close it and reread confirmed choices. Tasks 078/078a own the UI matrix for precise target/basename, empty/unrelated input, Cancel and Reset, including exact explanations and unchanged values. Real saved-rule and enforcement observations remain E2E. |
+| 185 match-editor | PARENT13 → UI16 → PARENT15 saves a same-directory wildcard. Save a wildcard for a different directory and observe the real broker's failed-save report, close it and reread confirmed choices. UI qualification owns the precise target/basename, empty/unrelated input, Cancel and Reset matrix, including exact explanations and unchanged values. Real saved-rule and enforcement observations remain E2E. |
 | 186 match-reopen | Save custom same-directory wildcard; change access to Allowed; LIFE01 → PARENT02 → PARENT12 verifies remembered custom wildcard. Save precise on an app with a suggested pattern; reselect the child and reopen Parent, reading the documented suggested pattern each time. Reselect precise before a subsequent save. Repeat restoration after a customer-rejected pattern save, closing its report before reading. This records the current limitation, not desired new behavior. |
 | 187 shared-launchers | Two visible launchers for one supported app: PARENT16(first,Hard) → PARENT16(second,Allowed); C → FLOW08(each supported launch,denied). P → allow first → C → FLOW08(each,usable). Reverse which launcher holds the block and repeat. No claim of independent rules overriding the shared target. |
 | 188 special-paths | For a known native app whose displayed precise path contains a space, then a comma, FILE05 copies its executable to the declared second name/location. PARENT16(Hard) → C → FLOW08(original and identical copy,denied), with existing distinct N usable. Repeat under Soft with no exception. These supported path cases do not assert universal copied-program control. |
@@ -1978,14 +1841,14 @@ time result and continued hard/soft denial, including the final recovery.
 Accounts in cases 180–182 are disposable spare accounts, prepared independently
 for each journey; case 180 shares its preparation across both screens.
 Shared account operations validate administrator authority through AUTH04.
-The ordinary two-child baseline is protected. Tasks 184/184b must first qualify
-the exact disposable-child profiles: two eligible registered spares for 180 and
+The ordinary two-child baseline is protected. First qualify the exact
+disposable-child profiles: two eligible registered spares for 180 and
 one for 181, with the same guarded Parent/station bindings. Recipe role names
 Jordan/Riley identify those disposable inputs, never permission to delete the
 baseline accounts. No current callable supplies these profiles. Keep them
 planned until preparation and independent public eligible-set readback are
 available; an engineering empty-list mutation cannot replace the journey.
-Task 184c separately needs the registered spare Sam administrator before its
+The scoped qualification separately needs the registered spare Sam administrator before its
 role change; retain Jamie and the last-administrator/station protections.
 Remove only logged-out spare children, retaining an administrator to finish the
 journey. For 180, Jordan and Riley are the only eligible children. Save Jordan's
@@ -2080,8 +1943,9 @@ failed collection, Retry, or explicit Send without logs.
 
 The current `AccessibleUI.feedback_snapshot` and `wait_feedback_collection`
 only accept ready diagnostics; the former rejects visible Retry/Send without
-logs and the latter requires available Download. Tasks 188p/188k must add a
-terminal failure projection, and 188r must compose failure → one Retry → ready
+logs and the latter requires available Download. Supporting qualification needs
+a terminal failure projection; Parent recovery must compose
+failure → one Retry → ready
 with the unchanged draft. Keep the public-trigger gate; no trace qualification
 or internal fault substitutes for the failed result.
 
@@ -2125,9 +1989,7 @@ continuous [Chinese kiosk lifecycle](#chinese-kiosk-language-lifecycle)
 below through `chinese_lifecycle.PLAN` and `onpc_chinese_lifecycle::run`.
 It starts product-free on Ubuntu 26.04 or Fedora Workstation 44, using the same
 journey and all declared assertions. The shared native package helper selects
-APT/DEB or DNF/RPM for the selected distribution. Complete Ubuntu acceptance passed in
-`20261005T052511Z-d5a980d9`; required current-install and native-auth regressions
-passed in `20261005T053736Z-2bf99fd4` and `20261005T054603Z-b58a3339`.
+APT/DEB or DNF/RPM for the selected distribution.
 After the untouched chooser/form observations, cancel the station normally,
 enable Jordan with zero daily time through Parent, and return before saving
 Chinese. After each real approval, independently read positive granted time
@@ -2137,50 +1999,34 @@ through public Preferences on both entries. No extra reboot is performed.
 
 ### Chinese kiosk language lifecycle
 
-This is **one complete case**, delivered by task 300. The independent multilingual histories
-retain every original assertion under the
-[acceptance decomposition](#personal-language-acceptance-decomposition).
-Case 254 is registered as E2E-053 and passed all 25 declared assertions,
-collection and owned cleanup on Ubuntu 26.04.
-Task 300k qualified the revised fresh-install first presentation in
-`20261004T185057Z-2010e28f`, with both required lifecycle regressions passed.
-That evidence is Ubuntu-only. The developer authorized extending this case to
-Fedora Workstation 44 on 2026-10-08, preserving the Ubuntu journey and all checks.
-Fedora complete-case acceptance remains unqualified until the same installed
-journey passes there; scope metadata and queue repair establish no acceptance.
-Keep all three reported
-symptoms in this continuous history, without a German/Hebrew lifecycle matrix.
+One continuous latest-install case preserves the three first-presentation,
+authentication and reentry symptoms below. Independent multilingual histories
+belong to the [acceptance decomposition](#personal-language-acceptance-decomposition).
+The complete case is qualified on Ubuntu 26.04; Fedora 44 remains unqualified
+until that same installed journey passes. Scope metadata grants no acceptance.
 
 Use the [current-package installation binding](E2E-Building-Blocks.md#customer-package-install-composition)
-and LIFE02 reboot for a fresh installation of the latest verified current-source
-package. No v1.2 package or upgrade is part of this recipe.
-The reusable Chinese first-presentation and reboot observations were qualified
-by task 300e in an upgrade journey through
-[the Chinese binding](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup);
-the native authentication binding is qualified by task 300f through
-that same catalogue route. `request_flow.chinese_request` /
-`onpc_request_flow::prepare_chinese` and `kiosk_approved_flow.chinese_approval` /
+and LIFE02 for one fresh latest-source installation and one reboot, without
+an older package or upgrade. Shared Chinese setup and authentication bindings
+belong to the [catalogue](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup).
+Partial first-presentation or two-prompt qualification does not establish the
+complete history.
+
+`ChineseCurrentInstallJourney` in
+[chinese_current_install.py](../../tests/e2e/chinese_current_install.py) supplies
+the fresh-install sequence through the initial form, using
+`ChinesePresentationMixin` and shared renewal/notice/form operations.
+Initial observations precede generic chooser setup; Cancel exposes the Chinese
+form without saving a preference.
+
+After Parent setup, `kiosk-language-jordan-jamie-chinese` binds Jordan's
+already Chinese form, exact offered approvers and Jamie's selected result.
+`request_flow.chinese_request` / `onpc_request_flow::prepare_chinese` and
+`kiosk_approved_flow.chinese_approval` /
 `onpc_request_flow::approve_chinese` supply the fixed Chinese request/challenge.
-`ChineseNativeAuthJourney` qualified two fresh kiosk approvals in
-`20261004T073743Z-9a030ef1`; its required English regression passed in
-`20261004T075449Z-01e10e04`, with collection and owned cleanup in both runs.
-The first-presentation slice is implemented by `ChineseKioskJourney` in
-[chinese_kiosk_lifecycle.py](../../tests/e2e/chinese_kiosk_lifecycle.py), using
-the shared continuous worker and two declared customer-reboot transitions in
-that historical upgrade qualification.
-Initial public observations precede all generic chooser setup; Cancel exposes
-the Chinese form without a preference save. This slice passed on every enabled
-VM in `20261004T044302Z-572b0ee7`; task 300e's required package-upgrade and
-kiosk-entry regressions and close-out also passed.
-These slices supply no complete-case acceptance by themselves. The continuous
-case rechecks their shared observations. `ChineseCurrentInstallJourney` in
-[chinese_current_install.py](../../tests/e2e/chinese_current_install.py) now
-qualifies the fresh-install, single-reboot sequence through the initial form.
-It reuses `ChinesePresentationMixin` and the same worker renewal/notice/form
-leaves as the historical qualification. After Parent setup, case 254 uses
-`kiosk-language-jordan-jamie-chinese` to bind Jordan's already Chinese form,
-the exact offered parents and Jamie's selected result. The native-auth slice
-still uses its English input binding before its explicit Chinese language save.
+The separate native-auth qualifier uses English input before explicitly saving
+Chinese; that qualifier's preparation cannot replace this case's untouched
+first-presentation assertions.
 
 Finite inputs: selected child Jordan; approver Jamie; child desktop locale
 `zh_CN.UTF-8`; product language `zh-Hans`; Jamie and kiosk station desktop
@@ -2214,22 +2060,18 @@ latest installation → Chinese pre-reboot prompt → reboot → first kiosk →
 
 ### Personal-language acceptance decomposition
 
-Task 300 originally combined independent customer histories and unqualified
-bindings. The developer authorized smaller tasks. Preserve the following
-acceptance mapping; each scenario is one complete case, not a fragment of a
-resumed VM attempt. These task IDs are planning IDs, not numeric coverage IDs.
-The inventory owns current registration; E2E-053–055 have their own bindings
-and histories below, while tasks 308–310 remain planned.
+Language acceptance consists of independent complete histories, each with its
+own continuous attempt and public outcomes:
 
-| Original task-300 acceptance | Complete scenario owner | Missing capability / prerequisite |
-| --- | --- | --- |
-| 1: first-run default, native names, Save/Cancel and checked translated text | 306 account/offline persistence; Chinese untouched first presentation remains 300 | Existing LANG01; 306a enabled Parent/child-selection readback |
-| 2 and 5: independent administrator/two-child choices, child/approver switches, overlay/kiosk sharing, relaunch/re-entry/session renewal and offline packaged German/CJK/Hebrew | 306 | 300j station restoration; 306a; existing Internet isolation |
-| 3: overlay-to-panel language/time refresh, reopening/resume and natural expiry without reset/grants/policy changes | 310 | 310a plus existing retained-session/countdown and natural-expiry tasks; tooltip/menu matrices are UI-owned |
-| 4: inherited About/ordinary feedback, synthetic draft/reply, unchanged names/numbers | 307 Parent | 307b; repeated overlay/station dialog tours removed; error-report drafts end on closure |
-| 4: ordinary translated approval/result per request surface | 308 overlay; 300 kiosk | 308b genuine Shell approval; existing 300f Chinese MATE binding |
-| 6: representative Hebrew and restored English functional context with unchanged work, selections and policy/time; exact mixed-script ordinary feedback draft in Parent | 307 Parent; 308 overlay; 309 kiosk; 310 child time/expiry | Qualified public input/result route per surface, including request presentation in 308a/309a; full inherited-dialog/label and tooltip/menu matrices are UI-owned |
-| 7: latest-package installation, Chinese pre-reboot prompt, one reboot, untouched Chinese chooser/form and two real Chinese approvals across fresh sessions | 300 | 300k revised current-install composition; historical upgrade evidence alone is insufficient |
+| Scope | Owning recipe |
+| --- | --- |
+| Representative installed default/native names, Cancel/reopen and checked translated text | E2E-054; LANG01 / UI owns full chooser matrices; untouched Chinese first presentation belongs to E2E-053 |
+| Administrator/two-child choices, account/approver changes, shared form state, relaunch/session renewal and offline packaged German/CJK/Hebrew | E2E-054 |
+| Exact mixed-script ordinary feedback draft and enabled policy across English/Hebrew/English | E2E-055 |
+| Translated overlay approval and original-activity return | Overlay language presentation |
+| Selected-child kiosk language/approver isolation | Kiosk language presentation |
+| Panel language/time refresh and natural expiry without reset or grants | Panel language and expiry |
+| Latest-package install, Chinese pre-reboot prompt, one reboot, untouched Chinese chooser/form and two real approvals across fresh sessions | E2E-053 |
 
 Every scenario retains unchanged account/application names, numeric values,
 synthetic content, selections and policy/time comparisons where relevant.
@@ -2245,7 +2087,7 @@ remain input guards only; keyboard traversal is not a separate language outcome.
 
 ### E2E-054
 
-Personal-language persistence (task 306).
+Personal-language persistence.
 
 One complete case: Jamie product language `zh-Hans`, Jordan `de`, Riley
 `he`; all three desktop languages and the station remain English. Through
@@ -2280,11 +2122,9 @@ Chinese names at its first Chinese readback and require those exact names on
 subsequent Chinese readbacks; English readbacks retain the English capture.
 The overlay retains its independent Casey approver while the station retains
 Jamie. German/Hebrew forms retain Custom `1.25`, 75 seconds and included soft apps.
-The complete history passed all 26 assertions on Ubuntu 26.04 in
-`20261005T162608Z-4a7cb85e`, with all three required language regressions,
-owned cleanup and baseline restoration. The
+The
 [language catalogue](E2E-Building-Blocks.md#personal-language-selection)
-records the shared bindings and retained acceptance reports.
+owns shared binding qualification.
 
 ### E2E-055
 
@@ -2322,7 +2162,9 @@ at the Hebrew final read; both English return reads compare names against the
 original English capture. Policy reads use a 600-second monotonic history bound
 and two-second refresh/formatter tolerance; the entire case deadline is 900 seconds.
 
-### Overlay language presentation (planned task 308)
+<a id="overlay-language-presentation-planned-task-308"></a>
+
+### Overlay language presentation
 
 One complete Riley overlay English → Hebrew → English saved-work history,
 with Jamie selected, 75 seconds and soft apps included. Capture the native
@@ -2332,7 +2174,7 @@ independently compare unchanged account identities, the 75-second custom request
 included soft apps and original activity content across public language changes.
 Use representative request text in Hebrew and restored English; full dialog/label
 matrices remain UI-owned. Repeated About and error-report tours are removed.
-The exact mixed-script ordinary feedback draft history remains in Parent task 307;
+The exact mixed-script ordinary feedback draft history remains in E2E-055;
 error-report closure ends its draft under the
 [specification](../Specification.md#feedback-and-error-reports).
 While Hebrew is selected, perform one genuine 75-second soft-included approval.
@@ -2346,7 +2188,9 @@ approved deadline and actual elapsed use; language restoration must not reset
 time. This completes English → Hebrew → English without saving Hebrew again or
 repeating request preparation. Do not send feedback.
 
-### Kiosk language presentation (planned task 309)
+<a id="kiosk-language-presentation-planned-task-309"></a>
+
+### Kiosk language presentation
 
 One complete restricted kiosk English → Hebrew → English history for Riley,
 Jamie, 75 seconds and soft apps included, with English station desktop.
@@ -2360,13 +2204,15 @@ Require representative installed Hebrew and restored English request context,
 literal account names, request numbers and station restrictions. Stable IDs and
 matching accessible observations remain input guards; complete label/dialog
 matrices stay in UI tests. Repeated About and error-report tours are removed;
-Parent task 307 retains its exact mixed-script ordinary feedback draft history.
+E2E-055 retains its exact mixed-script ordinary feedback draft history.
 Error-report drafts end on closure under the
 [specification](../Specification.md#feedback-and-error-reports).
 No external-link activation. Ordinary translated kiosk approvals remain in
-task 300's continuous Chinese case.
+E2E-053's continuous Chinese case.
 
-### Panel language and expiry (planned task 310)
+<a id="panel-language-and-expiry-planned-task-310"></a>
+
+### Panel language and expiry
 
 One uninterrupted Riley child history with an initial 10-minute daily-only
 allowance, zero grant and recorded app-policy rows. Use the declared native
@@ -2396,7 +2242,7 @@ finite compositions; shared UI owns local control matrices.
 
 Case **257**, variant `parent` (`surface=parent`), is one continuous English
 fresh-install history on Ubuntu 26.04 or Fedora Workstation 44.
-Task 302 owns complete acceptance; LIFE07's three-surface
+LIFE07's three-surface
 qualification supplies shared operations, not this Parent reboot result.
 `fresh_parent_restart.PLAN` composes `package_installation`, public restart
 reads/actions and `prefixed_stages('return', fresh_desktop('parent'))` through

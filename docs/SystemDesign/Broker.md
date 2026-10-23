@@ -213,8 +213,7 @@ dismissal and D-Bus errors are terminal; the child overlay does not retry.
 The original worker, transaction lock, subject, selected identities and lifecycle
 subscriptions remain in force. Lock, session loss or caller disconnect cancels
 the wait, and an active retried check uses the same remote cancellation path.
-This is checkout-covered startup handling; real native-agent readiness and
-translated approval remain part of task 300's pending installed acceptance.
+Native-agent readiness and translated approval still need installed qualification.
 
 `RequestAccess` is restricted to the configured kiosk UID.
 `RequestOwnAccess` derives its target from the child caller, and rejects a child
@@ -271,9 +270,7 @@ session IDs, bus names, or authentication details. The broker releases its
 transaction lock after the local wait finishes and remote cancellation completes
 or reaches its five-second cleanup deadline, allowing a new kiosk request.
 Account writes and the successful-request cooldown are not reached by a cancelled
-authorization. This broker-only change activates at `process-restart`; there is
-no D-Bus contract, Polkit policy, or saved-data migration change. See the
-[lockout regression](../../tests/component/test_authorization_lifecycle.py).
+authorization. The implementation loads on broker process restart.
 
 An approved request initializes `DailyLimit` from saved preferences and enables
 Malcontent limits if necessary before applying the filter and grant. Unlike the
@@ -294,19 +291,9 @@ broker memory. All children selected by the same kiosk therefore share its
 cooldown; different child callers have separate entries. Broker restart clears
 this transient history. The check runs before the authentication prompt.
 
-C02b1 keeps the worker's private GLib context and lifecycle subscriptions alive
-through usage, running-app preflight and all four reversible account snapshot
-reads. These synchronous reads leave lifecycle events queued. Immediately before
-the first possible policy write, the broker revalidates the original accounts
-and preferences, drains queued events, rereads the original caller/session and
-fallback display, and drains again. A departure followed by return still cancels
-the old request. One worker-local admission latch then permits only the original
-transaction to finish under the existing write/termination/rollback rules.
-No blocking read occurs between the final lifecycle drain and that latch.
-This orders observed events within the worker; it is not an atomic operation
-with logind. Cancellation before admission triggers neither policy/rollback
-writes, app termination nor successful-request cooldown. Subscriptions and retry
-sources are disposed before the transaction slot is released on every exit.
+The [effect-admission boundary](#request-lifetime-and-effect-admission) keeps
+lifecycle monitoring active through preflight and snapshots, then admits one
+original transaction immediately before its first possible write.
 
 `SetParentControl`, both request-preference methods and `SetRequestMuted` do not take
 that shared lock. The parent serializes its own saves, and approval checks for
@@ -342,8 +329,6 @@ AppImage, desktop-scope, descendant, Snap and Flatpak discovery as termination,
 without signaling or changing policy. Parent queries it when remaining time is
 zero and refreshes the result with time status every 30 seconds and after
 revocation. A positive result enables Revoke even in a locked child desktop.
-The broker and Parent changes load on process restart; no data migration is
-required.
 
 App-policy save rollback has a different persistence boundary: before termination,
 failure restores the old preference record and filter; once termination starts,
@@ -356,11 +341,9 @@ production adapter; see [notification recovery](Applications.md#notification-rec
 ### Request lifetime and effect admission
 
 The [specification](../Specification.md#kiosk-request-lifetime) owns cancellation
-and once-only completion outcomes. C02b1 implemented the scoped approval boundary
-in [authorization.py](../../broker/oh_no_parent_control/authorization.py) and
-[core.py](../../broker/oh_no_parent_control/core.py); C03b audited its host
-consumers. Installed qualification is limited to the exact current C04
-dispositions in [Kiosk confinement](Kiosk-Confinement.md).
+and once-only completion outcomes. The implementation boundary lives in
+[authorization.py](../../broker/oh_no_parent_control/authorization.py) and
+[core.py](../../broker/oh_no_parent_control/core.py).
 There is no gate-created visit record, controller registration, private agent
 generation or form-supplied visit token on the selected request path.
 
@@ -398,12 +381,9 @@ authorization. Human decision/password time has no machine deadline; current
 startup retries and cleanup bounds remain scoped to their own operations under
 the [lifecycle timing boundary](Lifecycle.md#machine-work-and-human-pauses).
 
-Host tests cover cancellation while authentication, usage, preflight and
-snapshot reads are pending, late results, and once-only effects after admission.
-Those engineering controls and historical R-series reports grant no installed
-or complete customer-journey acceptance. Current installed/public qualification
-and remaining full histories stay with the C-series plan and its source/test
-dispositions; no retired visit or native-receipt mechanism is a prerequisite.
+Cancellation, late-result and once-only host checks do not establish installed
+or complete customer-journey acceptance. No visit-record or native-receipt
+mechanism participates in the current request path.
 
 ## Related design
 

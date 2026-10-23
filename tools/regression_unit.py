@@ -114,6 +114,9 @@ stash objects and checkpoint/lock trees, bounded waited Git children and a
 private supervised Python agent double. It owns no live service, network, VM, bus, display,
 shared cache or heavy build. Compatible unit scheduling is appropriate; cleanup
 and UI inventories gain no module.
+Explicit propagation reconciliation reuses those private Git/checkpoint fixtures
+and bounded waited children, including backup and retained-stash checks. Its
+resource ownership and compatible unit classification remain unchanged.
 Automatic controller-reload checks keep the same private records and lock trees,
 with process-local exec/descriptor doubles. Public detached checks also exercise
 real interpreter replacement, bounded local app-server doubles and private Git

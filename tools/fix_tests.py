@@ -45,6 +45,26 @@ MAX_REPAIR_SESSIONS = 5
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
+class ControllerReload(Exception):
+    """The child-free worker must replace its imported decision code."""
+
+
+def reload_controller(root, run, owner, *options):
+    """Keep the run and its owner/scratch leases across a fresh interpreter."""
+    descriptors = (owner, *detached_launcher.scratch_descriptors())
+    inherited = {fd: os.get_inheritable(fd) for fd in descriptors}
+    try:
+        for fd in descriptors:
+            os.set_inheritable(fd, True)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                 '--reload-worker', str(root), str(run), str(owner), *options])
+    finally:
+        for fd, value in inherited.items():
+            os.set_inheritable(fd, value)
+
+
 def reattach_label(run):
     """Print the selected workflow scope and its saved canonical VM selector."""
     label = 'fix-tests host' if run.parent.name == 'fix-tests-host' else 'fix-tests vm'
@@ -386,11 +406,22 @@ def category_status(category, categories):
 def run_loop(categories, test, repair, check_stop, *, selected=False, round_changed=lambda _: None,
              verified=lambda _repair, _passed: None, rounds=1, resume_test=None, completed=(), start_round=1,
              verification_started=lambda _completed: None,
-             task_started=lambda: None, task_completed=lambda: None, outcome=verification_outcome):
+             task_started=lambda: None, task_completed=lambda: None, outcome=verification_outcome,
+             continuation=None):
     """Keep each case's latest repair handoff until its category passes."""
     def finish_category(category, failure):
-        handoffs = {}
-        prompts = {}
+        saved = continuation if continuation is not None else {}
+        if saved.get('category') != category:
+            saved.clear()
+            saved.update(category=category, trigger=failure, failure=failure, phase='repair',
+                         handoffs=[], prompts=[])
+        handoffs = {tuple(key): value for key, value in saved['handoffs']}
+        prompts = {tuple(key): value for key, value in saved['prompts']}
+        failure = saved['failure']
+        def remember(phase):
+            saved.update(phase=phase, failure=failure,
+                         handoffs=[[list(key), value] for key, value in handoffs.items()],
+                         prompts=[[list(key), value] for key, value in prompts.items()])
         def diagnostic(value):
             return isinstance(value, dict) and value.get('status') == 'diagnostic_ready'
 
@@ -401,14 +432,19 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
             prompt = failure['prompt'] if failure is not None else prompts[target]
             prompts[target] = prompt
             # A later return to this exact case resolves an earlier unknown outcome.
-            old = handoffs.get(target)
-            if isinstance(old, dict) and old.get('verification') is None and failure is not None:
-                old['verification'] = False
-                old['evidence'] = failure
-                verified(old, False)
-            previous = repair(prompt, failure_key=target,
-                              **({'previous': handoffs[target]} if target in handoffs else {}))
-            handoffs[target] = previous
+            if saved['phase'] == 'repair':
+                old = handoffs.get(target)
+                if isinstance(old, dict) and old.get('verification') is None and failure is not None:
+                    old['verification'] = False
+                    old['evidence'] = failure
+                    verified(old, False)
+                remember('repair')
+                previous = repair(prompt, failure_key=target,
+                                  **({'previous': handoffs[target]} if target in handoffs else {}))
+                handoffs[target] = previous
+                remember('test')
+            else:
+                previous = handoffs[target]
             check_stop()
             # A non-case failure has no identity to invalidate in the saved
             # checkpoint. Replay its original category selection so diagnostics
@@ -429,6 +465,16 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
                 # Completed repairs need no further session; diagnostics always
                 # return their observations for interpretation, even after a pass.
                 handoffs = {key: value for key, value in handoffs.items() if diagnostic(value)}
+            remember('repair')
+        saved.clear()
+
+    def initial_test(category):
+        if continuation and continuation.get('category') == category:
+            return continuation['trigger']
+        if continuation and category == 'all':
+            # Finish the interrupted leaf before the next whole clean pass.
+            return dict(continuation['trigger'], categories=[continuation['category']])
+        return test(category)
 
     if start_round == 1:
         round_changed(1)
@@ -437,11 +483,11 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
                 continue
             check_stop()
             task_started()
-            finish_category(category, test(category))
+            finish_category(category, initial_test(category))
             task_completed()
     for number in range(max(2, start_round), rounds + 1):
         round_changed(number)
-        verify_round(categories, test, finish_category, check_stop, selected=selected,
+        verify_round(categories, initial_test, finish_category, check_stop, selected=selected,
                      completed=completed if number == start_round else (),
                      resume_test=resume_test, verification_started=verification_started,
                      task_started=task_started, task_completed=task_completed)
@@ -532,20 +578,32 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     return detached_launcher.supervise(root, run, owner, kind, command)
 
 
-def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false'):
+def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false', *, reloading=False):
     from vm_pool import selected_reservation
     from test_commands import host_only_request
     selected = json.loads(requested)
     status = 1
+    reload = False
     try:
         with selected_reservation(enabled=not host_only_request(selected),
                                   stopped=lambda: (run / 'cancel').exists()):
-            status = reserved_worker(root, run, owner, model, effort, app_model, requested, rounds, resume)
+            status = reserved_worker(root, run, owner, model, effort, app_model, requested, rounds, resume,
+                                     reloading=reloading)
+    except ControllerReload:
+        reload = True
     except KeyboardInterrupt:
         status = 130
     except (OSError, ValueError) as error:
         print(f'fix-tests: {error}', file=sys.stderr, flush=True)
     finally:
+        if reload and not (run / 'cancel').exists():
+            try:
+                reload_controller(root, run, owner, model, effort, app_model, requested, rounds, 'true')
+            except OSError as error:
+                print(f'fix-tests: controller reload failed: {error}; resume the retained run.',
+                      file=sys.stderr, flush=True)
+        elif reload:
+            status = 130
         budget = TaskBudget(run)
         budget.close()
         atomic(run / 'result.json', {'status': status, 'tasks': budget.read()['completed']})
@@ -553,7 +611,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     return status
 
 
-def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false'):
+def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false', *, reloading=False):
     from launcher_progress import publish_progress, publish_repair_status, read_progress, repair_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     round_number = 1
@@ -574,6 +632,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     runner_handoffs = []
     latest_attempt = None
     restart_continuation = None
+    loop_state = {}
+    repair_context = None
+    test_replay = None
+    task_inflight = False
 
     def check_controller(*, continuation=None):
         current = controller_sources()
@@ -583,7 +645,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                     for name in ('category', 'case', 'vm'))) not in commits.state['repairs']:
                 continuation = None  # The authorized repair already closed.
             commits.state['controller_restart'] = dict(expected=sources, actual=current,
-                sessions={commits.key(key): value for key, value in case_sessions.items()})
+                sessions={commits.key(key): value for key, value in case_sessions.items()},
+                runtime=dict(loop=loop_state, repair=repair_context, test=test_replay,
+                    results={commits.key(key): value for key, value in case_results.items()},
+                    tiers={commits.key(key): value for key, value in case_tiers.items()},
+                    answers=developer_answers, task_inflight=task_inflight,
+                    task=active_task))
             if continuation is not None:
                 commits.state['controller_restart']['continuation'] = continuation
             commits.save()
@@ -594,12 +661,20 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 key = commits.key(tuple(continuation['failure'][name] for name in ('category', 'case', 'vm')))
                 commits.state['repairs'][key].setdefault('turns', []).append(turn)
                 commits.save()
-            raise ValueError('repair controller sources changed; exact handoff retained. '
-                             'Start a fresh fix-tests controller before continuing')
+            print('fix-tests: repair controller sources changed; exact handoff retained. '
+                  'Reloading automatically in the same run.', flush=True)
+            raise ControllerReload()
 
     def task_started():
-        if not budget.admit():
+        nonlocal task_inflight
+        if not task_inflight and not budget.admit():
             raise TaskLimitReached()
+        task_inflight = True
+
+    def task_completed():
+        nonlocal task_inflight
+        budget.complete()
+        task_inflight = False
 
     def round_changed(number):
         nonlocal round_number
@@ -646,9 +721,17 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise Stopped()
 
     def execute(kind, category='', options=(), *, agent_model=None, agent_effort=None):
-        nonlocal runner_handoffs, latest_attempt
+        nonlocal runner_handoffs, latest_attempt, test_replay
         check_stop()
         check_controller()
+        if test_replay is not None:
+            replay, test_replay = test_replay, None
+            def selectors(values):
+                return [arg for arg in values if arg != '--resume' and not arg.startswith('--resume-case=')]
+            if (kind != replay['kind'] or category != replay['category']
+                    or selectors(options) != selectors(replay['options'])):
+                raise ValueError('retained controller operation differs from the original selection')
+            return replay['status']
         invocation = dict(repair_run=str(run), attempt=uuid.uuid4().hex,
                           selection=[[category, [arg for arg in options if arg != '--resume'
                                                  and not arg.startswith('--resume-case=')]]]) if kind == 'test' else None
@@ -683,7 +766,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             compact_log(run / 'last-test.log')
         check_stop()
         if kind != 'agent':
+            test_replay = dict(kind=kind, category=category, options=list(options), status=status)
             check_controller()
+            test_replay = None
         return status
 
     def test(category, *, resume=False, retry_case='', fresh=False):
@@ -718,6 +803,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                       flush=True)
 
         recovered = False
+        if test_replay is not None and test_replay['kind'] == 'recovery':
+            recovery_status = execute('recovery')
+            if recovery_status:
+                failure = handoff(run, root=root, runner_handoffs=runner_handoffs)
+                failed(category)
+                return failure
+            recovered = True
         while True:
             atomic(run / 'test-controller.json', [])
             progress(category, 'Running tests')
@@ -788,7 +880,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             return repair_owned(prompt, failure_key=failure_key, previous=previous)
 
     def repair_owned(prompt, *, failure_key, previous=None):
-        nonlocal verifying_fix, restart_continuation
+        nonlocal verifying_fix, restart_continuation, repair_context
         commits.begin(failure_key, inventory[failure_key[0]]['args'])
         entry = commits.state['repairs'][commits.key(failure_key)]
         failure_prompt = prompt
@@ -819,6 +911,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         prompt += ('\nRepair only this runner-identified failure; other cases have independent '
                    'budgets. Read the full report for context, preserve the requested selectors, '
                    'and leave test execution to the launcher:\n' + json.dumps(target) + '\n')
+        if repair_context is not None and repair_context['failure'] == target:
+            restored = repair_context
+            prompt, failure_prompt = restored['prompt'], restored['failure_prompt']
+            classification, repair_id, attempt = restored['classification'], restored['repair_id'], restored['attempt']
+            blocker_summary, result_recovery = restored['blocker_summary'], restored['result_recovery']
+            previous = None  # Escalation was already applied before the reload.
 
         def retain_stop(reason):
             atomic(run / 'repair-stop.json', dict(reason=reason, failure=target,
@@ -858,6 +956,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
         while True:
             check_stop()
+            repair_context = dict(failure=target, prompt=prompt, failure_prompt=failure_prompt,
+                classification=classification, repair_id=repair_id, attempt=attempt,
+                blocker_summary=blocker_summary, result_recovery=result_recovery)
             check_controller()
             replaying = replay is not None
             if replaying:
@@ -960,6 +1061,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 blocker_summary = result['summary']
                 restart_continuation = dict(failure=target, result=result,
                     answers=developer_answers, prompt=prompt, session=metadata)
+                repair_context['blocker_summary'] = blocker_summary
                 check_controller(continuation=restart_continuation)
                 print('Answer received. Continuing this repair.', flush=True)
                 continue
@@ -975,6 +1077,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if result['status'] not in ('fixed', 'test_fixed', 'diagnostic_ready'):
                 raise ValueError('unexpected repair result: ' + result['summary'])
             verifying_fix = result['status'] != 'diagnostic_ready'
+            repair_context = None
             return dict(repair_id=repair_id, attempt=attempt, sessions=sessions,
                         failure=target, status=result['status'], summary=result['summary'])
 
@@ -1036,6 +1139,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
     status = 1
     limited = False
+    reload = False
     try:
         try:
             from launcher_render import AgentRenderer  # Check before expensive tests.
@@ -1058,23 +1162,45 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise ValueError('resume round exceeds --rounds; retain the original round count')
         rounds = int(rounds)
         commits = RepairCommits(root, run)
+        if reloading:
+            # An automatic replacement is the same run, with the same allowances.
+            saved = commits.state['controller_restart']
+            runtime = saved['runtime']
+            case_sessions = {tuple(json.loads(key)): value for key, value in saved['sessions'].items()}
+            case_results = {tuple(json.loads(key)): value for key, value in runtime['results'].items()}
+            case_tiers = {tuple(json.loads(key)): tuple(value) for key, value in runtime['tiers'].items()}
+            developer_answers = runtime['answers']
+            loop_state = runtime['loop']
+            repair_context, test_replay = runtime['repair'], runtime['test']
+            task_inflight, active_task = runtime['task_inflight'], runtime['task']
+            atomic(run / 'developer-answers.json', developer_answers)
         continuation = commits.state.get('controller_restart', {}).get('continuation')
         if continuation is not None:
             restart_continuation = continuation
             developer_answers = continuation['answers']
             atomic(run / 'developer-answers.json', developer_answers)
         latest_attempt = next(reversed(commits.state.get('runner_attempts', [])), None)
+        if latest_attempt is not None:
+            runner_handoffs = latest_attempt['handoffs']
         commits.guard = check_controller
         commits.state['controller_sources'] = sources
         commits.save()
+        check_stop()
         commits.finish_pending()  # Retry accepted Git work before tests or another agent.
         # A worker can stop after runner cleanup but before its verification
         # callback. Recover only the exact retained case pass and source bytes.
-        close_verified()
+        if not reloading:
+            close_verified()
         for entry in commits.state['repairs'].values():
             category = entry['failure'][0]
             if (entry.get('status') in ('fixed', 'test_fixed') or entry.get('pending_response') is not None) and category in completed:
                 completed.remove(category)  # Its exact repaired case still needs proof.
+        if loop_state.get('category') in completed:
+            completed.remove(loop_state['category'])
+        if task_inflight and active_task is not None:
+            task_category = active_task.partition(':')[2]
+            if task_category in completed or task_category == 'all' and len(completed) == len(categories):
+                task_completed()
         remaining_current = len(categories) - len(completed)
         if start_round > 1 and not requested:
             remaining_current = int(remaining_current > 0)  # A complete verification pass is one task.
@@ -1091,8 +1217,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                  round_changed=round_changed,
                  completed=completed, resume_test=lambda category, **options: test(category, resume=True, **options),
                  start_round=start_round, verification_started=verification_started,
-                 task_started=task_started, task_completed=budget.complete,
-                 verified=verified, outcome=outcome)
+                 task_started=task_started, task_completed=task_completed,
+                 verified=verified, outcome=outcome, continuation=loop_state)
         commits.require_complete()
         print('\nfix-tests: ' + ('all selected categories passed.' if requested else
               'all categories passed.' if rounds == 1 else
@@ -1105,12 +1231,15 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     except Stopped:
         print('\nfix-tests: stopped; owned operation cleanup finished.', flush=True)
         status = 130
+    except ControllerReload:
+        reload = True
+        raise
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         panel({'last_error': str(error)})
         print(f'\nfix-tests: {error}', file=sys.stderr, flush=True)
     finally:
         previous = repair_progress(run, read_progress(run))
-        if previous:
+        if previous and not reload:
             lines = previous[-1]['lines']
             lines[-1] = 'Status: ' + ('Task limit reached' if limited else
                                      {0: 'Complete', 130: 'Stopped'}.get(status, 'Blocked'))
@@ -1282,8 +1411,8 @@ def main(argv=None):
 
 if __name__ == '__main__':
     mode, root, run, owner, *options = sys.argv[1:]
-    if mode == '--worker':
-        sys.exit(worker(Path(root), Path(run), int(owner), *options))
+    if mode in ('--worker', '--reload-worker'):
+        sys.exit(worker(Path(root), Path(run), int(owner), *options, reloading=mode == '--reload-worker'))
     if mode == '--supervise':
         sys.exit(supervise(Path(root), Path(run), int(owner), *options))
     raise SystemExit('private fix-tests worker entry point')

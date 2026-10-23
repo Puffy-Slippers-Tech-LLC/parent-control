@@ -468,10 +468,15 @@ proof cannot fall back to a diagnostic tail or an unrelated aggregate pass.
 Closed repair/E2E responses, prompts, command records and cleanup inventories
 are copied in full within their existing launcher allocation before a fresh
 session overwrites them. Fresh controllers carry those exact capsules forward.
-The specialized source-byte guard stops at a child-free boundary when its
-reviewed decision dependencies change; it grants no new session or retry credit.
-The fresh controller validates the exact retained response before repair
-verification or close-out, keeping the original failure and owned-file baseline.
+When reviewed decision dependencies change, `fix-tests` automatically replaces
+its controller at a child-free boundary in the same live run. It retains the
+owner lock, output stream, scratch leases, selectors, rounds, task counts,
+case-session budgets, escalation tiers, diagnostic observations and answered
+blockers. The fresh interpreter validates the exact retained response before
+repair verification or close-out, keeping the original failure and owned-file
+baseline. Reloading grants no new session or retry credit and requires no
+reattachment or manual restart. Cancellation still takes priority. The separate
+E2E implementation launcher retains its source-change handoff behavior.
 The runner's `failure.json` includes `failures` entries with category, case ID
 and VM name; host cases have an empty VM name. Worker bucket names, report paths
 and model-generated labels never define a case. Multi-VM handoffs retain each

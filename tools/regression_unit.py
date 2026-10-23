@@ -75,6 +75,11 @@ pytest-private checkouts and bare remotes, finite waited Git children and
 process-local failure doubles. No external network, shared Git state, VM,
 display, bus or additional asynchronous cleanup owner is acquired; both modules
 retain compatible unit scheduling and the existing cleanup classification.
+Automatic repair-controller reload uses the same recorded worker and private
+checkout, with real exec replacement, finite synthetic children and bounded
+teardown. Descriptor checks are process-local. It adds no VM, display, socket,
+shared cache or external service; both modules remain compatible in unit and
+the existing cleanup inventory. UI gains no resource owner.
 
 kiosk_rendering's lava-cache checks decode one bounded read-only shipped image
 through GDK and compare bounded in-memory RGBA buffers. Native decoding uses

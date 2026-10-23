@@ -581,6 +581,10 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # Masked graphical recording checks reuse private reply files and process-local
 # UI/control doubles, including failure and cancellation. They acquire no encoder,
 # guest, display, bus, shared cache or cleanup owner; both partitions stay compatible.
+# Automatic fix-tests reload reuses the recorded worker via exec, private
+# checkout/evidence and finite waited synthetic children. No VM, display,
+# socket, external service or shared cache is added; unit/cleanup compatibility
+# and the existing teardown owner remain valid. UI gains no resource owner.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_fix_tests_cleanup_safety.py': 38,
              'test_write_e2e_cleanup_safety.py': 54,

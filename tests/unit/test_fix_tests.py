@@ -3,6 +3,7 @@ from tests.support.vm_registry import vm_name
 
 import json
 import io
+import os
 import tomllib
 from pathlib import Path
 from unittest.mock import Mock
@@ -19,6 +20,20 @@ from tests.support.paths import ROOT
 
 def failure(prompt, *categories):
     return {'prompt': prompt, 'categories': list(categories)}
+
+
+def test_reload_preserves_owner_and_scratch_flags_on_exec_failure(tmp_path, monkeypatch):
+    with (tmp_path / 'owner').open('wb') as owner, (tmp_path / 'scratch').open('wb') as scratch:
+        descriptors = (owner.fileno(), scratch.fileno())
+        monkeypatch.setattr(detached_launcher, 'scratch_descriptors', lambda: (scratch.fileno(),))
+        def fail(program, command):
+            assert all(os.get_inheritable(fd) for fd in descriptors)
+            assert command[3:7] == ['--reload-worker', str(tmp_path), str(tmp_path), str(owner.fileno())]
+            raise OSError('synthetic exec failure')
+        monkeypatch.setattr(fix_tests.os, 'execv', fail)
+        with pytest.raises(OSError, match='synthetic exec failure'):
+            fix_tests.reload_controller(tmp_path, tmp_path, owner.fileno(), 'model', 'low')
+        assert all(not os.get_inheritable(fd) for fd in descriptors)
 
 
 def test_missing_handoff_reports_the_runner_infrastructure_error(tmp_path):

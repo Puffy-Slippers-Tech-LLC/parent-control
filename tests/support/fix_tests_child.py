@@ -46,7 +46,7 @@ def structured_report(root, category, case, passed, options):
 def main():
     root = Path.cwd()
     kind, *args = sys.argv[1:]
-    if kind == '--worker':
+    if kind in ('--worker', '--reload-worker'):
         from contextlib import nullcontext
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
         import fix_tests
@@ -59,7 +59,22 @@ def main():
             import repair_evidence
             source_reader = repair_evidence.controller_sources
             repair_evidence.controller_sources = lambda: source_reader(root=Path(source_record.read_text()))
-        return fix_tests.worker(Path(root), Path(run), int(owner), *options)
+        execv = os.execv
+        def reload_exec(program, command):
+            # Keep the production exec/descriptor path; only replace the entry
+            # shim so a reload cannot acquire real VM resources in this fixture.
+            with (Path(root) / 'reloads').open('a') as stream:
+                stream.write(json.dumps(dict(pid=os.getpid(), owner=int(owner),
+                    inherited=os.get_inheritable(int(owner)))) + '\n')
+            if (Path(root) / 'pause-reload').exists():
+                deadline = time.monotonic() + 12
+                while not (Path(root) / 'release').exists() and time.monotonic() < deadline:
+                    time.sleep(.02)
+            command[2] = str(Path(__file__).resolve())
+            execv(program, command)
+        fix_tests.os.execv = reload_exec
+        return fix_tests.worker(Path(root), Path(run), int(owner), *options,
+                                reloading=kind == '--reload-worker')
     if kind == 'agent' and args == ['debug', 'models']:
         if (root / 'catalog.json').exists():
             print((root / 'catalog.json').read_text())
@@ -93,6 +108,10 @@ def main():
             capture_output=True, text=True, check=True, timeout=10).stdout.strip()
     with (root / 'calls').open('a') as stream:
         stream.write(json.dumps(record) + '\n')
+    if kind == 'recovery' and (root / 'change-recovery-source').exists():
+        source_root = Path((root / 'controller-root').read_text())
+        changed = source_root / 'tools/repair_evidence.py'
+        changed.write_bytes(changed.read_bytes() + b'\n# changed during recovery\n')
 
     def interrupt(*_):
         (root / 'test-interrupted').touch()
@@ -131,6 +150,10 @@ def main():
             marker = root / 'script-tests'
             index = int(marker.read_text()) if marker.exists() else 0
             marker.write_text(str(index + 1))
+            if index in script.get('change_test_source', []):
+                source_root = Path((root / 'controller-root').read_text())
+                changed = source_root / 'tools/repair_evidence.py'
+                changed.write_bytes(changed.read_bytes() + b'\n# changed during test\n')
             if script.get('wait_test') == index:
                 (root / 'test-ready').touch()
                 deadline = time.monotonic() + 15

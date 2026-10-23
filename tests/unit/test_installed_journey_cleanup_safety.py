@@ -1170,7 +1170,7 @@ def test_missing_snapshot_refuses_without_installation_or_setup_reply(tmp_path, 
 
 
 @pytest.mark.parametrize('failure', [False, True])
-def test_clean_baseline_qualification_installs_before_authorizing_customer_input(tmp_path, monkeypatch, failure):
+def test_legacy_dormant_install_guard_preserves_setup_before_customer_input(tmp_path, monkeypatch, failure):
     setup = Mock()
     setup.return_value.run.return_value = {'setup_reboot_verified': True, 'package_verified': False}
     if failure:
@@ -1182,6 +1182,7 @@ def test_clean_baseline_qualification_installs_before_authorizing_customer_input
     context = SimpleNamespace(directory=tmp_path, install_current_package=True,
                               lease=Mock(), verified=Mock(), commands=Mock(), host_key='test-key')
     context.lease.state = {'run': 'test-run'}
+    context.lease.capture.state = {'guest': {'fixture_boundary': 'legacy'}}
     context.verified.fixture_prepared = None
     journey = journeys.InstalledJourney(context, Mock(), SYNTHETIC)
     guard = Mock()

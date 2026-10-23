@@ -21,7 +21,6 @@ class ChineseRequestInstallJourney(ChineseApprovalMixin, ChineseInstallJourney):
         self.public_captures = {}
         self.checked_stages = set()
         context.asset_transfer = AssetTransfer(context.verified)
-        context.asset_transfer.provision(context.lease, context.guestfs)
         context.product_free = True
         super().__init__(context, progress, plan, actions=actions)
 

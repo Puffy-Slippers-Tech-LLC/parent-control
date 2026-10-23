@@ -127,14 +127,244 @@ def test_shared_journey_setup_checks_readiness_after_asset_transfer(monkeypatch,
     assert setup.provision.call_args.kwargs == {'fixture_selection': selection.record()}
 
 
+@pytest.mark.parametrize('value', [None, 'fedora'])
+def test_product_free_missing_or_incompatible_input_refuses_before_mutation(
+        monkeypatch, tmp_path, value):
+    selection = fixture_execution.Selection('fedora', 'a' * 64,
+        '/tmp/onpc-native-runtime-fedora-' + 'a' * 64 + '-private',
+        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64)
+    verify, factory, vm = Mock(), Mock(), Mock()
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
+    monkeypatch.setattr(preparation.fixture_provision, 'Provisioner', factory)
+    lease = lease_for('ubuntu')
+    lease.installed_name = None
+    with pytest.raises(ValueError, match=('execution-selection-required' if value is None
+                                          else 'target-not-qualified')):
+        preparation.prepare(vm, lease, tmp_path,
+                            None if value is None else selection.record(), product_free=True)
+    verify.assert_not_called()
+    factory.assert_not_called()
+    assert not vm.mock_calls and not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('invalid', ['target', 'installed', 'pending', 'observation', 'mixed'])
+def test_product_free_bootstrap_refuses_incompatible_envelopes_before_mutation(tmp_path, invalid):
+    import system_runner
+    lease = lease_for('fedora' if invalid == 'target' else 'ubuntu')
+    lease.capture.state['proof'] = {'name': 'baseline'}
+    lease.installed_name = 'installed' if invalid == 'installed' else None
+    lease.online_pending = invalid == 'pending'
+    commands, guestfs = Mock(), Mock()
+    with pytest.raises(system_runner.Error, match='e2e-product-free-target-not-qualified'):
+        system_runner.bootstrap(commands, lease, tmp_path, guestfs,
+            e2e_product_free=True, observation_only=invalid != 'observation',
+            e2e_installed=invalid == 'mixed')
+    assert not commands.mock_calls and not guestfs.mock_calls
+    assert not list(tmp_path.iterdir())
+
+
+def test_empty_product_free_setup_has_no_native_input_or_asset_dependency(monkeypatch, tmp_path):
+    import installed_journey
+    import installed_setup
+    lease = lease_for('ubuntu')
+    lease.installed_name = None
+    context = SimpleNamespace(directory=tmp_path, lease=lease)
+    prepare, verify, setup = Mock(), Mock(), Mock()
+    monkeypatch.setattr(preparation, 'prepare', prepare)
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
+    monkeypatch.setattr(installed_setup, 'InstalledSetup', setup)
+    observer = Mock()
+    assert installed_journey.prepare_product_free_setup(context, Mock(), Mock(),
+                                                        observer=observer) is None
+    assert [call.args[0] for call in observer.call_args_list] == ['before', 'empty']
+    prepare.assert_not_called()
+    verify.assert_not_called()
+    setup.assert_not_called()
+    assert not list(tmp_path.iterdir())
+
+
+def test_empty_entry_audits_all_declarations_without_native_input(monkeypatch, tmp_path):
+    import json
+    import fixture_e2e_product_free_qualification as product_free
+    audit = dict(installed=False, files={}, unselected_present=[], staging=[],
+                 trust_entries={}, admissions={}, preserved={})
+    requests = []
+
+    def call(argv, **kwargs):
+        if argv[0] == '/usr/bin/test':
+            return b''
+        requests.append(json.loads(kwargs['input']))
+        return json.dumps(audit).encode()
+
+    verify = Mock(side_effect=AssertionError('empty entry must not read native input'))
+    monkeypatch.setattr(product_free.fixture_execution, 'verify', verify)
+    result = {}
+    observe = product_free.empty_observer(result, {})
+    context = {'vm': SimpleNamespace(call=call), 'directory': tmp_path}
+    observe('before', context)
+    observe('empty', context)
+    assert len(requests) == 2 and requests[0] == requests[1]
+    assert requests[0]['selected'] == []
+    assert set(requests[0]['members']) == set(preparation.fixture_manifest.declarations())
+    assert result['native_input_required'] is False and result['product_absent'] is True
+    assert result['empty_without_writes'] is True
+    verify.assert_not_called()
+
+
+@pytest.mark.parametrize('stale', [False, True])
+def test_product_free_setup_requires_readiness_after_transfer_and_final_guard(
+        monkeypatch, tmp_path, stale):
+    import installed_journey
+    import installed_setup
+    events = []
+    lease = lease_for('ubuntu')
+    lease.installed_name = None
+    selection = {'selected': 'private'}
+    monkeypatch.setattr(preparation, 'validate_input',
+        lambda value, **_: events.append('verify') or value)
+    controller = Mock()
+    def ready(_):
+        events.append('ready')
+        if stale and controller.require_ready.call_count == 2:
+            raise ValueError('fixtures:stale-readiness')
+    controller.require_ready.side_effect = ready
+    prepared = {'controller': controller, 'receipt': 'receipt'}
+    prepare = Mock(side_effect=lambda *_, **__: events.append('prepare') or prepared)
+    monkeypatch.setattr(preparation, 'prepare', prepare)
+    setup = Mock()
+    setup.provision.side_effect = lambda *_: events.append('setup')
+    monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock(return_value=setup))
+    transfer = Mock()
+    transfer.provision_product_free.side_effect = lambda *_: events.append('assets')
+    context = SimpleNamespace(directory=tmp_path, lease=lease, verified=SimpleNamespace(),
+        fixture_selection=selection, asset_transfer=transfer)
+    guard = lambda: events.append('guard')
+    observer = lambda stage, _: events.append('observe-' + stage)
+    if stale:
+        with pytest.raises(ValueError, match='stale-readiness'):
+            installed_journey.prepare_product_free_setup(context, Mock(), guard, observer=observer)
+    else:
+        assert installed_journey.prepare_product_free_setup(
+            context, Mock(), guard, observer=observer) is prepared
+    assert events == ['verify', 'guard', 'observe-before', 'prepare', 'setup', 'assets',
+                      'ready', 'observe-ready', 'guard', 'ready']
+    assert prepare.call_args.kwargs == {'product_free': True}
+    assert context.verified.fixture_selection is selection
+    assert context.verified.fixture_prepared is prepared
+    setup.run.assert_not_called()
+
+
+def test_dormant_current_install_on_clean_baseline_refuses_before_connection(monkeypatch, tmp_path):
+    import installed_journey
+    from private_artifacts import EvidenceError
+    address, transport = Mock(), Mock()
+    monkeypatch.setattr(installed_journey.system, 'address', address)
+    monkeypatch.setattr(installed_journey, 'Transport', transport)
+    context = SimpleNamespace(directory=tmp_path, lease=lease_for('ubuntu'),
+                              install_current_package=True)
+    plan = installed_journey.JourneyPlan(prefix='dormant-install', worker_mode='native',
+                                        screen_tags={}, phases={})
+    journey = installed_journey.InstalledJourney(context, Mock(), plan)
+    journey.steps = [{'stage': 'ready'}]
+    request = tmp_path / 'setup-detached.request.json'
+    request.write_text('{"stage": "setup-detached", "screenshot": null}')
+    with pytest.raises(EvidenceError, match='fixtures:e2e-install-current-not-qualified'):
+        journey._step(Mock())
+    address.assert_not_called()
+    transport.assert_not_called()
+    assert not (tmp_path / 'setup-detached.reply.json').exists()
+    assert list(tmp_path.iterdir()) == [request]
+
+
+@pytest.mark.parametrize('installed,fast,next_installed', [
+    (False, False, True), (True, True, True),
+    (True, True, False), (True, True, None)])
+def test_product_free_suite_boundary_restores_baseline_then_selects_existing_next_snapshot(
+        monkeypatch, installed, fast, next_installed):
+    import ast
+    from pathlib import Path
+    import execution
+    from suite_lease import needs_installed
+    from tools import fixture_provision
+
+    tree = ast.parse((Path(execution.__file__)).read_text())
+    branches = [node.orelse for node in ast.walk(tree) if isinstance(node, ast.If)
+        and any(isinstance(child, ast.If) and isinstance(child.test, ast.Name)
+                and child.test.id == 'product_free_consumer' for child in node.orelse)]
+    assert len(branches) == 1
+    program = compile(ast.Module(body=branches[0], type_ignores=[]), execution.__file__, 'exec')
+    events = []
+    lease = SimpleNamespace(_fast=fast, installed_name='installed' if installed else None,
+                            restore_installed=True, _fixture_provision_state=object())
+    monkeypatch.setattr(fixture_provision, 'reset_after_restore',
+                        lambda value: events.append(('reset', value is lease)))
+    lease.stop = lambda: events.append(('stop', lease.restore_installed))
+    lease.prepare = lambda: events.append(('prepare',))
+    next_case = (None if next_installed is None else {'preconditions': [
+        'installed-digest-verified-product' if next_installed
+        else 'declared-package-lifecycle-fixture']})
+    suite = SimpleNamespace(next_case=next_case, prepare_case=Mock())
+    exec(program, {'lease': lease, 'suite': suite, 'product_free_consumer': True,
+                   'needs_installed': needs_installed})
+    assert events == [('reset', True), *([('stop', False)] if fast else []), ('prepare',)]
+    assert lease.restore_installed is (installed and next_installed is True)
+    suite.prepare_case.assert_not_called()
+
+
+@pytest.mark.parametrize('mode', ['target', 'missing', 'gdm-input', 'gdm-empty'])
+def test_smoke_product_free_input_guards_precede_storage_and_credentials(monkeypatch, mode):
+    import ast
+    from pathlib import Path
+    import check_graphical_smoke as smoke
+    import vm_config
+    from owned_commands import CommandError
+
+    tree = ast.parse(Path(smoke.__file__).read_text())
+    main = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main')
+    guards = [(index, node) for index, node in enumerate(main.body)
+        if isinstance(node, ast.If) and ast.unparse(node.test) in (
+            'product_free_entry or gdm_product_free', 'product_free_entry', 'gdm_product_free')]
+    assert len(guards) == 3
+    credential_index = next(index for index, node in enumerate(main.body)
+        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
+            and target.id == 'credentials' for target in node.targets))
+    storage_index = next(index for index, node in enumerate(main.body)
+        if isinstance(node, ast.With) and any(isinstance(item.context_expr, ast.Call)
+            and isinstance(item.context_expr.func, ast.Name)
+            and item.context_expr.func.id == 'storage_session' for item in node.items))
+    assert max(index for index, _ in guards) < credential_index < storage_index
+    program = compile(ast.Module(body=[node for _, node in guards], type_ignores=[]),
+                      smoke.__file__, 'exec')
+    monkeypatch.setattr(vm_config, 'selected', lambda: SimpleNamespace(
+        name='onpc-Fedora44' if mode == 'target' else 'onpc-Ubuntu26.04'))
+    verify = Mock()
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
+    scope = dict(vars(smoke), product_free_entry=not mode.startswith('gdm'),
+                 gdm_product_free=mode.startswith('gdm'),
+                 fixture_selection={} if mode == 'gdm-input' else None)
+    if mode == 'missing':
+        with pytest.raises(ValueError, match='^fixtures:execution-selection-required$'):
+            exec(program, scope)
+    elif mode == 'gdm-empty':
+        exec(program, scope)
+    else:
+        code = ('target-not-qualified' if mode == 'target' else 'empty-selection')
+        with pytest.raises(CommandError, match='^fixtures:e2e-product-free-' + code + '$'):
+            exec(program, scope)
+    verify.assert_not_called()
+
+
 @pytest.mark.parametrize('profile', ['activity', 'riley-grid'])
-def test_unqualified_native_closures_refuse_before_worker(monkeypatch, tmp_path, selection, profile):
+@pytest.mark.parametrize('product_free', [False, True])
+def test_unqualified_native_closures_refuse_before_worker(
+        monkeypatch, tmp_path, selection, profile, product_free):
     from installed_journey import InstalledJourney, JourneyPlan
     from native_fixtures import fixture_actions
     from private_artifacts import EvidenceError
     plan = JourneyPlan(prefix='native-scope', worker_mode='native',
         screen_tags={'fixture': 'ui:desktop'}, phases={}, stage_actions={'fixture': 'native-verify'})
-    context = SimpleNamespace(directory=tmp_path, fixture_selection=selection.record())
+    context = SimpleNamespace(directory=tmp_path, fixture_selection=selection.record(),
+                              product_free=product_free)
     with pytest.raises(EvidenceError, match='profile-not-qualified'):
         InstalledJourney(context, Mock(), plan,
             actions=fixture_actions(profile=profile, include_refusal=False))
@@ -175,13 +405,16 @@ def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch
     import sys
     import check_graphical_smoke as smoke
     import test_commands
+    import parent_setup_qualification as parent
     from parent_setup_qualification import KioskEntryQualification
+    from owned_commands import CommandError
     from tools import test_storage
 
     root = Path(smoke.ROOT)
     tree = ast.parse((root / 'tests/integration/check_graphical_smoke.py').read_text())
     main = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main')
     blocks = []
+    selection_guards = []
     for node in ast.walk(main):
         body = getattr(node, 'body', None)
         if not isinstance(body, list):
@@ -196,15 +429,32 @@ def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch
                     if isinstance(body[index], ast.Assign) and any(isinstance(target, ast.Name)
                         and target.id == 'qualification' for target in body[index].targets))
                 blocks.append(body[start:stop])
+                selection_guards.append(body[stop + 1])
     assert len(blocks) == 1
     program = compile(ast.Module(body=blocks[0], type_ignores=[]), str(root), 'exec')
+    selection_guard = compile(ast.Module(body=selection_guards, type_ignores=[]), str(root), 'exec')
     signature = inspect.signature(smoke.main)
     calls = []
     monkeypatch.setattr(smoke, 'main', lambda **kwargs: calls.append(kwargs) or 0)
     monkeypatch.setattr(test_storage, 'named_input', lambda **_: Path('/private/declared-input'))
     monkeypatch.setattr(sys, 'exit', lambda *_: None)
     monkeypatch.setattr(sys, 'argv', ['qualification-composition'])
-    actual, alternatives = set(), {}
+    product_free_classes = {
+        'check_e2e_gdm_product_free': parent.GdmProductFreeQualification,
+        'check_e2e_product_free_entry': parent.ProductFreeEntryQualification,
+        'check_e2e_upgrade_assets': parent.UpgradeAssetsQualification,
+        'check_e2e_chinese_language_assets': parent.ChineseLanguageQualification,
+        'check_e2e_desktop_language': parent.DesktopLanguageQualification,
+        'check_e2e_package_authority': parent.PackageAuthorityQualification,
+        'check_e2e_package_command': parent.PackageInstallQualification,
+        'check_e2e_customer_reboot': parent.CustomerRebootQualification,
+        'check_e2e_restart_notice': parent.RestartNoticeQualification,
+        'check_e2e_unrelated_reboot_request': parent.UnrelatedRebootQualification,
+        'check_e2e_package_upgrade': parent.PackageUpgradeQualification,
+        'check_e2e_chinese_kiosk_lifecycle': parent.ChineseKioskLifecycleQualification,
+        'check_e2e_chinese_current_install': parent.ChineseCurrentInstallQualification,
+    }
+    actual, product_free, alternatives = set(), set(), {}
     # Discovery is intentional: wrappers are the inventory being independently
     # compared. Every loop emission is evaluated, including later overrides.
     for path in sorted((root / 'tests/integration').glob('check_*.py')):
@@ -225,11 +475,25 @@ def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch
             exec(program, scope)
             cls = scope['qualification_class']
             alternatives.setdefault(path.stem, []).append(cls.__name__)
+            if path.stem in ('check_parent_about', 'check_parent_access'):
+                scope.update(qualification=SimpleNamespace(), fixture_selection={'private': True})
+                with pytest.raises(CommandError, match='^fixtures:e2e-installed-branch-not-qualified$'):
+                    exec(selection_guard, scope)
+                assert not hasattr(scope['qualification'], 'fixture_selection')
             if path.stem in test_commands.INSTALLED_E2E_FIXTURE_SELECTORS:
                 assert issubclass(cls, KioskEntryQualification), (path.stem, cls.__name__)
             if issubclass(cls, KioskEntryQualification):
                 actual.add(path.stem)
+            if issubclass(cls, (parent.ProductFreeEntryQualification,
+                               parent.GdmProductFreeQualification)):
+                product_free.add(path.stem)
+                assert cls is product_free_classes[path.stem], (path.stem, cls.__name__)
     assert actual == set(test_commands.INSTALLED_E2E_FIXTURE_SELECTORS) - {'check_fixture_e2e_installed'}
+    assert product_free == set(product_free_classes)
+    for name, cls in product_free_classes.items():
+        assert alternatives[name] == [cls.__name__]
+    assert alternatives['check_parent_about'] == ['ParentAboutQualification']
+    assert alternatives['check_parent_access'] == ['ParentAccessQualification']
     assert alternatives['check_e2e_native_fixtures'] == ['NativeFixtureQualification']
     assert alternatives['check_e2e_operate_public_connectivity_controls'] == [
         'PublicConnectivityControlsQualification']

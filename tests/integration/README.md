@@ -214,7 +214,7 @@ unchanged selection after actual producer-source edits. Results retain package
 metadata and frozen helpers rather than the complete fixture collection.
 Scenario asset mutations remain separate. Watched baseline restoration and
 owned credential, staging, input and transport cleanup are required.
-Product-free E2E, standalone transfer/serial, recorded serial and unqualified fixture profiles
+Fedora product-free E2E, standalone transfer/serial, recorded serial and unqualified fixture profiles
 retain their separate gates. This supplies no customer or E2E acceptance.
 
 ### Fedora installed E2E preparation
@@ -225,6 +225,35 @@ resume/rebind attempts and two explicit offline Kiosk attachments independently
 verify the native runtime, enforcing SELinux, exact finite admissions and labels.
 Fresh attempt readiness, prior-generation refusal, unchanged selection after
 producer-source edits and watched restoration remain required on both branches.
+
+### Ubuntu product-free E2E preparation
+
+Clean Ubuntu 26.04 product-free graphical attempts select their immutable `native`
+input before VM acquisition. `InstalledJourney.product_free` and the asset-bearing
+package/upgrade preparations share a post-SSH setup boundary: provision and verify
+fixtures, then transfer package-only scenario inputs, then recheck readiness before
+releasing customer input. No reusable payload or customer package is uploaded
+before SSH readiness. Upgrade transfer keeps its current/previous package identity,
+account/locale preservation and wrong-attempt, collision and replay refusals.
+GDM-only entry selects an empty closure, requires no native input and transfers
+no movable payload. Dormant install-current-package and Parent About/access smoke
+guards remain unavailable. Scenario installation/update and all customer
+checkpoints remain unchanged.
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_product_free
+```
+
+This preparation-only selector runs distinct entry, package, upgrade and empty
+GDM histories through their actual context preparation. The native histories
+independently read all 12 selected files, run A harmlessly as Riley, verify input
+refusals, no-write repeats, fresh attempt/boot readiness and unchanged selection
+after actual producer-source edits. Every history proves product absence and
+stops before customer package input, worker input or product assertions. Ordered
+host composition binds all 13 declared smoke exceptions to their real boundary.
+Watched baseline restoration and owned producer, credential, staging, input and
+transport cleanup remain required. Fedora and other envelopes retain their own
+gates. This supplies no customer or E2E acceptance.
 
 ## Retained-session native dependency update
 

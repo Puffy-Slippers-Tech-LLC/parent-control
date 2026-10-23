@@ -227,8 +227,9 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             staged = directory / 'assets'
             from suite_lease import needs_installed
             installed_consumer = needs_installed(case)
+            product_free_consumer = 'declared-package-lifecycle-fixture' in case['preconditions']
             fixture_selection = plan.get('fixture_selection')
-            package_only = installed_consumer and fixture_selection is not None
+            package_only = (installed_consumer or product_free_consumer) and fixture_selection is not None
             system.stage_assets(system.artifact_source(Path(plan['artifacts'])), staged, commands,
                                 **({'package_only': True} if package_only else {}))
             staged.chmod(0o700)
@@ -243,9 +244,10 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             input_directory = directory / 'input'
             require(not installed_consumer or suite is not None,
                     'execution:installed-snapshot-suite-required')
-            if installed_consumer:
+            if installed_consumer or product_free_consumer:
                 from installed_setup import stage
-                stage(directory, staged, bootstrap_inputs, bundle=suite.input_bundle(root),
+                stage(directory, staged, bootstrap_inputs,
+                      **({'bundle': suite.input_bundle(root)} if suite is not None else {}),
                       **({'package_only': True} if package_only else {}))
                 staged = input_directory
             else:
@@ -274,10 +276,21 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                         if lease.__dict__.get('_fixture_provision_state') is not None:
                             from tools.fixture_provision import reset_after_restore
                             reset_after_restore(lease)
-                        suite.prepare_case(case, directory, staged, bootstrap_inputs, root=root)
+                        if product_free_consumer:
+                            # This boundary consumes the clean baseline directly;
+                            # it must not create/install an app snapshot first.
+                            if lease._fast:
+                                lease.restore_installed = False
+                                lease.stop()
+                            lease.prepare()
+                            lease.restore_installed = (lease.installed_name is not None
+                                                       and needs_installed(suite.next_case))
+                        else:
+                            suite.prepare_case(case, directory, staged, bootstrap_inputs, root=root)
                     host_key = system.bootstrap(commands, lease, directory, guestfs,
                         observation_only=not installed_consumer,
-                        **({'e2e_installed': True} if package_only else {}))
+                        **({'e2e_installed': True} if package_only and installed_consumer else {}),
+                        **({'e2e_product_free': True} if product_free_consumer else {}))
                     lease.guard(off=True)
                     lease.save('isolated')
                     verified = VerifiedInputs(lease=lease, assets=staged, root=root,
@@ -423,6 +436,9 @@ def main(plan):
     if any(needs_installed(case) for case in plan['cases']):
         from e2e_fixture_preparation import validate_input
         plan = {**plan, 'fixture_selection': validate_input(plan.get('fixture_selection'))}
+    if any('declared-package-lifecycle-fixture' in case['preconditions'] for case in plan['cases']):
+        from e2e_fixture_preparation import validate_input
+        plan = {**plan, 'fixture_selection': validate_input(plan.get('fixture_selection'), product_free=True)}
     # Read configuration before artifacts, progress threads or a VM lease.
     from test_account_password import read_password
     password = read_password()

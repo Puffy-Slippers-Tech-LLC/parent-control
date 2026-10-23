@@ -38,10 +38,9 @@ class PackageLifecycleJourney(InstalledJourney):
             name = 'package-' + binding
             require(plan.stage_actions.get(submitted) == name and name not in shared, 'package-lifecycle:plan')
             shared[name] = self.action(binding)
-        super().__init__(context, progress, plan, actions=shared)
         context.asset_transfer = AssetTransfer(context.verified)
-        context.asset_transfer.provision(context.lease, context.guestfs)
         context.product_free = True
+        super().__init__(context, progress, plan, actions=shared)
 
     def action(self, binding):
         def submit(journey, guard):

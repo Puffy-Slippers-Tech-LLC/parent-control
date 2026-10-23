@@ -99,6 +99,15 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     wait_a_bounded_real_interval_under_the_attempt_guard window_switch
     '''.split()})
 
+# Asset-bearing product-free smoke boundaries; GDM-only intentionally selects
+# no runtime input. Keep this separate from installed snapshot consumers.
+PRODUCT_FREE_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_product_free'} | {
+    'check_e2e_' + suffix for suffix in '''
+    product_free_entry upgrade_assets chinese_language_assets desktop_language
+    package_authority package_command customer_reboot restart_notice
+    unrelated_reboot_request package_upgrade chinese_kiosk_lifecycle chinese_current_install
+    '''.split()})
+
 
 def suite_inventory(categories=(), *, inventory=None):
     """The exact, ordered granular partition consumed by all and fix-tests.
@@ -575,13 +584,19 @@ def fixture_execution_target(category, args):
                  and args[0].removesuffix('.py') == 'check_fixture_system_installed')
     installed_e2e = (category == 'integration' and len(args) == 1
                      and args[0].removesuffix('.py') in INSTALLED_E2E_FIXTURE_SELECTORS)
+    product_free_e2e = (category == 'integration' and len(args) == 1
+                       and args[0].removesuffix('.py') in PRODUCT_FREE_E2E_FIXTURE_SELECTORS)
     scenarios = (category == 'e2e' and not any(argument in (
         '--qualify-transfer', '--qualify-install', '--qualify-install-refusal') for argument in args))
-    if not provisioning and not bootstrap and not installed and not installed_e2e and not scenarios and category != 'system':
+    if not provisioning and not bootstrap and not installed and not installed_e2e and not product_free_e2e and not scenarios and category != 'system':
         return None
     from vm_selection import selected
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
+    if product_free_e2e:
+        if target != 'ubuntu':
+            raise ValueError('fixture product-free E2E target is unavailable')
+        return target
     if installed_e2e:
         if target is None:
             raise ValueError('fixture installed E2E target is unavailable')
@@ -618,7 +633,7 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
     source_edit = (category == 'integration' and len(args) == 1
                    and args[0].removesuffix('.py') in (
                        'check_fixture_system_product_free', 'check_fixture_system_installed',
-                       'check_fixture_e2e_installed'))
+                       'check_fixture_e2e_installed', 'check_fixture_e2e_product_free'))
     if control is None:
         from regression_process import Control
         with Control().installed() as owned:

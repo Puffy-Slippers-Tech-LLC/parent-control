@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F20 — [Integrate Ubuntu product-free E2E preparation](Fixture-Tasks/F20-ubuntu-product-free-e2e.md)**.
+Next task: **F21 — [Integrate Fedora product-free E2E preparation](Fixture-Tasks/F21-fedora-product-free-e2e.md)**.
 
 ## Outcome and status
 
@@ -107,6 +107,18 @@ owned producer, credential, staging, input and transport cleanup completed, and
 both VMs independently ended off. The [verified evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-o3u0qv4d/evidence.zip)
 retains both installed results, exact input manifests and host reports. This
 supplies no customer/E2E acceptance.
+F20 delivered Ubuntu's [product-free E2E preparation](../../tests/integration/README.md#ubuntu-product-free-e2e-preparation).
+Distinct graphical entry, package and upgrade histories passed independent
+12-file native readback and harmless Riley runtime use; GDM-only entry passed
+with no native input or movable payload. All four preserved product absence
+and stopped before customer/worker input or product assertions. Input refusals,
+fresh readiness, no-write repeats, source-edit immunity and upgrade preservation
+passed. Host composition binds all 13 smoke exceptions and retains dormant guards.
+Nested transfer inventory and empty-audit serialization defects were repaired
+without changing customer assertions. Independent Sol High review found no
+remaining issues. Watched restoration and owned cleanup passed; Ubuntu ended off.
+The queue records the exact retained evidence. This supplies no customer/E2E
+acceptance.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

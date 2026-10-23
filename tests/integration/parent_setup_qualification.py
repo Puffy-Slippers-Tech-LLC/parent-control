@@ -127,10 +127,13 @@ class ParentJourneyQualification(smoke.Qualification):
         try:
             lease.prepare()
             self.attach_installed_snapshot(lease)
+            product_free = isinstance(self, (GdmProductFreeQualification,
+                                           ProductFreeEntryQualification))
             host_key = smoke.runner.bootstrap(
                 self.commands, lease, self.directory, guestfs,
                 observation_only=self.observation_only,
-                **({'e2e_installed': True} if getattr(self, 'fixture_selection', None) is not None else {}))
+                **({'e2e_product_free': True} if product_free else
+                   {'e2e_installed': True} if getattr(self, 'fixture_selection', None) is not None else {}))
             lease.guard(off=True)
             lease.save('isolated')
             self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets,
@@ -1064,6 +1067,9 @@ class GdmProductFreeQualification(ParentJourneyQualification):
 
     observation_only = True
 
+    def prepare_context(self, context):
+        context.product_free = True
+
     @staticmethod
     def journey(context, progress):
         from gdm_product_free import GdmProductFreeJourney
@@ -1078,9 +1084,10 @@ class ProductFreeEntryQualification(ParentJourneyQualification):
 
     def prepare_context(self, context):
         self.transfer = smoke.AssetTransfer(self.verified)
-        self.result['asset_transfer'] = self.transfer.provision(context.lease, self.guestfs)
         context.product_free = True
         context.asset_transfer = self.transfer
+        context.after_asset_transfer = lambda _transport, receipt: self.result.update(
+            asset_transfer=receipt)
 
     def execute(self, lease, guestfs):
         self.guestfs = guestfs
@@ -1111,9 +1118,13 @@ class UpgradeAssetsQualification(ProductFreeEntryQualification):
 
     def prepare_context(self, context):
         super().prepare_context(context)
-        from upgrade_assets_qualification import provisioning_refusals
-        self.result['transfer_refusals'] = provisioning_refusals(
-            self.verified, context.lease, self.guestfs, self.transfer)
+        def after_transfer(transport, receipt):
+            from upgrade_assets_qualification import provisioning_refusals
+            self.result['asset_transfer'] = receipt
+            self.result['transfer_refusals'] = provisioning_refusals(
+                self.verified, context.lease, self.guestfs, self.transfer,
+                transport=transport)
+        context.after_asset_transfer = after_transfer
 
     @staticmethod
     def journey(context, progress):

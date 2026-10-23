@@ -219,10 +219,13 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         installed = name == 'check_fixture_system_installed'
         sys.path.insert(0, str(root / 'tools'))
         try:
-            from test_commands import INSTALLED_E2E_FIXTURE_SELECTORS
+            from test_commands import INSTALLED_E2E_FIXTURE_SELECTORS, PRODUCT_FREE_E2E_FIXTURE_SELECTORS
         finally:
             sys.path.pop(0)
         installed_e2e = name in INSTALLED_E2E_FIXTURE_SELECTORS
+        product_free_e2e = name in PRODUCT_FREE_E2E_FIXTURE_SELECTORS
+        if (product_free_e2e or name == 'check_e2e_gdm_product_free') and not args.list and configured.name != 'onpc-Ubuntu26.04':
+            raise ValueError('test-runner:fixture-target-not-qualified')
         if installed_e2e and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if installed and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
@@ -231,11 +234,12 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if args.fixture_source_selection is not None and (
                 args.list or name not in ('check_fixture_system_product_free',
-                                          'check_fixture_system_installed', 'check_fixture_e2e_installed')
+                                          'check_fixture_system_installed', 'check_fixture_e2e_installed',
+                                          'check_fixture_e2e_product_free')
                 or args.fixture_selection is None):
             raise ValueError('test-runner:unexpected-fixture-source-selection')
         if args.fixture_selection is not None:
-            if args.list or not (bootstrap or installed or installed_e2e or name == 'check_fixture_provisioning'):
+            if args.list or not (bootstrap or installed or installed_e2e or product_free_e2e or name == 'check_fixture_provisioning'):
                 raise ValueError('test-runner:unexpected-fixture-selection')
             if len(args.fixture_selection) > 8192:
                 raise ValueError('test-runner:invalid-fixture-selection')

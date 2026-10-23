@@ -189,7 +189,8 @@ def preflight_source(assets, *, root=ROOT, upgrade=False, package_only=False):
         captured = snapshot(root, source=True)
         build_test_artifacts.verify(assets, **({'package_only': True} if package_only else {}))
         if upgrade:
-            build_test_artifacts.verify_upgrade(assets, staged=True, repository=root)
+            build_test_artifacts.verify_upgrade(assets, staged=True, repository=root,
+                **({'package_only': True} if package_only else {}))
     except Exception as error:
         print('e2e:source-preflight-rejected', file=sys.stderr, flush=True)
         code = str(error) if isinstance(error, EvidenceError) else 'provenance:source-preflight-failed'
@@ -215,7 +216,7 @@ class VerifiedInputs:
         self._plan = copy.deepcopy(plan)
         self._upgrade = None
         try:
-            require(not package_only or (assets is not None and not upgrade),
+            require(not package_only or assets is not None,
                     'provenance:package-only-scope')
             self._source = snapshot(self.root, source=True)
             self._baseline = baseline_inputs(lease)
@@ -255,7 +256,8 @@ class VerifiedInputs:
                 if upgrade:
                     require(filename == 'package.deb', 'provenance:historical-release-ubuntu-only')
                     self._upgrade = build_test_artifacts.verify_upgrade(
-                        self.assets, staged=True, repository=self.root)
+                        self.assets, staged=True, repository=self.root,
+                        **({'package_only': True} if package_only else {}))
                     require(self._assets['files']['package.deb'] == package_sha256
                             and self._assets['files']['previous/package.deb'] ==
                             self._upgrade['packages']['previous']['sha256'],

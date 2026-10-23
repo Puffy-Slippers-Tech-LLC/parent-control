@@ -120,6 +120,17 @@ def test_installed_e2e_dispatch_is_bound_to_qualified_target(checkout, fixture_s
             'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04'])
 
 
+@pytest.mark.parametrize('name', ['check_fixture_e2e_product_free',
+                                  'check_e2e_product_free_entry', 'check_e2e_package_upgrade'])
+def test_product_free_e2e_dispatch_requires_qualified_ubuntu(checkout, fixture_selection, name):
+    (checkout / 'tests/integration' / (name + '.py')).touch()
+    arguments = ['integration', name, '--fixture-selection', json.dumps(fixture_selection)]
+    command = runner['selection'](checkout, [*arguments, '--vm', 'onpc-Ubuntu26.04'])
+    assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        runner['selection'](checkout, [*arguments, '--vm', 'onpc-Fedora44'])
+
+
 @pytest.mark.parametrize('options', [
     ['--list'], ['--qualify-transfer'], ['--qualify-install'], ['--qualify-install-refusal'],
 ])

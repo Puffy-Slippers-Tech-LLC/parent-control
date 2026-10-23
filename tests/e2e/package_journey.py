@@ -26,10 +26,9 @@ class PackageJourney(InstalledJourney):
                 and list(plan.screen_tags).index('package-submitted')
                     < list(plan.screen_tags).index('package-result'),
                 plan.prefix + ':package-plan')
-        super().__init__(context, progress, plan, actions={'install-package': submit_install})
         context.asset_transfer = AssetTransfer(context.verified)
-        context.asset_transfer.provision(context.lease, context.guestfs)
         context.product_free = True
+        super().__init__(context, progress, plan, actions={'install-package': submit_install})
         self.package = None
 
     def check_settings(self, stage, observed):

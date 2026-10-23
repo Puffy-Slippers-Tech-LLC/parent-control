@@ -33,6 +33,48 @@ TRANSFER_REFUSALS = frozenset('transfer:' + condition for condition in (
 from guest_observations import ASSETS as OBSERVE
 
 
+def product_free_preservation_witness():
+    """The upgrade transfer's finite account/locale witness over owned SSH."""
+    import hashlib
+    import os
+    from pathlib import Path
+    import stat
+
+    def stable(info):
+        return tuple(getattr(info, name) for name in (
+            'st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
+            'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+
+    paths = [Path(path) for path in (
+        '/etc/passwd', '/etc/group', '/etc/shadow', '/etc/hostname',
+        '/etc/default/locale', '/etc/locale.conf', '/etc/machine-id', '/etc/motd')]
+    account_root = Path('/var/lib/AccountsService/users')
+    if os.path.lexists(account_root):
+        assert account_root.resolve() == account_root and account_root.is_dir()
+        paths.extend(sorted(account_root.iterdir()))
+    witness = {}
+    for path in paths:
+        if not os.path.lexists(path):
+            witness[str(path)] = None
+            continue
+        info = path.lstat()
+        if stat.S_ISLNK(info.st_mode):
+            assert str(path) == '/etc/default/locale'
+            assert os.readlink(path) == '../locale.conf' and str(path.resolve()) == '/etc/locale.conf'
+            content = {'link': '../locale.conf'}
+        else:
+            assert path.resolve() == path and stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(descriptor, 'rb') as stream:
+                assert stable(os.fstat(stream.fileno())) == stable(info)
+                content = hashlib.sha256(stream.read()).hexdigest()
+                assert stable(os.fstat(stream.fileno())) == stable(info)
+                assert stable(path.lstat()) == stable(info)
+        witness[str(path)] = (content, {name: getattr(info, name) for name in (
+            'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink', 'st_size')})
+    return witness
+
+
 def provision_installed_assets(files):
     """Fixed guest-side copy from fresh setup inputs; never adopt existing assets."""
     import hashlib
@@ -143,6 +185,14 @@ def provision_installed_assets(files):
         os.close(original)
 
 
+def provision_product_free_assets(files, *, upgrade=False):
+    """Keep the installed copy unchanged; bracket only upgrade preparation."""
+    preserved = product_free_preservation_witness() if upgrade else None
+    provision_installed_assets(files)
+    if upgrade:
+        assert product_free_preservation_witness() == preserved
+
+
 def preservation_witness(g):
     """Finite account/locale/unrelated-file witness around offline provisioning."""
     paths = ['/etc/passwd', '/etc/group', '/etc/shadow', '/etc/hostname',
@@ -186,34 +236,65 @@ class AssetTransfer:
 
     def provision_installed(self, lease, transport):
         """One current-package transfer after running snapshot restoration/setup."""
+        return self._provision_running(lease, transport, product_free=False)
+
+    def provision_product_free(self, lease, transport):
+        """Transfer current/upgrade inputs only after native readiness on Ubuntu."""
+        return self._provision_running(lease, transport, product_free=True)
+
+    def _provision_running(self, lease, transport, *, product_free):
         require(not self._attempted, 'transfer:already-attempted')
         self._attempted = True
         try:
             require(lease is not None and lease is self.verified.lease, 'transfer:outside-provisioning')
             clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
+            require(not product_free or clean, 'transfer:outside-provisioning')
             if clean:
                 prepared = getattr(self.verified, 'fixture_prepared', None)
-                require(prepared is not None and prepared['lease'] is lease,
+                require(prepared is not None and prepared['lease'] is lease
+                        and prepared.get('product_free', False) is product_free,
                         'fixtures:runner-not-qualified-for-clean-snapshot')
                 prepared['controller'].require_ready(prepared['receipt'])
+            if product_free:
+                from e2e_fixture_preparation import require_product_free_restore
+                require_product_free_restore(lease)
             require(lease.fd is not None
                     and lease.state['phase'] == 'running' and lease.state['domain_id'] is not None
                     and transport.config['domain_uuid'] == lease.state['domain_uuid']
                     and transport.config['domain_id'] == lease.state['domain_id']
                     and transport.config['run'] == lease.state['run']
-                    and not self.verified.upgrade_inputs, 'transfer:outside-provisioning')
+                    and (product_free or not self.verified.upgrade_inputs),
+                    'transfer:outside-provisioning')
             lease.guard()
             self.verified.recheck()
             files = self.verified.asset_files
+            if product_free:
+                inventory = json.loads((self.verified.assets / 'transfer-sha256.json').read_bytes())
+                require(inventory == {p: h for p, h in files.items()
+                                      if p != 'transfer-sha256.json'}, 'transfer:inventory-mismatch')
             require(files[package_filename(files)] == self.verified.inputs['package_sha256'],
                     'transfer:package-mismatch')
+            if product_free:
+                existing = transport.call(['/usr/bin/python3', '-c',
+                    "import os;print(int(os.path.lexists('/var/lib/onpc-e2e-assets')))"],
+                    timeout=30, attempts=1)
+                require(existing in (b'0\n', b'1\n'), 'transfer:destination-probe')
+                require(existing == b'0\n', 'transfer:destination-exists')
             program = inspect.getsource(provision_installed_assets) + (
                 '\nimport json,sys\nprovision_installed_assets(json.load(sys.stdin))\n')
+            if product_free:
+                program = ('\n'.join(inspect.getsource(function) for function in (
+                    product_free_preservation_witness, provision_installed_assets,
+                    provision_product_free_assets)) +
+                    '\nimport json,sys\nprovision_product_free_assets(json.load(sys.stdin),upgrade='
+                    + repr(bool(self.verified.upgrade_inputs)) + ')\n')
             transport.call(['/usr/bin/python3', '-c', program],
                            input=json.dumps(files, sort_keys=True).encode(), timeout=300)
             lease.guard()
             self.verified.recheck()
             self._receipt = {'files': len(files), 'sha256': digest(files)}
+            if self.verified.upgrade_inputs:
+                self._receipt['packages'] = self.verified.upgrade_inputs['packages']
             print('e2e:asset-transfer-verified', file=sys.stderr, flush=True)
             return dict(self._receipt)
         except BaseException:

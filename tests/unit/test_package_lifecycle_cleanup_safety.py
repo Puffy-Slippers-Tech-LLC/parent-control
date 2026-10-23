@@ -40,7 +40,9 @@ def journey(monkeypatch):
     from native_fixtures import fixture_actions
     current = lifecycle.PackageLifecycleJourney(context, Mock(), case.PLAN,
         operations=case.OPERATIONS, checks=case.CHECKS, actions=fixture_actions(include_refusal=False))
-    transfer.provision.assert_called_once_with(context.lease, context.guestfs)
+    assert context.asset_transfer is transfer and context.product_free is True
+    assert not transfer.mock_calls
+    assert not context.lease.mock_calls and not context.guestfs.mock_calls
     return current
 
 

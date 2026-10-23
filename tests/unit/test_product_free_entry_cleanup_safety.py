@@ -39,7 +39,9 @@ def test_fixed_selector_and_preparation_reuse_transfer(monkeypatch):
     monkeypatch.setattr(smoke, 'AssetTransfer', Mock(return_value=transfer))
     context = SimpleNamespace(lease=Mock())
     qualification.prepare_context(context)
-    transfer.provision.assert_called_once_with(context.lease, qualification.guestfs)
+    # Context preparation declares the transfer; the guarded SSH setup owns it.
+    transfer.provision.assert_not_called()
+    transfer.provision_product_free.assert_not_called()
     assert context.product_free is True and context.asset_transfer is transfer
     assert qualification.journey(context, Mock()).plan is PLAN
 
@@ -56,6 +58,7 @@ def test_selector_refuses_missing_assets_or_other_modes(extra):
 def test_product_free_setup_never_installs_and_requires_verified_transfer(tmp_path, monkeypatch, fault):
     transfer = Mock()
     context = SimpleNamespace(directory=tmp_path, product_free=True, asset_transfer=transfer,
+        verified=SimpleNamespace(fixture_prepared=None),
         host_key='fixture-key', commands=Mock(), lease=SimpleNamespace(
             source=SimpleNamespace(uuid='fixture'), view=SimpleNamespace(domain_id=7),
             state={'run': 'a' * 32}, guard=Mock()))
@@ -64,8 +67,10 @@ def test_product_free_setup_never_installs_and_requires_verified_transfer(tmp_pa
     if fault == 'type': context.install_current_package = 1
     if fault == 'transfer': transfer.observe.side_effect = EvidenceError('transfer:booted-assets-mismatch')
     setup = Mock(side_effect=AssertionError('must not install or provision'))
+    prepare = Mock()
     transport = Mock()
     monkeypatch.setattr(installed_setup, 'InstalledSetup', setup)
+    monkeypatch.setattr(shared, 'prepare_product_free_setup', prepare)
     monkeypatch.setattr(shared, 'Transport', Mock(return_value=transport))
     monkeypatch.setattr(shared.system, 'address', Mock(return_value='fixture-host'))
     monkeypatch.setattr(shared, 'ReadOnlyObservations', Mock())
@@ -74,17 +79,21 @@ def test_product_free_setup_never_installs_and_requires_verified_transfer(tmp_pa
     journey.steps = [{'stage': 'ready'}]
     (tmp_path / 'setup-detached.request.json').write_text(json.dumps(
         {'stage': 'setup-detached', 'screenshot': None}))
+    guard = Mock()
     if fault:
-        with pytest.raises(EvidenceError): journey.step(Mock())
+        with pytest.raises(EvidenceError): journey.step(guard)
         assert not (tmp_path / 'setup-detached.reply.json').exists()
         progress.assert_not_called()
         with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
     else:
-        journey.step(Mock())
+        journey.step(guard)
         transfer.observe.assert_called_once_with(journey.vm)
+        prepare.assert_called_once_with(context, transport, guard)
         assert progress.call_args.args[1]['setup']['product_free_baseline'] is True
     setup.assert_not_called()
-    if fault in ('install', 'snapshot', 'type'): transport.probe_ready.assert_not_called()
+    if fault in ('install', 'snapshot', 'type'):
+        transport.probe_ready.assert_not_called()
+        prepare.assert_not_called()
 
 
 @pytest.mark.parametrize('prior', ['gdm-product-free-focused', 'gdm-product-free-list',

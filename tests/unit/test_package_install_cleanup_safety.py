@@ -265,6 +265,7 @@ def test_unrelated_installed_engine_real_recorder_provisions_after_restore(tmp_p
     context = SimpleNamespace(directory=tmp_path, installed_snapshot='onpc-current', credentials=Mock(),
         verified=SimpleNamespace(inputs={}), lease=Mock(), guestfs=Mock(), commands=Mock(), host_key='key')
     context.lease.state = {'run': 'a' * 32}
+    context.lease.capture.state = {'guest': {}}
     events = []
     transport = Mock()
     setup = Mock()

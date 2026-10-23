@@ -458,7 +458,9 @@ def test_pinned_rpm_upgrade_binds_release_architecture_versions_and_bytes(upgrad
 
 
 @pytest.mark.parametrize('changed', [False, True])
-def test_actual_dual_staging_preserves_manifests_and_refuses_changed_source(upgrade, tmp_path, monkeypatch, changed):
+@pytest.mark.parametrize('package_only', [False, True])
+def test_actual_dual_staging_preserves_manifests_and_refuses_changed_source(
+        upgrade, tmp_path, monkeypatch, changed, package_only):
     assets, source, lease, guest = upgrade
     bundle = tmp_path / 'bundle'
     bundle.mkdir()
@@ -484,11 +486,23 @@ def test_actual_dual_staging_preserves_manifests_and_refuses_changed_source(upgr
     destination = tmp_path / 'staged'
     if changed:
         with pytest.raises((builder.ArtifactError, CommandError)):
-            system_runner.stage_upgrade_assets(bundle, destination, commands)
+            system_runner.stage_upgrade_assets(bundle, destination, commands, package_only=package_only)
     else:
-        system_runner.stage_upgrade_assets(bundle, destination, commands)
+        system_runner.stage_upgrade_assets(bundle, destination, commands, package_only=package_only)
         destination.chmod(0o700)
-        verified = provenance.VerifiedInputs(root=source, lease=lease, assets=destination, upgrade=True)
+        if package_only:
+            import installed_setup
+            execution = tmp_path / 'graphical-preparation'
+            execution.mkdir(mode=0o700)
+            installed_setup.stage(execution, destination, {}, package_only=True,
+                                  bundle=SimpleNamespace(stage=lambda _: {}))
+            destination = execution / 'input'
+        verified = provenance.VerifiedInputs(root=source, lease=lease, assets=destination,
+                                            upgrade=True, package_only=package_only)
+        provenance.preflight_source(destination, root=source, upgrade=True, package_only=package_only)
+        if package_only:
+            assert not (destination / 'fixtures').exists()
+            assert not (destination / 'previous/fixtures').exists()
         assert verified.upgrade_inputs['packages']['previous']['sha256'] == builder._sha256(
             destination / 'previous/package.deb')
         files = verified.asset_files

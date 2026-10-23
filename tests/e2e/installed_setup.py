@@ -69,8 +69,11 @@ def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_
     (destination / 'selected-inputs.json').write_bytes(system.baseline.encode(identity))
     inventory = {p.relative_to(destination).as_posix(): system.baseline.digest(p)
                  for p in sorted(destination.rglob('*'))
-                 if p.is_file() and p.name != 'transfer-sha256.json'}
+                 if p.is_file() and p != destination / 'transfer-sha256.json'}
     (destination / 'transfer-sha256.json').write_bytes(system.baseline.encode(inventory))
+    if package_only:
+        for path in destination.rglob('*'):
+            path.chmod(0o700 if path.is_dir() else 0o600)
     return system.baseline.digest(destination / 'selected-inputs.json')
 
 
@@ -94,7 +97,7 @@ class InstalledSetup:
         inventory = json.loads((payload / 'transfer-sha256.json').read_bytes())
         require(inventory == {p.relative_to(payload).as_posix(): system.baseline.digest(p)
                               for p in sorted(payload.rglob('*'))
-                              if p.is_file() and p.name != 'transfer-sha256.json'},
+                              if p.is_file() and p != payload / 'transfer-sha256.json'},
                 'setup:payload-changed')
         package = 'package.' + system.package_format(self.verified.lease.capture.state['guest'])
         require(inventory[package] == self.verified.inputs['package_sha256'],

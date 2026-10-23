@@ -286,6 +286,15 @@ including enforcing SELinux and exact native admissions/labels over two online
 and two offline attempts. Unqualified fixture profiles retain their gates;
 scenario mutations and customer assertions remain separate.
 
+F20 delivered Ubuntu's [product-free E2E preparation](../../tests/integration/README.md#ubuntu-product-free-e2e-preparation).
+Distinct entry, package and upgrade histories provision the immutable native
+subset after owned SSH readiness and before customer package input. A fourth,
+GDM-only history uses an empty closure with no native input or movable payload.
+All histories preserve product absence; selected-byte/runtime checks, refusals,
+no-write repeats, fresh readiness, producer-source edit immunity and watched
+restoration passed. Ordered host composition binds all 13 declared smoke
+exceptions and retains dormant guards. Fedora keeps its separate gate.
+
 ### Runner acceptance matrix
 
 | Envelope | Actual preparation boundary | Selector suffix / subset (status below) | Ubuntu / Fedora tasks |
@@ -300,7 +309,9 @@ scenario mutations and customer assertions remain separate.
 
 `check_fixture_system_product_free` and `check_fixture_system_installed` are
 registered and qualified on both targets. `check_fixture_e2e_installed` is
-registered and qualified on Ubuntu 26.04 and Fedora 44. The other four matrix selectors
+registered and qualified on Ubuntu 26.04 and Fedora 44.
+`check_fixture_e2e_product_free` is registered and qualified on Ubuntu 26.04 only.
+The other three matrix selectors
 are planned `check_fixture_SUFFIX` names, not executable until registered/listed.
 Each invokes the real preparation branch, reads selected bytes
 independently, uses a harmless fixture over owned SSH and cleans up before product
@@ -478,7 +489,8 @@ Ubuntu's native backend environment prerequisite through the
 F05/F06 delivered both-target installed provisioning acceptance through the
 [shared provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning).
 The two system matrix selectors and installed E2E selector are delivered on both
-targets. The remaining four matrix selectors and `check_fixture_live_refresh`
+targets; product-free E2E preparation is delivered on Ubuntu only.
+The remaining three matrix selectors and `check_fixture_live_refresh`
 remain **planned and unimplemented** until their own registration/listing;
 examples in briefs grant no operation. Other runner dispatch remains unavailable.
 

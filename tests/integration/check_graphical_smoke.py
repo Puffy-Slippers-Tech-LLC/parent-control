@@ -83,9 +83,9 @@ def inputs():
 def stage_qualification_assets(assets, staged, commands, *, dual_packages=False,
                                package_only=False):
     """Keep the Parent bootstrap's package-only provenance distinct."""
-    require(not (dual_packages and package_only), 'smoke:package-only-upgrade')
     if dual_packages:
-        runner.stage_upgrade_assets(assets, staged, commands)
+        runner.stage_upgrade_assets(assets, staged, commands,
+                                    **({'package_only': True} if package_only else {}))
     else:
         runner.stage_assets(runner.artifact_source(assets), staged, commands,
                             **({'package_only': True} if package_only else {}))
@@ -1488,6 +1488,15 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         parser = argparse.ArgumentParser(allow_abbrev=False)
         parser.add_argument('--fixture-selection', required=True)
         fixture_selection = selection_record(json.loads(parser.parse_args().fixture_selection))
+    if product_free_entry or gdm_product_free:
+        from vm_config import selected
+        require(selected().name == 'onpc-Ubuntu26.04',
+                'fixtures:e2e-product-free-target-not-qualified')
+    if product_free_entry:
+        from e2e_fixture_preparation import validate_input
+        fixture_selection = validate_input(fixture_selection, product_free=True)
+    if gdm_product_free:
+        require(fixture_selection is None, 'fixtures:e2e-product-free-empty-selection')
     credentials = FixtureCredentials() if provision_credentials else None
     require(assets is not None or len(sys.argv) == 1, 'smoke:invalid-arguments')
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
@@ -1814,7 +1823,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     result['source_preflight'] = stage_qualification_assets(
                         assets, staged, commands, dual_packages=dual_packages,
                         package_only=parent_setup or fixture_selection is not None)
-                if (parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
+                if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey
                         or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or app_activity or retained_app_visits
@@ -2284,8 +2293,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if parent_setup:
                     qualification.fixture_selection = fixture_selection
                 elif fixture_selection is not None:
-                    from parent_setup_qualification import KioskEntryQualification
-                    require(issubclass(qualification_class, KioskEntryQualification),
+                    from parent_setup_qualification import KioskEntryQualification, ProductFreeEntryQualification
+                    require(issubclass(qualification_class, (KioskEntryQualification, ProductFreeEntryQualification)),
                             'fixtures:e2e-installed-branch-not-qualified')
                     qualification.fixture_selection = fixture_selection
                 lease.finalize = qualification.finalize

@@ -331,6 +331,46 @@ def prepare_installed_setup(context, transport, guard, *, observer=None):
     return prepared if clean else None
 
 
+def prepare_product_free_setup(context, transport, guard, *, observer=None):
+    """Prepare the empty baseline before any customer package or desktop input."""
+    from e2e_fixture_preparation import (prepare, require_product_free_restore,
+                                         validate_input)
+    require_product_free_restore(context.lease)
+    transfer = getattr(context, 'asset_transfer', None)
+    selection = getattr(context, 'fixture_selection', None)
+    if transfer is None:
+        require(selection is None, 'fixtures:e2e-product-free-empty-selection')
+    else:
+        selection = validate_input(selection, target='ubuntu', product_free=True)
+    guard()
+    preparation_context = {'vm': transport, 'lease': context.lease,
+                           'directory': context.directory}
+    if observer is not None:
+        observer('before', preparation_context)
+    if transfer is None:
+        # GDM-only navigation consumes no movable bytes and selects no native
+        # input. The accepted clean baseline remains the entire preparation.
+        if observer is not None:
+            observer('empty', preparation_context)
+        guard()
+        return None
+    prepared = prepare(transport, context.lease, context.directory, selection,
+                       product_free=True)
+    context.verified.fixture_selection = selection
+    context.verified.fixture_prepared = prepared
+    from installed_setup import InstalledSetup
+    InstalledSetup(context.directory, context.verified, transport).provision(guard)
+    assets = transfer.provision_product_free(context.lease, transport)
+    if getattr(context, 'after_asset_transfer', None) is not None:
+        context.after_asset_transfer(transport, assets)
+    prepared['controller'].require_ready(prepared['receipt'])
+    if observer is not None:
+        observer('ready', prepared)
+    guard()
+    prepared['controller'].require_ready(prepared['receipt'])
+    return prepared
+
+
 class InstalledJourney:
     """One guarded stage rendezvous, with durable observations before replies."""
 
@@ -341,8 +381,7 @@ class InstalledJourney:
         self.watch_progress = getattr(getattr(context, 'recorder', None), 'progress', None)
         self.review = review
         self.actions = actions or {}
-        if getattr(context, 'fixture_selection', None) is not None and not getattr(
-                context, 'product_free', False):
+        if getattr(context, 'fixture_selection', None) is not None:
             require(all(getattr(action, 'fixture_profile', 'native') in ('native', 'chinese')
                         for action in self.actions.values())
                     and not any(tag.endswith('native-activity-launch')
@@ -591,6 +630,9 @@ class InstalledJourney:
                     (install_current is True or product_free
                      or getattr(context, 'installed_snapshot', None)),
                     plan.prefix + ':installed-snapshot-required')
+            require(not install_current or
+                    context.lease.capture.state['guest'].get('fixture_boundary') != 'clean',
+                    'fixtures:e2e-install-current-not-qualified')
             if self.watch_progress is not None:
                 self.watch_progress.operation('Preparing the application connection')
             hostname = system.address(context.lease.source, timeout=90)
@@ -605,6 +647,7 @@ class InstalledJourney:
             # belongs to the snapshot-creation run. Bootstrap has already bound
             # the guard marker to this attempt's package and selected inputs.
             if product_free:
+                prepare_product_free_setup(context, transport, guard)
                 observed['setup'] = {'product_free_baseline': True}
             else:
                 from installed_setup import InstalledSetup

@@ -20,16 +20,20 @@ def expected_refusal(action, code):
         require(False, 'upgrade-assets:missing-refusal')
 
 
-def provisioning_refusals(verified, lease, guestfs, transfer):
+def provisioning_refusals(verified, lease, guestfs, transfer, *, transport=None):
     """No upload on a wrong attempt, consumed refusal, collision or replay."""
     with operation('Checking upgrade asset attempt, collision and replay refusal'):
+        def provision(owner, held):
+            if transport is not None:
+                return owner.provision_product_free(held, transport)
+            return owner.provision(held, guestfs)
         wrong = AssetTransfer(verified)
-        expected_refusal(lambda: wrong.provision(None, guestfs), 'transfer:outside-provisioning')
-        expected_refusal(lambda: wrong.provision(lease, guestfs), 'transfer:already-attempted')
+        expected_refusal(lambda: provision(wrong, None), 'transfer:outside-provisioning')
+        expected_refusal(lambda: provision(wrong, lease), 'transfer:already-attempted')
         collision = AssetTransfer(verified)
-        expected_refusal(lambda: collision.provision(lease, guestfs), 'transfer:destination-exists')
-        expected_refusal(lambda: collision.provision(lease, guestfs), 'transfer:already-attempted')
-        expected_refusal(lambda: transfer.provision(lease, guestfs), 'transfer:already-attempted')
+        expected_refusal(lambda: provision(collision, lease), 'transfer:destination-exists')
+        expected_refusal(lambda: provision(collision, lease), 'transfer:already-attempted')
+        expected_refusal(lambda: provision(transfer, lease), 'transfer:already-attempted')
     return {'wrong_attempt_refused': True, 'collision_refused': True, 'replay_refused': True}
 
 

@@ -1939,6 +1939,12 @@ def test_policy_new_optional_anchor_cannot_downgrade_required_contract(campaign)
     claim['role'] = 'required_instruction'
     required, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
     assert required.blocked and required.diagnostic.condition == 'fragment'
+    (campaign.plan.root / 'docs/Guide.md').unlink()
+    missing_required, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    assert missing_required.blocked and missing_required.diagnostic.condition == 'missing'
+    claim['role'] = contracts[claim['consumer_id']]['role'] = 'optional_presentation'
+    missing_optional, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    assert missing_optional.advisory and missing_optional.diagnostic.condition == 'missing'
 
 
 def test_equivalent_instruction_spelling_retains_claim_but_not_historical_exception(campaign):

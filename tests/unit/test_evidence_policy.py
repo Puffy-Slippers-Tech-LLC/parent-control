@@ -90,16 +90,17 @@ def test_refusals_take_precedence_over_historical_availability(condition):
 
 @pytest.mark.parametrize('role', ['required_instruction', 'required_evidence',
                                   'historical_information', 'optional_presentation'])
-def test_only_declared_optional_document_fragment_is_advisory(role):
+@pytest.mark.parametrize('unavailable', [policy.Condition.MISSING, policy.Condition.FRAGMENT])
+def test_only_declared_optional_document_fragment_is_advisory(role, unavailable):
     args = arguments(consumer(role, evidence=role == 'required_evidence'))
-    decision = policy.assess_reference(policy.Condition.FRAGMENT, **args)
+    decision = policy.assess_reference(unavailable, **args)
     assert decision.advisory == (role == 'optional_presentation')
     if role == 'optional_presentation':
-        assert policy.assess_reference(policy.Condition.FRAGMENT,
+        assert policy.assess_reference(unavailable,
                                        **arguments(consumer(role, evidence=True))).blocked
         for condition in (policy.Condition.INTEGRITY, policy.Condition.IDENTITY,
                           policy.Condition.PROTECTED):
-            assert policy.assess_reference([policy.Condition.FRAGMENT, condition], **args).blocked
+            assert policy.assess_reference([unavailable, condition], **args).blocked
 
 
 def test_absent_conflicting_and_downgraded_declarations_block():

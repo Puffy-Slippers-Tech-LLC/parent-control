@@ -141,7 +141,7 @@ The policy returns bounded typed findings and exact `ReferenceBinding` records,
 never acceptance. Owner-retained bindings serialize through `payload` and
 `from_payload`. Only an inactive historical consumer's exact unchanged binding
 can make missing proof advisory; new or changed loss remains blocking. Optional
-document anchors require a matching presentation contract. Changed roles,
+document links and anchors require a matching presentation contract. Changed roles,
 claims, context, ownership and integrity retain strict precedence. Owners keep
 availability debt once in their existing records, without opening repair turns
 or creating another ledger. Active relevance belongs to each consumer, not its

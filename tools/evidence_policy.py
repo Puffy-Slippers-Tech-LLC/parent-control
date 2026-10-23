@@ -179,7 +179,8 @@ def assess_reference(conditions, *, document, line, reference, claim, consumer,
                 and isinstance(retained, ReferenceBinding)
                 and replace(retained, active=binding.active) == binding):
             severity = Severity.ADVISORY
-        elif (condition == Condition.FRAGMENT and binding.role == 'optional_presentation'
+        elif (condition in (Condition.MISSING, Condition.FRAGMENT)
+              and binding.role == 'optional_presentation'
               and all(ref['kind'] == 'document' for ref in consumer['references'])):
             severity = Severity.ADVISORY
     # Never put exception strings, source claims or unbounded identifiers in output.

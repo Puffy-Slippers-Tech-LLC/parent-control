@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E10 — [Apply proportional checks at lifecycle boundaries](Export-Tasks/E10-gates.md)**.
+Next task: **E11 — [Inventory legacy references and recoverability](Export-Tasks/E11-inventory.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

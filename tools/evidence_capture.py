@@ -17,11 +17,12 @@ import signal
 import sys
 
 if __package__:
-    from . import evidence_identity as logical, test_retention as retention, test_storage as storage
+    from . import evidence_identity as logical, test_retention as retention, test_storage as storage, test_io
 else:
     import evidence_identity as logical
     import test_retention as retention
     import test_storage as storage
+    import test_io
 
 _handles = weakref.WeakKeyDictionary()
 _MINT = object()
@@ -256,9 +257,9 @@ def _write(fd, name, value):
             os.ftruncate(stream.fileno(), 0)
             stream.write(payload)
             stream.flush()
-            os.fsync(stream.fileno())
+            test_io.sync(stream.fileno(), os.fsync)
         os.replace(temporary, name, src_dir_fd=fd, dst_dir_fd=fd)
-        os.fsync(fd)
+        test_io.sync(fd, os.fsync)
     except BaseException:
         # Preserve an interrupted temporary record; never adopt unknown bytes.
         raise

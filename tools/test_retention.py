@@ -18,6 +18,11 @@ import sys
 import uuid
 import tempfile
 
+if __package__:
+    from . import test_io
+else:
+    import test_io
+
 VARIABLE = 'ONPC_TEST_RETENTION'
 OWNER_VARIABLE = 'ONPC_TEST_RETENTION_FD'
 RUNS_TO_KEEP = 3
@@ -454,9 +459,9 @@ class Store:
             os.ftruncate(stream.fileno(), 0)
             json.dump(value, stream)
             stream.flush()
-            os.fsync(stream.fileno())
+            test_io.sync(stream.fileno(), os.fsync)
         os.replace('current.tmp', name, src_dir_fd=fd, dst_dir_fd=fd)
-        os.fsync(fd)
+        test_io.sync(fd, os.fsync)
 
     def prune(self, fd, state, *, keep=RUNS_TO_KEEP, completed_guard=None, authorize=None):
         """Bound completed evidence by count and allocated bytes, under ownership.

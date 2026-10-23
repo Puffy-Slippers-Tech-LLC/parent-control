@@ -242,10 +242,11 @@ def worker(root, argv, run, owner):
     # setsid in Popen disconnects the controlling terminal before this exec.
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     import regression_process
+    import test_io
     regression_process.session_stop = threading.Event()
     # Keep cancellation cooperative through recorder startup, publication and
     # final result storage, after the inner category controllers have exited.
-    with regression_process.Control().installed():
+    with regression_process.Control().installed(), test_io.low_io():
         return owned_worker(root, argv, run, owner)
 
 

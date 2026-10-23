@@ -1363,6 +1363,11 @@ at 4 MiB/s, including failed-run publication. Each batch has its own time budget
 slow reads cannot accumulate credit for a later write burst. The final sync has less
 than 1 MiB of queued archive writes. Small bundles keep their normal final sync;
 large publication takes longer to avoid a short full-disk write burst.
+The detached coordinator also spaces capture and retention journal syncs by at
+least 100 ms, with an additional recovery interval of nine times a slow sync's
+duration. Every sync still executes and failures propagate. Pacing is local to
+the coordinator's execution context; separately executed test workers retain
+their real durability and fault-injection behavior.
 
 The aggregate uses at most four host workers, subject to compatibility and CPU,
 memory and swap admission. Host-wide I/O pressure is recorded but does not gate

@@ -1765,3 +1765,6 @@ def buckets(nodeids):
 # Bundle pacing checks use small private files, a fake clock and real local
 # sync with an injected batch failure. They preserve ordinary compatible unit
 # resources and introduce no process, shared path or cleanup/UI owner.
+# Coordinator journal pacing uses a fake clock and a tiny private file, including
+# real sync/error propagation and context restoration. Regression-session remains
+# compatible; no process, shared path, cleanup or UI resource is introduced.

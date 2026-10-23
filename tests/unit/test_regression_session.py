@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import signal
 import subprocess
 import sys
@@ -21,6 +22,49 @@ import regression
 import regression_process
 import test_commands
 import test_storage
+
+
+@pytest.mark.parametrize('duration', [0.001, 0.025])
+def test_coordinator_journal_pacing_has_no_idle_credit_and_preserves_sync_errors(
+        tmp_path, monkeypatch, duration):
+    import test_io
+
+    clock, calls, waits = [0.0], [], []
+
+    def sleep(delay):
+        waits.append(delay)
+        clock[0] += delay
+
+    monkeypatch.setattr(test_io, 'time', SimpleNamespace(monotonic=lambda: clock[0], sleep=sleep))
+    with (tmp_path / 'journal').open('w+b') as stream:
+        stream.write(b'preserved journal bytes')
+        stream.flush()
+
+        def sync(fd, *, fail=False):
+            assert fd == stream.fileno()
+            calls.append(clock[0])
+            clock[0] += duration
+            if fail:
+                raise OSError('injected journal sync failure')
+            os.fsync(fd)
+
+        with test_io.low_io():
+            with test_io.low_io():
+                test_io.sync(stream.fileno(), sync)
+            clock[0] += 50  # Idle time cannot buy a subsequent flush burst.
+            test_io.sync(stream.fileno(), sync)
+            test_io.sync(stream.fileno(), sync)
+            with pytest.raises(OSError, match='journal sync failure'):
+                test_io.sync(stream.fileno(), lambda fd: sync(fd, fail=True))
+            test_io.sync(stream.fileno(), sync)
+        spacing = duration + max(0.1, 9 * duration)
+        assert all(after - before == pytest.approx(spacing)
+                   for before, after in zip(calls[1:], calls[2:]))
+        assert len(waits) == 3
+        before = clock[0]
+        test_io.sync(stream.fileno(), sync)
+        assert calls[-1] == before  # Test workers/default callers remain unpaced.
+    assert (tmp_path / 'journal').read_bytes() == b'preserved journal bytes'
 
 
 def test_supervised_progress_is_forwarded_without_log_frames(tmp_path, monkeypatch):

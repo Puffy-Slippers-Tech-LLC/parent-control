@@ -516,6 +516,52 @@ remain pending for E13 alongside its 117 missing-source entries; this dispositio
 does not resolve them or grant acceptance. Changed inputs require regeneration
 of affected entries through the existing inventory reader before any later apply.
 
+#### E13 historical availability disposition
+
+E13's initial snapshot revalidated the same finite selection: all 243 pending occurrences remained
+pending, with their original reference/claim identities and no inferred test
+verdict or active relevance. The E13 queue record retains the per-occurrence
+inventory, surviving candidate digests and non-executable recovery proposals.
+The existing inventory now includes the supported action and outstanding
+verification prerequisites for each occurrence; it creates no second debt ledger.
+Comparison with E12's authenticated retained inventory confirmed identical pending
+claim/reference identities, availability, unknown relevance and candidate bytes;
+the candidate publication locator changed through ordinary cumulative replacement.
+
+A later refresh after the separate fixture workflow's committed updates contains
+245 pending occurrences: 242 unchanged identities, one replaced destination with
+the same claim, and two newly recorded references. The three changed/new references
+are missing and lack owning context; they receive no retained historical binding
+or advisory exception. Their owner must supply exact current proof and context.
+The retained original and refreshed inventories distinguish these changes without
+editing that workflow's claims or granting acceptance.
+
+| Category | Disposition and supported return condition |
+| --- | --- |
+| 119 missing original sources | Explicit unavailable-source record; owner context and dependency relevance remain unknown. Resolve exact archived proof or explicitly retain unavailability through its owner. Changed/new references remain strict. The two E03p-auth file candidates above survive, but neither proves the original claim's context or an entire missing directory. |
+| 102 unresolved contexts | Pending owning declaration identifying the exact claim, target, inputs and dependency relevance. A present path alone supplies no proof. |
+| 24 refusals | Preserve 22 access refusals and two foreign-checkout identities. Restore authorized access without authentication retries, or select the exact owning checkout/context; do not relabel these as expired proof. |
+| Operational paths and examples | Resolved as inert navigation/examples, with no check result or evidence authority. |
+
+All 51 protected pending occurrences in the refreshed snapshot retain their claims and completion state.
+Protected missing-source entries carry finite pending disclosure proposals bound
+to their containing occurrence's document/reference/claim digests and offsets.
+Before any executable request, the owning controller must verify the completed
+row and exact before/after links, retained accepted completion without the lost
+detail, inactive queue/checkpoint baselines and exact retained developer
+authorization. No such authority or completion is inferred from this task or
+nearby prose. No protected claim, checkpoint or original verdict was changed.
+
+The existing [historical policy and recovery transaction](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
+already own nonrecurrence and authorized mutation. An unchanged inactive
+historical binding persists once in its owner's records and returns an advisory
+with `retain_historical_unavailability`; it does not request another acceptance
+run. Unknown relevance does not qualify for that exception. New or changed
+references, an active dependency, stale context and authority/integrity failures
+remain strict. A retained accepted completion never supplies a missing detailed
+check. Pending dispositions require their named inputs before repair; this
+infrastructure plan executes no historical product acceptance.
+
 ## Required regression histories
 
 These histories use private stores and simulated authenticated helper/controller

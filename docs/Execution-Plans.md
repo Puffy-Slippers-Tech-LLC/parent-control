@@ -145,7 +145,10 @@ document links and anchors require a matching presentation contract. Changed rol
 claims, context, ownership and integrity retain strict precedence. Owners keep
 availability debt once in their existing records, without opening repair turns
 or creating another ledger. Active relevance belongs to each consumer, not its
-whole document.
+whole document. An unchanged inactive historical missing-proof diagnostic uses
+`retain_historical_unavailability`, rather than asking for another acceptance
+run. Repeated checks reuse that exact binding; activating its consumer or changing
+its reference, claim or contract restores strict validation.
 
 Before admitting a session, ordinary plans check current master/brief reading
 links, declared active proof and the existing publication capacity lower bound.

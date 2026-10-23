@@ -396,6 +396,18 @@ archive candidate. Examples and mutable locator/journal navigation are inert;
 neither receives evidence authority. E10's revision/role policy and authenticated
 member resolver remain the sole owners of semantic decisions. The inventory is
 revalidated migration input for E12/E13, not a database, checkpoint or authority.
+Each occurrence also carries non-executable `recovery` guidance: an action,
+outstanding verification prerequisites and, for a protected missing source, a
+pending historical-disclosure proposal. Its containing document/reference/claim
+digests and offsets bind that proposal to the original occurrence. Unknown
+consumer context or active relevance stays null; a surviving file candidate
+does not fill it. Proposal prerequisites require exact completed-row links,
+verified retained accepted completion, inactive controller baselines and retained
+developer authorization before the existing controller-owned recovery can apply.
+These prerequisites are not claims that those records exist or are absent.
+The inventory neither generates an executable request with guessed values nor
+requests product acceptance; access and identity refusals retain their distinct
+supported recovery actions.
 
 ## Category coverage and future additions
 

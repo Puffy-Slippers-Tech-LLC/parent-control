@@ -2007,10 +2007,27 @@ def test_policy_historical_loss_is_nonpassing_and_exactly_revision_bound(campaig
     decision, = proof.check_document_references(campaign.plan, declaration,
         contracts=contracts, retained=[original.binding])
     assert decision.advisory and decision.diagnostic.condition == 'missing'
+    assert decision.diagnostic.recovery == 'retain_historical_unavailability'
     assert not hasattr(decision, 'passed')
     required, = proof.check_document_references(campaign.plan, declaration,
         contracts=contracts, retained=[original.binding], active=True)
     assert required.blocked
+    assert required.diagnostic.recovery == 'renew_affected_acceptance_evidence'
+    owner = dict(plan=campaign.plan, source_sha256='a' * 64, state=dict(
+        reference_documents=[declaration], reference_contracts=contracts,
+        reference_bindings=[original.binding.payload()],
+        active_reference_consumers=list(contracts)))
+    active, = proof.inventory_references(campaign.plan,
+        documents=[declaration['document']], owners=[owner])['entries']
+    assert active['active'] is True and active['diagnostic']['severity'] == 'block'
+    assert active['recovery'] == dict(action='renew_affected_acceptance_evidence',
+        prerequisites=['exact_required_proof'], disclosure_proposal=None)
+    owner['state']['active_reference_consumers'] = []
+    inactive, = proof.inventory_references(campaign.plan,
+        documents=[declaration['document']], owners=[owner])['entries']
+    assert inactive['active'] is False and inactive['diagnostic']['severity'] == 'advisory'
+    assert inactive['recovery'] == dict(action='retain_historical_unavailability',
+        prerequisites=[], disclosure_proposal=None)
     path.write_text('Changed historical result [record](Old.md).\n')
     _refresh_policy_document(path, declaration)
     claim = declaration['references'][0]
@@ -2128,6 +2145,14 @@ def test_lifecycle_respects_declared_presentation_and_historical_roles(campaign)
     state['active_reference_consumers'] = []  # Releasing a dependency changes relevance, not its claim.
     (campaign.plan.root / 'docs/Guide.md').unlink()
     proof.preflight(campaign.plan, run, state)
+    # Persist/reload the owning record: the same debt occupies one binding and
+    # permits further unrelated turns without renewal or a new acceptance pass.
+    saved = json.loads(json.dumps(state))
+    for _ in range(2):
+        proof.preflight(campaign.plan, run, state)
+        proof.publication_document_gate(campaign.plan, state)
+        state = json.loads(json.dumps(state))
+        assert state['reference_bindings'] == saved['reference_bindings']
     state['active_reference_consumers'] = list(contracts)
     with pytest.raises(proof.ReferenceRefused) as error:
         proof.preflight(campaign.plan, run, state)
@@ -2326,6 +2351,16 @@ def test_inventory_changed_claim_cannot_inherit_authenticated_document_context(c
     assert entry['document_sha256'] != declaration['sha256']
     assert entry['candidate'] is None
     assert owner['state'] == before
+    # Moving the use site loses its exact owner association; it must be supplied
+    # again, rather than inferred from a nearby claim or destination.
+    assert entry['recovery']['action'] == 'supply_owning_declaration'
+    # A different claim at the original offset still has a known, stale owner.
+    path.write_text(path.read_text().replace('Both targets passed', 'Fedora passed'))
+    stale, = proof.inventory_references(campaign.plan,
+        documents=[campaign.plan.path], owners=[owner])['entries']
+    assert stale['availability'] == 'stale' and stale['disposition'] == 'pending'
+    assert stale['candidate'] is None and owner['state'] == before
+    assert stale['recovery']['action'] == 'refresh_exact_selection'
 
 
 @pytest.mark.parametrize('field', ['checkout', 'target'])
@@ -2393,6 +2428,14 @@ def test_inventory_orders_mixed_nested_discovery_and_binds_only_metadata(campaig
         if item['classification'] == 'unavailable_history':
             assert item['migration_owner'] == 'E13' and item['disposition'] == 'pending'
     assert entries[0]['protected'] is True
+    proposal = entries[0]['recovery']['disclosure_proposal']
+    assert proposal['kind'] == 'historical-disclosure' and proposal['status'] == 'pending'
+    assert 'retained_exact_developer_authorization' in proposal['prerequisites']
+    assert 'verified_retained_accepted_completion_without_detailed_proof' in proposal['prerequisites']
+    assert entries[0]['recovery']['prerequisites'] == [
+        'owning_consumer_context', 'active_dependency_relevance',
+        'exact_archived_proof_or_explicit_unavailability']
+    assert unknown['recovery']['action'] == 'supply_owning_declaration'
     unhashed = dict(report)
     assert unhashed.pop('sha256') == bundle.digest(bundle.encoded(unhashed))
     assert 'Secret claim' not in json.dumps(report)
@@ -2409,6 +2452,7 @@ def test_inventory_clean_missing_history_preserves_access_refusal(campaign, monk
     assert absent['classification'] == 'unavailable_history'
     assert absent['availability'] == 'missing' and absent['migration_owner'] == 'E13'
     assert absent['disposition'] == 'pending' and absent['candidate'] is None
+    assert absent['recovery']['action'] == 'resolve_exact_missing_proof'
     stat = Path.lstat
     def denied(path, *args, **kwargs):
         if path == missing:
@@ -2419,6 +2463,8 @@ def test_inventory_clean_missing_history_preserves_access_refusal(campaign, monk
     assert refused['classification'] == 'refused' and refused['availability'] == 'denied'
     assert refused['disposition'] == 'pending' and refused['migration_owner'] == 'E12'
     assert refused['candidate'] is None
+    assert refused['recovery']['action'] == 'restore_authorized_access_without_authentication_retry'
+    assert refused['recovery']['disclosure_proposal'] is None
     assert 'private denied source detail' not in json.dumps(refused)
 
 
@@ -2457,6 +2503,9 @@ def test_inventory_loads_authenticated_snapshots_without_recovery_or_current_che
     assert entry['original_identity'] is None and entry['consumer'] is None
     assert entry['candidate']['context_verified'] is False
     assert entry['candidate']['sha256'] == candidate['sha256']
+    assert entry['recovery']['prerequisites'] == [
+        'owning_consumer_context', 'active_dependency_relevance',
+        'candidate_matches_exact_consumer_context']
     conflicting = [*candidates, dict(candidate, sha256='f' * 64)]
     ambiguous, = proof.inventory_references(campaign.plan, documents=['docs/History.md'],
         owners=owners, candidates=conflicting)['entries']

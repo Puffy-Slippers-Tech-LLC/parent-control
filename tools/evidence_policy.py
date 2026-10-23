@@ -173,12 +173,14 @@ def assess_reference(conditions, *, document, line, reference, claim, consumer,
         return Decision(None, binding)
     condition = next(item for item in _PRECEDENCE if item in failures)
     severity = Severity.BLOCK
+    recovery = RECOVERY_ACTIONS[condition]
     if binding is not None:
         if (condition == Condition.MISSING and not active
                 and binding.role == 'historical_information'
                 and isinstance(retained, ReferenceBinding)
                 and replace(retained, active=binding.active) == binding):
             severity = Severity.ADVISORY
+            recovery = 'retain_historical_unavailability'
         elif (condition in (Condition.MISSING, Condition.FRAGMENT)
               and binding.role == 'optional_presentation'
               and all(ref['kind'] == 'document' for ref in consumer['references'])):
@@ -190,7 +192,7 @@ def assess_reference(conditions, *, document, line, reference, claim, consumer,
     if type(line) is not int or line < 1 or line > 2 ** 31 - 1:
         line = 1
     diagnostic = Diagnostic(severity, condition, document, line, _opaque(expected),
-                            _opaque(actual), RECOVERY_ACTIONS[condition])
+                            _opaque(actual), recovery)
     return Decision(diagnostic, binding)
 
 

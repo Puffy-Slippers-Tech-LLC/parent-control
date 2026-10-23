@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E13 — [Make historical loss explicit and nonrecurring](Export-Tasks/E13-history.md)**.
+Next task: **E14 — [Qualify the composed infrastructure](Export-Tasks/E14-composition.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

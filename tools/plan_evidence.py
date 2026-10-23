@@ -1971,6 +1971,49 @@ def _inventory_owner(owner, root):
     return declarations
 
 
+def _inventory_recovery(entry):
+    """Non-executable next steps bound by the containing inventory occurrence.
+
+    Prerequisites are outstanding verification, not inferred missing authority.
+    This metadata never supplies a role, active relevance or a check verdict.
+    """
+    import evidence_policy as policy
+    classification = entry['classification']
+    prerequisites = []
+    proposal = None
+    if entry['disposition'] == 'resolved':
+        action = ('preview_verified_destination' if classification in (
+            'exact_live_proof', 'exact_archived_proof') else 'none')
+    else:
+        if entry['consumer'] is None:
+            prerequisites.extend(('owning_consumer_context', 'active_dependency_relevance'))
+        diagnostic = entry['diagnostic']
+        if diagnostic is not None and 'recovery' in diagnostic:
+            action = diagnostic['recovery']
+        elif entry['availability'] not in ('unknown', 'present', 'not_inspected'):
+            action = policy.RECOVERY_ACTIONS[policy.Condition(entry['availability'])]
+        else:
+            action = 'supply_owning_declaration'
+        if entry['availability'] == 'missing':
+            # This inventory plan never executes acceptance or fabricates proof.
+            if diagnostic is None:
+                action = 'resolve_exact_missing_proof'
+                prerequisites.append('exact_required_proof' if entry['active'] is True else
+                    'exact_archived_proof_or_explicit_unavailability')
+            elif diagnostic['severity'] == 'block':
+                prerequisites.append('exact_required_proof')
+            if (entry['protected'] and entry['active'] is not True
+                    and (diagnostic is None or diagnostic['severity'] == 'advisory')):
+                proposal = dict(kind='historical-disclosure', status='pending', prerequisites=[
+                    'completed_row_and_exact_before_after_links',
+                    'verified_retained_accepted_completion_without_detailed_proof',
+                    'inactive_controller_queue_and_checkpoint_baselines',
+                    'retained_exact_developer_authorization'])
+        if entry['candidate'] is not None and entry['candidate'].get('context_verified') is False:
+            prerequisites.append('candidate_matches_exact_consumer_context')
+    return dict(action=action, prerequisites=prerequisites, disclosure_proposal=proposal)
+
+
 def inventory_references(plan, *, documents=None, catalogues=(), owners=(), candidates=(),
                          owner_findings=()):
     """Finite read-only discovery. Unknown context remains pending, never proof.
@@ -2138,6 +2181,7 @@ def inventory_references(plan, *, documents=None, catalogues=(), owners=(), cand
                         context_verified=False)
                 elif len(identities) > 1:
                     entry.update(classification='wrong_or_ambiguous_destination', availability='conflict')
+            entry['recovery'] = _inventory_recovery(entry)
             result['entries'].append(entry)
             if len(result['entries']) > INVENTORY_ENTRIES:
                 raise ValueError('inventory: reference count exceeds its finite bound')

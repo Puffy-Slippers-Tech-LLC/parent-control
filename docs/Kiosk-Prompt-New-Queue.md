@@ -3,8 +3,8 @@
 The [master](Kiosk-Session-Confinement-New-Plan.md) owns usability, reasonable-child
 threat scope, finite improvements and final acceptance. The
 [baseline queue](Kiosk-Prompt-Queue.md) ends at C05f and is independent of these
-improvements. C06a first verifies accepted desktop D04 and baseline C05u/f
-results; missing evidence keeps it unchecked. Desktop-only rows move to the
+improvements. C06a first requires completed desktop D04 and baseline C05u/f;
+an unfinished prerequisite keeps it unchecked. Desktop-only rows move to the
 [desktop queue](Kiosk-Desktop-Queue.md). Remaining IDs and assertions are retained.
 
 Apply the master's [confinement priority](Kiosk-Session-Confinement-New-Plan.md#confinement-priority):
@@ -95,5 +95,5 @@ Unexpected independent work uses the selected-consumer prerequisite contract.
 Selectors are planned until implemented, registered and qualified. Host checks
 and `--check` establish no installed pass. C13 audits matching product/TA/docs
 and retained evidence after both-target final acceptance.
-The master's retained-run admission applies before execution; these decomposed
-scopes cannot be adopted by current-file validation alone.
+Use the shared launcher's current-definition and completion policies; ordinary
+execution needs no plan-specific migration or historical-report preflight.

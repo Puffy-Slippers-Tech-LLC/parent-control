@@ -19,10 +19,10 @@ Retain historical source/proof context under its existing owner.
 
 Require every final family on both named platforms, including core use, finite
 defenses, compatibility/recovery/update and original-cause diagnostics. Verify
-candidate applicability and retained reports/cleanup, not just checked queue
-rows. If later repairs invalidated an earlier result, insert a bounded renewal
-prerequisite with the original installed target(s); reconciliation evidence
-cannot replace the missing live pass.
+completion in the queue; trust completed tasks without inspecting old reports.
+Concrete later changes require affected checks through a bounded prerequisite
+with the original installed target(s); reconciliation cannot replace a missing
+live pass. Do not reopen completed tasks or rerun unchanged work.
 
 Verify separately accepted desktop D04 evidence remains applicable to the final
 candidate. Desktop implementation and local/remote desktop acceptance remain
@@ -35,5 +35,6 @@ every remaining protective refusal tied to a justified deliberate-child route.
 No optional/ambient configuration veto or expert-loader obligation remains.
 
 Use links/plan/host consistency checks and resolve independent review findings.
-Missing evidence keeps this task open. No default all-product campaign. Close
-the selected row and master pointer only under the shared launcher contract.
+An unresolved required check keeps this task open. No default all-product
+campaign. Close the selected row and master pointer under the shared launcher
+contract.

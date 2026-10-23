@@ -15,10 +15,9 @@ Reconcile C04 and each protection/recovery task's registered bindings in the
 existing scenario recipes, block catalogue and installed-case owners. For each
 C11/C12 family below, record candidate inputs, exact command/selector, finite
 values, expected independent public results, timeout, prerequisite qualification,
-restoration and report retention. These are future checks, not inherited passes.
-Include the intervening usability-gate receipts and identify which complete core
-histories still apply to the final candidate. C11/C12 may reuse those exact
-histories; repeat only missing or invalidated scope under the reuse contract.
+restoration. These are future checks, not inherited passes. Trust completed
+usability gates; C11/C12 may reuse their checks for unchanged behavior. Identify
+affected complete histories only after concrete later changes.
 
 Families are core journey/features; separate host-variation and optional-fallback
 bindings; required-service/
@@ -27,11 +26,12 @@ lifecycle; standalone terminal/TTY; SSH; separate remaining exposed-action
 and consumed-input bindings. Each fault/recovery/reentry history stays complete. Use one
 ordinary-account positive for each remaining route; absent SSH service is no pass.
 
-Verify separately accepted desktop D04 results still match the candidate under
+Trust completed desktop D04 under the shared completion policy and apply
 the master's [confinement priority](../Kiosk-Session-Confinement-New-Plan.md#confinement-priority).
 C11t/C12t retain the standalone terminal/TTY assertions split from C11d/C12d.
-Desktop/local/remote acceptance stays with its owner; missing or invalidated
-desktop evidence requires a concrete renewal there before combined readiness.
+Desktop/local/remote acceptance stays with its owner. A concrete change affecting
+that behavior requires scoped checks, without reopening completed tasks or
+requiring old reports.
 
 This is a composition/readiness audit, not a broad implementation task.
 Missing implementation or provider qualification requires an explicit bounded

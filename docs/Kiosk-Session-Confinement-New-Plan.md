@@ -18,7 +18,8 @@ retain their stable IDs under the desktop owner. No task completes through plann
 
 ## Usability and threat scope
 
-The desktop master's [binding planning requirements](Kiosk-Desktop-Plan.md#binding-planning-requirements)
+The desktop master's [binding planning requirements](Kiosk-Desktop-Plan.md#binding-planning-requirements),
+[simple implementation rule](Kiosk-Desktop-Plan.md#simple-implementation)
 and [route allocation](Kiosk-Desktop-Plan.md#route-allocation) apply to every row
 here. Residual conflicting source and obsolete v1.4 automation cleanup is first,
 under D00/D00a/D00b; C06a verifies that handoff through D04. This queue adds only
@@ -34,20 +35,9 @@ also binds this queue: unknown/strange configuration preserves passwordless app
 access. Only specifically justified deliberate breach patterns may be rejected;
 uncertainty, failed discovery or missing optional state is not such a pattern.
 
-Inherit the baseline's
-[usability priority](Kiosk-Session-Confinement-Plan.md#highest-priority-product-usability),
-[reasonable-child threat scope](Kiosk-Session-Confinement-Plan.md#mandatory-threat-scope-reasonable-child-effort)
-and [selected source boundary](Kiosk-Session-Confinement-Plan.md#target-design).
-For every new refusal, name actual child access, deliberate action, prohibited
-result and a working normal-use positive. Unknown machine content alone has no
-admission vote. Trust supported installed Python/GTK/GI/native code and lazy
-loading. Do not recreate private loaders, runtime images, global inventories,
-generation receipts or arbitrary-kiosk-code execution assumptions.
-
-Human decisions and authentication pauses are not machine-startup time.
-Optional failures cannot veto core requests; essential outages require bounded
-safe retry/exit and recovery without weakened policy. Parent denial and explicit
-administrator policy remain authoritative. Main's non-confinement features remain.
+The desktop master's [inherited baseline requirements](Kiosk-Desktop-Plan.md#inherited-baseline-requirements)
+also apply, including trusted installed loading, genuine parent/admin denial,
+usable service recovery and preservation of main's non-confinement features.
 
 ## Confinement priority
 
@@ -65,9 +55,12 @@ Reuse shared mechanisms and matching evidence without duplicating implementation
 
 ## Task boundaries
 
-Before closing C06a, verify desktop D04 and baseline C05f/C05u are accepted for
-their declared targets, with retained candidate-applicable public results and owned cleanup.
-If missing, leave C06a unchecked with the concrete baseline return condition.
+Before closing C06a, require completed desktop D04 and baseline C05f/C05u for
+their declared targets. Trust completed rows under the shared
+[completion policy](Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery);
+do not inspect old reports. An unfinished prerequisite leaves C06a unchecked
+with its owning queue and return condition. Concrete later changes receive
+affected checks within the current task.
 A new namespace is no authorization to bypass an active baseline owner, pending
 Git transaction, live VM lease or uncommitted overlapping source work.
 
@@ -125,9 +118,9 @@ After changes, qualify applicable final candidate histories on both
 
 Keep customer results separate from engineering probes and fault injection.
 A diagnostic-only screen, denied normal entry, host mapping or historical proof
-cannot replace installed acceptance. Reuse only exact applicable candidate,
-caller, target, provider, input/assertion and cleanup evidence; rerun invalidated
-complete histories after shared changes. Do not claim arbitrary provider coverage,
+cannot replace installed acceptance. Trust completed checks for unchanged
+behavior; run affected complete histories within the current task after concrete
+shared changes. Do not claim arbitrary provider coverage,
 run expert-attack/whole-host matrices or turn every host UI value into E2E work.
 
 ## Task execution contract
@@ -147,8 +140,9 @@ No host/review result supplies installed acceptance.
 The C06 review also records Denylist/default access passed/failed and checks
 benign adjacent/unknown controls for every proposed protective rejection.
 
-Retain task-owned paths, exact inputs/commands, expected/actual results, blockers
-and cleanup in maintained runner records. Close only the selected row after
+Keep a short result or actionable handoff with expected/actual failures,
+task-owned paths and cleanup. Normal runner diagnostics are sufficient; no proof
+bundle or retained-report audit is required. Close only the selected row after
 required review/checks/owned cleanup and launcher Git close-out. Keep stable case
 identities, historical failures and unrelated work. Retire obsolete source/test
 consumers within changed confinement scope; retain accepted evidence ownership.
@@ -171,16 +165,10 @@ every installed brief still requires its named target. Attach without flags to
 retain the active task limit. The generic entry
 `tools/execute-plan --plan 'docs/Kiosk-Session-Confinement-New-Plan.md'`
 shares this owner. A namespace with no retained run needs no checkpoint migration.
-Commit reviewed planning inputs before execution. Do not copy checkpoints or
-handoffs between namespaces. Retained pre-split controllers cannot silently adopt
-the changed scopes/order. Apply the desktop master's
-[retained-run admission](Kiosk-Desktop-Plan.md#retained-run-admission) to this
-namespace too: current-file `--check` and ordinary `--reconcile` cannot adopt
-changed existing scopes/dependencies. If the retained baseline has no supported
-migration, keep execution blocked with its exact handoff; do not clear state or
-invent another namespace. No launcher migration is performed in this doc session.
-Baseline resumption remains separate and must preserve its original committed
-split destination inputs and retained work.
+Apply the [common launcher interface](Execution-Plans.md#common-launcher-interface)
+and desktop master's [split lifetime](Kiosk-Desktop-Plan.md#split-lifetime).
+Ordinary execution uses current rows and briefs without a plan-specific migration
+or evidence preflight. Preserve owners, handoffs and pending transactions.
 
 New executable command grants join at the next normal
 [rules refresh](Approval-Tools.md#one-time-setup); the generic entry is available

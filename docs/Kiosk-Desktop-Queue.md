@@ -38,5 +38,5 @@ which also owns SSH and other confinement work. Preserve case IDs, acceptance
 targets and historical failures. Selectors remain planned until registered and
 qualified. Missing independent work becomes a bounded prerequisite at its
 selected consumer; host checks and `--check` supply no installed acceptance.
-Apply the master's retained-run admission before executing this changed queue;
-current-file validation does not adopt a saved scope or dependency change.
+Use the shared launcher's current-definition and completion policies; ordinary
+execution needs no plan-specific migration or historical-report preflight.

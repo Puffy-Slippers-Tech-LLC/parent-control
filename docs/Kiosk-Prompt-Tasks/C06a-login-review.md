@@ -11,16 +11,15 @@ design/test owners and source routes below.
 
 ## Session boundary and deliverable
 
-Before route work, verify D04 is accepted in the
-[desktop queue](../Kiosk-Desktop-Queue.md), with matching desktop/core-use public
-results on both targets and owned cleanup. Also verify C05u and C05f in the
-[baseline queue](../Kiosk-Prompt-Queue.md), with retained matching-candidate
-installed results, both targets and owned cleanup. Missing results keep C06a
-unchecked: resume after the owning launcher accepts the missing gate. Never execute or
-close desktop/baseline rows here. Finish any prior owner/Git/resource transaction before
-starting new work. This review supplies no new-plan acceptance by inheritance.
+Before route work, require D04 complete in the
+[desktop queue](../Kiosk-Desktop-Queue.md) and C05u/C05f complete in the
+[baseline queue](../Kiosk-Prompt-Queue.md). Trust completed rows without inspecting
+old reports. An unfinished prerequisite keeps C06a unchecked until its owning
+launcher completes it. Never execute or close desktop/baseline rows here.
+Finish any prior owner/Git/resource transaction before starting new work.
+This review supplies no new-plan acceptance by inheritance.
 
-Start from the rebuilt source and accepted desktop/baseline receipts. Inspect
+Start from the current source and completed prerequisites. Inspect
 standalone terminal/TTY paths, non-desktop shortcuts and SSH, including whether
 each invokes the expected PAM stack. Full graphical desktop/session selection
 and named remote-desktop work remain solely with the desktop plan. Record any

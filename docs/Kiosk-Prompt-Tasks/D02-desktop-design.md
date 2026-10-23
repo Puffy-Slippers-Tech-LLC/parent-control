@@ -15,6 +15,10 @@ request-session desktop escapes to C07s and the named remote provider to C07.
 Each barrier needs a
 deliberate-child negative and working request-only/ordinary-account controls.
 Existing working barriers need verification, not new infrastructure.
+Apply the master's [simple implementation rule](../Kiosk-Desktop-Plan.md#simple-implementation):
+choose the smallest change at the existing owner and justify any new abstraction
+or persistent state against that direct approach. Keep this rationale in the
+existing design note, without a separate review artifact or checker.
 
 Obtain independent Astra xHigh design review with explicit Usability priority
 and Threat scope passed/failed findings. Resolve actionable findings before

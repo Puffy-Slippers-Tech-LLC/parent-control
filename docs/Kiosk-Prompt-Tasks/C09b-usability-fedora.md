@@ -12,16 +12,14 @@ and the [owning task contract](../Kiosk-Session-Confinement-New-Plan.md#task-exe
 ## Session boundary and deliverable
 
 Verify the exact candidate delivered by C09b, including required review/build
-and registered operation qualification. Use the existing complete baseline
-core-use history and its affected feature/shared-overlay/pause controls on
-onpc-Fedora44; inspect the runner registration, inputs and timeout rather
-than inferring a selector from this task ID. Reuse only exact applicable complete
-proof under the baseline evidence-reuse contract; renew invalidated scope.
+and registered operation qualification. On onpc-Fedora44, apply the complete
+core-use history and affected feature/shared-overlay/pause controls required by
+the usability stop gate above. Use registered inputs and an explicit timeout;
+do not infer a selector from this task ID.
 
-Require passwordless usable entry, genuine approval and actual time/soft-app
-use with hard blocks retained, denial/Cancel without grant, exit/reentry and a
-fresh request. A normal session rejection or diagnostic-only form keeps this
-gate open. Return a correction to the product owner through bounded prerequisites
-before any later protection slice; do not weaken expectations. Retain exact
-commands, candidate inputs, public results and owned restoration. This gate grants
-no substitute route-negative, fault/recovery or other-target acceptance.
+Trust completed checks for unchanged scope. A concrete change needs affected
+complete histories; expired reports do not require reruns. A rejected normal
+session or diagnostic-only form keeps this gate open. Return corrections through
+bounded prerequisites before the next protection slice. Record a short result
+and finish owned restoration. This grants no route-negative, fault/recovery or
+other-target acceptance.

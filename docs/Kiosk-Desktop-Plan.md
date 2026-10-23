@@ -44,7 +44,25 @@ historical. A task cannot relax them to obtain a pass.
 | Feature preservation | Retain main's non-confinement kiosk features, authorization, time/app behavior and unrelated code. Do not restore the whole v1.3 kiosk tree. |
 | Cleanup priority | D00/D00a/D00b account for conflicting unfinished source, direct consumers and obsolete v1.4 automation before new protections. Reuse verified C01–C04 deliveries rather than repeat the cutover. |
 | Complete plan replacement | These two masters and their queues own future improvement work. Old R-series/private-runtime instructions supply no fallback requirements. Preserve their evidence and ownership records. |
-| This reconciliation | Planning and documentation only: no queue completion, product implementation, VM work or product acceptance/testing. Metadata and link checks are permitted. |
+
+### Simple implementation
+
+Apply the repository mandate to every task: **Simple, lean, robust, do not
+overenginering. If a problem can be solved by simplier approaches, do not use
+more complex ones.**
+
+Start with the demonstrated failure and the smallest change at its existing
+owner. Reuse maintained session, PAM, service and test mechanisms. An effective
+existing barrier or an absent defect needs no new implementation. Add a helper,
+abstraction, persistent state or recovery mechanism only when a concrete required
+behavior cannot be handled clearly by the existing path; explain that need in
+the normal task result. Remove obsolete code and direct consumers together.
+
+Keep design notes in the existing owner and results in the queue/checkpoint.
+Follow the [test scope mandate](Mandates/Test-Scope-Mandate.md): validate affected
+product behavior and shared safety guarantees at the lowest effective layer.
+Do not create a framework, registry, evidence archive or dedicated test suite to
+police this plan. Preserve the usability gates and required customer outcomes.
 
 ### Route allocation
 
@@ -159,10 +177,11 @@ parent/admin denial, main features and safe recovery from essential outages.
 D00 audits the release lineage and residual cleanup map. D00a closes conflicting
 source and package consumers; D00b closes obsolete automation consumers. Empty
 residual scope needs an explicit verified disposition, not speculative changes.
-These tasks do not execute or close the baseline queue. D01 then verifies
-the D00u/f tolerant-use gates and
-accepted C05u/C05f results for both baseline targets, exact
-candidate applicability and owned cleanup. Missing evidence keeps D01 open.
+These tasks do not execute or close the baseline queue. D01 requires completed
+D00u/f tolerant-use gates and baseline C05u/C05f for both targets. Trust their
+completed rows under the shared [completion policy](Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
+Changed code receives affected checks in the current task; expired reports do
+not reopen a prerequisite.
 New namespaces never bypass an active owner, Git transaction, VM lease or
 overlapping uncommitted work.
 
@@ -205,10 +224,10 @@ baseline receipts grant no post-change desktop-defense pass.
 
 Use public actions/results for customer acceptance. Engineering probes, root
 injections, saved session preferences and an unusable form do not replace that
-proof. Reuse only exact applicable candidate, caller, target, provider,
-input/assertion and cleanup evidence. Rerun invalidated complete histories after
-shared changes. Include directly affected normal-use regression controls without
-executing the remaining plan's entire campaign.
+proof. Trust completed checks for unchanged behavior. After a concrete shared
+change, run the affected complete histories for the relevant callers, targets,
+providers and inputs within the current task. Include affected regression
+controls without executing the remaining plan's entire campaign.
 
 ## Task execution contract
 
@@ -225,8 +244,9 @@ independent Astra xHigh review requirements remain binding. D02's independent
 design review records explicit Usability priority and Threat scope passed/failed
 findings; resolve actionable findings and revalidate material edits.
 
-Retain exact inputs/commands, expected/actual results, blockers, task-owned paths
-and cleanup in maintained runner records. Close only the selected row after
+Keep a short result or actionable handoff with expected/actual failures,
+task-owned paths and cleanup. Normal runner diagnostics are sufficient; no proof
+bundle or retained-report audit is required. Close only the selected row after
 review, validation, restoration and launcher Git close-out. Preserve stable IDs,
 historical evidence and unrelated work. Build after final packaged-input edits;
 product-string changes cover all supported languages.
@@ -253,36 +273,19 @@ rules or install the product on the development host merely to check this plan.
 
 ### Split lifetime
 
-Commit reviewed planning inputs before execution. Preserve all old checkpoints,
-accepted evidence, active owners and pending Git work. No checkpoint or handoff
-is copied between namespaces. A retained pre-split controller cannot silently
-adopt the changed scopes/order. Follow the
-[retained-run admission](#retained-run-admission) below before execution.
-The baseline's original split recovery remains separate and must retain its
-committed original destination inputs.
+Each master path keeps its own shared-driver namespace. Preserve active owners,
+checkpoints, handoffs, pending Git work and VM leases; do not copy or clear them
+to move work between launchers.
 
 ### Retained-run admission
 
-`--check` checks current files only: it neither inspects retained-run compatibility
-nor verifies the external baseline gate. No execution is authorized by its pass
-alone. Commit reviewed planning inputs separately from unrelated work before a
-later execution session; this documentation session does not commit them.
+Use the [common launcher interface](Execution-Plans.md#common-launcher-interface).
+Ordinary execution consumes current queue rows and briefs without snapshot
+comparisons or a plan-specific migration gate. Explicit administrative
+`--reconcile` retains its own guards; it is not required for ordinary execution.
+`--check` validates current plan metadata and grants no installed acceptance.
 
-For a fresh namespace with no retained run, use the current queue normally.
-For an active owner, finish or stop it through its maintained route and let owned
-cleanup/Git transactions finish before adoption. For an inactive retained run,
-use only the [shared reconciliation contract](Execution-Plans.md#common-launcher-interface).
-Ordinary `--reconcile` preserves existing scopes and dependencies; it cannot
-adopt this task decomposition or the earlier desktop reallocation merely because
-the documents were committed. The unchanged-tail split and task-merge options
-also do not authorize these scope divisions. If no supported reconciliation
-matches the retained baseline, execution is blocked pending an explicitly
-reviewed migration through the launcher owner. Preserve the checkpoint, exact
-old/new inputs, handoffs, session counts and proof; do not edit state, invent a
-namespace or clear ownership to get past the guard. Launcher migration is
-separate work, outside this planning-only session.
-
-After admission, execute D00/D00a/D00b and tolerant-use D00u/f, then require baseline C05u/f at D01,
-finish through D04, and only then start the remaining queue. Neither launcher
-executes an external gate. Missing evidence leaves the selected row open with
-its exact owner and return condition.
+Run cleanup and D00u/f, require completed baseline C05u/f at D01, finish through
+D04, then start the remaining queue. An unfinished external prerequisite keeps
+its consumer open with the owning queue and return condition. Completed rows
+need no historical report inspection.

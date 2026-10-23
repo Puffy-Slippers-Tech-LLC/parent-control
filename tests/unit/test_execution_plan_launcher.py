@@ -2579,6 +2579,17 @@ def test_real_consumer_refusals_preserve_exact_turn_and_prior_acceptance(
         selected[0] = allocation / 'absent-exact-member.md'
     elif defect == 'conflicting-live':
         report.write_bytes(b'conflicting live report from a different attempt\n')
+        export = proof._export
+
+        def export_live(plan, run, state, sources, bundles, references):
+            # References may resolve from the accepted archive even when the
+            # original changes. Select the live file explicitly to exercise
+            # the conflict guard against that archived original.
+            live = str(report)
+            return export(plan, run, state, [*sources, live], bundles,
+                          [value for value in references if value != live])
+
+        monkeypatch.setattr(proof, '_export', export_live)
     else:
         def cancel(*_args, **_kwargs):
             raise workflow.launcher.Stopped()

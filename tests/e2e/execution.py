@@ -229,7 +229,14 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             installed_consumer = needs_installed(case)
             product_free_consumer = 'declared-package-lifecycle-fixture' in case['preconditions']
             fixture_selection = plan.get('fixture_selection')
-            package_only = (installed_consumer or product_free_consumer) and fixture_selection is not None
+            from serial_harness import recorded_serial_case, validate_fixture_input
+            recorded_serial_consumer = recorded_serial_case(case)
+            if recorded_serial_consumer:
+                require(vm_config.selected().name == 'onpc-Ubuntu26.04',
+                        'fixtures:recorded-serial-target-not-qualified')
+                fixture_selection = validate_fixture_input(fixture_selection)
+            package_only = (installed_consumer or product_free_consumer or recorded_serial_consumer
+                            ) and fixture_selection is not None
             system.stage_assets(system.artifact_source(Path(plan['artifacts'])), staged, commands,
                                 **({'package_only': True} if package_only else {}))
             staged.chmod(0o700)
@@ -290,7 +297,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     host_key = system.bootstrap(commands, lease, directory, guestfs,
                         observation_only=not installed_consumer,
                         **({'e2e_installed': True} if package_only and installed_consumer else {}),
-                        **({'e2e_product_free': True} if product_free_consumer else {}))
+                        **({'e2e_product_free': True} if product_free_consumer or recorded_serial_consumer else {}))
                     lease.guard(off=True)
                     lease.save('isolated')
                     verified = VerifiedInputs(lease=lease, assets=staged, root=root,
@@ -433,6 +440,12 @@ def emit_progress(kind, **fields):
 def main(plan):
     require(os.geteuid() == os.getegid() == 0, 'execution:root-required')
     from suite_lease import needs_installed
+    from serial_harness import recorded_serial_case, validate_fixture_input
+    if any(recorded_serial_case(case) for case in plan['cases']):
+        import vm_config
+        require(vm_config.selected().name == 'onpc-Ubuntu26.04',
+                'fixtures:recorded-serial-target-not-qualified')
+        plan = {**plan, 'fixture_selection': validate_fixture_input(plan.get('fixture_selection'))}
     if any(needs_installed(case) for case in plan['cases']):
         from e2e_fixture_preparation import validate_input
         plan = {**plan, 'fixture_selection': validate_input(plan.get('fixture_selection'))}

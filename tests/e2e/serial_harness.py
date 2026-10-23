@@ -52,17 +52,37 @@ def validate_completion(directory, observations, worker):
     require(worker['shutdown_verified'] is True, 'qualification:shutdown-unverified')
 
 
+def recorded_serial_case(case):
+    """Only the recorded harness binding consumes this preparation envelope."""
+    return case['executable'] == {
+        'path': 'tests/e2e/controller_qualification.py', 'test_id': 'gdm-observation'}
+
+
+def validate_fixture_input(value, target='ubuntu'):
+    """Recorded serial is qualified on Ubuntu independently of standalone Smoke."""
+    from e2e_fixture_preparation import selection_record
+    from smoke_fixture_preparation import validate_input
+    record = selection_record(value, product_free=True)
+    require(target == record['target'] == 'ubuntu',
+            'fixtures:recorded-serial-target-not-qualified')
+    return validate_input(record, target=target)
+
+
 def record_serial_journey(recorder, context):
     def artifact(name, kind, value):
         return recorder.artifact(name, kind, encoded(value), reviewed=True)
 
+    from system_fixture_preparation import guest_target
+    selection = validate_fixture_input(context.fixture_selection,
+        target=guest_target(context.lease.capture.state['guest']))
     with recorder.step('setup'):
         credentials = context.credentials.provision(context.lease, context.verified,
             context.directory, context.guestfs, context.commands)
         provision_getty(context.lease, context.guestfs)
         transfer = AssetTransfer(context.verified)
-        assets = transfer.provision(context.lease, context.guestfs)
+        assets = transfer.provision(context.lease, context.guestfs, fixture_selection=selection)
         artifact('inputs', 'input-provenance', context.verified.inputs)
+        fixture_ref = artifact('fixture-input', 'input-provenance', selection)
         artifact('provisioning', 'action-trace', {
             'fixture_credentials': credentials, 'assets': assets,
             'serial_getty': 'stock-password-authentication'})
@@ -82,6 +102,18 @@ def record_serial_journey(recorder, context):
         require(boot is None or boot == current, 'qualification:boot-changed')
         boot = current
         recorder.continuity(boot=boot)
+        if stage == 'ready':
+            prepared = smoke.fixture_prepared
+            require(prepared is not None and prepared['lease'] is context.lease
+                    and prepared['selection'] == selection
+                    and prepared['receipt'].binding['boot_sha256'] == boot,
+                    'qualification:fixture-readiness-unbound')
+            prepared['controller'].require_ready(prepared['receipt'])
+            artifact('fixture-readiness', 'input-provenance', {
+                'input_artifact': fixture_ref,
+                'source_sha256': context.verified.inputs['source_sha256'],
+                'selection': selection, 'binding': prepared['receipt'].binding,
+                'files': prepared['receipt'].files})
         # The fixed session probes establish presence/absence separately. This
         # case makes no cross-session continuity assertion or invented alias.
         trace.append({'stage': stage, 'boot_sha256': boot})
@@ -114,7 +146,8 @@ def record_serial_journey(recorder, context):
             active.__enter__()
 
     smoke = Smoke(context.directory, context.lease, context.commands, context.host_key,
-                  progress=progress, transfer=transfer, authenticate=True, serial=True, functional=True)
+                  progress=progress, transfer=transfer, authenticate=True, serial=True, functional=True,
+                  fixture_selection=selection)
 
     def validate():
         validate_stages(context.directory, smoke.steps)

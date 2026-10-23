@@ -74,13 +74,12 @@ def test_standalone_clean_input_and_serial_gates_precede_prepare(
         credentials=Mock() if serial else None)
     controller.checkpoint = Mock()
     controller.fixture_selection = selection.record() if supplied else None
-    if supplied and (not serial or selection.target == 'ubuntu'):
+    if supplied:
         # The qualified branch reaches the real preparation boundary.
         lease.prepare.side_effect = RuntimeError('preparation-boundary')
         code = 'preparation-boundary'
     else:
-        code = ('execution-selection-required' if not supplied else
-                'serial-target-not-qualified')
+        code = 'execution-selection-required'
     with pytest.raises((ValueError, RuntimeError, smoke.EvidenceError), match=code):
         controller.execute(lease, Mock())
     assert lease.prepare.call_count == int(code == 'preparation-boundary')
@@ -88,11 +87,11 @@ def test_standalone_clean_input_and_serial_gates_precede_prepare(
 
 @pytest.mark.parametrize('assets,refusal', [(False, False), (True, False), (True, True)])
 def test_serial_preboot_guards_and_deferred_assets_precede_ready_boundary(
-        monkeypatch, tmp_path, assets, refusal):
+        monkeypatch, tmp_path, selection, assets, refusal):
     import check_graphical_smoke as smoke
     monkeypatch.setattr(preparation.fixture_execution, 'verify', Mock())
     events = []
-    lease = lease_for('ubuntu')
+    lease = lease_for(selection.target)
     lease.prepare = lambda: events.append('restore')
     lease.guard = lambda **_: None
     lease.save = lambda _: None
@@ -119,9 +118,7 @@ def test_serial_preboot_guards_and_deferred_assets_precede_ready_boundary(
         'host', assets=tmp_path if assets else None, credentials=credentials,
         serial=True, install=assets and not refusal, install_refusal=refusal)
     controller.checkpoint = Mock()
-    record = fixture_execution.Selection('ubuntu', 'a' * 64,
-        '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
-        1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
+    record = selection.record()
     controller.fixture_selection = record
     controller.execute(lease, Mock())
     assert events == ['restore', ('bootstrap', {'observation_only': True,
@@ -138,7 +135,7 @@ def test_serial_preboot_guards_and_deferred_assets_precede_ready_boundary(
 @pytest.mark.parametrize('mode', ['transfer', 'serial', 'install', 'refusal'])
 @pytest.mark.parametrize('stale', [False, True])
 def test_smoke_transfer_provisions_after_ssh_and_checks_before_first_reply(
-        monkeypatch, tmp_path, stale, mode):
+        monkeypatch, tmp_path, selection, stale, mode):
     import json
     import check_graphical_smoke as smoke
     import smoke_fixture_preparation as transfer_preparation
@@ -172,8 +169,14 @@ def test_smoke_transfer_provisions_after_ssh_and_checks_before_first_reply(
         installation.transfer = assets
     control = smoke.Smoke(tmp_path, lease, Mock(), 'key',
         progress=lambda stage, data: events.append('progress-' + ('start' if data is None else 'done')),
-        transfer=assets, fixture_selection={'frozen': True}, fixture_observer=observed,
+        transfer=assets, fixture_selection=selection.record(), fixture_observer=observed,
         serial=mode != 'transfer', authenticate=mode != 'transfer', installation=installation)
+    if mode == 'install':
+        assert 'reboot-requested' in control.stages and 'reboot-observed' in control.stages
+        assert 'serial-logout' not in control.stages
+    elif mode == 'refusal':
+        assert 'install-refused' in control.stages and 'serial-logout' in control.stages
+        assert not any(stage.startswith('reboot-') for stage in control.stages)
     if stale:
         with pytest.raises(ValueError, match='stale-readiness'):
             control.step()
@@ -187,7 +190,7 @@ def test_smoke_transfer_provisions_after_ssh_and_checks_before_first_reply(
                       'assets', 'native-ready', 'observe-ready', 'inventory', 'greeter',
                       'progress-done', 'guard', 'native-ready']
     assert assets.verified.fixture_prepared is prepared
-    prepare.assert_called_once_with(transport, lease, tmp_path, {'frozen': True})
+    prepare.assert_called_once_with(transport, lease, tmp_path, selection.record())
 
 
 def test_missing_incompatible_refuse_before_staging_and_guest_calls(monkeypatch, tmp_path, selection):
@@ -561,7 +564,7 @@ def test_authenticated_selections_outlive_every_history_and_cleanup(monkeypatch,
                       'unpin-source', 'unpin-runtime']
 
 
-def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch):
+def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch, selection):
     """Evaluate actual wrapper loops and the complete real final dispatch block."""
     import ast
     import inspect
@@ -569,7 +572,9 @@ def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch
     import runpy
     import sys
     import check_graphical_smoke as smoke
+    import fixture_transfer_qualification as transfer
     import test_commands
+    import vm_config
     import parent_setup_qualification as parent
     from parent_setup_qualification import KioskEntryQualification
     from owned_commands import CommandError
@@ -578,6 +583,16 @@ def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch
     root = Path(smoke.ROOT)
     tree = ast.parse((root / 'tests/integration/check_graphical_smoke.py').read_text())
     main = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main')
+    serial_guards = [node for node in main.body if isinstance(node, ast.If)
+                     and isinstance(node.test, ast.Name) and node.test.id == 'serial']
+    assert len(serial_guards) == 1
+    serial_guard = compile(ast.Module(body=serial_guards, type_ignores=[]), str(root), 'exec')
+    target_name = {'ubuntu': 'onpc-Ubuntu26.04', 'fedora': 'onpc-Fedora44'}[selection.target]
+    monkeypatch.setattr(vm_config, 'selected', lambda: SimpleNamespace(name=target_name))
+    monkeypatch.setattr(transfer.proof.prepare_vm.vm_config, 'selected',
+                        lambda: SimpleNamespace(name=target_name))
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', Mock())
+    assert transfer.selected_target(serial=True) == target_name
     blocks = []
     selection_guards = []
     for node in ast.walk(main):
@@ -646,9 +661,10 @@ def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch
                     exec(selection_guard, scope)
                 assert not hasattr(scope['qualification'], 'fixture_selection')
             if cls is smoke.Qualification and kwargs.get('serial', False):
-                scope.update(qualification=SimpleNamespace(), fixture_selection={'private': True})
+                scope.update(qualification=SimpleNamespace(), fixture_selection=selection.record())
+                exec(serial_guard, scope)
                 exec(selection_guard, scope)
-                assert scope['qualification'].fixture_selection == {'private': True}
+                assert scope['qualification'].fixture_selection == selection.record()
             if path.stem in test_commands.INSTALLED_E2E_FIXTURE_SELECTORS:
                 assert issubclass(cls, KioskEntryQualification), (path.stem, cls.__name__)
             if issubclass(cls, KioskEntryQualification):

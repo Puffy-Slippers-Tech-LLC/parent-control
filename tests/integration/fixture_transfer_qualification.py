@@ -31,7 +31,8 @@ def selected_target(*, serial=False):
     name = proof.prepare_vm.vm_config.selected().name
     system.require(name in proof.TARGETS, 'fixture-transfer:target-not-qualified')
     if serial:
-        system.require(proof.TARGETS[name] == 'ubuntu', 'fixture-serial:target-not-qualified')
+        system.require(proof.TARGETS[name] in ('ubuntu', 'fedora'),
+                       'fixture-serial:target-not-qualified')
     return name
 
 

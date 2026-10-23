@@ -186,10 +186,11 @@ use the same native provisioner at Smoke's post-SSH boundary before its first
 ready reply, with package-only scenario delivery kept separate. Its preparation
 check stops before graphical input. Ubuntu's
 [standalone serial boundary](../integration/README.md#ubuntu-standalone-serial-preparation)
-retains preboot credential/getty verification and uses that same post-SSH step
+and the same [Fedora boundary](../integration/README.md#fedora-standalone-serial-preparation)
+retain preboot credential/getty verification and use that same post-SSH step
 before serial input. Package-bearing install/refusal aliases retain their own
 input and result assertions; the preparation-only proof stops before console
-attachment or authentication. Fedora standalone and all recorded serial aliases
+attachment or authentication. All recorded serial aliases
 remain gated.
 Other ordinary runner branches and engineering selectors
 remain unavailable until the

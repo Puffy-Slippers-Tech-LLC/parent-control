@@ -337,8 +337,28 @@ graphical, authentication, installation or worker input. Focused host checks bin
 the aliases and retain recording seals, fresh secret recipients, single-use
 input, successful-install reboot and refused-install logout/no-reboot assertions.
 Watched restoration and owned credential/staging/input/transport cleanup remain
-required. Fedora standalone and all recorded serial paths remain gated. This
+required. All recorded serial paths remain gated. This
 supplies no customer or E2E acceptance.
+
+### Fedora standalone serial preparation
+
+The same standalone serial preparation and authenticated install/refusal
+preparation aliases select Fedora's immutable native input before restoration.
+Credential/getty preboot checks and the shared post-SSH Smoke readiness step
+retain the Ubuntu ordering and input guards.
+
+```sh
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_serial
+```
+
+One real preparation history independently verifies native bytes, harmless Riley
+runtime use, enforcing SELinux, exact native admissions/labels, input refusals,
+no-write repeats and current attempt/boot readiness. It preserves product absence
+and stops before console attachment, authentication, installation or worker input.
+Host composition binds the aliases and preserves successful-install reboot versus
+refused-install logout/no-reboot assertions; it grants no package/login acceptance.
+Recorded serial remains gated. Watched restoration and owned cleanup are required;
+this supplies no customer or E2E acceptance.
 
 ## Retained-session native dependency update
 

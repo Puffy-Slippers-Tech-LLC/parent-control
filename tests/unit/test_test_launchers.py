@@ -40,7 +40,7 @@ def named_qualification_inputs():
 
 @pytest.mark.parametrize(('name', 'options', 'target'), [
     (name, options, target) for name, options in named_qualification_inputs()
-    for target in ((vm_name(0),) if name == 'check_fixture_serial' else (vm_name(0), vm_name(1)))])
+    for target in (vm_name(0), vm_name(1))])
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('build_status', [0, 7])
 def test_every_named_input_consumer_prepares_before_dispatch(
@@ -158,12 +158,15 @@ def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatc
     ('integration', ['check_fixture_serial.py']),
     ('e2e', ['--qualify-install']), ('e2e', ['--qualify-install-refusal']),
 ])
-def test_serial_freezes_ubuntu_input_and_refuses_fedora_before_preparation(
-        monkeypatch, frozen_fixture_selection, category, arguments):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparation(
+        monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
+    frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
+        allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     record = frozen_fixture_selection.record()
-    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+    monkeypatch.setenv('ONPC_TEST_VM', vm)
     def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', 'ubuntu')
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target)
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
         return 0
     assert commands.qualification_fixture_options(ROOT, category, arguments,
@@ -176,7 +179,8 @@ def test_serial_freezes_ubuntu_input_and_refuses_fedora_before_preparation(
         assert commands.qualification_input_options(ROOT, arguments[0]) == expected
         if expected is None:
             assert commands.qualification_artifact_command(ROOT, category, arguments) is None
-    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Fedora44')
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
     control = Mock()
     with pytest.raises(ValueError, match='fixture serial target is unavailable'):
         commands.qualification_fixture_options(ROOT, category, arguments, control=control)

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify Ubuntu standalone serial preparation before console or worker input."""
+"""Qualify Ubuntu/Fedora standalone serial preparation before console or worker input."""
 import argparse
 import json
 import sys

@@ -58,7 +58,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
         raise ValueError('e2e:qualification-cannot-select-scenarios')
     fixture_selection = None
     serial = args.qualify_install or args.qualify_install_refusal
-    if serial and configured is not None and configured.name != 'onpc-Ubuntu26.04':
+    if serial and configured is not None and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
         raise ValueError('fixtures:serial-target-not-qualified')
     if args.fixture_selection is not None:
         if (args.list
@@ -77,7 +77,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
                 and selected.target != targets.get(configured.name)):
             raise ValueError('e2e:fixture-target-not-qualified')
         fixture_selection = selected.record()
-        if serial and selected.target != 'ubuntu':
+        if serial and selected.target not in ('ubuntu', 'fedora'):
             raise ValueError('fixtures:serial-target-not-qualified')
     if serial and fixture_selection is None and not allow_missing_artifacts:
         raise ValueError('fixtures:execution-selection-required')

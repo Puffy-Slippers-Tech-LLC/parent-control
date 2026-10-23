@@ -93,7 +93,8 @@ def test_full_listing_keeps_pending_cases_and_exact_digest():
     ('--qualify-install', 'authenticated-installation-qualification'),
     ('--qualify-install-refusal', 'deliberate-installation-refusal-qualification'),
 ])
-def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode, vm, target):
     assets = tmp_path / 'onpc-assets'
     assets.mkdir()
     # A generated /tmp/onpc-* parent meets the same public artifact boundary.
@@ -101,18 +102,19 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
     with tempfile.TemporaryDirectory(prefix='onpc-transfer-test-', dir='/tmp') as directory:
         options = [option, '--artifacts=' + directory]
         from tools.fixture_execution import Selection
-        selection = Selection('ubuntu', 'a' * 64,
-            '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private', 1, 2,
+        selection = Selection(target, 'a' * 64,
+            '/tmp/onpc-native-runtime-' + target + '-' + 'a' * 64 + '-private', 1, 2,
             '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
         options.extend(('--fixture-selection', json.dumps(selection, sort_keys=True)))
         plan = runner['preflight'](options)
         assert plan == {'mode': mode, 'artifacts': directory,
                         **({'fixture_selection': selection} if selection else {})}
-        assert select_vm(ROOT, ['e2e', *options])[-len(options):] == options
+        assert dispatcher['selection'](ROOT, ['e2e', '--vm', vm, *options])[-len(options):] == options
         for extra in ('--list', '--ready', '--scenario=E2E-001', '--scenario='):
             with pytest.raises(ValueError, match='qualification-cannot-select-scenarios'):
                 runner['preflight']([*options, extra])
-        command = select_vm(ROOT, ['e2e', *options, '--skip-backing-verification'])
+        command = dispatcher['selection'](ROOT, ['e2e', '--vm', vm, *options,
+                                                '--skip-backing-verification'])
         assert runner['preflight'](command[3:]) == plan
     with pytest.raises(ValueError, match='missing-artifact-directory'):
         runner['preflight'](options)
@@ -139,14 +141,13 @@ def test_transfer_requires_immutable_selection_and_matching_target(monkeypatch, 
 
 
 @pytest.mark.parametrize('option', ['--qualify-install', '--qualify-install-refusal'])
-def test_authenticated_serial_requires_ubuntu_selection_before_artifact_or_password_reads(
-        monkeypatch, tmp_path, option):
+@pytest.mark.parametrize('vm', ['onpc-Ubuntu26.04', 'onpc-Fedora44'])
+def test_authenticated_serial_requires_selection_before_artifact_or_password_reads(
+        monkeypatch, tmp_path, option, vm):
     password = Mock(side_effect=AssertionError('password read before input refusal'))
     monkeypatch.setattr(test_account_password, 'read_password', password)
     with pytest.raises(ValueError, match='execution-selection-required'):
-        runner['preflight'](['--vm', 'onpc-Ubuntu26.04', option])
-    with pytest.raises(ValueError, match='serial-target-not-qualified'):
-        runner['preflight'](['--vm', 'onpc-Fedora44', option])
+        runner['preflight'](['--vm', vm, option])
     password.assert_not_called()
 
 

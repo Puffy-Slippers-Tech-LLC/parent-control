@@ -147,29 +147,34 @@ def test_e2e_fixture_selection_does_not_enable_other_envelopes(fixture_selection
 
 @pytest.mark.parametrize('selector', ['check_graphical_serial', 'check_fixture_serial'])
 @pytest.mark.parametrize('suffix', ['', '.py'])
-def test_serial_dispatch_preserves_selection_only_on_ubuntu(checkout, fixture_selection, selector, suffix):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_serial_dispatch_preserves_selection_and_target(checkout, fixture_selection, selector, suffix, vm, target):
     (checkout / 'tests/integration' / (selector + '.py')).touch()
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     options = ['--fixture-selection', json.dumps(fixture_selection)]
     command = runner['selection'](checkout, ['integration', selector + suffix,
-        '--vm', 'onpc-Ubuntu26.04', *options])
+        '--vm', vm, *options])
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
-    for selection in ([], options):
-        with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-            runner['selection'](checkout, ['integration', selector + suffix,
-                '--vm', 'onpc-Fedora44', *selection])
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        runner['selection'](checkout, ['integration', selector + suffix,
+            '--vm', 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
 
 
 @pytest.mark.parametrize('option', ['--qualify-install', '--qualify-install-refusal'])
-def test_authenticated_serial_dispatch_preserves_selection_only_on_ubuntu(checkout, fixture_selection, option):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_authenticated_serial_dispatch_preserves_selection_and_target(checkout, fixture_selection, option, vm, target):
     e2e = checkout / 'tests/e2e'
     e2e.mkdir()
     (e2e / 'runner.py').write_text('def preflight(argv, **kwargs):\n    return {}\n')
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     options = ['--fixture-selection', json.dumps(fixture_selection)]
-    command = runner['selection'](checkout, ['e2e', option, '--vm', 'onpc-Ubuntu26.04', *options])
+    command = runner['selection'](checkout, ['e2e', option, '--vm', vm, *options])
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
-    for selection in ([], options):
-        with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-            runner['selection'](checkout, ['e2e', option, '--vm', 'onpc-Fedora44', *selection])
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        runner['selection'](checkout, ['e2e', option, '--vm',
+            'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
 
 
 @pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])

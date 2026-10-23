@@ -601,7 +601,7 @@ def fixture_execution_target(category, args):
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
     if serial:
-        if target != 'ubuntu':
+        if target is None:
             raise ValueError('fixture serial target is unavailable')
         return target
     if transfer:

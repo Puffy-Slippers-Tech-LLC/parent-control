@@ -623,7 +623,7 @@ class Qualification:
                     require(self.credentials is not None and not any((self.vt6_prompt, self.vt6_auth))
                             and (not (self.install or self.install_refusal) or self.assets is not None),
                             'fixtures:serial-branch-not-qualified')
-                    require(guest_target(lease.capture.state['guest']) == 'ubuntu',
+                    require(guest_target(lease.capture.state['guest']) in ('ubuntu', 'fedora'),
                             'fixtures:serial-target-not-qualified')
                 else:
                     require(self.assets is not None and not any((self.install,
@@ -1555,8 +1555,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     if serial:
         from smoke_fixture_preparation import validate_input
         from vm_config import selected
-        require(selected().name == 'onpc-Ubuntu26.04', 'fixtures:serial-target-not-qualified')
-        fixture_selection = validate_input(fixture_selection, target='ubuntu')
+        targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+        require(selected().name in targets, 'fixtures:serial-target-not-qualified')
+        fixture_selection = validate_input(fixture_selection, target=targets[selected().name])
     if product_free_entry or gdm_product_free:
         from vm_config import selected
         require(selected().name in ('onpc-Ubuntu26.04', 'onpc-Fedora44'),

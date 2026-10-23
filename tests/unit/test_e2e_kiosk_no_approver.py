@@ -172,7 +172,10 @@ def test_every_conflicting_mode_refuses_before_vm_access(monkeypatch):
                                             'countdown-enabled', 'countdown-off')],
     }
     for name in inspect.signature(smoke.main).parameters:
-        if name in ('assets', 'provision_credentials', 'kiosk_no_approver'):
+        # fixture_selection carries a structured immutable-input handoff, not
+        # a conflicting mode. Passing True tests malformed fixture data instead.
+        if name in ('assets', 'provision_credentials', 'kiosk_no_approver',
+                    'fixture_selection'):
             continue
         # Either conflicting mode may be validated first. The safety contract
         # is refusal before preparation, independent of validator source order.
@@ -183,7 +186,12 @@ def test_every_conflicting_mode_refuses_before_vm_access(monkeypatch):
                 f'conflict reached credential preparation: {arguments!r}')
             storage.side_effect = AssertionError(
                 f'conflict reached VM run allocation: {arguments!r}')
-            with pytest.raises(CommandError, match=r'^smoke:[a-z-]+-prerequisites$'):
+            # Transfer qualification refuses credential provisioning through its
+            # fixture guard, before credentials or VM storage can be prepared.
+            expected = (r'^fixtures:transfer-branch-not-qualified$'
+                        if name == 'transfer_qualification'
+                        else r'^smoke:[a-z-]+-prerequisites$')
+            with pytest.raises(CommandError, match=expected):
                 smoke.main(assets='/unused', provision_credentials=True,
                            kiosk_no_approver=True, **arguments)
     credentials.assert_not_called()

@@ -56,8 +56,7 @@ def synthetic_plan_evidence(monkeypatch, request):
     ('kiosk-desktop', 'docs/Kiosk-Desktop-Plan.md', True),
     ('kiosk-prompt-new', 'docs/Kiosk-Session-Confinement-New-Plan.md', True),
     ('fixture', 'docs/TestAutomation/Fixture-Execution-Plan.md', True),
-    ('export', 'docs/TestAutomation/Export-Execution-Plan.md', False),
-], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-desktop', 'kiosk-prompt-new', 'fixture', 'export'])
+], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-desktop', 'kiosk-prompt-new', 'fixture'])
 def plan_adapter(monkeypatch, request):
     name, plan, vm = request.param
     entry = Path(workflow.__file__).with_name(name)
@@ -3879,7 +3878,7 @@ def test_ownership_overlap_recovers_same_task_and_excludes_unrelated_work_on_res
         return result
 
     monkeypatch.setattr(workflow, 'execute', reconcile)
-    spec = workflow.PlanWorkflow('export', f.plan.path)
+    spec = workflow.PlanWorkflow('execute-plan', f.plan.path)
     recovered = workflow.initial_state(f.plan, spec, f.run.parent)
     TaskBudget(f.run).initialize(1)
     owner = os.open(f.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)

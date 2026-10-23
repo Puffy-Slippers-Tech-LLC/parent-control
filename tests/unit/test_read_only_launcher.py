@@ -68,7 +68,7 @@ def test_evidence_links_dispatch_pins_reader_and_cannot_forward_mutations(tmp_pa
     request.write_text('{"schema":"onpc-evidence-documents","version":1,"documents":[]}')
     (tmp_path / 'evidence_bundle.py').write_text('raise RuntimeError("untrusted import")\n')
     result = subprocess.run(reader['command'](['evidence-links',
-        '--plan=docs/TestAutomation/Export-Execution-Plan.md', '--declarations=' + str(request)]),
+        '--plan=docs/Plan.md', '--declarations=' + str(request)]),
         cwd=tmp_path, capture_output=True, text=True, check=False, timeout=10)
     assert result.returncode == 2 and not result.stdout
     assert result.stderr == 'evidence-links: semantic preview refused (ValueError)\n'

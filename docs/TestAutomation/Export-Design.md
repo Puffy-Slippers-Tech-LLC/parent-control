@@ -1,12 +1,12 @@
 # Test evidence and export target design
 
-Deliver this through the [plan](Export-Execution-Plan.md) and
-[queue](Export-Task-Queue.md). Existing runtime contracts remain authoritative;
-a proposal or review supplies no implementation or acceptance credit.
+The completed execution plan, queue and dedicated launcher have been retired.
+This document retains the design and historical delivery records. Existing runtime
+contracts remain authoritative; a proposal or review supplies no implementation
+or acceptance credit.
 
 ## Implementation direction
 
-The wrapper already delegates to the shared plan driver. Keep that arrangement.
 Solve the recorded failures with one bounded path: finalize an explicit set of
 records, publish it with the existing verified bundle writer, record its receipt
 in its owning workflow, then allow the original to retire.
@@ -81,18 +81,17 @@ no product or VM acceptance. All implementation checks use host-private fixtures
 including helper/privileged/target protocol simulations. Do not weaken a test
 assertion to make reference maintenance easier.
 
-Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md) and the master's
-[mandate boundaries](Export-Execution-Plan.md#delivery) to all remaining delivery,
-including P01–P12 and final review. These are core evidence/ownership guarantees,
+Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md) and the
+[repository instructions](../../AGENTS.md) to maintenance and review.
+These are core evidence/ownership guarantees,
 not a requirement for recursive tests of cases, fixtures or assertion helpers.
 Reuse direct coverage at each shared owner; add representative consumer checks
 only for distinct behavior or a concrete composition gap. UI tests of test tools
 are excluded. Preserve historical results without repeating their counts or
 obsolete metadata matrices as acceptance requirements.
 
-Keep public artifact reading/copying in the existing maintained reader. The
-`tools/export` wrapper executes this plan; it must never become a competing copy,
-archive or privileged shell route. Reuse shared storage, retention and bundle
+Keep public artifact reading/copying in the existing maintained reader.
+Reuse shared storage, retention and bundle
 publication. Add capabilities to existing scoped helpers only when needed, with
 normal argument validation, installation regressions and setup routing.
 
@@ -504,8 +503,8 @@ document, claim and candidate digests remain the resumption inputs.
 | Unavailable history | 117 | Pending E13: preserve missing-source outcomes; two authenticated file candidates still lack owner context. |
 | Operational path / example | 32 / 8 | Resolved as inert navigation/examples; no evidence or rewrite authority. |
 
-The two candidates are the references at lines 73 and 80 in the suspended
-[E03p authentication brief](Export-Tasks/E03p-auth.md), with reference digests
+The two candidates were the references at lines 73 and 80 in the now-retired
+E03p authentication brief, with reference digests
 `64ac68f0cf9bd8158bbeecbd9bae51bd7cb17da8217002956d21a665e54d0d36`
 and `59471655091627118070aac82c8b537de895791979a468df543ceb4e66668ccf`.
 Their archived bytes are authenticated, but `context_verified` remains false;
@@ -1052,7 +1051,7 @@ mechanisms E02–E05 apply to every captured producer without changing verdicts.
 | E2E collectors | `tests/e2e/private_artifacts.py`: `PrivateCollector`; `tests/e2e/execution.py`: `attempt`; recording/evidence callers register separate evidence root. Collector close releases descriptor, not retention; final candidate may precede cleanup failure. | E06a/P06, E07a/P07; `tests/unit/test_e2e_evidence.py`: `test_real_collector_sync_order_and_failure_precede_registration`, `test_final_gate_rechecks_copies_and_rejects_unregistered_worker_files`, `test_retained_failure_report_tampering_prevents_later_acceptance`, `test_first_failure_survives_cleanup_and_cannot_be_replaced_by_retry`. Capture final returned ledger status. |
 | Shared/target recovery diagnostics | `qualification_storage.recovery_session`; `tests/integration/check_graphical_recovery.py`, `baseline_guest.py` and `vm_probe.py` callers listed below. Separate `recovery-diagnostics-<uid>[-target]` owner; interrupted diagnostic runs may recover for rotation without clearing unfinished execution journal. | E06a/P06; `test_qualification_storage_cleanup_safety.py::test_recovery_diagnostics_rotate_without_changing_unfinished_vm_journal` plus catalogue/rotation anchors above. Preserve failure/partial diagnostics and native-log availability; no acceptance promotion. |
 | Reconnect/workflow logs | `tools/regression_session.py`: `_select`; `tools/detached_launcher.py`: `select`, session/start/carry callbacks. Registration rings differ from execution journals; resumable startup keeps exact pending-start identity. | E07/P08, E07a/P07; reuse `test_execution_plan_launcher.py`: `test_resumable_start_retries_same_registered_run_without_rotating_source`, `test_pending_partial_carry_over_budget_refuses_before_any_retention_prune`. |
-| Ordinary/derived plan proof | `tools/execute-plan`, `reliability-plan`, `kiosk-prompt`, `kiosk-desktop`, `kiosk-prompt-new`, `fixture`, `export` all use `plan_launcher.PlanWorkflow/main`. `plan_evidence.capture/carry/preserve/recover` freezes selected inputs and accepted cumulative proof; `plan_evidence_recovery` owns protected startup correction. | E07/P08; reuse historical accepted/carry/recovery tests plus `test_execution_plan_launcher.py::test_plan_adapter_default_check_has_no_execution_side_effects`. All adapters need a composition disposition, not separate evidence engines. |
+| Ordinary/derived plan proof | `tools/execute-plan`, `reliability-plan`, `kiosk-prompt`, `kiosk-desktop`, `kiosk-prompt-new`, `fixture` all use `plan_launcher.PlanWorkflow/main`. `plan_evidence.capture/carry/preserve/recover` freezes selected inputs and accepted cumulative proof; `plan_evidence_recovery` owns protected startup correction. | E07/P08; reuse historical accepted/carry/recovery tests plus `test_execution_plan_launcher.py::test_plan_adapter_default_check_has_no_execution_side_effects`. All adapters need a composition disposition, not separate evidence engines. |
 | Ordinary accepted Git retry | `plan_launcher.closeout`, `launcher_git` ownership/pull/stage/finish preserve accepted result before Git. Unfinished Git transaction cannot renew missing proof. | E07/P08; `tests/unit/test_plan_evidence.py::test_git_retry_reuses_only_the_exact_verified_result`; `test_execution_plan_launcher.py::test_unavailable_proof_does_not_renew_across_git_transaction`. |
 | Repair diagnosis and verification | `tools/fix_tests.py`: `handoff`, worker verification/diagnostic paths; `repair_evidence.capture` stores bounded snapshots within workflow run. Verification uses reported identities; unknown/unexecuted records remain nonpassing. | E07a/P07/P08; retain snapshot/selector tests above and `tests/unit/test_fix_tests.py`: `test_verification_uses_all_reported_identities_but_never_infers_unreported_passes`, `test_case_handoffs_do_not_cross_cases_or_vms_or_aggregate_companions`. |
 | Specialized E2E launcher | `tools/write_e2e.py`: `acceptance_evidence`, `validate_progress`, `accept_result`, `recover_completion`; formal live evidence differs from diagnosis/promotion and does not currently use ordinary `plan_evidence`. | E07a/P07/P08; retain `tests/unit/test_write_e2e.py`: `test_diagnostic_rounds_preserve_formal_failure_and_next_same_checkpoint_promotion`, `test_non_live_handoffs_preserve_failure_for_diagnosis_and_repair`, `test_retained_completion_cannot_bypass_acceptance_or_staging`, `test_push_failure_retries_existing_commit_before_counting_completion`. |

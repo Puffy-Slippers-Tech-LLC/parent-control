@@ -66,8 +66,6 @@ prefix_rule(
         "./tools/diagnose",
         "tools/execute-plan",
         "./tools/execute-plan",
-        "tools/export",
-        "./tools/export",
         "tools/fix-tests",
         "./tools/fix-tests",
         "tools/fixture",

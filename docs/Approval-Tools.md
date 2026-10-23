@@ -373,7 +373,7 @@ The [rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/
 matches literal argument prefixes; the strictest decision wins.
 `match`/`not_match` examples test rules, not runtime arguments.
 
-`tools/read-only evidence-inventory --plan 'docs/TestAutomation/Export-Execution-Plan.md'`
+`tools/read-only evidence-inventory --plan 'docs/TestAutomation/Fixture-Execution-Plan.md'`
 inspects tracked Markdown names from Git and their bounded legacy references.
 Repeat `--catalogue 'checkout-relative.md'` to register a finite local Markdown
 catalogue, including an untracked handoff; repeat `--owner-plan 'docs/Other.md'`

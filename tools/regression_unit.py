@@ -1,5 +1,11 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Directory-closure checks use the existing tiny pytest-private allocations,
+archives and journals, with bounded metadata hashes and no new process, socket,
+display, shared cache or cleanup owner. Their normal unit overlap is unchanged.
+Finite migration resume checks reuse those private stores for three documents
+and four small archive rotations; they add no shared fixture or resource owner.
+
 Archive pacing checks in evidence_bundle retain private files, real sync failure
 propagation and process-local clock doubles. Coarser sync batches reduce flush
 count while retaining the write-rate cap. Deferred completion publication uses
@@ -104,6 +110,8 @@ process-local Git/agent/cleanup doubles, recorded private nested-directory
 identities with synchronous ownership doubles, in-memory VT panes and four finite
 joined budget-update threads. Its relocated CLI and carried-checkpoint entry
 checks each own a bounded, waited Python child without model inference.
+Ownership-overlap recovery reuses the existing private Git repositories and
+bounded, waited Git children; staging, remotes and checkpoints stay pytest-private.
 No VM, bus, display, network, shared mutable path
 or cache, heavy build or cleanup-inventory resource is acquired; compatible unit
 scheduling is appropriate. Cleanup and UI inventories gain no module.

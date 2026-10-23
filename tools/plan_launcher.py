@@ -26,7 +26,8 @@ import detached_launcher as launcher
 import plan_evidence
 import plan_evidence_recovery
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace
-from launcher_git import (GitReconciliationRequired, closeout_lock, finish_commit, git_output, propagate_worktrees,
+from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequired,
+                          closeout_lock, finish_commit, git_output, propagate_worktrees,
                           pull_before_commit, reconciliation_instructions, stage_task,
                           validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_progress
@@ -660,11 +661,11 @@ def _closeout(plan, spec, run, state):
     validate_result(plan, state, result)
     if spec.commit_prefix:
         paths = state.get('commit_intent', {}).get('paths')
-        if paths is None:
-            paths = list(dict.fromkeys(result['stage_paths']))
-            validate_closeout_ownership(plan.root, paths, state)
         state['plan_queue'] = plan.queue
         try:
+            if paths is None:
+                paths = list(dict.fromkeys(result['stage_paths']))
+                validate_closeout_ownership(plan.root, paths, state)
             pull_before_commit(plan.root, run, state, git=git_output)
         except GitReconciliationRequired as error:
             identity = state.get('pull_intent', {})
@@ -673,6 +674,8 @@ def _closeout(plan, spec, run, state):
                                                  **{key: identity[key] for key in ('branch', 'upstream')
                                                     if key in identity}),
                          handoff=str(error) + '\n' + result['handoff'])
+            if isinstance(error, OwnershipReconciliationRequired):
+                state['git_reconciliation']['ownership_paths'] = error.paths
             state.pop('pending_completion', None)
             state.pop('pull_intent', None)
             launcher.atomic(run / 'checkpoint.json', state)

@@ -377,6 +377,11 @@ prove a pass. Non-case failures require a successful replay of their category.
 Diagnostic execution alone never triggers a commit. Agents report `stage_paths`
 and leave staging, commits and pushes to the launcher. Pre-existing dirty or
 staged work is protected; overlapping close-out refuses rather than including it.
+Edits left by another repair or diagnostic in the retained launcher run recover
+automatically when recorded session changes and exact fingerprints trace the
+overlapping baseline back to a clean start. The original ownership checkpoints
+remain intact; unrelated edits, mismatched fingerprints and pre-existing staged
+work still refuse. Recovery grants no verification credit to the earlier case.
 Staging, commit or push failures stop advancement and retain the accepted repair.
 The next invocation retries that close-out before tests or agents, preserving
 branch/upstream identity and recognizing an already-created completion commit.

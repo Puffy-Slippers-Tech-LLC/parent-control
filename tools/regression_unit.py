@@ -72,7 +72,8 @@ the existing compatible unit classification remains appropriate.
 
 Repair Git close-out extends fix_tests and fix_tests_cleanup_safety with tiny
 pytest-private checkouts and bare remotes, finite waited Git children and
-process-local failure doubles. No external network, shared Git state, VM,
+process-local failure doubles, including diagnostic overlap/restart checks.
+No external network, shared Git state, VM,
 display, bus or additional asynchronous cleanup owner is acquired; both modules
 retain compatible unit scheduling and the existing cleanup classification.
 Automatic repair-controller reload uses the same recorded worker and private

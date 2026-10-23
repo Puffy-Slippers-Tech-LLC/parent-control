@@ -75,7 +75,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # UI/transport trees and bounded waited Perl/isolated-Python children. No live
 # guest, display, socket or new cleanup owner; compatible in unit and cleanup.
 # Repair Git close-out uses tiny pytest-private checkouts/bare remotes and finite
-# waited local Git children. It adds no external network, shared Git state, VM,
+# waited local Git children, including diagnostic overlap/restart checks.
+# It adds no external network, shared Git state, VM,
 # bus/display or asynchronous owner; compatible unit/cleanup scheduling holds.
 # Repair resume checks reuse fix_tests_cleanup_safety's private checkpoint trees
 # and recorded, waited test/agent doubles. They create no new shared cleanup

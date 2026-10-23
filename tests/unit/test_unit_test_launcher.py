@@ -253,15 +253,55 @@ def test_real_launcher_from_other_cwd_preserves_pytest_status(
         checkout, monkeypatch, body, options, expected):
     # Each private checkout owns its session and pytest child. The observer waits
     # for the detached owner's result before the fixture can be reclaimed.
+    # Terminal evidence needs hundreds of paced journal flushes even for one
+    # failed test. Advance only the private journal clock through those waits;
+    # keep real fsync, observer clocks and the 20-second deadlock guard. Journal
+    # spacing and sync failures have focused coverage in test_regression_session.
+    journal_io = checkout / 'tools/test_io.py'
+    with journal_io.open('a') as stream:
+        stream.write('''
+
+_real_journal_time = time
+
+class _JournalClock:
+    offset = 0.0
+
+    def monotonic(self):
+        return _real_journal_time.monotonic() + self.offset
+
+    def sleep(self, delay):
+        self.offset += delay
+
+time = _JournalClock()
+''')
     (checkout / 'tests/unit/test_status.py').write_text(body)
     subprocess.run(['git', 'init', '-q', str(checkout)], check=True)
     (checkout / '.git/info/exclude').write_text('output/\n')
     monkeypatch.setenv('PYTEST_DISABLE_PLUGIN_AUTOLOAD', '1')
     monkeypatch.setenv('PYTEST_ADDOPTS', '--rootdir=/missing-private-sentinel')
     monkeypatch.setenv('PYTEST_PLUGINS', 'missing_private_sentinel')
-    result = subprocess.run(
-        [str(checkout / 'tools/run-unit-tests'), 'tests/unit/test_stat*.py', '-q', *options],
-        cwd=checkout.parent, capture_output=True, text=True, timeout=20, check=False)
+    try:
+        result = subprocess.run(
+            [str(checkout / 'tools/run-unit-tests'), 'tests/unit/test_stat*.py', '-q', *options],
+            cwd=checkout.parent, capture_output=True, text=True, timeout=20, check=False)
+    except subprocess.TimeoutExpired as error:
+        from test_storage import directory
+        sessions = directory('sessions-host', root=checkout, create=False)
+        diagnostics = []
+        for path in sorted(sessions.glob('*/output')):
+            run = path.parent
+            result_path = run / 'result'
+            diagnostics.append(
+                f'Nested session {run.name}: result='
+                f'{result_path.read_text() if result_path.exists() else "missing"}; '
+                f'delivered={(run / "delivered").exists()}\n'
+                + path.read_text(errors='replace')[-16384:])
+        stderr = error.stderr or b''
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode(errors='replace')
+        error.add_note('Private launcher timeout diagnostics:\n' + stderr[-16384:]
+                       + '\n' + '\n'.join(diagnostics))
+        raise
     nested_diagnostics = '\n'.join(path.read_text(errors='replace')[-8192:] for path in
         sorted((checkout / 'output/test-runs/host/reports').glob('*/category-*.log')))
     assert result.returncode == expected, result.stdout + result.stderr + nested_diagnostics

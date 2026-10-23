@@ -77,6 +77,37 @@ class RepairCommits:
         with closeout_lock(self.root, self.run, self.state):
             self._finish_pending()
 
+    def validate_ownership(self, entry):
+        # A diagnostic for another case can leave edits that this repair builds
+        # on. Prove that exact baseline belongs to this launcher, tracing back
+        # to a clean start; a reported path alone is not ownership evidence.
+        scope = dict(entry, stage_baseline=dict(entry['stage_baseline']))
+        recovered = []
+        for path in entry['stage_paths']:
+            if path not in scope['stage_baseline']:
+                continue
+            owners = [other for other in self.state['repairs'].values()
+                      if other.get('status') in ('diagnostic_ready', 'fixed', 'test_fixed')
+                      and path in other['stage_paths'] and path in other['stage_candidates']
+                      and path not in other['protected_staged'] and path in other.get('fingerprints', {})]
+            owned = set()
+            while True:
+                before = set(owned)
+                for other in owners:
+                    baseline = other['stage_baseline'].get(path)
+                    if baseline is None or baseline in owned:
+                        owned.add(other['fingerprints'][path]['content'])
+                if owned == before:
+                    break
+            if scope['stage_baseline'][path] in owned:
+                del scope['stage_baseline'][path]
+                recovered.append(path)
+        # Keep the original checkpoints as provenance for later repairs/restart.
+        # In particular, never release pre-existing staged work through this path.
+        validate_closeout_ownership(self.root, entry['stage_paths'], scope)
+        if recovered:
+            print('fix-tests: recovered launcher-owned overlap: ' + ', '.join(recovered), flush=True)
+
     def _finish_pending(self):
         key = self.state.get('pending')
         if key is None:
@@ -110,7 +141,7 @@ class RepairCommits:
                 raise ValueError('validated repair files changed; revalidate before Git close-out')
         check_files()
         if self.state.get('commit_intent') is None:
-            validate_closeout_ownership(self.root, paths, entry)
+            self.validate_ownership(entry)
             self.save()
             paths = stage_task(self.root, paths)
         else:

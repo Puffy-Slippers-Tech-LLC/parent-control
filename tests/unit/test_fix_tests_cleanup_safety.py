@@ -491,6 +491,83 @@ def test_repair_closeout_refuses_preexisting_owned_work(checkout, staged):
                           text=True, check=True, timeout=10).stdout.strip() == 'Initial fixture'
 
 
+@pytest.mark.parametrize('baseline', ['clean', 'dirty', 'staged', 'intervening'])
+def test_pending_repair_recovers_only_proven_launcher_owned_baselines(checkout, baseline):
+    from fix_tests_git import RepairCommits
+    from launcher_git import worktree_snapshot
+
+    root, _ = checkout
+    run = root / 'closeout'
+    run.mkdir()
+    if baseline in ('dirty', 'staged'):
+        (root / 'owned.py').write_text('preexisting work\n')
+    if baseline == 'staged':
+        subprocess.run(['git', 'add', '--', 'owned.py'], cwd=root, check=True, timeout=10)
+    commits = RepairCommits(root, run)
+    for number, case in enumerate(('A', 'B', 'C')):
+        if baseline == 'intervening' and number == 1:
+            (root / 'owned.py').write_text('unrelated edit between sessions\n')
+        target = ('unit', case, '')
+        commits.begin(target)
+        before = worktree_snapshot(root)
+        (root / 'owned.py').write_text(f'launcher edit {number}\n')
+        commits.capture_session(target, before)
+        commits.record(target, dict(status='test_fixed' if case == 'C' else 'diagnostic_ready',
+                                    stage_paths=['owned.py']))
+    # The old controller stopped here after verification. Reuse its checkpoint
+    # unchanged, including the original diagnostic fingerprints and baselines.
+    commits.state['pending'] = commits.key(target)
+    commits.save()
+    retained = json.loads((run / 'checkpoint.json').read_text())
+    if baseline == 'clean':
+        RepairCommits(root, run).finish_pending()
+        state = json.loads((run / 'checkpoint.json').read_text())
+        assert 'pending' not in state
+        for key, entry in state['repairs'].items():
+            assert entry == retained['repairs'][key]
+        assert subprocess.run(['git', 'show', '@{upstream}:owned.py'], cwd=root,
+                              capture_output=True, text=True, check=True, timeout=10).stdout == 'launcher edit 2\n'
+    else:
+        with pytest.raises(ValueError, match='close-out overlaps pre-existing work: owned.py'):
+            RepairCommits(root, run).finish_pending()
+        state = json.loads((run / 'checkpoint.json').read_text())
+        assert state['repairs'] == retained['repairs'] and state['pending'] == retained['pending']
+        assert 'commit_intent' not in state
+        assert subprocess.run(['git', 'log', '-1', '--format=%s'], cwd=root, capture_output=True,
+                              text=True, check=True, timeout=10).stdout.strip() == 'Initial fixture'
+
+
+def test_diagnostic_overlap_verifies_once_and_resumes_failed_push(checkout):
+    root, _ = checkout
+    hook = root / 'remote.git/hooks/pre-receive'
+    hook.write_text('#!/bin/sh\nexit 1\n')
+    hook.chmod(0o700)
+    (root / 'repair-unrelated.py').write_text('unrelated staged work\n')
+    subprocess.run(['git', 'add', '--', 'repair-unrelated.py'], cwd=root, check=True, timeout=10)
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['diagnostic_ready', 'diagnostic_ready', 'test_fixed'], tests=['A', 'B', 'C', None],
+        repair_path='owned.py', structured=True, record_git=True)))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1, output.getvalue()
+    assert 'recovered launcher-owned overlap: owned.py' in output.getvalue()
+    assert 'completion push failed' in output.getvalue()
+    calls = (root / 'calls').read_bytes()
+    agents = [json.loads(line) for line in calls.splitlines() if json.loads(line)['kind'] == 'agent']
+    assert [call['pushed_subject'] for call in agents] == ['Initial fixture'] * 3
+    hook.unlink()
+    resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
+    output = io.StringIO()
+    assert fix_tests.follow(resumed, output) == 0, output.getvalue()
+    assert (root / 'calls').read_bytes() == calls
+    assert subprocess.run(['git', 'show', '@{upstream}:owned.py'], cwd=root,
+                          capture_output=True, text=True, check=True, timeout=10).stdout == 'fixture repair 3\n'
+    assert subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
+                          capture_output=True, text=True, check=True, timeout=10).stdout == 'repair-unrelated.py\n'
+    assert (root / 'repair-unrelated.py').read_text() == 'unrelated staged work\n'
+
+
 def test_diagnostics_and_failed_verification_are_never_committed(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-script')

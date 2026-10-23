@@ -124,7 +124,7 @@ class Plan:
     def namespace(self):
         return plan_namespace(self.path)
 
-    def tasks(self):
+    def tasks(self, *, selected=None):
         local_file(self.root, self.path)
         queue = local_file(self.root, self.queue)
         text = queue.read_text().split('## Deferred future work', 1)[0]
@@ -134,6 +134,8 @@ class Plan:
             if len(fields) < 6 or fields[1] not in ('[ ]', '[x]'):
                 continue
             identity, title, dependencies = fields[2:5]
+            if selected is not None and identity not in selected:
+                continue
             if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', identity):
                 raise ValueError('task IDs must be stable simple labels')
             complete = fields[1] == '[x]'
@@ -143,6 +145,8 @@ class Plan:
             brief = local_file(self.root, link[2], base=queue.parent) if link and not complete else None
             requires = tuple(item.strip() for item in dependencies.split(',')) if dependencies not in ('', '—', '-', 'Baseline') else ()
             tasks.append(Task(identity, complete, link[1] if link else title, brief, requires))
+        if selected is not None:
+            return tasks  # Run surviving selected IDs without revalidating edited content.
         # The queue is authoritative. A stale display pointer must not prevent
         # selection or recovery of its first unfinished task.
         current, states = queue_state(self.root, self.path, self.queue, validate_pointer=False)
@@ -157,8 +161,8 @@ class Plan:
             earlier[task.id] = task.complete
         return tasks
 
-    def state(self):
-        return {task.id: task.complete for task in self.tasks()}
+    def state(self, *, selected=None):
+        return {task.id: task.complete for task in self.tasks(selected=selected)}
 
     def structure(self, *, selected=None, completed=()):
         text = (self.root / self.queue).read_text().split('## Deferred future work', 1)[0]

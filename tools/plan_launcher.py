@@ -101,7 +101,6 @@ def validate_result_payload(state, result):
     elif result['blocker'] is not None:
         raise ValueError('only a blocked result may carry a developer question')
     if result['status'] == 'task_complete':
-        validate_consolidated_metadata(state['task'], state.get('consolidation_obligations', {}))
         required = state['task']['acceptance']
         targets = state['task']['targets'] or ['']
         if (not result['cleanup_complete'] or not result['checks']
@@ -112,26 +111,23 @@ def validate_result_payload(state, result):
 
 
 def prerequisite_handoff(plan, state, result):
-    """Recognize a safe insertion without requiring a corrective status-only turn."""
-    return (result['status'] == 'prerequisite_required'
-            or result['status'] == 'continue' and result['cleanup_complete']
-            and plan.prerequisite_repair(state) is not None)
+    """Only an explicit planned prerequisite handoff expands the selection."""
+    return result['status'] == 'prerequisite_required'
 
 
 def validate_result(plan, state, result):
-    if Plan.load(plan.root, plan.path).queue != plan.queue:
-        raise ValueError('master plan queue changed since its checkpoint; reconcile the retained handoff')
-    validate_result_payload(state, result)
     validate_task_metadata(plan, state)
-    complete = result['status'] == 'task_complete'
+    validate_result_payload(state, result)
+    current = plan.state(selected=state.get('selected_tasks'))
+    if (result['status'] == 'task_complete' and state['task_id'] in current
+            and not current[state['task_id']]):
+        raise ValueError('only the selected task can complete after its current queue row is checked')
     if prerequisite_handoff(plan, state, result):
         if state.get('git_reconciliation'):
             raise ValueError('Git reconciliation must finish the retained task before selecting prerequisites')
         if not result['cleanup_complete'] or plan.prerequisite_repair(state) is None:
             raise ValueError('prerequisite handoff needs a valid backward dependency insertion and owned cleanup')
         return
-    plan.validate_transition(state['queue_before'], state['task_id'], complete=complete,
-                             structure=state.get('queue_structure'))
 
 
 def session_command(root, spec, run=None):
@@ -184,7 +180,9 @@ Then check this queue row and advance Next task to the first unchecked row
 (Next task: none. when finished). A short completion note is enough; do not
 create proof files, collect report bundles or repair completed tasks' report links.
 Remove the temporary brief if appropriate.
-Preserve every other row's status, order and scope. If this session cannot finish,
+Use the current queue and briefs. Parallel changes are authoritative; do not
+restore removed tasks or old scope/acceptance declarations from the checkpoint.
+If this session cannot finish,
 leave this task unchecked and the pointer on it; return continue with a usable
 handoff. At close-out, you may update this row's Estimate with a short result;
 keep its Scope and Requires unchanged. For a newly discovered prerequisite,
@@ -211,10 +209,6 @@ Previous handoff/recovery: {state.get('handoff', 'No prior session.')}
   'same task and session. No acceptance or extra task-session allowance was granted. Failure: '
   + state['capacity_recovery']['message']) if state.get('capacity_recovery') else ''}
 Developer answer: {json.dumps(state.get('answer'))}
-Original consolidated obligations: {json.dumps(state.get('consolidation_obligations', {}).get(state['task_id'], []))}
-For a consolidated task, every original scope and per-target acceptance assertion
-above remains required. The current combined brief replaces only the former
-single-target scheduling and queue close-out instructions.
 {reconciliation_instructions(state)}
 {result_recovery_instructions(state.get('result_recovery'), allowance='separate coordinator repair allowance')}
 """
@@ -228,17 +222,42 @@ def validate_consolidated_metadata(record, obligations):
 
 
 def validate_task_metadata(plan, state):
-    """A fresh session must not silently reuse weaker saved acceptance targets."""
-    brief = Path(state['task']['brief'])
-    if not brief.exists() and (state.get('in_flight') or state.get('pending_completion')
-                               or state.get('git_reconciliation') or capacity_session_recovery(state)):
-        return  # Recovery may restore a brief removed during partial close-out.
-    brief = local_file(plan.root, str(brief.relative_to(plan.root)))
-    current = task_record(Task(state['task_id'], False, state['title'], brief, ()))
-    validate_consolidated_metadata(current, state.get('consolidation_obligations', {}))
-    if (current['acceptance'] != state['task']['acceptance']
-            or set(current['targets']) != set(state['task']['targets'])):
-        raise ValueError('task acceptance or targets changed since its checkpoint; reconcile the retained handoff')
+    """Use the current task definition without comparing it to a snapshot."""
+    if (not Path(state['task']['brief']).exists() and (any(state.get(key) for key in
+            ('in_flight', 'pending_completion', 'git_reconciliation', 'result_recovery'))
+            or capacity_session_recovery(state))):
+        return  # A finished/interrupted turn may already have removed its brief.
+    task = next((task for task in plan.tasks(selected=state.get('selected_tasks'))
+                 if task.id == state['task_id']), None)
+    if task is not None and task.complete:
+        brief = Path(state['task']['brief'])
+        if not brief.exists():
+            return
+        task = Task(task.id, True, task.title, brief, task.requires)
+    if task is not None:
+        record = task_record(task)
+        state.update(record, task=record)
+
+
+def refresh_live_plan(plan, state):
+    """Follow the surviving queue; removed tasks need no recovery or credit."""
+    if state.get('git_reconciliation') or state.get('pull_intent'):
+        return  # Finish the recorded Git transaction before reading conflicted metadata.
+    try:
+        tasks = plan.state(selected=state.get('selected_tasks', state.get('queue_before')))
+    except ValueError:
+        if (any(state.get(key) for key in ('in_flight', 'pending_completion', 'result_recovery'))
+                or capacity_session_recovery(state)):
+            return  # Let the existing coordinator recover partial file edits.
+        raise
+    if (state.get('task_id') and state['task_id'] not in tasks
+            and not state.get('commit_intent') and not state.get('pull_intent')):
+        state.update(phase='complete', in_flight=False)
+        for key in ('pending_completion', 'result_recovery', 'capacity_recovery'):
+            state.pop(key, None)
+    if state.get('suspended_tasks'):
+        state['suspended_tasks'] = {key: saved for key, saved in state['suspended_tasks'].items()
+                                    if key in tasks and not tasks[key]}
 
 
 def defer_to_prerequisite(plan, state):
@@ -250,6 +269,9 @@ def defer_to_prerequisite(plan, state):
     consumer.update(phase='recover', in_flight=False)
     pending[state['task_id']] = consumer
     return dict(phase='complete', suspended_tasks=pending, total_sessions=state.get('total_sessions', 0),
+                selected_tasks=list(dict.fromkeys([
+                    *state.get('selected_tasks', state['queue_before']),
+                    *[identity for identity in plan.state() if identity not in state['queue_before']]])),
                 consolidation_obligations=state.get('consolidation_obligations', {}),
                 task_sessions=0, replan_baseline=state['stage_baseline'],
                 protected_staged=state['protected_staged'],
@@ -290,6 +312,7 @@ def initial_state(plan, spec, directory, *, reloading=False):
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
+        refresh_live_plan(plan, state)
         # Old controllers could stop a completed task solely to archive reports.
         # Its saved successful result still owns completion; report lifetime does not.
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
@@ -305,13 +328,6 @@ def initial_state(plan, spec, directory, *, reloading=False):
                 saved.pop(key, None)
         if capacity_session_recovery(state) and not reloading:
             state['capacity_recovery']['restart'] = True
-        if (state.get('consolidation_obligations') and not any(
-                state.get(key) for key in ('in_flight', 'pending_completion',
-                                          'git_reconciliation', 'pull_intent', 'result_recovery',
-                                          'evidence_renewal'))):
-            for task in plan.tasks():
-                if not task.complete:
-                    validate_consolidated_metadata(task_record(task), state['consolidation_obligations'])
         # Older workers stopped on a rejected structured handoff. Recover only
         # when the retained response reproduces that exact controller rejection;
         # process/provider failures and arbitrary interrupted edits stay guarded.
@@ -335,15 +351,6 @@ def initial_state(plan, spec, directory, *, reloading=False):
                 if not reloading:
                     saved['session_limit'] = task_session_usage(saved) + spec.max_sessions
         if state.get('phase') != 'complete':
-            if not any(state.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery',
-                                                 'evidence_renewal')):
-                try:
-                    plan.validate_recovery(state)
-                except ValueError:
-                    if plan.prerequisite_repair(state) is None:
-                        raise
-                    if not capacity_session_recovery(state):
-                        state = defer_to_prerequisite(plan, state)
             if state.get('in_flight') and not state.get('pending_completion'):
                 result_path = previous / 'agent-result.json'
                 if result_path.is_file():
@@ -362,12 +369,9 @@ def initial_state(plan, spec, directory, *, reloading=False):
                     state.update(phase='recover', answer={'question': question['question'], 'answer': question['answer']})
             return state
         if state.get('suspended_tasks') or state.get('consolidation_obligations'):
-            plan.validate_recovery(state)
             state['recovery_run'] = str(previous)
             return state
         if reloading:
-            if state.get('queue_before'):
-                plan.validate_recovery(state)
             return state
     return {'phase': 'complete', 'task_sessions': 0, 'total_sessions': 0}
 
@@ -730,8 +734,15 @@ RESPONSE_VALIDATOR_SOURCES = (
 
 def response_validator_sources():
     """Detect repairs that this process cannot load by retrying an agent turn."""
-    return {name: hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
-            for name in RESPONSE_VALIDATOR_SOURCES}
+    sources = {}
+    for name in RESPONSE_VALIDATOR_SOURCES:
+        try:
+            sources[name] = hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
+        except FileNotFoundError:
+            # A parallel refactor can remove an old controller's dependency.
+            # Let the fresh controller load its own inventory at the boundary.
+            sources[name] = None
+    return sources
 
 
 def reload_controller(root, run, owner, spec):
@@ -751,21 +762,6 @@ def reload_controller(root, run, owner, spec):
             os.set_inheritable(fd, value)
 
 
-def reload_state(root, run, owner, spec, state):
-    """Reapply startup guards at a child-free boundary under the same owner."""
-    with launcher.lock(run.parent / 'gate') as gate:
-        fcntl.flock(gate, fcntl.LOCK_EX)
-        identity = os.fstat(owner)
-        recorded = (run.parent / 'owner').lstat()
-        if (launcher.current_run(run.parent) != run
-                or (identity.st_dev, identity.st_ino) != (recorded.st_dev, recorded.st_ino)
-                or state.get('in_flight') or (run / 'result.json').exists()):
-            raise ValueError('controller reload requires the current idle session boundary and owner')
-        plan = load_plan(root, spec.plan, state)
-        launcher.finish_nested(root, run)
-        return initial_state(plan, spec, run.parent, reloading=True)
-
-
 def worker(root, run, owner, spec, state, *, reloading=False):
     from launcher_chat import task_info_instructions
     from launcher_display import clock_duration
@@ -776,12 +772,14 @@ def worker(root, run, owner, spec, state, *, reloading=False):
     status, reason = 0, 'queue complete'
     reload = False
     try:
-        if reloading:
-            state = reload_state(root, run, owner, spec, state)
+        # exec retains ownership and this live checkpoint. Reloading code is
+        # not a fresh admission: continue without replaying startup validation.
         plan = load_plan(root, spec.plan, state)
+        state.setdefault('selected_tasks', list(state.get('queue_before') or plan.state()))
+        refresh_live_plan(plan, state)
         validator_sources = response_validator_sources()
         reload_reason = ('launcher validation code changed during the session; '
-                         'reloading controller and revalidating the retained handoff')
+                         'reloading controller and continuing the retained handoff')
         if state.get('recovery_run'):
             launcher.finish_nested(root, Path(state['recovery_run']))
         if reloading and (run / 'cancel').exists():
@@ -804,6 +802,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             if response_validator_sources() != validator_sources:
                 reload, reason = True, reload_reason
                 break
+            plan = load_plan(root, spec.plan, state)
+            refresh_live_plan(plan, state)
             recovery = state.get('capacity_recovery')
             if capacity_retry(state):
                 delay = recovery['retry_after'] - time.time()
@@ -812,15 +812,11 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     continue
             completed_state = None
             if state['phase'] == 'complete':
-                if state.get('queue_before'):
-                    plan.validate_recovery(state)
-                task = plan.next_task()
+                task = next((task for task in plan.tasks(selected=state['selected_tasks'])
+                             if not task.complete), None)
                 if task is None:
-                    if state.get('suspended_tasks'):
-                        raise ValueError('queue exhausted with unaccepted suspended tasks; reconcile the retained handoff')
                     reason = 'queue complete'
                     break
-                validate_consolidated_metadata(task_record(task), state.get('consolidation_obligations', {}))
                 limits = budget.read()
                 if limits.get('closed') or (limits['tasks'] is not None
                         and limits['completed'] >= limits['tasks']):
@@ -834,7 +830,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     selected = dict(pending.pop(task.id))
                     validate_task_metadata(plan, selected)
                     selected.update(total_sessions=state.get('total_sessions', 0),
-                                    queue_before=plan.state(), queue_structure=plan.structure(selected=task.id))
+                                    queue_before=plan.state(selected=state['selected_tasks']),
+                                    queue_structure=plan.structure(selected=task.id))
                 else:
                     selected = dict(task_record(task), task=task_record(task), phase='implement',
                              task_sessions=0, total_sessions=state.get('total_sessions', 0),
@@ -843,11 +840,13 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                              stage_baseline=inherited_baseline if inherited_baseline is not None else worktree_snapshot(root),
                              protected_staged=inherited_staged if inherited_baseline is not None else
                                 list(filter(None, git_output(root, 'diff', '--cached', '--name-only', '-z').stdout.split('\0'))),
-                             queue_before=plan.state(), queue_structure=plan.structure(selected=task.id))
+                             queue_before=plan.state(selected=state['selected_tasks']),
+                             queue_structure=plan.structure(selected=task.id))
                 if pending:
                     selected.update(suspended_tasks=pending, replan_baseline=selected['stage_baseline'])
                 if state.get('consolidation_obligations'):
                     selected['consolidation_obligations'] = state['consolidation_obligations']
+                selected['selected_tasks'] = state['selected_tasks']
                 state = selected
             if state['phase'] == 'blocked':
                 launcher.atomic(run / 'chat-state.json', {'session': state.get('total_sessions'),
@@ -918,6 +917,12 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 f"Session [{state['task_sessions']}]: {active_spec.model} {active_spec.effort}"])
             try:
                 result = execute(root, active_spec, run, owner)
+                plan = load_plan(root, spec.plan, state)
+                if state['task_id'] not in plan.state(selected=state['selected_tasks']):
+                    launcher.finish_nested(root, run)
+                    refresh_live_plan(plan, state)
+                    launcher.atomic(run / 'checkpoint.json', state)
+                    continue
                 validate_session_result(result, lambda result: validate_result(plan, state, result))
             except AgentCapacityUnavailable as error:
                 launcher.finish_nested(root, run)

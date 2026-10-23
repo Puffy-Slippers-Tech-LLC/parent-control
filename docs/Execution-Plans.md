@@ -33,13 +33,14 @@ separate. An optional `## Deferred future work` heading ends the active queue;
 rows below it never run automatically. Completed rows need only a plain task
 title and, when useful, a short result note after their temporary briefs are removed.
 The queue determines task selection; the master pointer is a readable summary.
-A stale or missing pointer does not prevent execution. Transition and restart
-checks protect task identities, order and completion, and preserve unfinished
-scope and dependencies. Titles, planning estimates and result notes may evolve.
-New unchecked tasks may be appended during a run. Only the selected task may
-become complete; removing, reordering or skipping existing tasks still requires
-explicit reconciliation. A completed row stays complete without reopening its
-brief, reports or validation.
+A stale or missing pointer does not prevent execution. Ordinary plan launchers
+keep the selected task IDs and use their current queue rows and briefs without
+comparing content with saved definitions. Newly added unrelated tasks are ignored
+until a new run; explicit prerequisite handoffs may extend the planned work.
+Parallel removals, reorderings and scope or acceptance edits need no approval,
+change report or reconciliation. Removed tasks are skipped without completion
+credit; surviving tasks use their current definitions. A completed row stays
+complete without reopening its brief, reports or validation.
 
 Each brief includes `Acceptance: installed`, `Acceptance: host`,
 `Acceptance: review` or `Acceptance: reconciliation` on its own line. Installed
@@ -111,15 +112,13 @@ its previous dependencies; this insertion is the sole exception to preserving
 that field during ordinary close-out.
 The structured `prerequisite_required` handoff suspends the consumer and resumes
 its retained work after those prerequisites pass, including across restarts.
-The controller also recognizes the same valid insertion in a `continue` response
-after owned cleanup and advances automatically, without spending a corrective
-session solely to change the response status. It preserves the consumer's exact
+Only an explicit `prerequisite_required` response expands the selected work;
+a `continue` response does not discover or admit added tasks. It preserves the consumer's exact
 handoff, acceptance, session counts and protected work; suspension earns no task
 completion or extra allowance. Invalid insertions return to the original
 coordinator under the existing response-recovery contract.
-Other task removals, reorderings or changed acceptance declarations require
-reconciliation; they are never silently adopted as a weaker task. Concurrent
-descriptive queue edits do not invalidate a valid prerequisite insertion.
+Other queue and acceptance edits are consumed directly by ordinary launchers;
+they do not trigger snapshot comparisons or a change-acceptance log.
 
 Drive subagents using **GPT-6.1 Sol with appropriate reasoning efforts** as needed
 to divide and conquer. Prefer lower-effort agents for routine monitoring and
@@ -222,8 +221,9 @@ Git content and grants no acceptance. Existing task order, scope and dependencie
 remain protected; added tasks must be unchecked. A previously accepted task may
 be acknowledged only when its matching passing result and cleanup are retained
 and its completion is already recorded in the committed queue. Pending Git
-transactions and active owners must finish first. Ordinary restart guards remain
-unchanged; this explicit operation is not an automatic structural override.
+transactions and active owners must finish first. This explicit administrative
+operation retains its own guards; ordinary execution consumes current definitions
+without requiring it.
 
 For explicitly reviewed consolidation of equivalent unfinished tasks, the same
 route accepts repeated `--merge-task 'OLD=KEEP'` declarations and
@@ -234,10 +234,8 @@ destinations; a source with a retained handoff cannot be removed. Surviving orde
 and unrelated scopes remain fixed. Dependencies must map through the declared
 merges, and combined acceptance must retain the original kind and union of all
 targets. Each combined brief retains every original queue Scope verbatim.
-The checkpoint also retains the complete original briefs/scopes and supplies
-them whenever the combined task runs, including after intervening work or a
-prerequisite suspension. Original assertions remain required; current combined
-briefs replace former single-target scheduling and queue close-out instructions.
+The reconciliation checkpoint retains the original briefs/scopes for that
+administrative operation. Ordinary execution follows the current combined brief.
 This option grants no acceptance, completion or session-count reset.
 
 Run the explicit merge command with `--check` first, then omit `--check` to adopt
@@ -254,7 +252,8 @@ Ordinary plans, `write-e2e` and `fix-tests` share response recovery in
 with missing/malformed JSON or a rejected handoff/acceptance/queue transition
 returns to its coordinator after owned cleanup. The latest rejected response and
 exact guard failure remain in the run allocation and corrective prompt. Recovery
-keeps the original task, queue and acceptance baseline. Ordinary plans use the
+keeps the task's handoff and counters. Ordinary plans use current queue and brief
+definitions, while specialized launchers retain their own baseline policy. Ordinary plans use the
 separate three-session coordinator repair allowance above; `write-e2e` and
 `fix-tests` retain their existing session allowance. Recovery grants no completion
 credit, promotion or allowance reset.
@@ -264,14 +263,19 @@ If ordinary-plan controller or validation sources change during any session, the
 controller reloads automatically at the next session boundary with the result and handoff retained,
 before admitting another task, waiting for an answer or spending another session
 under stale code. This includes a valid `continue` response: another coordinator
-session in the same controller cannot load startup recovery changes. After owned
+session in the same controller cannot load changed controller code. After owned
 cleanup, a fresh interpreter replaces the controller under the same ownership
-lock, run identity, observer connection and scratch leases. Startup revalidates
-the retained task, queue, acceptance and rejected result before continuation.
+lock, run identity, observer connection and scratch leases. Reload continues
+the exact live checkpoint without replaying startup comparisons against edited
+task, queue or acceptance metadata or reinterpreting its processed handoff.
+Normal result and close-out validation still apply at their ordinary boundaries.
+Removal of an old validation source during a parallel refactor also triggers
+reload rather than terminating the controller on a missing-file check.
 Reload preserves task/session counts, session caps, suspended consumers, answers,
 capacity retry state and live task limits; it allocates no new retention slot and
 grants no extra work. Stop and cancellation still take precedence. A failed reload
-or startup validation retains a resumable failure instead of retrying unchecked.
+retains a resumable failure. Manual restarts also consume the current queue and
+briefs without comparing their definitions with old snapshots.
 An explicit `serverOverloaded` failed turn in an ordinary plan returns to the
 same task and logical coordinator session after supervisor and nested cleanup.
 Retry the configured model after delays of 5, 10, 20, 40 and 80 seconds. If all
@@ -283,8 +287,8 @@ model again. No fallback is inferred for other configured models. Exhausting
 the retry sequence or the single Astra attempt stops with a retained handoff.
 Capacity attempts share one task-session slot and have their own finite counter;
 they do not exhaust or renew the task's normal session allowance. Each attempt
-reconciles partial work and retained results against the original queue,
-suspended consumers, targets and protected work, and grants no completion.
+reconciles partial work and retained results against current task definitions
+and protected work, and grants no completion.
 The checkpoint retains failure details for recovery of partial task edits.
 Every manually resumed launcher starts a new session on the configured default model
 and effort, with a fresh capacity retry sequence; it never resumes an old
@@ -297,11 +301,11 @@ Provider refusals, other failed agent processes, missing grants, ownership/clean
 failures and Git close-out failures retain their explicit stop/recovery policies;
 they are never converted into automatic response retries.
 If a completed structured response survived before its acceptance checkpoint,
-the ordinary-plan driver revalidates it against the retained task, targets,
+the ordinary-plan driver validates it against the current task and targets,
 queue and cleanup requirements before resuming Git close-out. It completes owned
 nested cleanup first and counts the recovered task against the new run's limit;
-it starts no new model session for an already valid completion. A changed scope,
-dependency, acceptance declaration or unrelated completion still refuses recovery.
+it starts no new model session for an already valid completion. Changed scope,
+dependencies and acceptance declarations do not themselves refuse recovery.
 A fresh controller also revalidates a previously rejected completion when its
 exact response survives in the inactive run, including after the session cap.
 The response must match that run's rejection reference and have no agent-error

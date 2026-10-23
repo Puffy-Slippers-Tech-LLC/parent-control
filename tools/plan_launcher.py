@@ -826,6 +826,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
         if reloading and (run / 'cancel').exists():
             raise launcher.Stopped()
         if state.get('pending_completion') and not (reloading and (run / 'stop').exists()):
+            publish_progress(run, state['task_id'], [f"Task {state['task_id']}: {state['title']}",
+                                                    'Recovering accepted task close-out…'])
             if closeout(plan, spec, run, state):
                 budget.complete()
                 print(f"{spec.name}: recovered task {state['task_id']} close-out.", flush=True)

@@ -361,10 +361,10 @@ def carry(plan, run, state):
         state['evidence_inputs'] = carried
     pending = state.get('pending_completion')
     if pending is not None:
-        published = recover(plan)
-        accepted = published['tasks'].get(pending['task_id']) if published else None
-        exact = (bundle.decoded(bundle.inspect(plan.root, os.geteuid(), os.getegid(), published['bundle'],
-                    member=accepted['result'], count=bundle.MAX_READ)) == pending) if accepted else False
+        with recovered(plan) as (published, _, read):
+            accepted = published['tasks'].get(pending['task_id']) if published else None
+            exact = (bundle.decoded(read(accepted['result'], count=bundle.MAX_READ)) == pending
+                     if accepted else False)
         if not exact:
             _source(plan, run, state, pending)
     renewal = state.get('evidence_renewal')
@@ -1002,9 +1002,12 @@ def apply_document_links(plan, preview, *, state=None):
     return True
 
 
-def _verify_index(plan, index):
+@contextmanager
+def _verified_index(plan, index):
+    """Read legacy proof within the same pinned scope that verified its ledger."""
     if index.get('schema') == 2:
         with _verified_index_v2(plan, index):
+            yield None, None
             return
     if index['plan'] != plan.path:
         raise ValueError('plan evidence: accepted index belongs to another plan')
@@ -1012,19 +1015,26 @@ def _verify_index(plan, index):
     if path.parent.parent != _parent(plan):
         raise ValueError('plan evidence: accepted bundle belongs to another owner')
     # Inspect the published allocation, not a source allocation from its manifest.
-    # _ledger verifies the whole archive once before reading its proof records.
+    # Keep its verified descriptor open for subsequent proof reads as well.
     store = bundle.retention.Store(_parent(plan) / 'retention')
     with store.inspection() as state:
         records = [record for _, record in bundle.retention.latest_allocations([*state['history'], state])
                    if record['path'] == str(path.parent)]
         if len(records) != 1:
             raise ValueError('plan evidence: accepted index does not match verified proof')
-        verified = _ledger(records[0], plan)[1]
-        if (verified['sha256'] != index['sha256']
-                or verified['selection_sha256'] != index['selection_sha256']):
-            raise ValueError('plan evidence: accepted bundle changed')
-        if verified != index:
-            raise ValueError('plan evidence: accepted index does not match verified proof')
+        with bundle.verified_record(records[0], os.geteuid(), checkout=plan.root) as (verified, read):
+            actual = _verified_ledger(records[0], plan, verified, read)[1]
+            if (actual['sha256'] != index['sha256']
+                    or actual['selection_sha256'] != index['selection_sha256']):
+                raise ValueError('plan evidence: accepted bundle changed')
+            if actual != index:
+                raise ValueError('plan evidence: accepted index does not match verified proof')
+            yield verified, read
+
+
+def _verify_index(plan, index):
+    with _verified_index(plan, index):
+        pass
 
 
 def _replacement_closure(plan, current, intent):
@@ -1055,8 +1065,9 @@ def _replacement_closure(plan, current, intent):
                     raise ValueError('plan evidence: replacement omits or changes required proof')
 
 
-def recover(plan):
-    """Publish the verified locator before completing any committed retirement."""
+@contextmanager
+def recovered(plan):
+    """Recover publication, then hold one verified read scope; never cache proof."""
     parent = _parent(plan)
     index_path = parent.parent / 'accepted-evidence.json'
     store = bundle.retention.Store(parent / 'retention')
@@ -1082,9 +1093,16 @@ def recover(plan):
                 bundle.retention.recover_publication(store, fd,
                     verify=lambda record: _ledger(record, plan), authorize=authorize)
     index, _ = _index(index_path)
-    if index is not None:
-        _verify_index(plan, index)
-    return index
+    if index is None:
+        yield None, None, None
+    else:
+        with _verified_index(plan, index) as (verified, read):
+            yield index, verified, read
+
+
+def recover(plan):
+    with recovered(plan) as (index, _, _):
+        return index
 
 
 def _navigation_reference(plan, source):
@@ -1253,21 +1271,21 @@ def _targets(run, state):
 
 def preserve(plan, run, state, result):
     """Retain a validated completion before its run or acceptance reports rotate."""
-    previous = recover(plan)
-    if previous is not None and previous['schema'] == 2:
-        raise ValueError('plan evidence: schema 2 publication requires the versioned producer')
-    if (result.get('status') != 'task_complete' or result.get('cleanup_complete') is not True
-            or result.get('task_id') != state['task_id']):
-        raise ValueError('plan evidence: preservation requires accepted completion and cleanup')
-    consume(plan, state, result)
-    if previous and state['task_id'] in previous['tasks']:
-        proof = previous['tasks'][state['task_id']]
-        saved = bundle.inspect(plan.root, os.geteuid(), os.getegid(), previous['bundle'],
-                               member=proof['result'], count=bundle.MAX_READ)
-        if bundle.decoded(saved) == result:
-            return previous
-        if not state.get('evidence_attempt') or state['evidence_attempt'] == proof['attempt']:
-            raise ValueError('plan evidence: accepted result changed')
+    with recovered(plan) as (previous, _, read):
+        if previous is not None and previous['schema'] == 2:
+            raise ValueError('plan evidence: schema 2 publication requires the versioned producer')
+        if (result.get('status') != 'task_complete' or result.get('cleanup_complete') is not True
+                or result.get('task_id') != state['task_id']):
+            raise ValueError('plan evidence: preservation requires accepted completion and cleanup')
+        consume(plan, state, result)
+        if previous and state['task_id'] in previous['tasks']:
+            proof = previous['tasks'][state['task_id']]
+            if bundle.decoded(read(proof['result'], count=bundle.MAX_READ)) == result:
+                return previous
+            if not state.get('evidence_attempt') or state['evidence_attempt'] == proof['attempt']:
+                raise ValueError('plan evidence: accepted result changed')
+        generation = (bundle.decoded(read(previous['ledger'], count=bundle.MAX_READ))['generation'] + 1
+                      if previous else 1)
     inputs = state.get('evidence_inputs', [])
     if not inputs:
         raise ValueError('plan evidence: exact selected inputs were not captured before execution')
@@ -1309,11 +1327,6 @@ def preserve(plan, run, state, result):
     tasks[state['task_id']] = dict(result=str(capsule / 'result.json'), sha256=_digest(result_data),
                                    inputs=input_members, cleanup=True, records=records,
                                    attempt=state.get('evidence_attempt'))
-    generation = 1
-    if previous:
-        old = bundle.decoded(bundle.inspect(plan.root, os.geteuid(), os.getegid(), previous['bundle'],
-                               member=previous['ledger'], count=bundle.MAX_READ))
-        generation = old['generation'] + 1
     _write(capsule / 'accepted-ledger.json', bundle.encoded(dict(schema=1, plan=plan.path,
         generation=generation, previous_index_sha256=_digest(old_raw), tasks=tasks)))
     turns = state.get('evidence_turns', [])
@@ -1370,10 +1383,9 @@ def _export(plan, run, state, sources, bundles, references):
 
 def rewrite_references(plan, state, index):
     """Replace selected and already-completed destinations with verified proof."""
-    _verify_index(plan, index)
-    verified = bundle.inspect(plan.root, os.geteuid(), os.getegid(), index['bundle'])
-    files = {entry['path'] for entry in verified['manifest']['files']}
-    inherited = {entry['path'] for entry in verified['manifest']['inherited']}
+    with _verified_index(plan, index) as (verified, _):
+        files = {entry['path'] for entry in verified['manifest']['files']}
+        inherited = {entry['path'] for entry in verified['manifest']['inherited']}
     path = plan.root / plan.queue
     lines = path.read_text().splitlines(keepends=True)
     destination = os.path.relpath(locator(plan), path.parent)

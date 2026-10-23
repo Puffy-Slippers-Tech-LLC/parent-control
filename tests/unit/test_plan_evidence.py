@@ -558,6 +558,17 @@ def test_startup_verifies_cumulative_archive_once_per_recovery(campaign, monkeyp
         assert len(verifications) == len(checksums) == attempt
         assert checksums[-1] == Path(retained['bundle']).stat().st_size
 
+    # Restart carry-over, accepted Git retries and queue rewriting must use the
+    # same pinned read scope as ledger verification, rather than rescan the
+    # entire cumulative archive for each result or manifest lookup.
+    state['pending_completion'] = result
+    for attempt, operation in enumerate((
+            lambda: proof.carry(campaign.plan, run, state),
+            lambda: proof.preserve(campaign.plan, run, state, result),
+            lambda: proof.rewrite_references(campaign.plan, state, retained)), start=3):
+        operation()
+        assert len(verifications) == len(checksums) == attempt
+
 
 @pytest.mark.parametrize('reference', [
     '{path}. Controller source is unchanged.',

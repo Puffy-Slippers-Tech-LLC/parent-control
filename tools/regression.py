@@ -1521,8 +1521,6 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                         status = 1
                         finalization_complete = False
                         print('Regression final evidence could not be synced; result is failed.', file=sys.stderr)
-    if report is not None:
-        print(f'Report: {report.directory / "report.md"}', flush=True)
     if run is not None and run.includes_vm:
         try:
             from vm_recording import report_finished

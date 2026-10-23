@@ -529,6 +529,63 @@ def test_link_labels_are_not_evidence_sources(campaign):
     assert proof._references(campaign.plan, result, state) == [str(source)]
 
 
+@pytest.mark.parametrize('status', ['continue', 'task_complete'])
+def test_control_journal_citations_do_not_become_payload_or_queue_proof(campaign, status):
+    run, state, result, report = campaign.accepted('first')
+    journal = bundle.plan_parent(campaign.plan.root, 'a' * 64) / 'retention' / 'capture-publication.json'
+    # The journal need not exist: a navigation citation grants no read authority
+    # and must not become a renewable reference or a replacement proof link.
+    result['status'] = status
+    result['checks'][0]['evidence'] += f' Recovery inspected `{journal}`: no pending generation.'
+    queue = campaign.plan.root / campaign.plan.queue
+    relative = os.path.relpath(journal, queue.parent)
+    queue.write_text('| [x] | first | task | Baseline | scope | '
+                     f'[report]({report / "result.md"}); [control journal]({relative}) |\n')
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    assert proof._references(campaign.plan, result, state) == [str(report / 'result.md')]
+    from detached_launcher import finish_nested
+    finish_nested(campaign.plan.root, run)
+    turn = proof.retain_turn(campaign.plan, run, state, result)
+    retained = proof.recover(campaign.plan)
+    assert set(retained['tasks']) == set()
+    assert bundle.decoded(bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+        retained['bundle'], member=str(turn / 'agent-result.json'))) == result
+    if status == 'task_complete':
+        retained = proof.preserve(campaign.plan, run, state, result)
+        assert proof.rewrite_references(campaign.plan, state, retained)
+        assert f'[control journal]({relative})' in queue.read_text()
+        assert '[report](' + os.path.relpath(proof.locator(campaign.plan), queue.parent) + ')' in queue.read_text()
+    files = bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+                           retained['bundle'])['manifest']['files']
+    assert str(journal) not in {entry['path'] for entry in files}
+    assert str(report / 'result.md') in {entry['path'] for entry in files}
+
+
+def test_control_journal_filename_inside_allocation_remains_exact_evidence(campaign):
+    run, state, result, report = campaign.accepted('first')
+    source = report / 'capture-publication.json'
+    (report / 'result.md').rename(source)
+    result['checks'][0]['evidence'] = str(source)
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    assert proof._references(campaign.plan, result, state) == [str(source)]
+    retained = proof.preserve(campaign.plan, run, state, result)
+    assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+        retained['bundle'], member=str(source)) == b'Exact report for first'
+
+
+@pytest.mark.parametrize('suffix', ['evidence/retention/capture-publication.json.extra',
+                                   'evidence/other/capture-publication.json'])
+def test_control_journal_lookalikes_still_refuse_unregistered_storage(campaign, suffix):
+    run, state, result, _ = campaign.accepted('first')
+    source = campaign.namespace / suffix
+    result['checks'][0]['evidence'] = str(source)
+    (run / 'agent-result.json').write_bytes(bundle.encoded(result))
+    assert proof._references(campaign.plan, result, state) == [str(source)]
+    with pytest.raises(ValueError, match='reference is outside checkout evidence storage'):
+        proof.preserve(campaign.plan, run, state, result)
+    assert not proof.locator(campaign.plan).exists()
+
+
 def test_queue_prose_and_relative_links_preserve_one_exact_source(campaign):
     _, state, result, report = campaign.accepted('first')
     source = report / 'result.md'

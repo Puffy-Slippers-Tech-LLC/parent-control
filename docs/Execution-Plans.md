@@ -145,6 +145,13 @@ identity, including root-private target sources through the authenticated helper
 It reports exact missing references separately from ownership, permission and
 integrity failures; only that missing-reference result enters renewal. Mandatory
 controller records and previously accepted publications remain strict inputs.
+Legacy prose may cite a workflow's mutable `capture-publication.json` control
+journal under its plan evidence retention directory. Like the accepted locator,
+that citation is navigation, not a retained payload or acceptance proof; the
+collector leaves it out of bundle inputs and queue destination rewrites. Cite
+the exact runner-issued reference or retained report for proof. This exception
+does not permit reading journals as evidence or exempt files with the same name
+inside registered allocations from normal preservation and verification.
 
 Where detailed historical proof is already lost, destination-only repair cannot
 make a stronger claim than the retained record supports. A selected recovery
@@ -730,7 +737,7 @@ The current adapters use these components according to their workflow:
 | `kiosk-prompt` | The same ordinary plan driver and shared lifecycle | [Kiosk baseline validation for v1.4](Kiosk-Session-Confinement-Plan.md#execution), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 | `kiosk-desktop` | The same ordinary plan driver and shared lifecycle | [Unrestricted graphical desktop prevention](Kiosk-Desktop-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 | `kiosk-prompt-new` | The same ordinary plan driver and shared lifecycle | [Remaining confinement improvements](Kiosk-Session-Confinement-New-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
-| `fixture` | The same ordinary plan driver and shared lifecycle | [Host-owned fixture migration](TestAutomation/Fixture-Execution-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
+| `fixture` | The same ordinary plan driver and shared lifecycle | [Host-owned fixture migration](TestAutomation/Fixture-Execution-Plan.md#execution-and-acceptance), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 | `export` | The same ordinary plan driver and shared lifecycle | [Test evidence and export infrastructure](TestAutomation/Export-Execution-Plan.md#scope-and-execution), with its own master-path namespace, host-only infrastructure acceptance and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 
 Run `tools/reliability-plan --check` to validate its plan, or

@@ -904,6 +904,16 @@ def recover(plan):
     return index
 
 
+def _navigation_reference(plan, source):
+    """Control locators describe mutable state; they are not retained payloads."""
+    if source == locator(plan):
+        return True
+    parts = source.relative_to(plan.root / 'output/test-runs').parts
+    return (len(parts) == 6 and parts[:2] == ('host', 'plans')
+            and re.fullmatch(r'[0-9a-f]{64}', parts[2]) is not None
+            and parts[3:] == ('evidence', 'retention', 'capture-publication.json'))
+
+
 def _references(plan, result, state):
     """Only explicit checkout-storage references are inputs to proof publication."""
     texts = [(check['evidence'], None) for check in result['checks']
@@ -952,7 +962,7 @@ def _references(plan, result, state):
             source = Path(os.path.abspath(source))
             if not source.is_relative_to(plan.root / 'output/test-runs'):
                 raise ValueError('plan evidence: reference escapes checkout storage')
-            if source != locator(plan):
+            if not _navigation_reference(plan, source):
                 found.add(str(source))
     return sorted(found)
 
@@ -1201,7 +1211,7 @@ def rewrite_references(plan, state, index):
             value = target.path
             source = Path(value)
             source = Path(os.path.abspath(source if source.is_absolute() else path.parent / source))
-            if source == locator(plan):
+            if source.is_relative_to(plan.root / 'output/test-runs') and _navigation_reference(plan, source):
                 return None
             original = str(source)
             if (original not in files and original not in inherited

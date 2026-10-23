@@ -286,13 +286,14 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
     consumer = next(item for item in first['consumers'] if item['expected_context'] == record['context'])
     selector = dict(kind='evidence', **{key: exact_reference(first, member)[key]
         for key in ('record_id', 'member_id', 'closure_sha256')})
+    workflow = record['context']['workflow']
     document = docs / 'nested/Evidence.md'
     document.parent.mkdir()
     original = Path(member['original_path'])
     text = '[$(touch sentinel)](' + os.path.relpath(original, document.parent) + ')\n'
     document.write_text(text)
     declaration = dict(document='docs/nested/Evidence.md', sha256=bundle.digest(document.read_bytes()),
-        references=[dict(start=0, consumer=consumer, selector=selector, workflow='regression')])
+        references=[dict(start=0, consumer=consumer, selector=selector, workflow=workflow)])
     # Four real producer admissions retire the original; no acceptance rerun.
     for index in range(4):
         with store.session():
@@ -314,11 +315,11 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
         try:
             preview = proof.preview_document_links(plan, declaration)
             destination = preview['edits'][0]['after']
-            assert destination == os.path.relpath(runner.reference_locator(root, 'regression'),
+            assert destination == os.path.relpath(runner.reference_locator(root, workflow),
                                                 document.parent) + '#onpc-evidence-v1:' + ':'.join(
                 selector[key] for key in ('record_id', 'member_id', 'closure_sha256'))
             resolved = proof.resolve_reference(destination, consumer=consumer,
-                read_scope=proof.reference_scope(plan, document=declaration['document'], workflow='regression'),
+                read_scope=proof.reference_scope(plan, document=declaration['document'], workflow=workflow),
                 count=0)
             assert resolved['record'] == record and resolved['member'] == member
             assert resolved['data'] == b'' and resolved['closure'][record['record_id']] == record
@@ -345,7 +346,7 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
             active.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
 
 
-def test_report_a_survives_original_and_publication_generation_rotation_without_rerun(environment):
+def test_report_publications_stay_independent_and_survive_original_rotation_without_rerun(environment):
     root, store = environment
     invocations = 0
     with store.session():
@@ -367,15 +368,23 @@ def test_report_a_survives_original_and_publication_generation_rotation_without_
                     for record in first['records'] for member in record['members']}
         original_receipt = Path(first['receipt']['path'])
         assert producer.finalize() == first
+    workflows = {first['records'][0]['context']['workflow']}
     for index in range(5):
         with store.session():
             later = regression.Report(root)
             later.command(command(check=f'later-{index}'))
             later.close(defer_capture=True)
-            later.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
+            published = later.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
+            workflow = published['records'][0]['context']['workflow']
+            assert workflow not in workflows
+            workflows.add(workflow)
+            verified = bundle.inspect(root, os.geteuid(), os.getegid(), published['receipt']['path'])
+            assert {record['record_id'] for record in verified['manifest']['records']} == {
+                record['record_id'] for record in published['records']}
+            assert verified['manifest']['inherited'] == []
     assert not report.exists()
     assert not report.parent.exists()
-    assert not original_receipt.exists()
+    assert original_receipt.exists()
     for record in first['records']:
         assert record['context']['sources_sha256'] == 'f' * 64
         for member in record['members']:

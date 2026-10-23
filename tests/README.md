@@ -2563,7 +2563,13 @@ evidence or the affected complete history again.
 Runner reports use `tools/runner_evidence.py::ReportEvidence` inside their live
 retention owner. `regression.Report` keeps a standalone owner alive from first
 registration through terminal capture; aggregate reports reuse their existing
-owner. Before result writes, an immutable sealed startup lifecycle record binds
+owner. Each report uses its own `regression/<report-id>` publication workflow,
+so closing a run publishes only that report's closure instead of recopying the
+history of unrelated runs. References carry that workflow and remain resolvable
+after original report rotation. Recovery reuses the workflow in the sealed
+startup record; existing shared `regression` publications remain readable.
+Disk pacing and publication verification are unchanged.
+Before result writes, an immutable sealed startup lifecycle record binds
 the run, owner, source identity and report allocation. It stays required until
 terminal publication and is acknowledged last, preserving originals even if
 preparing the terminal record fails. Each closed execution records its actual command, exact selected,

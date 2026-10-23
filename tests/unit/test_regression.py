@@ -304,7 +304,7 @@ def isolated_report_evidence(monkeypatch):
     import runner_evidence
 
     class Evidence:
-        def __init__(self, root, directory):
+        def __init__(self, root, directory, *, workflow):
             self.directory = directory
             self.commands = []
             self.finalizations = []
@@ -658,6 +658,9 @@ def test_dispatch_preserves_build_inputs_without_adding_cleanup_tests(tmp_path, 
     controller = SimpleNamespace(run=lambda command, **kwargs: calls.append(command) or 0)
     monkeypatch.setattr(regression_process.Control, 'installed', lambda *args, **kwargs: nullcontext(controller))
     monkeypatch.setattr(test_commands, 'plan', plan)
+    # Fixture production has its own dispatch coverage; this synthetic checkout
+    # exercises package preparation and must not start the real fixture builder.
+    monkeypatch.setattr(test_commands, 'qualification_fixture_options', lambda *args, **kwargs: [])
     monkeypatch.setattr(test_activity, 'cleanup_verified', lambda root: True)
     monkeypatch.setattr(regression_process, 'safety_command', lambda root: ['safety'])
     assert regression_process.category_run(tmp_path, category, ['verify']) == 0

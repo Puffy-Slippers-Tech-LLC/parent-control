@@ -426,7 +426,11 @@ class Report:
             raise
         try:
             from runner_evidence import ReportEvidence
-            self.evidence = ReportEvidence(root, self.directory)
+            # A report is a complete publication scope. Sharing one workflow
+            # across executions recopied every earlier run at each close-out.
+            # Recovery retains this name in the immutable startup record.
+            self.evidence = ReportEvidence(root, self.directory,
+                                           workflow='regression/' + self.directory.name)
             self.stream = (self.directory / 'report.md').open('x', encoding='utf-8')
         except BaseException:
             self.release_session(*sys.exc_info())

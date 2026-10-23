@@ -1530,7 +1530,6 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
     if report is not None and (status == 1 or (run is not None and any(
             item.failures or item.state == 'Failed' for item in run.categories))):
         from vm_selection import PREPARATION_INSTRUCTIONS
-        print('\nCopy this prompt into a new Codex session:\n')
         prompt = ('Investigate and fix the failures in '
               f'{(report.directory / "report.md").resolve()}. '
               'Read the adjacent progress.json for category results and follow '
@@ -1541,7 +1540,6 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
               'ONLY rerun the relevant checks, do NOT run more tests than necessary to validate the fixes, and report anything still unresolved. '
               'If the run was manually interrupted, ignore the interruption, and just fix the recorded failures. '
               + PREPARATION_INSTRUCTIONS)
-        print(prompt)
         retries = list(dict.fromkeys(item.retry_category for item in run.categories
                                      if (item.failures or item.state == 'Failed')
                                      and item.retry_category)) if run is not None else []
@@ -1557,6 +1555,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                 os.fsync(stream.fileno())
             report.sync_directory()
             print(f'Failure handoff: {handoff.resolve()}', flush=True)
+            print("For failure investigation, read and follow the handoff's prompt field.", flush=True)
         except OSError:
             finalization_complete = False
             status = 1

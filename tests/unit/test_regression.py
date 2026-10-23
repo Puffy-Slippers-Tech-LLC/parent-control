@@ -978,7 +978,7 @@ def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_
 
 @pytest.mark.parametrize('continue_on_errors', [False, True])
 @pytest.mark.parametrize('events', [False, True])
-def test_first_failure_cancels_and_finalizes_with_prompt(
+def test_first_failure_cancels_and_finalizes_with_handoff(
         tmp_path, monkeypatch, capsys, continue_on_errors, events):
     runs = []
 
@@ -1007,7 +1007,7 @@ def test_first_failure_cancels_and_finalizes_with_prompt(
     closure = run.report.evidence.finalizations[-1]
     assert dict(path=str(run.report.directory / 'failure.json'), role='result') in closure['members']
     assert closure['categories'][0]['state'] == 'Failed'
-    assert 'Copy this prompt into a new Codex session:' in capsys.readouterr().out
+    assert f'Failure handoff: {run.report.directory / "failure.json"}' in capsys.readouterr().out
     failure = json.loads((run.report.directory / 'failure.json').read_text())
     assert failure['failures'] == [dict(category=run.categories[0].retry_category,
                                       case='case' if events else '', vm='')]
@@ -1188,7 +1188,7 @@ def test_completed_collection_inventory_guards_remain_active_during_cancellation
 
 
 @pytest.mark.parametrize('outcome', ['passed', 'failed', 'error', 'interrupted', 'interrupted-failure'])
-def test_final_investigation_prompt_links_closed_report(tmp_path, monkeypatch, capsys, outcome):
+def test_saved_investigation_prompt_links_closed_report(tmp_path, monkeypatch, capsys, outcome):
     runs = []
 
     def execute(run):
@@ -1210,11 +1210,15 @@ def test_final_investigation_prompt_links_closed_report(tmp_path, monkeypatch, c
     assert run.report.stream.closed
     assert status == (130 if outcome.startswith('interrupted') else
                       0 if outcome == 'passed' else 1)
-    marker = 'Copy this prompt into a new Codex session:'
+    assert 'Copy this prompt into a new Codex session:' not in output
+    assert 'Investigate and fix the failures in ' not in output
+    handoff = run.report.directory / 'failure.json'
     if outcome in ('passed', 'interrupted'):
-        assert marker not in output
+        assert not handoff.exists()
+        assert 'Failure handoff: ' not in output
     else:
-        prompt = output.split(marker)[1]
+        prompt = json.loads(handoff.read_text())['prompt']
+        assert f'Failure handoff: {handoff}' in output
         assert str(tmp_path) in prompt
         assert str(run.report.directory / 'report.md') in prompt
         assert 'progress.json' in prompt
@@ -1223,7 +1227,7 @@ def test_final_investigation_prompt_links_closed_report(tmp_path, monkeypatch, c
         assert 'tools/prepare-appsnapshot --vm NAME --y' in prompt
         assert 'omit it for manual work' in prompt
         assert 'Detailed failure evidence' not in prompt
-        assert output.index(marker) > output.rindex('Overall - ')
+        assert output.index('Failure handoff: ') > output.rindex('Overall - ')
         assert '## Final result' in (run.report.directory / 'report.md').read_text()
         assert '<pre>' in (run.report.directory / 'report.md').read_text()
 

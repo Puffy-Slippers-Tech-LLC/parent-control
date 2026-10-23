@@ -177,7 +177,7 @@ def test_selected_serial_summary_counts_timing_evidence_and_failure(tmp_path, mo
         assert progress[0]['failures'] == 1
         assert progress[1]['state'] == 'Blocked'
         assert 'Tests interrupted' not in terminal
-        assert 'Copy this prompt' in terminal
+        assert f'Failure handoff: {report_dir / "failure.json"}' in terminal
     else:
         assert result == 0
         assert len(commands) == 2

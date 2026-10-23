@@ -1205,15 +1205,20 @@ def test_invalid_category_inventory_is_refused(value):
         fix_tests.category_inventory(value)
 
 
-def test_new_category_failure_has_a_runnable_handoff(tmp_path, monkeypatch):
+def test_new_category_failure_has_a_runnable_handoff(tmp_path, monkeypatch, capsys):
     monkeypatch.setitem(test_commands.CATEGORIES, 'future-suite',
                         test_commands.CategorySpec('New implemented suite'))
     monkeypatch.setattr(regression_selection, 'source_identity', lambda _: 'fixed')
     monkeypatch.setattr(regression, 'source_identity', lambda _: 'fixed')
     monkeypatch.setattr(regression.Control, 'run', lambda *_args, **_kwargs: 1)
     assert regression.retained_main(tmp_path, selections=[('future-suite', [])]) == 1
+    output = capsys.readouterr().out
     report, = (tmp_path / 'output/test-runs/host/reports').iterdir()
-    assert json.loads((report / 'failure.json').read_text())['categories'] == ['future-suite']
+    saved = json.loads((report / 'failure.json').read_text())
+    assert saved['categories'] == ['future-suite']
+    assert saved['prompt'] not in output
+    (tmp_path / 'last-test.log').write_text(output)
+    assert fix_tests.handoff(tmp_path) == saved
 
 
 def test_stop_on_error_reaches_the_selected_coordinator(monkeypatch):

@@ -598,8 +598,13 @@ Recovery still fails closed when no actionable handoff is available.
 
 Logs and small control files are private under `output/test-runs/host/fix-tests/`. They are
 not agent conversation history. Existing test evidence remains under the runner's
-retention policy. Machine-readable `failure.json` accompanies the printed prompt
-and supplies stable retry category IDs. A missing or malformed handoff, agent
+retention policy. The terminal prints the report and `Failure handoff:` paths
+with a short instruction to read and follow the handoff's `prompt` field;
+the full investigation prompt is saved in machine-readable `failure.json` with
+stable retry category and case IDs. `fix-tests` reads that saved prompt directly,
+so terminal output omits the long manual-session prompt. For a manual handoff,
+ask the new session to read the indicated `failure.json` and follow its `prompt`.
+A missing or malformed handoff, agent
 crash or unmapped infrastructure failure stops with evidence.
 
 `agent-usage.jsonl` records CLI turn counters with session/repair IDs, attempt,

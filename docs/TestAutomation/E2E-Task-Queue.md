@@ -21,22 +21,14 @@ Delivered scope records what passed historically; incidental GDM prompts,
 desktop checks and provider choreography in that evidence are not requirements
 to reproduce. Retain the product outcome and necessary shared safety guards.
 
-Review direct prerequisites after simplifying a route. A shared command that
-keeps the product window open does not require a desktop window-switch
-qualification. Keep dependencies for the operations still used, and preserve
-independent qualification of unchanged prerequisite slices rather than repeating
-their full histories in each consumer. A case still observes every distinct
-product result required by its own journey.
-
-Unfinished briefs select exact required callable scopes, including usable launch,
-new-launch denial, prior-window closure, time profiles and retained sessions.
-A prerequisite's unchanged qualification history is not a consumer checklist.
-Finite inputs outside an implemented binding, missing selectors and unavailable
-public routes remain planned work with explicit return conditions; an existing
-callable name supplies no broader qualification. Apply the
-[prerequisite and early-refusal mandate](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
-and [qualification separation](E2E-Execution-Contracts.md#product-focused-journeys).
-Documentation review supplies no task completion or new live qualification.
+Maintain prerequisites under the [task-size and order contract](E2E-Execution-Contracts.md#task-size-and-order).
+Unfinished briefs select exact callable scopes and implement only missing work
+under the [bounded supporting-work rules](E2E-Building-Blocks.md#keep-supporting-work-bounded).
+Use [changed-boundary preflight](E2E-Building-Blocks.md#composition-preflight)
+and the selected acceptance branch, without repeating an unchanged helper's
+qualification matrix. Missing bindings and unavailable public routes retain
+their explicit blockers; documentation review supplies no completion or live
+qualification.
 
 The [kiosk v1.3 baseline for v1.4](../Kiosk-Session-Confinement-Plan.md)
 ends at C05f. The [desktop plan](../Kiosk-Desktop-Plan.md) owns prevention of

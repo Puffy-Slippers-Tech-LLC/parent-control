@@ -207,17 +207,16 @@ last. This placement is fixed during planning, never selected at runtime.
 
 Aim for **one session of 15–30 minutes per ordinary task**, including scoped
 reading, implementation, targeted checks, required live qualification, cleanup
-and document close-out. A useful 30-minute budget is 3 minutes for context,
-10 for implementation, 12 for validation and 5 for cleanup/close-out. These are
-planning estimates, not measured runtimes or stop timers; continue authorized
-work to a clean boundary when necessary.
+and document close-out. These are planning estimates, not stop timers; continue
+authorized work to a clean boundary when necessary.
 
-Each ordinary capability adds one operation, provider surface, route or result
-branch. Split independent work whose upper estimate exceeds 30 minutes **before
-implementation**, giving every new row explicit prerequisites, a bounded live
-qualification and its own brief. Extract usable operations before composing
-them. Do not create host-only preparation rows, partial scenario registrations,
-or a separate implementation/verification queue to make the estimate fit.
+Keep capability work to the smallest independently useful boundary needed by a
+named consumer. Split independent work whose upper estimate exceeds 30 minutes
+**before implementation**, giving every new row explicit prerequisites, bounded
+live qualification and its own brief. Split at a usable operation or actual
+provider/safety boundary, not at every helper, observation or stage label.
+Do not create host-only preparation rows, partial scenario registrations or a
+separate implementation/verification queue to make the estimate fit.
 
 A split keeps the original ID for the remaining operation/composition. Its brief's
 **Session boundary** names that new work; its delivered scope is cumulative with
@@ -250,9 +249,11 @@ them. Qualify a requested surface/route before composing it. Keep unrelated
 feature branches out of the task.
 
 Bind a scenario's finite values and registered selectors to already-qualified
-APIs within that scenario task. If it needs a new operation, surface or result
-branch, add the missing capability slice before the consumer instead of silently
-expanding the task or accepting a generic block ID as qualification.
+APIs within that scenario task. Case data within the qualified scope, stage names
+and composition of qualified operations need no separate prerequisite task or
+qualification wrapper; the complete scenario supplies their live acceptance.
+An unqualified operation, provider route or safety boundary needs its capability
+slice before the consumer; a generic block ID does not establish qualification.
 
 One scenario task owns one numeric case and its complete fixed recipe. The
 recipe may contain finite value checks or a continuous repeated customer history;
@@ -454,9 +455,13 @@ case, other plan or final post-protection acceptance closes through this reuse.
 
 ### Capability acceptance
 
-For a **capability**, pass every stated outcome, independent valid entry and
-wrong-entry refusal through the brief's fixed slice qualification in the
-existing guarded envelope. Complete scenarios stay in their separate rows. Planned
+For a **capability**, pass every stated outcome and independent valid entry
+through the brief's fixed slice qualification in the existing guarded envelope.
+Wrong-entry and dangerous-input refusals belong to their shared guard's focused
+checks under the [test scope mandate](../Mandates/Test-Scope-Mandate.md), not a
+repeated matrix for each helper. Qualify new or changed provider/safety bindings
+under their applicable contract; reuse unchanged exact bindings and their guards.
+Complete scenarios stay in their separate rows. Planned
 `check_e2e_...` names must be implemented before invocation. New entries are
 argument-free `tests/integration/check_[a-z][a-z0-9_]*.py` files with applicable
 cleanup tests, selected by `tools/run-tests integration --vm NAME <name>`. Reuse shared

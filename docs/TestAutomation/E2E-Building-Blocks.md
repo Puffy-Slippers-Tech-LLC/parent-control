@@ -72,6 +72,11 @@ supported way to establish each unrelated prerequisite. Reuse the qualified
 helper and stop preparation as soon as that prerequisite is independently
 observed. Qualify ownership, reversal and the result needed by the consumer;
 do not turn a dependency into another feature matrix or framework.
+Extend the existing callable with only the missing finite binding or operation.
+Add an abstraction only for concrete shared mechanics or a required safety
+boundary; future possible consumers do not justify a dispatcher, registry,
+configuration language or fallback chain. Case data, ordering and assertions
+stay in the case. Stop once its stated outcomes and scoped checks pass.
 Apply the mandate's [prerequisite and early-refusal rules](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
 inside helpers as well as task lists. Reuse the guarded operation and its valid
 unchanged qualification, not the qualifier's complete sequence. Keep focused
@@ -121,6 +126,10 @@ enforcement, real gameplay, natural expiry and calendar transitions are product
 integration assertions. Simplify their setup without replacing their results.
 
 ### Block contracts
+
+Atomic/composite labels describe operation boundaries, not a requirement for a
+new function, module or qualification script for every action. Use existing
+callables directly when they already provide the required boundary.
 
 - **A — atomic:** one input operation or one public observation. Its local
  target, safety and result checks do not silently log in, launch an app,
@@ -3886,43 +3895,25 @@ expected outcomes in recipes.
 
 ### Composition preflight
 
-Before live qualification, verify the changed boundary through the actual
-declaration, operation registration, worker dispatch, decoder, recorder and
-assertion. Source guards and allowlisted imports alone do not prove safe reuse.
+Before live qualification, review the changed path from declaration and worker
+dispatch through observation, recorder and assertion. Confirm the intended
+account/profile, execution order, independent result endpoints and failure stop
+before later input. Inspect shared consumers when their contract changes;
+unchanged transport, decoding and recording need no renewed qualification.
 
-1. Trace every identity/profile through nested defaults and asynchronous input
- receipts. Exercise the nondefault identity and mismatched receipt; inspect
- current consumers as well as the new caller. Public post-transition setup
- must actually establish the required policy/accounts; a reboot does not
- enable child controls or select an approver.
-2. Execute the real worker order and refuse each changed boundary before later
- input/reply. Match actual worker titles rather than generating them from the
- plan. Include real recorder construction and hook dispatch, isolated observer
- payload imports, realistic decoder output and worker distribution/provenance
- bounds. Keep input and diagnostic-stream account bindings separate.
-3. Exercise observation concurrently with input where required, including nested
- output, failed readiness and uncertain submission. Keep success/refusal,
- delayed complete reads and immediate readiness distinct; a pre/post snapshot
- cannot prove a transient result.
-4. Reuse finite shared declaration/execution/comparison pairs from independent
- callers with renamed stages. Cases own values, phase boundaries and distinct
- assertions; shared modules own input, transport, fixture lifetime and reusable
- mechanics. Do not inherit another qualification's private lifecycle or hide
- mechanics in a case-local helper.
-5. Compare immutable explicit endpoints, including repeated operations, explicit
- empty results, missing/replayed capture and attempted baseline mutation.
- Each repeated stage has its own observation and durable assertion before
- acknowledgement. Never combine partial attempts or use a mode flag to skip
- a required check.
-6. Diagnose the earliest failed boundary from retained evidence and reproduce
- mechanical defects at the lowest effective layer, including their preceding
- retained-window/session transition. A worker title is not a passed exchange.
- Keep hypotheses distinct from observed causes; longer timeouts/retries are
- not explanations. Preserve behavior decisions under the
- [failure contract](../../tests/README.md#handling-test-failures).
+Run the smallest existing checks for changed core execution, verdict, credential
+or ownership guards. Add a focused regression only for a concrete uncovered
+guarantee admitted by the [test scope mandate](../Mandates/Test-Scope-Mandate.md).
+Receipt mismatch, replay, failed readiness and concurrent observation checks
+belong to those shared owners when affected; they are not a per-case checklist.
+Ordinary case data, assertions and composition run through the actual product
+test, without a synthetic scenario replay or a new test of the test.
 
-Keep recurring constraints in their shared owner and regression; retain routine
-attempt details in runner artifacts rather than appending delivery histories.
+Complete the selected live acceptance in its declared guarded attempts. Preserve
+immutable comparison endpoints, observation readiness for transient results,
+input guards and owned cleanup. Never combine partial attempts or skip a required result.
+Diagnose failures under the [failure contract](../../tests/README.md#handling-test-failures)
+at the lowest effective layer. Keep routine attempt details in runner artifacts.
 
 ## Retained image artifacts and migration
 

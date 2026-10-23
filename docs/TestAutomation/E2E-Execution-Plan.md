@@ -100,8 +100,9 @@ consumer and blocks no current-release task.
 4. Apply the [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)
    and implement the selected slice, supporting checks and stated acceptance.
    Bind entry, finite inputs, expected public results, precision and deadlines;
-   implement leaves before composites and complete composition preflight before
-   the first live attempt.
+   reuse qualified shared operations and extend only the missing boundary.
+   Apply the [bounded implementation rules](E2E-Building-Blocks.md#keep-supporting-work-bounded)
+   and changed-boundary composition preflight before the first live attempt.
 5. Finish live verification, cleanup and close-out. Report the task ID, result
    and next task. The next identical prompt repeats this workflow.
 

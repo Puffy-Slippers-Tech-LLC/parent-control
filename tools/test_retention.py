@@ -32,6 +32,18 @@ _locks = set()
 _sessions = {}
 
 
+class OwnerBusy(ValueError):
+    """An existing owner still holds the selected retention scope."""
+
+
+class PublicationPending(ValueError):
+    """The owner's recorded transaction must finish before ordinary access."""
+
+
+class CapacityExceeded(ValueError):
+    """The existing publication budget cannot admit the selected payload."""
+
+
 def latest_allocations(entries):
     """Return each path's last registered owner, in oldest-to-newest entries.
 
@@ -278,7 +290,7 @@ class Store:
                 else:
                     usage = publication_usage([*records, pending['staging']]) + captures
                 if usage > MAX_RETAINED_BYTES:
-                    raise ValueError('retention: publication exceeds 4 GiB storage budget; evidence preserved')
+                    raise CapacityExceeded('retention: publication exceeds 4 GiB storage budget; evidence preserved')
                 transaction = Publication(self, fd, state, projected_bytes, verify,
                                           authorize=authorize, resumable=resumable, intent=pending)
                 transaction.reused = reused
@@ -426,10 +438,10 @@ class Store:
                 mode = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
                 fcntl.flock(lock, mode | (0 if blocking else fcntl.LOCK_NB))
             except BlockingIOError as error:
-                raise ValueError('retention: another owner is active') from error
+                raise OwnerBusy('retention: another owner is active') from error
             _locks.add(lock)
             if name == 'writer.lock' and not publication and PUBLICATION in os.listdir(fd):
-                raise ValueError('retention: publication pending; resume publication recovery')
+                raise PublicationPending('retention: publication pending; resume publication recovery')
             if name == 'writer.lock' and not transfer:
                 if __package__:
                     from .test_input_transfer import mutation_guard
@@ -638,7 +650,7 @@ class Store:
 
 def finished_owner(fd, state):
     if 'recovery-required' in os.listdir(fd) or (state is not None and not state['finished']):
-        raise ValueError('retention: publication/inspection requires a finished, unmarked owner')
+        raise PublicationPending('retention: publication/inspection requires a finished, unmarked owner')
 
 
 def publication_record(record):

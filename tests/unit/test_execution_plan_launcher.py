@@ -43,6 +43,7 @@ def synthetic_plan_evidence(monkeypatch, request):
     # explicitly opt into the real private storage/publication fixture below.
     if 'real_plan_evidence' in request.fixturenames:
         return
+    monkeypatch.setattr(workflow.plan_evidence, 'preflight', lambda *_: None)
     monkeypatch.setattr(workflow.plan_evidence, 'capture', lambda *_: None)
     monkeypatch.setattr(workflow.plan_evidence, 'carry', lambda *_: None)
     monkeypatch.setattr(workflow.plan_evidence, 'preserve', lambda *_: None)
@@ -98,6 +99,8 @@ def test_plan_adapter_default_check_has_no_execution_side_effects(
         if source != destination:
             shutil.copy2(source, destination)
     master.write_text('Task queue: [Queue](queue.md).\nNext task: **001 — First**.\n')
+    with (master.parent / 'queue.md').open('a') as queue:
+        queue.write('\nHistorical proof: [Old report](../output/test-runs/expired/report.md).\n')
     monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
 
     def unexpected(*_args, **_kwargs):
@@ -107,6 +110,8 @@ def test_plan_adapter_default_check_has_no_execution_side_effects(
     monkeypatch.setattr(workflow.launcher, 'select', unexpected)
     monkeypatch.setattr(workflow.subprocess, 'Popen', unexpected)
     monkeypatch.setattr(workflow, 'git_output', unexpected)
+    monkeypatch.setattr(workflow.plan_evidence, 'preflight', unexpected)
+    monkeypatch.setattr(workflow.plan_evidence, 'recover', unexpected)
     assert invoke('--check') == 0
     assert json.loads(capsys.readouterr().out) == dict(
         plan=spec.plan, queue=str((master.parent / 'queue.md').relative_to(rig.root)),
@@ -316,6 +321,7 @@ ADDED_VALIDATOR_SOURCES = (
     'test_retention.py', 'test_storage.py', 'test_input_transfer.py', 'launcher_git.py', 'launcher_worktrees.py',
     'onpc-test-artifacts', 'launcher_question.py', 'plan_reconciliation.py',
     'vm_selection.py', 'vm_pool.py', '../tests/integration/vm_config.py', 'evidence_identity.py',
+    'evidence_policy.py',
     'evidence_capture.py', 'capture_publication.py', 'recording_storage.py', 'artifact_export.py',
     'runner_evidence.py', 'regression.py', 'regression_process.py',
     'regression_events.py', 'test_commands.py', 'vm_test_queue.py',
@@ -2170,10 +2176,45 @@ def test_new_inflight_checkpoint_cannot_retain_preceding_session_result(rig, mon
     assert TaskBudget(rig.run).read()['completed'] == 0
 
 
-def test_accepted_pending_completion_counts_toward_restarted_limit(rig):
+@pytest.mark.parametrize('phase', ['complete', 'recover'])
+def test_required_preflight_refuses_before_admission_or_session_charge(rig, monkeypatch, phase):
+    state = (dict(phase='complete', task_sessions=0, total_sessions=0) if phase == 'complete'
+             else state_for(rig.plan, phase='recover', task_sessions=2, total_sessions=3))
+    calls = []
+
+    def preflight(plan, run, selected):
+        calls.append(selected['task_id'])
+        assert plan.path == rig.plan.path and run == rig.run
+        assert selected['task_sessions'] == (0 if phase == 'complete' else 2)
+        assert selected['total_sessions'] == (0 if phase == 'complete' else 3)
+        raise ValueError('missing required proof in docs/001.md:3; restore the exact retained member')
+
+    def unexpected(*_args, **_kwargs):
+        pytest.fail('required preflight refusal admitted or captured a model session')
+
+    monkeypatch.setattr(workflow.plan_evidence, 'preflight', preflight)
+    monkeypatch.setattr(workflow.plan_evidence, 'capture', unexpected)
+    monkeypatch.setattr(workflow.TaskBudget, 'admit', unexpected)
+    assert rig.worker(state) == 1
+    assert calls == ['001'] and rig.calls == []
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert saved['task_sessions'] == (0 if phase == 'complete' else 2)
+    assert saved['total_sessions'] == (0 if phase == 'complete' else 3)
+    assert 'restore the exact retained member' in saved['reason']
+    assert TaskBudget(rig.run).read()['started'] == 0
+    assert not saved.get('in_flight')
+
+
+def test_accepted_pending_completion_counts_toward_restarted_limit(rig, monkeypatch):
     state = state_for(rig.plan)
     state['pending_completion'] = response(state)
     complete(rig.plan, '001')
+    Path(state['task']['brief']).unlink()
+
+    def unexpected(*_args, **_kwargs):
+        pytest.fail('recovered accepted completion attempted a new-session preflight')
+
+    monkeypatch.setattr(workflow.plan_evidence, 'preflight', unexpected)
     assert rig.worker(state) == 0
     assert rig.calls == []
     assert TaskBudget(rig.run).read()['completed'] == 1

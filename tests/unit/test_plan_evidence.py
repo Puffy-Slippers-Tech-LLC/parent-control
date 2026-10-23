@@ -36,7 +36,7 @@ def campaign(tmp_path, monkeypatch):
     runs = bundle.retention.Store(namespace / 'retention')
     reports = bundle.retention.Store(bundle.storage.directory('state') / 'retention-host')
 
-    def accepted(task):
+    def accepted(task, *, earlier_rows='', later_rows='', queue_text=None):
         run = namespace / uuid.uuid4().hex
         run.mkdir(mode=0o700)
         with runs.session():
@@ -45,7 +45,8 @@ def campaign(tmp_path, monkeypatch):
             report = Path(bundle.retention.allocate(tempfile.mkdtemp,
                 prefix='onpc-report-', dir=bundle.storage.directory('reports')))
             (report / 'result.md').write_text('Exact report for ' + task)
-        (docs / 'Queue.md').write_text('| [x] | ' + task + ' | task | Baseline | scope | 1 min |\n')
+        (docs / 'Queue.md').write_text(queue_text(report) if queue_text else
+            earlier_rows + '| [x] | ' + task + ' | task | Baseline | scope | 1 min |\n' + later_rows)
         (docs / 'Brief.md').write_text('Exact selected brief for ' + task)
         state = dict(task_id=task, task=dict(brief='docs/Brief.md', targets=[], acceptance='host'),
                      task_sessions=1)
@@ -681,7 +682,9 @@ def test_queue_prose_and_relative_links_preserve_one_exact_source(campaign):
 
 
 def test_reference_style_queue_proof_uses_selected_row_and_document_base(campaign):
-    run, state, result, report = campaign.accepted('first')
+    run, state, result, report = campaign.accepted('first', later_rows=
+        '| [ ] | later | task | first | scope | [missing][other] |\n'
+        '\n[other]: ../output/test-runs/missing.md\n')
     source = report / 'result (exact)#1.md.'
     (report / 'result.md').rename(source)
     queue = campaign.plan.root / campaign.plan.queue
@@ -1333,7 +1336,8 @@ def test_changed_publication_owner_refuses_before_index_replacement(campaign, mo
 
 
 def test_queue_rewrite_changes_only_proven_selected_estimate_destinations(campaign):
-    run, state, result, report = campaign.accepted('first')
+    run, state, result, report = campaign.accepted('first',
+        earlier_rows='| [x] | earlier | unchanged | Baseline | old scope | [old](missing.md) |\n')
     queue = campaign.plan.root / campaign.plan.queue
     relative = os.path.relpath(report / 'result.md', queue.parent)
     before = ('| [x] | earlier | unchanged | Baseline | old scope | [old](missing.md) |\n'
@@ -1354,17 +1358,20 @@ def test_queue_rewrite_changes_only_proven_selected_estimate_destinations(campai
 
 
 def test_queue_rewrite_retains_verified_completed_proof_and_leaves_unfinished_or_unproven_links(campaign):
-    run, state, result, report = campaign.accepted('first')
     queue = campaign.plan.root / campaign.plan.queue
+    missing = '../output/test-runs/host/reports/expired/report.md'
+    def original_queue(report):
+        relative = os.path.relpath(report / 'result.md', queue.parent)
+        directory = os.path.relpath(report, queue.parent)
+        return ('| [x] | earlier | old task | Baseline | old scope | [retained](' + relative + ') |\n'
+                '| [x] | directory | old report tree | earlier | whole historical report | [directory](' + directory + ') |\n'
+                '| [x] | lost | lost task | earlier | fixed scope | [unavailable](' + missing + ') |\n'
+                '| [x] | first | selected task | earlier | exact scope | [passed](' + relative + ') |\n'
+                '| [ ] | suspended | unfinished task | first | suspended scope | [own proof](' + relative + ') |\n')
+    run, state, result, report = campaign.accepted('first', queue_text=original_queue)
     relative = os.path.relpath(report / 'result.md', queue.parent)
     directory = os.path.relpath(report, queue.parent)
-    missing = '../output/test-runs/host/reports/expired/report.md'
-    before = ('| [x] | earlier | old task | Baseline | old scope | [retained](' + relative + ') |\n'
-              '| [x] | directory | old report tree | earlier | whole historical report | [directory](' + directory + ') |\n'
-              '| [x] | lost | lost task | earlier | fixed scope | [unavailable](' + missing + ') |\n'
-              '| [x] | first | selected task | earlier | exact scope | [passed](' + relative + ') |\n'
-              '| [ ] | suspended | unfinished task | first | suspended scope | [own proof](' + relative + ') |\n')
-    queue.write_text(before)
+    before = queue.read_text()
     state['queue_before'] = {'earlier': True, 'directory': True, 'lost': True,
                              'first': False, 'suspended': False}
     accepted = proof.preserve(campaign.plan, run, state, result)
@@ -1700,8 +1707,12 @@ def test_declared_context_refuses_same_archived_bytes_for_other_claim(campaign, 
     before = path.read_bytes()
     # Only the consuming claim changes; the selected archive/member bytes do not.
     declaration['references'][0]['consumer']['expected_context'][field] = value
-    with pytest.raises(identities.EvidenceContextError):
+    with pytest.raises(identities.EvidenceContextError) as error:
         proof.preview_document_links(campaign.plan, declaration)
+    diagnostic = error.value.reference_diagnostic
+    assert diagnostic['condition'] == 'identity'
+    assert diagnostic['document'] == campaign.plan.path and diagnostic['line'] == 1
+    assert diagnostic['expected'] != diagnostic['actual'] and diagnostic['recovery']
     assert path.read_bytes() == before
 
 
@@ -1780,3 +1791,274 @@ def test_declared_original_reappearance_cannot_bypass_live_source_guards(campaig
         proof.apply_document_links(campaign.plan, preview)
     assert path.read_bytes() == before
     assert original.is_symlink()
+
+
+def _policy_document(campaign, selected, text, *, role='required_evidence', document='docs/Claim.md'):
+    path, declaration = _declared_document(campaign, selected, text, document=document)
+    contracts = {}
+    for link, claim in zip(proof.references(text), declaration['references']):
+        consumer = claim['consumer']
+        consumer['consumer_id'] = identities.digest(dict(document=document, start=link.start))
+        consumer['revision_sha256'] = bundle.digest(proof._claim_bytes(text, link))
+        consumer['role'] = role
+        if role != 'required_evidence':
+            target = proof.local_destination(link.destination)
+            consumer['expected_context'] = None
+            consumer['references'] = [dict(kind='document', destination=os.path.normpath(target.path),
+                                           fragment=target.fragment or '')]
+            claim['selector'] = None
+        contracts[consumer['consumer_id']] = copy.deepcopy(consumer)
+    return path, declaration, contracts
+
+
+def _refresh_policy_document(path, declaration):
+    declaration['sha256'] = bundle.digest(path.read_bytes())
+    for link, claim in zip(proof.references(path.read_text()), declaration['references']):
+        claim['start'] = link.start
+
+
+def test_policy_binds_claim_wording_and_owner_role_even_at_unchanged_destination(campaign):
+    selected = _structured_publication(campaign)
+    before = '# Presentation\nUbuntu passed [proof](' + selected.reference + ').\n'
+    path, declaration, contracts = _policy_document(campaign, selected, before)
+    assert not any(item.blocked for item in proof.check_document_references(
+        campaign.plan, declaration, contracts=contracts))
+    path.write_text(before.replace('# Presentation', '# **Presentation**'))
+    _refresh_policy_document(path, declaration)
+    assert not any(item.blocked for item in proof.check_document_references(
+        campaign.plan, declaration, contracts=contracts))
+    path.write_text(before.replace('Ubuntu passed', 'Both targets passed'))
+    _refresh_policy_document(path, declaration)
+    decision, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    assert decision.blocked and decision.diagnostic.condition == 'stale'
+    declaration['references'][0]['consumer']['role'] = 'optional_presentation'
+    decision, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    assert decision.blocked and decision.diagnostic.condition == 'conflict'
+
+
+def test_policy_historical_loss_is_nonpassing_and_exactly_revision_bound(campaign):
+    selected = _structured_publication(campaign)
+    target = campaign.plan.root / 'docs/Old.md'
+    target.write_text('# Old\n')
+    path, declaration, contracts = _policy_document(campaign, selected,
+        'Historical result [record](Old.md).\n', role='historical_information')
+    original, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    target.unlink()
+    decision, = proof.check_document_references(campaign.plan, declaration,
+        contracts=contracts, retained=[original.binding])
+    assert decision.advisory and decision.diagnostic.condition == 'missing'
+    assert not hasattr(decision, 'passed')
+    required, = proof.check_document_references(campaign.plan, declaration,
+        contracts=contracts, retained=[original.binding], active=True)
+    assert required.blocked
+    path.write_text('Changed historical result [record](Old.md).\n')
+    _refresh_policy_document(path, declaration)
+    claim = declaration['references'][0]
+    claim['consumer']['revision_sha256'] = bundle.digest(proof._claim_bytes(path.read_text(),
+        next(proof.references(path.read_text()))))
+    contracts[claim['consumer']['consumer_id']] = copy.deepcopy(claim['consumer'])
+    changed, = proof.check_document_references(campaign.plan, declaration,
+        contracts=contracts, retained=[original.binding])
+    assert changed.blocked and changed.diagnostic.condition == 'missing'
+
+
+def test_policy_new_optional_anchor_cannot_downgrade_required_contract(campaign):
+    selected = _structured_publication(campaign)
+    (campaign.plan.root / 'docs/Guide.md').write_text('# Present\n')
+    path, declaration, contracts = _policy_document(campaign, selected,
+        'Decoration [section](Guide.md#missing).\n', role='optional_presentation')
+    optional, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    assert optional.advisory and optional.diagnostic.condition == 'fragment'
+    absent, = proof.check_document_references(campaign.plan, declaration, contracts={})
+    assert absent.blocked and absent.diagnostic.condition == 'conflict'
+    claim = declaration['references'][0]['consumer']
+    contracts[claim['consumer_id']]['role'] = 'required_instruction'
+    conflict, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    assert conflict.blocked and conflict.diagnostic.condition == 'conflict'
+    claim['role'] = 'required_instruction'
+    required, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    assert required.blocked and required.diagnostic.condition == 'fragment'
+
+
+def test_equivalent_instruction_spelling_retains_claim_but_not_historical_exception(campaign):
+    selected = _structured_publication(campaign)
+    (campaign.plan.root / 'docs/Guide.md').write_text('# Present\n')
+    path, declaration, contracts = _policy_document(campaign, selected,
+        'Required [section](Guide.md#present).\n', role='required_instruction')
+    original, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    path.write_text(path.read_text().replace('(Guide.md', '(./Guide.md'))
+    _refresh_policy_document(path, declaration)
+    changed, = proof.check_document_references(campaign.plan, declaration,
+        contracts=contracts, retained=[original.binding])
+    assert not changed.blocked and changed.binding.claim_sha256 == original.binding.claim_sha256
+    assert changed.binding.reference_sha256 != original.binding.reference_sha256
+
+
+def test_publication_checks_authored_instructions_without_scanning_old_loss(campaign):
+    master = campaign.plan.root / campaign.plan.path
+    master.write_text(master.read_text() + '\nUnrelated history [old](Lost.md).\n')
+    run, state, result, report = campaign.accepted('first')
+    proof.publication_document_gate(campaign.plan, state)
+    master.write_text(master.read_text() + '\nRequired [new](New.md).\n')
+    with pytest.raises(proof.ReferenceRefused) as error:
+        proof.publication_document_gate(campaign.plan, state)
+    assert error.value.diagnostics[0]['condition'] == 'missing'
+    assert error.value.diagnostics[0]['document'] == campaign.plan.path
+    master.write_text(master.read_text().replace('(New.md)', '(./Queue.md)'))
+    proof.publication_document_gate(campaign.plan, state)
+    # The same historical loss becomes blocking as a current instruction.
+    with pytest.raises(proof.ReferenceRefused):
+        proof.preflight(campaign.plan, run, state)
+
+
+def test_preflight_capacity_is_early_read_only_and_preserves_proof(campaign, monkeypatch):
+    run, state, result, report = campaign.accepted('first')
+    proof.preserve(campaign.plan, run, state, result)
+    index = proof.locator(campaign.plan).read_bytes()
+    planned = proof.preflight(campaign.plan, run, state)
+    assert planned['projected_bytes'] > 0
+    monkeypatch.setattr(bundle.retention, 'MAX_RETAINED_BYTES', planned['projected_bytes'])
+    with pytest.raises(proof.ReferenceRefused) as error:
+        proof.preflight(campaign.plan, run, state)
+    assert error.value.diagnostics[0]['condition'] == 'capacity'
+    assert proof.locator(campaign.plan).read_bytes() == index
+
+
+def test_declared_aliases_verify_once_while_pinned_then_reverify_on_apply(campaign, monkeypatch):
+    selected = _structured_publication(campaign)
+    text = '[first](' + selected.reference + ') and [second](' + selected.reference + ').\n'
+    path, declaration = _declared_document(campaign, selected, text, document='docs/Claim.md')
+    count = []
+    real = bundle.verified_record
+    @contextmanager
+    def counted(*args, **kwargs):
+        count.append(args[0]['path'])
+        with real(*args, **kwargs) as value:
+            yield value
+    monkeypatch.setattr(bundle, 'verified_record', counted)
+    preview = proof.preview_document_links(campaign.plan, declaration)
+    assert len(count) == 1
+    proof.apply_document_links(campaign.plan, preview)
+    assert len(count) == 2
+
+
+def test_lifecycle_respects_declared_presentation_and_historical_roles(campaign):
+    selected = _structured_publication(campaign)
+    run, state, result, report = campaign.accepted('first')
+    (campaign.plan.root / 'docs/Guide.md').write_text('# Present\n')
+    _, declaration, contracts = _policy_document(campaign, selected,
+        'Decoration [section](Guide.md#missing).\n', role='optional_presentation',
+        document=campaign.plan.path)
+    state.update(reference_documents=[declaration], reference_contracts=contracts)
+    proof.preflight(campaign.plan, run, state)
+    assert proof.publication_document_gate(campaign.plan, state) == []
+    assert json.loads(json.dumps(state))['reference_bindings']
+    _, declaration, contracts = _policy_document(campaign, selected,
+        'Old result [record](Guide.md).\n', role='historical_information',
+        document=campaign.plan.path)
+    state.update(reference_documents=[declaration], reference_contracts=contracts,
+                 reference_bindings=[], active_reference_consumers=list(contracts))
+    proof.preflight(campaign.plan, run, state)
+    state['active_reference_consumers'] = []  # Releasing a dependency changes relevance, not its claim.
+    (campaign.plan.root / 'docs/Guide.md').unlink()
+    proof.preflight(campaign.plan, run, state)
+    state['active_reference_consumers'] = list(contracts)
+    with pytest.raises(proof.ReferenceRefused) as error:
+        proof.preflight(campaign.plan, run, state)
+    assert error.value.diagnostics[0]['condition'] == 'missing'
+
+
+def test_document_adapter_preserves_prior_required_role_on_downgrade(campaign):
+    selected = _structured_publication(campaign)
+    (campaign.plan.root / 'docs/Guide.md').write_text('# Present\n')
+    _, declaration, contracts = _policy_document(campaign, selected,
+        'Required [section](Guide.md#missing).\n', role='required_instruction')
+    old, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    consumer = declaration['references'][0]['consumer']
+    consumer['role'] = 'optional_presentation'
+    contracts[consumer['consumer_id']] = copy.deepcopy(consumer)
+    changed, = proof.check_document_references(campaign.plan, declaration,
+        contracts=contracts, retained=[old.binding])
+    assert changed.blocked and changed.diagnostic.condition == 'conflict'
+
+
+def test_document_role_cannot_hide_an_exact_evidence_selector(campaign):
+    selected = _structured_publication(campaign)
+    _, declaration, contracts = _policy_document(campaign, selected,
+        'Decoration [proof](' + selected.reference + ').\n', role='optional_presentation')
+    refused, = proof.check_document_references(campaign.plan, declaration, contracts=contracts)
+    assert refused.blocked and refused.diagnostic.condition == 'identity'
+
+
+def test_semantic_reader_reports_actionable_identity_without_private_claim_text(campaign, monkeypatch, capsys):
+    selected = _structured_publication(campaign)
+    _, declaration = _declared_document(campaign, selected,
+        'Task queue: [Queue](Queue.md).\n[private claim](' + selected.reference + ')\n',
+        document=campaign.plan.path)
+    declaration['references'] = declaration['references'][-1:]
+    declaration['references'][0]['consumer']['expected_context']['target'] = 'private-other-target'
+    request = campaign.plan.root / 'declarations.json'
+    request.write_bytes(bundle.encoded(dict(schema='onpc-evidence-documents', version=1,
+                                           documents=[declaration])))
+    monkeypatch.setattr(proof, '__file__', str(campaign.plan.root / 'tools/plan_evidence.py'))
+    assert proof.main(['--plan', campaign.plan.path, '--declarations', str(request)]) == 2
+    captured = capsys.readouterr()
+    diagnostic = json.loads(captured.err.split('evidence-links: ', 1)[1])
+    assert diagnostic['condition'] == 'identity'
+    assert diagnostic['document'] == campaign.plan.path and diagnostic['line'] == 2
+    assert diagnostic['expected'] != diagnostic['actual'] and diagnostic['recovery']
+    assert 'private' not in captured.err
+
+
+def test_active_consumer_does_not_activate_unrelated_history_in_same_document(campaign):
+    selected = _structured_publication(campaign)
+    run, state, result, report = campaign.accepted('first')
+    (campaign.plan.root / 'docs/Guide.md').write_text('# Present\n')
+    old = campaign.plan.root / 'docs/Old.md'
+    old.write_text('# Old\n')
+    _, declaration, contracts = _policy_document(campaign, selected,
+        'Old [result](Old.md).\nRequired [guide](Guide.md#present).\n',
+        role='historical_information', document=campaign.plan.path)
+    current = declaration['references'][1]['consumer']
+    current['role'] = 'required_instruction'
+    contracts[current['consumer_id']] = copy.deepcopy(current)
+    state.update(reference_documents=[declaration], reference_contracts=contracts,
+                 active_reference_consumers=[current['consumer_id']])
+    proof.preflight(campaign.plan, run, state)
+    old.unlink()
+    proof.preflight(campaign.plan, run, state)
+
+
+def test_authored_master_evidence_joins_strict_publication_selection(campaign):
+    run, state, result, report = campaign.accepted('first')
+    missing = bundle.storage.directory('reports') / 'missing-result.json'
+    master = campaign.plan.root / campaign.plan.path
+    master.write_text(master.read_text() + '\nNew proof [report](' +
+        os.path.relpath(missing, master.parent) + ').\n')
+    assert str(missing) in proof.publication_document_gate(campaign.plan, state, result)
+    with pytest.raises(proof.EvidenceUnavailable):
+        proof.preserve(campaign.plan, run, state, result)
+
+
+@pytest.mark.parametrize('name', ['Article.md', 'Article.MD'])
+def test_authored_stage_document_uses_exact_git_baseline_without_rechecking_old_loss(campaign, name):
+    root = campaign.plan.root
+    relative = 'docs/' + name
+    article = root / relative
+    missing = bundle.storage.directory('reports') / 'old-missing.json'
+    article.write_text('Unrelated old proof [old](' + os.path.relpath(missing, article.parent) + ').\n')
+    for command in (['git', 'init', '-q'], ['git', 'add', '--', relative],
+                    ['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                     'commit', '-qm', 'Original document']):
+        import subprocess
+        subprocess.run(command, cwd=root, check=True, capture_output=True)
+    run, state, result, report = campaign.accepted('first')
+    result['stage_paths'] = [relative]
+    assert proof.publication_document_gate(campaign.plan, state, result) == []
+    baseline = state.pop('reference_git_base')
+    assert str(missing) in proof.publication_document_gate(campaign.plan, state, result)
+    state['reference_git_base'] = baseline
+    article.write_text(article.read_text() + '\nNew instruction [read](Absent.md).\n')
+    with pytest.raises(proof.ReferenceRefused) as error:
+        proof.publication_document_gate(campaign.plan, state, result)
+    assert error.value.diagnostics[0]['document'] == relative

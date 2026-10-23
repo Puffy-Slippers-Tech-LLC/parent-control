@@ -362,6 +362,12 @@ It uses authenticated plan/runner readers, never executes link text, scans the
 repository, starts a launcher or writes documents. Exit 0 returns JSON previews;
 exit 2 refuses malformed, unavailable, unsafe or mismatched evidence. Mutation
 has no command-line switch: an authorized owner uses the separate apply API.
+Selected-reference refusals return finite JSON diagnostics with their condition,
+document/line, opaque expected/actual identities and a supported recovery action.
+They exclude private claim text and raw reader errors. Malformed requests retain
+the generic refusal. Role-aware lifecycle policy is owned by the
+[execution-plan contract](Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery);
+the read-only preview does not grant an advisory or mutation authority.
 
 The [rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/rules#understand-rule-fields)
 matches literal argument prefixes; the strictest decision wins.

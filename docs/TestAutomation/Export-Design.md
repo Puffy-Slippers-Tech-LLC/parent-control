@@ -326,6 +326,27 @@ when no relevant input changed. Diagnostics identify class, consumer/line,
 expected versus actual identity, scope and one supported recovery route without
 echoing secrets or dumping raw transcripts.
 
+### E10 lifecycle gates
+
+Delivered policy lives in `tools/evidence_policy.py`, shared by document and
+plan gates in the existing owners. The
+[execution-plan contract](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
+owns declarations, literal claim revision binding, independently supplied roles,
+checkpoint advisory records, scoped startup and authored-reference publication.
+`document_checks.link_condition` supplies local availability/anchor findings;
+authenticated evidence readers still own identity, authority and integrity.
+Optional presentation declarations cannot hide structured evidence selectors.
+Required references and each explicitly active consumer stay blocking.
+
+Startup capacity is a read-only lower bound from the recorded publication
+inventory and current cumulative archives, including schema-2 segments. It is
+not a reservation or a promise that a future result fits. The existing locked
+publication and retirement checks remain authoritative. Retention's typed busy,
+pending and capacity refusals preserve their existing refusal behavior and
+messages while allowing finite policy diagnostics without parsing private text.
+The extracted policy is registered in the controller dependency guard; actual
+dependency-byte histories cover its session-boundary restart behavior.
+
 ## Compatibility and migration
 
 Retain old helper commands and versioned manifests/checkpoints until every

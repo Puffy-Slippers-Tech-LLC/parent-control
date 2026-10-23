@@ -120,7 +120,45 @@ the owning task state and remain confined to simple inline Estimate destinations
 for the selected task or previously completed rows. Unfinished/suspended claims,
 labels, checkpoints and unrelated work receive no new rewrite permission.
 The existing schema-1 queue rewrite remains compatibility navigation, not exact
-proof. Lifecycle publication gates and historical migration are separate work.
+proof. Historical inventory and migration remain separate work.
+
+`plan_evidence.check_document_references` applies the shared proportional policy
+to explicit declarations. Its independent `contracts` mapping is supplied by
+the owning workflow, keyed by consumer ID; declaration JSON cannot grant its
+own role. Document-only claims use a null selector/workflow. Evidence claims
+retain their exact selector and authenticated reader; a document role cannot
+hide an evidence selector. For this gate, `revision_sha256` hashes the literal
+containing claim line with its destination excluded. Labels and surrounding
+target/result wording remain literal. Equivalent relative destinations still
+undergo identity checks; presentation edits outside that claim do not change it.
+
+The policy returns bounded typed findings and exact `ReferenceBinding` records,
+never acceptance. Owner-retained bindings serialize through `payload` and
+`from_payload`. Only an inactive historical consumer's exact unchanged binding
+can make missing proof advisory; new or changed loss remains blocking. Optional
+document anchors require a matching presentation contract. Changed roles,
+claims, context, ownership and integrity retain strict precedence. Owners keep
+availability debt once in their existing records, without opening repair turns
+or creating another ledger. Active relevance belongs to each consumer, not its
+whole document.
+
+Before admitting a session, ordinary plans check current master/brief reading
+links, declared active proof and the existing publication capacity lower bound.
+Workflow-owned `reference_documents`, `reference_contracts`, JSON
+`reference_bindings` and `active_reference_consumers` carry explicit role policy
+in the checkpoint. Undeclared instruction links stay required. This preflight
+allocates no proof, reserves no capacity and grants no acceptance. Offline
+`--check` remains structure-only and needs no historical local output.
+At accepted publication, changed instruction/evidence references are checked
+against captured plan inputs and the immutable pre-turn Git baseline for other
+explicit Markdown stage paths. Older in-flight checkpoints without that Git
+identity receive no historical exception for those additional documents; their
+references undergo strict validation. New evidence sources join the existing strict
+publication selection; exact authored selectors require their owning declaration.
+Unchanged unrelated history is not materialized. The actual publication and
+retirement transactions still independently verify complete proof and capacity.
+Plan document aliases reuse verification only inside held owner/archive scopes;
+apply starts a fresh scope and rechecks document and proof identities.
 
 Publication recovery verifies the committed payload and publishes its matching
 locator before retiring recorded older generations. Ordinary session and export

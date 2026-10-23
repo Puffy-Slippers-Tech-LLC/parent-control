@@ -81,6 +81,18 @@ def read_text(path):
     return data.decode('utf-8')
 
 
+def checkout_document(root, value):
+    """Validate an explicit Markdown mutation scope, including existing .MD files."""
+    root, relative = Path(root).resolve(), Path(value)
+    candidate = root / relative
+    if (relative.is_absolute() or '..' in relative.parts
+            or relative.suffix.lower() not in ('.md', '.markdown')
+            or any(part.is_symlink() for part in (candidate, *candidate.parents))
+            or not candidate.resolve().is_relative_to(root)):
+        raise ValueError('document check: expected an explicit checkout Markdown file')
+    return candidate
+
+
 def without_examples(text, *, legacy=False):
     """Mask fenced/indented examples and HTML comments, preserving offsets."""
     _bounded(text)
@@ -455,6 +467,35 @@ def protected_artifact_exists(target):
         return isinstance(metadata, dict) and metadata.get('kind') in ('file', 'directory')
     except (OSError, subprocess.TimeoutExpired, ValueError, RuntimeError):
         return False
+
+
+def link_condition(path, text, link, *, anchors=None):
+    """Inspect one explicit local link; semantic evidence stays with its owner.
+
+    The policy caller supplies roles independently. A denied read is never
+    reported as expiry, and this operation neither fetches nor executes text.
+    """
+    from evidence_policy import Condition
+    target = local_destination(link.destination)
+    if target is None or (not target.path and target.fragment is None):
+        return None
+    target_path = path.parent / target.path if target.path else path
+    anchors = {} if anchors is None else anchors
+    try:
+        target_path.stat()
+        if target.fragment and target_path.suffix.lower() in ('.md', '.markdown'):
+            if target_path not in anchors:
+                anchors[target_path] = heading_anchors(text if target_path == path else read_text(target_path))
+            if target.fragment not in anchors[target_path]:
+                return Condition.FRAGMENT
+    except (FileNotFoundError, NotADirectoryError):
+        return Condition.MISSING
+    except PermissionError:
+        if not protected_artifact_exists(target_path):
+            return Condition.DENIED
+    except (OSError, ValueError, UnicodeError):
+        return Condition.INTEGRITY
+    return None
 
 
 def check_links(paths):

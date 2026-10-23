@@ -728,7 +728,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     'test_retention.py', 'test_storage.py', 'test_input_transfer.py',
     'launcher_git.py', 'launcher_worktrees.py', 'onpc-test-artifacts', 'launcher_question.py',
     'plan_reconciliation.py', 'vm_selection.py', 'vm_pool.py', '../tests/integration/vm_config.py',
-    'evidence_identity.py', 'evidence_capture.py', 'capture_publication.py',
+    'evidence_identity.py', 'evidence_policy.py', 'evidence_capture.py', 'capture_publication.py',
     'recording_storage.py', 'artifact_export.py',
     # Runner terminal records now supply the exact provenance retained by
     # evidence consumers; reload before accepting decisions from changed code.
@@ -851,7 +851,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 if delay > 0:
                     time.sleep(min(1, delay))
                     continue
-            admitted = False
+            completed_state = None
             if state['phase'] == 'complete':
                 if state.get('queue_before'):
                     plan.validate_recovery(state)
@@ -862,10 +862,12 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     reason = 'queue complete'
                     break
                 validate_consolidated_metadata(task_record(task), state.get('consolidation_obligations', {}))
-                if not budget.admit():
+                limits = budget.read()
+                if limits.get('closed') or (limits['tasks'] is not None
+                        and limits['completed'] >= limits['tasks']):
                     reason = 'task limit reached'
                     break
-                admitted = True
+                completed_state = state
                 pending = dict(state.get('suspended_tasks', {}))
                 inherited_baseline = state.get('replan_baseline')
                 inherited_staged = state.get('protected_staged')
@@ -911,8 +913,14 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 if evidence_recovery_pending(plan, state):
                     status, reason = 1, evidence_recovery_reason
                     break
+            # Required proof and publication capacity must refuse before a
+            # session is admitted or charged. Pending accepted completions use
+            # closeout's strict publication gate above instead.
+            plan_evidence.preflight(plan, run, state)
             retrying_capacity = capacity_retry(state)
-            if not admitted and not retrying_capacity and not budget.admit():
+            if not retrying_capacity and not budget.admit():
+                if completed_state is not None:
+                    state = completed_state
                 reason = 'task limit reached'
                 break
             if not retrying_capacity and state['task_sessions'] >= state['session_limit']:

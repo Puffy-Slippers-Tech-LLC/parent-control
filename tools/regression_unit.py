@@ -1,5 +1,11 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+evidence_policy uses bounded in-memory declarations only. E10's plan/document
+integration checks use pytest-private documents, existing tiny owned journals,
+in-process reader doubles and bounded waited Git children on private repositories;
+no shared cache, display, bus, socket, VM or external service is introduced. These modules remain compatible;
+cleanup and UI inventories gain no module or resource owner.
+
 Fedora installed-system coverage extends fixture_system_qualification,
 system_snapshots, system_runner, fixture_provision_cleanup_safety and
 test_launchers with existing pytest-private files and process-local lease,
@@ -1198,7 +1204,7 @@ fixture_provision_cleanup_safety
 fixture_execution_cleanup_safety fixture_handoff_cleanup_safety
 fixture_manifest fixture_container fixture_bundle_cleanup_safety
 fixture_producer_cleanup_safety
-evidence_capture evidence_identity runner_evidence plan_evidence plan_evidence_recovery
+evidence_capture evidence_identity evidence_policy runner_evidence plan_evidence plan_evidence_recovery
 native_history_routes native_update_runner
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures

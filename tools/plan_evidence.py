@@ -378,6 +378,12 @@ def carry(plan, run, state):
 def capture(plan, run, state):
     """Freeze exact task-selection files before an agent may remove its brief."""
     carry(plan, run, state)
+    if 'reference_git_base' not in state and (plan.root / '.git').exists():
+        commit = subprocess.run(['git', 'rev-parse', '--verify', 'HEAD'], cwd=plan.root,
+                                capture_output=True, text=True, check=True).stdout.strip()
+        if not re.fullmatch('[0-9a-f]{40,64}', commit):
+            raise ValueError('plan evidence: invalid document baseline revision')
+        state['reference_git_base'] = commit
     parent = Path(run) / 'plan-inputs'
     bundle.retention.ensure_directory(parent)
     target = parent / uuid.uuid4().hex
@@ -757,6 +763,19 @@ class _ReferenceScope:
         self.document = Path(os.path.abspath(self.document))
         if not self.document.is_relative_to(self.checkout):
             raise ValueError('plan evidence: declaring document escapes checkout')
+        self._pinned = None
+
+    @contextmanager
+    def pinned(self):
+        """Reuse verification only while its owner/archive descriptors stay held."""
+        if self._pinned is not None:
+            raise ValueError('plan evidence: reference scope is already pinned')
+        with ExitStack() as stack:
+            self._pinned = stack, {}
+            try:
+                yield self
+            finally:
+                self._pinned = None
 
     def locator(self):
         if self.workflow is None:
@@ -766,6 +785,23 @@ class _ReferenceScope:
 
     @contextmanager
     def __call__(self, path, *, record_id):
+        if self._pinned is not None:
+            stack, opened = self._pinned
+            key = str(path), record_id
+            if key not in opened:
+                opened[key] = (_read(path), stack.enter_context(self._open(path, record_id=record_id)))
+            raw, verified = opened[key]
+            if _read(path) != raw:
+                raise ValueError('plan evidence: locator changed during resolution')
+            yield verified
+            if _read(path) != raw:
+                raise ValueError('plan evidence: locator changed during resolution')
+            return
+        with self._open(path, record_id=record_id) as verified:
+            yield verified
+
+    @contextmanager
+    def _open(self, path, *, record_id):
         if path != locator(self.plan):
             raise ValueError('plan evidence: locator is outside the trusted plan scope')
         raw = _read(path)
@@ -866,11 +902,10 @@ def _generated_reference(consumer, selector, read_scope):
 def collect_document_references(plan, declaration):
     """Collect explicit occurrences only; prose never manufactures a claim/context."""
     import evidence_identity as identities
-    from execution_plan import local_file
     identities._object(declaration, {'document', 'sha256', 'references'}, 'document declaration')
     identities._text(declaration['document'])
     identities._hex(declaration['sha256'])
-    path = local_file(plan.root, declaration['document'])
+    path = document_checks.checkout_document(plan.root, declaration['document'])
     text = document_checks.read_text(path)
     if _digest(text.encode('utf-8')) != declaration['sha256']:
         raise ValueError('plan evidence: document changed since declaration')
@@ -899,8 +934,112 @@ def collect_document_references(plan, declaration):
     return path, text, selected
 
 
+class ReferenceRefused(ValueError):
+    """Finite policy findings, without link text or private reader errors."""
+    def __init__(self, diagnostics):
+        self.diagnostics = diagnostics[:16]
+        super().__init__('reference gate: ' + json.dumps(self.diagnostics, sort_keys=True))
+
+
+def _claim_bytes(text, link):
+    # Include surrounding result/target wording, not merely the clickable label.
+    start = text.rfind('\n', 0, link.start) + 1
+    end = text.find('\n', link.end)
+    end = len(text) if end < 0 else end
+    # Destinations are identity, not result wording. Preserve every other byte;
+    # reference definitions live outside the claim's use-site line.
+    if start <= link.destination_start < link.destination_end <= end:
+        return (text[start:link.destination_start] + text[link.destination_end:end]).encode('utf-8')
+    return text[start:end].encode('utf-8')
+
+
+def check_document_references(plan, declaration, *, contracts, retained=(), active=False,
+                              active_consumers=()):
+    """Apply owning roles to finite declared occurrences, without granting a pass.
+
+    `contracts` comes from the workflow owner, independently of document JSON.
+    Previous bindings are owner-retained classification, never caller-selected
+    proof. Exact identity/ownership resolution still belongs to existing readers.
+    """
+    with ExitStack() as stack:
+        return _check_document_references(plan, declaration, contracts=contracts,
+            retained=retained, active=active, active_consumers=active_consumers, stack=stack)
+
+
+def _check_document_references(plan, declaration, *, contracts, retained, active, active_consumers, stack):
+    import evidence_identity as identities
+    import evidence_policy as policy
+    path, text, selected = collect_document_references(plan, declaration)
+    decisions, anchors, scopes = [], {}, {}
+    if (not isinstance(contracts, dict) or len(contracts) > 256 or len(retained) > 256
+            or type(active) is not bool or len(active_consumers) > 256):
+        raise ValueError('plan evidence: invalid finite owning contracts')
+    for link, claim in selected:
+        consumer = claim['consumer']
+        contract = contracts.get(consumer['consumer_id'])
+        arguments = dict(document=declaration['document'], line=link.line,
+            reference=text[link.start:link.end], claim=_claim_bytes(text, link),
+            consumer=consumer, contract=contract,
+            active=active or consumer['consumer_id'] in active_consumers)
+        # Role authority is checked before any I/O or availability exception.
+        initial = policy.assess_reference([], **arguments)
+        if initial.blocked:
+            decisions.append(initial)
+            continue
+        if consumer['revision_sha256'] != _digest(arguments['claim']):
+            decisions.append(policy.assess_reference(policy.Condition.STALE,
+                expected=consumer['revision_sha256'], actual=_digest(arguments['claim']), **arguments))
+            continue
+        conditions, actual = [], None
+        try:
+            if claim['selector'] is not None:
+                workflow = claim['workflow']
+                if workflow not in scopes:
+                    scopes[workflow] = stack.enter_context(reference_scope(plan,
+                        document=declaration['document'], workflow=workflow).pinned())
+                scope = scopes[workflow]
+                _, resolved = _generated_reference(consumer, claim['selector'], scope)
+                _document_source(plan, path, link, resolved, (consumer, scope))
+            else:
+                target = local_destination(link.destination)
+                if target is None or claim['workflow'] is not None:
+                    raise identities.EvidenceContextError('plan evidence: expected local instruction reference')
+                if ((target.fragment or '').startswith('onpc-evidence')
+                        or consumer['role'] == 'optional_presentation'
+                        and 'output/test-runs/' in target.path):
+                    raise identities.EvidenceContextError('plan evidence: evidence cannot use presentation authority')
+                actual = dict(kind='document', destination=os.path.normpath(target.path),
+                              fragment=target.fragment or '')
+                if actual not in consumer['references'] or any(
+                        item['kind'] == 'evidence' for item in consumer['references']):
+                    raise identities.EvidenceContextError('plan evidence: undeclared document destination')
+                condition = document_checks.link_condition(path, text, link, anchors=anchors)
+                if condition is not None:
+                    conditions.append(condition)
+        except (OSError, ValueError) as error:
+            conditions.append(policy.condition_for_exception(error))
+        binding = initial.binding
+        previous = next((item for item in retained if item == binding), None)
+        if previous is None:
+            previous = next((item for item in retained
+                if isinstance(item, policy.ReferenceBinding)
+                and item.consumer_id == consumer['consumer_id']), None)
+        decisions.append(policy.assess_reference(conditions, retained=previous,
+            expected=consumer['references'], actual=actual, **arguments))
+    return decisions
+
+
+def require_document_references(plan, declaration, **options):
+    decisions = check_document_references(plan, declaration, **options)
+    failures = [item.diagnostic.payload() for item in decisions if item.blocked]
+    if failures:
+        raise ReferenceRefused(failures)
+    return decisions
+
+
 def _document_source(plan, path, link, resolved, scope):
     """An old spelling must select the proven member, never another existing report."""
+    import evidence_identity as identities
     target = local_destination(link.destination)
     if target is None:
         raise ValueError('plan evidence: evidence destination must be local')
@@ -912,7 +1051,10 @@ def _document_source(plan, path, link, resolved, scope):
             raise ValueError('plan evidence: existing link selects another member')
     member = resolved['member']
     if target.fragment is None and str(source) != member['original_path']:
-        raise ValueError('plan evidence: destination is not the selected original member')
+        error = identities.EvidenceContextError('plan evidence: destination is not the selected original member')
+        error.expected_identity = _digest(member['original_path'].encode('utf-8'))
+        error.actual_identity = _digest(str(source).encode('utf-8'))
+        raise error
     source = Path(member['original_path'])
     if not source.is_relative_to(plan.root):
         raise ValueError('plan evidence: original destination escapes checkout')
@@ -954,16 +1096,42 @@ def _queue_destination_allowed(text, link, state):
 
 def preview_document_links(plan, declaration, *, state=None):
     """Verify finite declared claims and return destination-only edits; never write."""
+    with ExitStack() as stack:
+        return _preview_document_links(plan, declaration, state=state, stack=stack)
+
+
+def _preview_document_links(plan, declaration, *, state, stack):
+    import evidence_policy as policy
+    import evidence_identity as identities
     path, text, selected = collect_document_references(plan, declaration)
-    edits = {}
+    edits, scopes = {}, {}
     for link, claim in selected:
-        scope = reference_scope(plan, document=declaration['document'], workflow=claim['workflow'])
-        destination, resolved = _generated_reference(claim['consumer'], claim['selector'], scope)
-        _document_source(plan, path, link, resolved, (claim['consumer'], scope))
+        try:
+            workflow = claim['workflow']
+            if workflow not in scopes:
+                scopes[workflow] = stack.enter_context(reference_scope(plan,
+                    document=declaration['document'], workflow=workflow).pinned())
+            scope = scopes[workflow]
+            destination, resolved = _generated_reference(claim['consumer'], claim['selector'], scope)
+            _document_source(plan, path, link, resolved, (claim['consumer'], scope))
+        except (ValueError, OSError) as error:
+            condition = policy.condition_for_exception(error)
+            context = claim['consumer']['expected_context']
+            error.reference_diagnostic = policy.Diagnostic(policy.Severity.BLOCK, condition,
+                declaration['document'], link.line,
+                getattr(error, 'expected_identity', identities.record_id(context) if context is not None else None),
+                getattr(error, 'actual_identity',
+                    claim['selector'].get('record_id') if isinstance(claim['selector'], dict) else None),
+                policy.RECOVERY_ACTIONS[condition]).payload()
+            raise
         before = text[link.destination_start:link.destination_end]
         if (path == plan.root / plan.queue and before != destination
                 and not _queue_destination_allowed(text, link, state)):
-            raise ValueError('plan evidence: protected queue destination is outside authorized Estimate cells')
+            error = ValueError('plan evidence: protected queue destination is outside authorized Estimate cells')
+            error.reference_diagnostic = policy.Diagnostic(policy.Severity.BLOCK, policy.Condition.PROTECTED,
+                declaration['document'], link.line, None, None,
+                policy.RECOVERY_ACTIONS[policy.Condition.PROTECTED]).payload()
+            raise error
         edit = dict(start=link.destination_start, end=link.destination_end, before=before,
                     after=destination, selector=claim['selector'],
                     member_sha256=resolved['member']['sha256'])
@@ -1269,6 +1437,219 @@ def _targets(run, state):
     return list(dict.fromkeys([*targets, *selected]))
 
 
+def _instruction_gate(plan, path, text, *, previous=None, declared=()):
+    """Plan-owned reading links are required; unchanged history is not a scan.
+
+    Startup calls this on the current master/brief instruction closure. At
+    publication only new/changed claims are inspected against captured bytes.
+    Evidence destinations are handled by authenticated collection, not stat().
+    """
+    import evidence_policy as policy
+    old = set() if previous is None else {
+        (_claim_bytes(previous, link), link.destination)
+        for link in references(previous)}
+    failures, anchors = [], {}
+    for link in references(text):
+        if link.start in declared:
+            continue  # The independently declared role was checked first.
+        target = local_destination(link.destination)
+        if target is None or 'output/test-runs/' in target.path:
+            continue
+        if previous is not None and (_claim_bytes(text, link), link.destination) in old:
+            continue
+        condition = document_checks.link_condition(path, text, link, anchors=anchors)
+        if condition is not None:
+            failures.append(policy.Diagnostic(policy.Severity.BLOCK, condition,
+                str(path.relative_to(plan.root)), link.line, None, None,
+                'repair_required_instruction_reference').payload())
+            if len(failures) == 16:
+                break
+    if failures:
+        raise ReferenceRefused(failures)
+
+
+def _declared_gate(plan, state):
+    """A workflow may register finite independent contracts before a turn."""
+    documents = state.get('reference_documents', [])
+    if not isinstance(documents, list) or len(documents) > 256:
+        raise ValueError('plan evidence: invalid scoped reference documents')
+    import evidence_policy as policy
+    saved = state.get('reference_bindings', [])
+    if not isinstance(saved, list) or len(saved) > 256:
+        raise ValueError('plan evidence: invalid finite retained bindings')
+    retained = [policy.ReferenceBinding.from_payload(value) for value in saved]
+    declared, bindings = {}, []
+    for declaration in documents:
+        decisions = require_document_references(plan, declaration,
+            contracts=state.get('reference_contracts', {}),
+            retained=retained,
+            active_consumers=state.get('active_reference_consumers', ()))
+        declared.setdefault(declaration['document'], set()).update(
+            item['start'] for item in declaration['references'])
+        bindings.extend(item.binding.payload() for item in decisions)
+    if len(bindings) > 256:
+        raise ValueError('plan evidence: too many retained reference bindings')
+    if bindings:
+        state['reference_bindings'] = bindings
+    return declared
+
+
+def preflight(plan, run, state):
+    """Inspect only current instructions, active claims and existing capacity.
+
+    This is early refusal, not reservation or acceptance. Publication and
+    retirement still independently pin and verify their actual complete inputs.
+    No historical queue catalogue, model, VM or new allocation is involved.
+    """
+    import evidence_policy as policy
+    try:
+        return _preflight(plan, run, state)
+    except ReferenceRefused:
+        raise
+    except (ValueError, OSError) as error:
+        condition = policy.condition_for_exception(error)
+        raise ReferenceRefused([policy.Diagnostic(policy.Severity.BLOCK, condition,
+            plan.path, 1, None, None, policy.RECOVERY_ACTIONS[condition]).payload()]) from None
+
+
+def _preflight(plan, run, state):
+    import runner_evidence
+    declared = _declared_gate(plan, state)
+    for value in (plan.path, state['task']['brief']):
+        path = Path(value)
+        path = path if path.is_absolute() else plan.root / path
+        try:
+            text = document_checks.read_text(path)
+        except FileNotFoundError:
+            if value == state['task']['brief'] and (state.get('phase') == 'recover'
+                    or state.get('evidence_capture_requires_brief')):
+                continue  # Existing recovery owns restoration of the captured brief.
+            raise
+        _instruction_gate(plan, path, text, declared=declared.get(str(path.relative_to(plan.root)), ()))
+    seen = set()
+    for registration in state.get('evidence_consumers', {}).values():
+        consumer = registration['consumer']
+        if consumer['role'] not in ('required_evidence', 'required_instruction'):
+            continue
+        key = _digest(bundle.encoded(dict(reference=registration['reference'], consumer=consumer)))
+        if key not in seen:
+            runner_evidence.resolve_reference(plan.root, registration['reference'], consumer=consumer, count=0)
+            seen.add(key)
+    # Read the same owner inventory/budgets used by publication, without opening
+    # a transaction or charging an unknown future result. The cumulative bundle
+    # itself is a lower bound for the next replacement, not a capacity promise.
+    try:
+        parent = _parent(plan)
+    except FileNotFoundError:
+        return dict(required=len(seen), projected_bytes=0)
+    store = bundle.retention.Store(parent / 'retention')
+    if not store.path.exists():
+        return dict(required=len(seen), projected_bytes=0)
+    with store.inspection() as retained:
+        records = ([] if retained is None else [record for _, record in
+            bundle.retention.latest_allocations([*retained['history'], retained])])
+        existing = bundle.retention.publication_usage(records)
+        index, _ = _index(locator(plan))
+        projected = 0
+        if index is not None:
+            # The exact existing cumulative archive is the minimum carried
+            # payload. Do not charge all retained generations a second time.
+            archives = ([Path(index['bundle'])] if index['schema'] == 1 else
+                        [Path(item['bundle']) / 'evidence.zip' for item in index['segments']])
+            for archive in set(archives):
+                if not any(archive.parent == Path(record['path']) for record in records):
+                    raise ValueError('plan evidence: capacity input has no recorded publication')
+                projected += archive.stat().st_size
+        usage = existing + projected + bundle.retention.publication_capture_bytes(retained)
+        if usage > bundle.retention.MAX_RETAINED_BYTES:
+            import evidence_policy as policy
+            raise ReferenceRefused([policy.Diagnostic(policy.Severity.BLOCK, policy.Condition.CAPACITY,
+                plan.path, 1, None, None, 'use_owned_retention_recovery').payload()])
+    return dict(required=len(seen), projected_bytes=projected)
+
+
+def _git_document(plan, revision, value):
+    """Read one finite immutable baseline blob, never the changing worktree."""
+    if revision is None:
+        # Older in-flight checkpoints have no pre-turn Git identity. Give them
+        # no historical exception; validate every reference in their named docs.
+        return ''
+    if not isinstance(revision, str) or not re.fullmatch('[0-9a-f]{40,64}', revision):
+        raise ValueError('plan evidence: missing exact document baseline')
+    selected = subprocess.run(['git', '--literal-pathspecs', 'ls-tree', '-z', revision, '--', value],
+        cwd=plan.root, capture_output=True, check=True).stdout
+    if not selected:
+        return ''  # A newly authored document has no earlier claims.
+    entries = selected.rstrip(b'\0').split(b'\0')
+    metadata = entries[0].split(b'\t', 1)[0].split()
+    if (len(entries) != 1 or len(metadata) != 3 or metadata[0] not in (b'100644', b'100755')
+            or metadata[1] != b'blob' or not re.fullmatch(b'[0-9a-f]{40,64}', metadata[2])):
+        raise ValueError('plan evidence: document baseline is not one regular blob')
+    size = subprocess.run(['git', 'cat-file', '-s', metadata[2].decode('ascii')],
+        cwd=plan.root, capture_output=True, check=True).stdout.strip()
+    if not size.isdigit() or int(size) > document_checks.MAX_BYTES:
+        raise ValueError('plan evidence: document baseline exceeds its bound')
+    data = subprocess.run(['git', 'cat-file', 'blob', metadata[2].decode('ascii')],
+        cwd=plan.root, capture_output=True, check=True).stdout
+    if len(data) != int(size):
+        raise ValueError('plan evidence: document baseline blob changed')
+    return data.decode('utf-8')
+
+
+def publication_document_gate(plan, state, result=None):
+    """Recheck authored instruction claims against their exact captured inputs."""
+    declared = _declared_gate(plan, state)
+    required = set()
+    originals = {}
+    for value in state.get('evidence_inputs', []):
+        metadata = bundle.decoded(_read(Path(value) / 'inputs.json'))
+        if metadata['task_id'] != state['task_id']:
+            raise ValueError('plan evidence: captured document belongs to another task')
+        for entry in metadata['files']:
+            data = _read(Path(value) / entry['member'])
+            if _digest(data) != entry['sha256']:
+                raise ValueError('plan evidence: captured document changed')
+            originals.setdefault(entry['path'], data.decode('utf-8'))
+    # The response names a finite mutation scope. Other Markdown files need an
+    # immutable pre-turn baseline too; unchanged old links are not requalified.
+    paths = result.get('stage_paths', []) if result is not None else []
+    if len(paths) > 256:
+        raise ValueError('plan evidence: publication document selection exceeds its bound')
+    for value in paths:
+        if Path(value).suffix.lower() not in ('.md', '.markdown'):
+            continue
+        path = document_checks.checkout_document(plan.root, value)
+        if str(path) not in originals and path.exists():
+            originals[str(path)] = _git_document(plan, state.get('reference_git_base'), value)
+    for value, before in originals.items():
+        path = Path(value)
+        if not path.is_relative_to(plan.root):
+            raise ValueError('plan evidence: publication document escapes checkout')
+        try:
+            text = document_checks.read_text(path)
+        except FileNotFoundError:
+            if value == str(Path(state['task']['brief'])) or path == plan.root / state['task']['brief']:
+                continue  # Accepted tasks retire their temporary brief.
+            raise
+        positions = declared.get(str(path.relative_to(plan.root)), ())
+        _instruction_gate(plan, path, text, previous=before, declared=positions)
+        old = {(_claim_bytes(before, link), link.destination) for link in references(before)}
+        for link in references(text):
+            target = local_destination(link.destination)
+            if (target is None or 'output/test-runs/' not in target.path
+                    or link.start in positions
+                    or (_claim_bytes(text, link), link.destination) in old):
+                continue
+            source = Path(os.path.abspath(path.parent / target.path))
+            if not source.is_relative_to(plan.root / 'output/test-runs'):
+                raise ValueError('plan evidence: authored reference escapes checkout storage')
+            if target.fragment and target.fragment.startswith('onpc-evidence'):
+                raise ValueError('plan evidence: authored exact claim requires its owning declaration')
+            if not _navigation_reference(plan, source):
+                required.add(str(source))
+    return sorted(required)
+
+
 def preserve(plan, run, state, result):
     """Retain a validated completion before its run or acceptance reports rotate."""
     with recovered(plan) as (previous, _, read):
@@ -1278,6 +1659,7 @@ def preserve(plan, run, state, result):
                 or result.get('task_id') != state['task_id']):
             raise ValueError('plan evidence: preservation requires accepted completion and cleanup')
         consume(plan, state, result)
+        authored_references = publication_document_gate(plan, state, result)
         if previous and state['task_id'] in previous['tasks']:
             proof = previous['tasks'][state['task_id']]
             if bundle.decoded(read(proof['result'], count=bundle.MAX_READ)) == result:
@@ -1333,7 +1715,7 @@ def preserve(plan, run, state, result):
     for value in turns:
         _turn(value, state['task_id'], plan=plan)
     sources, bundles = [str(capsule), *inputs, *turns], ([previous['bundle']] if previous else [])
-    references = [path for path in _references(plan, result, state)
+    references = [path for path in sorted(set(_references(plan, result, state)) | set(authored_references))
                   if path not in sources and path not in bundles]
     _export(plan, run, state, sources, bundles, references)
     return recover(plan)
@@ -1452,7 +1834,11 @@ def main(argv=None):
         return 0
     except (ValueError, OSError) as exc:
         # Do not echo raw declarations, link text, commands or private transcripts.
-        print('evidence-links: semantic preview refused (' + type(exc).__name__ + ')', file=sys.stderr)
+        diagnostic = getattr(exc, 'reference_diagnostic', None)
+        if diagnostic is not None:
+            print('evidence-links: ' + json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
+        else:
+            print('evidence-links: semantic preview refused (' + type(exc).__name__ + ')', file=sys.stderr)
         return 2
 
 

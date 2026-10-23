@@ -278,6 +278,19 @@ until the fresh controller applies the request and live acceptance passes.
 
 ## Execution and delegation
 
+At the start of every agentic session, including coordinators, workers, monitors,
+advisers and reviewers, activate this goal using Codex's `/goal` command:
+
+```text
+/goal Simple, lean, robust, do not overenginering. If a problem can be solved by simplier approaches, do not use more complex ones
+```
+
+The launcher must set the session's actual Codex goal state, using the supported
+goal API when running noninteractively; inserting the command as literal prompt
+text does not satisfy this requirement. Apply it to every fresh session,
+including continuations, repairs and retries, while preserving the selected
+task's scope, acceptance and existing session limits.
+
 Read repository instructions, the master, the selected brief and only applicable
 owning contracts/source. The shared coordinator prompt supplies the validated
 checkout-relative master, queue and selected brief paths. Use those exact paths;

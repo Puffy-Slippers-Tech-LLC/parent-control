@@ -161,6 +161,24 @@ def test_serial_dispatch_preserves_selection_and_target(checkout, fixture_select
             '--vm', 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
 
 
+@pytest.mark.parametrize('suffix', ['', '.py'])
+def test_recorded_serial_dispatch_is_ubuntu_only(checkout, fixture_selection, suffix):
+    name = 'check_fixture_recorded_serial'
+    (checkout / 'tests/integration' / (name + '.py')).touch()
+    options = ['--fixture-selection', json.dumps(fixture_selection)]
+    command = runner['selection'](checkout, ['integration', name + suffix,
+        '--vm', 'onpc-Ubuntu26.04', *options])
+    assert command == ['/usr/bin/python3', '-B',
+        str(checkout / 'tests/integration' / (name + '.py')),
+        '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
+    fixture_selection['target'] = 'fedora'
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', 'fedora')
+    for arguments in ([], ['--fixture-selection', json.dumps(fixture_selection)]):
+        with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+            runner['selection'](checkout, ['integration', name + suffix,
+                '--vm', 'onpc-Fedora44', *arguments])
+
+
 @pytest.mark.parametrize('option', ['--qualify-install', '--qualify-install-refusal'])
 @pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
 def test_authenticated_serial_dispatch_preserves_selection_and_target(checkout, fixture_selection, option, vm, target):
@@ -472,11 +490,12 @@ def test_recovery_dispatch_preserves_unfinished_vm_journal(checkout, monkeypatch
 @pytest.mark.parametrize('arguments', [
     ['system', '--artifacts', '/tmp/onpc-selected', '--area', 'session'],
     ['integration', 'check_graphical_smoke'], ['integration', 'check_e2e_watch.py'],
+    ['integration', 'check_fixture_recorded_serial'],
 ])
 def test_selected_producer_dispatch_keeps_command_without_parent_owner(
         checkout, monkeypatch, unattended, arguments):
     import test_retention
-    for name in ('check_graphical_smoke.py', 'check_e2e_watch.py'):
+    for name in ('check_graphical_smoke.py', 'check_e2e_watch.py', 'check_fixture_recorded_serial.py'):
         (checkout / 'tests/integration' / name).touch()
     owner = Mock(side_effect=AssertionError('dispatcher opened a producer owner'))
     monkeypatch.setattr(test_retention.Store, 'session', owner)
@@ -488,7 +507,8 @@ def test_selected_producer_dispatch_keeps_command_without_parent_owner(
     control.installed = Mock(return_value=nullcontext(control))
     monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: {'Control': lambda: control})
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
-    selected = [*arguments, *VM_ARGS]
+    selected = [*arguments, *(['--vm', 'onpc-Ubuntu26.04']
+        if arguments[-1] == 'check_fixture_recorded_serial' else VM_ARGS)]
     expected = runner['selection'](checkout, selected)
     assert runner['run'](checkout, (['--unattended'] if unattended else []) + selected, caller) == 7
     invocation = (control.run if unattended else execute).call_args

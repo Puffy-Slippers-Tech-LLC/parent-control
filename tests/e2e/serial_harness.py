@@ -73,9 +73,9 @@ def record_serial_journey(recorder, context):
         return recorder.artifact(name, kind, encoded(value), reviewed=True)
 
     from system_fixture_preparation import guest_target
-    selection = validate_fixture_input(context.fixture_selection,
-        target=guest_target(context.lease.capture.state['guest']))
     with recorder.step('setup'):
+        selection = validate_fixture_input(context.fixture_selection,
+            target=guest_target(context.lease.capture.state['guest']))
         credentials = context.credentials.provision(context.lease, context.verified,
             context.directory, context.guestfs, context.commands)
         provision_getty(context.lease, context.guestfs)
@@ -147,7 +147,8 @@ def record_serial_journey(recorder, context):
 
     smoke = Smoke(context.directory, context.lease, context.commands, context.host_key,
                   progress=progress, transfer=transfer, authenticate=True, serial=True, functional=True,
-                  fixture_selection=selection)
+                  fixture_selection=selection,
+                  fixture_observer=getattr(context, 'fixture_observer', None))
 
     def validate():
         validate_stages(context.directory, smoke.steps)

@@ -337,7 +337,7 @@ graphical, authentication, installation or worker input. Focused host checks bin
 the aliases and retain recording seals, fresh secret recipients, single-use
 input, successful-install reboot and refused-install logout/no-reboot assertions.
 Watched restoration and owned credential/staging/input/transport cleanup remain
-required. All recorded serial paths remain gated. This
+required. Recorded serial has a [separate Ubuntu qualification](#ubuntu-recorded-serial-preparation). This
 supplies no customer or E2E acceptance.
 
 ### Fedora standalone serial preparation
@@ -357,8 +357,34 @@ no-write repeats and current attempt/boot readiness. It preserves product absenc
 and stops before console attachment, authentication, installation or worker input.
 Host composition binds the aliases and preserves successful-install reboot versus
 refused-install logout/no-reboot assertions; it grants no package/login acceptance.
-Recorded serial remains gated. Watched restoration and owned cleanup are required;
+Fedora recorded serial remains gated. Watched restoration and owned cleanup are required;
 this supplies no customer or E2E acceptance.
+
+### Ubuntu recorded serial preparation
+
+`controller_qualification.E2E_CASES['gdm-observation']` uses
+`serial_harness.record_serial_journey` under the real `execution.ScenarioContext`
+and recorder. It selects Ubuntu's immutable native input before restoration,
+preserves credential/getty setup before boot, and reuses Smoke's post-SSH
+readiness before the first reply. Separate package-only delivery remains deferred
+until native readiness. The recorder saves the selected input and its manifest,
+VM, boot and attempt binding in a durable observation before acknowledging ready.
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_recorded_serial
+```
+
+This preparation-only check runs the actual recorded caller once, independently
+verifies the 12 native files and harmless Riley runtime use, and checks missing
+or incompatible inputs, no-write repeats, product absence and fresh readiness.
+It stops before starting a serial worker, attaching a console or releasing input.
+The full scenario deliberately remains incomplete and rejected; no HAR09/HAR10,
+login/logout, product or customer acceptance is claimed. Host checks preserve
+those stage, private-seal, recipient, continuity and owned-shutdown guards.
+The check requires recorder/collector closure, terminal evidence capture and
+watched baseline/credential/staging/input/transport cleanup. Its evidence producer
+owns its session in the child process that seals the recording. Fedora recorded
+serial remains unavailable until its separate qualification.
 
 ## Retained-session native dependency update
 

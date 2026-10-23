@@ -34,9 +34,16 @@ def harness(tmp_path, monkeypatch):
     collector = PrivateCollector(run_id='qualification-test', secrets=['private-canary'], parent=tmp_path)
     recorder = ScenarioRecorder(contract, collector)
     recorder.begin_case('E2E-001/gdm-observation')
+    selection = {'target': 'ubuntu', 'key': 'a' * 64}
     context = SimpleNamespace(lease=Mock(), verified=Mock(inputs=inputs), directory=tmp_path,
         guestfs=Mock(), commands=Mock(), host_key='private-canary',
+        fixture_selection=selection,
         credentials=Mock(provision=Mock(return_value={'verified': True})))
+    context.lease.capture.state = {'guest': {}}
+    import system_fixture_preparation
+    monkeypatch.setattr(system_fixture_preparation, 'guest_target', lambda guest: 'ubuntu')
+    monkeypatch.setattr(qualification, 'validate_fixture_input',
+                        Mock(return_value=selection))
     monkeypatch.setattr(qualification, 'AssetTransfer', Mock(return_value=Mock(
         provision=Mock(return_value={'files': 3, 'sha256': 'a' * 64}))))
     monkeypatch.setattr(qualification, 'provision_getty', Mock())
@@ -46,8 +53,14 @@ def harness(tmp_path, monkeypatch):
     settings = SimpleNamespace(failure=None, omit=None)
     class Smoke:
         def __init__(self, *args, progress, **kwargs):
+            assert kwargs['fixture_selection'] == selection
             self.vm, self.steps = observer, []
             self.progress = progress
+            self.fixture_prepared = {'lease': context.lease, 'selection': selection,
+                'receipt': SimpleNamespace(binding={'boot_sha256': 'b' * 64},
+                                           files={'native-a': 'd' * 64}),
+                'controller': Mock()}
+            settings.smoke = self
         def step(self):
             for stage in qualification.SERIAL_STAGES:
                 if stage == settings.omit:
@@ -138,6 +151,68 @@ def test_actual_callback_evidence_passes_exact_contract(harness):
         assert stage in {a['artifact_id'] for a in event['record']['artifacts']}
     harness.context.lease.finish.assert_not_called()
     harness.context.lease.release.assert_not_called()
+
+
+def test_recorded_fixture_binding_is_durable_before_ready_acknowledgement(harness):
+    checkpoint = harness.recorder.checkpoint
+    observed = []
+    def save(event):
+        checkpoint(event)
+        if event == 'observation' and not observed:
+            record = harness.recorder.records[0]
+            artifacts = {item['artifact_id']: item for item in record['artifacts']}
+            assert {'fixture-input', 'fixture-readiness', 'ready'} <= artifacts.keys()
+            observed.append(json.loads((harness.collector.path /
+                artifacts['fixture-readiness']['path']).read_bytes()))
+    harness.recorder.checkpoint = save
+    case.execute(harness.recorder, harness.context)
+    assert observed[0]['selection'] == harness.context.fixture_selection
+    assert observed[0]['binding']['boot_sha256'] == 'b' * 64
+    assert observed[0]['input_artifact'] == 'fixture-input'
+    assert observed[0]['source_sha256'] == harness.context.verified.inputs['source_sha256']
+    qualification.AssetTransfer.return_value.provision.assert_called_once_with(
+        harness.context.lease, harness.context.guestfs,
+        fixture_selection=harness.context.fixture_selection)
+
+
+def test_failed_fixture_checkpoint_prevents_graphical_or_serial_observation(harness):
+    checkpoint = harness.recorder.checkpoint
+    def save(event):
+        if event == 'observation':
+            raise OSError('private-canary')
+        return checkpoint(event)
+    harness.recorder.checkpoint = save
+    with pytest.raises(OSError):
+        case.execute(harness.recorder, harness.context)
+    artifacts = {item['artifact_id'] for item in harness.recorder.records[0]['artifacts']}
+    assert 'fixture-readiness' in artifacts
+    assert 'gdm' not in artifacts and 'serial-password' not in artifacts
+
+
+def test_recorded_readiness_from_another_boot_cannot_acknowledge_ready(harness):
+    run = harness.context.run_worker.side_effect
+    def wrong_boot(**kwargs):
+        kwargs['observe'].__self__.fixture_prepared['receipt'].binding['boot_sha256'] = 'c' * 64
+        return run(**kwargs)
+    harness.context.run_worker.side_effect = wrong_boot
+    with pytest.raises(EvidenceError, match='fixture-readiness-unbound'):
+        case.execute(harness.recorder, harness.context)
+    artifacts = {item['artifact_id'] for item in harness.recorder.records[0]['artifacts']}
+    assert 'fixture-input' in artifacts
+    assert 'ready' not in artifacts and 'gdm' not in artifacts
+
+
+@pytest.mark.parametrize('target', ['fedora', None])
+def test_recorded_serial_rejects_unqualified_target_before_input_verification(monkeypatch, target):
+    import e2e_fixture_preparation
+    import smoke_fixture_preparation
+    monkeypatch.setattr(e2e_fixture_preparation, 'selection_record',
+                        lambda value, **kwargs: {'target': target})
+    verify = Mock()
+    monkeypatch.setattr(smoke_fixture_preparation, 'validate_input', verify)
+    with pytest.raises(EvidenceError, match='recorded-serial-target-not-qualified'):
+        qualification.validate_fixture_input({'target': target}, target=target)
+    verify.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'duplicate', 'reordered', 'module', 'shutdown'])

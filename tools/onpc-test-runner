@@ -219,6 +219,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         installed = name == 'check_fixture_system_installed'
         transfer = name == 'check_fixture_transfer'
         serial = name in ('check_graphical_serial', 'check_fixture_serial')
+        recorded_serial = name == 'check_fixture_recorded_serial'
         sys.path.insert(0, str(root / 'tools'))
         try:
             from test_commands import INSTALLED_E2E_FIXTURE_SELECTORS, PRODUCT_FREE_E2E_FIXTURE_SELECTORS
@@ -226,6 +227,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             sys.path.pop(0)
         installed_e2e = name in INSTALLED_E2E_FIXTURE_SELECTORS
         product_free_e2e = name in PRODUCT_FREE_E2E_FIXTURE_SELECTORS
+        if recorded_serial and not args.list and configured.name != 'onpc-Ubuntu26.04':
+            raise ValueError('test-runner:fixture-target-not-qualified')
         if serial and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if transfer and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
@@ -245,7 +248,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 or args.fixture_selection is None):
             raise ValueError('test-runner:unexpected-fixture-source-selection')
         if args.fixture_selection is not None:
-            if args.list or not (bootstrap or installed or installed_e2e or product_free_e2e or transfer or serial or name == 'check_fixture_provisioning'):
+            if args.list or not (bootstrap or installed or installed_e2e or product_free_e2e or transfer or serial or recorded_serial or name == 'check_fixture_provisioning'):
                 raise ValueError('test-runner:unexpected-fixture-selection')
             if len(args.fixture_selection) > 8192:
                 raise ValueError('test-runner:invalid-fixture-selection')
@@ -392,7 +395,8 @@ def child_retention_owner(argv):
     """Finite producers hold their owner in the process that seals evidence."""
     return (argv[0] in ('system', 'e2e') or
             argv[0] == 'integration' and len(argv) > 1 and
-            argv[1].removesuffix('.py') in ('check_graphical_smoke', 'check_e2e_watch'))
+            argv[1].removesuffix('.py') in ('check_graphical_smoke', 'check_e2e_watch',
+                                          'check_fixture_recorded_serial'))
 
 
 def run(root, argv, caller):

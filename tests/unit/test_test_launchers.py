@@ -40,7 +40,8 @@ def named_qualification_inputs():
 
 @pytest.mark.parametrize(('name', 'options', 'target'), [
     (name, options, target) for name, options in named_qualification_inputs()
-    for target in (vm_name(0), vm_name(1))])
+    for target in (vm_name(0), vm_name(1))
+    if name != 'check_fixture_recorded_serial' or target == 'onpc-Ubuntu26.04'])
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('build_status', [0, 7])
 def test_every_named_input_consumer_prepares_before_dispatch(
@@ -59,7 +60,8 @@ def test_every_named_input_consumer_prepares_before_dispatch(
                        if name in ('check_fixture_provisioning', 'check_fixture_system_installed',
                                    *PRODUCT_FREE_FIXTURE_SELECTORS,
                                    *commands.INSTALLED_E2E_FIXTURE_SELECTORS,
-                                   'check_fixture_transfer', 'check_fixture_serial') else [])
+                                   'check_fixture_transfer', 'check_fixture_serial',
+                                   'check_fixture_recorded_serial') else [])
     freeze = Mock(return_value=fixture_options)
     monkeypatch.setattr(commands, 'qualification_fixture_options', freeze)
     execute = Mock(side_effect=[build_status, 0])
@@ -187,6 +189,40 @@ def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparatio
     if category == 'integration':
         with pytest.raises(ValueError, match='fixture serial target is unavailable'):
             commands.qualification_artifact_command(ROOT, category, arguments)
+    control.run.assert_not_called()
+
+
+@pytest.mark.parametrize('suffix', ['', '.py'])
+def test_recorded_serial_freezes_ubuntu_input_before_dispatch(
+        monkeypatch, frozen_fixture_selection, suffix):
+    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+    selector = 'check_fixture_recorded_serial' + suffix
+    record = frozen_fixture_selection.record()
+    def execute(command, **options):
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', 'ubuntu')
+        options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
+        return 0
+    assert commands.qualification_fixture_options(ROOT, 'integration', [selector],
+        control=SimpleNamespace(run=execute), environment={}) == [
+            '--fixture-selection', json.dumps(record, sort_keys=True)]
+    assert commands.qualification_input_options(ROOT, selector) == {
+        'vm_source': True, 'fixture_source': True}
+
+
+@pytest.mark.parametrize('vm', ['onpc-Fedora44', 'unqualified-target'])
+@pytest.mark.parametrize('suffix', ['', '.py'])
+def test_recorded_serial_refuses_before_input_preparation(monkeypatch, vm, suffix):
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
+    selector = 'check_fixture_recorded_serial' + suffix
+    control = Mock()
+    for operation in (
+            lambda: commands.plan(ROOT, 'integration', [selector]),
+            lambda: commands.qualification_artifact_command(ROOT, 'integration', [selector]),
+            lambda: commands.qualification_fixture_options(
+                ROOT, 'integration', [selector], control=control)):
+        with pytest.raises(ValueError, match='fixture recorded serial target is unavailable'):
+            operation()
     control.run.assert_not_called()
 
 

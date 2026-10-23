@@ -324,7 +324,7 @@ before graphical input. Fedora transfer and serial envelopes remain gated.
 registered and qualified on both targets. `check_fixture_e2e_installed` is
 registered and qualified on Ubuntu 26.04 and Fedora 44.
 `check_fixture_e2e_product_free` is registered and qualified on both targets.
-`check_fixture_transfer` is registered and qualified on Ubuntu 26.04 only.
+`check_fixture_transfer` is registered and qualified on both targets.
 The two serial matrix selectors are planned `check_fixture_SUFFIX` names,
 not executable until registered/listed.
 Each invokes the real preparation branch, reads selected bytes

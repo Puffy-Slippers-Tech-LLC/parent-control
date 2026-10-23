@@ -75,12 +75,12 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
             raise ValueError('e2e:fixture-target-not-qualified')
         fixture_selection = selected.record()
     if args.qualify_transfer:
-        if configured is not None and configured.name != 'onpc-Ubuntu26.04':
+        if configured is not None and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
             raise ValueError('fixtures:transfer-target-not-qualified')
         if fixture_selection is None:
             if not allow_missing_artifacts:
                 raise ValueError('fixtures:execution-selection-required')
-        elif fixture_selection['target'] != 'ubuntu':
+        elif fixture_selection['target'] not in ('ubuntu', 'fedora'):
             raise ValueError('fixtures:transfer-target-not-qualified')
     if not args.list:
         password_config.read_password(root)

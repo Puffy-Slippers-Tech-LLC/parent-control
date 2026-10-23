@@ -118,12 +118,24 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
         runner['preflight'](options)
 
 
-def test_transfer_requires_immutable_selection_and_only_qualified_target(tmp_path):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_transfer_requires_immutable_selection_and_matching_target(monkeypatch, tmp_path, vm, target):
     with pytest.raises(ValueError, match='execution-selection-required'):
-        runner['preflight'](['--qualify-transfer', '--artifacts=' + str(tmp_path)])
-    with pytest.raises(ValueError, match='transfer-target-not-qualified'):
-        runner['preflight'](['--vm', 'onpc-Fedora44', '--qualify-transfer',
-                             '--artifacts=' + str(tmp_path)], allow_missing_artifacts=True)
+        runner['preflight'](['--vm', vm, '--qualify-transfer', '--artifacts=' + str(tmp_path)])
+    from tools.fixture_execution import Selection
+    selection = Selection(target, 'a' * 64,
+        '/tmp/onpc-native-runtime-' + target + '-' + 'a' * 64 + '-private', 1, 2,
+        '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
+    # Artifact confinement has separate coverage; this case binds the target.
+    monkeypatch.setitem(runner['preflight'].__globals__, 'validate_artifact_path', lambda _: None)
+    options = ['--qualify-transfer', '--artifacts=' + str(tmp_path),
+               '--fixture-selection', json.dumps(selection)]
+    assert runner['preflight'](['--vm', vm, *options]) == {
+        'mode': 'asset-transfer-qualification', 'artifacts': str(tmp_path),
+        'fixture_selection': selection}
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        runner['preflight'](['--vm',
+            'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
 
 
 @pytest.mark.parametrize('selector,count', [('E2E-001', 1), ('E2E-023/fullscreen', 1)])

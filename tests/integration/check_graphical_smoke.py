@@ -623,7 +623,7 @@ class Qualification:
                         self.install_refusal, self.credentials is not None,
                         self.vt6_prompt, self.vt6_auth)), 'fixtures:transfer-branch-not-qualified')
                 selected = validate_input(selected, target=guest_target(lease.capture.state['guest']))
-                require(guest_target(lease.capture.state['guest']) == 'ubuntu',
+                require(guest_target(lease.capture.state['guest']) in ('ubuntu', 'fedora'),
                         'fixtures:transfer-target-not-qualified')
             self.checkpoint('attempt-started')
             with self.ledger.measure('preparation'):
@@ -1542,8 +1542,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     if transfer_entry:
         from smoke_fixture_preparation import validate_input
         from vm_config import selected
-        require(selected().name == 'onpc-Ubuntu26.04', 'fixtures:transfer-target-not-qualified')
-        fixture_selection = validate_input(fixture_selection, target='ubuntu')
+        targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+        require(selected().name in targets, 'fixtures:transfer-target-not-qualified')
+        fixture_selection = validate_input(fixture_selection, target=targets[selected().name])
     if product_free_entry or gdm_product_free:
         from vm_config import selected
         require(selected().name in ('onpc-Ubuntu26.04', 'onpc-Fedora44'),

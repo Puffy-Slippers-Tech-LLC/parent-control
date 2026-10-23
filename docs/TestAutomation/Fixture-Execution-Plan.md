@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F23 — [Integrate Fedora transfer qualification](Fixture-Tasks/F23-fedora-transfer-qualification.md)**.
+Next task: **F25 — [Integrate Ubuntu serial qualification](Fixture-Tasks/F25-ubuntu-serial-qualification.md)**.
 
 ## Outcome and status
 
@@ -104,7 +104,7 @@ admissions/labels. Affected host composition, provenance and ownership checks
 passed; a private synthetic checkout's missing import was repaired and retested.
 Independent Sol High review found no actionable issues. Watched restoration and
 owned producer, credential, staging, input and transport cleanup completed, and
-both VMs independently ended off. The [verified evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-o3u0qv4d/evidence.zip)
+both VMs independently ended off. The [verified evidence bundle](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json)
 retains both installed results, exact input manifests and host reports. This
 supplies no customer/E2E acceptance.
 F20 delivered Ubuntu's [product-free E2E preparation](../../tests/integration/README.md#ubuntu-product-free-e2e-preparation).
@@ -142,6 +142,15 @@ evidence-session mismatch was repaired through the existing shared allocation
 route and re-reviewed; the installed retry passed. Shared F03/F15/F06 safety proof
 remains applicable. Watched restoration, owned cleanup and an independent off-state
 check passed. The queue retains exact evidence. This supplies no customer/E2E credit.
+F23 qualified the same [standalone transfer boundary on Fedora](../../tests/integration/README.md#fedora-standalone-transfer-preparation).
+One actual controller/Smoke history passed independent 12-file readback, harmless
+Riley runtime use, input refusals, no-write repeats, product absence and no
+preboot payload. Enforcing SELinux, exact native admissions and labels were
+preserved. Only target gates changed; focused host checks passed, and unchanged
+Ubuntu acceptance and shared F03/F15/F06 safety proof remain applicable. Serial
+aliases stay gated. Watched restoration, owned cleanup and an independent
+off-state check passed. The queue retains exact inputs/results. This supplies
+no customer/E2E credit.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

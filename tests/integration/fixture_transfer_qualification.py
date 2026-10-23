@@ -29,14 +29,15 @@ from tests.fixtures import native_assets
 
 def selected_target():
     name = proof.prepare_vm.vm_config.selected().name
-    system.require(name == 'onpc-Ubuntu26.04', 'fixture-transfer:target-not-qualified')
+    system.require(name in proof.TARGETS, 'fixture-transfer:target-not-qualified')
     return name
 
 
 def refused_inputs(context, selection):
     wrong = deepcopy(selection.record())
-    wrong['target'] = 'fedora'
-    wrong['allocation'] = wrong['allocation'].replace('runtime-ubuntu-', 'runtime-fedora-')
+    wrong['target'] = 'fedora' if selection.target == 'ubuntu' else 'ubuntu'
+    wrong['allocation'] = wrong['allocation'].replace(
+        'runtime-' + selection.target + '-', 'runtime-' + wrong['target'] + '-')
     result = {}
     for label, value, reason in (
             ('missing', None, 'fixtures:execution-selection-required'),
@@ -161,8 +162,8 @@ def qualify_pinned(directory, assets, selection, manifest):
 
 
 def qualify(directory, assets, selection):
-    selected_target()
-    selection = fixture_execution.Selection.from_record(preparation.validate_input(selection, target='ubuntu'))
+    target = proof.TARGETS[selected_target()]
+    selection = fixture_execution.Selection.from_record(preparation.validate_input(selection, target=target))
     with authenticated_input(selection.record()):
         manifest = fixture_execution.verify(selection)
         fixture_provision.authenticated_bundle(selection)

@@ -37,13 +37,27 @@ def test_transfer_target_and_missing_input_refuse_without_guest_mutation(monkeyp
     monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
     with pytest.raises(ValueError, match='execution-selection-required'):
         transfer.validate_input(None)
-    if selection.target == 'fedora':
-        with pytest.raises(ValueError, match='transfer-target-not-qualified'):
-            transfer.validate_input(selection.record())
-        verify.assert_not_called()
-    else:
-        assert transfer.validate_input(selection.record()) == selection.record()
-        verify.assert_called_once_with(selection.record())
+    other = 'fedora' if selection.target == 'ubuntu' else 'ubuntu'
+    with pytest.raises(ValueError, match='transfer-target-not-qualified'):
+        transfer.validate_input(selection.record(), target=other)
+    verify.assert_not_called()
+    assert transfer.validate_input(selection.record(), target=selection.target) == selection.record()
+    verify.assert_called_once_with(selection.record())
+
+
+def test_transfer_qualification_refuses_cross_target_before_guest_mutation(
+        monkeypatch, tmp_path, selection):
+    import fixture_transfer_qualification as transfer
+    verify, factory, vm = Mock(), Mock(), Mock()
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
+    monkeypatch.setattr(preparation.fixture_provision, 'Provisioner', factory)
+    lease = lease_for(selection.target)
+    assert transfer.refused_inputs({'vm': vm, 'lease': lease, 'directory': tmp_path},
+        selection) == {'missing': 'fixtures:execution-selection-required',
+                      'incompatible': 'fixtures:transfer-target-not-qualified'}
+    verify.assert_not_called()
+    factory.assert_not_called()
+    assert not list(tmp_path.iterdir()) and not vm.mock_calls
 
 
 @pytest.mark.parametrize('serial,install', [(False, False), (True, False), (True, True)])
@@ -52,20 +66,19 @@ def test_standalone_clean_input_and_serial_gates_precede_prepare(
         monkeypatch, tmp_path, selection, serial, install, supplied):
     import check_graphical_smoke as smoke
     monkeypatch.setattr(preparation.fixture_execution, 'verify', Mock())
-    lease = lease_for('ubuntu')
+    lease = lease_for(selection.target)
     lease.prepare = Mock()
     result = {'steps': []}
     controller = smoke.Qualification(tmp_path, Mock(), smoke.runner.RunLedger(), Mock(), result,
         'host', assets=tmp_path, serial=serial, install=install)
     controller.checkpoint = Mock()
     controller.fixture_selection = selection.record() if supplied else None
-    if supplied and selection.target == 'ubuntu' and not serial:
+    if supplied and not serial:
         # The qualified branch reaches the real preparation boundary.
         lease.prepare.side_effect = RuntimeError('preparation-boundary')
         code = 'preparation-boundary'
     else:
         code = ('execution-selection-required' if not supplied else
-                'transfer-target-not-qualified' if selection.target == 'fedora' else
                 'transfer-branch-not-qualified')
     with pytest.raises((ValueError, RuntimeError, smoke.EvidenceError), match=code):
         controller.execute(lease, Mock())

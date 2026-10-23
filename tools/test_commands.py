@@ -597,7 +597,7 @@ def fixture_execution_target(category, args):
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
     if transfer:
-        if target != 'ubuntu':
+        if target is None:
             raise ValueError('fixture transfer target is unavailable')
         return target
     if product_free_e2e:

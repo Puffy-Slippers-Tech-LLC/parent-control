@@ -181,9 +181,10 @@ scenario transfer. Entry, package and upgrade retain distinct histories;
 GDM-only entry requires no native input or movable payload. Customer input and
 product assertions remain outside fixture preparation acceptance.
 Ubuntu's [standalone transfer preparation](../integration/README.md#ubuntu-standalone-transfer-preparation)
-uses the same native provisioner at Smoke's post-SSH boundary before its first
+and the same [Fedora boundary](../integration/README.md#fedora-standalone-transfer-preparation)
+use the same native provisioner at Smoke's post-SSH boundary before its first
 ready reply, with package-only scenario delivery kept separate. Its preparation
-check stops before graphical input; serial and Fedora transfer remain gated.
+check stops before graphical input; serial aliases remain gated.
 Other ordinary runner branches and engineering selectors
 remain unavailable until the
 [fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies

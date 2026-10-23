@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify Ubuntu standalone transfer preparation before graphical or worker input."""
+"""Qualify Ubuntu/Fedora standalone transfer preparation before graphical or worker input."""
 import argparse
 import json
 import sys

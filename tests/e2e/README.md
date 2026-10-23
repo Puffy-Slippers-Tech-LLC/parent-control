@@ -1076,8 +1076,8 @@ dispatcher changes require a refresh.
 
 `tools/run-tests e2e --vm NAME --qualify-transfer --artifacts '<verified-build-directory>'`
 runs the existing guarded credential-free graphical worker with package delivery
-on Ubuntu 26.04. The launcher retains an immutable native fixture selection before
-VM acquisition; the product-free baseline receives only SSH prerequisites before
+on Ubuntu 26.04 and Fedora 44. The launcher retains an immutable native fixture
+selection before VM acquisition; the product-free baseline receives only SSH prerequisites before
 boot. Smoke provisions that selected runtime after SSH readiness, then transfers
 package-only assets and rechecks readiness before its first ready reply.
 Build current package inputs with `tools/run-tests artifacts build` first.

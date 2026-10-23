@@ -63,27 +63,29 @@ def test_standalone_defers_all_asset_uploads_and_binds_frozen_selection(
     import smoke_fixture_preparation as preparation
     from tools.fixture_execution import Selection
     _old, lease, guest, api = attempt
-    lease.capture.state['guest'] = {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}
+    target = 'fedora' if lease.capture.state['guest'].get('os_id') == 'fedora' else 'ubuntu'
+    lease.capture.state['guest']['fixture_boundary'] = 'clean'
     lease.installed_name, lease.online_pending = None, False
-    selected = Selection('ubuntu', 'a' * 64,
-                         '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
+    selected = Selection(target, 'a' * 64,
+                         '/tmp/onpc-native-runtime-' + target + '-' + 'a' * 64 + '-private',
                          1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
     monkeypatch.setattr(preparation.shared.fixture_execution, 'verify', Mock())
     assets = tmp_path / 'package-only'
     assets.mkdir()
-    inventory = {'package.deb': 'd' * 64}
+    package = 'package.' + ('rpm' if target == 'fedora' else 'deb')
+    inventory = {package: 'd' * 64}
     inventory_path = assets / 'transfer-sha256.json'
     inventory_path.write_text(json.dumps(inventory))
     files = {**inventory, 'transfer-sha256.json': hashlib.sha256(inventory_path.read_bytes()).hexdigest()}
     verified = SimpleNamespace(lease=lease, assets=assets, asset_files=files,
-        inputs={'package_sha256': inventory['package.deb']}, recheck=Mock(), upgrade_inputs=None)
+        inputs={'package_sha256': inventory[package]}, recheck=Mock(), upgrade_inputs=None)
     control = transfer.AssetTransfer(verified)
     assert control.provision(lease, api, fixture_selection=selected) == {'deferred_until_ssh': True}
     api.GuestFS.assert_not_called()
     assert guest.uploads == 0
     assert control._receipt is None
-    selected['target'] = 'fedora'
-    assert control._deferred_selection['target'] == 'ubuntu'
+    selected['target'] = 'ubuntu' if target == 'fedora' else 'fedora'
+    assert control._deferred_selection['target'] == target
     with pytest.raises(transfer.EvidenceError, match='already-attempted'):
         control.provision(lease, api, fixture_selection=control._deferred_selection)
     native = Mock()

@@ -40,8 +40,7 @@ def named_qualification_inputs():
 
 @pytest.mark.parametrize(('name', 'options', 'target'), [
     (name, options, target) for name, options in named_qualification_inputs()
-    for target in (vm_name(0), vm_name(1))
-    if name != 'check_fixture_transfer' or target == 'onpc-Ubuntu26.04'])
+    for target in (vm_name(0), vm_name(1))])
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('build_status', [0, 7])
 def test_every_named_input_consumer_prepares_before_dispatch(
@@ -118,13 +117,16 @@ def test_fixture_qualification_refuses_other_target_before_preparing(monkeypatch
     ('integration', ['check_fixture_transfer.py']),
     ('e2e', ['--qualify-transfer']),
 ])
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
 def test_transfer_freezes_exact_input_before_privileged_dispatch(
-        monkeypatch, frozen_fixture_selection, category, arguments):
-    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+        monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
+    monkeypatch.setenv('ONPC_TEST_VM', vm)
+    frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
+        allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     record = frozen_fixture_selection.record()
     def execute(command, **options):
         assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
-                                               '--target', 'ubuntu')
+                                               '--target', target)
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
         return 0
     assert commands.qualification_fixture_options(ROOT, category, arguments,
@@ -138,7 +140,8 @@ def test_transfer_freezes_exact_input_before_privileged_dispatch(
     ('integration', ['check_fixture_transfer']), ('e2e', ['--qualify-transfer']),
 ])
 def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatch, category, arguments):
-    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Fedora44')
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
     control = Mock()
     with pytest.raises(ValueError, match='fixture transfer target is unavailable'):
         commands.qualification_fixture_options(ROOT, category, arguments, control=control)

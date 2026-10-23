@@ -415,7 +415,7 @@ class AssetTransfer:
             from system_fixture_preparation import guest_target
             from e2e_fixture_preparation import require_product_free_restore
             record = validate_input(selection, target=guest_target(lease.capture.state['guest']))
-            require(guest_target(lease.capture.state['guest']) == 'ubuntu',
+            require(guest_target(lease.capture.state['guest']) in ('ubuntu', 'fedora'),
                     'fixtures:transfer-target-not-qualified')
             require_product_free_restore(lease)
             require(lease.fd is not None and lease.state['phase'] == 'isolated'

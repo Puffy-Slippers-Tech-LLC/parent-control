@@ -296,9 +296,24 @@ and verifies product absence, no preboot payload, no-write repeats and current
 attempt/boot readiness. Focused host checks protect input refusal, immutable
 selection and ordering; unchanged shared uncertain-transfer/recovery proof is
 reused. It stops before graphical or customer input. Watched baseline restoration
-and owned staging, input and transport cleanup remain required. Fedora transfer
-and all standalone/recorded serial aliases retain their separate gates. This
+and owned staging, input and transport cleanup remain required. All
+standalone/recorded serial aliases retain their separate gates. This
 supplies no customer or E2E acceptance.
+
+### Fedora standalone transfer preparation
+
+Fedora 44 uses the same standalone controller and Smoke readiness boundary,
+with package-only RPM delivery after the selected native runtime is ready.
+
+```sh
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_transfer
+```
+
+The same independent 12-file readback, harmless Riley runtime, input refusals,
+no-write repeats, product absence and no-preboot-payload checks apply. Fedora
+also preserves enforcing SELinux, exact native admissions and labels. The check
+stops before graphical or customer input and finishes watched baseline
+restoration and owned cleanup. It supplies no customer or E2E acceptance.
 
 ## Retained-session native dependency update
 

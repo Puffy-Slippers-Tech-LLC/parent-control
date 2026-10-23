@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify recorded serial preparation before any worker or serial input."""
+"""Qualify Ubuntu/Fedora recorded serial preparation before worker or serial input."""
 import argparse
 import json
 import sys

@@ -186,6 +186,42 @@ def documents(harness):
             for path in sorted(collector.path.glob('*.json'))]
 
 
+@pytest.mark.parametrize('entrypoint', ['attempt', 'main'])
+@pytest.mark.parametrize('vm,target', [
+    ('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora'),
+    ('unqualified-target', None),
+])
+def test_recorded_serial_target_and_input_guards_precede_vm_acquisition(
+        harness, monkeypatch, entrypoint, vm, target):
+    import serial_harness
+    harness.case['executable'] = {
+        'path': 'tests/e2e/controller_qualification.py', 'test_id': 'gdm-observation'}
+    selection = {'target': target}
+    harness.plan['fixture_selection'] = selection
+    monkeypatch.setattr(vm_config, 'selected', lambda: SimpleNamespace(name=vm))
+    verify = Mock(side_effect=EvidenceError('provenance:source-changed'))
+    monkeypatch.setattr(serial_harness, 'validate_fixture_input', verify)
+    if entrypoint == 'main':
+        monkeypatch.setattr(execution, 'os', SimpleNamespace(geteuid=lambda: 0, getegid=lambda: 0))
+        code = ('provenance:source-changed' if target else
+                'recorded-serial-target-not-qualified')
+        with pytest.raises(EvidenceError, match=code):
+            execution.main(harness.plan)
+    else:
+        result = run(harness)
+        assert result['outcome'] == 'failed'
+        assert result['first_failure']['code'] == (
+            'provenance:source-changed' if target else 'execution:attempt-failed')
+    if target:
+        verify.assert_called_once_with(selection, target=target)
+    else:
+        verify.assert_not_called()
+    execution.system.stage_assets.assert_not_called()
+    execution.open_source.assert_not_called()
+    execution.system.bootstrap.assert_not_called()
+    harness.worker.assert_not_called()
+
+
 def test_installed_case_without_suite_refuses_before_vm_acquisition(harness):
     harness.case['preconditions'].append('installed-digest-verified-product')
     result = run(harness)

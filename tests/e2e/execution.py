@@ -232,9 +232,11 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             from serial_harness import recorded_serial_case, validate_fixture_input
             recorded_serial_consumer = recorded_serial_case(case)
             if recorded_serial_consumer:
-                require(vm_config.selected().name == 'onpc-Ubuntu26.04',
+                targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+                target = targets.get(vm_config.selected().name)
+                require(target is not None,
                         'fixtures:recorded-serial-target-not-qualified')
-                fixture_selection = validate_fixture_input(fixture_selection)
+                fixture_selection = validate_fixture_input(fixture_selection, target=target)
             package_only = (installed_consumer or product_free_consumer or recorded_serial_consumer
                             ) and fixture_selection is not None
             system.stage_assets(system.artifact_source(Path(plan['artifacts'])), staged, commands,
@@ -443,9 +445,12 @@ def main(plan):
     from serial_harness import recorded_serial_case, validate_fixture_input
     if any(recorded_serial_case(case) for case in plan['cases']):
         import vm_config
-        require(vm_config.selected().name == 'onpc-Ubuntu26.04',
+        targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+        target = targets.get(vm_config.selected().name)
+        require(target is not None,
                 'fixtures:recorded-serial-target-not-qualified')
-        plan = {**plan, 'fixture_selection': validate_fixture_input(plan.get('fixture_selection'))}
+        plan = {**plan, 'fixture_selection': validate_fixture_input(
+            plan.get('fixture_selection'), target=target)}
     if any(needs_installed(case) for case in plan['cases']):
         from e2e_fixture_preparation import validate_input
         plan = {**plan, 'fixture_selection': validate_input(plan.get('fixture_selection'))}

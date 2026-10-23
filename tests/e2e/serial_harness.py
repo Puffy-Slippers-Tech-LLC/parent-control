@@ -58,12 +58,14 @@ def recorded_serial_case(case):
         'path': 'tests/e2e/controller_qualification.py', 'test_id': 'gdm-observation'}
 
 
-def validate_fixture_input(value, target='ubuntu'):
-    """Recorded serial is qualified on Ubuntu independently of standalone Smoke."""
+def validate_fixture_input(value, target=None):
+    """Recorded serial has its own target qualification, separate from Smoke."""
     from e2e_fixture_preparation import selection_record
     from smoke_fixture_preparation import validate_input
     record = selection_record(value, product_free=True)
-    require(target == record['target'] == 'ubuntu',
+    require(record['target'] in ('ubuntu', 'fedora')
+            and target in (None, 'ubuntu', 'fedora')
+            and (target is None or target == record['target']),
             'fixtures:recorded-serial-target-not-qualified')
     return validate_input(record, target=target)
 

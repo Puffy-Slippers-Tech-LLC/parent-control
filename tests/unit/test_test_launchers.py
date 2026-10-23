@@ -40,8 +40,7 @@ def named_qualification_inputs():
 
 @pytest.mark.parametrize(('name', 'options', 'target'), [
     (name, options, target) for name, options in named_qualification_inputs()
-    for target in (vm_name(0), vm_name(1))
-    if name != 'check_fixture_recorded_serial' or target == 'onpc-Ubuntu26.04'])
+    for target in (vm_name(0), vm_name(1))])
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('build_status', [0, 7])
 def test_every_named_input_consumer_prepares_before_dispatch(
@@ -193,13 +192,16 @@ def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparatio
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-def test_recorded_serial_freezes_ubuntu_input_before_dispatch(
-        monkeypatch, frozen_fixture_selection, suffix):
-    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_recorded_serial_freezes_exact_input_before_dispatch(
+        monkeypatch, frozen_fixture_selection, suffix, vm, target):
+    monkeypatch.setenv('ONPC_TEST_VM', vm)
     selector = 'check_fixture_recorded_serial' + suffix
+    frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
+        allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     record = frozen_fixture_selection.record()
     def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', 'ubuntu')
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target)
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
         return 0
     assert commands.qualification_fixture_options(ROOT, 'integration', [selector],
@@ -209,11 +211,10 @@ def test_recorded_serial_freezes_ubuntu_input_before_dispatch(
         'vm_source': True, 'fixture_source': True}
 
 
-@pytest.mark.parametrize('vm', ['onpc-Fedora44', 'unqualified-target'])
 @pytest.mark.parametrize('suffix', ['', '.py'])
-def test_recorded_serial_refuses_before_input_preparation(monkeypatch, vm, suffix):
+def test_recorded_serial_refuses_before_input_preparation(monkeypatch, suffix):
     import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
     selector = 'check_fixture_recorded_serial' + suffix
     control = Mock()
     for operation in (

@@ -32,7 +32,7 @@ class PreparationComplete(BaseException):
 
 def selected_target():
     name = transfer.selected_target()
-    system.require(name == 'onpc-Ubuntu26.04',
+    system.require(name in ('onpc-Ubuntu26.04', 'onpc-Fedora44'),
                    'fixture-recorded-serial:target-not-qualified')
     return name
 
@@ -148,9 +148,9 @@ def qualify_pinned(directory, assets, selection, manifest):
 
 
 def qualify(directory, assets, selection):
-    selected_target()
+    target = transfer.proof.TARGETS[selected_target()]
     selection = fixture_execution.Selection.from_record(
-        serial_harness.validate_fixture_input(selection, target='ubuntu'))
+        serial_harness.validate_fixture_input(selection, target=target))
     with authenticated_input(selection.record()):
         manifest = fixture_execution.verify(selection)
         fixture_provision.authenticated_bundle(selection)

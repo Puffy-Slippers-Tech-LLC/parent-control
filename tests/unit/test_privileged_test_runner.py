@@ -162,21 +162,21 @@ def test_serial_dispatch_preserves_selection_and_target(checkout, fixture_select
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-def test_recorded_serial_dispatch_is_ubuntu_only(checkout, fixture_selection, suffix):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_recorded_serial_dispatch_preserves_selection_and_target(checkout, fixture_selection, suffix, vm, target):
     name = 'check_fixture_recorded_serial'
     (checkout / 'tests/integration' / (name + '.py')).touch()
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     options = ['--fixture-selection', json.dumps(fixture_selection)]
     command = runner['selection'](checkout, ['integration', name + suffix,
-        '--vm', 'onpc-Ubuntu26.04', *options])
+        '--vm', vm, *options])
     assert command == ['/usr/bin/python3', '-B',
         str(checkout / 'tests/integration' / (name + '.py')),
         '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
-    fixture_selection['target'] = 'fedora'
-    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', 'fedora')
-    for arguments in ([], ['--fixture-selection', json.dumps(fixture_selection)]):
-        with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-            runner['selection'](checkout, ['integration', name + suffix,
-                '--vm', 'onpc-Fedora44', *arguments])
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        runner['selection'](checkout, ['integration', name + suffix,
+            '--vm', 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
 
 
 @pytest.mark.parametrize('option', ['--qualify-install', '--qualify-install-refusal'])

@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F28 — [Integrate Fedora recorded serial preparation](Fixture-Tasks/F28-fedora-recorded-serial.md)**.
+Next task: **F07 — [Refresh an idle owned Ubuntu VM](Fixture-Tasks/F07-ubuntu-live.md)**.
 
 ## Outcome and status
 
@@ -184,7 +184,18 @@ Ubuntu independently ended off. Child evidence ownership and command-scoped Git
 trust repairs passed their focused host checks and the final installed retry.
 F25's unchanged shared provisioning/recovery proof remains applicable to the same
 native build and manifest. The queue retains exact results and host evidence.
-Fedora recorded serial remains gated. This supplies no customer/E2E credit.
+Fedora recorded serial remained gated at F27 close-out. This supplies no customer/E2E credit.
+F28 qualified the same [recorded serial boundary on Fedora](../../tests/integration/README.md#fedora-recorded-serial-preparation).
+One actual recorder/`ScenarioContext` preparation passed independent 12-file
+readback, harmless Riley runtime use, input refusals, no-write repeats and fresh
+attempt/boot readiness. Enforcing SELinux and exact native admissions/labels were
+preserved. The recorder durably bound the immutable input before the ready reply;
+recorder/collector closure, terminal capture and watched restoration passed.
+Only target gates changed; 2,409 focused host composition/dispatch/ownership
+checks passed. The same Fedora build and manifest as F26 preserve shared safety
+proof; unchanged Ubuntu recorded acceptance remains applicable. The queue retains
+exact results and inputs. Owned cleanup passed and public status independently
+confirmed Fedora off. No worker/serial input or customer/E2E acceptance was claimed.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

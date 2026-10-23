@@ -192,10 +192,11 @@ before serial input. Package-bearing install/refusal aliases retain their own
 input and result assertions; the preparation-only proof stops before console
 attachment or authentication. Ubuntu's
 [recorded serial caller](../integration/README.md#ubuntu-recorded-serial-preparation)
-uses the same readiness step under `ScenarioContext`, durably binding the selected
+and the same [Fedora caller](../integration/README.md#fedora-recorded-serial-preparation)
+use the same readiness step under `ScenarioContext`, durably binding the selected
 input and fresh readiness to recorder provenance before the ready reply. Its
 preparation check also finishes recorder cleanup without starting a serial worker.
-Fedora recorded serial remains gated.
+Fedora retains enforcing SELinux and exact native admissions/labels.
 Other ordinary runner branches and engineering selectors
 remain unavailable until the
 [fixture plan](../../docs/TestAutomation/Fixture-Execution-Plan.md) qualifies

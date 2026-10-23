@@ -17,7 +17,8 @@ from recording import ScenarioRecorder
 
 
 @pytest.fixture
-def harness(tmp_path, monkeypatch):
+def harness(tmp_path, monkeypatch, request):
+    target = getattr(request, 'param', 'ubuntu')
     document, _ = inventory.read_json(inventory.INVENTORY)
     variant = document['scenarios'][0]['variants'][0]
     variant.update(status='ready', pending_reason=None, executable={
@@ -28,20 +29,21 @@ def harness(tmp_path, monkeypatch):
     inventory_path.write_text(json.dumps(document))
     inputs = {key: hashlib.sha256(key.encode()).hexdigest() for key in INPUT_FIELDS}
     inputs.update(inventory_sha256=hashlib.sha256(inventory_path.read_bytes()).hexdigest(),
-                  environment_id='ubuntu26-04-pinned', package_sha256=None)
+                  environment_id={'ubuntu': 'ubuntu26-04-pinned',
+                                  'fedora': 'fedora44-pinned'}[target], package_sha256=None)
     contract = EvidenceContract(inventory_path=inventory_path, root=ROOT,
         selector='E2E-001', run_id='qualification-test', inputs=inputs)
     collector = PrivateCollector(run_id='qualification-test', secrets=['private-canary'], parent=tmp_path)
     recorder = ScenarioRecorder(contract, collector)
     recorder.begin_case('E2E-001/gdm-observation')
-    selection = {'target': 'ubuntu', 'key': 'a' * 64}
+    selection = {'target': target, 'key': 'a' * 64}
     context = SimpleNamespace(lease=Mock(), verified=Mock(inputs=inputs), directory=tmp_path,
         guestfs=Mock(), commands=Mock(), host_key='private-canary',
         fixture_selection=selection,
         credentials=Mock(provision=Mock(return_value={'verified': True})))
     context.lease.capture.state = {'guest': {}}
     import system_fixture_preparation
-    monkeypatch.setattr(system_fixture_preparation, 'guest_target', lambda guest: 'ubuntu')
+    monkeypatch.setattr(system_fixture_preparation, 'guest_target', lambda guest: target)
     monkeypatch.setattr(qualification, 'validate_fixture_input',
                         Mock(return_value=selection))
     monkeypatch.setattr(qualification, 'AssetTransfer', Mock(return_value=Mock(
@@ -133,8 +135,11 @@ def test_case_1_uses_only_the_qualified_product_free_gdm_binding():
     ]
 
 
+@pytest.mark.parametrize('harness', ['ubuntu', 'fedora'], indirect=True)
 def test_actual_callback_evidence_passes_exact_contract(harness):
     case.execute(harness.recorder, harness.context)
+    qualification.validate_fixture_input.assert_called_once_with(
+        harness.context.fixture_selection, target=harness.context.fixture_selection['target'])
     finish(harness)
     result = harness.contract.validate(harness.recorder.records, harness.collector)
     assert result['case_ids'] == ['E2E-001/gdm-observation']
@@ -153,6 +158,7 @@ def test_actual_callback_evidence_passes_exact_contract(harness):
     harness.context.lease.release.assert_not_called()
 
 
+@pytest.mark.parametrize('harness', ['ubuntu', 'fedora'], indirect=True)
 def test_recorded_fixture_binding_is_durable_before_ready_acknowledgement(harness):
     checkpoint = harness.recorder.checkpoint
     observed = []
@@ -202,16 +208,36 @@ def test_recorded_readiness_from_another_boot_cannot_acknowledge_ready(harness):
     assert 'ready' not in artifacts and 'gdm' not in artifacts
 
 
-@pytest.mark.parametrize('target', ['fedora', None])
-def test_recorded_serial_rejects_unqualified_target_before_input_verification(monkeypatch, target):
+@pytest.mark.parametrize('record_target', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('explicit_target', [False, True])
+def test_recorded_serial_validates_supported_target_input(
+        monkeypatch, record_target, explicit_target):
+    import e2e_fixture_preparation
+    import smoke_fixture_preparation
+    record = {'target': record_target}
+    monkeypatch.setattr(e2e_fixture_preparation, 'selection_record',
+                        Mock(return_value=record))
+    verify = Mock(return_value=record)
+    monkeypatch.setattr(smoke_fixture_preparation, 'validate_input', verify)
+    target = record_target if explicit_target else None
+    assert qualification.validate_fixture_input(record, target=target) == record
+    verify.assert_called_once_with(record, target=target)
+
+
+@pytest.mark.parametrize('record_target,target', [
+    ('unqualified', None), ('ubuntu', 'unqualified'),
+    ('ubuntu', 'fedora'), ('fedora', 'ubuntu'),
+])
+def test_recorded_serial_rejects_unqualified_target_before_input_verification(
+        monkeypatch, record_target, target):
     import e2e_fixture_preparation
     import smoke_fixture_preparation
     monkeypatch.setattr(e2e_fixture_preparation, 'selection_record',
-                        lambda value, **kwargs: {'target': target})
+                        lambda value, **kwargs: {'target': record_target})
     verify = Mock()
     monkeypatch.setattr(smoke_fixture_preparation, 'validate_input', verify)
     with pytest.raises(EvidenceError, match='recorded-serial-target-not-qualified'):
-        qualification.validate_fixture_input({'target': target}, target=target)
+        qualification.validate_fixture_input({'target': record_target}, target=target)
     verify.assert_not_called()
 
 

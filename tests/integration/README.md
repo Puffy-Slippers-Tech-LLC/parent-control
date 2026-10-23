@@ -214,8 +214,8 @@ unchanged selection after actual producer-source edits. Results retain package
 metadata and frozen helpers rather than the complete fixture collection.
 Scenario asset mutations remain separate. Watched baseline restoration and
 owned credential, staging, input and transport cleanup are required.
-Fedora standalone transfer, standalone/recorded serial and unqualified fixture profiles
-retain their separate gates. This supplies no customer or E2E acceptance.
+Standalone transfer and serial retain their separately qualified preparation
+boundaries; unqualified fixture profiles remain gated. This supplies no customer or E2E acceptance.
 
 ### Fedora installed E2E preparation
 
@@ -357,7 +357,8 @@ no-write repeats and current attempt/boot readiness. It preserves product absenc
 and stops before console attachment, authentication, installation or worker input.
 Host composition binds the aliases and preserves successful-install reboot versus
 refused-install logout/no-reboot assertions; it grants no package/login acceptance.
-Fedora recorded serial remains gated. Watched restoration and owned cleanup are required;
+Recorded serial has a [separate Fedora qualification](#fedora-recorded-serial-preparation).
+Watched restoration and owned cleanup are required;
 this supplies no customer or E2E acceptance.
 
 ### Ubuntu recorded serial preparation
@@ -383,8 +384,27 @@ login/logout, product or customer acceptance is claimed. Host checks preserve
 those stage, private-seal, recipient, continuity and owned-shutdown guards.
 The check requires recorder/collector closure, terminal evidence capture and
 watched baseline/credential/staging/input/transport cleanup. Its evidence producer
-owns its session in the child process that seals the recording. Fedora recorded
-serial remains unavailable until its separate qualification.
+owns its session in the child process that seals the recording.
+
+### Fedora recorded serial preparation
+
+The same recorder/`ScenarioContext` preparation selects Fedora's immutable native
+input before restoration, preserves credential/getty setup before boot and binds
+the input and fresh readiness durably before the ready reply.
+
+```sh
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_recorded_serial
+```
+
+One actual recorded preparation independently verifies the 12 native files,
+harmless Riley runtime use, enforcing SELinux and exact native admissions/labels.
+Input refusals, no-write repeats, product absence and current attempt/boot readiness
+pass through the same shared helper. Recorder/collector closure, terminal capture
+and watched baseline/credential/staging/input/transport cleanup are required.
+The check stops before worker or serial input and deliberately rejects the
+incomplete full scenario. It supplies no HAR09/HAR10, login/logout, product or
+customer acceptance. Unchanged Ubuntu preparation and shared safety proof remain
+applicable; host composition preserves the recorder's stage, seal and shutdown guards.
 
 ## Retained-session native dependency update
 

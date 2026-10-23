@@ -1571,7 +1571,8 @@ ESTIMATES = {
     # Real private sealing/publication and recovery dominate these modules;
     # case counts alone substantially underweight their filesystem work.
     'test_runner_evidence.py': 100,
-    'test_evidence_capture.py': 100,
+    # The real 252+7 capture history alone measured about 216 seconds.
+    'test_evidence_capture.py': 400,
     'test_evidence_bundle.py': 85,
     'test_e2e_evidence.py': 90,
     'test_system_runner.py': 55,

@@ -1,1158 +1,191 @@
-# Test evidence and export target design
+# Test evidence and export design
 
-The completed execution plan, queue and dedicated launcher have been retired.
-This document retains the design and historical delivery records. Existing runtime
-contracts remain authoritative; a proposal or review supplies no implementation
-or acceptance credit.
-
-## Implementation direction
-
-Solve the recorded failures with one bounded path: finalize an explicit set of
-records, publish it with the existing verified bundle writer, record its receipt
-in its owning workflow, then allow the original to retire.
-
-This simplification supersedes the unimplemented catalogue, reservation,
-retirement-permit and multi-segment writer protocols from E01a/E01b. It preserves
-delivered schema readers, authenticated sealing, historical findings, P01–P12's
-behavioral checks, queue identities/dependencies and acceptance. Existing staged
-work and retained checkpoints are not rewritten by this design change.
-
-Use the existing owner journals as the lifetime authority. Each workflow keeps
-its own finite required selection and capture/publication receipt; multiple
-consumers take independent verified copies. Do not add a checkout-wide consumer
-database, cross-owner reference-count graph, custody broker or generic deletion
-permission protocol. Document links never establish retention or deletion authority.
-Existing bounded capture-ID registrations remain the lookup for finished seals.
-
-Keep one cumulative bundle per owning publication generation, using the existing
-publication intent and locator recovery. Do not add segmented writers, background
-compaction or a second working-collection index. The delivered v2 readers retain
-their strict compatibility, including already supported segment metadata; reader
-support does not require a new segmented storage system.
-
-Keep the active queue finite. The thirteen unactivated prerequisite briefs are
-replaced by their parent tasks' delivery and acceptance. Do not insert them
-automatically. Split genuinely independent work only after a concrete source or
-validation need, through the existing prerequisite contract. The already inserted
-E03p-auth/E03p-capture work and suspended E03 keep their identities and progress.
-E14 composes earlier safety checks; E14a independently reviews the result.
-
-### Remaining delivery boundaries
-
-E10–E14a finish the existing path. Keep their IDs, order, scopes and acceptance;
-use the following division to avoid rebuilding the same mechanism in later tasks.
-
-| Task | Smallest delivery and handoff |
-| --- | --- |
-| E10 | Add severity and dependency relevance to existing validation results and wire the missing lifecycle gates. Own the exact claim/role revision binding and historical-advisory decision used by later tasks. |
-| E11 | Discover a finite tracked/registered reference set with the shared parser and classify it through existing authenticated readers and E10 policy. Retain one deterministic inventory in normal launcher artifacts. |
-| E12 | Consume that inventory through E09's document preview/apply APIs. Revalidate documents and proof before each write; use existing protected recovery where required. Update the same dispositions. |
-| E13 | Finish unavailable-history dispositions using E10's policy, the same inventory and existing exact disclosure recovery. Add code only for a demonstrated remaining gap. |
-| E14 | Map delivered regressions to the original failure families and run the three required integration histories. Extend existing histories only where a real boundary remains uncovered. |
-| E14a | Independently review delivered source, the coverage mapping and retained results against current contracts. Resolve findings without reopening superseded protocol proposals. |
-
-The inventory is a bounded report and migration input, not a new authority,
-database or retention journal. Preserve its original claim/identity and record
-resolved or pending outcomes there; regenerate affected entries after relevant
-input changes. Discovery may list a legacy reference without enough context to
-prove it. Leave it unresolved until an owning record supplies that context;
-never infer task, target or result from nearby prose or a plausible filename.
-
-E12 needs per-document atomic writes and repeatable preview/revalidation, not a
-new repository-wide transaction. After interruption, reread the finite selection:
-verified destinations already applied are no-ops, unchanged pending destinations
-can resume, and conflicting edits remain pending. Protected controller changes
-still use their existing durable recovery transaction. No new migration launcher,
-controller or general mutation command is required by this plan.
-
-Keep severity decisions in the existing validation owner unless source coupling
-demonstrates a need to extract a small shared module. Historical advisories are
-bound to exact claim/role revisions in existing owner records; they need no
-background notifier or second debt ledger. Required semantic failures remain
-strict regardless of presentation or historical classification.
-
-## Scope and quality boundary
-
-Change test tools, support, launchers, metadata and their documentation only.
-Product behavior, product diagnostic downloads/uploads, product installation,
-customer scenarios, UI-provider qualification, test verdicts, case inventories
-and acceptance obligations remain with their existing owners. This plan runs
-no product or VM acceptance. All implementation checks use host-private fixtures,
-including helper/privileged/target protocol simulations. Do not weaken a test
-assertion to make reference maintenance easier.
-
-Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md) and the
-[repository instructions](../../AGENTS.md) to maintenance and review.
-These are core evidence/ownership guarantees,
-not a requirement for recursive tests of cases, fixtures or assertion helpers.
-Reuse direct coverage at each shared owner; add representative consumer checks
-only for distinct behavior or a concrete composition gap. UI tests of test tools
-are excluded. Preserve historical results without repeating their counts or
-obsolete metadata matrices as acceptance requirements.
-
-Keep public artifact reading/copying in the existing maintained reader.
-Reuse shared storage, retention and bundle
-publication. Add capabilities to existing scoped helpers only when needed, with
-normal argument validation, installation regressions and setup routing.
+Preserve exact test evidence when ordinary reports rotate. Finalize a finite set
+of records, copy it through the existing verified bundle writer, record the
+receipt with its owner, then allow the original to retire. Runtime contracts in
+the [test guide](../../tests/README.md#aggregate-output-retention) and
+[storage mandate](../Mandates/Test-Storage-Mandate.md) remain authoritative.
 
 ## Stable and specific references
 
-Use a versioned logical evidence identity that survives relocation and generation
-rotation. Bind owner/repository/plan or run, task or case/check selector, attempt,
-declared target, exact source/input identities, result status, original member
-and digest, and command/cleanup dependencies. Retries and changed inputs receive
-distinct identities; identical bytes from different checks are not equivalent
-claims. A resolver must prove the requested record matches the requested context.
+Evidence identifies the exact check, attempt, target, inputs, source bytes,
+result and required files. Retries and changed inputs have distinct identities;
+identical bytes from different checks do not establish the same claim.
 
-Extend the existing verified manifest/receipt/accepted locator rather than
-introducing a second ZIP format. Generate document links selecting an exact
-record, not merely the latest run or a generic `accepted-evidence.json` file.
-Retain E02's strict readable selector syntax; E09 owns generated links.
-Preserve original member provenance and allow safe checkout-relative resolution;
-do not treat an old absolute checkout path as current authority.
-
-Capture callers supply structured records; free-form prose scraping remains a
-legacy reader only. Enumerate document consumers explicitly, including queue cells,
-briefs, catalogue/design prose, report links and handoffs. Generated references
-must distinguish live evidence, accepted historical evidence, superseded attempts,
-unavailable historical proof and malformed/unsafe references. A stable locator
-without a verified matching member remains insufficient proof.
+Generate links to exact records and members. A present path, latest-run link or
+generic accepted locator alone is insufficient proof. Preserve original
+provenance when storage moves, and verify the requested context before returning
+archived evidence. Paths and document links grant no access or deletion authority.
 
 ## Capture and publication
 
-### E09 document consumer disposition
+Only the authenticated live owner may select closed files. Bind the selection to
+its checkout, run, attempt, target, original identities and digests. A sealed
+subset is independently finished; its parent may still be active. General
+readers continue to refuse mutable active allocations.
 
-The delivered [document evidence route](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
-collects finite owner-declared occurrences, generates exact verified destinations,
-and previews destination-only changes against original bytes before revalidation
-and authorized apply. Production runner references use their authenticated
-cumulative publication; schema-2 plan references use the accepted locator.
-Schema-1 queue rewriting remains legacy navigation and does not invent logical
-records. E10 owns lifecycle gating and severity; E11–E13 own historical inventory
-and migration. No repository-wide scan or checkpoint rewrite is activated here.
+Keep capture intent and receipts in the existing owner journal:
 
-| Frozen document consumer | Delivered/shared disposition |
+| State | Required behavior |
 | --- | --- |
-| Result `checks[].evidence` | Existing structured `consume` authenticates runner context and exact selection; legacy prose remains compatibility capture. |
-| Selected and completed queue Estimate cells | Exact document preview/apply uses the existing narrow simple-inline destination boundary and requires owning task state. |
-| Unfinished/suspended queue claims | Explicit semantic inspection is allowed; generic document apply grants no destination repair exception. |
-| Briefs and master plans | Explicit document collection/preview/apply; labels, metadata and selected input snapshots retain their existing owners. |
-| Ordinary, repair and E2E handoffs | Same declared Markdown route; structured handoff identity and acceptance policy remain with their existing controllers. |
-| Building-block/coverage catalogues, design/specification and kiosk verification prose | Same explicit prose route, including nested document-relative and reference-definition destinations; no inferred passing claim. |
-| Report links | Same member/context/digest verification; wrong-but-existing originals and generic locators refuse. Missing originals can use exact archived proof. |
-| Required instruction links | Shared local-link and fragment reader; document instructions gain no fabricated evidence context. |
-| Examples and operational paths | Shared parser exclusions and fixed helper dispatch keep text inert; no undeclared source scan or execution. |
-| Required media and disposable exports/storage | Exact selected media retains its dependency closure and bounded metadata reads; separate recording/screenshot/scratch lifetimes remain unchanged. Generated destinations never select disposable exports. |
+| Pending | Keep the required original while sealing or copying is incomplete. Recover the same recorded stage. |
+| Published | Verify the committed destination, complete payload, receipt and locator. Keep the original until its owner acknowledges that exact copy. |
+| Acknowledged | The source owner verifies the matching attempt, member closure and destination. Existing cleanup may release only the recorded source identities. |
 
-Composition coverage lives in the existing plan-evidence and runner-evidence host
-modules; identity, parser, bundle, protected-plan and actual-byte controller
-histories remain shared owner coverage rather than a consumer Cartesian matrix.
+Reuse existing publication and recovery transactions. Lost replies retry the
+same operation. Failed copies, stale acknowledgements, changed files and capacity
+refusals preserve the original and prior proof. Before deletion, hold the owning
+locks and revalidate the replacement; an old receipt alone cannot authorize it.
 
-### Finalized capture authority and durable transitions
+Capture the authoritative terminal result after required collector and outer
+cleanup, including late failure, command and recording records. Partial
+diagnostics may retain failed or pending cleanup, but cannot satisfy a passing
+check. Later recovery is a separate linked record; preserve the original failure.
+Exclude credentials and disposable scratch.
 
-Reuse the producer session handle and independently finished sealed subset from
-E03p-auth. Only the live owner may choose closed files. Bind the authenticated
-caller, checkout, owner/run/attempt/target, exact allowlist, original provenance,
-identities and before/after digests. Paths, environment variables and caller JSON
-cannot mint authority. A sealed subset is distinct from its active parent;
-general artifact readers still refuse arbitrary active allocations.
-
-Keep the small pending-capture record with the source's existing owner journal.
-It names the exact sealed request and required members, then the verified
-destination receipt. Register before copying; finish the seal before inspection;
-charge source, seal, staging, receipts and recovery to the existing budgets.
-Retain the privileged safety witness where needed to prevent caller metadata
-from releasing a privileged source. Missing, corrupt or replaced control state
-refuses; absence is never an implicit release of an ever-required source.
-
-Use three externally meaningful states:
-
-| State | Durable fact and recovery |
-| --- | --- |
-| Pending | Source intent exists; sealing or publication may be incomplete. Keep the required original and recover the same recorded stage. |
-| Published | Existing independent publication committed and its complete payload/receipt and matching locator were verified. Keep the original until its owner records that exact receipt. |
-| Acknowledged | The source owner verified the matching request, attempt, complete member closure and destination. Existing cleanup may release only the recorded source identities; the destination remains in its workflow's bounded required proof. |
-
-These summarize the existing seal/publication substates, not a second transaction
-engine. Reuse their recorded preparing/committed recovery. Lost replies retry the
-same capture/publication; they do not allocate another slot. Never trust an ack
-JSON object without verifying its destination. A stale attempt, changed source,
-missing member, failed copy or capacity refusal keeps the original and prior proof.
-Before actual retirement, retain the owning locks and revalidate the required
-replacement; a receipt from a past verification alone cannot authorize deletion.
-
-Publish cumulative working proof through the owning workflow's existing bundle
-route. Publish and verify the accepted locator before retiring older accepted
-generations. Carry exact selected inputs, response, command and cleanup records
-across continuation, suspension and Git retry. Do not create a global working
-index or new `bundle-custody` mutation operations; preserve registered inspection
-and legacy helper interfaces. Register any necessary interface before use.
-
-Respect late writes. `Report.close()` precedes `failure.json` and outer worker
-result/recording writes; capture dedicated closed records until the outer owner
-finishes. Standalone registration needs a live owner before writing. E2E candidates
-precede collector and outer cleanup: capture the authoritative returned closure,
-binding candidate digests, after that cleanup. Closing a collector descriptor does
-not finish retention. A partial diagnostic may be sealed with truthful pending or
-failed cleanup; only complete passing proof with successful required cleanup can
-satisfy acceptance. Later recovery is a distinct linked record, never a rewritten
-original failure. Exclude credentials and disposable scratch.
-
-### Lock order, dependencies and retirement
-
-Keep existing checkout activity, journal owner, applicable VM lease and writer
-ordering. Inspect only selected finished owners; sort multiple owner locks by the
-existing trusted journal order and never upgrade a shared lock in place.
-Seal under the source owner, publish under the independent destination owner,
-then acknowledge under the source owner. Acquire no destination owner while
-holding a source writer; use existing pinned verification scopes and revalidate
-identities at each transition.
-
-Enforce pending-source protection in shared retention before enabling any producer
-caller. Cover direct session count removal, prune, reconcile (including oversized
-startup), both privileged startup calls, publication finish/recovery and explicit
-discard. Other routes in the retirement inventory retain their existing guards;
-where one can remove required bytes, check the same owner-local pending record.
-Do not implement a separate permit state machine for each caller. Audit the
-entire proposed deletion set before removing anything, and retain exact remaining
+Keep the existing activity, owner, lease and writer lock order. Seal under the
+source owner, publish under the destination owner, then acknowledge under the
+source owner. Do not acquire a destination owner while holding a source writer.
+Audit the full deletion set before removing anything and retain exact remaining
 identities after partial failure. Unknown, foreign or replaced resources refuse.
-Input transfer moves cleanup claims, not payload. Explicit discard authorization,
-legacy migration, recording overwrite, screenshot and scratch ownership remain
-with their existing owners.
 
 ## Lifetime, capacity and reuse
 
-### Bounded collections, capacity and reuse
+Disposable reports and exports keep normal rotation. Required working and
+accepted proof lives in its owner's bounded cumulative publication, independently
+of unrelated runs. Keep required source bytes until verified copying and
+acknowledgement; keep required destination bytes until explicit release or
+verified replacement. Completing work does not release proof still in use.
 
-Retention uses the existing build/run and saved-generation counts. E04 adds no
-stricter aggregate disk-size or file-count quota. Existing finite archive/input
-validation and earlier storage safety guards remain in place.
+Reuse the existing limits: three retained generations and 4 GiB allocated blocks
+per journal; 60,000 files/logical members, a 64-MiB manifest, depth 32 and 256
+explicit selections per publication operation. The selection limit is not a
+lifetime record quota. Charge seals to their parent and account for simultaneous
+source, seal, staging, committed, control and recovery copies. Bundles have no
+separate byte ceiling; journal limits still apply.
 
-Disposable execution/export output keeps normal rotation. Working and accepted
-required proof lives in its owning workflow's bounded cumulative publication,
-independent of unrelated execution/export sessions. Required original bytes stay
-protected until verified copying and source-owner acknowledgement. Required
-destination bytes stay until explicit owner release or verified replacement;
-finishing a task does not release accepted proof still needed by its workflow.
-Missing required evidence blocks acceptance rather than inventing a pass.
+Publish one complete cumulative replacement per generation. Carry required
+members and omit only explicitly released, unreferenced material. Preserve each
+logical origin when bytes deduplicate. Never mutate archives in place or share
+writable hardlinks. If old plus new cannot fit, preserve current proof and report
+usage, limits and a supported release or recovery action.
 
-Reuse existing limits: three retained generations and 4 GiB allocated blocks per
-journal; 60,000 files/logical members, 64-MiB manifest, depth 32, 256 selections
-and bounded reads. Charge sealed subowners to their parent. Bundles have no
-separate byte ceiling; the journal budget still
-admits all simultaneous copies. The per-capture source bound remains unchanged.
-Preflight old + seal + staging + committed-unretired + control and
-recovery bytes/files before allocation, then check actual use before commit.
-Count physical copies on both sides. A pending transaction must recover its
-recorded stage before admitting another.
+For identical exports, verify the authenticated selection, provenance and saved
+bytes under the publication lock, then reuse the existing receipt without
+allocating another session. Concurrent requests serialize this decision. Publish
+related files atomically. Verify an archive once per pinned read scope and
+invalidate that trust on mutation or scope exit.
 
-The 256-selection limit bounds explicit inputs to each publication operation.
-The cumulative request index retains historical logical records within the
-existing 60,000-entry and 64-MiB metadata limits; it is not a lifetime selection quota.
+Use existing journals, storage and bundle publication. No global consumer
+database, reference-count graph, segmented writer or persistent verification
+cache is needed. Recording, screenshot and scratch lifetimes retain their own
+contracts. Local storage and Git links do not provide an external backup.
 
-Compact only by the existing complete cumulative replacement: carry required
-members and omit explicitly released unreferenced material. Preserve original
-provenance when payload bytes deduplicate. Never mutate an archive in place,
-share writable hardlinks, silently drop a member or multiply owner budgets.
-If required old plus new cannot fit, preserve current proof and report usage,
-limit, selected closure and a supported recovery/release action before rotation
-or another expensive attempt. A separately reviewed storage requirement is a
-later decision; reaching capacity does not automatically build a segment system.
+## Canonical identities and wire records
 
-For identical exports, use the existing publication manifest/receipt as the reuse
-record. Under the owning lock, verify authenticated selection, provenance, source
-and destination bytes before returning it, without allocating a session.
-Concurrent identical requests serialize that decision. Missing/replaced/corrupt
-copies must not return success. Group related files in one atomic publication.
-Verify an archive once per pinned read scope; discard that trust on scope exit
-or mutation. No persistent cache, independent reuse database or new sweeper.
+Use the existing versioned bundle format and strict readers. Canonical metadata
+uses `evidence_bundle.encoded` JSON and lowercase SHA-256 digests; file digests
+cover exact bytes. Reject unknown schemas or fields, duplicate identities,
+conflicting closures, unsafe paths and invalid numeric types.
 
-Storage remains local/private through shared allocation. A Git link is no backup;
-host loss or another checkout needs an explicitly configured archive/import route.
-External hosting and uploads remain outside this plan.
+A logical record binds repository, workflow, owner, run, check, attempt, target,
+input and source identities. Its closure binds status, completeness, members,
+dependencies and cleanup. Members preserve original paths, allocation identities,
+roles, lengths and digests. Verify the finite dependency closure before accepting
+a result. A partial or diagnostic record never becomes a pass through archival.
 
-### Selective authenticated archived reads
+Schema-2 manifests retain logical records and exact member-to-payload mappings
+alongside existing file provenance. Every logical member needs one mapping;
+orphan mappings and payloads refuse. Shared bytes retain all logical origins and
+count toward existing metadata limits. Receipts bind the complete manifest.
+Versioned locators select exact archived records; a locator cannot override their
+contents or supply a missing member.
 
-Authenticate caller, plan and targets, then inspect explicitly selected finished
-bundles before looking for live originals. An absent original with an exact
-archived match does not depend on an unrelated active target journal. Inspect
-only the journals needed by the actual selection. Keep normal live-source
-identity/conflict checks when an original exists; an archive cannot hide a changed
-or active original. Safely revalidate absence and pinned archive identities before
-returning. Missing, denied, corrupt, wrong-context and active-owner cases remain
-distinct. Discovery performs no rotation, mutable reads or checkpoint writes.
+The optional `directories` manifest field proves complete directory selections.
+It is a nonempty list of at most 60,000 unique objects, sorted by `path`, each
+with exactly `path` and `sha256`. Each path selects a complete nonempty tree
+within one original allocation. Its digest covers all descendant file entries in
+original-path order: canonical JSON excluding the physical `member` field,
+followed by one newline per entry. Capture computes it from the live walk;
+verification recomputes it from the complete archive inventory. Cumulative
+publication retains that closure unchanged.
+
+Removed members, cross-allocation ancestors, empty inventories, type conflicts
+and conflicting selections refuse. Older files-only manifests remain readable,
+but matching descendants cannot prove a complete original directory. Strict
+reader compatibility must be established before publishing extended metadata.
+
+## Selective authenticated archived reads
+
+Authenticate the caller and declared targets, then inspect explicitly selected
+finished bundles before looking for live originals. An absent original with an
+exact archived match does not require inspecting unrelated active journals.
+When an original exists, retain its normal identity and ownership checks; an
+archive cannot hide a changed or active source.
+
+Revalidate absence and pinned archive identities before returning. Keep missing,
+denied, corrupt, wrong-context and active-owner outcomes distinct. Discovery is
+read-only and performs no rotation or writes to workflow state.
 
 ## Proportional validation
 
-Use one structured classification across readers, document checks and launchers:
-
-| Condition | Required behavior |
+| Condition | Behavior |
 | --- | --- |
-| Wrong task/check/attempt/target/input, corrupt digest, unsafe ownership/path, untrusted publication or a conflicting record | Block the affected operation; preserve evidence and give a finite actionable diagnostic |
-| Proof required by the current task or a declared active dependency is missing | Block acceptance; resolve an exact verified archive member or return the existing scoped renewal handoff; never invent a pass |
-| A newly authored evidence or required instruction reference is broken, ambiguous or points to the wrong existing report | Block that reference's publication with document/line/identity details; unrelated suites do not rerun |
-| A protected queue/checkpoint claim changes beyond authorized bookkeeping | Preserve the original transaction and follow the existing reconciliation/recovery contract |
-| Equivalent relative spelling, harmless sentence punctuation, presentation-only formatting outside protected cells with an unchanged declared claim, or changed physical location with identical verified identity | Normalize or warn; preserve protected labels and claim bytes and do not reject otherwise valid infrastructure results |
-| Unchanged historical proof is unavailable and no current acceptance/dependency relies on it | Record explicit nonpassing availability debt once and show an advisory; do not repeatedly block unrelated work or spend repair sessions |
-| Optional presentation link/anchor is broken without affecting a required instruction or evidence identity | Give a scoped advisory; required reading/command and evidence references remain blocking |
-| Access denied, integrity failure or active/foreign owner | Report the distinct refusal; never relabel it as expiry or retry authentication after denial |
+| Wrong identity, corrupt bytes, unsafe ownership, untrusted publication or conflicting records | Block the affected operation and preserve evidence. |
+| Missing proof required by current acceptance or an active dependency | Resolve exact archived proof or block acceptance; never infer a pass. |
+| Newly authored evidence or required instruction reference is broken or ambiguous | Block its publication with document, line and identity details. |
+| Equivalent spelling or harmless formatting with an unchanged claim and verified identity | Normalize or warn. |
+| Unchanged unavailable history with no active dependency | Record nonpassing unavailability once and give an advisory. |
+| Broken optional presentation link | Give a scoped advisory. |
+| Access denied, corruption or active/foreign ownership | Preserve the distinct refusal; do not relabel it as expiry or retry denied authentication. |
 
-The user explicitly authorized relaxing trivial validation while retaining test
-quality. Implement this as typed severity and dependency relevance, not blanket
-ignore lists, reduced assertions, fabricated receipts or suppression of errors.
-Bind historical debt to the exact reference/claim revision; a changed or newly
-introduced bad reference cannot inherit an exception. A historical unavailable
-status is never a check pass, task completion or permission to use that proof.
-Required/optional classification comes from the owning contract and structured
-consumer declaration, not inferred from prose or chosen to bypass a failure.
-Integrity, authority, identity and protected-claim failures take precedence over
-presentation advisories. A new optional presentation anchor can be advisory
-under its declared role; a required instruction or evidence reference cannot.
-An absent, conflicting or changed consumer-role declaration cannot downgrade a
-required reference to presentation or historical debt. Validate that declaration
-against its owning contract before applying an advisory; changing the role or
-claim invalidates any retained advisory classification for that reference.
-Changing a label from `Ubuntu passed` to `Both targets passed` changes the claim,
-even when its destination is unchanged. It never receives format-only treatment;
-protected queue labels remain literal under existing transition guards.
+Required and optional roles come from the owning contract and structured
+declaration. Bind advisories to the exact claim and role revision; changed claims
+or roles invalidate them. Integrity, authority and required-evidence failures
+take precedence over presentation advisories.
 
-Separate offline syntax/structure validation from evidence materialization.
-Plan `--check` remains model-free, VM-free and Git-free; it must be usable on a
-clean checkout without old local output. Semantic preflight validates only the
-selected operation's required closure. Repository-wide audit is explicit and
-read-only; unchanged unrelated history is reported without blocking unrelated
-task execution. Inspect required identities early and validate publication again
-at the mutation boundary. Avoid repeated full-archive scans and repair loops
-when no relevant input changed. Diagnostics identify class, consumer/line,
-expected versus actual identity, scope and one supported recovery route without
-echoing secrets or dumping raw transcripts.
-
-### E10 lifecycle gates
-
-Delivered policy lives in `tools/evidence_policy.py`, shared by document and
-plan gates in the existing owners. The
-[execution-plan contract](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
-owns declarations, literal claim revision binding, independently supplied roles,
-checkpoint advisory records, scoped startup and authored-reference publication.
-`document_checks.link_condition` supplies local availability/anchor findings;
-authenticated evidence readers still own identity, authority and integrity.
-Optional presentation declarations cannot hide structured evidence selectors.
-Required references and each explicitly active consumer stay blocking.
-
-Startup capacity is a read-only lower bound from the recorded publication
-inventory and current cumulative archives, including schema-2 segments. It is
-not a reservation or a promise that a future result fits. The existing locked
-publication and retirement checks remain authoritative. Retention's typed busy,
-pending and capacity refusals preserve their existing refusal behavior and
-messages while allowing finite policy diagnostics without parsing private text.
-The extracted policy is registered in the controller dependency guard; actual
-dependency-byte histories cover its session-boundary restart behavior.
+Separate offline syntax checks from evidence materialization. Validate only the
+selected operation's required closure and revalidate at the mutation boundary.
+Avoid repeated archive scans when inputs have not changed. Diagnostics identify
+the affected consumer, expected and actual identity, and a supported recovery
+route without exposing secrets.
 
 ## Compatibility and migration
 
-Retain old helper commands and versioned manifests/checkpoints until every
-inventoried consumer has a verified route. Older running controllers keep their
-code: use normal session-boundary restart and exact resumption. Preserve preexisting
-dirty/staged work, accepted results, targets, session counts, queue order and
-scope. Do not run competing launchers or rewrite protected evidence cells outside
-the existing controller-owned recovery contract.
+Retain supported readers and helper interfaces. Inventory a finite set of tracked
+references and registered catalogues with the shared Markdown parser. Classify
+exact live or archived proof, ambiguous context, unavailable history, refusals,
+examples and operational paths separately. A plausible filename or nearby prose
+cannot supply missing context.
 
-### Controller compatibility guard
+Preview destination-only repairs against exact document bytes and proof digests.
+Revalidate before each atomic document write. After interruption, verified applied
+destinations are no-ops, unchanged pending destinations can resume, and conflicts
+remain pending. Preserve claims and completion state; changes to protected claims
+require their owner's existing authorization and recovery route.
 
-Finalized capture and publication register `tools/evidence_capture.py` and
-`tools/capture_publication.py` in the explicit retained-decision closure, alongside
-the retention, storage, bundle and authenticated-helper sources. The existing
-actual-file-byte worker histories cover both modules with the original eight sources unchanged, including
-continuation, rejected-result recovery and answered blockers. `test_activity.py`
-remains unchanged advisory coordination and is not imported by the capture
-authority or ordinary controller; its prior conditional exclusion still applies.
-Required-recording capture makes `tools/recording_storage.py` part of that
-retained-decision closure too: its case lease, exact source declaration and
-receipt checks govern capture recovery and source retirement. The same real-byte
-worker histories cover changes to that dependency.
-
-Private single-file publication also registers `tools/artifact_export.py` in
-this explicit closure. Shared export recovery dispatches its receipt verification
-before retirement, so its actual bytes affect retained controller decisions.
-
-Runner terminal capture registers `tools/runner_evidence.py`, `regression.py`,
-`regression_process.py`, `regression_events.py`, `test_commands.py`,
-`vm_test_queue.py`, `regression_inputs.py` and `test_recovery.py`. These sources now bind retained
-runner selection, command, source identity, outcome and cleanup provenance.
-The same actual-byte histories cover them, with the original eight guarded
-sources unchanged. Rendering-only modules and advisory activity coordination
-remain outside this closure.
-
-Qualification and collector capture additionally register the explicit producer
-sources `qualification_storage.py`, `system_runner.py`, `vm_probe.py`,
-`baseline_guest.py`, `check_graphical_recovery.py`, `check_graphical_smoke.py` and
-`check_e2e_watch.py` under `tests/integration`, and `private_artifacts.py`,
-`execution.py`, `e2e_worker.py`, `runner.py`, `evidence.py` and `secret_variables.py`
-under `tests/e2e`. They determine the exact selected proof, terminal verdict,
-candidate binding and cleanup provenance. `tools/onpc-test-runner` now determines
-which selected child owns capture; `tests/integration/guest_inputs.py` validates
-the retained input closure and `owned_commands.py` supplies command provenance.
-Their actual bytes join the same restart histories; fixture-only support and
-rendering-only sources remain outside this explicit inventory.
-
-Extend `plan_launcher.response_validator_sources()` and its existing content-change
-regressions as shared dependencies are changed or introduced. E01 inventories
-the controller's relevant validation/storage dependency closure, including
-`test_retention.py`, `test_storage.py` and any extracted identity, reference,
-capture or severity module. Follow the current callers into `test_input_transfer.py`
-mutation guards, `test_activity.py` ownership and `launcher_git.py` close-out;
-record which files affect the controller's retained decisions and why any audited
-file is excluded. Include the authenticated helper dispatch where its source
-changes affect those decisions. Use an explicit reviewed source inventory; no new
-watcher, archive state machine or unbounded filesystem/import scan is needed.
-Each introducing task registers its relevant dependencies and runs the guard's
-affected private regressions before completion; E07 is the integration check, not the
-first opportunity to add restart protection.
-
-E07's ordinary-consumer audit retains that explicit inventory, including the
-already registered `runner_evidence.py` reader used by structured handoffs.
-`test_input_transfer.py` remains required by the retention writer's mutation
-guard. `test_activity.py` stays outside the in-process retained-decision closure:
-it coordinates runner ownership rather than authenticating the controller's
-selected proof. Recording recovery opens `recording_storage.Store(create=False)`,
-so legacy relocation in `recording_control.py` is outside that route. Rendering
-modules and thin ordinary adapters add no separate evidence decision engine.
-The ordinary adapters share capture, working publication, structured consumption
-and accepted Git retry; specialized repair/E2E consumers remain assigned to E07a.
-The shared VM checkout receipt also registers `tools/vm_pool.py`: its receipt
-identity and attachment/queue guards govern retained owner and selection decisions
-through `detached_launcher.py` and `vm_selection.py`. Its actual bytes join the
-same restart histories; private detached checkouts include that runtime dependency.
-
-E08 keeps Markdown parsing in the already registered `document_checks.py` owner;
-the document reader, plan collection, protected comparison and recovery consume
-its shared structures. Actual-byte restart histories include that owner and the
-changed plan/recovery consumers without adding a second parser dependency.
-
-E09 keeps exact document generation and runner metadata resolution in the already
-registered `plan_evidence.py` and `runner_evidence.py` owners. Their actual-byte
-restart histories retain the same controller boundary. `tools/read-only` is a
-fixed inspection adapter, outside the controller's retained acceptance decisions;
-it adds no independent validation implementation or restart dependency.
-
-Change actual dependency-file bytes in fixtures, including an extracted module
-while the original eight guarded files remain unchanged. Assert session-boundary
-stop before another task, corrective session or blocked-answer continuation,
-with exact response, inputs, counters and ownership retained for a fresh controller.
-Connect the real fingerprint reader to the worker in these histories: a separate
-hasher test plus worker tests using mocked source dictionaries cannot establish
-the restart guarantee. Snapshot the registered inventory before mutation; verify
-unchanged bytes cause no restart and every newly registered dependency is covered.
-Use the shared parameterized dependency check and representative lifecycle paths;
-do not repeat every dependency mutation across every adapter and handoff kind.
-Preserve normal restart allowances under the existing launcher contract; capture
-or retry operations grant no additional allowance. Older specialized controllers
-retain their own lifecycle policy and use its supported
-safe-boundary restart; this does not add model retries or change their budgets.
-
-E07a's specialized controllers reuse that reviewed shared dependency closure
-through `repair_evidence.controller_sources`, adding `repair_evidence.py`,
-`fix_tests.py`, `fix_tests_git.py`, `write_e2e.py`, `e2e_progress.py`,
-`e2e_startup_cache.py` and both specialized response schemas. These files own
-the exact evidence selection, model/session limits, retained acceptance and Git
-retry decisions. Their actual-file histories stop before another response
-correction, blocker continuation or acceptance decision; the retained response,
-original inputs, counters and cleanup remain available to the fresh controller.
-Advisory rendering and test activity remain outside this decision closure.
-
-### Legacy reference migration
-
-E11's registered [inventory reader](../Approval-Tools.md#launcher-inspection-and-workspace-edits)
-uses `plan_evidence.inventory_references` with the shared parser, E10 policy and
-authenticated accepted snapshots. It discovers tracked Markdown across ordinary
-plans, queues, briefs and prose, plus explicitly registered local catalogues.
-It retains one bounded `onpc-legacy-reference-inventory` version-1 metadata
-report in normal launcher artifacts. Exact live/archive classifications require
-an owning document declaration and verified member context; schema-1 retained
-path matches remain candidates with `context_verified: false`. Unknown roles
-stay null. Missing, denied, stale, foreign and conflicting inputs remain distinct
-pending dispositions, with E12/E13 as migration owners. Queue-shaped claims are
-marked protected without granting rewrite authority. No active checkpoint is read
-or changed. The introducing source remains in the existing controller dependency
-closure; the thin reader dispatch adds no retained acceptance decision.
-
-Inventory tracked references and explicitly registered local catalogues, not an
-unbounded filesystem scan. Classify each as exact live proof, exact archived
-proof, wrong/ambiguous destination, historical unavailable, example or operational
-path. Preview finite migrations with exact original bytes and expected proof
-digests; apply only an unchanged verified selection. Destination-only repairs
-retain claims. Genuine historical proof-loss disclosure uses the existing exact
-authorization/recovery route when it changes protected claims; absent authority
-produces a concrete proposal and debt record, not a checkpoint edit or a false
-completion. No missing product acceptance is executed by this plan.
-
-#### E12 finite migration disposition
-
-E12 revalidated E11's finite tracked selection on 2026-10-23: 451 documents,
-283 occurrences, no owner-source findings, inventory digest
-`15aae97ba16bee052af5257cc7047eaaa8303f0038a52dbddcdcfe4fa56bec05`.
-The E12 queue record retains the complete per-occurrence inventory and checks.
-The following outcomes apply to every entry in that report; its original
-document, claim and candidate digests remain the resumption inputs.
-
-| Inventory classification | Count | E12 outcome and remaining owner |
-| --- | --- | --- |
-| Exact context-verified live/archived proof | 0 | No destination was eligible; zero applied changes, conflicting verified edits or pending external applications. |
-| Unresolved context | 102 | Pending E13: an owning declaration must supply claim/target/input context before a present path can become proof. |
-| Refused | 24 | Pending E13: preserve the 22 access refusals and two foreign-checkout identities; no inferred ownership or access bypass. |
-| Unavailable history | 117 | Pending E13: preserve missing-source outcomes; two authenticated file candidates still lack owner context. |
-| Operational path / example | 32 / 8 | Resolved as inert navigation/examples; no evidence or rewrite authority. |
-
-The two candidates were the references at lines 73 and 80 in the now-retired
-E03p authentication brief, with reference digests
-`64ac68f0cf9bd8158bbeecbd9bae51bd7cb17da8217002956d21a665e54d0d36`
-and `59471655091627118070aac82c8b537de895791979a468df543ceb4e66668ccf`.
-Their archived bytes are authenticated, but `context_verified` remains false;
-neither destination was changed. All 49 protected pending occurrences retain
-their claims and completion state. No protected recovery request or checkpoint
-edit was needed. The 126 context/refusal entries previously assigned to E12
-remain pending for E13 alongside its 117 missing-source entries; this disposition
-does not resolve them or grant acceptance. Changed inputs require regeneration
-of affected entries through the existing inventory reader before any later apply.
-
-#### E13 historical availability disposition
-
-E13's initial snapshot revalidated the same finite selection: all 243 pending occurrences remained
-pending, with their original reference/claim identities and no inferred test
-verdict or active relevance. The E13 queue record retains the per-occurrence
-inventory, surviving candidate digests and non-executable recovery proposals.
-The existing inventory now includes the supported action and outstanding
-verification prerequisites for each occurrence; it creates no second debt ledger.
-Comparison with E12's authenticated retained inventory confirmed identical pending
-claim/reference identities, availability, unknown relevance and candidate bytes;
-the candidate publication locator changed through ordinary cumulative replacement.
-
-A later refresh after the separate fixture workflow's committed updates contains
-245 pending occurrences: 242 unchanged identities, one replaced destination with
-the same claim, and two newly recorded references. The three changed/new references
-are missing and lack owning context; they receive no retained historical binding
-or advisory exception. Their owner must supply exact current proof and context.
-The retained original and refreshed inventories distinguish these changes without
-editing that workflow's claims or granting acceptance.
-
-| Category | Disposition and supported return condition |
-| --- | --- |
-| 119 missing original sources | Explicit unavailable-source record; owner context and dependency relevance remain unknown. Resolve exact archived proof or explicitly retain unavailability through its owner. Changed/new references remain strict. The two E03p-auth file candidates above survive, but neither proves the original claim's context or an entire missing directory. |
-| 102 unresolved contexts | Pending owning declaration identifying the exact claim, target, inputs and dependency relevance. A present path alone supplies no proof. |
-| 24 refusals | Preserve 22 access refusals and two foreign-checkout identities. Restore authorized access without authentication retries, or select the exact owning checkout/context; do not relabel these as expired proof. |
-| Operational paths and examples | Resolved as inert navigation/examples, with no check result or evidence authority. |
-
-All 51 protected pending occurrences in the refreshed snapshot retain their claims and completion state.
-Protected missing-source entries carry finite pending disclosure proposals bound
-to their containing occurrence's document/reference/claim digests and offsets.
-Before any executable request, the owning controller must verify the completed
-row and exact before/after links, retained accepted completion without the lost
-detail, inactive queue/checkpoint baselines and exact retained developer
-authorization. No such authority or completion is inferred from this task or
-nearby prose. No protected claim, checkpoint or original verdict was changed.
-
-The existing [historical policy and recovery transaction](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
-already own nonrecurrence and authorized mutation. An unchanged inactive
-historical binding persists once in its owner's records and returns an advisory
-with `retain_historical_unavailability`; it does not request another acceptance
-run. Unknown relevance does not qualify for that exception. New or changed
-references, an active dependency, stale context and authority/integrity failures
-remain strict. A retained accepted completion never supplies a missing detailed
-check. Pending dispositions require their named inputs before repair; this
-infrastructure plan executes no historical product acceptance.
+Missing historical proof, unknown context and access refusals remain nonpassing
+until their prerequisites are resolved. Migration creates no new test verdict or
+product acceptance.
 
 ## Required regression histories
 
-These histories use private stores and simulated authenticated helper/controller
-entry points. They perform no VM operation, actual authentication or model launch.
-The ordinary-launcher module's `synthetic_plan_evidence` autouse fixture stubs
-capture, carry, preservation, recovery and rewriting. Cross-boundary histories
-must use the real evidence functions instead of those stubs and verify the
-resulting private records. Retain the lighter isolated fixtures for their own
-unit scope; they supply no composed evidence-lifetime acceptance.
-
-1. **A later run rotates an older report.** E06 creates report A, its declared
-   consumer/reference and complete result/input/command/cleanup closure. Start
-   later runs through startup retention until A's original report path is actually
-   retired, including more than three runs. Resolve A's exact check, attempt,
-   target, inputs and dependencies through the stable reference with no check rerun
-   or changed verdict. Assert the original path is absent, compare the complete
-   retained closure's bytes/digests and keep A's invocation counter at one through
-   resolution. E04 repeats retirement with failed capture and unacknowledged
-   handoff: ordinary pruning and automatic oversized startup recovery must retain
-   the required original until verified durable capture permits retirement. Also
-   test unreferenced oversized evidence still retiring. E14 composes producer,
-   consumer and reference generation across this sequence. A stale acknowledgement
-   for a different attempt, source identity or complete member closure must not release
-   the original; only the matching verified durable acknowledgement permits it.
-2. **Two expired reports during an unrelated active producer.** E05a exercises
-   the authenticated helper's `bundle-plan` dispatch through real
-   `Selection.catalogue()`/`load()` and retention inspection, with a validated
-   synthetic plan, target T, retained bundle B and two explicit old references.
-   This is the existing `--plan`, `--target`, `--bundle`, repeated `--reference`
-   selection shape; register any changed interface before use. Record the pre-fix
-   eager-catalogue refusal or verify its earlier delivered fix/regression, then
-   require both exact archived members to resolve while an unrelated producer on T
-   holds its journal.
-   Do not mock away selection or locking. Assert no unrelated journal inspection,
-   mutable-payload reads/adoption, source rotation or checkpoint writes during
-   resolution. Direct `inspect()`/`bundle-read` success is a useful control but
-   insufficient acceptance: it already avoids the eager target catalogue. Keep
-   missing, wrong-attempt/target, corrupt, denied and actual active-source refusals
-   distinct. Do not reintroduce an already fixed refusal to manufacture a failing
-   baseline. E07/E14 exercise this selection through an ordinary-plan consumer;
-   any subsequent publication changes only that consumer's owned transaction.
-   Simulate only caller authentication, target registration and privileged identity
-   operations at the host boundary. Keep helper dispatch, plan validation, source
-   selection, archive verification and retention locks real. Assert both original
-   paths are absent and both requested original members and digests match.
-3. **Changed dependency in a running controller.** E02 onward runs the
-   [compatibility guard](#controller-compatibility-guard) when dependencies change;
-   E07/E14 compose real file changes with continuation, blocked answers, suspended
-   work and fresh-controller recovery. No extra task/session credit or stale
-   validation is permitted.
-
-## Infrastructure acceptance
-
-Each task owns meaningful host regressions under the test scope mandate.
-Inventories need a disposition for every family/route, with shared coverage
-identified; they do not require one new test per inventory row. E14 reuses earlier
-helpers and results to add boundary-spanning histories, rather than rebuilding
-each task's safety matrix. E14a independently reviews the final source and retained results.
-Final composition uses private
-producer/controller/helper fixtures to reproduce the historical failure families,
-including more than three source sessions, more than three unrelated exports,
-multiple targets with identical basenames, separate retries, changed source,
-concurrent readers, denied authority, active owner, wrong checkout, capacity
-exhaustion and injected interruption at each durable transition. Exercise
-each distinct recovery boundary at its shared owner; compose only the changed
-cross-owner interactions rather than duplicating the full failure matrix.
-Exercise continuation, suspension, restart and accepted Git retry without running
-models, VMs or product suites. Assert exact retained bytes/provenance, durable recovery,
-bounded allocation counts/bytes, unchanged foreign resources and scoped severity.
-Include two vanished legacy report paths with two exact retained members while
-the same synthetic target has an unrelated active producer. Both references
-must resolve without rotating sources, changing a checkpoint or reading/adopting
-live mutable payloads. A missing archived member stays unavailable; denied access,
-corruption and foreign-active ownership remain distinct refusals. The required
-regression histories above select the actual integration paths; isolated bundle
-member reads or mocked change dictionaries do not replace them.
-
-The outcome is fewer avoidable errors with preserved test quality: repeated reuse
-does not rotate exports; required proof survives unrelated runs; wrong existing
-destinations fail; format-only changes do not fail; historical unavailable proof
-is explicit and cannot satisfy active acceptance. All inventoried consumers receive
-a delivered migration or an explicit compatibility disposition. Independent final
-review checks those outcomes against the source and original failure inventory.
-
-### E14 composed qualification disposition
-
-The original [history and family inventories](#e01-source-and-history-audit)
-remain audit snapshots. This map records their delivered owners and the focused
-composition used by E14; exact selections, results and input identities belong
-to the E14 queue record's normal runner evidence. Earlier owner-level safety
-results remain applicable on unchanged implementation inputs. The
-[document-consumer map](#e09-document-consumer-disposition) covers every declared
-document family; none acquires authority from a plausible path or nearby prose.
-
-| Audit family | Delivered boundary and regression disposition |
-| --- | --- |
-| P01: initialization and aggregate/category/worker/standalone reports | `regression.Report` and `runner_evidence` own registration and terminal closure. `test_runner_evidence.py::test_report_publications_stay_independent_and_survive_original_rotation_without_rerun` retains direct producer coverage. `test_execution_plan_launcher.py::test_structured_acceptance_survives_runner_rotations_and_fresh_git_retry` now composes the actual report, generated exact document link, all dependency bytes and ordinary acceptance after five startup admissions retire A; A runs once. Worker selection/cleanup and late outer records retain their E06 owner checks. |
-| P02: required-source retirement | `test_retention` and `evidence_capture.retirement_scope` share the source gate. `test_test_retention_cleanup_safety.py::test_report_rotation_preserves_required_original_until_durable_acknowledgement` and `::test_stale_owner_acknowledgement_cannot_release_required_report` cover ordinary and host/privileged oversized startup, failed/capacity/unacknowledged capture, stale attempts and incomplete closures. Disposable oversized evidence still retires. |
-| P03: capture authority and durable transitions | `evidence_capture` and `capture_publication` retain E03's immutable subset, live-owner authority, same-stage interruption recovery and verified acknowledgement checks. E14 reuses these safety results, including active siblings, foreign/changed sources and lost replies, rather than repeating their matrix. |
-| P04: file and grouped bundle exports | `artifact_export`, `evidence_bundle` and `test_retention.Publication` retain E05's identical-request reuse, distinct same-basename provenance, overlapping readers, pinned verification and atomic-group/interruption coverage. Shared-root migration and invoking-checkout relocation retain their original storage and installation safety checks; no helper interface changes here. |
-| P05: archived selection during unrelated production | `plan_evidence`, authenticated `onpc-test-artifacts bundle-plan` and real `Selection.catalogue/load` compose in `test_execution_plan_launcher.py::test_real_consumer_resolves_two_expired_reports_through_authenticated_helper_during_active_producer`. Both missing originals resolve exactly, without inspecting the active target journal, reading its payload, rotating it or changing its checkpoint. E05a retains distinct missing, denied, corrupt, wrong-context and active-source refusals. |
-| P06: qualification, system/E2E collectors and diagnostics | `qualification_storage`, `system_runner`, E2E `private_artifacts/execution` and `runner_evidence` retain E06a's finite producer/collector closure coverage. Focused `test_qualification_storage_cleanup_safety.py` histories recheck real failed recovery, pending recovery before next startup, partial probe failure and the exact 16-KiB baseline tail/native-log availability after rotation. Diagnostic verdicts and pending cleanup remain nonpassing. |
-| P07: repair and specialized E2E compatibility | `repair_evidence`, `fix_tests` and `write_e2e` keep their distinct acceptance/session policies and E07a results. The existing repair-tail bounds test now asserts explicit partial-tail metadata. `test_fix_tests_cleanup_safety.py` rechecks original-selector replay and malformed/VM-selection refusals; E2E diagnostic promotion and retained Git-retry guards stay with their earlier owner coverage. |
-| P08: ordinary adapters, handoffs and accepted Git retry | All ordinary adapters share `plan_launcher.PlanWorkflow` and `plan_evidence`. `test_real_handoffs_survive_five_restarts_and_git_retry_after_raw_rotation` covers continuation, blocked/rejected responses and suspension with real evidence. Real-evidence capacity histories retain failed-turn bytes, removed briefs and partial prerequisite edits. The extended P01 history also verifies accepted Git retry without another producer or agent invocation. Reconnect/pending-start allocation retains the existing exact-allocation recovery checks. |
-| P09: identity, documents and proportional gates | `evidence_identity`, `document_checks`, `evidence_policy` and `plan_evidence` retain shared parser/context safety. Focused document-policy checks verify harmless spelling/optional presentation, strict required roles, wrong-but-existing destinations and nonpassing historical loss. Queue claims, briefs/master/handoffs, catalogue/design prose, report links, instructions and inert examples use their existing explicit consumer dispositions. |
-| P10: legacy discovery, migration and historical loss | `plan_evidence.inventory_references` and the protected recovery owner retain E11–E13's finite preview/apply and revision-bound availability. The [E13 pending dispositions](#e13-historical-availability-disposition) remain pending: missing proof, unknown claim context and access/foreign-checkout refusals are separate. Protected external application still requires its recorded authority and baselines; E14 changes no historical claim or checkpoint and grants no product acceptance. |
-| P11: dependency-byte compatibility | `plan_launcher.response_validator_sources` owns the explicit current dependency closure. `test_execution_plan_launcher.py` feeds real changed dependency files into worker decisions through `validator_checkout`, covering rejected responses, continuation, blocked answers, suspension and fresh recovery; unchanged bytes do not restart. Specialized controllers retain their E07a safe-boundary guards. Advisory activity coordination and rendering remain excluded for the reasons in the compatibility inventory. |
-| P12: bounded capacity and separate lifetimes | Shared storage/retention/publication owners retain E03–E05 and E08p's simultaneous-copy, file/metadata and cumulative-history bounds. E14 checks bounded generations, one pinned terminal verification and unchanged foreign identity in the extended history, and rechecks partial capacity compatibility. Required media keeps its separately declared capture/receipt closure; latest-only recording, screenshot and disposable scratch policies remain unchanged. |
-
-Every [retirement entry](#retirement-entry-points) uses its existing owner:
-session/count/prune/reconcile and both privileged startup calls share the pending
-source gate; publication commit/finish/recovery verifies replacement bytes before
-retirement; accepted-plan replacement verifies the cumulative archive and locator.
-Completed and unpublished-input discard retain explicit authority and full identity
-audits. Input transfer moves cleanup claims only and retains its pending-writer
-guard. Legacy cleanup/migration keeps its finite manifest and verified-copy
-authority. Scratch/runtime/media cleanup retains its separate identity/lifetime
-policy. These unchanged routes reuse their inventoried regressions, including
-partial-deletion recovery; E14 introduces no cleanup mechanism or permission.
-
-The changed histories use existing pytest-private trees, real local descriptor
-locks and process-local authentication/agent/Git doubles. They add no shared
-cache/path, child, socket, bus, display, service, VM or build resource. Existing
-unit classifications remain compatible; cleanup and UI inventories gain no owner.
-E14a separately owns independent final review of this map and the retained results.
-
-E14's inventory comparison retains E13's 245 pending claim/reference identities
-and records three new occurrences: two presently missing destinations from the
-concurrent fixture-plan close-out and E14's live report without an inventory-owner
-declaration yet. The refreshed snapshot therefore has 248 pending occurrences
-(121 missing, 103 unknown contexts, 24 distinct refusals), including 54 protected
-occurrences. The three new entries remain strict; unknown relevance gains no
-historical advisory. Their owning workflows must supply context and exact proof
-before any migration. No foreign claim, checkpoint or acceptance state was changed.
-
-### E14a independent final review
-
-The self-contained GPT-6.1 Sol xHigh review on 2026-10-23 checked the frozen
-history, producer/consumer, retirement and dependency inventories against the
-delivered source and E14's composed histories. The real report, startup rotation,
-exact-link generation, authenticated helper selection, retention locks and
-dependency-byte worker/recovery paths satisfy the three required histories.
-Capture authority, complete proof, bounded reuse, replacement verification,
-retirement gates, severity precedence and protected legacy authorization retain
-their existing owners. No product acceptance, VM work, competing archive engine
-or broad privileged interface was introduced.
-
-Two coverage findings were resolved in the existing launcher test module. One
-real-worker sweep now changes every registered dependency's actual bytes;
-representative extracted-dependency histories preserve each distinct lifecycle
-boundary without repeating that inventory. Tool-screen, mouse, color and redraw
-checks were removed. One direct shared-counter check retains accepted-completion
-and reattachment semantics; public checkpoint/task-info recovery, budget,
-concurrency and Git-retry guards remain. Independent re-review found no actionable
-issues in these corrections or the reviewed safety boundaries.
-The concurrent F23 fixture-transfer extension was also reviewed: exact target
-matching, immutable selections and the existing capture/cleanup paths remain
-intact, so it invalidates no E14 history or grants this review new acceptance.
-
-The E14 queue record retains its exact original 453-check result, inputs,
-commands and cleanup. Its complete 1,127-file accepted archive was independently
-verified during review; the four execution records retain their exact selections,
-600-second timeouts, passing verdicts and complete cleanup. Every frozen family
-has a delivered or explicitly pending disposition under the E14 map above.
-E11–E13's missing proof, unknown contexts, refusals and externally authorized
-protected applications remain nonpassing limits; review grants no historical
-product acceptance.
-
-The corrections use only pytest-private dependency files, plans and checkpoints.
-They add no process, shared path/cache, socket, display, service or VM resource;
-the existing unit classification remains appropriate and cleanup/UI inventories
-gain no owner. The final queue record retains affected checks and close-out
-results. Only tests, generated coverage and these review/close-out documents
-changed, outside the Makefile's package and build-tool inputs.
-
-## E01a protocol proposal
-
-E01a's protocol review is historical. The strict identity and reference formats
-below were delivered in E02 and remain compatible. The unimplemented global
-custody/collection machinery is superseded by the implementation direction above.
-
-### Canonical identities and wire records
-
-Use `evidence_bundle.encoded` canonical JSON (sorted keys, compact separators,
-ASCII escapes), SHA-256 lowercase hex and duplicate-key rejection. Versioned
-objects have exactly the keys specified below; reject unknown versions, fields,
-duplicate IDs, nonfinite numbers and integer/boolean confusion. Strings are
-UTF-8 values of at most 4,096 bytes without control characters; paths retain the existing
-no-link, no-traversal, privacy and mount checks. IDs are 64 hex characters;
-run/attempt tokens are fresh 32-hex tokens issued by the owning controller, never
-derived from a title, timestamp or basename. Empty target means a declared
-host-only check; it cannot match a named target. Lists of sets are sorted and
-unique before hashing; command arguments and ordered input selections retain
-their order. Every digest below hashes canonical bytes, except file digests,
-which hash the exact original bytes.
-
-The logical record schema is `onpc-evidence-record`, version 1:
-
-| Exact field | Meaning and validation |
-| --- | --- |
-| `schema`, `version` | Literal schema name above and integer `1`. |
-| `context` | Exactly `repository`, `workflow`, `owner`, `run`, `task`, `check`, `attempt`, `target`, `inputs_sha256`, `sources_sha256`. Repository is the validated checkout identity, workflow the checkout-relative master or registered runner name, owner the authenticated journal identity, run its token. Task/check are exact registered IDs/selectors, attempt is issued before execution. Input digest binds role, original name, length and digest of each finite input, including selected target configuration; source digest binds the declared executable dependency inventory and bytes. |
-| `record_id` | Hash of `{schema,version,context}`. Relocating storage never changes it. A retry, changed input/source or different target produces another record. |
-| `status`, `completeness` | Status is `passed`, `failed`, `interrupted`, `not_run` or `diagnostic`; completeness is `complete` or `partial`. Neither an archived diagnostic nor a partial candidate can supply a passing check. |
-| `members` | Finite entries with exactly `member_id`, `role`, `original_path`, `source_allocation`, `bytes`, `sha256`, `required`. Role is result, input, command, junit, tap, cleanup, diagnostic or media. Source allocation preserves the existing journal/run/device/inode/mode provenance; original path is provenance, never permission to open it. Member ID hashes record ID, role, original path and byte digest. |
-| `dependencies` | Sorted exact `(record_id,closure_sha256)` pairs, never an unqualified latest result. No cycles; validate the finite transitive closure before acceptance. |
-| `cleanup` | Exactly `state`, `record_members`, `scope`. State is `complete`, `failed`, `pending` or `not_applicable`; members name exact cleanup records and scope names the resources actually owned. `not_applicable` needs an owning contract declaration. Producer execution cleanup is separate from capture-publication retirement cleanup. |
-| `closure_sha256` | Hash of the entire record excluding only this field. It binds status, completeness, every member, dependencies and cleanup. Same record ID with differing closure is a conflict, not a newer pass. |
-
-Keep command/result/input/cleanup records independently addressable. Required
-JUnit/TAP or media cannot disappear through deduplication or a diagnostic size
-limit. A required media member uses a verified captured copy, or an exact external
-dependency with its owner's explicit lifetime; latest-only recordings alone
-cannot promise durable proof. No credential directory is a capture selection.
-
-Extend the existing ZIP format, not its compression/extraction policy. Bundle
-manifest schema `2` has the v1 keys `schema`, `files`, `inherited`,
-`source_budgets` plus `records` and `member_map`, and the explicit optional
-`directories` extension below. Physical `files` keep v1
-provenance and generated `files/NNNNNNNN` names. `records` contains the logical
-records above, sorted by record ID. `member_map` is a JSON list of objects with
-exactly `record_id`, `member_id`, `physical_member`, `original_provenance`, sorted
-lexicographically by `(record_id, member_id)`, with each pair unique. Physical
-member names select exactly one `files[].member`; original provenance contains
-exactly `original_path`, `source_allocation`, `identity`, using the shapes below.
-Require exactly one mapping for every logical member and no orphan mappings or
-physical members. Equal bytes may share one physical member only when all
-logical origins remain explicit; unequal bytes or conflicting provenance refuse.
-Metadata, logical entries and dependencies all count toward finite limits; byte
-deduplication cannot evade the 60,000-file/logical-member bound. Verify logical
-closure against stored bytes before returning any result. Schema 2 receipt has
-exactly `schema:2` plus the existing `sha256`, `bytes`, `selection_sha256`,
-`identity`; `selection_sha256` binds the whole manifest.
-
-E12 explicitly extends both strict manifest readers with optional `directories`:
-a nonempty list of at most 60,000 unique objects, sorted by `path`, with exactly
-`path` and `sha256`. Each path names an explicitly selected complete nonempty
-tree within one original allocation. Its checksum covers all descendant file
-entries in original-path order: canonical JSON without the physical `member`
-field, followed by one newline per entry. The normal manifest budget applies.
-Capture computes it from the live walk, not inherited files; verification
-recomputes it from the complete archived inventory. Cumulative publication must
-retain each closure unchanged. Removed members, cross-allocation ancestors,
-empty inventories, file/directory type conflicts and conflicting selections
-refuse. This grants no logical claim or new acceptance. Older files-only manifests remain readable without
-invented folder completeness. Older strict readers refuse this extension; the
-existing dependency-byte restart boundary loads its reader before new publication.
-
-Accepted ledger schema `2` has exactly `schema`, `plan`, `generation`,
-`previous_index_sha256`, `tasks`, `records`, `segments`. Preserve each task's v1
-result, inputs, records, attempt and complete-cleanup assertions; add exact logical
-record/closure pairs in a new `record_refs` field of each task proof. `records`
-maps record IDs to complete logical records. The stable locator schema `2` has exactly
-`schema`, `plan`, `generation`, `ledger`, `ledger_sha256`, `segments`, `tasks`.
-Ledger segment entries contain exactly `id` and `record_ids`; external locator
-segment entries contain exactly `id`, `bundle`, `sha256`, `selection_sha256`,
-`allocation`. The archived ledger never contains its own segment's archive or
-manifest hash: receipts and the external locator bind those physical hashes.
-Locator `ledger` has exactly `segment_id` and `original_path`, selecting an exact
-original member whose digest equals `ledger_sha256`. Locator `tasks` repeats the
-verified ledger task proofs; it cannot override them. Ledger is an exact original
-member in one segment, not a second archive format.
-Task lookup cannot substitute for verifying the requested
-record/member and dependency closure. A missing segment refuses its dependents;
-it does not invalidate unrelated verified proof. Locator generation replacement
-uses the existing previous-index digest compare-and-replace.
-
-### Frozen nested wire shapes
-
-Retain the delivered strict nested representations.
-The following are reusable strict JSON shapes, not Python object representations.
-Every object has exactly its listed keys. Hashes/IDs are lowercase 64-hex;
-run/attempt/nonce/generation tokens are 32-hex unless a generation is explicitly
-a monotonic integer. Integers reject booleans, sizes/counts are nonnegative and
-device/inode values are positive. All paths use the existing validated absolute
-provenance shape or the explicitly declared checkout-relative document shape;
-none grants permission to open a path. Map keys are strings; finite lists with
-set semantics are sorted by their identifying fields and reject duplicates.
-
-| Shape | Exact keys, representation and checks |
-| --- | --- |
-| Repository | `root`, `device`, `inode`, `uid`; validated checkout root and pinned directory identity, authenticated owner UID. Relocated report storage does not change it; another checkout cannot adopt it. |
-| Caller | `uid`, `gid`; derived authenticated nonnegative integers, never request-supplied authority. |
-| Directory identity | `device`, `inode`, `mode`, `uid`, `gid`; exact pinned stat values, existing private directory/mount guards apply. |
-| Owner | `repository_sha256`, `caller`, `journal`, `identity`; hash of Repository, Caller object, trusted journal directory provenance and Directory identity. Revalidate against its held owner descriptor; a JSON copy is no authority. |
-| Allocation | Existing v1 bundle allocation: `path`, `device`, `inode`, `mode`, `journal`, `run`; mode is integer `448` (0700), valid journal run token, existing allocator/ownership/identity checks. |
-| File identity | Existing `evidence_bundle.fingerprint` ten-integer list in exact order: device, inode, full mode, UID, GID, link count, byte length, mtime_ns, ctime_ns, blocks. Regular single-link file, allocated bytes = blocks × 512. |
-| Record reference | `record_id`, `closure_sha256`; sorted unique list by record ID. `dependencies` uses these objects, not tuple keys. |
-| Member selector | `record_id`, `member_id`, `closure_sha256`; exact immutable logical closure. |
-| Consumer revision | `consumer_id`, `revision_sha256`; consumer ID hashes owner plus its stable workflow/document/check key, revision binds exact claim/role/assertions. |
-| Capture producer | `repository`, `caller`, `owner`, `run`, `attempt`, `nonce`; the reusable objects above plus issued tokens. Target is bound in the record context and authenticated registration. |
-| Sealed request | `owner`, `allocation`, `mappings`; independent finished Owner and Allocation, mappings are the exact sealed mapping objects specified in the capture protocol, sorted by member ID. Their `identity` is the sealed File identity; original File identity is retained in `member_map.original_provenance`. |
-| Segment entries | External entries retain exactly `id`, `bundle`, `sha256`, `selection_sha256`, `allocation`; ID is `00`, `01` or `02`, bundle is exact segment directory provenance, allocation uses Allocation. Ledger entries retain only `id`, `record_ids` (sorted unique). |
-| Cleanup scope | `owner`, `resources`; resources are sorted unique objects `kind`, `id`, `disposition`, with kind the registered resource type, ID its owning contract's exact selector, disposition `cleaned`, `preserved` or `not_owned`. Explicitly preserved maintenance scenes cannot imply restored/off state. `record_members` is a sorted unique member-ID list. |
-
-
-### Exact references and planned interfaces
-
-Structured Markdown destinations are relative to the containing file:
-`RELATIVE-LOCATOR#onpc-evidence-v1:RECORD_ID:MEMBER_ID:CLOSURE_SHA256`.
-The three fields are lowercase 64-hex values with no optional components. The
-reserved fragment is a structured selector, not a Markdown heading. Resolve
-the locator lexically inside the validated checkout, pin its identity and verify
-the ledger/segment/member plus the consumer's expected context. Do not strip the
-fragment before semantic checking. Ordinary anchors retain normal Markdown
-semantics. The destination may change after relocation; the selector must not.
-Links choose a specific result or supporting member; a generic locator remains
-legacy navigation and supplies no new exact-check proof.
-
-The consumer declaration schema `onpc-evidence-consumer`, version `1`, contains
-exactly `schema`, `version`, `consumer_id`, `owner`, `revision_sha256`, `role`,
-`expected_context`, `references`, `state`. Revision hashes the original claim
-bytes, role and required assertions; expected context fixes task/check/attempt/
-target/input/source requirements for evidence. Each reference is discriminated:
-`{kind:evidence,record_id,member_id,closure_sha256}` or
-`{kind:document,destination,fragment}`. Document destinations resolve relative to
-the declaring document inside the checkout; their context is the instruction or
-presentation contract, not an invented check attempt. Document references confer
-no evidence acceptance. Role is `required_evidence`, `required_instruction`,
-`optional_presentation`, `historical_information`, `example` or `operational_path`;
-state is `working`, `suspended`, `accepted` or `released`. Declaration owner is the
-validated plan/check/catalogue owner, never arbitrary prose. Existing required
-instructions/evidence stay required when no valid declaration exists. Queue
-claim bytes and protected checkpoint fields retain their stronger existing guard.
-
-### E01a review record
-
-Three bounded GPT-6.1 Sol High audits and correction reviews covered producer,
-retirement, reference and compatibility boundaries. Their accepted historical
-record remains in the queue's verified plan evidence. Their approval supplied no
-runtime acceptance; the implementation direction now replaces the speculative
-custody and collection mechanisms.
-
-## E01b delivery freeze
-
-E01b independently reviewed the original proposal on 2026-10-21. Preserve the
-completed queue row and its exact historical evidence. That review did not
-implement runtime behavior or make every proposed mechanism necessary.
-
-### Frozen delivery allocation
-
-The current queue directly owns delivery: E03p-auth/E03p-capture/E03 capture;
-E04 lifetime and capacity; E05/E05a reuse and selected reads; E06/E06a producers;
-E07/E07a consumers; E08–E10 references and relevance; E11–E13 legacy work;
-E14 composition and E14a independent final review. P01–P12 and every inventoried
-producer/consumer and applicable retirement route remain assigned to those rows.
-There are no prescribed future insertion blocks.
-
-### Frozen insertion guard review
-
-The former six insertion blocks and thirteen unactivated briefs are retired.
-Existing generic prerequisite, unchanged-scope, cleanup and suspended-consumer
-regressions remain required. Removing a speculative allocation supplies no task
-completion, broader authority or extra session allowance.
-
-### E01b independent review record
-
-The historical self-contained GPT-6.1 Sol xHigh source/design review approved the
-then-current proposal after corrections. Its 759 metadata/guard checks and later
-12 insertion-metadata checks are historical, not current infrastructure delivery.
-The completed queue retains their verified evidence and claims. The obsolete
-freeze-specific metadata test can retire with those blocks; generic runtime
-transition and cleanup tests stay.
-
-## Investigated failures and remaining exposure
-
-Repository history and existing regressions show several distinct causes.
-Commit IDs are historical source references, not passing test evidence. E01
-rechecks complete changes and callers rather than relying on commit titles.
-
-| Historical source | Finding | Required prevention |
-| --- | --- | --- |
-| `4cf81254` (2026-09-16), `test_regression.py` | Missing evidence-directory initialization blocked a run | Initialize and register atomically; test clean first use as well as reuse |
-| `7e3f4698` (2026-09-23), storage-migration regressions | Test output moved from system temporary paths into shared storage | Use shared allocation and explicit legacy readers; never guess or reconstruct roots |
-| `f1270ba7` (2026-09-28), `test_dev_tool_installation.py` | Installed helpers were bound to an absolute checkout path, breaking worktrees | Resolve the invoking checkout through the validated helper and retain repository identity |
-| `e420ac4e` (2026-10-04), retained export guidance in `tests/README.md` | Repeated exports can evict other reports still needed for close-out; the commit documented this exposure | E03/E05/E06 deliver capture before rotation and reusable exports; retain the existing guidance until delivered |
-| `0a87b716` (2026-10-06), `test_recovery.py` and retention cleanup-safety regressions | Startup recovery can retire an oversized completed execution allocation outside ordinary count rotation | E04 covers automatic host/privileged recovery as well as ordinary pruning; failed or unacknowledged required capture must preserve the original |
-| `31c8c32c` (2026-10-11), `repair_evidence.py` and `test_fix_tests.py` | Original reports and command records can disappear during repair; retained diagnostic tails are bounded and partial | E07a reuses snapshots for diagnosis, preserves truncation/refusal status and never substitutes tails for complete proof |
-| `c8fbcd58` (2026-10-17), recovery-diagnostic bundle regressions | Shared and selected-target diagnostic journals needed export discovery; first export and absent optional storage needed distinct handling | E01 inventories `qualification_storage.recovery_session()` and `vm_probe` producers; E06a captures their finalized records while retaining diagnostic status and existing refusal checks |
-| `41f23bfd` (2026-10-18), checkpoint and repair regressions | Another invocation can replace a repair's selector checkpoint | E07a retains original selectors and existing host-only replay; malformed state and VM/mixed mismatch keep their refusals |
-| `ac5573ff` (2026-10-19), execution-plan regressions | Legitimate destination-only evidence repairs could violate protected queue comparisons | Normalize only proven reference bookkeeping; protect claims, scope, completion and checkpoint ownership |
-| `71473c09` (2026-10-20), `test_plan_evidence.py` and recovery tests | Accepted proof needed preservation beyond disposable sessions; stale controllers complicated recovery | Extend existing cumulative publication and restart recovery instead of another archive/launcher state machine |
-| `502181f1` (2026-10-20), reference-parsing regressions | Sentence punctuation could become part of an evidence path | Generate structured references and share a tested parser; distinguish literal filename punctuation |
-| `3e5cb3f3` (2026-10-20), bundle/helper/plan regressions | Interrupted publication and missing-reference renewal needed exact resumable handling | Separate missing proof from access/integrity refusal; preserve transaction and original attempt across restarts |
-| `009f719c` (2026-10-20), verified-record regressions | Repeated archive verification made startup unnecessarily expensive | Verify once per pinned read scope, invalidate on mutation, never trust an unchecked cached path |
-| `2ddcf5f7` (2026-10-20), retention/bundle regressions | Concurrent finished evidence readers were incorrectly exclusive | Shared read ownership; publication/cleanup excludes readers and writers in a defined lock order |
-| `dbf40859` (2026-10-21), prerequisite/capacity recovery regressions | A failed capacity attempt can leave partial queue edits or a removed brief before a usable response exists | E07 preserves captured inputs, suspended work and session accounting through the existing recovery route; private fixtures simulate failures without starting a model |
-
-Current [retention](../../tests/README.md#aggregate-output-retention) explicitly
-warns that every ordinary export consumes a session and can evict another report.
-The existing [plan evidence](../../tools/plan_evidence.py) captures explicit
-result-check references and the selected queue row; reference rewriting is
-limited to selected or previously completed queue Estimate cells. References in
-design modules, catalogue prose and other consumers can remain disposable.
-The [document checker](../../tools/document_checks.py) checks inline destination
-existence, not matching result identity, reference-style links or fragments.
-The developer reported another occurrence during this plan's authoring: two
-earlier report links expired and retained-copy investigation began while an
-installed check was still running. Reproduce that ordering with private host
-fixtures: an unrelated synthetic check remains active while both legacy
-references resolve from exact retained members. Never interpret that as authority
-to inspect or publish the unrelated active owner's mutable allocation.
-The developer also reported an older evidence link expiring when a new run
-rotated local reports. E06/E14 must reproduce that startup ordering through the
-[required regression histories](#required-regression-histories), including a
-failed capture whose original remains required. These incidents need prevention
-at producer and retirement boundaries, beyond a destination repair after loss.
-
-The [kiosk verification record](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits)
-also discloses raw system allocations rotated before archival despite surviving
-host reports. These losses show that a summary or generic accepted locator cannot
-replace the original result/JUnit/TAP/input/cleanup records. Large historical
-bundles also approach the finite file limit; copying every old generation
-indefinitely is not a capacity strategy. Treat each existing fix as a retained
-regression, not an instruction to implement the same fix again.
-
-## E01 source and history audit
-
-Audit baseline: 2026-10-21. All fifteen commits above resolve and their changes
-and current complete functions/callers were reviewed. The following maps record
-source findings, not new runtime passes or implementation of this proposal.
-Existing tests are named for reuse; E01 did not rerun historical suites. Paths in
-the maps are checkout-relative. These are the original audit snapshots; the implementation direction and
-owning runtime contracts determine current mechanisms and delivered status.
-
-### Historical fixes to reuse
-
-Test names in this table are existing functions in the named module. The planned
-histories below cover the remaining exposure rather than reimplementing fixes.
-
-| History | Current source boundary | Existing regression anchors | Disposition |
-| --- | --- | --- | --- |
-| `4cf81254` | `tools/regression.py`: `Report.__init__`, `retained_main` | `tests/unit/test_regression.py`: `test_report_initialization_failure_exposes_cause`, `test_report_rejects_symlinked_parent`, `test_final_investigation_prompt_links_closed_report` | Reuse parent creation, refusal and useful diagnostics. Directory creation precedes `retain()`; this fix did not supply atomic registration or finalized capture. E06 owns P01 below. |
-| `7e3f4698` | `tools/test_storage.py`, `tools/test_retention.py` and migration/report callers | `tests/unit/test_test_storage_cleanup_safety.py`: `test_allocator_redirects_bulk_tmp_outputs`, `test_legacy_retention_is_preserved_and_live_or_unfinished_owners_refuse`; `tests/unit/test_storage_migration_cleanup_safety.py`: `test_successful_migration_preserves_diagnostics_before_removal`, `test_copy_failure_preserves_entire_original` | Reuse shared roots and identity-checked legacy migration. E11/E12 use finite known references, without reconstructing roots or adopting old allocations. |
-| `f1270ba7` | Invoking-checkout resolution in `tools/dev_checkout.py` and installed helper entry points | `tests/unit/test_dev_tool_installation.py`: `test_same_installed_helper_follows_two_repositories`, `test_checkout_resolver_refuses_unsafe_inputs`, `test_rendered_dispatcher_resolves_checkout_and_pins_uuid` | Reuse resolver; E02/E05 preserve repository identity. No new helper-binding mechanism. |
-| `e420ac4e` | `tests/README.md` export guidance; `tools/evidence_bundle.py`: `export` | This commit documents exposure; it supplies no export-reuse regression. | Every ordinary export still consumes a session; bundle export still allocates a publication. E03/E05/E06 own P01/P03/P04. |
-| `0a87b716` | `Store.reconcile`, host `tools/test_recovery.py`, privileged `tests/integration/check_test_recovery.py` | `tests/unit/test_test_retention_cleanup_safety.py`: `test_execution_recovery_retires_only_verified_oversized_evidence`, `test_execution_recovery_keeps_completed_evidence_within_budget`, `test_host_preflight_automatically_retires_oversized_completed_evidence`, `test_privileged_preflight_retires_oversized_run_under_vm_leases` | Preserve oversized disposable retirement and live-reference/lease refusals. Required-proof acknowledgement is absent; E04 owns P02 at every retirement boundary. |
-| `31c8c32c` | `tools/repair_evidence.py`: `capture`; `tools/fix_tests.py`: `handoff` | `tests/unit/test_fix_tests.py`: `test_failure_context_survives_original_report_and_command_removal`, `test_failure_context_bounds_data_and_refuses_linked_sources`, `test_failure_context_uses_scoped_privileged_reader`, `test_failure_context_does_not_retry_a_denied_reader` | Reuse bounded diagnostic snapshots in E07a/P07. Preserve `bounded_tails`, `may_be_truncated`, `read_failures`, `limit_reached`; 4 MiB total, 128 KiB/file and 64-file limits do not establish complete proof. |
-| `c8fbcd58` | `evidence_bundle.Selection.catalogue`, `verify_stream`; recovery producers below | `tests/unit/test_evidence_bundle.py`: `test_catalogue_includes_only_selected_targets_host_and_guest_journals`, `test_host_only_catalogue_without_privileged_storage`, `test_recovery_diagnostic_samples_survive_rotation` | Reuse selected-target discovery and optional-storage distinctions. The rotation fixture substitutes a journal name; it does not exercise `recovery_session()`/`vm_probe`. E06a owns P06. |
-| `41f23bfd` | `tools/test_checkpoint.py`: `Checkpoint.__init__`; `fix_tests.worker` host replay | `tests/unit/test_fix_tests_cleanup_safety.py`: `test_repair_replays_original_selection_after_another_run_replaces_checkpoint`, `test_repair_does_not_reset_an_invalid_checkpoint`, `test_vm_repair_does_not_reset_checkpoints_after_selection_mismatch`; `tests/unit/test_test_checkpoint.py`: `test_changed_selection_does_not_mask_invalid_saved_progress` | Reuse unchanged host selector replay in E07a/P07. Malformed checkpoints and VM/mixed selections retain refusal. |
-| `ac5573ff` | `tools/execution_plan.py`: `evidence_references`, `closeout_structure`; launcher transition/recovery | `tests/unit/test_execution_plan_launcher.py`: `test_completed_evidence_destinations_allow_transition_and_recovery`, `test_completed_evidence_repair_preserves_every_other_obligation`, `test_completed_evidence_repair_survives_retained_restart` | Reuse proven destination-only normalization. E07/E09/P08 preserve labels, scope, order, completion and controller ownership. |
-| `71473c09` | `tools/plan_evidence.py`: `capture`, `carry`, `preserve`, `recover`, `rewrite_references`; `tools/plan_evidence_recovery.py` | `tests/unit/test_plan_evidence.py`: `test_exact_proof_survives_more_than_three_later_sessions_and_independent_exports`, `test_unfinished_inputs_survive_more_than_three_restarts`, `test_suspended_inputs_survive_prerequisite_rotations_without_sessions_or_git_changes`, `test_queue_rewrite_changes_only_proven_selected_estimate_destinations`; `tests/unit/test_plan_evidence_recovery.py`: `test_controller_corrects_only_reviewed_links_and_preserves_checkpoint`, `test_interrupted_controller_publication_resumes_exact_transaction` | Reuse cumulative proof, exact inputs, suspended carry and authorized historical disclosures. E03/E07/E09 extend this route; generic locator rewriting is not an exact check selector. |
-| `502181f1` | `plan_evidence._references` delimited destinations and bare prose parsing | `tests/unit/test_plan_evidence.py`: `test_prose_report_references_publish_exact_evidence`, `test_delimited_report_paths_preserve_literal_punctuation`, `test_link_labels_are_not_evidence_sources`, `test_queue_prose_and_relative_links_preserve_one_exact_source`, `test_missing_prose_report_still_refuses_publication` | Reuse punctuation/literal-filename distinction. E02/E08/E09 own structured selectors and shared parsing in P08/P09. |
-| `3e5cb3f3` | `evidence_bundle.EvidenceUnavailable`, `Selection.load`, `reference_present`; `plan_evidence._source`, `preserve`, `carry`; helper dispatch | `tests/unit/test_plan_evidence.py`: `test_rotated_reference_uses_only_exact_verified_selected_bundle`, `test_expired_references_name_every_missing_path_without_acceptance`, `test_target_helper_only_renews_explicit_structured_missing_references`, `test_evidence_renewal_keeps_exact_rejected_source_across_bounded_rotation`, `test_failed_publication_pending_source_survives_more_than_three_new_runs`; `tests/unit/test_evidence_bundle.py`: `test_public_recovery_removes_only_recorded_incomplete_stage` | Reuse exact missing-reference renewal and interrupted staging recovery. Access/integrity/ownership refusals remain distinct. E04/E07 extend through P02/P08. |
-| `009f719c` | `evidence_bundle.verified_record`; `plan_evidence._verified_ledger` | `tests/unit/test_evidence_bundle.py`: `test_verified_record_reuses_one_open_archive_for_bounded_reads`, `test_verified_record_refuses_mutation_during_read_scope`; `tests/unit/test_plan_evidence.py`: `test_startup_verifies_cumulative_archive_once_per_recovery` | Reuse one pinned verified read scope in E05/P04. No unchecked cross-scope cache. |
-| `2ddcf5f7` | `Store.inspection` shared ownership and bundle read callers | `tests/unit/test_evidence_bundle.py`: `test_bundle_reads_overlap_without_rejecting_another_reader` | Reuse overlapping finished readers. E05a/P05 still must avoid eager inspection of an unrelated active journal. |
-| `dbf40859` | `tools/launcher_runtime.py`: `capacity_session_recovery`, `capacity_retry`; launcher worker/recovery and missing-brief recovery parsing | `tests/unit/test_execution_plan_launcher.py`: `test_capacity_retry_requires_exact_provider_failure_and_clean_supervisor_exit`, `test_capacity_recovery_preserves_prerequisite_and_suspended_consumer`, `test_capacity_restart_restores_removed_brief_on_default_model_with_fresh_retries`, `test_capacity_restart_keeps_identity_and_unrelated_queue_guards`, `test_capacity_restart_reconciles_partial_insertion_before_suspending_consumer` | Reuse exact failure classification, partial queue/brief recovery and counters. E07/P08 must compose real evidence; these controller fixtures stub evidence functions. |
-
-### Planned regression ledger
-
-P01–P12 are finite audit identifiers, not completion claims or command names,
-not runnable selectors or acceptance results. The current queue owns delivery;
-implementing rows register concrete test functions before invocation. Reuse the
-existing regression anchors for their distinct core guarantees under the
-[test scope mandate](../Mandates/Test-Scope-Mandate.md); a historical test name or
-count does not require retaining redundant or excluded coverage. Preserve product
-assertions, required safety outcomes and the three integration histories.
-
-| ID | Delivery owner | Required history |
-| --- | --- | --- |
-| P01 | E06, E14 composition | Real aggregate/category/worker/standalone report finalization; complete result, input, command, JUnit/TAP where applicable and cleanup closure; more than three startup runs actually remove A's path; exact archived resolution with A invoked once. Include clean first allocation/registration failure and failed/interrupted attempts. |
-| P02 | E04, E14 composition | Each retirement boundary below retains required originals after failed capture, pending/stale acknowledgement, capacity refusal or interruption; only matching durable closure releases them. Unreferenced oversized disposable output still retires. |
-| P03 | E03 | Authenticated producer/attempt handoff of an immutable finalized subset; changed source, foreign/active owner, cancellation and failure at every durable transition preserve prior proof and resumable ownership. |
-| P04 | E05 | Same verified source/selection reuses one private export/receipt without another slot; changed/missing export refuses reuse; distinct same-basename/provenance remains distinct; grouped publication, shared readers and pinned verification retain limits. |
-| P05 | E05a, E07/E14 composition | Required history 2 below through actual authenticated `bundle-plan` dispatch, real catalogue/load/inspection locks and two absent original paths while the same target has an unrelated active producer. Keep missing, corrupt, denied, wrong identity and actual active-source cases distinct. |
-| P06 | E06a | Qualification and E2E collector finalization plus actual shared/target `recovery_session()`/`vm_probe` producer call chains, including failed/interrupted diagnostics, optional absent storage and exact cleanup/target provenance. Diagnostics never become acceptance. |
-| P07 | E07a | Repair snapshots/original selector replay and E2E retries/continuations preserve original attempts, partial status and exact proof; malformed/VM selector mismatch refuses; no new model or VM execution in fixtures. |
-| P08 | E07, E07a specialized integration | Real capture/carry/preserve/recovery through continuation, suspension, capacity partial edits, missing-proof renewal, rejected response and accepted Git retry; protect queue claims, original inputs/counters and cleanup. Disable synthetic evidence stubs for composed histories. |
-| P09 | E02 identity; E08 parsing; E09 semantics; E10 gates | Exact check/attempt/target/input/member identity; wrong-but-existing destinations refuse. Relative/reference-style links, fragments, sentence versus literal punctuation, examples/code exclusions, claim changes and required/optional declarations retain typed severity precedence. |
-| P10 | E11 inventory, E12 migration, E13 history | Finite tracked/document catalogue; exact live/archive match, ambiguous/wrong destination and unavailable proof; preview/apply refuses changed bytes/digests or protected claims; unchanged historical debt is nonpassing and does not repeatedly block unrelated work. |
-| P11 | E02 onward in each introducing row; E07/E14 composition | Mutate every registered dependency's actual bytes with the real fingerprint reader feeding worker; include a newly extracted dependency while original eight stay unchanged. Stop before next task, corrective session or blocked-answer continuation; preserve exact result, inputs, counters and ownership; unchanged bytes do not restart. |
-| P12 | E03/E04 accounting, E14 composition | Simultaneous old/staging/new/receipt/recovery capacity, near file/manifest limits, bounded cumulative replacement and interruption; refuse before destructive rotation, preserve current proof, no multiplied owner budgets or silently dropped members. |
-
-### Producer and consumer inventory
-
-This is a finite source inventory, not a scan of live journals or local evidence.
-Each row names its delivery owner and planned regression ledger entries. Shared
-mechanisms E02–E05 apply to every captured producer without changing verdicts.
-
-| Family | Current producer/consumer route and lifetime | Delivery and retained coverage |
-| --- | --- | --- |
-| Ordinary file exports | `tools/onpc-test-artifacts`: authenticated `export` drops to caller; new `exports/retention` session each time, unchanged source, private destination, no reuse receipt/dependency registration. | E05/P04; E03/P03, E04/P02. Reuse `tests/unit/test_test_artifacts.py::test_reads_and_exports_any_format_without_changing_source`. |
-| Qualification and plan bundles | `tools/evidence_bundle.py`: `Selection.catalogue/load`, `export`, `inspect`, `verified_record`, `finish`, `recover`; shared finished-source inspection, independent publication owner, exact original member provenance and verified receipt. Plan namespace is distinct from ordinary export journal. | E02–E05/P02–P04/P09/P12; E05a/P05. Reuse `tests/unit/test_evidence_bundle.py`: `test_multiple_allocations_preserve_exact_bytes_manifest_and_sources`, `test_cumulative_bundle_survives_source_and_export_rotation`, `test_plan_references_reuse_only_verified_exact_archived_members`. |
-| Aggregate/category/worker reports | `tools/regression.py`: `Report`, `Execution`, `main/retained_main`; `tools/regression_process.py`: `host_run/category_run`; `tools/vm_test_queue.py`: `run`. Markdown, immutable inventories, progress/resources/schedule and category logs belong to report allocation; logs are children, not independent journal owners. Host, batch and selected-VM worker journals are distinct. | E06 delivers exact closed command ledgers and terminal capture through `tools/runner_evidence.py`, after failure handoff/recording cleanup. Batch joins retain verified worker references under their own owner. Process/category dispatch remains a streaming child of that report; inspection routes produce no execution proof. Package inputs, coverage and UI output allocations retain the applicable execution owner. P01 producer histories live in `tests/unit/test_runner_evidence.py`, with lifecycle/ledger checks in `tests/unit/test_regression.py` and batch routing checks in `tests/unit/test_vm_config.py`. |
-| Standalone reports | `Report.__init__` without an active token registers under `standalone-reports` and retains that live session through closed-file capture; checkout activity remains the outer lifetime owner. | E06/P01 delivers the first-use route as well as aggregate termination. Default close is diagnostic with pending cleanup; authoritative terminal status is supplied only by the runner. Exact cumulative references survive original report and publication generation rotation. |
-| Standalone qualifications/wrappers | `tests/integration/qualification_storage.py`: `session`; `check_graphical_smoke.py` and `check_e2e_watch.py` use selected privileged journal or reuse active session. Work directory and private collector are separately registered within that run. Installed-journey wrappers reuse the implementation. | E06a/P06; `tests/unit/test_qualification_storage_cleanup_safety.py`: `test_standalone_qualifications_rotate_both_work_and_collector`, `test_nested_qualification_joins_existing_run`. No installed qualification in this plan. |
-| System results | `tests/integration/system_runner.py`: `selection_evidence`, `evidence`, `main`; registered system root holds result, JUnit/TAP, selected inputs, guest output, commands and cleanup ledger. A readable child/summary is not the full private closure. | E06a/P06 with E06 runner integration/P01. Retain exact-member bundle coverage above; add real producer closure rather than summary-only fixtures. |
-| E2E collectors | `tests/e2e/private_artifacts.py`: `PrivateCollector`; `tests/e2e/execution.py`: `attempt`; recording/evidence callers register separate evidence root. Collector close releases descriptor, not retention; final candidate may precede cleanup failure. | E06a/P06, E07a/P07; `tests/unit/test_e2e_evidence.py`: `test_real_collector_sync_order_and_failure_precede_registration`, `test_final_gate_rechecks_copies_and_rejects_unregistered_worker_files`, `test_retained_failure_report_tampering_prevents_later_acceptance`, `test_first_failure_survives_cleanup_and_cannot_be_replaced_by_retry`. Capture final returned ledger status. |
-| Shared/target recovery diagnostics | `qualification_storage.recovery_session`; `tests/integration/check_graphical_recovery.py`, `baseline_guest.py` and `vm_probe.py` callers listed below. Separate `recovery-diagnostics-<uid>[-target]` owner; interrupted diagnostic runs may recover for rotation without clearing unfinished execution journal. | E06a/P06; `test_qualification_storage_cleanup_safety.py::test_recovery_diagnostics_rotate_without_changing_unfinished_vm_journal` plus catalogue/rotation anchors above. Preserve failure/partial diagnostics and native-log availability; no acceptance promotion. |
-| Reconnect/workflow logs | `tools/regression_session.py`: `_select`; `tools/detached_launcher.py`: `select`, session/start/carry callbacks. Registration rings differ from execution journals; resumable startup keeps exact pending-start identity. | E07/P08, E07a/P07; reuse `test_execution_plan_launcher.py`: `test_resumable_start_retries_same_registered_run_without_rotating_source`, `test_pending_partial_carry_over_budget_refuses_before_any_retention_prune`. |
-| Ordinary/derived plan proof | `tools/execute-plan`, `reliability-plan`, `kiosk-prompt`, `kiosk-desktop`, `kiosk-prompt-new`, `fixture` all use `plan_launcher.PlanWorkflow/main`. `plan_evidence.capture/carry/preserve/recover` freezes selected inputs and accepted cumulative proof; `plan_evidence_recovery` owns protected startup correction. | E07/P08; reuse historical accepted/carry/recovery tests plus `test_execution_plan_launcher.py::test_plan_adapter_default_check_has_no_execution_side_effects`. All adapters need a composition disposition, not separate evidence engines. |
-| Ordinary accepted Git retry | `plan_launcher.closeout`, `launcher_git` ownership/pull/stage/finish preserve accepted result before Git. Unfinished Git transaction cannot renew missing proof. | E07/P08; `tests/unit/test_plan_evidence.py::test_git_retry_reuses_only_the_exact_verified_result`; `test_execution_plan_launcher.py::test_unavailable_proof_does_not_renew_across_git_transaction`. |
-| Repair diagnosis and verification | `tools/fix_tests.py`: `handoff`, worker verification/diagnostic paths; `repair_evidence.capture` stores bounded snapshots within workflow run. Verification uses reported identities; unknown/unexecuted records remain nonpassing. | E07a/P07/P08; retain snapshot/selector tests above and `tests/unit/test_fix_tests.py`: `test_verification_uses_all_reported_identities_but_never_infers_unreported_passes`, `test_case_handoffs_do_not_cross_cases_or_vms_or_aggregate_companions`. |
-| Specialized E2E launcher | `tools/write_e2e.py`: `acceptance_evidence`, `validate_progress`, `accept_result`, `recover_completion`; formal live evidence differs from diagnosis/promotion and does not currently use ordinary `plan_evidence`. | E07a/P07/P08; retain `tests/unit/test_write_e2e.py`: `test_diagnostic_rounds_preserve_formal_failure_and_next_same_checkpoint_promotion`, `test_non_live_handoffs_preserve_failure_for_diagnosis_and_repair`, `test_retained_completion_cannot_bypass_acceptance_or_staging`, `test_push_failure_retries_existing_commit_before_counting_completion`. |
-| Document check evidence strings | `plan_evidence._references` reads result `checks[].evidence` and selected queue row; legacy prose/link/code paths are potential sources. | E02/E07/E09/P09; reuse literal punctuation, link-label and missing-reference tests above. |
-| Queue cells | `rewrite_references` changes only proven simple inline destinations in selected or previously completed Estimate cells. Unfinished/suspended claims have no generic repair exception. Labels, surrounding claims, count, Scope/Requires and completion remain protected. | E07/E09, E12/P08–P10; reuse `test_plan_evidence.py::test_queue_rewrite_retains_verified_completed_proof_and_leaves_unfinished_or_unproven_links` and protected transition/recovery tests above. |
-| Briefs, master and handoffs | Exact input snapshots and capsule result/prompt/commands/cleanup survive, but references embedded in their prose are not all semantically validated. | E07/E07a lifecycle, E09/P08/P09; E11 tracked inventory/P10. |
-| Catalogue/design/specification prose and report links | Building-block/coverage/kiosk verification records and other prose are outside reference capture unless repeated in a selected row/check. `document_checks.check_links` checks local inline/reference destinations and Markdown fragments; evidence semantics remain separate. | E08/E09/P09; E11 catalogue, E12 guarded migration, E13 unavailable history/P10. No invented historical proof or new product passes. |
-| Required instruction links, examples and operational paths | `tools/document_checks.py`: `references/local_destination/evidence_prose/check_links`; `tools/read-only` dispatch. Examples and link labels are masked; explicit code-delimited paths remain possible legacy evidence in `plan_evidence`. Role must come from owning declaration, not global exclusion. | E08/E09/E10/P09. Shared parser coverage lives in `tests/unit/test_document_checks.py`; consumer tests retain command safety and the narrower protected-claim boundary without repeating the syntax matrix. |
-| Separate media and disposable storage | `tools/recording_storage.py` latest-only publication; screenshot export/cleanup has its own narrow contract. `test_storage` scratch/runtime is disposable and identity/lease-owned, never required-proof storage. | Preserve separate lifetime policies. E06a/E09/E11 classify media references and required media closure; E04/P02 must not create unlimited pins or silently drop required media. Scratch/VM backup/lifecycle state is outside proof capture. |
-
-The finite direct `tests/integration/vm_probe.py` diagnostic producers are
-`reproduce_kiosk_refusal`, `probe_kiosk_latency`, `probe_kiosk_prompt_latency`,
-`probe_kiosk_approval`, `probe_revoke_balances`, `probe_retained_app_launch`,
-`probe_riley_native_grid`, `probe_remembered_return`, `probe_transfer_refusal`,
-`probe_lock_curtain`, shared `reproduce_denial` and
-`prepare_maintenance_transport`. Fixed remembered-return/repeat/entry and
-retained-unlock callers reuse `reproduce_denial`; they are not new storage owners.
-Their observed/timing JSON, JSONL observations, refusal/boundary status, commands,
-copied inputs and optional native-log status can be partial on failure.
-`baseline_guest` retains only a 16-KiB preparation-log tail. E06a/P06 must retain
-these limits and status, rather than treating a discovered directory as complete.
-
-### Retirement entry points
-
-E03p-capture adds owner-local pending-source refusal to the applicable shared
-retirement routes below. Acknowledged retirement pins the independently verified
-replacement before taking the source writer and preserves the private parent
-claim through partial source/slot cleanup. E04/P02 still owns broader required-proof
-lifetimes; E05/P04 owns further export reuse and E03/P03 owns producer lifecycle
-composition. The inventory retains the original ownership and recovery anchors.
-Explicit discard still requires its existing specific authority. This audit
-grants no discard or live cleanup permission.
-
-Unless noted, `Store`/`Publication` are in `tools/test_retention.py`; regression
-names are in `tests/unit/test_test_retention_cleanup_safety.py`.
-
-| Entry and callers | Owner, locks and present gate | Recovery and retained regression anchors |
-| --- | --- | --- |
-| `Store.session` start/finalization; ordinary producers, export, workflow and qualification sessions | Exclusive nonblocking owner, serialized writer, optional lifecycle guard. Calls `prune`, but also directly removes old runs at count admission; finished marker/state and allocation identity audited. | Both direct deletion and prune need dependency checks. Reuse `test_one_hundred_runs_have_constant_retained_size`, `test_same_run_keeps_all_vm_categories_until_fourth_run`, `test_active_owner_is_not_rotated`. |
-| `Store.prune` count/byte expiry | Owning locked writer; latest allocation claim, mount/identity audit; small recovery receipts expire with run. Oversized current is preserved at finalization. | Preserve current refusal/diagnostics and retry; `tests/unit/test_test_storage_cleanup_safety.py`: `test_current_oversized_evidence_is_preserved_and_reported`, `test_budget_diagnostic_failure_keeps_the_original_refusal`. |
-| `Store.reconcile`; host `tools/test_recovery.py`: `cleanup_host/cleanup`; reconnect `regression_session._select` | Checkout activity then owner/writer, recovery guard. Archives unfinished journal/marker before finished-state commit. Host execution supplies `completed_guard=lambda paths: None`; workflow/diagnostic owners do not opt into oversized execution deletion. | Recovery is retryable without adopting replacements. `test_idle_reconciliation_retries_after_marker_archive_and_failed_commit`, `test_idle_reconciliation_preserves_evidence_and_refuses_unsafe_recovery`, host oversized/startup tests above. |
-| Privileged startup `tests/integration/check_test_recovery.py`: `main` | First `reconcile(reconcile_vm, completed_guard=unused, lease=retention_lease)`; then a **separate** owner/lease/writer `prune(keep=2, completed_guard=unused)` before memory admission. Compatibility/named VM leases span live-reference audit/deletion. | Both calls need dependency gates. Preserve verified VM recovery and live-reference refusal; privileged oversized regression above. Host-private fixtures simulate these boundaries; no VM action here. |
-| `Publication.commit`, `Store.finish_publication`, module-level `recover_publication`, bundle `export/finish/recover` | Independent exclusive owner/writer, recorded staging intent, projected and actual simultaneous budgets; ordinary writers refuse pending publication. Deferred commit leaves durable retirement receipt. | Preparing recovery removes only exact stage; committed finish/recovery verifies payload before exact superseded retirement. Reuse `test_publication_failure_preserves_three_exports_then_commit_rotates`, `test_publication_recovers_durable_intent_without_losing_exports`, `test_committed_publication_verifies_payload_before_retirement_and_retries`, `test_deferred_publication_is_durable_inspectable_and_finishes_exact_retirement`. |
-| Plan accepted publication `plan_evidence.preserve/recover` | Separate plan owner/publication; verified cumulative ledger and stable locator must precede old-generation retirement. Foreign locator/owner changes refuse. | Reuse `tests/unit/test_plan_evidence.py`: `test_committed_interruption_recovers_index_before_retiring_old_proof`, `test_foreign_index_change_blocks_committed_recovery_and_preserves_payloads`, `test_changed_publication_owner_refuses_before_index_replacement`. E04/E07 retain this order. |
-| `Store.discard_completed`; `tools/cleanup_e2e.py`; `tests/integration/check_retained_runs_cleanup.py` | Explicit selected execution discard only; activity/owner/writer, completed/unmarked owner, full identity audit; privileged recovery plus leases/live-reference guard. Workflow/diagnostic journals excluded. | Journal survives partial deletion for retry. `test_explicit_discard_audits_every_allocation_before_deletion`, `test_explicit_discard_retries_partial_deletion_and_uses_latest_registration`, `test_host_discard_leaves_vm_and_workflow_stores_untouched`. |
-| `Store.discard_unpublished_input`; `cleanup_e2e.py` selected unpublished-input recovery | Derived exact qualification input, activity/owner/writer, finished/unmarked journal, absent completion manifest, latest recorded identity. No published/unknown/replaced adoption. | Exact retry after partial deletion; `test_unpublished_input_recovery_refuses_unsafe_or_published_inputs`, `test_unpublished_input_recovery_retries_partial_deletion_and_latest_identity`. Preserve this scoped route in E04. |
-| `tools/test_input_transfer.py`; `latest_allocations` claim retirement | Two-owner durable transaction and writer mutation guard. Retires cleanup claim, **not payload**; ordinary reads/writes using writer lock refuse pending intent. | Identical transfer resumes both commits; no older claim resurrection. `test_retirement_never_resurrects_an_older_claim_and_invalid_receipts_refuse`, `test_pending_transfer_blocks_all_ordinary_retention_writers`. E04 preserves this dependency. |
-| Explicit legacy cleanup/migration | `tests/integration/check_tmp_storage_cleanup.py` finite manifest/live-reference/full audit; `check_storage_migration.py` verifies copied diagnostics before exact originals retire. Separate authority, no source-name sweep. | Reuse `tests/unit/test_qualification_storage_cleanup_safety.py::test_legacy_cleanup_audits_everything_before_removing` and migration tests above. E11/E12 must not repurpose these into general proof deletion. |
-| Scratch/runtime and separate media retirement | `tools/test_storage.py` inherited owner FD, scratch initialization/reclamation receipts and exact runtime identity; recording/screenshot owners preserve their explicit exceptions. No required-proof retention session is implied. | Reuse `tests/unit/test_test_storage_cleanup_safety.py::test_interrupted_scratch_reclamation_keeps_external_identity`. E04 retains separation; captured media must have its independently declared lifetime. |
-
-Current capacity protections are narrower than required-proof preservation:
-ordinary sessions may expire older disposable records before discovering an
-oversized current run; finalization preserves that run, while execution startup
-can later retire it after verified recovery. Publications preflight existing plus
-projected payload and check actual old plus staging use; precommit failure leaves
-prior exports intact, committed failure resumes recorded retirement. Bundles
-remain limited to 60,000 files, 64-MiB manifest, depth 32 and 256 explicit
-selections, without a separate bundle byte ceiling. Identical records at the same
-original path deduplicate; identical bytes at different paths remain distinct
-members. Use bounded cumulative replacement and accounting; E03/E04/P12 deliver it without changing
-budgets or provenance merely to fit a campaign.
-
-### Controller dependency inventory
-
-`tools/plan_launcher.py::response_validator_sources` currently hashes exactly
-eight files: `plan_launcher.py`, `execution_plan.py`, `document_checks.py`,
-`launcher_runtime.py`, `plan_evidence.py`, `plan_evidence_recovery.py`,
-`evidence_bundle.py`, `detached_launcher.py`. Keep these. The following is the
-audited missing/conditional closure, not an automatic import/filesystem scan.
-Registration below is proposed delivery, not a change made by E01.
-
-| Source | Why retained decisions depend on it / exclusion | First delivery disposition |
-| --- | --- | --- |
-| `tools/test_retention.py` | `Selection.load` inspection; export publication/commit; plan publication recovery; detached startup allocation/rotation. | E02 register existing closure; E04/P02 lifetime changes, P11 restart check. |
-| `tools/test_storage.py` | `plan_parent/publication_parent` owner-private roots, `directory`, scratch descriptors and workflow allocation. | E02 register; E03/E04 changes/P11. |
-| `tools/test_input_transfer.py` | `Store.locked` invokes `mutation_guard` for writer lock except explicit transfer; affects proof inspection/publication admission as well as deletion. | E02 register; E04 preserve refusal/P11. |
-| `tools/launcher_git.py` | Direct `closeout` ownership, suspended baseline release, pull/stage/finish and accepted-result Git retry. Currently **unguarded**. | E02 register; E07/P08/P11. |
-| `tools/onpc-test-artifacts` | `plan_evidence.preserve` target helper authenticates caller, plan/target selection and structured unavailable versus refusal; affects renewal. | E02 explicit helper-source registration; E03/E05a/E07/P05/P11. E01a settles installed generated-helper identity. |
-| `tools/launcher_question.py` | Validates blocker and retains answer used for another session. | E02 register; E07 blocked-answer/P11. |
-| `tools/plan_reconciliation.py` | Startup split/consolidation validates retained queue/task/acceptance transfer. | E02 register; E07 recovery/P11. |
-| `tools/vm_selection.py`, `tests/integration/vm_config.py` | Ordinary command target binding and bundle catalogue registry validation; source identity relevance supplies no VM-operation authority. | E02 register relevant source closure; E01a distinguishes source from selected config/input identity, E07/P11. |
-| `tools/test_activity.py` | Runner ownership via `regression_session`, `test_launcher`, `test_recovery`; inherited descriptor identity/exclusion. Not directly imported by current ordinary controller. | E03 specifies owner-handoff API; E06 producer ownership. Exclude from ordinary in-process closure unless retained decisions import/use it; introducing task then registers/P11. |
-| `tools/repair_evidence.py`, `fix_tests.py`, `write_e2e.py` | Specialized controllers are not ordinary worker imports; their own lifecycle and acceptance policy remains authoritative. | E07a/P07/P11-equivalent supported safe boundary; no extra retries/budgets. |
-| Presentation/view/progress/watch modules | Exclude rendering-only behavior from proof validation inventory. Transport/supervisor changes supplying capture provenance require fresh disposition. | E01a freezes boundary; introducing row registers any new decision dependency/P11. |
-| Recording, package-input and VM-lifecycle modules | Conditional storage callers outside audited ordinary proof-root/scratch route; not included just because another storage function imports them. | E06a classifies media/qualification dependencies under their owners. No broad VM/product source watcher. |
-
-Planned extraction boundaries have **no registered filenames yet**: logical
-identity/member/context resolution (E02); authenticated finalized capture and
-acknowledgement (E03); dependency/retirement/capacity decisions (E04); shared
-Markdown parsing (E08); structured reference generation/semantics (E09); typed
-severity/consumer-role/debt policy (E10). Each introducing row must register its
-actual retained-decision modules and run P11 before close-out; E07 is composition,
-not deferred first protection.
-
-Existing `tests/unit/test_execution_plan_launcher.py` restart anchors are
-`test_rejected_result_stops_before_retrying_with_stale_validation_code`,
-`test_valid_result_source_change_stops_before_next_admission_or_blocked_wait`,
-`test_valid_continuation_source_change_reaches_fresh_startup_recovery`,
-`test_source_change_while_blocked_retains_answer_before_new_session` and
-`test_response_validator_sources_detects_content_changes_only`. The first four
-mock source dictionaries; the last changes real fixture bytes but tests the
-hasher separately. None substitutes for P11 connecting real bytes to worker
-decisions. The module's `synthetic_plan_evidence` autouse fixture also stubs
-capture/carry/preserve/recover/rewrite; P08/P11 composition must use real functions.
+Use private stores and simulated authentication boundaries with real capture,
+publication, selection and retention code. Reuse shared owner coverage under the
+[test scope mandate](../Mandates/Test-Scope-Mandate.md).
+
+1. Rotate an original report through more than three later runs and exports.
+   Resolve its exact retained bytes and dependencies without rerunning the check.
+   Failed capture or stale acknowledgement must preserve required originals;
+   unreferenced disposable output must still rotate.
+2. Resolve two expired reports from exact archived members while an unrelated
+   producer remains active. Preserve its journal and mutable files, and keep
+   missing, denied, corrupt and wrong-context outcomes distinct.
+3. Change a retained-decision dependency during an active workflow. Stop at its
+   supported boundary and resume with fresh code, preserving inputs, responses,
+   counters, ownership and accepted results.
+
+Cover interruption and capacity failures at shared durable boundaries, including
+concurrent reuse and partial deletion. Assert exact provenance, bounded storage
+and unchanged foreign resources. These infrastructure checks require no product
+installation, VM operation or historical acceptance rerun.

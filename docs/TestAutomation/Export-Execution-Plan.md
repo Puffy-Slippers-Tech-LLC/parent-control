@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E08p-capacity — [Keep cumulative capture publication usable](Export-Tasks/E08p-capacity.md)**.
+Next task: **E08 — [Unify local Markdown reference checks](Export-Tasks/E08-markdown.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

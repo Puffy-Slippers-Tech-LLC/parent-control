@@ -6,13 +6,15 @@ stable IDs remain unchanged. Unrestricted graphical desktop prevention is
 scheduled in the [desktop queue](Kiosk-Desktop-Queue.md); the remaining C06–C13
 work is scheduled in the [remaining confinement queue](Kiosk-Prompt-New-Queue.md).
 
-C04p1/p consume shared E2E 313a/313 fixture/core-effects evidence. C04l/s/r/i
-reuse existing feature coverage, renewing only invalidated scope; C04l/w retain
-bounded confinement pauses and C04j thin core composition. New general feature
-automation stays in E2E. Saved-preset editing, Hours and What's New (314/315)
-are not baseline gates. Follow the
-[cross-plan reuse map](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse);
-missing external deliveries remain explicit blockers.
+C04p1/p delivered fixture/core-effects applicability; C04l/s/r/i and C04l/w
+delivered existing feature and confinement-pause coverage. New general feature
+automation stays in E2E under the
+[cross-plan reuse map](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
+Saved-preset editing, Hours and What's New (314/315) are not baseline gates.
+The remaining execution blocker is C04j's Ubuntu final
+restoration alert; Fedora has a reported complete pass subject to exact evidence
+applicability. C04 then audits readiness, and C05u/f accept retained matching
+evidence or renew only missing/invalidated scope under the reuse contract.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
@@ -50,9 +52,9 @@ missing external deliveries remain explicit blockers.
 | [x] | C04i | Renew existing kiosk About coverage | C04c | Reuse the existing installed About/unchanged-return check on both targets; no new What's New automation | [Both-target About renewal and unchanged return](TestAutomation/E2E-Building-Blocks.md#c04i-existing-kiosk-about-renewal); 41 stages each passed in 270.349s/291.048s; installed information/external-action absence, usable unchanged request and Cancel/GDM verified; 1,294 focused host checks passed; exact inputs verified and owned cleanup complete |
 | [x] | C04w | Qualify the parent decision pause | C04l | Qualify genuine approval after the fixed human decision pause with fresh recipient proofs on both targets | [Both-target parent decision pause](TestAutomation/E2E-Building-Blocks.md#c04w-parent-decision-pause); 43 stages each passed in 293.434s/313.807s, same native challenge across 45 real seconds, fresh proofs and independent grant read; 2,518 host checks passed; exact inputs verified and owned cleanup complete |
 | [ ] | C04j | [Register and qualify the baseline composition](Kiosk-Prompt-Tasks/C04j-baseline-composition.md) | C04o, C04p, C04l, C04s, C04r, C04i, C04w | Compose shared core operations for negative effects, grant/use/revocation and repeated requests on both targets; reuse separate existing feature checks | 30–60 min; session exception: complete ordered baseline qualification history |
-| [ ] | C04 | [Reconcile proof consumers and baseline readiness](Kiosk-Prompt-Tasks/C04-installed-ta.md) | C04c, C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j | Verify cumulative installed/E2E mapping and baseline operation readiness | Suspended: B1–B4 require the bounded qualifications immediately above; no C04 acceptance credit |
-| [ ] | C05u | [Prove baseline usability on Ubuntu](Kiosk-Prompt-Tasks/C05u-baseline-ubuntu.md) | C04 | Run the complete Ubuntu baseline passwordless and core time/app journey | 30–60 min; session exception: complete baseline customer journey |
-| [ ] | C05f | [Prove baseline usability on Fedora](Kiosk-Prompt-Tasks/C05f-baseline-fedora.md) | C05u | Run the Fedora baseline journey and establish both-target baseline applicability | 30–60 min; session exception: complete baseline customer journey |
+| [ ] | C04 | [Reconcile proof consumers and baseline readiness](Kiosk-Prompt-Tasks/C04-installed-ta.md) | C04c, C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j | Verify cumulative installed/E2E mapping and baseline operation readiness | 20–30 min; suspended until C04j's both-target complete qualification passes; no C04 acceptance credit |
+| [ ] | C05u | [Prove baseline usability on Ubuntu](Kiosk-Prompt-Tasks/C05u-baseline-ubuntu.md) | C04 | Run the complete Ubuntu baseline passwordless and core time/app journey | 15–30 min with valid retained evidence; 30–60 min if renewal is needed; session exception: complete baseline customer journey |
+| [ ] | C05f | [Prove baseline usability on Fedora](Kiosk-Prompt-Tasks/C05f-baseline-fedora.md) | C05u | Run the Fedora baseline journey and establish both-target baseline applicability | 15–30 min with valid retained evidence; 30–60 min if renewal is needed; session exception: complete baseline customer journey |
 
 Order is authoritative. C04 remains a host audit. C04j's complete per-target
 histories may supply C05u/f evidence under the

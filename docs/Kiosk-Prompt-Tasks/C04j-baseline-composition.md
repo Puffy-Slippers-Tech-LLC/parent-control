@@ -12,7 +12,7 @@ and [capability acceptance](../TestAutomation/E2E-Execution-Contracts.md#capabil
 
 ## Session boundary and deliverable
 
-Close B4 by registering and qualifying the reusable complete
+Close B4 by completing qualification of the registered
 [finite baseline composition](../TestAutomation/E2E-Scenario-Recipes.md#c04b-baseline-public-use-slice).
 Consume the prerequisite operations, not their entire harness qualification
 matrices. This supplies C04's exact executable handoff and reusable complete
@@ -21,39 +21,32 @@ installed evidence for C05u/C05f under the
 C05u/C05f still verify their full matching-candidate acceptance and every original
 assertion when selected; an unchanged complete pass needs no duplicate execution.
 
-Inspect the delivered catalogue evidence and complete callable/worker/recorder
-routes for all prerequisites. Compose only finite core values/order/assertions in a
-new shared `tests/e2e/baseline_journey.py` (planned, unimplemented); mechanics stay
-with existing shared operations. Planned selector `check_e2e_baseline_journey`
-must be registered and listed before invocation. Preserve all stable case IDs,
+The composition is implemented in
+[`baseline_journey.py`](../../tests/e2e/baseline_journey.py), with the installed
+entry [`check_e2e_baseline_journey.py`](../../tests/integration/check_e2e_baseline_journey.py)
+and shared worker
+[`onpc_baseline_journey.pm`](../../tests/integration/graphical_smoke/lib/onpc_baseline_journey.pm).
+`tools/run-tests integration --list` lists `check_e2e_baseline_journey`.
+Inspect the affected complete callable/worker/recorder routes before repair;
+extend the existing composition only where diagnosis requires it. Mechanics stay
+with shared operations. Preserve all stable case IDs,
 pending FLOW19/FLOW20 and broader cases 34/36/44–49; no relabelled partial pass.
 
-Cover zero-daily Parent time/app setup; passwordless usable kiosk entry;
-wrong password and separate Cancel
-with explicit preserved form, zero grant and unchanged restrictions; fresh
-genuine approval, grant-only usable child time, S/A use with H denied; shared
-overlay approval/rejection/Cancel and original activity; public revoke/Confirm
-restoring limits; normal exit/reentry, session switching and a distinct successful
-fresh request. Negative effects and repeated-request ordering use existing shared
-comparisons. New general feature mechanics belong to the E2E queue under the
-[reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse),
-not this confinement composition. Each challenge is
-fresh and single-use. No reset between effects within a history. Keep downstream
-work within observed positive time; use only explicitly qualified durations.
+The linked recipe owns every ordered core assertion, finite input, freshness
+bound and public restoration result. Preserve the complete history without
+resets between effects. Carry forward C04l/s/r/i's applicable feature evidence
+and C04l/w's separate 90/45-second pause checks under the
+[reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
+Keep those histories separate. New general feature mechanics and matrices
+remain with their E2E owners.
 
-Carry forward C04l/s/r/i's applicable existing feature evidence, C04l's separate
-90-second chooser/session check and C04w's 45-second authentication lifetime
-check. Do not repeat language Save/Cancel,
-request-choice, reminder or About histories in this core composition. Saved
-preset editing, Hours, What's New and new language variants are not baseline
-assertions. Do not replay the separate pause qualifiers in the core history
-solely to satisfy another task label; they add no arithmetic matrix.
-
-Before live execution run composition preflight, actual worker order/refusals,
-decoder and independent public effect comparisons with finite host timeouts.
-Then run the registered
-`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration 'check_e2e_baseline_journey'`.
-Keep each complete 1800-second history and original observation/freshness bounds.
+After a repair, run the affected host regressions, including composition
+preflight, actual worker order/refusals, decoder and independent public effect
+comparisons with finite timeouts. The outstanding Ubuntu COMPLETE history uses
+`tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_baseline_journey'`.
+Run Fedora only if its retained pass is missing or fails applicability review,
+using the same selector and explicit target selection. Keep each complete 1800-second
+history and original observation/freshness bounds.
 Resolve any newly independent operation through the prerequisite contract, not
 by weakening results or growing this composition into a provider project.
 
@@ -86,10 +79,12 @@ observations through `restore-disabled`, then failed at `restore-saved` after
 guard refused an unknown, visible modal alert without an application/surface ID.
 This was not the history deadline. No product defect or alert owner is established.
 
-Use the [current catalogue record](../TestAutomation/E2E-Building-Blocks.md#c04j-complete-baseline-composition)
-and its verified 683-member cumulative bundle for complete results, the alert
-diagnostic, callers, review, host checks and cleanup. Both targets are restored
-and independently confirmed off; workers/callbacks closed and serial cleanup
+The previous handoff reports a verified 683-member cumulative bundle for complete
+results, the alert diagnostic, callers, review, host checks and cleanup. Resolve
+and verify its exact retained members through the plan's accepted-evidence route
+before reuse; the [catalogue status](../TestAutomation/E2E-Building-Blocks.md#c04j-complete-baseline-composition)
+and this summary alone are not inspectable proof. The handoff records both
+targets restored and independently confirmed off; workers/callbacks closed and serial cleanup
 completed. No developer decision is pending. Diagnose the Ubuntu alert in the
 actual Parent desktop through bounded maintained maintenance reproduction before
 another formal attempt. Preserve the unknown-prompt refusal and all final save,
@@ -97,3 +92,7 @@ settings and balance assertions. Renew Ubuntu's COMPLETE history after repair;
 reuse Fedora's pass only if its exact candidate/caller/provider scope remains
 valid. Shared changes require both-target applicability review and renewal of
 invalidated histories. Keep this row unchecked and the pointer on C04j.
+
+Acceptance requires both complete target histories, applicable separate feature
+and pause evidence, and verified collection/restoration. A bounded maintenance
+reproduction can diagnose the alert but cannot supply the missing Ubuntu pass.

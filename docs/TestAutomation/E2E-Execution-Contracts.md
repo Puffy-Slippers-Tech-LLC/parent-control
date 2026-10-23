@@ -440,9 +440,12 @@ handoff/checks. Existing feature and separate pause checks need not be repeated 
 history. A task summary, ready label, host pass, partial qualification or
 collection of separate operation passes cannot establish the complete core history.
 
-Missing, failed, expired or invalidated evidence requires execution of the
-affected **complete** history on its target through the registered baseline
-selector. Shared changes require checking both targets and rerunning each
+Missing, failed, expired or invalidated core-history evidence requires execution
+of the affected **complete** history on its target through the registered baseline
+selector. Missing or invalidated separate feature/pause evidence requires renewal
+of that separate slice; it does not by itself require replaying a valid core
+history. Both kinds of evidence remain required for acceptance.
+Shared changes require checking both targets and rerunning each
 invalidated history. Documentation-only edits do not by themselves invalidate
 unchanged installed evidence. Preserve original failures and valid other-target
 results. No future row is checked automatically, no installed acceptance is

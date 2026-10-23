@@ -4,7 +4,8 @@ Acceptance: installed
 Targets: onpc-Fedora44
 
 Required tasks: C05u.
-Estimate: 30–60 min; session exception: complete baseline customer journey.
+Estimate: 15–30 min for evidence acceptance; 30–60 min if renewal is needed;
+session exception: complete baseline customer journey.
 
 Apply the [master task contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract)
 and its source, usability, threat and review requirements. Use the affected
@@ -12,25 +13,21 @@ design/test owners and source routes below.
 
 ## Session boundary and deliverable
 
-Require C04's equivalent complete baseline through actual Fedora GDM/PAM/SELinux
-and genuine parent authentication, with the same passwordless form, main
-features, human pauses, genuine grant/time/app results, denial/cancel and
-exit/reentry as C05u. Do not disable ordinary-user authentication or privilege
-transitions to pass.
-
-Reuse separate existing feature checks and language-dialog pause evidence under
+Accept the rebuilt Fedora candidate against every assertion in the
+[finite baseline recipe](../TestAutomation/E2E-Scenario-Recipes.md#c04b-baseline-public-use-slice),
+including its separate existing feature and human-pause checks, through actual
+Fedora GDM/PAM/SELinux and genuine parent authentication. Preserve ordinary-user
+authentication and privilege transitions. General feature expansion follows
 the [reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
-No new saved-preset/Hours, What's New or general language/reminder suite belongs
-to this confinement acceptance; retain the complete core history and applicable
-separate confinement-pause evidence.
 
 First apply the
 [complete baseline evidence-reuse contract](../TestAutomation/E2E-Execution-Contracts.md#complete-baseline-evidence-reuse)
-to C04j's retained Fedora history and C04's handoff. Verify every original
-assertion, exact candidate/caller/provider applicability and collection/restoration.
-Reuse the complete matching installed pass; execute the affected complete Fedora
-baseline only when required evidence is missing, failed, expired or invalidated,
-using the registered selector and original inputs/bounds. Separate operation
+to C04j's retained Fedora history and C04's handoff. Record the independent
+applicability check and original public results as installed acceptance when
+valid. Renew missing, failed, expired or invalidated core evidence through
+`tools/run-tests --vm 'onpc-Fedora44' integration 'check_e2e_baseline_journey'`
+with the recipe's original inputs and bounds.
+Renew missing or invalidated separate feature/pause slices separately. Separate operation
 qualifications or an Ubuntu result cannot supply Fedora's ordered history.
 
 Shared repairs need independent review/build and reruns of invalidated complete

@@ -4,7 +4,8 @@ Acceptance: installed
 Targets: onpc-Ubuntu26.04
 
 Required tasks: C04.
-Estimate: 30–60 min; session exception: complete baseline customer journey.
+Estimate: 15–30 min for evidence acceptance; 30–60 min if renewal is needed;
+session exception: complete baseline customer journey.
 
 Apply the [master task contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract)
 and its source, usability, threat and review requirements. Use the affected
@@ -12,29 +13,23 @@ design/test owners and source routes below.
 
 ## Session boundary and deliverable
 
-Use C04's exact registered baseline slice on the rebuilt candidate before any
-new protection additions. Require the master's complete core product journey,
-preserved feature checks, denial/cancel with no grant, exit/reentry and fresh request after
-session switching. Reuse separate existing feature checks and the language-dialog
-pause and parent-password pause evidence.
-Follow the [reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse):
-new saved-preset/Hours and What's New journeys are E2E work, not baseline gates.
+Accept the rebuilt Ubuntu candidate before new protection additions against
+every assertion in the [finite baseline recipe](../TestAutomation/E2E-Scenario-Recipes.md#c04b-baseline-public-use-slice),
+including its separate existing feature and human-pause checks. The
+[reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse)
+keeps general feature expansion with its E2E owners.
 
 First apply the
 [complete baseline evidence-reuse contract](../TestAutomation/E2E-Execution-Contracts.md#complete-baseline-evidence-reuse)
-to C04j's retained Ubuntu history and C04's handoff. Independently verify every
-required assertion, exact candidate/caller/provider applicability and completed
-collection/restoration. If that complete installed pass remains valid, use its
-original public results as this task's installed acceptance; record the evidence
-and applicability findings without rerunning the same history. If any required
-result is absent, failed, expired or invalidated, run the affected complete Ubuntu
-baseline through the registered selector with its original inputs and bounds.
+to C04j's retained Ubuntu history and C04's handoff. Record the independent
+applicability check and original public results as installed acceptance when
+valid. Renew missing, failed, expired or invalidated core evidence through
+`tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_baseline_journey'`
+with the recipe's original inputs and bounds.
+Renew missing or invalidated separate feature/pause slices separately.
 Separate prerequisite passes cannot replace the ordered complete journey.
 
-Require public observations of the request form, genuine authentication and
-downstream time/app results in the complete history; engineering probes or a
-diagnostic-only screen do not pass. Record
-desktop gaps for D01/D02 and other ordinary-child route gaps for C06a/C06,
+Record desktop gaps for D01/D02 and other ordinary-child route gaps for C06a/C06,
 without claiming final confinement.
 Repair bounded causes under review/build gates and rerun affected full histories.
 Retain exact candidate/selectors/results and complete owned restoration for any

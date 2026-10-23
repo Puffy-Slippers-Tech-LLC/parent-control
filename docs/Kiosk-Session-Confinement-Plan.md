@@ -70,15 +70,17 @@ The old release GDM hook is historical source, not current routing proof.
 
 ## Task boundaries
 
-The queue is the sole order. C04p1/p check applicability of shared E2E fixture
-and core-effects work; C04l/s/r/i reuse existing language, request-choice,
-reminder and About coverage. Renew only invalidated routes. C04l/w add the
-finite confinement human-pause/session-lifetime checks. C04j supplies thin core
-orchestration, C04 audits readiness, and C05u/f accept the complete baseline.
+The queue is the sole order. C04p1/p delivered shared fixture/core-effects
+applicability; C04l/s/r/i delivered language, request-choice, reminder and About
+coverage, and C04l/w delivered the finite human-pause/session-lifetime checks.
+Renew only missing or invalidated evidence. C04j's core orchestration is
+implemented; its Ubuntu complete-history qualification remains blocked by the
+final Parent restoration alert. C04 then audits readiness, and C05u/f accept
+matching retained complete evidence or execute missing/invalidated histories.
 
 New general feature bindings belong to the E2E queue, including the already
-identified shared fixture/core-effects gaps in 313a/313. Those are the finite
-outstanding core regression prerequisite, not permission for a larger feature
+identified shared fixture/core-effects scope in 313a/313. C04p1/p's delivered
+baseline evidence does not close those E2E rows or authorize a larger feature
 campaign. E2E 314/315's saved-preset editing, Hours and What's New journeys,
 new language/reminder matrices and other general feature expansion do not block
 this plan. Use the
@@ -147,7 +149,7 @@ gaps for both improvement plans, without implementing them.
 C01–C03's source, cleanup and host evidence remain in the
 [confinement design](SystemDesign/Kiosk-Confinement.md#c01-selective-replacement-boundary).
 The rebuilt code, rather than active old-plan work, is the candidate for
-validation. Current readiness and the remaining B3–B4 live gaps remain in the
+validation. Current readiness and the remaining complete-history gap belong in the
 [operation applicability map](TestAutomation/E2E-Building-Blocks.md#c04b-baseline-operation-applicability).
 C04o closed its fixed overlay operation. C04p verified the finite both-target
 grant/use/revocation qualification in the
@@ -211,7 +213,8 @@ remaining blocker and restoration in maintained records. Predecessors mean
 delivered scope, not removed briefs or saved guest state. No row closes another
 queue. Missing feature work returns to its E2E owner.
 
-Use both launcher `--check` routes and the
+Use `tools/kiosk-prompt --check`, `tools/kiosk-desktop --check` and
+`tools/kiosk-prompt-new --check` for baseline and cross-plan metadata, plus the
 [host consistency selection](TestAutomation/E2E-Execution-Contracts.md#completion-and-document-cleanup)
 after planning edits. Launcher changes also use
 `tools/run-tests unit 'tests/unit/test_execution_plan_launcher.py'`.

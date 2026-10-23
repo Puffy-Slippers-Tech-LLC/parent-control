@@ -52,12 +52,22 @@ def command(argv):
                                   help='verify explicitly declared evidence and preview destinations')
     evidence.add_argument('--plan', required=True)
     evidence.add_argument('--declarations', required=True)
+    inventory = actions.add_parser('evidence-inventory', allow_abbrev=False,
+                                   help='inventory tracked legacy references in one retained metadata report')
+    inventory.add_argument('--plan', required=True)
+    inventory.add_argument('--catalogue', action='append', default=[])
+    inventory.add_argument('--owner-plan', action='append', default=[])
     args = parser.parse_args(argv)
     if any(any(ord(c) < 32 for c in item) for item in argv):
         raise ValueError('control characters are not supported')
     if args.action == 'evidence-links':
         return ['/usr/bin/python3', '-IB', str(Path(__file__).with_name('plan_evidence.py').resolve()),
                 '--plan=' + args.plan, '--declarations=' + args.declarations]
+    if args.action == 'evidence-inventory':
+        return ['/usr/bin/python3', '-IB', str(Path(__file__).with_name('plan_evidence.py').resolve()),
+                '--inventory', '--plan=' + args.plan,
+                *['--catalogue=' + item for item in args.catalogue],
+                *['--owner-plan=' + item for item in args.owner_plan]]
     if args.action in ('links', 'words'):
         selected = ['/usr/bin/python3', '-IB', str(Path(__file__).with_name('document_checks.py').resolve()),
                     args.action]

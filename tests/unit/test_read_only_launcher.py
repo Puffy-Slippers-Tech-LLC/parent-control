@@ -75,6 +75,17 @@ def test_evidence_links_dispatch_pins_reader_and_cannot_forward_mutations(tmp_pa
     assert not (tmp_path / 'sentinel').exists()
 
 
+def test_inventory_dispatch_is_finite_inspection_without_mutation_options():
+    implementation = Path(reader['__file__']).with_name('plan_evidence.py').resolve()
+    assert reader['command'](['evidence-inventory', '--plan=docs/Plan.md',
+        '--catalogue=docs/local.md', '--owner-plan=docs/Other.md']) == [
+        '/usr/bin/python3', '-IB', str(implementation), '--inventory', '--plan=docs/Plan.md',
+        '--catalogue=docs/local.md', '--owner-plan=docs/Other.md']
+    for option in ('--apply', '--output=sentinel', '--declarations=roles.json', '--command=evil'):
+        with pytest.raises(ValueError):
+            reader['command'](['evidence-inventory', '--plan=docs/Plan.md', option])
+
+
 @pytest.mark.parametrize('action', ['search', 'files'])
 def test_path_globs_select_files_and_directories_without_broadening(tmp_path, monkeypatch, action):
     monkeypatch.chdir(tmp_path)

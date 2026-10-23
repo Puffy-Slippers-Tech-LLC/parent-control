@@ -126,7 +126,9 @@ def retain_turn(plan, run, state, result=None):
     This records history, never acceptance. Malformed responses and provider
     failures retain their original bytes without manufacturing a valid result.
     The caller finishes nested owners before this handoff; failed cleanup must
-    not be converted into a closed turn by this routine.
+    not be converted into a closed turn by this routine. Completed tasks keep
+    their durable local turn for preserve(), which publishes it with acceptance
+    in one transaction instead of copying the cumulative archive twice.
     """
     run = Path(run)
     contents = {}
@@ -159,7 +161,8 @@ def retain_turn(plan, run, state, result=None):
         if (saved['attempt'] == value['attempt'] and saved['session'] == value['session']
                 and {name: hashed for name, hashed in saved['files'].items() if name != 'checkpoint.json'}
                     == {name: hashed for name, hashed in value['files'].items() if name != 'checkpoint.json'}):
-            _publish_turn(plan, run, state, result, Path(previous))
+            if result is None or result.get('status') != 'task_complete':
+                _publish_turn(plan, run, state, result, Path(previous))
             return Path(previous)
     parent = run / 'plan-turns'
     bundle.retention.ensure_directory(parent)
@@ -182,7 +185,8 @@ def retain_turn(plan, run, state, result=None):
         with bundle.retention.directory_descriptor(parent) as fd:
             os.fsync(fd)
     state.setdefault('evidence_turns', []).append(str(target))
-    _publish_turn(plan, run, state, result, target)
+    if result is None or result.get('status') != 'task_complete':
+        _publish_turn(plan, run, state, result, target)
     return target
 
 
@@ -1809,6 +1813,356 @@ def rewrite_references(plan, state, index):
     return changed
 
 
+INVENTORY_DOCUMENTS = 2048
+INVENTORY_ENTRIES = 8192
+INVENTORY_BYTES = 32 * 1024 * 1024
+
+
+def _inventory_documents(plan):
+    """Discover tracked names only, with bounded output and no filesystem walk."""
+    with subprocess.Popen(['git', 'ls-files', '-z', '--', ':(icase)*.md', ':(icase)*.markdown'],
+            cwd=plan.root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as child:
+        raw = child.stdout.read(document_checks.MAX_BYTES + 1)
+        if len(raw) > document_checks.MAX_BYTES:
+            child.kill()
+            raise ValueError('inventory: tracked document selection exceeds its bound')
+        if child.wait(timeout=30):
+            raise ValueError('inventory: tracked document discovery refused')
+    return [os.fsdecode(value) for value in raw.split(b'\0') if value]
+
+
+def _inventory_occurrences(text):
+    """Reuse parser offsets; legacy literal paths are data, never instructions."""
+    parsed = list(references(text))
+    for link in parsed:
+        target = local_destination(link.destination)
+        if target is not None and _inventory_path(target.path):
+            yield link, False
+    prose = evidence_prose(text)
+    pattern = (r'`([^`\n]+)`|((?:(?:/|\.{1,2}/)[^\s`<>\[\]()]*)?'
+               r'(?:output/test-runs/|/tmp/onpc-|/var/tmp/onpc-)[^\s`<>\[\](),;]*)')
+    for match in re.finditer(pattern, prose):
+        value = match[1] or match[2].rstrip('.:!?\'"')
+        if not _inventory_path(value):
+            continue
+        start = match.start(1 if match[1] else 2)
+        end = start + len(value)
+        yield document_checks.Link(match.start(), match.end(), start, end, value,
+            text.count('\n', 0, start) + 1, 'legacy', start, end), False
+    # Examples are inventoried without interpreting or reading their destinations.
+    masked = document_checks.without_examples(text)
+    excluded = ''.join(char if char != masked[index] else ('\n' if char == '\n' else ' ')
+                       for index, char in enumerate(text))
+    for match in re.finditer(r'(?:[^\s`<>\[\]()]*/)?(?:output/test-runs/|/tmp/onpc-|/var/tmp/onpc-)'
+                             r'[^\s`<>\[\](),;]*', excluded):
+        value = match[0].rstrip('.:!?\'"')
+        yield document_checks.Link(match.start(), match.start() + len(value), match.start(),
+            match.start() + len(value), value, text.count('\n', 0, match.start()) + 1,
+            'example', match.start(), match.start() + len(value)), True
+
+
+def _inventory_path(value):
+    return ('output/test-runs/' in value or value.startswith(('/tmp/onpc-', '/var/tmp/onpc-')))
+
+
+def _inventory_original(plan, document, link):
+    target = local_destination(link.destination) if link.kind not in ('legacy', 'example') else None
+    value = target.path if target is not None else link.destination.split('#', 1)[0]
+    path = Path(value)
+    base = (document.parent if target is not None or value.startswith(('../', './')) else plan.root)
+    return Path(os.path.abspath(base / path))
+
+
+def _inventory_owners(plan):
+    """Read only authenticated accepted snapshots, never a live checkpoint."""
+    index, raw = _index(locator(plan))
+    if index is None:
+        return [], []
+    owners, candidates = [], []
+    def collect(files, read):
+        candidates.extend(dict(path=item['path'], sha256=item['sha256'], bytes=item['bytes'],
+                               plan=plan.path, locator_sha256=_digest(raw))
+                          for item in files)
+        for task in index['tasks'].values():
+            path = str(Path(task['result']).parent / 'accepted-state.json')
+            entry = next((item for item in files if item['path'] == path), None)
+            if entry is None:
+                raise ValueError('inventory: accepted owner snapshot is missing')
+            state = bundle.decoded(read(path, count=bundle.MAX_READ))
+            if not isinstance(state, dict):
+                raise ValueError('inventory: invalid accepted owner snapshot')
+            owners.append(dict(plan=plan, state=state, source_sha256=entry['sha256']))
+    if index['schema'] == 1:
+        with _verified_index(plan, index) as (verified, read):
+            collect(verified['manifest']['files'], read)
+    else:
+        with _verified_index_v2(plan, index) as verified:
+            members = [(record, member) for record in verified['records'].values()
+                       for member in record['members']]
+            files = [dict(path=member['original_path'], sha256=member['sha256'], bytes=member['bytes'])
+                     for _, member in members]
+            def read(path, *, count):
+                matches = [(record, member) for record, member in members
+                           if member['original_path'] == path]
+                origins = {bundle.digest(bundle.encoded(dict(member={key: member[key] for key in (
+                    'original_path', 'source_allocation', 'sha256', 'bytes')},
+                    provenance=verified['provenance'][(record['record_id'], member['member_id'])])))
+                    for record, member in matches}
+                if len(origins) != 1:
+                    raise ValueError('inventory: ambiguous accepted owner snapshot')
+                record, member = min(matches, key=lambda item: (item[0]['record_id'], item[1]['member_id']))
+                return verified['read'](record['record_id'], member['member_id'], count=count)
+            collect(files, read)
+    if _read(locator(plan)) != raw:
+        raise ValueError('inventory: accepted locator changed during inspection')
+    if len(owners) > 256 or len(candidates) > bundle.MAX_FILES:
+        raise ValueError('inventory: accepted metadata exceeds its bound')
+    return owners, candidates
+
+
+def _inventory_owner(owner, root):
+    """Validate optional legacy metadata before composition, without reading it."""
+    import evidence_identity as identity
+    import evidence_policy as policy
+    identity._hex(owner['source_sha256'])
+    if owner['plan'].root != root:
+        raise identity.EvidenceContextError('inventory: owner belongs to another checkout')
+    state = owner['state']
+    if not isinstance(state, dict) or len(bundle.encoded(state)) > document_checks.MAX_BYTES:
+        raise ValueError('inventory: invalid finite owner snapshot')
+    declarations = state.get('reference_documents', [])
+    contracts = state.get('reference_contracts', {})
+    bindings = state.get('reference_bindings', [])
+    active = state.get('active_reference_consumers', [])
+    if (type(declarations) is not list or len(declarations) > 256
+            or type(contracts) is not dict or len(contracts) > 256
+            or type(bindings) is not list or len(bindings) > 256
+            or type(active) is not list or len(active) > 256):
+        raise ValueError('inventory: invalid finite owner declarations')
+    for key, value in contracts.items():
+        identity._hex(key)
+        identity.validate_consumer(value)
+        if key != value['consumer_id']:
+            raise ValueError('inventory: conflicting contract identity')
+    for value in active:
+        identity._hex(value)
+    for value in bindings:
+        policy.ReferenceBinding.from_payload(value)
+    for declaration in declarations:
+        identity._object(declaration, {'document', 'sha256', 'references'}, 'document declaration')
+        document_checks.checkout_document(root, declaration['document'])
+        identity._hex(declaration['sha256'])
+        claims = declaration['references']
+        if type(claims) is not list or not 1 <= len(claims) <= 256:
+            raise ValueError('inventory: invalid finite owner claims')
+        for claim in claims:
+            identity._object(claim, {'start', 'consumer', 'selector', 'workflow'}, 'document claim')
+            identity._integer(claim['start'])
+            identity.validate_consumer(claim['consumer'])
+            if claim['selector'] is not None and claim['selector'] not in claim['consumer']['references']:
+                raise ValueError('inventory: conflicting declared selector')
+            if claim['workflow'] is not None:
+                identity._text(claim['workflow'])
+    return declarations
+
+
+def inventory_references(plan, *, documents=None, catalogues=(), owners=(), candidates=(),
+                         owner_findings=()):
+    """Finite read-only discovery. Unknown context remains pending, never proof.
+
+    ``owners`` is supplied by trusted host code from authenticated snapshots, not
+    declaration JSON. The report is revalidated migration input, not authority.
+    """
+    import evidence_policy as policy
+    names = sorted(set([*(_inventory_documents(plan) if documents is None else documents), *catalogues]))
+    if len(names) > INVENTORY_DOCUMENTS or len(owners) > 256 or len(candidates) > bundle.MAX_FILES:
+        raise ValueError('inventory: selection exceeds its finite bound')
+    result = dict(schema='onpc-legacy-reference-inventory', version=1,
+                  plan=plan.path, documents=[], entries=[], owner_findings=list(owner_findings))
+    declarations = {}
+    for owner in owners:
+        try:
+            records = _inventory_owner(owner, plan.root)
+        except (KeyError, TypeError, OSError, ValueError) as error:
+            result['owner_findings'].append(dict(plan=owner['plan'].path,
+                source_sha256=owner['source_sha256'], condition=policy.condition_for_exception(error).value))
+            continue
+        for declaration in records:
+            declarations.setdefault(declaration['document'], []).append((owner, declaration))
+    total = 0
+    for name in names:
+        path = document_checks.checkout_document(plan.root, name)
+        try:
+            text = document_checks.read_text(path)
+        except (OSError, ValueError) as error:
+            result['documents'].append(dict(document=name, sha256=None,
+                condition=policy.condition_for_exception(error).value))
+            continue
+        raw = text.encode('utf-8')
+        total += len(raw)
+        if total > INVENTORY_BYTES:
+            raise ValueError('inventory: document bytes exceed their finite bound')
+        hashed = _digest(raw)
+        result['documents'].append(dict(document=name, sha256=hashed))
+        lines = text.splitlines()
+        decisions_cache = {}
+        occurrences = {link.start: (link, example) for link, example in _inventory_occurrences(text)}
+        all_links = {link.start: link for link in references(text)}
+        for _, declaration in declarations.get(name, []):
+            for claim in declaration['references']:
+                if claim['start'] in all_links:
+                    occurrences.setdefault(claim['start'], (all_links[claim['start']], False))
+        for _, (link, example) in sorted(occurrences.items()):
+            source = _inventory_original(plan, path, link)
+            # Only bounded path/identity metadata is emitted, never claim text.
+            entry = dict(document=name, line=link.line, start=link.start, end=link.end,
+                destination_start=link.destination_start, destination_end=link.destination_end,
+                document_sha256=hashed, claim_sha256=_digest(_claim_bytes(text, link)),
+                reference_sha256=_digest(text[link.start:link.end].encode('utf-8')),
+                original_path=str(source) if _inventory_path(str(source)) else None,
+                consumer=None, claim_revision=None, role=None, active=None, original_identity=None,
+                candidate=None, availability='unknown', classification='unresolved_context',
+                disposition='pending', migration_owner='E12', protected=False,
+                owner_source_sha256=None, diagnostic=None)
+            # Queue shape is a protection marker, not inferred consumer authority.
+            line = lines[link.line - 1]
+            if re.match(r'^\| \[[ x]\] \|', line):
+                entry['protected'] = True
+            matches = [(owner, declaration, claim) for owner, declaration in declarations.get(name, [])
+                       for claim in declaration['references'] if claim['start'] == link.start]
+            current = [item for item in matches if item[1]['sha256'] == hashed]
+            matches = current or matches
+            distinct = {bundle.digest(bundle.encoded(dict(plan=owner['plan'].path,
+                declaration=declaration, claim=claim,
+                contracts=owner['state'].get('reference_contracts', {}),
+                active=owner['state'].get('active_reference_consumers', []),
+                bindings=owner['state'].get('reference_bindings', []))))
+                for owner, declaration, claim in matches}
+            if example:
+                entry.update(classification='example', availability='not_inspected', disposition='resolved')
+            elif len(distinct) > 1:
+                entry.update(classification='wrong_or_ambiguous_destination', availability='conflict')
+            elif matches:
+                owner, declaration, claim = min(matches, key=lambda item: item[0]['source_sha256'])
+                consumer = claim['consumer']
+                state = owner['state']
+                entry.update(consumer=consumer['consumer_id'], claim_revision=consumer['revision_sha256'],
+                    role=consumer['role'], active=consumer['consumer_id'] in state.get('active_reference_consumers', []),
+                    original_identity=consumer['expected_context'], owner_source_sha256=owner['source_sha256'])
+                try:
+                    if declaration['sha256'] != hashed:
+                        entry.update(availability='stale', diagnostic=dict(condition='stale'))
+                    else:
+                        retained = [policy.ReferenceBinding.from_payload(item)
+                                    for item in state.get('reference_bindings', [])]
+                        key = next(iter(distinct))
+                        if key not in decisions_cache:
+                            decisions_cache[key] = check_document_references(owner['plan'], declaration,
+                                contracts=state.get('reference_contracts', {}), retained=retained,
+                                active_consumers=state.get('active_reference_consumers', []))
+                        decisions = decisions_cache[key]
+                        decision = decisions[declaration['references'].index(claim)]
+                        if decision.diagnostic is not None:
+                            entry.update(availability=decision.diagnostic.condition.value,
+                                         diagnostic=decision.diagnostic.payload())
+                        elif claim['selector'] is None:
+                            entry.update(classification=consumer['role'] if consumer['role'] in (
+                                'example', 'operational_path') else 'operational_path',
+                                availability='present', disposition='resolved')
+                        else:
+                            with reference_scope(owner['plan'], document=name,
+                                    workflow=claim['workflow']).pinned() as scope:
+                                destination, resolved = _generated_reference(consumer, claim['selector'], scope)
+                                _document_source(owner['plan'], path, link, resolved, (consumer, scope))
+                                member = resolved['member']
+                                try:
+                                    Path(member['original_path']).lstat()
+                                    live = True
+                                except FileNotFoundError:
+                                    live = False
+                                entry.update(classification='exact_live_proof' if live else 'exact_archived_proof',
+                                    availability='live' if live else 'archived', disposition='resolved',
+                                    candidate=dict(destination=destination, selector=claim['selector'],
+                                        record_id=resolved['record']['record_id'], sha256=member['sha256'],
+                                        bytes=member['bytes'], closure_sha256=resolved['record']['closure_sha256']))
+                except (OSError, ValueError) as error:
+                    entry.update(availability=policy.condition_for_exception(error).value)
+                if entry['disposition'] == 'pending':
+                    condition = entry['availability']
+                    if condition == 'missing':
+                        entry.update(classification='unavailable_history', migration_owner='E13')
+                    elif condition in ('identity', 'conflict'):
+                        entry['classification'] = 'wrong_or_ambiguous_destination'
+                    elif condition != 'stale':
+                        entry['classification'] = 'refused'
+            else:
+                target = local_destination(link.destination)
+                operational = False
+                if (source.is_relative_to(plan.root / 'output/test-runs')
+                        and (target is None or not target.fragment)):
+                    try:
+                        operational = _navigation_reference(plan, source)
+                    except FileNotFoundError:
+                        pass  # A clean checkout has no authenticated navigation owner yet.
+                if operational:
+                    entry.update(classification='operational_path', availability='not_inspected',
+                                 disposition='resolved')
+                else:
+                    try:
+                        if (not source.is_relative_to(plan.root / 'output/test-runs')
+                                and not str(source).startswith(('/tmp/onpc-', '/var/tmp/onpc-'))):
+                            entry['availability'] = 'identity'
+                        elif any(parent.is_symlink() for parent in (source, *source.parents)):
+                            entry['availability'] = 'integrity'
+                        else:
+                            source.lstat()
+                            entry['availability'] = 'present'
+                    except (OSError, ValueError) as error:
+                        entry['availability'] = policy.condition_for_exception(error).value
+                    if entry['availability'] == 'missing':
+                        entry.update(classification='unavailable_history', migration_owner='E13')
+                    elif entry['availability'] not in ('present', 'fragment'):
+                        entry['classification'] = 'refused'
+                retained = [item for item in candidates if item['path'] == str(source)]
+                identities = {(item['sha256'], item['bytes']) for item in retained}
+                if len(identities) == 1:
+                    checksum, size = next(iter(identities))
+                    entry['candidate'] = dict(original_path=str(source), sha256=checksum, bytes=size,
+                        publications=[dict(plan=name, locator_sha256=checksum) for name, checksum in
+                            sorted({(item['plan'], item['locator_sha256']) for item in retained})],
+                        context_verified=False)
+                elif len(identities) > 1:
+                    entry.update(classification='wrong_or_ambiguous_destination', availability='conflict')
+            result['entries'].append(entry)
+            if len(result['entries']) > INVENTORY_ENTRIES:
+                raise ValueError('inventory: reference count exceeds its finite bound')
+        if document_checks.read_text(path) != text:
+            raise ValueError('inventory: document changed during inspection')
+    counts = {}
+    for entry in result['entries']:
+        counts[entry['classification']] = counts.get(entry['classification'], 0) + 1
+    result['owner_findings'].sort(key=lambda item: bundle.encoded(item))
+    result['counts'] = counts
+    result['sha256'] = bundle.digest(bundle.encoded(result))
+    if len(bundle.encoded(result)) > document_checks.MAX_BYTES:
+        raise ValueError('inventory: report exceeds its finite bound')
+    return result
+
+
+def retain_inventory(plan, report):
+    """One normal bounded report allocation, with no new journal or input writes."""
+    import tempfile
+    with ExitStack() as stack:
+        if bundle.retention.token() is None:
+            stack.enter_context(bundle.retention.Store(
+                bundle.storage.directory('state', root=plan.root) / 'standalone-reports').session())
+        directory = Path(bundle.retention.allocate(tempfile.mkdtemp, prefix='onpc-reference-inventory-',
+            dir=bundle.storage.directory('reports', root=plan.root)))
+        path = directory / 'inventory.json'
+        _write(path, bundle.encoded(report))
+    return path
+
+
 def main(argv=None):
     """Read-only, explicit semantic preview; no launcher or mutation options."""
     import sys
@@ -1816,11 +2170,35 @@ def main(argv=None):
     import evidence_identity as identities
     parser = document_checks.Parser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--plan', required=True)
-    parser.add_argument('--declarations', required=True)
+    parser.add_argument('--declarations')
+    parser.add_argument('--inventory', action='store_true')
+    parser.add_argument('--catalogue', action='append', default=[])
+    parser.add_argument('--owner-plan', action='append', default=[])
     try:
         args = parser.parse_args(argv)
         root = Path(__file__).resolve().parents[1]
         plan = Plan.load(root, args.plan)
+        if args.inventory:
+            import evidence_policy as policy
+            if args.declarations or len(args.catalogue) > 256 or len(args.owner_plan) > 32:
+                raise ValueError('inventory: invalid finite inspection request')
+            owners, candidates, findings = [], [], []
+            for name in sorted(set([plan.path, *args.owner_plan])):
+                try:
+                    selected = Plan.load(root, name)
+                    records, files = _inventory_owners(selected)
+                    owners.extend(records)
+                    candidates.extend(files)
+                except (OSError, ValueError) as error:
+                    findings.append(dict(plan=name, condition=policy.condition_for_exception(error).value))
+            report = inventory_references(plan, catalogues=args.catalogue, owners=owners,
+                candidates=candidates, owner_findings=findings)
+            path = retain_inventory(plan, report)
+            print(json.dumps(dict(report=str(path), sha256=report['sha256'], counts=report['counts'],
+                                  owner_findings=report['owner_findings']), sort_keys=True))
+            return 0
+        if not args.declarations or args.catalogue or args.owner_plan:
+            raise ValueError('plan evidence: expected explicit declarations')
         declaration = bundle.decoded(document_checks.read_text(args.declarations))
         identities._object(declaration, {'schema', 'version', 'documents'}, 'document request')
         if (declaration['schema'] != 'onpc-evidence-documents'

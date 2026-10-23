@@ -200,6 +200,43 @@ def test_closed_turns_retain_exact_response_commands_and_scope_after_restarts(ca
     assert proof.recover(campaign.plan)['tasks'] == {}
 
 
+def test_completion_publishes_once_and_local_turn_survives_restart(campaign, monkeypatch):
+    from detached_launcher import finish_nested
+
+    run, state, result, _ = campaign.accepted('consumer')
+    finish_nested(campaign.plan.root, run)
+    exports = []
+    original_export = proof._export
+
+    def export(*args):
+        exports.append(args)
+        return original_export(*args)
+
+    monkeypatch.setattr(proof, '_export', export)
+    turn = proof.retain_turn(campaign.plan, run, state, result)
+    assert proof.retain_turn(campaign.plan, run, state, result) == turn
+    assert not exports and not proof.locator(campaign.plan).exists()
+    commands = (turn / 'agent-commands.log').read_bytes()
+    state.update(pending_completion=result, recovery_run=str(run))
+    # Interruption before acceptance keeps exact local proof, even after more
+    # than three restart allocations retire the original run.
+    for _ in range(4):
+        run = campaign.namespace / uuid.uuid4().hex
+        run.mkdir(mode=0o700)
+        with campaign.runs.session():
+            bundle.retention.retain(run)
+        state = json.loads(json.dumps(state))
+        proof.carry(campaign.plan, run, state)
+    assert not turn.exists() and not exports
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    assert len(exports) == 1
+    retained_turn = Path(state['evidence_turns'][0])
+    assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(), accepted['bundle'],
+        member=str(retained_turn / 'agent-commands.log')) == commands
+    assert proof.preserve(campaign.plan, run, state, result) == accepted
+    assert len(exports) == 1  # An accepted Git retry never recopies the archive.
+
+
 @pytest.mark.parametrize('terminal', ['malformed', 'provider', 'missing'])
 def test_rejected_and_missing_responses_preserve_truthful_terminal_bytes(campaign, terminal):
     run, state, _, _ = campaign.accepted('consumer')
@@ -1525,7 +1562,7 @@ def test_privileged_reader_resolves_publication_as_authenticated_caller(tmp_path
     assert current == [0, 0]
 
 
-def _structured_publication(campaign, *, media=None):
+def _structured_publication(campaign, *, media=None, shared_snapshot=False):
     """Explicit synthetic v2 records; the existing controller stays a v1 producer."""
     run, state, result, report = campaign.accepted('first')
     if media is not None:
@@ -1561,12 +1598,15 @@ def _structured_publication(campaign, *, media=None):
             dependencies=[], cleanup=dict(state='complete', record_members=cleanup,
                 scope=dict(owner=owner, resources=[]))))
     record = logical(verified['manifest']['files'], context)
-    tasks = dict(first=dict(selected, record_refs=[dict(record_id=record['record_id'],
-                                                      closure_sha256=record['closure_sha256'])]))
+    records = [record]
+    if shared_snapshot:
+        records.append(logical(verified['manifest']['files'], dict(context, check='shared-snapshot')))
+    tasks = dict(first=dict(selected, record_refs=[dict(record_id=item['record_id'],
+        closure_sha256=item['closure_sha256']) for item in sorted(records, key=lambda item: item['record_id'])]))
     ledger = dict(schema=2, plan=campaign.plan.path, generation=1,
         previous_index_sha256=proof._digest(proof.locator(campaign.plan).read_bytes()),
-        tasks=tasks, records={record['record_id']: record},
-        segments=[dict(id='00', record_ids=[record['record_id']])])
+        tasks=tasks, records={item['record_id']: item for item in records},
+        segments=[dict(id='00', record_ids=sorted(item['record_id'] for item in records))])
     source = run / 'structured'
     source.mkdir(mode=0o700)
     ledger_path = source / 'accepted-ledger.json'
@@ -1581,7 +1621,7 @@ def _structured_publication(campaign, *, media=None):
                        dict(context, check='ledger-metadata'))
     with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [], [str(source)],
             [legacy['bundle']], plan_namespace=plan_namespace(campaign.plan.path),
-            logical_records=[record, metadata]) as selection:
+            logical_records=[*records, metadata]) as selection:
         exported = bundle.export(selection, expected=selection.selection_sha256)
     index = dict(schema=2, plan=campaign.plan.path, generation=1,
         ledger=dict(segment_id='00', original_path=str(ledger_path)),
@@ -2129,3 +2169,344 @@ def test_authored_stage_document_uses_exact_git_baseline_without_rechecking_old_
     with pytest.raises(proof.ReferenceRefused) as error:
         proof.publication_document_gate(campaign.plan, state, result)
     assert error.value.diagnostics[0]['document'] == relative
+
+
+def _inventory_owner(campaign, declaration):
+    """Model owner-authenticated inputs, independently of discovered prose."""
+    text = (campaign.plan.root / declaration['document']).read_text()
+    contracts = {}
+    for link, claim in zip(proof.references(text), declaration['references']):
+        consumer = claim['consumer']
+        consumer['consumer_id'] = identities.digest(dict(document=declaration['document'], start=link.start))
+        consumer['revision_sha256'] = proof._digest(proof._claim_bytes(text, link))
+        contracts[consumer['consumer_id']] = copy.deepcopy(consumer)
+    state = dict(reference_documents=[declaration], reference_contracts=contracts,
+                 reference_bindings=[], active_reference_consumers=list(contracts))
+    return dict(plan=campaign.plan, state=state, source_sha256='a' * 64)
+
+
+def test_inventory_authenticates_live_then_archived_without_new_acceptance(campaign):
+    selected = _structured_publication(campaign)
+    member = next(item for item in selected.record['members']
+                  if item['member_id'] == selected.consumer['references'][0]['member_id'])
+    document = 'docs/nested/Ordinary-Plan.md'
+    path, declaration = _declared_document(campaign, selected,
+        'Accepted [result](' + os.path.relpath(member['original_path'],
+            (campaign.plan.root / document).parent) + ').\n', document=document)
+    owner = _inventory_owner(campaign, declaration)
+    before = copy.deepcopy(owner['state'])
+    locator = proof.locator(campaign.plan).read_bytes()
+    live = proof.inventory_references(campaign.plan, documents=[document], owners=[owner])
+    entry, = live['entries']
+    assert entry['classification'] == 'exact_live_proof'
+    assert entry['disposition'] == 'resolved' and entry['migration_owner'] == 'E12'
+    assert entry['original_identity'] == selected.record['context']
+    assert entry['owner_source_sha256'] == owner['source_sha256']
+    assert entry['consumer'] in owner['state']['reference_contracts']
+    assert entry['role'] == 'required_evidence' and entry['active'] is True
+    assert entry['claim_revision'] == declaration['references'][0]['consumer']['revision_sha256']
+    assert entry['candidate']['selector'] == selected.consumer['references'][0]
+    assert entry['candidate']['record_id'] == selected.record['record_id']
+    assert entry['candidate']['closure_sha256'] == selected.record['closure_sha256']
+    assert entry['candidate']['sha256'] == member['sha256']
+    assert entry['candidate']['bytes'] == member['bytes']
+    Path(member['original_path']).unlink()
+    archived = proof.inventory_references(campaign.plan, documents=[document], owners=[owner])
+    saved, = archived['entries']
+    assert saved['classification'] == 'exact_archived_proof'
+    for key in ('document_sha256', 'claim_sha256', 'reference_sha256', 'claim_revision',
+                'original_identity', 'candidate', 'owner_source_sha256'):
+        assert saved[key] == entry[key]
+    assert path.read_bytes() == ('Accepted [result](' + os.path.relpath(member['original_path'],
+        path.parent) + ').\n').encode()
+    assert proof.locator(campaign.plan).read_bytes() == locator
+    assert owner['state'] == before
+
+
+@pytest.mark.parametrize('defect', ['wrong-destination', 'ambiguous-owner'])
+def test_inventory_never_selects_plausible_proof_for_conflicting_declarations(campaign, defect):
+    selected = _structured_publication(campaign)
+    document = 'docs/Ordinary-Plan.md'
+    member = next(item for item in selected.record['members']
+                  if item['member_id'] == selected.consumer['references'][0]['member_id'])
+    if defect == 'wrong-destination':
+        member = next(item for item in selected.record['members']
+                      if item['member_id'] != member['member_id']
+                      and Path(item['original_path']).is_file())
+    _, declaration = _declared_document(campaign, selected,
+        'Accepted [result](' + os.path.relpath(member['original_path'],
+            (campaign.plan.root / document).parent) + ').\n', document=document)
+    owner = _inventory_owner(campaign, declaration)
+    owners = [owner]
+    if defect == 'ambiguous-owner':
+        competing = copy.deepcopy(owner['state'])
+        consumer = competing['reference_documents'][0]['references'][0]['consumer']
+        consumer['expected_context']['target'] = 'other-target'
+        competing['reference_contracts'][consumer['consumer_id']] = copy.deepcopy(consumer)
+        owners.append(dict(plan=campaign.plan, state=competing, source_sha256='b' * 64))
+    inventory = proof.inventory_references(campaign.plan, documents=[document], owners=owners)
+    entry, = inventory['entries']
+    assert entry['classification'] == 'wrong_or_ambiguous_destination'
+    assert entry['disposition'] == 'pending'
+    assert entry['candidate'] is None
+    assert entry['availability'] in ('identity', 'conflict')
+
+
+def test_inventory_changed_claim_cannot_inherit_authenticated_document_context(campaign):
+    selected = _structured_publication(campaign)
+    path, declaration = _declared_document(campaign, selected,
+        'Ubuntu passed [proof](' + selected.reference + ').\n', document=campaign.plan.path)
+    owner = _inventory_owner(campaign, declaration)
+    before = copy.deepcopy(owner['state'])
+    path.write_text(path.read_text().replace('Ubuntu passed', 'Both targets passed'))
+    inventory = proof.inventory_references(campaign.plan, documents=[campaign.plan.path], owners=[owner])
+    entry, = inventory['entries']
+    assert entry['disposition'] == 'pending'
+    assert entry['classification'] not in ('exact_live_proof', 'exact_archived_proof')
+    assert entry['document_sha256'] == proof._digest(path.read_bytes())
+    assert entry['document_sha256'] != declaration['sha256']
+    assert entry['candidate'] is None
+    assert owner['state'] == before
+
+
+@pytest.mark.parametrize('field', ['checkout', 'target'])
+def test_inventory_preserves_foreign_checkout_and_target_refusals(campaign, field):
+    selected = _structured_publication(campaign)
+    _, declaration = _declared_document(campaign, selected,
+        'Accepted [proof](' + selected.reference + ').\n', document=campaign.plan.path)
+    owner = _inventory_owner(campaign, declaration)
+    consumer = declaration['references'][0]['consumer']
+    if field == 'checkout':
+        consumer['expected_context']['repository']['inode'] += 1
+        checksum = identities.digest(consumer['expected_context']['repository'])
+        consumer['owner']['repository_sha256'] = checksum
+        consumer['expected_context']['owner']['repository_sha256'] = checksum
+    else:
+        consumer['expected_context']['target'] = 'other-target'
+    identities.validate_consumer(consumer)
+    owner['state']['reference_contracts'][consumer['consumer_id']] = copy.deepcopy(consumer)
+    inventory = proof.inventory_references(campaign.plan, documents=[campaign.plan.path], owners=[owner])
+    entry, = inventory['entries']
+    assert entry['classification'] in ('refused', 'wrong_or_ambiguous_destination')
+    assert entry['disposition'] == 'pending' and entry['candidate'] is None
+    assert entry['diagnostic']['condition'] == 'identity'
+
+
+def test_inventory_orders_mixed_nested_discovery_and_binds_only_metadata(campaign):
+    root = campaign.plan.root
+    present = root / 'output/test-runs/host/reports/present.json'
+    present.parent.mkdir(parents=True, exist_ok=True)
+    present.write_text('private report body never copied into inventory')
+    missing = present.with_name('lost.json')
+    nested = root / 'docs/nested/Ordinary-Plan.md'
+    nested.parent.mkdir()
+    nested.write_text('Secret claim [result](' + os.path.relpath(present, nested.parent) + ').\n'
+        'Lost bare result ' + str(missing) + '.\n'
+        '```text\n' + str(missing.with_name('example.json')) + '\n```\n'
+        'Owner journal [navigation](' + os.path.relpath(proof.locator(campaign.plan), nested.parent) + ').\n')
+    catalogue = root / 'docs/Catalogue.md'
+    catalogue.write_text('| [x] | other | task | Baseline | fixed | [proof](' +
+        os.path.relpath(missing, catalogue.parent) + ') |\n')
+    names = [nested.relative_to(root).as_posix(), catalogue.relative_to(root).as_posix()]
+    original = {name: (root / name).read_bytes() for name in names}
+    report = proof.inventory_references(campaign.plan, documents=[names[0]], catalogues=[names[1]])
+    repeated = proof.inventory_references(campaign.plan, documents=list(reversed(names)),
+                                         catalogues=[names[0]])
+    assert report == repeated
+    assert report['schema'] == 'onpc-legacy-reference-inventory' and report['version'] == 1
+    assert report['documents'] == [dict(document=name, sha256=proof._digest(original[name]))
+                                   for name in sorted(names)]
+    entries = report['entries']
+    assert [(item['document'], item['start']) for item in entries] == sorted(
+        (item['document'], item['start']) for item in entries)
+    assert len(entries) == 5
+    assert set(item['classification'] for item in entries) == {
+        'unresolved_context', 'unavailable_history', 'example', 'operational_path'}
+    unknown, = [item for item in entries if item['classification'] == 'unresolved_context']
+    assert unknown['availability'] == 'present' and unknown['disposition'] == 'pending'
+    assert unknown['consumer'] is None and unknown['role'] is None and unknown['active'] is None
+    assert unknown['original_identity'] is None and unknown['candidate'] is None
+    for item in entries:
+        text = original[item['document']].decode()
+        assert item['document_sha256'] == proof._digest(original[item['document']])
+        assert item['reference_sha256'] == proof._digest(text[item['start']:item['end']].encode())
+        assert item['line'] == text.count('\n', 0, item['start']) + 1
+        if item['classification'] == 'unavailable_history':
+            assert item['migration_owner'] == 'E13' and item['disposition'] == 'pending'
+    assert entries[0]['protected'] is True
+    unhashed = dict(report)
+    assert unhashed.pop('sha256') == bundle.digest(bundle.encoded(unhashed))
+    assert 'Secret claim' not in json.dumps(report)
+    assert 'private report body' not in json.dumps(report)
+    assert {name: (root / name).read_bytes() for name in names} == original
+
+
+def test_inventory_clean_missing_history_preserves_access_refusal(campaign, monkeypatch):
+    document = campaign.plan.root / 'docs/Clean.md'
+    missing = campaign.plan.root / 'output/test-runs/host/reports/unavailable.json'
+    document.write_text('Old [proof](' + os.path.relpath(missing, document.parent) + ').\n')
+    report = proof.inventory_references(campaign.plan, documents=['docs/Clean.md'])
+    absent, = report['entries']
+    assert absent['classification'] == 'unavailable_history'
+    assert absent['availability'] == 'missing' and absent['migration_owner'] == 'E13'
+    assert absent['disposition'] == 'pending' and absent['candidate'] is None
+    stat = Path.lstat
+    def denied(path, *args, **kwargs):
+        if path == missing:
+            raise PermissionError('private denied source detail')
+        return stat(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'lstat', denied)
+    refused, = proof.inventory_references(campaign.plan, documents=['docs/Clean.md'])['entries']
+    assert refused['classification'] == 'refused' and refused['availability'] == 'denied'
+    assert refused['disposition'] == 'pending' and refused['migration_owner'] == 'E12'
+    assert refused['candidate'] is None
+    assert 'private denied source detail' not in json.dumps(refused)
+
+
+def test_inventory_loads_authenticated_snapshots_without_recovery_or_current_checkpoint(campaign, monkeypatch):
+    run, state, result, report = campaign.accepted('first')
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    snapshot = Path(accepted['tasks']['first']['result']).parent / 'accepted-state.json'
+    original = snapshot.read_bytes()
+    checkpoint = run / 'checkpoint.json'
+    checkpoint.write_text('Current private checkpoint is unrelated to accepted snapshots')
+    current = checkpoint.read_bytes()
+    def recovery_forbidden(*args, **kwargs):
+        pytest.fail('read-only inventory attempted controller recovery')
+    monkeypatch.setattr(proof, 'recover', recovery_forbidden)
+    monkeypatch.setattr(proof, 'recovered', recovery_forbidden)
+    read = proof._read
+    def retained_only(path):
+        assert Path(path) != checkpoint, 'inventory read the live controller checkpoint'
+        return read(path)
+    monkeypatch.setattr(proof, '_read', retained_only)
+    owners, candidates = proof._inventory_owners(campaign.plan)
+    owner, = owners
+    assert owner['state'] == bundle.decoded(original)
+    assert owner['source_sha256'] == bundle.digest(original)
+    assert owner['plan'] is campaign.plan
+    source = report / 'result.md'
+    candidate, = [item for item in candidates if item['path'] == str(source)]
+    assert candidate['sha256'] == bundle.digest(source.read_bytes())
+    assert candidate['locator_sha256'] == bundle.digest(proof.locator(campaign.plan).read_bytes())
+    article = campaign.plan.root / 'docs/History.md'
+    article.write_text('Old [result](' + os.path.relpath(source, article.parent) + ').\n')
+    inventory = proof.inventory_references(campaign.plan, documents=['docs/History.md'],
+                                          owners=owners, candidates=candidates)
+    entry, = inventory['entries']
+    assert entry['classification'] == 'unresolved_context' and entry['disposition'] == 'pending'
+    assert entry['original_identity'] is None and entry['consumer'] is None
+    assert entry['candidate']['context_verified'] is False
+    assert entry['candidate']['sha256'] == candidate['sha256']
+    conflicting = [*candidates, dict(candidate, sha256='f' * 64)]
+    ambiguous, = proof.inventory_references(campaign.plan, documents=['docs/History.md'],
+        owners=owners, candidates=conflicting)['entries']
+    assert ambiguous['classification'] == 'wrong_or_ambiguous_destination'
+    assert ambiguous['availability'] == 'conflict' and ambiguous['disposition'] == 'pending'
+    assert ambiguous['candidate'] is None
+    assert checkpoint.read_bytes() == current
+    assert snapshot.read_bytes() == original
+
+
+def test_inventory_tracks_only_git_markdown_plus_registered_catalogue_and_retains_report(campaign):
+    import subprocess
+    root = campaign.plan.root
+    tracked = ['docs/Mixed.Md', 'docs/Spelled.MARKDOWN', 'docs/Tracked.md', 'docs/Upper.MD']
+    catalogue = 'docs/Local.md'
+    for name in [*tracked, catalogue, 'docs/Untracked.md']:
+        (root / name).write_text('Old [result](../output/test-runs/host/reports/lost.json).\n')
+    (root / '.gitignore').write_text(catalogue + '\n')
+    for args in (['init', '-q'], ['add', '--', *tracked]):
+        subprocess.run(['git', *args], cwd=root, check=True, capture_output=True, timeout=10,
+                       env=dict(os.environ, LC_ALL='C', GIT_CONFIG_NOSYSTEM='1'))
+    report = proof.inventory_references(campaign.plan)
+    assert [item['document'] for item in report['documents']] == tracked
+    registered = proof.inventory_references(campaign.plan, catalogues=[catalogue])
+    assert [item['document'] for item in registered['documents']] == sorted([*tracked, catalogue])
+    assert {item['document'] for item in registered['entries']} == set([*tracked, catalogue])
+    saved = proof.retain_inventory(campaign.plan, registered)
+    assert saved.is_relative_to(bundle.storage.directory('reports', root=root))
+    assert saved.name == 'inventory.json' and bundle.decoded(saved.read_bytes()) == registered
+    store = bundle.retention.Store(bundle.storage.directory('state', root=root) / 'standalone-reports')
+    with store.inspection() as owner:
+        assert owner['finished'] is True
+        assert any(item['path'] == str(saved.parent) for item in owner['paths'])
+    assert bundle.retention.token() is None
+
+
+def test_inventory_equivalent_owner_snapshots_have_order_independent_provenance(campaign):
+    selected = _structured_publication(campaign)
+    _, declaration = _declared_document(campaign, selected,
+        'Accepted [proof](' + selected.reference + ').\n', document=campaign.plan.path)
+    first = _inventory_owner(campaign, declaration)
+    second = dict(plan=campaign.plan, state=copy.deepcopy(first['state']), source_sha256='b' * 64)
+    second['state']['unrelated_checkpoint_counter'] = 7
+    before = [copy.deepcopy(owner['state']) for owner in (first, second)]
+    forward = proof.inventory_references(campaign.plan, documents=[campaign.plan.path],
+                                         owners=[first, second])
+    reverse = proof.inventory_references(campaign.plan, documents=[campaign.plan.path],
+                                         owners=[second, first])
+    assert forward == reverse
+    entry, = forward['entries']
+    assert entry['classification'] == 'exact_live_proof' and entry['disposition'] == 'resolved'
+    assert entry['owner_source_sha256'] in {first['source_sha256'], second['source_sha256']}
+    assert [owner['state'] for owner in (first, second)] == before
+
+
+@pytest.mark.parametrize('declaration', [dict(document='docs/History.md'),
+    dict(document='docs/History.md', sha256='c' * 64, references={'unexpected': 'object'})],
+    ids=['missing-references', 'non-list-references'])
+def test_inventory_malformed_owner_documents_report_integrity_and_skip_authority(campaign, declaration):
+    document = campaign.plan.root / 'docs/History.md'
+    document.write_text('Old [proof](../output/test-runs/host/reports/lost.json).\n')
+    owner = dict(plan=campaign.plan, source_sha256='a' * 64,
+        state=dict(reference_documents=[copy.deepcopy(declaration)], reference_contracts={},
+                   reference_bindings=[], active_reference_consumers=[]))
+    before = copy.deepcopy(owner['state'])
+    report = proof.inventory_references(campaign.plan, documents=['docs/History.md'], owners=[owner])
+    assert report['owner_findings'] == [dict(plan=campaign.plan.path,
+        source_sha256=owner['source_sha256'], condition='integrity')]
+    entry, = report['entries']
+    assert entry['consumer'] is None and entry['owner_source_sha256'] is None
+    assert entry['classification'] == 'unavailable_history' and entry['disposition'] == 'pending'
+    assert entry['candidate'] is None
+    assert owner['state'] == before
+
+
+@pytest.mark.parametrize('shared_snapshot', [False, True])
+def test_inventory_loads_schema2_owner_snapshot_without_live_checkpoint(campaign, monkeypatch, shared_snapshot):
+    selected = _structured_publication(campaign, shared_snapshot=shared_snapshot)
+    snapshots = [item for item in selected.record['members']
+                 if Path(item['original_path']).name == 'accepted-state.json']
+    snapshot, = snapshots
+    original = Path(snapshot['original_path']).read_bytes()
+    read = proof._read
+    def retained_only(path):
+        assert Path(path).name != 'checkpoint.json', 'inventory read a live checkpoint'
+        return read(path)
+    def recovery_forbidden(*args, **kwargs):
+        pytest.fail('schema2 inventory attempted controller recovery')
+    monkeypatch.setattr(proof, '_read', retained_only)
+    monkeypatch.setattr(proof, 'recover', recovery_forbidden)
+    monkeypatch.setattr(proof, 'recovered', recovery_forbidden)
+    owners, candidates = proof._inventory_owners(campaign.plan)
+    owner, = owners
+    assert owner['state'] == bundle.decoded(original)
+    assert owner['source_sha256'] == snapshot['sha256'] == bundle.digest(original)
+    matching = [item for item in candidates if item['path'] == snapshot['original_path']]
+    assert matching and all(item == matching[0] for item in matching)
+    candidate = matching[0]
+    assert candidate['sha256'] == snapshot['sha256'] and candidate['bytes'] == len(original)
+    assert candidate['plan'] == campaign.plan.path
+    assert candidate['locator_sha256'] == bundle.digest(proof.locator(campaign.plan).read_bytes())
+
+
+def test_inventory_report_named_like_locator_is_not_operational_navigation(campaign):
+    report = campaign.plan.root / 'output/test-runs/host/reports/accepted-evidence.json'
+    report.parent.mkdir(parents=True)
+    report.write_text('ordinary report, not control state')
+    document = campaign.plan.root / 'docs/History.md'
+    document.write_text('Old [proof](' + os.path.relpath(report, document.parent) + ').\n')
+    entry, = proof.inventory_references(campaign.plan, documents=['docs/History.md'])['entries']
+    assert entry['classification'] == 'unresolved_context'
+    assert entry['availability'] == 'present' and entry['disposition'] == 'pending'

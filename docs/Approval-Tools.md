@@ -373,6 +373,30 @@ The [rule matching contract](https://learn.chatgpt.com/docs/agent-configuration/
 matches literal argument prefixes; the strictest decision wins.
 `match`/`not_match` examples test rules, not runtime arguments.
 
+`tools/read-only evidence-inventory --plan 'docs/TestAutomation/Export-Execution-Plan.md'`
+inspects tracked Markdown names from Git and their bounded legacy references.
+Repeat `--catalogue 'checkout-relative.md'` to register a finite local Markdown
+catalogue, including an untracked handoff; repeat `--owner-plan 'docs/Other.md'`
+to inspect another explicitly selected plan's authenticated accepted snapshots.
+It never reads a live checkpoint, starts a controller, edits documents, operates
+a VM or renews acceptance. Source/archive scopes close before the report is
+retained through the shared allocator in the normal standalone-report ring.
+Exit 0 prints the private report path, content digest, classification counts and
+typed owner-source findings. Exit 2 refuses an invalid or oversized inspection.
+Findings inside a completed report describe unresolved inputs, not a passing
+reference or recovered acceptance. There is no output-path or mutation option.
+
+The report is bounded to 2048 documents, 32 MiB of document bytes, 8192
+occurrences and 8 MiB of metadata. It contains document/use-site offsets, original
+document/reference/claim digests, owner-supplied roles/context when available,
+verified candidate digests, typed availability/refusal and pending/resolved
+dispositions. It copies no claim prose, transcript or report contents. Missing
+owner context stays pending even for a present path or an authenticated legacy
+archive candidate. Examples and mutable locator/journal navigation are inert;
+neither receives evidence authority. E10's revision/role policy and authenticated
+member resolver remain the sole owners of semantic decisions. The inventory is
+revalidated migration input for E12/E13, not a database, checkpoint or authority.
+
 ## Category coverage and future additions
 
 Setup authorization is separate from runtime test authorization. The installed

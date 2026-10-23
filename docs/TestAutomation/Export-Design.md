@@ -461,6 +461,20 @@ Advisory rendering and test activity remain outside this decision closure.
 
 ### Legacy reference migration
 
+E11's registered [inventory reader](../Approval-Tools.md#launcher-inspection-and-workspace-edits)
+uses `plan_evidence.inventory_references` with the shared parser, E10 policy and
+authenticated accepted snapshots. It discovers tracked Markdown across ordinary
+plans, queues, briefs and prose, plus explicitly registered local catalogues.
+It retains one bounded `onpc-legacy-reference-inventory` version-1 metadata
+report in normal launcher artifacts. Exact live/archive classifications require
+an owning document declaration and verified member context; schema-1 retained
+path matches remain candidates with `context_verified: false`. Unknown roles
+stay null. Missing, denied, stale, foreign and conflicting inputs remain distinct
+pending dispositions, with E12/E13 as migration owners. Queue-shaped claims are
+marked protected without granting rewrite authority. No active checkpoint is read
+or changed. The introducing source remains in the existing controller dependency
+closure; the thin reader dispatch adds no retained acceptance decision.
+
 Inventory tracked references and explicitly registered local catalogues, not an
 unbounded filesystem scan. Classify each as exact live proof, exact archived
 proof, wrong/ambiguous destination, historical unavailable, example or operational

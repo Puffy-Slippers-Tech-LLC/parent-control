@@ -120,6 +120,12 @@ service or fixture build. The read-only dispatch check adds one bounded, waited
 isolated Python child with a private hostile-import fixture. plan_evidence, runner_evidence and
 read_only_launcher retain compatible overlap and existing estimates; cleanup/UI
 inventories gain no module or resource owner.
+E11 legacy inventory composition reuses pytest-private Markdown, tiny accepted
+bundles/journals and process-local permission/identity doubles. Tracked discovery
+uses finite waited Git reads in a private checkout; report retention uses the
+existing shared allocator in that same private tree. No live owner, VM, service,
+socket, display, shared cache or build is acquired. plan_evidence and
+read_only_launcher retain compatible overlap; cleanup/UI gain no resource owner.
 launcher_worktrees uses pytest-private Git checkouts, worktrees, bare remotes,
 stash objects and checkpoint/lock trees, bounded waited Git children and a
 private supervised Python agent double. It owns no live service, network, VM, bus, display,

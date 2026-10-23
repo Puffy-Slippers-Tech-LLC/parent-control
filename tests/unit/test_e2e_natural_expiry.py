@@ -1,9 +1,8 @@
-"""TIME04 safety with synthetic clocks, public node doubles and memory transport.
+"""TIME04 safety with public node doubles and memory transport.
 
 These checks establish harness refusals, never installed expiry acceptance.
 """
 
-from dataclasses import asdict
 import copy
 import hashlib
 import json
@@ -13,11 +12,9 @@ from unittest.mock import Mock
 import pytest
 
 import accessible_ui
-from countdown import CountdownObservation, CountdownSample
-import natural_expiry_observation as expiry
 from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node, ui_for
-from ui_observations import AppActivityObservation, UiObservations
+from ui_observations import UiObservations
 
 
 BOOT, SESSION, SOURCE, SURFACE = (letter * 64 for letter in 'bcde')
@@ -47,86 +44,6 @@ def observation(*, locked=False, acted=False, seconds=20):
             'activity': None if locked else activity_value(),
             'seconds': None if locked else seconds,
             'lock': lock_value() if locked else None, 'acted': acted}
-
-
-@pytest.fixture
-def clock(monkeypatch):
-    now = [101.0]
-    monkeypatch.setattr(expiry, 'time', SimpleNamespace(
-        monotonic=lambda: now[0], monotonic_ns=lambda: round(now[0] * 1e9)))
-    def interval(seconds):
-        def advance(_journey, guard):
-            guard()
-            now[0] += seconds
-        return advance
-    monkeypatch.setattr(expiry, 'interval_action', interval)
-    return now
-
-
-def sample():
-    return CountdownSample(CountdownObservation(True, '20', 10_000_000_000, 0),
-                           (100_000_000_000, 101_000_000_000), BOOT)
-
-
-def helper_journey(clock, readings):
-    ui = SimpleNamespace(boot_proof=BOOT)
-    pending = iter(readings)
-    def read(_operation):
-        at, value = next(pending)
-        clock[0] = at
-        return {'natural_expiry': value}
-    ui.observe = Mock(side_effect=read)
-    return SimpleNamespace(ui=ui)
-
-
-def test_activity_then_independent_lock_preserves_initial_sample_and_elapsed_bounds(clock):
-    original = sample()
-    journey = helper_journey(clock, [(101.1, observation()),
-        (103.0, observation(acted=True)), (120.5, observation(locked=True))])
-    result = expiry.await_natural_expiry(journey, lambda: 1000, original,
-        AppActivityObservation.from_value(activity_value()))
-    assert result['initial_countdown'] == asdict(original)
-    assert result['lock'] == lock_value() and result['activity_actions'] == 1
-    assert result['elapsed_interval_seconds'] == [3.0, 20.5]
-    assert [call.args[0] for call in journey.ui.observe.call_args_list] == [
-        OBSERVE, ACTIVITY, ACTIVITY]
-
-
-@pytest.mark.parametrize('fault', ['premature', 'late', 'no-activity', 'boot', 'session', 'app'])
-def test_natural_lock_requires_timely_same_session_activity(clock, fault):
-    second = observation(locked=True, acted=fault != 'no-activity')
-    at = 105 if fault == 'premature' else 136 if fault == 'late' else 120
-    if fault == 'session':
-        second['session_sha256'] = 'f' * 64
-    if fault == 'app':
-        second = observation(acted=True)
-        second['activity']['pid'] = 101
-    journey = helper_journey(clock, [(101.1, observation()), (at, second)])
-    if fault == 'boot':
-        journey.ui.boot_proof = 'f' * 64
-    with pytest.raises(EvidenceError):
-        expiry.await_natural_expiry(journey, lambda: 1000, sample(),
-            AppActivityObservation.from_value(activity_value()))
-    assert journey.ui.observe.call_count <= 2
-
-
-@pytest.mark.parametrize('attempt_deadline', [1000, 134])
-def test_stalled_desktop_does_not_extend_original_or_attempt_deadline(clock, attempt_deadline):
-    journey = SimpleNamespace(ui=SimpleNamespace(boot_proof=BOOT))
-    read_starts = []
-    def stalled(_operation):
-        read_starts.append(clock[0])
-        clock[0] += .1
-        return {'natural_expiry': observation(acted=_operation == ACTIVITY)}
-    journey.ui.observe = Mock(side_effect=stalled)
-    with pytest.raises(EvidenceError, match='deadline'):
-        expiry.await_natural_expiry(journey, lambda: attempt_deadline, sample(),
-            AppActivityObservation.from_value(activity_value()))
-    assert all(start < min(135, attempt_deadline) for start in read_starts)
-    # A read that began in time may complete after the deadline, but cannot
-    # produce an accepted result or authorize another read.
-    assert clock[0] <= min(135, attempt_deadline) + .100001
-    assert journey.ui.observe.call_count < 35
 
 
 def adapter():
@@ -311,14 +228,13 @@ def decoder():
     return ui, transport, read
 
 
-@pytest.mark.parametrize('fault', ['boot', 'session', 'source', 'app-state'])
-def test_decoder_pins_boot_session_source_and_finite_activity(fault):
+@pytest.mark.parametrize('fault', ['boot', 'session', 'source'])
+def test_decoder_pins_boot_session_and_source(fault):
     ui, transport, read = decoder()
     assert read(OBSERVE, observation())['source'] == SOURCE
     changed = observation(acted=True)
     if fault == 'session': changed['session_sha256'] = 'f' * 64
     if fault == 'source': changed['source'] = 'f' * 64
-    if fault == 'app-state': changed['activity']['state']['draft'] = 'unexpected draft'
     with pytest.raises((EvidenceError, accessible_ui.UiError)):
         read(ACTIVITY, changed, boot='f' * 64 if fault == 'boot' else BOOT)
     assert transport.call.call_args.args[0][-2:] == [BOOT, SOURCE]

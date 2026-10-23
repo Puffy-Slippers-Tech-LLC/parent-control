@@ -138,29 +138,6 @@ def screenshot(directory, name):
     return {'width': width, 'height': height, 'sha256': hashlib.sha256(raw).hexdigest()}
 
 
-def matched_serial_screens(directory):
-    """Retained legacy pixel qualification; case 1 uses functional UI evidence."""
-    module_result(directory)
-    details = json.loads((directory / 'testresults/result-smoke.json').read_text())['details']
-    matches = [(i, d) for i, d in enumerate(details) if 'needle' in d]
-    account, prompt = 'onpc-gdm-parent-account', 'onpc-gdm-parent-masked-password'
-    require([d['needle'] for _, d in matches] == [account, account, account, prompt, account, account],
-            'qualification:match-sequence')
-    logout = [i for i, d in enumerate(details) if d.get('title') == 'serial-logout' and d.get('result') == 'ok']
-    returned = [i for i, d in enumerate(details) if d.get('title') == 'gdm-return' and d.get('result') == 'ok']
-    require(len(logout) == len(returned) == 1
-            and matches[-2][0] < logout[0] < matches[-1][0] < returned[0],
-            'qualification:return-order')
-    result = []
-    for (index, match), stage in zip(matches, ('initial', 'select-ready', 'click', 'prompt', 'dismissed', 'returned')):
-        require(match.get('result') == 'ok' and match.get('area')
-                and all(a.get('result') == 'ok' and a.get('similarity') == 100 for a in match['area']),
-                'qualification:match-quality')
-        result.append({'stage': stage, 'detail_index': index, 'needle': match['needle'],
-                       **screenshot(directory, match.get('screenshot'))})
-    return result
-
-
 class Smoke:
     def __init__(self, directory, lease, commands, host_key, progress=None, transfer=None,
                  authenticate=False, serial=False, installation=None, vt6_prompt=False,

@@ -264,9 +264,6 @@ exclusively at runtime so incomplete checkouts fail safely. Validate partition
 coverage and compatible overlap for the changed scope using the maintained
 launcher, without expanding validation to unrelated host categories.
 
-`test_e2e_estimate_freshness.py` similarly owns only private records and
-in-memory clock/transport doubles; it is compatible and adds no live resource.
-
 `system` and `e2e` remain sequential within each VM. VM tests default to every
 entry in `config/test-vm.json` whose `enabled` equals the string `"true"`.
 Its positive integer `concurrency` limits active guests: 1 is serial, 2 permits

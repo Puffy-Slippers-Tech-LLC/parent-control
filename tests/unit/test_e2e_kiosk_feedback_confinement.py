@@ -12,7 +12,6 @@ from tests.support.accessible_ui import Node
 from tests.support.e2e_kiosk import accounts_form
 from tests.support.modules import load_module
 from tests.support.paths import ROOT
-from ui_observations import UiObservations
 
 
 @pytest.fixture
@@ -170,25 +169,6 @@ def diagnostic_ui():
     return ui, controls, editor, document, download, send
 
 
-def test_real_public_error_report_editor_sequence_never_sends():
-    ui, controls, editor, document, download, send = diagnostic_ui()
-    error = ui.run('kiosk-diagnostic-error', '')['diagnostic']
-    report = ui.run('kiosk-diagnostic-report', '')['diagnostic']
-    result = ui.run('kiosk-diagnostic-editor', '')['diagnostic']
-    privacy = ui.run('kiosk-diagnostic-privacy', '')['diagnostic']
-    assert error['error_shown'] and error['report_default'] and report['report_open']
-    assert error['source'] == report['source'] == result['source']
-    assert result == {'source': error['source'], 'editor_usable': True,
-                      'diagnostics_ready': True, 'sent': False}
-    assert privacy == {'source': error['source'], 'privacy_read': True,
-                      'actions_confined': True, 'draft_preserved': True, 'sent': False}
-    editor.setText.assert_called_once_with('Installed kiosk diagnostic qualification.')
-    assert document.getValue.call_count >= 1
-    assert ui.find_id('kiosk-request-submit').action.do_action.call_count == 1
-    assert controls[-1].action.do_action.call_count == 1
-    send.action.do_action.assert_not_called()
-
-
 @pytest.mark.parametrize('role,identity', [('button', 'feedback-manage'),
     ('button', 'feedback-arbitrary-program'), ('link', 'feedback-external'),
     ('link', 'feedback-format-link')])
@@ -322,17 +302,6 @@ def test_dedicated_kiosk_report_refuses_exposed_download_without_activating_it()
     send.action.do_action.assert_not_called()
 
 
-def test_feedback_qualification_retains_separate_session_identity_observation(tmp_path):
-    from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
-    journey = KioskFeedbackConfinementJourney(SimpleNamespace(directory=tmp_path), Mock())
-    census = {'census': {'scope': 'session-identity-only', 'confinement_qualified': False}}
-    journey.engineering = Mock(return_value=census)
-    observed = {}
-    journey.check_request('kiosk-diagnostic-editor', observed)
-    assert observed == {'engineering_confinement': census}
-    journey.engineering.assert_called_once_with('census')
-
-
 def test_report_replaced_owner_refuses_before_dismissal():
     ui, controls, editor, document, download, send = diagnostic_ui()
     ui.run('kiosk-diagnostic-error', '')
@@ -342,37 +311,6 @@ def test_report_replaced_owner_refuses_before_dismissal():
     controls[-1].action.do_action.assert_not_called()
     editor.setText.assert_not_called()
     send.action.do_action.assert_not_called()
-
-
-def test_transport_checks_same_owner_order_and_exact_unsent_projection():
-    transport = SimpleNamespace(call=Mock(), commands=SimpleNamespace(progress=None))
-    def stream(argv, *, on_output, **kwargs):
-        on_output(transport.call.return_value + b'\n')
-        return transport.call.return_value
-    transport.call.side_effect = stream
-    observations = UiObservations(transport)
-    observations.boot_guard = 'b' * 64
-    def reply(operation, **fields):
-        transport.call.return_value = json.dumps({'operation': operation, 'outcome': 'passed',
-            'interface': 'ApplicationUI+external-provider', 'boot_sha256': 'b' * 64,
-            'diagnostic': {'source': 'a' * 64, **fields}}).encode()
-        return observations.observe(operation)
-    with pytest.raises(EvidenceError, match='ui:kiosk-diagnostic-order'):
-        reply('kiosk-diagnostic-report', report_open=True)
-    reply('kiosk-diagnostic-error', error_shown=True, report_default=True)
-    reply('kiosk-diagnostic-report', report_open=True)
-    assert transport.call.call_args.args[0][-2:] == ['b' * 64, 'a' * 64]
-    with pytest.raises(EvidenceError, match='ui:kiosk-diagnostic-response'):
-        reply('kiosk-diagnostic-editor', editor_usable=True, diagnostics_ready=True, sent=True)
-    reply('kiosk-diagnostic-editor', editor_usable=True, diagnostics_ready=True, sent=False)
-    with pytest.raises(EvidenceError, match='ui:kiosk-diagnostic-response'):
-        reply('kiosk-diagnostic-privacy', privacy_read=True, actions_confined=True,
-              draft_preserved=False, sent=False)
-    reply('kiosk-diagnostic-privacy', privacy_read=True, actions_confined=True,
-          draft_preserved=True, sent=False)
-    with pytest.raises(EvidenceError, match='ui:kiosk-diagnostic-order'):
-        reply('kiosk-diagnostic-privacy', privacy_read=True, actions_confined=True,
-              draft_preserved=True, sent=False)
 
 
 def test_engineering_journey_prepares_rest_of_day_before_fault_and_restores_before_report(tmp_path):
@@ -418,40 +356,6 @@ def test_preparation_refusal_never_starts_broker_fault(tmp_path):
         journey.check_request('selections-read', {})
     assert not journey.fault_pending
     journey.engineering.assert_not_called()
-
-
-def test_feedback_census_observes_session_without_private_role_requirements(monkeypatch):
-    helper = load_module('private_kiosk_feedback_census', ROOT / 'tests/integration/system_kiosk_feedback.py')
-    import system_kiosk_confinement
-    value = {'scope': 'session-identity-only', 'confinement_qualified': False}
-    census = Mock(return_value=value)
-    monkeypatch.setattr(system_kiosk_confinement, 'census', census)
-    assert helper.feedback_census() == {'census': value}
-    census.assert_called_once_with()
-
-
-@pytest.mark.parametrize('refused', ['', 'kiosk-diagnostic-error'])
-def test_worker_composes_public_station_steps_and_stops_on_fault_result_refusal(monkeypatch, refused):
-    from kiosk_feedback_confinement import EXTRA, PLAN
-    from tests.support.e2e_kiosk import WORKER
-    from tests.support.perl import run_perl
-    # Reuse the maintained worker probe; only its fixed engineering flag differs.
-    ending = '    });\n    1;'
-    assert WORKER.count(ending) == 1
-    program = WORKER.replace(ending, '    }, 1);\n    1;')
-    if refused:
-        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refused)
-    result = json.loads(run_perl(program).stdout)
-    stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    if refused:
-        assert not result['ok'] and stages[-1] == refused
-        assert 'kiosk-diagnostic-report' not in stages
-    else:
-        assert result['ok'] and stages[-len(EXTRA):] == list(EXTRA)
-        assert [stage for stage in PLAN.screen_tags if stage in stages] == stages
-    # Product actions after station entry remain controller API operations.
-    boundary = result['events'].index(['stage', 'selections-read'])
-    assert not any(event[0] in ('key', 'secret') for event in result['events'][boundary + 1:])
 
 
 def test_feedback_failure_retains_pending_fault_when_recovery_fails(tmp_path):

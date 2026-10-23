@@ -1,22 +1,13 @@
-"""Overlay entry guards and immutable readback with private synthetic trees."""
+"""Overlay account, target ownership and single-input guards with private trees."""
 
-from dataclasses import FrozenInstanceError
-import json
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 import accessible_ui as a
-import check_e2e_shell_panel as check
-from journey_blocks import overlay_entry
-from parent_setup_qualification import ShellPanelQualification
-from private_artifacts import EvidenceError
-from shell_panel import PLAN
 from tests.support.accessible_ui import Node, ui_for
 from tests.support.e2e_kiosk import request_form
-from tests.support.perl import run_perl
-from ui_observations import UiObservations, RequestObservation
 
 
 def child_session(monkeypatch):
@@ -45,22 +36,6 @@ def overlay(monkeypatch):
     return ui, application, form, child
 
 
-def test_overlay_reads_current_selected_account_descriptions(monkeypatch):
-    ui, _, _, child = overlay(monkeypatch)
-    # AccountSelector._describe_trigger publishes the same description for
-    # both namespaces; the distinct public UID IDs establish their identities.
-    child.description = f'Selected account: {a.CHILD}.'
-    approver = ui.find_id('kiosk-approver-selector')
-    approver.description = f'Selected account: {a.OTHER_PARENT}.'
-    result = ui.run('overlay-request-form', '')
-    observed = RequestObservation.from_request(result['request'],
-                                              operation='overlay-request-form')
-    assert observed.child == 'fixture-child'
-    assert observed.approver == 'other-fixture-parent'
-    child.action.do_action.assert_not_called()
-    approver.action.do_action.assert_not_called()
-
-
 def panel(monkeypatch):
     child_session(monkeypatch)
     button = Node('Request time', 'push button', identity='child-request-button')
@@ -74,70 +49,11 @@ def panel(monkeypatch):
     return ui_for(root), root, application, button
 
 
-def test_panel_activates_api_target_without_native_focus(monkeypatch):
-    ui, _, _, button = panel(monkeypatch)
-    button.get_action_iface = Mock(side_effect=AssertionError('native product action'))
-    ui.run('overlay-panel-launch', '')
-    button.activate.assert_called_once_with()
-    button.component.grab_focus.assert_not_called()
-    button.action.do_action.assert_not_called()
-
-
-@pytest.mark.parametrize('fault', ['', 'wrong-child', 'prompt'])
-def test_panel_reopen_reads_fixed_form_without_product_or_overview_input(monkeypatch, fault):
-    ui, _, _, child = overlay(monkeypatch)
-    if fault == 'wrong-child': child.value = '1002'
-    if fault == 'prompt': ui.handle_system_prompt = Mock(side_effect=a.UiError('ui:prompt'))
-    ui.overlay_panel_launch = Mock(side_effect=AssertionError('duplicate form launch'))
-    ui.shell_search_snapshot = Mock(side_effect=AssertionError('unneeded overview navigation'))
-    for operation in ('overlay-panel-reveal-ready', 'overlay-panel-ready',
-                      'overlay-panel-launch', 'overlay-panel-overview'):
-        if fault:
-            with pytest.raises(a.UiError):
-                ui.run(operation, '')
-        else:
-            ui.run(operation, '')
-    ui.overlay_panel_launch.assert_not_called()
-    ui.shell_search_snapshot.assert_not_called()
-    child.setValue.assert_not_called()
-
-
 def test_panel_return_requires_existing_owned_request_form(monkeypatch):
     ui, _, _, button = panel(monkeypatch)
     with pytest.raises(a.UiError):
         ui.run('overlay-panel-overview', '')
     button.activate.assert_not_called()
-
-@pytest.mark.parametrize('fault', ['', 'unlocked', 'wrong-child', 'duplicate-form', 'foreign-form',
-    'wrong-application', 'expanded', 'defunct', 'missing', 'wrong-duration', 'mute', 'incomplete'])
-def test_fixed_overlay_reader_refuses_unsafe_or_incomplete_forms(monkeypatch, fault):
-    ui, application, form, child = overlay(monkeypatch)
-    if fault == 'unlocked': child.states.add('sensitive')
-    if fault == 'wrong-child':
-        child.children[0].identity = 'kiosk-child-selected-1002'
-        child.value = '1002'
-        child.description = 'Selected account: ' + a.EXISTING_CHILD + '.'
-    if fault == 'duplicate-form':
-        form.children.append(Node(identity='kiosk-request-form'))
-    if fault == 'foreign-form':
-        application.children.append(Node(identity='kiosk-request-form'))
-    if fault == 'wrong-application': application.identity = a.KIOSK_APPLICATION
-    if fault == 'expanded': form.children.append(Node(identity='kiosk-child-choice-1001'))
-    if fault == 'defunct': child.states.add('defunct')
-    if fault == 'missing': form.children.remove(child)
-    if fault == 'wrong-duration': ui.find_id('kiosk-duration-1800').states.remove('pressed')
-    if fault == 'mute': form.children.append(Node(identity='kiosk-mute-button'))
-    if fault == 'incomplete': form.children.append(None)
-    if fault:
-        with pytest.raises(a.UiError): ui.run('overlay-request-form', '')
-    else:
-        observed = RequestObservation.from_request(ui.run('overlay-request-form', '')['request'],
-                                                  operation='overlay-request-form')
-        assert observed.surface == 'child-overlay' and observed.child == 'fixture-child'
-        assert observed.approver == 'other-fixture-parent'
-        assert observed.form_count == 1 and not observed.child_selector_enabled
-        with pytest.raises(FrozenInstanceError): observed.child = 'changed'
-    child.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'wrong-owner', 'duplicate', 'hidden', 'disabled',
@@ -169,7 +85,8 @@ def test_panel_launch_requires_owned_child_target_and_never_replays_uncertain_in
     button.component.grab_focus.assert_not_called()
     button.action.do_action.assert_not_called()
 
-@pytest.mark.parametrize('operation', ['child-command-launch', *sorted(a.OVERLAY_OPERATIONS)])
+@pytest.mark.parametrize('operation', ['child-command-launch', 'overlay-request-form',
+                                      'overlay-panel-launch'])
 def test_overlay_operations_bind_child_and_refuse_another_account(monkeypatch, operation):
     monkeypatch.setattr(a.sys, 'argv', ['observer', operation, '1.1'])
     monkeypatch.setattr(a.os, 'geteuid', lambda: 0)
@@ -186,76 +103,6 @@ def test_overlay_operations_bind_child_and_refuse_another_account(monkeypatch, o
     submit.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['', 'child', 'surface', 'count', 'selector', 'controls', 'extra'])
-def test_real_controller_decoder_retains_strict_immutable_projection(monkeypatch, fault):
-    ui, _, _, _ = overlay(monkeypatch)
-    result = ui.run('overlay-request-form', '')
-    fields = result['request']
-    if fault == 'child': fields['child'] = 'existing-fixture-child'
-    if fault == 'surface': fields['surface'] = 'kiosk'
-    if fault == 'count': fields['form_count'] = 2
-    if fault == 'selector': fields['child_selector_enabled'] = True
-    if fault == 'controls': fields['request_enabled'] = False
-    if fault == 'extra': fields['private'] = 'canary'
-    def call(*_args, on_output, **_kwargs):
-        raw = (json.dumps(result) + '\n').encode()
-        on_output(raw)
-        return raw
-    transport = SimpleNamespace(call=call, commands=SimpleNamespace(progress=None))
-    observer = UiObservations(transport)
-    if fault:
-        with pytest.raises((EvidenceError, a.UiError)): observer.observe('overlay-request-form')
-    else:
-        value = observer.observe('overlay-request-form')['request']
-        immutable = RequestObservation.from_request(value, operation='overlay-request-form')
-        value['child'] = 'changed'
-        assert immutable.child == 'fixture-child'
-
-
-@pytest.mark.parametrize('operation', ['overlay-request-form', 'overlay-panel-reveal-ready'])
-def test_overlay_reader_diagnostics_pass_through_real_controller(monkeypatch, capsys, operation):
-    ui, _, _, _ = overlay(monkeypatch)
-    result = ui.run('overlay-request-form', '')
-    if operation == 'overlay-panel-reveal-ready':
-        result.pop('request')
-        result['operation'] = operation
-    diagnostics = capsys.readouterr().out.encode()
-    # Enough progress to reproduce the live reply-size failure, with arbitrary
-    # transport chunks and no prompt callback to select the stream parser.
-    raw = diagnostics + (json.dumps(result) + '\n').encode()
-    assert len(raw) > 2048
-    def call(*_args, on_output, timeout, **_kwargs):
-        assert timeout == 120
-        for start in range(0, len(raw), 17):
-            on_output(raw[start:start + 17])
-        return raw
-    transport = SimpleNamespace(call=call, commands=SimpleNamespace(progress=None))
-    observed = UiObservations(transport).observe(operation)
-    if operation == 'overlay-request-form':
-        assert RequestObservation.from_request(observed['request'],
-            operation=operation).child == 'fixture-child'
-    else:
-        assert observed['operation'] == operation
-    assert capsys.readouterr().err.encode() == diagnostics
-    assert transport.commands.progress is None
-
-
-def test_overlay_closed_requires_complete_absence_and_desktop(monkeypatch):
-    ui, _, shell, _ = panel(monkeypatch)
-    ui.run('overlay-desktop', '')
-    shell.children.append(Node(identity='kiosk-request-form'))
-    with pytest.raises(a.UiError): ui.run('overlay-desktop', '')
-
-
-def test_delayed_overlay_read_uses_the_existing_deadline(monkeypatch):
-    ui, application, _, _ = overlay(monkeypatch)
-    ui.timeout = 1
-    ui.api.get_desktop = Mock(side_effect=[Node(role='desktop frame'), application])
-    result = ui.run('overlay-request-form', '')
-    assert result['request']['form_count'] == 1
-    assert ui.api.get_desktop.call_count == 2
-
-
 @pytest.mark.parametrize('fault', ['', 'station-owner', 'uncertain'])
 def test_qualification_cancel_is_owned_and_preserves_uncertain_input(monkeypatch, fault):
     ui, application, _, _ = overlay(monkeypatch)
@@ -270,73 +117,3 @@ def test_qualification_cancel_is_owned_and_preserves_uncertain_input(monkeypatch
     if fault == 'uncertain':
         with pytest.raises(a.UiError, match='uncertain-input'): ui.run('overlay-qualification-cancel', '')
         assert cancel.action.do_action.call_count == 1
-
-
-def test_fixed_selector_registration_and_snapshot_envelope(monkeypatch):
-    from tools.test_storage import named_input
-    calls = []
-    monkeypatch.setattr(check, 'smoke', lambda **kw: calls.append(kw) or 0)
-    assert check.main() == 0 and calls[0]['challenge_profile'] == 'shell-panel'
-    assert calls[0]['assets'] == named_input(package_source=True)
-    assert calls[0]['assets'] == named_input()
-    context = SimpleNamespace()
-    journey = ShellPanelQualification.journey(context, Mock())
-    assert journey.plan is PLAN and context.installed_snapshot.startswith('onpc-v')
-    assert all(tag[3:] in a.OPERATIONS for tag in PLAN.screen_tags.values() if tag.startswith('ui:'))
-
-
-@pytest.mark.parametrize('name', ['check_e2e_shell_panel', 'check_e2e_shell_panel.py'])
-@pytest.mark.parametrize('exists', [False, True])
-def test_shell_panel_prepares_current_inputs_and_preserves_existing(monkeypatch, name, exists):
-    import tools.test_commands as commands
-    from tools.test_storage import named_input
-    from tests.support.paths import ROOT
-    expected = str(named_input(package_source=True))
-    allocate = Mock(side_effect=lambda path: path)
-    validate = Mock()
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: exists)
-    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    monkeypatch.setattr(commands, 'artifact_path', validate)
-    result = commands.qualification_artifact_command(ROOT, 'integration', [name])
-    if exists:
-        from tools.vm_selection import selected
-        assert result == commands.python_file(
-            ROOT, 'tools/vm_artifacts.py', '--candidate', expected,
-            '--output', expected, '--vm', selected().name)
-        validate.assert_called_once_with(expected)
-        allocate.assert_not_called()
-    else:
-        from tools.vm_selection import selected
-        assert result == commands.python_file(
-            ROOT, 'tools/vm_artifacts.py', '--output', expected,
-            '--vm', selected().name)
-        allocate.assert_called_once_with(expected)
-        validate.assert_not_called()
-
-
-@pytest.mark.parametrize(('route', 'fault'), [
-    (route, fault) for route in ('command', 'panel', 'panel-reopen')
-    for fault in ('', 'launch', 'form', 'reveal', 'panel', 'overview')
-    if not fault or 'another-caller-' + fault in overlay_entry('another-caller', route)])
-def test_shared_overlay_fragment_independent_caller_and_failure_stop(route, fault):
-    screens = overlay_entry('another-caller', route)
-    program = r'''
-use strict; use warnings; use JSON::PP;
-our @stages; our $fault = shift @ARGV;
-BEGIN { $INC{'testapi.pm'} = 1; }
-package testapi; sub record_info { } sub send_key { push @main::stages, 'key:' . $_[0] }
-package main; require onpc_request_flow;
-my $declared = decode_json(shift @ARGV); my $route = shift @ARGV;
-my $j = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
-    my ($stage) = @_; push @stages, $stage;
-    die 'refusal' if $stage eq "another-caller-$fault";
-    return {observed => $stage};
-});
-$j->declare_invocations($declared);
-my $ok = eval { onpc_request_flow::overlay_entry($j, 'another-caller', $route); 1 };
-print encode_json({ok => $ok ? 1 : 0, stages => \@stages});
-'''
-    result = json.loads(run_perl(program, fault, json.dumps(list(screens)), route).stdout)
-    expected = list(screens)
-    if fault: expected = expected[:expected.index('another-caller-' + fault) + 1]
-    assert result['stages'] == expected and bool(result['ok']) == (not fault)

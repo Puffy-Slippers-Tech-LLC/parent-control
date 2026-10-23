@@ -54,9 +54,6 @@ guestfs doubles. No live daemon, VM, display, socket, bus, shared cache or new
 subprocess owner is added; their compatible unit classifications remain valid.
 The baseline modules retain their existing cleanup classifications; UI gains no resource.
 
-e2e_estimate_freshness uses only private records and in-memory clock/transport
-doubles, with the same compatible unit ownership.
-
 compatible_native_fixtures compiles a finite set of small native identities synchronously
 inside module-private pytest disk scratch, then renders rules in memory. It
 owns no GUI/runtime packaging, display, bus, VM, shared cache or background
@@ -1231,8 +1228,8 @@ e2e_gdm_pixels e2e_gdm_recipient
 e2e_install_helper e2e_install_password_observation e2e_installation_boundary
 e2e_inventory e2e_keyring_fixture_cleanup_safety
 e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_feedback_confinement e2e_leased_recording_cleanup_safety
-e2e_matched_screens e2e_needle_inputs e2e_observation_transport
-e2e_baseline_auth_pause e2e_estimate_freshness
+e2e_needle_inputs e2e_observation_transport
+e2e_baseline_auth_pause
 compatible_native_fixtures
 e2e_pointer_helper e2e_progress
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner

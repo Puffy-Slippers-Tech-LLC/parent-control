@@ -227,9 +227,6 @@ They require distinct decreases, include read latency and never demand each tick
 An independently supplied stage read retains the earlier endpoint/deadline.
 `CountdownMinutesJourney` composes the qualified same-user four-minute daily-only
 profile with independently supplied child entry and two progression invocations.
-The countdown host module uses only fake clocks, private pytest records, in-memory
-transport/UI doubles and bounded waited Perl children; its compatible unit
-classification remains applicable, with no new storage, VM, bus or display owner.
 The [minute progression slice](../../docs/TestAutomation/E2E-Building-Blocks.md#minute-countdown-progression-qualification)
 is qualified on Ubuntu 26.04 and Fedora 44.
 `CountdownTicksJourney` / `TICK_PLAN` share that machinery and the worker's
@@ -1063,10 +1060,12 @@ an outer desktop, Devkit viewer, screenshots or display-geometry acceptance to
 these semantic checks. Interactive child previews keep their separate visible
 viewer path in the same orchestration library.
 
-Preserve test names, parameter IDs, requirement links, refusal cases, deadlines,
-privacy canaries and cleanup checks during extraction. Validate affected callers
+Preserve required product coverage and admitted shared dangerous-action/core
+checks during extraction under the [test scope mandate](../../docs/Mandates/Test-Scope-Mandate.md).
+Do not preserve or recreate excluded non-product suites merely to retain their
+old test names, parameter IDs or matrices. Validate affected callers
 at the [lowest effective scope](../README.md#all-established-regressions), retaining
 required acceptance and selectors; extraction alone does not require unrelated suites.
-Cleanup changes require their isolated safety regressions before protected
-operations. See [test maintenance](../README.md)
+Changed dangerous cleanup or ownership boundaries use their existing focused
+shared regressions; ordinary helper changes do not add units. See [test maintenance](../README.md)
 for authorized launchers and evidence boundaries.

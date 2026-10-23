@@ -7,8 +7,10 @@ owns which layer exercises each matrix. Read this mandate when changing either
 layer's automation, including shared workers.
 
 Apply the [test scope mandate](Test-Scope-Mandate.md) before requiring UI
-coverage. It excludes UI tests of test tools and bounds infrastructure tests;
-the automation routes below do not create additional coverage obligations.
+coverage. Ordinary non-product code has no unit tests; only core execution/
+verdict integrity and concrete dangerous or disruptive actions qualify for
+focused shared coverage. UI tests of test tools are excluded. The automation
+routes below do not create additional coverage obligations or per-consumer matrices.
 
 ## Result-oriented test scope
 
@@ -54,11 +56,13 @@ no input and must not depend on that unrelated service being available. Valid
 entries still require fresh target, ownership and recipient proofs at the actual
 input boundary; early refusal never substitutes for those proofs.
 
-Keep negative-entry matrices and deliberate wrong-account/provider exercises in
-focused harness safety coverage. Ordinary feature journeys call the same guarded
+Keep deliberate wrong-account/provider exercises only in focused coverage of
+shared dangerous-input guards admitted by the [test scope mandate](Test-Scope-Mandate.md).
+Do not repeat their matrices for each helper or consumer. Ordinary feature journeys call the same guarded
 operations without repeating the full supporting qualification history. Reuse
 valid qualification for an unchanged exact binding; changes to the guard, route
-or composition require affected regression checks and scoped qualification under
+or composition require affected product checks, any shared safety checks admitted
+by the [test scope mandate](Test-Scope-Mandate.md), and scoped qualification under
 the [live verification contract](../TestAutomation/E2E-Execution-Contracts.md#live-verification-contract).
 Do not skip runtime guards, infer a new binding's readiness or count a product
 pass as safety qualification.
@@ -144,9 +148,11 @@ document delta independently of toolbar state. Never replay an uncertain
 mutation automatically; observe its public result and make a new explicit
 decision under the API lifecycle contract.
 
-Isolated implementation tests may inspect synthetic adapter or helper objects
-directly to verify their own contracts, such as weak-reference cleanup,
-translation-context disposal or native text attributes. These tests do not
+Isolated implementation tests admitted by the [test scope mandate](Test-Scope-Mandate.md)
+may inspect synthetic product implementation objects directly, such as
+weak-reference cleanup, translation-context disposal or native text attributes.
+This permission does not admit tests of ordinary test adapters, fixtures,
+scenario helpers or oracles. These tests do not
 launch or operate a product surface and establish no customer or Application UI
 API acceptance. Reuse the lowest effective existing fixture scope. This does
 not permit private observations, toolkit input or alternate transports in any

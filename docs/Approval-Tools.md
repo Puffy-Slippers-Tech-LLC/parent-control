@@ -492,7 +492,7 @@ validated legacy `/tmp/onpc-*` bundles remain accepted inputs, not output exampl
 | Execution-owned native fixtures | `tools/run-tests fixtures prepare --kind native-runtime --target ubuntu\|fedora` | Verified reuse within the existing retained execution, or a separately registered copy of verified producer output; immutable selection and authenticated read-only handoff. No VM or product operation. |
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify 'ARTIFACTS'` / `compare 'FIRST' 'SECOND'` | Fixed builder; explicit existing project artifact inputs |
 | Reusable package/fixture preparation | `tools/run-tests artifacts prepare` | Content-qualified reuse or a fresh build; new private output registered in bounded run retention. No VM or installed product changes. |
-| Named qualification inputs | `tools/run-tests integration --vm NAME check_parent_setup` | Integration qualifications using `named_input()` automatically select current source-keyed inputs and prepare absent bundles before privileged dispatch. Same unprivileged builder and retention; exclusive creation, no overwrite. A legacy fixed-name bundle is never selected. Launcher regression coverage checks every consumer. |
+| Named qualification inputs | `tools/run-tests integration --vm NAME check_parent_setup` | Integration qualifications using `named_input()` automatically select current source-keyed inputs and prepare absent bundles before privileged dispatch. Same unprivileged builder and retention; exclusive creation, no overwrite. A legacy fixed-name bundle is never selected. Shared launcher coverage follows the [test scope mandate](Mandates/Test-Scope-Mandate.md); new consumers do not add unit cases. |
 | Privileged harness/graphical checks | `tools/run-tests integration --vm NAME check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --vm NAME --artifacts 'ARTIFACTS' --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
 | Graphical journeys and harness scenarios | `tools/run-tests e2e --vm NAME` / `tools/run-tests e2e --vm NAME --id 1,3,4` / `tools/run-tests e2e --vm NAME --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts 'ARTIFACTS'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Serial owned recovery remains mandatory; no prerequisite test suite runs. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
@@ -580,10 +580,11 @@ still blocks the operation. Idle cleanup should take seconds or less; necessary
 process settlement or VM restoration must finish rather than be abandoned to
 meet a time limit.
 
-Cleanup-safety regressions remain in explicit unit/host/all selections. Validate
-changes to cleanup with the relevant tests during development; introducing a new
-cleanup implementation still requires its corresponding regression. No runtime
-passing-test receipt substitutes for live ownership checks.
+Admitted shared cleanup-safety regressions remain in explicit unit/host/all
+selections. Apply the [test scope mandate](Mandates/Test-Scope-Mandate.md) to
+changed dangerous cleanup or ownership boundaries; a new helper or consumer
+does not require another unit suite. No runtime passing-test receipt substitutes
+for live ownership checks.
 Collection/listing does not run cleanup or claim passing test coverage.
 Host-only startup and `tools/cleanup-e2e --host-only` reconcile interrupted host
 retention under its activity and storage owner locks, without VM configuration

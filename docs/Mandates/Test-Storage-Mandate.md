@@ -223,10 +223,12 @@ automatically archiving proof or carrying report bundles across tasks. Report
 rotation never reopens completed work. Explicitly requested archives still use
 the validated export/storage routes; their lifetime does not govern task status.
 
-Changes to allocation or cleanup must cover the affected lifetime, interruption,
-identity/refusal and retention boundaries through the maintained test launchers.
-Run applicable cleanup-safety regressions as explicit validation before exercising
-changed protected operations. Cleanup itself runs no regression tests; it only
+Changes affecting destructive cleanup, foreign-resource isolation or core
+execution/evidence identity use focused regressions at their existing shared
+owner under the [test scope mandate](Test-Scope-Mandate.md). Ordinary allocation,
+retention convenience and helper features have no unit suites. Run only the
+affected shared safety checks before exercising a changed protected operation;
+unchanged guards create no prerequisite test run. Cleanup itself runs no regression tests; it only
 recovers recorded owned resources under the [cleanup contract](../../tests/README.md#cleanup-safety-prerequisites).
 This mandate changes test tooling only; it grants no product installation,
 unrelated deletion or VM-operation authority.

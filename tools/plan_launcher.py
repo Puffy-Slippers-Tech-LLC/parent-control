@@ -396,7 +396,7 @@ def finished_cancellation(run, state):
 
 
 def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=None,
-                   split=None, revisions=()):
+                   split=None, revisions=(), propagation_head=None):
     """Explicitly adopt a committed replan, preserving the inactive checkpoint.
 
     This administrative operation executes no task and grants no acceptance.
@@ -417,6 +417,28 @@ def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=No
         run = launcher.current_run(directory)
         if run is None or run.name != identity:
             raise ValueError('retained run changed; inspect the current checkpoint')
+        if propagation_head is not None:
+            if merge_tasks or base or split or revisions:
+                raise ValueError('propagation reconciliation cannot also revise the plan')
+            from launcher_worktrees import reconcile_destination, transaction_lock
+            checkpoint = run / 'checkpoint.json'
+            raw = plan_evidence_recovery._read(checkpoint)
+            state = json.loads(raw)
+            if state.get('in_flight') or not (run / 'result.json').is_file():
+                raise ValueError('finish the retained session before reconciling propagation')
+            with transaction_lock(root, run):
+                result = reconcile_destination(root, run, state, propagation_head, check=check)
+                if not check and state != json.loads(raw):
+                    backup = run / ('checkpoint-before-propagation-reconcile-'
+                                    + hashlib.sha256(raw).hexdigest() + '.json')
+                    archived = {'checkpoint_utf8': raw.decode('utf-8')}
+                    if backup.exists():
+                        if json.loads(plan_evidence_recovery._read(backup)) != archived:
+                            raise ValueError('propagation reconciliation backup changed')
+                    else:
+                        launcher.atomic(backup, archived)
+                    launcher.atomic(checkpoint, state)
+            return dict(run=identity, **result)
         plan = Plan.load(root, spec.plan)
         tasks = plan.tasks()
         for task in tasks:
@@ -1061,6 +1083,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
     parser.add_argument('--check', action='store_true', help='validate plan, queue and unfinished briefs without execution')
     parser.add_argument('--reconcile', metavar='RUN',
                         help='adopt a reviewed committed replan for an inactive retained run; no task execution')
+    parser.add_argument('--propagation-head', metavar='COMMIT',
+                        help='with --reconcile: acknowledge reviewed destination restoration at this full HEAD; retain stash')
     parser.add_argument('--merge-task', action='append', default=[], metavar='OLD=KEEP',
                         help='explicitly consolidate an unstarted task during --reconcile; repeat for each source')
     parser.add_argument('--reconcile-base', metavar='COMMIT',
@@ -1092,9 +1116,10 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                 raise ValueError('--reconcile cannot be combined with execution, stop or VM options')
             print(json.dumps(reconcile_plan(root, spec, args.reconcile, check=args.check,
                                            merge_tasks=args.merge_task, base=args.reconcile_base,
-                                           split=args.split_plan, revisions=args.revise_task)))
+                                           split=args.split_plan, revisions=args.revise_task,
+                                           propagation_head=args.propagation_head)))
             return 0
-        if args.merge_task or args.reconcile_base or args.split_plan or args.revise_task:
+        if args.merge_task or args.reconcile_base or args.split_plan or args.revise_task or args.propagation_head:
             raise ValueError('plan revision options require --reconcile')
         if args.check:
             plan = Plan.load(root, path)

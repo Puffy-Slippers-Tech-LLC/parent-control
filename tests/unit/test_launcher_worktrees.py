@@ -267,6 +267,81 @@ def test_source_closeout_lock_is_reentrant_for_its_propagation(trees):
     assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() == commit
 
 
+@pytest.mark.parametrize('defect', [None, 'head', 'branch', 'stash', 'unrelated-head', 'active'])
+def test_explicit_reviewed_propagation_recovery_preserves_stash_and_checkpoint(trees, monkeypatch, defect):
+    import plan_launcher as workflow
+    import test_storage
+
+    f = trees
+    spec = workflow.PlanWorkflow('test-plan', 'docs/plan.md')
+    storage = f.run / 'plans'
+    monkeypatch.setattr(test_storage, 'directory', lambda *_, **__: storage)
+    namespace = workflow.launcher.private_directory(storage / workflow.plan_namespace(spec.plan))
+    run = workflow.launcher.private_directory(namespace / ('a' * 32))
+    workflow.launcher.atomic(namespace / 'current.json', dict(run=run.name))
+    (f.other / 'unstaged').write_text('original destination edits\n')
+    commit = f.change(f.root, 'shared', 'source completion\n')
+    def interrupted_git(root, *args, **kwargs):
+        result = f.git(root, *args, **kwargs)
+        if root == f.other and args[:2] == ('stash', 'apply'):
+            raise OSError('interrupted restoration')
+        return result
+    with pytest.raises(OSError, match='interrupted restoration'):
+        propagation.propagate(f.root, run, {}, commit, git=interrupted_git)
+    # A separately reviewed commit includes the restored work, then new active
+    # edits arrive. Recovery must neither replay nor discard either set.
+    f.git(f.other, 'add', '--', 'unstaged')
+    f.git(f.other, 'commit', '-qm', 'reviewed restored work')
+    head = f.git(f.other, 'rev-parse', 'HEAD').stdout.strip()
+    (f.other / 'partial').write_text('new active work\n')
+    f.git(f.other, 'add', '--', 'partial')
+    state = json.loads((run / 'checkpoint.json').read_text())
+    state.update(in_flight=defect == 'active', pending_completion={'task_id': 'old'}, total_sessions=7)
+    target, = state['worktree_propagation']['targets']
+    if defect == 'head':
+        head = commit
+    elif defect == 'branch':
+        target['branch'] = 'changed'
+    elif defect == 'stash':
+        target['stash'] = '0' * 40
+    elif defect == 'unrelated-head':
+        target['merged_head'] = f.git(f.root, 'rev-parse', target['stash']).stdout.strip()
+    workflow.launcher.atomic(run / 'checkpoint.json', state)
+    workflow.launcher.atomic(run / 'result.json', dict(status=2, tasks=0))
+    raw = (run / 'checkpoint.json').read_bytes()
+    status = f.git(f.other, 'status', '--porcelain').stdout
+    stashes = f.git(f.other, 'stash', 'list').stdout
+    if defect:
+        message = {'head': 'destination HEAD changed', 'branch': 'configured destination changed',
+                   'stash': 'original propagation stash is missing',
+                   'unrelated-head': 'must retain the source and destination commits',
+                   'active': 'finish the retained session'}[defect]
+        with pytest.raises(ValueError, match=message):
+            workflow.reconcile_plan(f.root, spec, run.name, propagation_head=head)
+        assert (run / 'checkpoint.json').read_bytes() == raw
+        assert not list(run.glob('checkpoint-before-propagation-reconcile-*'))
+    else:
+        assert workflow.reconcile_plan(f.root, spec, run.name,
+            propagation_head=head, check=True)['checked']
+        assert (run / 'checkpoint.json').read_bytes() == raw
+        assert not list(run.glob('checkpoint-before-propagation-reconcile-*'))
+        assert workflow.reconcile_plan(f.root, spec, run.name, propagation_head=head)['reconciled']
+        backup, = run.glob('checkpoint-before-propagation-reconcile-*')
+        assert json.loads(backup.read_text())['checkpoint_utf8'].encode() == raw
+        saved = json.loads((run / 'checkpoint.json').read_text())
+        assert saved['pending_completion'] == state['pending_completion']
+        assert saved['total_sessions'] == 7
+        assert saved['worktree_propagation']['targets'][0]['reconciliation']['previous_head'] == commit
+        assert workflow.reconcile_plan(f.root, spec, run.name, propagation_head=head)['reconciled']
+        assert list(run.glob('checkpoint-before-propagation-reconcile-*')) == [backup]
+        propagation.propagate(f.root, run, saved, commit, git=f.git,
+            resolve=lambda *_: pytest.fail('reviewed recovery replayed stash restoration'))
+        assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() == head
+        assert saved['worktree_propagation']['targets'][0]['phase'] == 'done'
+    assert f.git(f.other, 'status', '--porcelain').stdout == status
+    assert f.git(f.other, 'stash', 'list').stdout == stashes
+
+
 def test_resolver_cannot_drop_stash_after_losing_unrelated_active_work(trees):
     f = trees
     (f.other / 'shared').write_text('conflicting active work\n')

@@ -743,6 +743,17 @@ HEAD before and after each turn, including incomplete turns. A changed HEAD
 reports its expected and observed identities and stops before another turn or
 stash retirement; it does not establish who committed or authorize adopting the
 new HEAD. Reconcile the retained transaction and original active work first.
+After reviewing the newer commits and resolving the original active work, an
+inactive ordinary-plan run supports `--reconcile RUN --propagation-head FULL_HEAD`.
+Run it with `--check` first, then without `--check`. It requires one pending
+destination at restoration/push, its unchanged branch/upstream and configured
+checkout, the exact reviewed HEAD containing both recorded commits, no pending
+Git operation, and the original identity-recorded stash still present. It archives
+the exact checkpoint before pinning the reviewed HEAD for controller-owned push.
+It leaves plan acceptance, task/session counts and Git content unchanged and keeps
+the original stash after push. This explicit acknowledgement follows review; mere
+ancestry does not prove preservation of active work. Ordinary restart retains its
+strict HEAD guard. The option cannot be combined with queue revisions.
 Existing running backends require a fresh run
 to load this policy.
 

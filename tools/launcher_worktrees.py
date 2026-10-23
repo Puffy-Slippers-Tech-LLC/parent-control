@@ -115,6 +115,53 @@ def _expect_head(git, root, expected, phase):
                          'reconcile the retained transaction before continuing; stash is preserved')
 
 
+def reconcile_destination(root, run, state, head, *, git=git_output, check=False):
+    """Explicitly acknowledge reviewed restoration after an external commit.
+
+    The original stash stays available even after close-out. This operation
+    changes no Git content and does not infer that a descendant preserved edits.
+    The caller holds the inactive launcher's owner lock and retains a backup.
+    """
+    if (not isinstance(head, str) or len(head) != 40
+            or any(character not in '0123456789abcdef' for character in head)):
+        raise ValueError('propagation reconciliation needs the full reviewed destination HEAD')
+    transaction = state.get('worktree_propagation', {})
+    pending = [target for target in transaction.get('targets', []) if target.get('phase') != 'done']
+    if len(pending) != 1 or pending[0].get('phase') not in ('restoring', 'push', 'drop'):
+        raise ValueError('propagation reconciliation needs one destination awaiting restoration/push')
+    target = pending[0]
+    destination = Path(target['path'])
+    with transaction_lock(root, run, git=git):
+        if not any(item['path'] == target['path'] and item['branch'] == target['branch']
+                   for item in configured_targets(root, git=git)):
+            raise ValueError('configured destination changed during worktree propagation')
+        _identity(git, destination, target)
+        _idle(git, destination)
+        _expect_head(git, destination, head, 'reviewed propagation reconciliation')
+        for checkout, ancestor in ((root, transaction['commit']),
+                                   (destination, transaction['commit']),
+                                   (destination, target['merged_head'])):
+            if git(checkout, 'merge-base', '--is-ancestor', ancestor,
+                   'HEAD', check=False).returncode:
+                raise ValueError('reviewed propagation HEAD must retain the source and destination commits')
+        if target.get('stash') and not any(oid == target['stash'] and subject.endswith(target['marker'])
+                                         for oid, subject in _stashes(git, destination)):
+            raise ValueError('original propagation stash is missing; preserve the transaction')
+        if git(destination, 'diff', '--name-only', '--diff-filter=U', '-z').stdout:
+            raise ValueError('finish the reviewed stash restoration before reconciliation')
+        if target.get('reconciliation', {}).get('reviewed_head', head) != head:
+            raise ValueError('reviewed propagation HEAD differs from the retained reconciliation')
+        result = dict(destination=str(destination), head=head, stash=target.get('stash'),
+                      checked=check, reconciled=not check)
+        if not check:
+            _identity(git, destination, target)
+            _expect_head(git, destination, head, 'reviewed propagation reconciliation')
+            target.setdefault('reconciliation', dict(previous_head=target['merged_head'],
+                previous_phase=target['phase'], reviewed_head=head, stash_preserved=True))
+            target.update(merged_head=head, phase='push')
+        return result
+
+
 def _active_snapshot(git, root, paths=None):
     if paths is None:
         paths = set(filter(None, git(root, 'diff', '--no-renames', '--name-only', '-z', 'HEAD').stdout.split('\0')))
@@ -265,7 +312,8 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
                 save()
             if target['phase'] == 'drop':
                 for index, (oid, subject) in enumerate(_stashes(git, destination)):
-                    if oid == target['stash'] and subject.endswith(target['marker']):
+                    if (not target.get('reconciliation') and oid == target['stash']
+                            and subject.endswith(target['marker'])):
                         _run(git, destination, 'stash', 'drop', f'stash@{{{index}}}')
                         break
                 target['phase'] = 'done'

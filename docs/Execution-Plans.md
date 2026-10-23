@@ -666,7 +666,12 @@ Checkpoint each destination's stash, fetch, merges, restoration, push and stash
 retirement. Restart reuses the source task commit and completed destinations;
 an interrupted stash application is inspected by the automatic resolver before
 any replay. Changed checkout/branch/upstream/HEAD identities preserve pending
-work and refuse unsafe recovery. Existing running backends require a fresh run
+work and refuse unsafe recovery. Conflict resolution checks branch, upstream and
+HEAD before and after each turn, including incomplete turns. A changed HEAD
+reports its expected and observed identities and stops before another turn or
+stash retirement; it does not establish who committed or authorize adopting the
+new HEAD. Reconcile the retained transaction and original active work first.
+Existing running backends require a fresh run
 to load this policy.
 
 ## Reviewed plan splits

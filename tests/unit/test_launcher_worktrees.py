@@ -202,8 +202,42 @@ def test_incomplete_resolution_continues_unattended_without_questions(trees, mon
         calls.append(dict(details))
         return next(replies)
     monkeypatch.setattr(propagation, '_resolve_once', turn)
-    propagation.resolve_conflicts(trees.other, trees.run, 'merge', {})
+    propagation.resolve_conflicts(trees.other, trees.run, 'merge',
+        dict(branch='worktree', upstream='origin/worktree'), git=trees.git)
     assert len(calls) == 2 and calls[1]['previous_resolution'] == 'one path remains'
+
+
+@pytest.mark.parametrize('result,committed_path', [('continue', 'staged'), ('resolved', 'shared')])
+def test_head_change_stops_resolution_before_retry_push_or_stash_drop(trees, monkeypatch, result, committed_path):
+    f = trees
+    (f.other / 'shared').write_text('destination active work\n')
+    commit = f.change(f.root, 'shared', 'source completion\n')
+    upstream = f.git(f.other, 'rev-parse', '@{upstream}').stdout
+    calls = []
+    def turn(root, run, phase, details):
+        calls.append(phase)
+        assert phase == 'restore'
+        # The unrelated commit models another owner advancing the branch;
+        # committing active work models a resolver violating its contract.
+        (root / 'shared').write_text('source completion\ndestination active work\n')
+        f.git(root, 'add', '--', 'shared')
+        f.git(root, 'restore', '--staged', '--', 'shared')
+        (root / committed_path).write_text('later committed work\n')
+        f.git(root, 'add', '--', committed_path)
+        f.git(root, 'commit', '-qm', 'advance destination during resolution')
+        return dict(status=result, summary='HEAD advanced; reconciliation needed', cleanup_complete=True)
+    monkeypatch.setattr(propagation, '_resolve_once', turn)
+    def resolve(root, phase, details):
+        propagation.resolve_conflicts(root, f.run, phase, details, git=f.git)
+    with pytest.raises(ValueError, match='destination HEAD changed.*expected .*found .*stash is preserved'):
+        propagation.propagate(f.root, f.run, {}, commit, git=f.git, resolve=resolve)
+    assert calls == ['restore']
+    assert f.git(f.other, 'rev-parse', '@{upstream}').stdout == upstream
+    saved = json.loads((f.run / 'checkpoint.json').read_text())
+    target, = saved['worktree_propagation']['targets']
+    assert target['phase'] == 'restoring' and target['merged_head'] == commit
+    assert f.git(f.other, 'rev-parse', 'stash@{0}').stdout.strip() == target['stash']
+    assert f.git(f.other, 'show', target['stash'] + ':shared').stdout == 'destination active work\n'
 
 
 def test_source_closeout_lock_is_reentrant_for_its_propagation(trees):

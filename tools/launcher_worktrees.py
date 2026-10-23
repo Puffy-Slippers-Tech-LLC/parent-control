@@ -108,6 +108,13 @@ def _identity(git, root, target):
         raise ValueError('worktree propagation branch/upstream changed; retained stash is preserved')
 
 
+def _expect_head(git, root, expected, phase):
+    actual = _head(git, root)
+    if actual != expected:
+        raise ValueError(f'destination HEAD changed during {phase}: expected {expected}, found {actual}; '
+                         'reconcile the retained transaction before continuing; stash is preserved')
+
+
 def _active_snapshot(git, root, paths=None):
     if paths is None:
         paths = set(filter(None, git(root, 'diff', '--no-renames', '--name-only', '-z', 'HEAD').stdout.split('\0')))
@@ -233,8 +240,7 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
                 _merge(git, destination, target, commit, resolve)
                 target.update(phase='restore', merged_head=_head(git, destination))
                 save()
-            if _head(git, destination) != target['merged_head']:
-                raise ValueError('destination HEAD changed after propagation merge')
+            _expect_head(git, destination, target['merged_head'], 'propagation restoration/push')
             if target['phase'] in ('restore', 'restoring'):
                 stash = target['stash']
                 if stash:
@@ -244,10 +250,10 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
                     applied = None if interrupted else git(destination, 'stash', 'apply', '--index', stash, check=False)
                     if interrupted or applied.returncode:
                         resolve(destination, 'restore', target)
+                    _identity(git, destination, target)
+                    _expect_head(git, destination, target['merged_head'], 'stash restoration')
                     if git(destination, 'diff', '--name-only', '--diff-filter=U', '-z').stdout:
                         raise ValueError('automatic stash restoration left unresolved conflicts')
-                    if _head(git, destination) != target['merged_head']:
-                        raise ValueError('stash restoration must not commit destination active work')
                 _verify_restored(git, destination, target)
                 target['phase'] = 'push'
                 save()  # Stash remains available until restored work and push are recorded.
@@ -265,12 +271,20 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
             print(f"Propagated {commit[:12]} to {target['branch']} and pushed.", flush=True)
 
 
-def resolve_conflicts(root, run, phase, details):
+def resolve_conflicts(root, run, phase, details, *, git=git_output):
     """Continue bounded unattended turns instead of asking a developer to merge."""
     details = dict(details)
+    expected = details['merged_head'] if phase == 'restore' else _head(git, root)
     for attempt in range(1, 6):
+        _identity(git, root, details)
+        _expect_head(git, root, expected, f'{phase} conflict resolution')
         print(f'Automatically resolving {phase} conflicts in {root} (turn {attempt}/5).', flush=True)
         result = _resolve_once(root, run, phase, details)
+        # A continue result may describe a concurrent commit rather than more
+        # conflict work. Never send another turn against stale transaction inputs,
+        # or infer that the resolver authored an observed HEAD change.
+        _identity(git, root, details)
+        _expect_head(git, root, expected, f'{phase} conflict resolution')
         if result.get('status') == 'resolved' and result.get('cleanup_complete') is True:
             return
         details['previous_resolution'] = result.get('summary', 'Resolution incomplete.')

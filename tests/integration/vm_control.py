@@ -463,7 +463,7 @@ def main(argv=None):
             from tools import fixture_execution, fixture_provision
             fixture_selection = fixture_execution.Selection.from_record(
                 json.loads(args.fixture_selection)).record()
-            runner.require(fixture_selection['target'] == 'ubuntu', 'vm-control:fixture-target')
+            runner.require(fixture_selection['target'] in ('ubuntu', 'fedora'), 'vm-control:fixture-target')
             fixture_provision.authenticated_bundle(fixture_selection)
         os.umask(0o077)
         from watch_activity import event

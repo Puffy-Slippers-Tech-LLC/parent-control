@@ -712,7 +712,8 @@ def run_live_refresh(root, command, *, control, environment):
     from vm_selection import selected
     from vm_pool import arguments as checkout_arguments
     from dev_privileges import check
-    if selected().name != 'onpc-Ubuntu26.04':
+    targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+    if selected().name not in targets:
         raise ValueError('fixture live refresh target is unavailable')
     check('/usr/local/libexec/onpc-test-runner')
 
@@ -731,7 +732,7 @@ def run_live_refresh(root, command, *, control, environment):
                     sources.append(line.partition(b'=')[2])
             if len(pending) > 65536 or len(records) > 1 or len(sources) > 1:
                 raise ValueError('fixture live refresh builder output is invalid')
-        status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', 'ubuntu', *options),
+        status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', targets[selected().name], *options),
                              cwd=root, env=environment, output=output, timeout=600.0)
         if status or len(records) != 1:
             raise ValueError('fixture live refresh preparation failed; status=' + str(status))

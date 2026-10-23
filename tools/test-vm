@@ -19,45 +19,46 @@ def fixture_maintenance(args, configured):
         args = ['start', '--fixture-maintenance']
     if not args or not (args[0] == 'sync-fixtures' or '--fixture-maintenance' in args):
         return None
-    if configured.name != 'onpc-Ubuntu26.04' or args not in (
+    targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+    if configured.name not in targets or args not in (
             ['start', '--fixture-maintenance'], ['sync-fixtures']):
         raise ValueError('fixture maintenance requires a qualified target and a fixed action')
     from dev_privileges import check
-    from vm_pool import arguments as checkout_arguments
+    from vm_pool import arguments as checkout_arguments, reservation
     from test_retention import Store
     from test_storage import directory, scratch_descriptors
     from fixture_execution import prepare
     import json
     check('/usr/local/libexec/onpc-test-runner')
-    store = Store(directory('state') / ('retention-fixture-maintenance-' + configured.name))
-
     def invoke(options):
         return subprocess.run(['/usr/bin/pkexec', '--keep-cwd',
             '/usr/local/libexec/onpc-test-runner', *checkout_arguments(), 'vm', '--vm', configured.name,
             *options], cwd=Path(__file__).resolve().parents[1],
             pass_fds=scratch_descriptors(), check=False).returncode
 
-    if args[0] == 'start':
-        status = invoke(args)
-        if status:
-            return status
-        try:
-            # Start succeeded before rotating the former input owner. A refused
-            # duplicate start cannot retire an existing guest's selected input.
-            with store.session():
-                pass
-        except BaseException:
-            invoke(['stop'])
-            raise
-        return 0
-    with store.opened() as fd:
-        state = store.read(fd)
-    if state is None:
-        raise ValueError('start fixture maintenance before syncing fixtures')
-    with store.session(run=state['run']):
-        selection = prepare(target='ubuntu')
-        return invoke(['sync-fixtures', '--fixture-selection',
-                       json.dumps(selection.record(), sort_keys=True)])
+    with reservation(configured.name):
+        store = Store(directory('state') / ('retention-fixture-maintenance-' + configured.name))
+        if args[0] == 'start':
+            status = invoke(args)
+            if status:
+                return status
+            try:
+                # Start succeeded before rotating the former input owner. A refused
+                # duplicate start cannot retire an existing guest's selected input.
+                with store.session():
+                    pass
+            except BaseException:
+                invoke(['stop'])
+                raise
+            return 0
+        with store.opened() as fd:
+            state = store.read(fd)
+        if state is None:
+            raise ValueError('start fixture maintenance before syncing fixtures')
+        with store.session(run=state['run']):
+            selection = prepare(target=targets[configured.name])
+            return invoke(['sync-fixtures', '--fixture-selection',
+                           json.dumps(selection.record(), sort_keys=True)])
 
 
 def input_arguments(args):

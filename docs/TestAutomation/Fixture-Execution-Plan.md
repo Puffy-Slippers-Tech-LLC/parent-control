@@ -218,9 +218,20 @@ two reopened test doubles' missing clean-baseline metadata. Coordinator review
 found no remaining issues. Watched restoration, maintenance/input/staging/transport
 cleanup and the independent public off-state check passed. No customer/E2E credit
 is claimed.
-Later tasks remain unimplemented;
-other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
-host checks supply no installed acceptance.
+F13's independent GPT-6.1 Sol xHigh infrastructure audit found two public
+maintenance integration issues: Fedora's sync preflight still rejected its
+qualified target, and host input ownership preceded central VM checkout. Both
+were repaired and re-reviewed with no remaining actionable findings. Nine
+focused dispatch/authentication/ordering checks and 3,282 affected host and
+metadata checks passed. Construction, minimal closures, immutable ownership,
+provisioning/recovery, consumer aliases, idle refusal, legacy cleanup,
+observation and sealed evidence boundaries were reviewed without adding new
+fixture machinery or changing scenario assertions. Per the developer's explicit
+close-out instruction, completed tasks and their both-target acceptance remain
+accepted; historical runs were not repeated or reopened for evidence availability.
+The reviewer finished, and this audit owned no VM or producer resources.
+No new installed, product or customer/E2E acceptance is claimed. Unqualified
+branches outside the delivered envelopes retain their existing guards.
 
 ## Launcher
 

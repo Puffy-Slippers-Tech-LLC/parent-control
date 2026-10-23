@@ -408,8 +408,8 @@ applicable; host composition preserves the recorder's stage, seal and shutdown g
 
 ## Idle fixture maintenance refresh
 
-Ubuntu 26.04 supports a dedicated product-free maintenance guest with the fixed
-`trusted-hard` subset:
+Ubuntu 26.04 and Fedora 44 support a dedicated product-free maintenance guest with
+the fixed `trusted-hard` subset. Select either registered target:
 
 ```sh
 tools/test-vm --vm onpc-Ubuntu26.04 start --fixture-maintenance
@@ -417,8 +417,13 @@ tools/test-vm --vm onpc-Ubuntu26.04 sync-fixtures
 tools/test-vm --vm onpc-Ubuntu26.04 stop
 ```
 
-Start retains authenticated host input A. After fixture source edits, sync builds
-and retains B in the same host owner, verifies A and B, and replaces only the
+Use `onpc-Fedora44` in the same commands for Fedora. Refresh preserves enforcing
+SELinux, exact file labels and the finite native trust entries; vendor and product
+policy remain unchanged.
+
+The first sync builds and retains authenticated host input A. After fixture source
+edits on the host, repeat sync to build and retain B in the same host owner,
+verify A and B, and replace only the
 same selected destinations and exact native entries. An unchanged selection
 only verifies; it does not rewrite payloads or native policy. Refresh does not
 rebuild product packages or snapshots.
@@ -438,13 +443,16 @@ maintenance generation unavailable until normal owned stop/recovery. Both inputs
 remain retained through cleanup. Interrupted record cleanup after completed
 recovery requires independent exact off-state, configuration, snapshot and guest
 audits. This route does not refresh active scenarios, change subsets, promise
-same-boot rollback or enable Fedora refresh.
+same-boot rollback.
 
 `tools/run-tests integration --vm onpc-Ubuntu26.04 check_fixture_live_refresh`
-qualifies this engineering boundary. Its two phases use A before editing/building
+qualifies this engineering boundary on Ubuntu; select `onpc-Fedora44` for Fedora.
+Its two phases use A before editing/building
 B on the host, then independently verify/use B in the unchanged boot/domain,
 preserve baseline/app snapshots and unrelated state, and repeat without writes.
-A real staged lost reply proves unavailable readiness and owned recovery.
+A real staged lost reply on Ubuntu proves unavailable readiness and owned recovery.
+Fedora reuses that unchanged failure/recovery proof and independently qualifies
+its same-boot replacement, native activation, enforcing labels and no-write repeat.
 Focused host checks cover busy/session/worker, foreign-owner, corrupt-input and
 different-subset refusal before writes. The watch starts before each phase's
 report owner so its retained storage cannot hold the next phase's report lock.

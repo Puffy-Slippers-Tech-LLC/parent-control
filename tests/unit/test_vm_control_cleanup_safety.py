@@ -20,6 +20,47 @@ import vm_control as control
 VM_ARGS = ['--vm', vm_name()]
 
 
+@pytest.mark.parametrize(('target', 'authenticated'),
+                         [('ubuntu', True), ('fedora', True), ('fedora', False)])
+def test_fixture_sync_dispatch_authenticates_before_resuming_owned_maintenance(
+        monkeypatch, tmp_path, target, authenticated):
+    import fixture_maintenance as maintenance
+    from tools import fixture_execution, fixture_provision, test_storage
+    selection = {'target': target}
+    monkeypatch.setattr(fixture_execution.Selection, 'from_record',
+                        lambda value: SimpleNamespace(record=lambda: value))
+    authenticate = Mock(side_effect=None if authenticated else runner.Error('fixture:input-refused'))
+    monkeypatch.setattr(fixture_provision, 'authenticated_bundle', authenticate)
+    api, source, lease, commands = Mock(), Mock(), Mock(), Mock()
+    monkeypatch.setattr(control.importlib, 'import_module', lambda name: api)
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.os, 'getegid', lambda: 0)
+    monkeypatch.setattr(control.os, 'umask', Mock())
+    monkeypatch.setattr(control.threading, 'Thread', Mock())
+    monkeypatch.setattr(control.runner.baseline, 'LibvirtSource', lambda value: source)
+    monkeypatch.setattr(control.runner, 'Commands', lambda: commands)
+    monkeypatch.setattr(control.runner, 'Lease', lambda *args, **kwargs: lease)
+    monkeypatch.setattr(test_storage, 'scratch_directory', lambda: tmp_path)
+    monkeypatch.setattr(control.tempfile, 'mkdtemp', lambda **kwargs: str(tmp_path))
+    monkeypatch.setattr(control, 'check_identity', Mock())
+    resume = Mock()
+    monkeypatch.setattr(control, 'resume', resume)
+    synchronize = Mock(return_value=SimpleNamespace(binding={'ready': target}))
+    monkeypatch.setattr(maintenance, 'synchronize', synchronize)
+    assert control.main([*VM_ARGS, '--expected-uuid', UUID, 'sync-fixtures',
+                         '--fixture-selection', json.dumps(selection)]) == (0 if authenticated else 2)
+    authenticate.assert_called_once_with(selection)
+    if authenticated:
+        resume.assert_called_once_with(lease, fixture_maintenance=True)
+        synchronize.assert_called_once_with(lease, selection)
+        lease.release.assert_called_once_with()
+        source.close.assert_called_once_with()
+    else:
+        api.virEventRegisterDefaultImpl.assert_not_called()
+        resume.assert_not_called()
+        synchronize.assert_not_called()
+
+
 @pytest.mark.parametrize('extra', [None, 'desktop', 'tty', 'user-manager', 'other-ssh', 'unknown'])
 def test_idle_maintenance_session_boundary_accepts_only_owned_background_sessions(extra):
     from fixture_maintenance import idle_sessions
@@ -55,7 +96,7 @@ def test_fixture_qualification_starts_watch_before_report_owner(tmp_path, monkey
     state = tmp_path / 'state'
     state.mkdir()
     selected = SimpleNamespace(target='ubuntu', record=lambda: {'selected': 'A'})
-    monkeypatch.setattr(qualification, 'selected_target', lambda: None)
+    monkeypatch.setattr(qualification, 'selected_target', lambda: 'ubuntu')
     actual_require = qualification.require
     monkeypatch.setattr(qualification, 'require', lambda value, reason:
         None if reason == 'root-required' else actual_require(value, reason))
@@ -139,7 +180,7 @@ def start(lease):
 
 
 @pytest.fixture
-def fixture_maintenance_rig(lease_rig, monkeypatch):
+def fixture_maintenance_rig(lease_rig, monkeypatch, request):
     """Real controller locks/journal; finite SSH and provisioner doubles only."""
     import fixture_maintenance as maintenance
     from tools import fixture_provision
@@ -147,7 +188,12 @@ def fixture_maintenance_rig(lease_rig, monkeypatch):
     start(lease)
     held = reopened(lease)
     control.resume(held, fixture_maintenance=True)
-    held.capture.state['guest'].update(fixture_boundary='clean', ubuntu_version='26.04')
+    target = getattr(request, 'param', 'ubuntu')
+    guest = held.capture.state['guest']
+    guest.update(fixture_boundary='clean', ubuntu_version='26.04')
+    if target == 'fedora':
+        guest.pop('ubuntu_version')
+        guest.update(os_id='fedora', version='44')
     transport = Mock()
     transport.call.side_effect = lambda argv, **kwargs: (
         b'a' * 64 + b'\n' if argv[-1] == fixture_provision.BOOT_SHA256_PROBE else b'{"idle":true}\n')
@@ -199,11 +245,12 @@ def fixture_maintenance_rig(lease_rig, monkeypatch):
     monkeypatch.setattr(fixture_provision, 'Provisioner', Controller)
     yield SimpleNamespace(lease=held, original=lease, current=current, transport=transport,
         maintenance=maintenance, writes=writes, boundary=boundary, controller=Controller,
-        a={'target': 'ubuntu', 'build_identity': 'a' * 64},
-        b={'target': 'ubuntu', 'build_identity': 'b' * 64})
+        a={'target': target, 'build_identity': 'a' * 64},
+        b={'target': target, 'build_identity': 'b' * 64})
     held.release()
 
 
+@pytest.mark.parametrize('fixture_maintenance_rig', ['ubuntu', 'fedora'], indirect=True)
 def test_fixture_refresh_persists_generation_across_owned_cli_calls(fixture_maintenance_rig):
     rig = fixture_maintenance_rig
     sync = lambda selection: rig.maintenance.synchronize(
@@ -213,6 +260,9 @@ def test_fixture_refresh_persists_generation_across_owned_cli_calls(fixture_main
     next_lease = reopened(rig.original)
     try:
         control.resume(next_lease, fixture_maintenance=True)
+        # The shared lease rig persists legacy guest metadata. Carry this
+        # fixture's clean target declaration across the real controller reopen.
+        next_lease.capture.state['guest'] = dict(rig.lease.capture.state['guest'])
         rig.lease = next_lease
         replaced = sync(rig.b)
         repeated = sync(rig.b)
@@ -227,6 +277,26 @@ def test_fixture_refresh_persists_generation_across_owned_cli_calls(fixture_main
         assert rig.original.source.domain.revertToSnapshot.call_count == 1
     finally:
         next_lease.release()
+
+
+@pytest.mark.parametrize('fault', ['installed', 'release', 'wrong-input'])
+def test_fedora_fixture_refresh_refuses_incompatible_baseline_or_input(
+        fixture_maintenance_rig, fault):
+    rig = fixture_maintenance_rig
+    guest = rig.lease.capture.state['guest']
+    guest.pop('ubuntu_version')
+    guest.update(os_id='fedora', version='44')
+    if fault == 'installed':
+        guest['fixture_boundary'] = 'installed'
+    elif fault == 'release':
+        guest['version'] = '43'
+    with pytest.raises(runner.Error, match='fixture-maintenance:'):
+        if fault == 'wrong-input':
+            rig.maintenance.synchronize(rig.lease, rig.a,
+                transport=rig.transport, boundary=rig.boundary)
+        else:
+            rig.maintenance.initialize(rig.lease, transport=rig.transport)
+    assert not rig.writes
 
 
 @pytest.mark.parametrize('fault', ['session', 'worker', 'unknown-owner', 'subset', 'corrupt-input'])
@@ -268,6 +338,7 @@ def test_fixture_refresh_other_launcher_cannot_adopt_locked_maintenance(fixture_
 
 
 @pytest.mark.parametrize('interrupted', [False, True])
+@pytest.mark.parametrize('fixture_maintenance_rig', ['ubuntu', 'fedora'], indirect=True)
 def test_independent_fixture_runtime_use_is_persistently_owned(
         fixture_maintenance_rig, monkeypatch, interrupted):
     import fixture_live_refresh_qualification as qualification
@@ -278,15 +349,18 @@ def test_independent_fixture_runtime_use_is_persistently_owned(
     monkeypatch.setattr(qualification.proof, 'validate_readback', lambda *args, **kwargs: {})
     def witness(*args):
         assert rig.maintenance._load(rig.lease)['phase'] == 'pending'
+        assert args[-1] == rig.a['target']
         if interrupted:
             raise TimeoutError('uncertain independent runtime reply')
         return {'owned_process_closed': True}
     monkeypatch.setattr(qualification.proof, 'runtime_witnesses', witness)
     if interrupted:
         with pytest.raises(TimeoutError):
-            qualification.observed_runtime(rig.lease, rig.transport, {}, receipt)
+            qualification.observed_runtime(rig.lease, rig.transport,
+                {'inputs': {'target': {'os': rig.a['target']}}}, receipt)
     else:
-        qualification.observed_runtime(rig.lease, rig.transport, {}, receipt)
+        qualification.observed_runtime(rig.lease, rig.transport,
+            {'inputs': {'target': {'os': rig.a['target']}}}, receipt)
     assert rig.maintenance._load(rig.lease)['phase'] == ('unavailable' if interrupted else 'ready')
 
 

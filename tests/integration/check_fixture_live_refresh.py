@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify Ubuntu idle maintenance A/use, host edit/build B, sync/use and recovery."""
+"""Qualify idle maintenance A/use, host edit/build B, sync/use and owned recovery."""
 import argparse
 import json
 import sys

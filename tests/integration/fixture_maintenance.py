@@ -20,6 +20,17 @@ from watch_activity import operation
 SUBSETS = ('trusted-hard',)
 NAME = 'fixture-maintenance.json'
 
+
+def target_for(lease):
+    guest = lease.capture.state['guest']
+    _require(guest.get('fixture_boundary') == 'clean', 'clean-baseline-required')
+    if guest.get('ubuntu_version') == '26.04':
+        return 'ubuntu'
+    _require(guest.get('os_id') == 'fedora' and guest.get('version') == '44',
+             'target-not-qualified')
+    return 'fedora'
+
+
 def idle_sessions(sessions, own, *, allow_prior_ssh=False):
     """Accept only the greeter, its/root managers and this guarded SSH call."""
     if type(own) is not str or not own or type(sessions) is not list:
@@ -149,9 +160,7 @@ def transport_for(lease):
 
 def initialize(lease, *, transport=None):
     """Attest only the just-restored, product-free baseline maintenance start."""
-    guest = lease.capture.state['guest']
-    _require(guest.get('fixture_boundary') == 'clean' and guest.get('ubuntu_version') == '26.04',
-             'clean-ubuntu-baseline-required')
+    target_for(lease)
     record = {'schema': 1, 'owner': _identity(lease), 'phase': 'unavailable',
               'boot_sha256': None, 'selection': None, 'binding': None,
               'subsets': list(SUBSETS), 'retained': [], 'staging': []}
@@ -213,7 +222,7 @@ def synchronize(lease, selection, *, subsets=SUBSETS, transport=None, boundary=N
                  'same-subset-required')
         selection = fixture_execution.Selection.from_record(
             selection.record() if hasattr(selection, 'record') else selection).record()
-        _require(selection['target'] == 'ubuntu', 'target')
+        _require(selection['target'] == target_for(lease), 'target')
         transport = transport_for(lease) if transport is None else transport
         _idle(lease, transport, record)
         # Authenticate B and retained A before invalidation or any guest write.

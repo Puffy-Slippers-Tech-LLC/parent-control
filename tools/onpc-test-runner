@@ -139,7 +139,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         epilog='Root guest commands: tools/test-vm --vm NAME exec '
                '[--timeout SECONDS] -- COMMAND [ARG ...]. '
                'Requires an owned running maintenance instance; never restores it. '
-               'Idle Ubuntu fixture refresh: start --fixture-maintenance, then sync-fixtures '
+               'Idle Ubuntu/Fedora fixture refresh: start --fixture-maintenance, then sync-fixtures '
                'to build and synchronize trusted-hard from current host sources. '
                'Guest input retires refresh eligibility; stop restores the baseline.')
     for category in (integration, system, e2e, appsnapshot, vm):
@@ -205,7 +205,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
         if args.fixture_maintenance or args.action == 'sync-fixtures':
-            if configured.name != 'onpc-Ubuntu26.04':
+            targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+            if configured.name not in targets:
                 raise ValueError('test-runner:fixture-target-not-qualified')
             if args.fixture_selection is not None:
                 if len(args.fixture_selection) > 8192:
@@ -213,7 +214,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 sys.path.insert(0, str(root))
                 from tools.fixture_execution import Selection
                 selected = Selection.from_record(json.loads(args.fixture_selection))
-                if selected.target != 'ubuntu':
+                if selected.target != targets[configured.name]:
                     raise ValueError('test-runner:fixture-target-not-qualified')
                 fixture_options = ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
         if args.new_name is not None:
@@ -247,7 +248,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         serial = name in ('check_graphical_serial', 'check_fixture_serial')
         recorded_serial = name == 'check_fixture_recorded_serial'
         live_refresh = name == 'check_fixture_live_refresh'
-        if live_refresh and not args.list and configured.name != 'onpc-Ubuntu26.04':
+        if live_refresh and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if (args.fixture_refresh_phase is not None or args.fixture_replacement_selection is not None) and not live_refresh:
             raise ValueError('test-runner:unexpected-fixture-refresh-selection')

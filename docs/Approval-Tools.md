@@ -638,7 +638,7 @@ replacement by name alone.
 | `tools/test-vm --vm NAME rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
 | `tools/test-vm --vm NAME rename-disk` | Rename the idle pinned guest's single QCOW2 image to `NAME.qcow2` in its existing directory; update domain/internal-snapshot references and provenance, preserving bytes and inode; refuses overlays, shared disks, destination collisions and unfinished controllers |
 | `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, record and boot an isolated maintenance attempt |
-| `tools/test-vm --vm NAME start --fixture-maintenance` | Start dedicated product-free Ubuntu maintenance with authenticated retained `trusted-hard` input; see [idle fixture maintenance](../tests/integration/README.md#idle-fixture-maintenance-refresh) |
+| `tools/test-vm --vm NAME start --fixture-maintenance` | Start dedicated product-free Ubuntu/Fedora maintenance for the fixed `trusted-hard` subset; see [idle fixture maintenance](../tests/integration/README.md#idle-fixture-maintenance-refresh) |
 | `tools/test-vm --vm NAME sync-fixtures` | Build/select current native input in that same host owner and explicitly verify or replace the idle maintenance generation; refuse uncertain ownership, sessions and changed subsets |
 | `tools/test-vm --vm NAME reboot` | Request reboot over the same recorded instance's guarded SSH transport and verify its new boot; preserve guest state |
 | `tools/test-vm --vm NAME send-key 28` | Send 1–16 numeric Linux keycodes (1–255) to that instance; no shell or host command |

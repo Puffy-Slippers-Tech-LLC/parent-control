@@ -1,4 +1,4 @@
-"""Engineering proof of the actual Ubuntu idle-maintenance refresh boundary.
+"""Engineering proof of the actual idle-maintenance refresh boundary.
 
 The host launcher keeps its input owner and VM checkout across these two fixed
 phases, editing/building B only after retain-a has independently used A.
@@ -38,8 +38,10 @@ def require(value, reason):
 
 
 def selected_target():
-    require(proof.prepare_vm.vm_config.selected().name == 'onpc-Ubuntu26.04',
+    name = proof.prepare_vm.vm_config.selected().name
+    require(name in proof.TARGETS,
             'target-not-qualified')
+    return proof.TARGETS[name]
 
 
 def identity(lease):
@@ -157,7 +159,8 @@ def observed_runtime(lease, transport, manifest, receipt):
     try:
         observed = proof.audit(transport, manifest, SUBSETS)
         members = proof.validate_readback(observed, manifest, SUBSETS, receipt.binding, installed=False)
-        witnesses = proof.runtime_witnesses(transport, members, observed['accounts'], 'ubuntu')
+        witnesses = proof.runtime_witnesses(transport, members, observed['accounts'],
+                                          manifest['inputs']['target']['os'])
         require(maintenance._load(lease) == record, 'runtime-owner-changed')
         maintenance._idle(lease, transport, record)
     except BaseException:
@@ -234,6 +237,18 @@ def replace_b(lease, selection, replacement, source_selection, manifest,
     final = proof.audit(transport, replacement_manifest, SUBSETS)
     proof.verify_repeat(first, final)
     proof.unchanged_policy(before, final)
+    require(checkpoint['identity'] == identity(lease), 'snapshot-or-domain-changed')
+    result = {'phase': 'replace-b', 'outcome': 'passed', 'qualification_complete': True,
+            'source': origin, 'original_binding': checkpoint['binding'], 'binding': receipt.binding,
+            'identity': checkpoint['identity'], 'runtime_witnesses': witnesses, 'readback': final,
+            'replacement_actions': boundary.actions, 'repeat_actions': repeated_boundary.actions,
+            'repeat_without_writes': True, 'scenario_input_released': False,
+            'product_acceptance': False}
+    if selection.target == 'fedora':
+        # F08 changes only target admission. Native replacement and owned
+        # recovery reuse F07's existing implementation and lost-reply proof.
+        result['lost_reply_proof'] = 'reused-f07-unchanged-contract'
+        return result
     # One real replacement loses its reply after SSH has staged A. Do not
     # repeat it or attempt same-boot repair; normal maintenance stop owns it.
     interrupted = proof.InterruptedBoundary(transport)
@@ -269,13 +284,9 @@ def replace_b(lease, selection, replacement, source_selection, manifest,
         raise system.Error('fixture-live-refresh:unavailable-owner-released-input')
     require(len(interrupted.actions) == action_count, 'lost-reply-retried')
     require(checkpoint['identity'] == identity(lease), 'fault-changed-instance-or-snapshots')
-    return {'phase': 'replace-b', 'outcome': 'passed', 'qualification_complete': True,
-            'source': origin, 'original_binding': checkpoint['binding'], 'binding': receipt.binding,
-            'identity': checkpoint['identity'], 'runtime_witnesses': witnesses, 'readback': final,
-            'replacement_actions': boundary.actions, 'repeat_actions': repeated_boundary.actions,
-            'repeat_without_writes': True, 'lost_reply_actions': interrupted.actions,
-            'lost_reply_staging': staged, 'unavailable_readiness_verified': True,
-            'scenario_input_released': False, 'product_acceptance': False}
+    result.update(lost_reply_actions=interrupted.actions,
+                  lost_reply_staging=staged, unavailable_readiness_verified=True)
+    return result
 
 
 def main(*, phase, selection, source_selection, replacement_selection=None):
@@ -283,16 +294,16 @@ def main(*, phase, selection, source_selection, replacement_selection=None):
     commands = cleanup_commands = None
     try:
         require(os.geteuid() == 0, 'root-required')
-        selected_target()
+        target = selected_target()
         require(phase in ('retain-a', 'replace-b')
                 and (replacement_selection is not None) == (phase == 'replace-b'), 'phase-arguments')
         selection = fixture_execution.Selection.from_record(selection)
-        require(selection.target == 'ubuntu', 'input-target')
+        require(selection.target == target, 'input-target')
         source_selection = fixture_execution.validate_source_selection(source_selection, selection)
         replacement = (None if replacement_selection is None else
                        fixture_execution.Selection.from_record(replacement_selection))
         if replacement is not None:
-            require(replacement.target == 'ubuntu' and replacement != selection, 'replacement-target')
+            require(replacement.target == target and replacement != selection, 'replacement-target')
         os.umask(0o077)
         with ExitStack() as pins:
             pins.enter_context(authenticated_input(selection.record()))
@@ -341,7 +352,7 @@ def main(*, phase, selection, source_selection, replacement_selection=None):
                     private.mkdir(mode=0o700)
                     commands.evidence_path = private / 'commands.json'
                     commands._save()
-                    with operation('Qualifying idle Ubuntu fixture refresh: ' + phase):
+                    with operation('Qualifying idle ' + target + ' fixture refresh: ' + phase):
                         result = (retain_a(lease, selection, source_selection, manifest, source_allocation)
                             if phase == 'retain-a' else replace_b(lease, selection, replacement,
                                 source_selection, manifest, replacement_manifest, source_allocation))

@@ -73,8 +73,11 @@ def fixture_selection(checkout):
 
 
 @pytest.mark.parametrize('phase', ['retain-a', 'replace-b'])
-def test_live_refresh_dispatch_requires_exact_phase_inputs_and_ubuntu(checkout, fixture_selection, phase):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_live_refresh_dispatch_requires_exact_phase_inputs_and_target(checkout, fixture_selection, phase, vm, target):
     (checkout / 'tests/integration/check_fixture_live_refresh.py').touch()
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     source = fixture_selection | {'allocation': '/tmp/onpc-fixture-source-edit-private',
                                   'device': 5, 'inode': 6}
     replacement = fixture_selection | {'key': 'd' * 64, 'build_identity': 'e' * 64,
@@ -83,13 +86,13 @@ def test_live_refresh_dispatch_requires_exact_phase_inputs_and_ubuntu(checkout, 
                '--fixture-source-selection', json.dumps(source), '--fixture-refresh-phase', phase]
     if phase == 'replace-b':
         options += ['--fixture-replacement-selection', json.dumps(replacement)]
-    args = ['integration', 'check_fixture_live_refresh', '--vm', 'onpc-Ubuntu26.04']
+    args = ['integration', 'check_fixture_live_refresh', '--vm', vm]
     command = runner['selection'](checkout, [*args, *options])
     assert command[:3] == ['/usr/bin/python3', '-B', str(checkout / 'tests/integration/check_fixture_live_refresh.py')]
     assert command[command.index('--fixture-refresh-phase') + 1] == phase
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['selection'](checkout, ['integration', 'check_fixture_live_refresh',
-            '--vm', 'onpc-Fedora44', *options])
+            '--vm', 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
     with pytest.raises(ValueError, match='incomplete-fixture-refresh'):
         runner['selection'](checkout, args)
     with pytest.raises(ValueError, match='unexpected-fixture-refresh'):

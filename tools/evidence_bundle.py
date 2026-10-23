@@ -271,6 +271,7 @@ class Selection:
         self.records, self.files, self.archives = {}, {}, {}
         self.directories = {}
         self.selected_directories = {}
+        self.directory_selections = {}
         self.bundle_identities = {}
         self.receipt_identities = {}
         self.session_owners = {}
@@ -597,6 +598,8 @@ class Selection:
                                           files=len(manifest['files'])))
                 for entry in manifest['files']:
                     self.add_entry(entry, ('bundle', value, entry['member']))
+                for entry in manifest.get('directories', []):
+                    self.add_directory(entry)
         for value in absent_archives:
             if value not in self.files:
                 missing.append(value)
@@ -613,11 +616,14 @@ class Selection:
                 if value in self.absent_references:
                     raise ValueError('bundle: absent reference appeared during selection')
                 self.load_source(path)
-            elif value not in self.files:
+            elif value not in self.files and value not in self.directory_selections:
                 missing.append(value)
             else:
                 self.absent_references.add(value)
-                self.reference_context(path)
+                members = ([str(path)] if value in self.files else
+                           [name for name in self.files if Path(name).is_relative_to(path)])
+                for member in members:
+                    self.reference_context(Path(member))
         if missing:
             raise EvidenceUnavailable(missing)
         if not self.files:
@@ -628,6 +634,10 @@ class Selection:
             entry = dict(entry, member=f'files/{index:08d}')
             self.files[path] = (entry, origin)
             self.manifest['files'].append(entry)
+        if self.directory_selections:
+            self.manifest['directories'] = [self.directory_selections[path]
+                                            for path in sorted(self.directory_selections)]
+            validate_directories(self.manifest)
         self.logical_manifest()
         data = encoded(self.manifest)
         if len(data) > MAX_MANIFEST:
@@ -802,7 +812,11 @@ class Selection:
             path = Path(record['path'])
         with self.open(path) as (fd, info):
             if stat.S_ISDIR(info.st_mode):
-                self.walk(fd, path, record, depth=0)
+                entries = self.walk(fd, path, record, depth=0)
+                closure = directory_digests(entries, [str(path)])[str(path)]
+                if closure is None:
+                    raise ValueError('bundle: selected directory contains no evidence files')
+                self.add_directory(dict(path=str(path), sha256=closure))
             else:
                 self.add_file(fd, info, path, record)
 
@@ -859,6 +873,7 @@ class Selection:
         if depth > 32:
             raise ValueError('bundle: selection nesting exceeds limit')
         before, names = fingerprint(os.fstat(fd)), sorted(os.listdir(fd))
+        entries = []
         # A recursively selected tree includes its membership, unlike an
         # ancestor used only to reach that tree or an explicitly selected file.
         self.selected_directories.setdefault(str(path), before)
@@ -867,11 +882,13 @@ class Selection:
             privacy(child_path)
             with self.open(child_path) as (child, info):
                 if stat.S_ISDIR(info.st_mode):
-                    self.walk(child, child_path, record, depth=depth + 1)
+                    entries.extend(self.walk(child, child_path, record, depth=depth + 1))
                 else:
                     self.add_file(child, info, child_path, record)
+                    entries.append(self.files[str(child_path)][0])
         if before != fingerprint(os.fstat(fd)) or names != sorted(os.listdir(fd)):
             raise ValueError('bundle: selected directory changed')
+        return entries
 
     def add_file(self, fd, info, path, record):
         before = fingerprint(info)
@@ -896,6 +913,13 @@ class Selection:
         self.total_bytes += entry['bytes']
         if len(self.files) > MAX_FILES or self.total_bytes > MAX_BYTES:
             raise ValueError('bundle: finite selection limit exceeded')
+
+    def add_directory(self, entry):
+        previous = self.directory_selections.setdefault(entry['path'], entry)
+        if previous != entry:
+            raise ValueError('bundle: conflicting evidence for a selected directory')
+        if len(self.directory_selections) > MAX_FILES:
+            raise ValueError('bundle: finite directory selection limit exceeded')
 
     def plan(self):
         self.revalidate()
@@ -1019,6 +1043,46 @@ class LogicalEvidenceUnavailable(EvidenceUnavailable):
         return dict(error='evidence_unavailable', schema=1, references=self.references)
 
 
+def directory_digests(files, paths):
+    """Bind complete selected trees to original files, independent of ZIP layout."""
+    hashes = {path: hashlib.sha256() for path in paths}
+    counts = dict.fromkeys(hashes, 0)
+    file_paths = {entry['path'] for entry in files}
+    for entry in sorted(files, key=lambda item: item['path']):
+        data = encoded({key: value for key, value in entry.items() if key != 'member'}) + b'\n'
+        for parent in Path(entry['path']).parents:
+            name = str(parent)
+            if name in file_paths:
+                raise ValueError('bundle: conflicting file and directory evidence')
+            if name in hashes:
+                allocation = Path(entry['allocation']['path'])
+                if not parent.is_relative_to(allocation):
+                    raise ValueError('bundle: selected directory crosses allocation ownership')
+                hashes[name].update(data)
+                counts[name] += 1
+    return {path: hashed.hexdigest() if counts[path] else None for path, hashed in hashes.items()}
+
+
+def validate_directories(manifest):
+    entries = manifest.get('directories', [])
+    if not isinstance(entries, list) or not 0 < len(entries) <= MAX_FILES:
+        raise ValueError('bundle: invalid selected directory inventory')
+    paths = []
+    for entry in entries:
+        if (not isinstance(entry, dict) or set(entry) != {'path', 'sha256'}
+                or not isinstance(entry['sha256'], str)
+                or re.fullmatch('[0-9a-f]{64}', entry['sha256']) is None):
+            raise ValueError('bundle: invalid selected directory record')
+        path = path_text(entry['path'])
+        privacy(path)
+        paths.append(str(path))
+    if paths != sorted(set(paths)):
+        raise ValueError('bundle: ambiguous selected directory inventory')
+    closures = directory_digests(manifest['files'], paths)
+    if any(closures[entry['path']] != entry['sha256'] for entry in entries):
+        raise ValueError('bundle: selected directory proof is missing or changed')
+
+
 def verify_stream(stream):
     """Verify every stored member; never extract archive paths."""
     stream.seek(0, os.SEEK_END)
@@ -1053,6 +1117,8 @@ def verify_stream(stream):
             raise ValueError('bundle: manifest checksum mismatch')
         manifest = decoded(data)
         keys = {'schema', 'files', 'inherited', 'source_budgets'}
+        if isinstance(manifest, dict) and 'directories' in manifest:
+            keys.add('directories')
         if isinstance(manifest, dict) and manifest.get('schema') == 2:
             keys.update(('records', 'member_map'))
         if (not isinstance(manifest, dict) or set(manifest) != keys
@@ -1142,6 +1208,8 @@ def verify_stream(stream):
                     raise ValueError('bundle: member checksum mismatch')
         if set(names) != set(expected):
             raise ValueError('bundle: undeclared archive members')
+        if 'directories' in manifest:
+            validate_directories(manifest)
         if manifest['schema'] == 2:
             logical.validate_records(manifest['records'], manifest['member_map'], manifest['files'])
         return archive, manifest

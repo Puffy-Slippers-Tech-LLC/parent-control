@@ -1235,6 +1235,10 @@ def _replacement_closure(plan, current, intent):
                 if ({key: value for key, value in entry.items() if key != 'member'} !=
                         {key: value for key, value in replacement.items() if key != 'member'}):
                     raise ValueError('plan evidence: replacement omits or changes required proof')
+            directories = {entry['path']: entry for entry in new['manifest'].get('directories', [])}
+            for entry in old['manifest'].get('directories', []):
+                if directories.get(entry['path']) != entry:
+                    raise ValueError('plan evidence: replacement omits or changes required directory proof')
 
 
 @contextmanager
@@ -1772,6 +1776,7 @@ def rewrite_references(plan, state, index):
     with _verified_index(plan, index) as (verified, _):
         files = {entry['path'] for entry in verified['manifest']['files']}
         inherited = {entry['path'] for entry in verified['manifest']['inherited']}
+        directories = {entry['path'] for entry in verified['manifest'].get('directories', [])}
     path = plan.root / plan.queue
     lines = path.read_text().splitlines(keepends=True)
     destination = os.path.relpath(locator(plan), path.parent)
@@ -1796,7 +1801,7 @@ def rewrite_references(plan, state, index):
                 return None
             original = str(source)
             if (original not in files and original not in inherited
-                    and not (selected and any(member.startswith(original + '/') for member in files))):
+                    and not (selected and original in directories)):
                 if not selected:
                     return None  # Historical loss needs its authorized disclosure route.
                 raise ValueError('plan evidence: queue reference has no exact preserved proof')

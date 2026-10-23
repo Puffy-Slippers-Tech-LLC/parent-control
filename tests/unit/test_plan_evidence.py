@@ -809,7 +809,7 @@ def test_missing_prose_report_still_refuses_publication(campaign):
     assert not proof.locator(campaign.plan).exists()
 
 
-@pytest.mark.parametrize('defect', ['none', 'missing-member', 'corrupt', 'live-replacement'])
+@pytest.mark.parametrize('defect', ['none', 'directory', 'missing-member', 'corrupt', 'live-replacement'])
 def test_rotated_reference_uses_only_exact_verified_selected_bundle(campaign, defect):
     run, state, result, report = campaign.accepted('first')
     original = report / 'result.md'
@@ -823,6 +823,8 @@ def test_rotated_reference_uses_only_exact_verified_selected_bundle(campaign, de
                                       dir=bundle.storage.directory('reports'))
     assert not original.exists()
     referenced = original if defect != 'missing-member' else report / 'unknown.md'
+    if defect == 'directory':
+        referenced = report
     result['checks'][0]['evidence'] = f'Exact report: `{referenced}`. Archive: `{archived}`.'
     (run / 'agent-result.json').write_text(json.dumps(result))
     if defect == 'corrupt':
@@ -831,7 +833,7 @@ def test_rotated_reference_uses_only_exact_verified_selected_bundle(campaign, de
     elif defect == 'live-replacement':
         report.mkdir(mode=0o700)
         original.write_text('unregistered replacement')
-    if defect == 'none':
+    if defect in ('none', 'directory'):
         accepted = proof.preserve(campaign.plan, run, state, result)
         assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
             accepted['bundle'], member=str(original)) == b'Exact report for first'
@@ -1305,7 +1307,8 @@ def test_interrupted_precommit_preserves_previous_publication(campaign, monkeypa
     assert proof.recover(campaign.plan) == old
 
 
-def test_compaction_cannot_publish_a_locator_that_drops_required_accepted_proof(campaign, monkeypatch):
+@pytest.mark.parametrize('omitted', ['files', 'directories'])
+def test_compaction_cannot_publish_a_locator_that_drops_required_accepted_proof(campaign, monkeypatch, omitted):
     run, state, result, report = campaign.accepted('first')
     old = proof.preserve(campaign.plan, run, state, result)
     before = proof.locator(campaign.plan).read_bytes()
@@ -1313,27 +1316,33 @@ def test_compaction_cannot_publish_a_locator_that_drops_required_accepted_proof(
     original_write, original_load = proof._write, bundle.Selection.load
 
     def incomplete_ledger(path, data):
-        if Path(path).name == 'accepted-ledger.json':
+        if omitted == 'files' and Path(path).name == 'accepted-ledger.json':
             value = bundle.decoded(data)
             value['tasks'].pop('first')
             data = bundle.encoded(value)
         return original_write(path, data)
 
     def incomplete_compaction(selection):
-        selection.bundles = []
-        return original_load(selection)
+        if omitted == 'files':
+            selection.bundles = []
+        result = original_load(selection)
+        if omitted == 'directories':
+            selection.manifest.pop('directories')
+            selection.selection_sha256 = bundle.digest(bundle.encoded(selection.manifest))
+        return result
 
     # Simulate a faulty compactor producing a valid new task/archive while
     # forgetting the predecessor's required closure. Verification of the new
     # archive alone is insufficient to authorize replacement of the locator.
     monkeypatch.setattr(proof, '_write', incomplete_ledger)
     monkeypatch.setattr(bundle.Selection, 'load', incomplete_compaction)
-    with pytest.raises(ValueError, match='replacement omits or changes required proof'):
+    expected = 'replacement omits or changes required (directory )?proof'
+    with pytest.raises(ValueError, match=expected):
         proof.preserve(campaign.plan, run, state, result)
     assert proof.locator(campaign.plan).read_bytes() == before
     assert Path(old['bundle']).exists()
     assert (report / 'result.md').read_bytes() == b'Exact report for first'
-    with pytest.raises(ValueError, match='replacement omits or changes required proof'):
+    with pytest.raises(ValueError, match=expected):
         proof.recover(campaign.plan)
     assert proof.locator(campaign.plan).read_bytes() == before
 
@@ -1780,7 +1789,7 @@ def test_declared_shared_definition_requires_every_use(campaign):
     assert path.read_bytes() == before
 
 
-@pytest.mark.parametrize('changed', ['document', 'preview', 'declaration'])
+@pytest.mark.parametrize('changed', ['document', 'preview', 'declaration', 'candidate'])
 def test_declared_apply_refuses_changed_document_or_preview_without_writing(campaign, changed):
     selected = _structured_publication(campaign)
     path, declaration = _declared_document(campaign, selected,
@@ -1790,12 +1799,62 @@ def test_declared_apply_refuses_changed_document_or_preview_without_writing(camp
         path.write_text(path.read_text() + 'Unrelated concurrent edit.\n')
     elif changed == 'preview':
         preview['edits'][0]['after'] = 'wrong-existing.md'
-    else:
+    elif changed == 'declaration':
         preview['declaration']['references'][0]['consumer']['revision_sha256'] = 'a' * 64
+    else:
+        selected.index['segments'][0]['selection_sha256'] = 'b' * 64
+        proof.locator(campaign.plan).write_bytes(bundle.encoded(selected.index))
     before = path.read_bytes()
-    with pytest.raises(ValueError, match='document changed|preview or exact proof changed'):
+    expected = ('accepted segment changed' if changed == 'candidate' else
+                'document changed|preview or exact proof changed')
+    with pytest.raises(ValueError, match=expected):
         proof.apply_document_links(campaign.plan, preview)
     assert path.read_bytes() == before
+
+
+def test_finite_migration_resumes_each_document_after_rotation_without_overwriting_edits(campaign):
+    selected = _structured_publication(campaign)
+    member = next(item for item in selected.record['members']
+                  if item['member_id'] == selected.consumer['references'][0]['member_id'])
+    pending = []
+    for name in ('Applied', 'Pending', 'Changed'):
+        document = 'docs/nested/' + name + '.md'
+        relative = os.path.relpath(member['original_path'],
+                                  (campaign.plan.root / document).parent)
+        path, declaration = _declared_document(campaign, selected,
+            '# Kept claim\n\n[Original proof](' + relative + ')\n', document=document)
+        pending.append((path, declaration, proof.preview_document_links(campaign.plan, declaration)))
+    applied, unchanged, changed = pending
+    assert proof.apply_document_links(campaign.plan, applied[2])
+    accepted_bytes = applied[0].read_bytes()
+    changed[0].write_text(changed[0].read_text() + '\nUnrelated owner edit.\n')
+    changed_bytes = changed[0].read_bytes()
+    original_archive = selected.index['segments'][0]['bundle']
+    # The interruption is between atomic document writes. Rotate the physical
+    # export, retaining the exact result, commands, cleanup and logical closure.
+    for _ in range(4):
+        with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [], [],
+                [str(Path(selected.index['segments'][0]['bundle']) / 'evidence.zip')],
+                plan_namespace=plan_namespace(campaign.plan.path)) as selection:
+            exported = bundle.export(selection, expected=selection.selection_sha256)
+        selected.index['segments'] = [_structured_segment(campaign, exported)]
+        proof.locator(campaign.plan).write_bytes(bundle.encoded(selected.index))
+    assert not Path(original_archive).exists()
+    # Reread/rebind already-applied bytes; replaying an obsolete declaration is
+    # deliberately refused rather than silently adopting concurrent changes.
+    refreshed = copy.deepcopy(applied[1])
+    refreshed['sha256'] = bundle.digest(accepted_bytes)
+    preview = proof.preview_document_links(campaign.plan, refreshed)
+    assert not proof.apply_document_links(campaign.plan, preview)
+    assert applied[0].read_bytes() == accepted_bytes
+    assert proof.apply_document_links(campaign.plan, unchanged[2])
+    with pytest.raises(ValueError, match='document changed'):
+        proof.apply_document_links(campaign.plan, changed[2])
+    assert changed[0].read_bytes() == changed_bytes
+    resolved = proof.resolve_reference(selected.reference, consumer=selected.consumer,
+                                       read_scope=selected.scope)
+    assert resolved['record'] == selected.record
+    assert bundle.decoded(resolved['data']) == selected.result
 
 
 @pytest.mark.parametrize('field,value', [

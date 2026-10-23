@@ -12,7 +12,15 @@ import detached_launcher as launcher
 
 
 class GitReconciliationRequired(ValueError):
-    """The current task needs a coordinator after pulling upstream changes."""
+    """The current task needs a coordinator before Git close-out can proceed."""
+
+
+class OwnershipReconciliationRequired(GitReconciliationRequired):
+    """Reported close-out paths still contain protected pre-existing work."""
+
+    def __init__(self, paths):
+        self.paths = sorted(paths)
+        super().__init__('close-out overlaps pre-existing work: ' + ', '.join(self.paths))
 
 
 def reconciliation_instructions(state):
@@ -21,6 +29,25 @@ def reconciliation_instructions(state):
     accepted = state['git_reconciliation'].get('accepted_result', {})
     evidence = {key: accepted[key] for key in ('checks', 'cleanup_complete', 'stage_paths', 'handoff')
                 if key in accepted}
+    if state['git_reconciliation'].get('ownership_paths'):
+        return f"""
+Git ownership reconciliation takes priority before completing this same task:
+{state['git_reconciliation']['reason']}
+Retained acceptance evidence and close-out scope:
+{json.dumps(evidence, indent=2)}
+The original stage_baseline fingerprints and protected_staged paths still apply.
+Inspect the reported paths against the retained baseline, current HEAD and index.
+Remove an unrelated path from stage_paths only if this task needs no change to it.
+Do not drop a required task edit to avoid the guard. Never clear or rewrite the
+ownership checkpoint, adopt uncommitted pre-existing work, stage or commit that
+work, or discard changes. A later commit touching a path alone does not prove
+that its captured contents were committed. If ownership cannot be established,
+restore the task's unchecked row, brief and pointer and return blocked with the
+exact paths and the decision or original-owner action needed to proceed.
+Re-run acceptance whose inputs changed; reuse only unaffected evidence. Retain
+the same task, targets and cleanup requirements. Leave completion commits and
+pushes to the controller; no task completion credit has been granted.
+"""
     return f"""
 Git reconciliation takes priority before completing this same task:
 {state['git_reconciliation']['reason']}
@@ -245,7 +272,7 @@ def validate_closeout_ownership(root, paths, state):
             elif path in paths:
                 overlap.add(path)
     if overlap:
-        raise ValueError('close-out overlaps pre-existing work: ' + ', '.join(sorted(overlap)))
+        raise OwnershipReconciliationRequired(overlap)
 
     def retire(saved):
         # Release clean paths before the next task edits them, including inherited

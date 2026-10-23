@@ -186,6 +186,15 @@ session allowance. Task/queue baselines, targets, suspended work and Git ownersh
 remain protected. This recovery does not adopt unknown allocations, recreate
 expired reports or forgive integrity failures; unfinished Git transactions still
 refuse renewal.
+
+New bundle captures also retain a complete nonempty selected directory's file
+closure. An expired folder reference requires that authenticated closure and the
+normal target checks for every member; a nonempty path-prefix match is insufficient.
+Files-only legacy bundles still support exact member references, but cannot prove
+that an entire old folder was captured. Repair those references to independently
+verified exact files rather than guessing folder contents or repeating historical
+acceptance. A present empty or changed original cannot use archived folder proof.
+
 Continuations, blocked decisions and prerequisite suspension retain the exact
 renewal source across controller restarts until renewed proof is published and
 verified; a non-completion handoff never releases that evidence.
@@ -671,6 +680,12 @@ version. Release these clean paths from inherited and suspended baselines before
 each agent session, including the first session after restart or a reviewed replan,
 before the task can edit them.
 Uncommitted baseline contents and pre-existing staged paths remain protected.
+An ownership overlap returns the same task to its coordinator with the accepted
+result and exact conflicting paths retained, before any pull or staging. Correct
+an overbroad close-out path list without dropping required edits. If ownership
+still cannot be established, preserve the baseline and return blocked with the
+required developer decision or original-owner action; never adopt that work
+merely because a later commit touched the same file.
 Content-only file fingerprints omit executable mode, so release also requires a regular
 working file with HEAD's executable mode; ambiguous deletion/type/mode changes
 remain protected for explicit reconciliation.

@@ -487,6 +487,35 @@ authorization/recovery route when it changes protected claims; absent authority
 produces a concrete proposal and debt record, not a checkpoint edit or a false
 completion. No missing product acceptance is executed by this plan.
 
+#### E12 finite migration disposition
+
+E12 revalidated E11's finite tracked selection on 2026-10-23: 451 documents,
+283 occurrences, no owner-source findings, inventory digest
+`15aae97ba16bee052af5257cc7047eaaa8303f0038a52dbddcdcfe4fa56bec05`.
+The E12 queue record retains the complete per-occurrence inventory and checks.
+The following outcomes apply to every entry in that report; its original
+document, claim and candidate digests remain the resumption inputs.
+
+| Inventory classification | Count | E12 outcome and remaining owner |
+| --- | --- | --- |
+| Exact context-verified live/archived proof | 0 | No destination was eligible; zero applied changes, conflicting verified edits or pending external applications. |
+| Unresolved context | 102 | Pending E13: an owning declaration must supply claim/target/input context before a present path can become proof. |
+| Refused | 24 | Pending E13: preserve the 22 access refusals and two foreign-checkout identities; no inferred ownership or access bypass. |
+| Unavailable history | 117 | Pending E13: preserve missing-source outcomes; two authenticated file candidates still lack owner context. |
+| Operational path / example | 32 / 8 | Resolved as inert navigation/examples; no evidence or rewrite authority. |
+
+The two candidates are the references at lines 73 and 80 in the suspended
+[E03p authentication brief](Export-Tasks/E03p-auth.md), with reference digests
+`64ac68f0cf9bd8158bbeecbd9bae51bd7cb17da8217002956d21a665e54d0d36`
+and `59471655091627118070aac82c8b537de895791979a468df543ceb4e66668ccf`.
+Their archived bytes are authenticated, but `context_verified` remains false;
+neither destination was changed. All 49 protected pending occurrences retain
+their claims and completion state. No protected recovery request or checkpoint
+edit was needed. The 126 context/refusal entries previously assigned to E12
+remain pending for E13 alongside its 117 missing-source entries; this disposition
+does not resolve them or grant acceptance. Changed inputs require regeneration
+of affected entries through the existing inventory reader before any later apply.
+
 ## Required regression histories
 
 These histories use private stores and simulated authenticated helper/controller
@@ -612,8 +641,9 @@ dependency with its owner's explicit lifetime; latest-only recordings alone
 cannot promise durable proof. No credential directory is a capture selection.
 
 Extend the existing ZIP format, not its compression/extraction policy. Bundle
-manifest schema `2` has exactly the v1 keys `schema`, `files`, `inherited`,
-`source_budgets` plus `records` and `member_map`. Physical `files` keep v1
+manifest schema `2` has the v1 keys `schema`, `files`, `inherited`,
+`source_budgets` plus `records` and `member_map`, and the explicit optional
+`directories` extension below. Physical `files` keep v1
 provenance and generated `files/NNNNNNNN` names. `records` contains the logical
 records above, sorted by record ID. `member_map` is a JSON list of objects with
 exactly `record_id`, `member_id`, `physical_member`, `original_provenance`, sorted
@@ -627,8 +657,21 @@ Metadata, logical entries and dependencies all count toward finite limits; byte
 deduplication cannot evade the 60,000-file/logical-member bound. Verify logical
 closure against stored bytes before returning any result. Schema 2 receipt has
 exactly `schema:2` plus the existing `sha256`, `bytes`, `selection_sha256`,
-`identity`; `selection_sha256` binds the whole manifest. Never silently add fields
-to v1's strict reader.
+`identity`; `selection_sha256` binds the whole manifest.
+
+E12 explicitly extends both strict manifest readers with optional `directories`:
+a nonempty list of at most 60,000 unique objects, sorted by `path`, with exactly
+`path` and `sha256`. Each path names an explicitly selected complete nonempty
+tree within one original allocation. Its checksum covers all descendant file
+entries in original-path order: canonical JSON without the physical `member`
+field, followed by one newline per entry. The normal manifest budget applies.
+Capture computes it from the live walk, not inherited files; verification
+recomputes it from the complete archived inventory. Cumulative publication must
+retain each closure unchanged. Removed members, cross-allocation ancestors,
+empty inventories, file/directory type conflicts and conflicting selections
+refuse. This grants no logical claim or new acceptance. Older files-only manifests remain readable without
+invented folder completeness. Older strict readers refuse this extension; the
+existing dependency-byte restart boundary loads its reader before new publication.
 
 Accepted ledger schema `2` has exactly `schema`, `plan`, `generation`,
 `previous_index_sha256`, `tasks`, `records`, `segments`. Preserve each task's v1

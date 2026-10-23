@@ -2492,8 +2492,9 @@ def test_real_consumer_refusals_preserve_exact_turn_and_prior_acceptance(
                           member=str(report)) == b'exact first accepted report\n'
 
 
+@pytest.mark.parametrize('reference_kind', ['file', 'directory'])
 def test_real_consumer_resolves_two_expired_reports_through_authenticated_helper_during_active_producer(
-        rig, monkeypatch, real_plan_evidence):
+        rig, monkeypatch, real_plan_evidence, reference_kind):
     import vm_config
     bundle = real_plan_evidence.bundle
     proof = workflow.plan_evidence
@@ -2536,13 +2537,14 @@ def test_real_consumer_resolves_two_expired_reports_through_authenticated_helper
             path = allocation / 'report.json'
             path.write_bytes(data)
             originals.append(path)
+    references = originals if reference_kind == 'file' else [path.parent for path in originals]
     calls = []
     def execute(root, spec, run, owner):
         state = json.loads((run / 'checkpoint.json').read_text())
         calls.append(state['task_id'])
         complete(rig.plan, state['task_id'])
         result = response(state)
-        result['checks'][0]['evidence'] = ' '.join(f'`{path}`' for path in originals)
+        result['checks'][0]['evidence'] = ' '.join(f'`{path}`' for path in references)
         workflow.launcher.atomic(run / 'agent-result.json', result)
         return result
     monkeypatch.setattr(workflow, 'execute', execute)
@@ -2597,7 +2599,7 @@ def test_real_consumer_resolves_two_expired_reports_through_authenticated_helper
     assert commands[0][commands[0].index('--bundle') + 1] == first['bundle']
     for command in commands:
         assert '--bundle' in command
-        assert [command[index + 1] for index, flag in enumerate(command) if flag == '--reference'] == sorted(map(str, originals))
+        assert [command[index + 1] for index, flag in enumerate(command) if flag == '--reference'] == sorted(map(str, references))
     current = proof.recover(rig.plan)
     assert set(current['tasks']) == {'001', '002'}
     assert current['tasks']['001'] == first['tasks']['001']
@@ -2873,8 +2875,16 @@ def test_closeout_refuses_preexisting_claimed_changes(rig, monkeypatch, protecte
                         dict.fromkeys(paths, 'different committed content'))
     monkeypatch.setattr(workflow, 'stage_task', lambda *_args, **_kwargs: pytest.fail('must not stage protected work'))
     monkeypatch.setattr(workflow, 'pull_before_commit', lambda *_args, **_kwargs: pytest.fail('must not pull over protected work'))
-    with pytest.raises(ValueError, match='overlaps pre-existing work'):
-        workflow.closeout(rig.plan, replace(rig.spec, commit_prefix='Fixture'), rig.run, state)
+    assert workflow.closeout(rig.plan, replace(rig.spec, commit_prefix='Fixture'), rig.run, state) is False
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert saved['phase'] == 'recover' and saved['in_flight'] is False
+    assert saved[protected] == state[protected]
+    assert 'pending_completion' not in saved
+    assert saved['git_reconciliation']['accepted_result'] == response(state)
+    assert saved['git_reconciliation']['ownership_paths'] == ['docs/plan.md']
+    prompt = workflow.session_prompt(rig.plan, rig.spec, saved)
+    assert 'Never clear or rewrite the' in prompt and 'return blocked' in prompt
+    assert TaskBudget(rig.run).read()['completed'] == 0
 
 
 @pytest.fixture
@@ -3793,6 +3803,61 @@ def peer_change(fixture, path, content):
     fixture.git('add', '--', path, cwd=fixture.peer)
     fixture.git('commit', '-qm', 'Upstream change', cwd=fixture.peer)
     fixture.git('push', '-q', cwd=fixture.peer)
+
+
+@pytest.mark.parametrize('staged', [False, True], ids=['unstaged', 'staged'])
+def test_ownership_overlap_recovers_same_task_and_excludes_unrelated_work_on_restart(
+        git_plan, monkeypatch, staged):
+    f = git_plan
+    (f.root / 'shared.py').write_text('pre-existing work\n')
+    baseline = workflow.worktree_snapshot(f.root)
+    if staged:
+        f.git('add', '--', 'shared.py')
+    state = state_for(f.plan, task_sessions=1, total_sessions=1,
+                      stage_baseline=baseline, protected_staged=['shared.py'] if staged else [])
+    (f.root / 'task.py').write_text('completed task\n')
+    complete(f.plan, '001')
+    accepted = response(state)
+    accepted['stage_paths'] += ['task.py', 'shared.py']
+    state['pending_completion'] = accepted
+    workflow.launcher.atomic(f.run / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: f.run)
+    monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda *_: None)
+    monkeypatch.setattr(workflow.signal, 'signal', lambda *_: None)
+    index = f.git('ls-files', '--stage', '-z', '--', 'shared.py').stdout
+    head = f.git('rev-parse', 'HEAD').stdout
+    calls = []
+
+    def reconcile(root, spec, run, owner):
+        saved = json.loads((run / 'checkpoint.json').read_text())
+        calls.append(saved['task_id'])
+        assert saved['git_reconciliation']['accepted_result'] == accepted
+        assert saved['git_reconciliation']['ownership_paths'] == ['shared.py']
+        assert saved['stage_baseline'] == baseline
+        assert saved['protected_staged'] == state['protected_staged']
+        assert TaskBudget(run).read()['completed'] == 0
+        assert f.git('rev-parse', 'HEAD').stdout == head
+        assert f.git('ls-files', '--stage', '-z', '--', 'shared.py').stdout == index
+        prompt = (run / 'prompt.txt').read_text()
+        assert 'Git ownership reconciliation' in prompt and 'return blocked' in prompt
+        # The task made no edit to shared.py; correct its overbroad path list.
+        result = response(saved)
+        result['stage_paths'].append('task.py')
+        return result
+
+    monkeypatch.setattr(workflow, 'execute', reconcile)
+    spec = workflow.PlanWorkflow('export', f.plan.path)
+    recovered = workflow.initial_state(f.plan, spec, f.run.parent)
+    TaskBudget(f.run).initialize(1)
+    owner = os.open(f.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert workflow.worker(f.root, f.run, owner, spec, recovered) == 0
+    assert calls == ['001'] and TaskBudget(f.run).read()['completed'] == 1
+    assert f.git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').stdout.splitlines() == [
+        'docs/plan.md', 'docs/queue.md', 'task.py']
+    assert f.git('rev-parse', 'HEAD', cwd=f.remote).stdout == f.git('rev-parse', 'HEAD').stdout
+    assert (f.root / 'shared.py').read_text() == 'pre-existing work\n'
+    assert f.git('ls-files', '--stage', '-z', '--', 'shared.py').stdout == index
+    assert f.plan.next_task().id == '002'
 
 
 def test_pull_preserves_unrelated_index_worktree_and_untracked_work(git_plan):

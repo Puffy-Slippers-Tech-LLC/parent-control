@@ -2086,6 +2086,13 @@ refuses rather than becoming missing evidence. Readers recheck absence and pinne
 archive identities before returning, keep deterministic journal lock order and
 exclude publication writers throughout their read scope. Discovery never rotates
 sources or writes workflow checkpoints.
+Complete nonempty directory selections retain the bounded
+[directory closure](../docs/TestAutomation/Export-Design.md#canonical-identities-and-wire-records)
+in the verified manifest. An expired directory reference requires this exact
+closure and every member's target authority, including after cumulative export
+rotation. Legacy files-only archives support exact original files; matching some
+descendants never establishes the complete original directory. Empty or changed
+live directories refuse instead of falling back to old contents.
 It also checks source budgets and conservative simultaneous export space before
 publication. Export requires the exact plan digest and repeats these guards.
 Concurrent identical exports serialize the reuse decision under the publication

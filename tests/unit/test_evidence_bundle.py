@@ -732,7 +732,9 @@ def archive_bytes(manifest, payload=b'proof', *, extra=None, checksum=None):
 
 
 @pytest.mark.parametrize('fault', ['traversal', 'extra', 'member-name', 'digest', 'checksum',
-                                  'size', 'duplicate-path', 'private-path', 'oversized-manifest'])
+                                  'size', 'duplicate-path', 'private-path', 'oversized-manifest',
+                                  'directory-digest', 'directory-ancestor', 'directory-duplicate',
+                                  'directory-empty'])
 def test_malformed_archives_are_refused_without_extraction(evidence, monkeypatch, fault):
     root = evidence.allocate({'result.json': b'proof'})
     with evidence.select([root]) as selection:
@@ -755,6 +757,14 @@ def test_malformed_archives_are_refused_without_extraction(evidence, monkeypatch
         manifest['files'].append(dict(entry, member='files/00000001'))
     elif fault == 'private-path':
         entry['path'] = str(root / 'snapshot.json')
+    elif fault == 'directory-digest':
+        manifest['directories'][0]['sha256'] = '0' * 64
+    elif fault == 'directory-ancestor':
+        manifest['directories'][0]['path'] = str(root.parent)
+    elif fault == 'directory-duplicate':
+        manifest['directories'].append(manifest['directories'][0])
+    elif fault == 'directory-empty':
+        manifest['directories'] = []
     else:
         monkeypatch.setattr(bundle, 'MAX_MANIFEST', 1)
     with pytest.raises((ValueError, KeyError)):
@@ -1029,6 +1039,81 @@ def test_plan_references_reuse_only_verified_exact_archived_members(evidence, de
             assert not isinstance(failure.value, bundle.EvidenceUnavailable)
 
 
+@pytest.mark.parametrize('defect', ['none', 'legacy-files-only', 'partial-file-selection',
+                                  'sibling-prefix', 'reappeared', 'wrong-target'])
+def test_archived_directory_requires_complete_selected_tree(evidence, monkeypatch, defect):
+    catalogue = bundle.Selection.catalogue
+    def journals(selection, **options):
+        entries = catalogue(selection, **options)
+        if selection.plan_namespace is not None:
+            journal = selection.publication_parent() / 'retention'
+            if journal.exists():
+                entries.append((journal, os.geteuid(), os.getegid()))
+        return entries
+    monkeypatch.setattr(bundle.Selection, 'catalogue', journals)
+    root = evidence.allocate({'result.json': b'exact proof', 'nested/cleanup.json': b'cleaned'})
+    paths = [root / 'result.json'] if defect == 'partial-file-selection' else [root]
+    if defect == 'legacy-files-only':
+        with evidence.select(paths) as selection:
+            selection.manifest.pop('directories', None)
+            selection.selection_sha256 = bundle.digest(bundle.encoded(selection.manifest))
+            archive = bundle.export(selection, expected=selection.selection_sha256)['path']
+    else:
+        archive = evidence.publish(paths)['path']
+    for _ in range(3):
+        evidence.allocate({'later.json': b'later'})
+    assert not root.exists()
+    namespace = 'a' * 64
+    bundle.plan_parent(evidence.checkout, namespace, create=True)
+    reference = root.with_name(root.name[:-1]) if defect == 'sibling-prefix' else root
+    if defect == 'reappeared':
+        root.mkdir(mode=0o700)
+    elif defect == 'wrong-target':
+        original_context = bundle.Selection.reference_context
+        def context(selection, path):
+            if path == root / 'nested/cleanup.json':
+                raise bundle.logical.EvidenceContextError('archived reference target does not match selection')
+            return original_context(selection, path)
+        monkeypatch.setattr(bundle.Selection, 'reference_context', context)
+    selection = bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [archive],
+                                 plan_namespace=namespace, references=[str(reference)])
+    if defect == 'none':
+        with selection:
+            assert set(selection.files) == {str(root / 'result.json'), str(root / 'nested/cleanup.json')}
+            # Absence must remain true until the pinned read scope closes.
+            root.mkdir(mode=0o700)
+            try:
+                with pytest.raises(ValueError, match='absent reference appeared'):
+                    selection.plan()
+            finally:
+                root.rmdir()
+            renewed = bundle.export(selection, expected=selection.selection_sha256)['path']
+        with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [renewed],
+                              plan_namespace=namespace, references=[str(root)]) as carried:
+            assert carried.directory_selections == selection.directory_selections
+    else:
+        expected = (ValueError if defect in ('reappeared', 'wrong-target') else bundle.EvidenceUnavailable)
+        with pytest.raises(expected):
+            with selection:
+                pytest.fail('unproven directory accepted')
+
+
+@pytest.mark.parametrize('removed', ['some', 'all'])
+def test_live_directory_deletions_cannot_hide_behind_archived_tree(evidence, removed):
+    root = evidence.allocate({'result.json': b'exact proof', 'cleanup.json': b'cleaned'})
+    archive = evidence.publish([root])['path']
+    (root / 'result.json').unlink()
+    if removed == 'all':
+        (root / 'cleanup.json').unlink()
+    namespace = 'a' * 64
+    bundle.plan_parent(evidence.checkout, namespace, create=True)
+    with pytest.raises(ValueError, match='selected directory|conflicting evidence'):
+        with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [archive],
+                              plan_namespace=namespace, references=[str(root)]):
+            pytest.fail('changed live directory accepted archived proof')
+    assert evidence.inspect(archive, member=str(root / 'result.json')) == b'exact proof'
+
+
 def test_reference_fallback_requires_plan_and_never_weakens_live_revalidation(evidence):
     root = evidence.allocate({'result.json': b'exact proof'})
     source = root / 'result.json'
@@ -1045,6 +1130,21 @@ def test_reference_fallback_requires_plan_and_never_weakens_live_revalidation(ev
         source.write_bytes(b'changed after inventory')
         with pytest.raises(ValueError, match='identity changed'):
             bundle.export(selection, expected=selection.selection_sha256)
+
+
+def test_cumulative_directory_cannot_adopt_file_valued_ancestor(evidence):
+    root = evidence.allocate({'nested/result.json': b'exact proof'})
+    directory = root / 'nested'
+    first = evidence.publish([directory])['path']
+    (directory / 'result.json').unlink()
+    directory.rmdir()
+    directory.write_bytes(b'later file at the old directory path')
+    second = evidence.publish([directory])['path']
+    with pytest.raises(ValueError, match='conflicting file and directory evidence'):
+        with evidence.select(previous=[first, second]):
+            pytest.fail('contradictory directory and file captures accepted')
+    assert evidence.inspect(first, member=str(directory / 'result.json')) == b'exact proof'
+    assert evidence.inspect(second, member=str(directory)) == directory.read_bytes()
 
 
 @pytest.mark.parametrize('operation', ['plan', 'export'])

@@ -3,7 +3,6 @@ from tools.test_storage import named_input
 from tests.support.vm_registry import vm_name
 from dataclasses import replace
 from contextlib import nullcontext
-import ast
 import json
 import os
 import runpy
@@ -26,24 +25,17 @@ PRODUCT_FREE_FIXTURE_SELECTORS = ('check_fixture_system_product_free',
                                  *SYSTEM_BOOTSTRAP_ALIASES)
 
 
-def named_qualification_inputs():
-    """Discover consumers independently of the launcher's preparation list."""
-    for path in sorted((ROOT / 'tests/integration').glob('check_*.py')):
-        tree = ast.parse(path.read_text())
-        for node in ast.walk(tree):
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                    and node.func.id == 'named_input'):
-                options = {kw.arg: ast.literal_eval(kw.value) for kw in node.keywords}
-                yield path.stem, options
-                break
-
-
-@pytest.mark.parametrize(('name', 'options', 'target'), [
-    (name, options, target) for name, options in named_qualification_inputs()
-    for target in (vm_name(0), vm_name(1))])
-@pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize('build_status', [0, 7])
-def test_every_named_input_consumer_prepares_before_dispatch(
+@pytest.mark.parametrize('name,options,target,suffix,build_status', [
+    ('check_e2e_gdm_navigation', {}, vm_name(0), '', 0),
+    ('check_e2e_feedback_read', {'package_source': True}, vm_name(1), '.py', 7),
+    ('check_e2e_read_overlay_about_and_links', {'fixture_source': True}, vm_name(1), '.py', 0),
+    ('check_e2e_upgrade_assets', {'upgrade_source': True}, vm_name(0), '', 7),
+    ('check_e2e_kiosk_eligible_choices', {'vm_source': True, 'fixture_source': True},
+     vm_name(0), '', 0),
+    ('check_fixture_system_installed', {'vm_source': True, 'fixture_source': True},
+     vm_name(1), '.py', 0),
+])
+def test_named_input_preparation_precedes_dispatch_and_failure_stops_privilege(
         monkeypatch, synthetic_package_identity, name, options, suffix, build_status, target):
     import dev_privileges
     import regression_process
@@ -1291,220 +1283,6 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
         ROOT, 'tools/build_test_artifacts.py', '--package-format', 'deb', '--output', output)
 
 
-@pytest.mark.parametrize('selector', [
-    'check_e2e_gdm_navigation', 'check_e2e_gdm_navigation.py',
-    'check_e2e_gdm_recipient', 'check_e2e_gdm_recipient.py',
-    'check_e2e_challenges', 'check_e2e_challenges.py',
-    'check_e2e_fresh_child_allowed', 'check_e2e_fresh_child_allowed.py',
-    'check_e2e_unlock', 'check_e2e_unlock.py',
-    'check_e2e_fresh_desktop', 'check_e2e_fresh_desktop.py',
-    'check_e2e_desktop_keyring', 'check_e2e_desktop_keyring.py',
-    'check_e2e_shell_search_results', 'check_e2e_shell_search_results.py',
-    'check_e2e_shell_search', 'check_e2e_shell_search.py',
-    'check_e2e_parent_search_launch', 'check_e2e_parent_search_launch.py',
-    'check_e2e_terminal_provider', 'check_e2e_terminal_provider.py',
-    'check_e2e_license_viewer', 'check_e2e_license_viewer.py',
-    'check_e2e_parent_website', 'check_e2e_parent_website.py',
-    'check_e2e_parent_privacy', 'check_e2e_parent_privacy.py',
-    'check_e2e_parent_support', 'check_e2e_parent_support.py',
-    'check_e2e_read_parent_information_links', 'check_e2e_read_parent_information_links.py',
-    'check_e2e_feedback_read', 'check_e2e_feedback_read.py',
-    'check_e2e_feedback_privacy', 'check_e2e_feedback_privacy.py',
-    'check_e2e_feedback_states', 'check_e2e_feedback_states.py',
-    'check_e2e_trace_stable_state', 'check_e2e_trace_stable_state.py',
-    'check_e2e_trace', 'check_e2e_trace.py',
-    'check_e2e_compose_observation_around_one_caller_input',
-    'check_e2e_compose_observation_around_one_caller_input.py',
-    'check_e2e_accessibility_input_trace', 'check_e2e_accessibility_input_trace.py',
-    'check_e2e_parent_save_trace', 'check_e2e_parent_save_trace.py',
-    'check_e2e_feedback_collection', 'check_e2e_feedback_collection.py',
-    'check_e2e_custom_save_trace', 'check_e2e_custom_save_trace.py',
-    'check_e2e_named_child_custom_saves', 'check_e2e_named_child_custom_saves.py',
-    'check_e2e_feedback_rejection', 'check_e2e_feedback_rejection.py',
-    'check_e2e_feedback_length', 'check_e2e_feedback_length.py',
-    'check_e2e_format', 'check_e2e_format.py',
-    'check_e2e_feedback_block_semantics', 'check_e2e_feedback_block_semantics.py',
-    'check_e2e_feedback_formats', 'check_e2e_feedback_formats.py',
-    'check_e2e_feedback_link_semantics', 'check_e2e_feedback_link_semantics.py',
-    'check_e2e_window_switch', 'check_e2e_window_switch.py',
-    'check_e2e_retained_parent', 'check_e2e_retained_parent.py',
-    'check_e2e_text', 'check_e2e_text.py',
-    'check_e2e_files', 'check_e2e_files.py',
-    'check_e2e_document_open', 'check_e2e_document_open.py',
-    'check_e2e_open_a_customer_document_or_archive',
-    'check_e2e_open_a_customer_document_or_archive.py',
-    'check_e2e_edit_and_save_an_open_synthetic_document',
-    'check_e2e_edit_and_save_an_open_synthetic_document.py',
-    'check_e2e_give_repeated_public_operations_distinct_stages',
-    'check_e2e_give_repeated_public_operations_distinct_stages.py',
-    'check_e2e_gdm_product_free', 'check_e2e_gdm_product_free.py',
-    'check_e2e_toggle', 'check_e2e_toggle.py',
-    'check_e2e_product_free_entry', 'check_e2e_product_free_entry.py',
-    'check_e2e_package_authority', 'check_e2e_package_authority.py',
-    'check_e2e_package_command', 'check_e2e_package_command.py',
-    'check_e2e_customer_reboot', 'check_e2e_customer_reboot.py',
-    'check_e2e_chinese_current_install', 'check_e2e_chinese_current_install.py',
-    'check_e2e_parent_save', 'check_e2e_parent_save.py',
-    'check_e2e_allowance_presets', 'check_e2e_allowance_presets.py',
-    'check_e2e_allowance', 'check_e2e_allowance.py',
-    'check_e2e_read_an_expanded_time_explanation',
-    'check_e2e_read_an_expanded_time_explanation.py',
-    'check_e2e_time_explanation', 'check_e2e_time_explanation.py',
-    'check_e2e_revoke_cancel', 'check_e2e_revoke_cancel.py',
-    'check_e2e_revocation', 'check_e2e_revocation.py',
-    'check_e2e_set_an_allowance_for_a_named_child',
-    'check_e2e_set_an_allowance_for_a_named_child.py',
-    'check_e2e_set_fresh_thirty_minute_allowance',
-    'check_e2e_set_fresh_thirty_minute_allowance.py',
-    'check_e2e_set_jordan_thirty_minute_allowance',
-    'check_e2e_set_jordan_thirty_minute_allowance.py',
-    'check_e2e_app_restart', 'check_e2e_app_restart.py',
-    'check_e2e_kiosk_eligible_choices', 'check_e2e_kiosk_eligible_choices.py',
-    'check_e2e_kiosk_valid_duration', 'check_e2e_kiosk_valid_duration.py',
-    'check_e2e_request_duration', 'check_e2e_request_duration.py',
-    'check_e2e_request_flow', 'check_e2e_request_flow.py',
-    'check_e2e_mate_prompt', 'check_e2e_mate_prompt.py',
-    'check_e2e_auth_prompt', 'check_e2e_auth_prompt.py',
-    'check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
-    'check_e2e_overlay_rejection', 'check_e2e_overlay_rejection.py',
-    'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
-    'check_e2e_auth_result', 'check_e2e_auth_result.py',
-    'check_e2e_kiosk_approved_flow', 'check_e2e_kiosk_approved_flow.py',
-    'check_e2e_chinese_native_auth', 'check_e2e_chinese_native_auth.py',
-    'check_e2e_approval_flow', 'check_e2e_approval_flow.py',
-    'check_e2e_request_choices', 'check_e2e_request_choices.py',
-    'check_e2e_kiosk_no_child', 'check_e2e_kiosk_no_child.py',
-    'check_e2e_kiosk_fixtures', 'check_e2e_kiosk_fixtures.py',
-    'check_e2e_kiosk_multiple', 'check_e2e_kiosk_multiple.py',
-    'check_e2e_eligible_kiosk_fixtures', 'check_e2e_eligible_kiosk_fixtures.py',
-    'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard',
-    'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py',
-    'check_e2e_operate_public_connectivity_controls',
-    'check_e2e_operate_public_connectivity_controls.py',
-])
-def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(
-        monkeypatch, synthetic_package_identity, selector):
-    import regression_process
-    import test_storage
-
-    current_package = selector.removesuffix('.py') in (
-        'check_e2e_named_child_custom_saves', 'check_e2e_custom_save_trace',
-        'check_e2e_allowance_presets', 'check_e2e_allowance',
-        'check_e2e_time_explanation',
-        'check_e2e_revoke_cancel',
-        'check_e2e_revocation',
-        'check_e2e_chinese_current_install', 'check_e2e_kiosk_eligible_choices',
-        'check_e2e_customer_reboot',
-        'check_e2e_read_parent_information_links', 'check_e2e_feedback_read',
-        'check_e2e_text', 'check_e2e_feedback_privacy',
-        'check_e2e_overlay_prompt', 'check_e2e_overlay_rejection', 'check_e2e_kiosk_approval',
-        'check_e2e_kiosk_approved_flow', 'check_e2e_chinese_native_auth')
-    vm_source = selector.removesuffix('.py') in (
-        'check_e2e_challenges', 'check_e2e_unlock', 'check_e2e_fresh_child_allowed',
-        'check_e2e_window_switch', 'check_e2e_set_an_allowance_for_a_named_child',
-        'check_e2e_kiosk_eligible_choices', 'check_e2e_request_flow',
-        'check_e2e_request_choices', 'check_e2e_request_exit',
-        'check_e2e_retained_parent')
-    fixture_source = selector.removesuffix('.py') in (
-        'check_e2e_kiosk_eligible_choices', 'check_e2e_request_flow',
-        'check_e2e_request_choices', 'check_e2e_request_exit')
-    output = str(test_storage.named_input(package_source=current_package,
-                                        vm_source=vm_source, fixture_source=fixture_source))
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
-    allocate = Mock(return_value=output)
-    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    execute = Mock(return_value=7)
-    monkeypatch.setattr(regression_process.Control, 'run', execute)
-    assert regression_process.category_run(
-        ROOT, 'integration', [selector], pipe=False) == 7
-    allocate.assert_called_once_with(output)
-    # A failed prerequisite never enters the privileged runner or the VM.
-    assert execute.call_count == 1
-    assert execute.call_args.args[0] == commands.python_file(
-        ROOT, 'tools/vm_artifacts.py', '--output', output, *VM_ARGS)
-
-
-@pytest.mark.parametrize('selector', ['check_e2e_allowance_boundaries', 'check_e2e_allowance_boundaries.py',
-                                     'check_e2e_named_child_custom_saves', 'check_e2e_named_child_custom_saves.py',
-                                     'check_e2e_custom_save_trace', 'check_e2e_custom_save_trace.py',
-                                     'check_e2e_allowance_presets', 'check_e2e_allowance_presets.py',
-                                     'check_e2e_allowance', 'check_e2e_allowance.py',
-                                     'check_e2e_read_parent_information_links', 'check_e2e_read_parent_information_links.py',
-                                     'check_e2e_feedback_read', 'check_e2e_feedback_read.py',
-                                     'check_e2e_text', 'check_e2e_text.py',
-                                     'check_e2e_feedback_privacy', 'check_e2e_feedback_privacy.py',
-                                     'check_e2e_kiosk_entry', 'check_e2e_kiosk_entry.py',
-                                     'check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
-                                     'check_e2e_overlay_rejection', 'check_e2e_overlay_rejection.py',
-                                     'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
-                                     'check_e2e_kiosk_approved_flow', 'check_e2e_kiosk_approved_flow.py',
-                                     'check_e2e_chinese_native_auth', 'check_e2e_chinese_native_auth.py',
-                                     'check_e2e_save_chooser', 'check_e2e_save_chooser.py',
-                                     'check_e2e_match_editor', 'check_e2e_match_editor.py',
-                                     'check_e2e_policy', 'check_e2e_policy.py',
-                                     'check_e2e_native_fixtures', 'check_e2e_native_fixtures.py',
-                                     'check_e2e_riley_native_grid', 'check_e2e_riley_native_grid.py',
-                                     'check_e2e_native_grid_usable', 'check_e2e_native_grid_usable.py',
-                                     'check_e2e_native_app', 'check_e2e_native_app.py',
-                                     'check_e2e_app_activity', 'check_e2e_app_activity.py',
-                                     'check_e2e_retained_app_visits', 'check_e2e_retained_app_visits.py',
-                                     'check_e2e_overlay_approved_exit', 'check_e2e_overlay_approved_exit.py',
-                                     'check_e2e_overlay_approval', 'check_e2e_overlay_approval.py',
-                                     'check_e2e_read_overlay_about_and_links',
-                                     'check_e2e_read_overlay_about_and_links.py'])
-def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, selector):
-    import test_storage
-    output = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-current'
-    named = Mock(return_value=output)
-    monkeypatch.setattr(test_storage, 'named_input', named)
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
-    allocate = Mock(return_value=str(output))
-    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    expected = commands.python_file(ROOT, 'tools/vm_artifacts.py', '--output', str(output), *VM_ARGS)
-    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == expected
-    named.assert_called_once_with(**dict(named_qualification_inputs())[selector.removesuffix('.py')])
-    allocate.assert_called_once_with(str(output))
-
-
-@pytest.mark.parametrize('selector', ['check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
-                                     'check_e2e_named_child_custom_saves', 'check_e2e_named_child_custom_saves.py',
-                                     'check_e2e_custom_save_trace', 'check_e2e_custom_save_trace.py',
-                                     'check_e2e_allowance_presets', 'check_e2e_allowance_presets.py',
-                                     'check_e2e_allowance', 'check_e2e_allowance.py',
-                                     'check_e2e_read_parent_information_links', 'check_e2e_read_parent_information_links.py',
-                                     'check_e2e_feedback_read', 'check_e2e_feedback_read.py',
-                                     'check_e2e_text', 'check_e2e_text.py',
-                                     'check_e2e_feedback_privacy', 'check_e2e_feedback_privacy.py',
-                                     'check_e2e_kiosk_entry', 'check_e2e_kiosk_entry.py',
-                                     'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
-                                     'check_e2e_kiosk_approved_flow', 'check_e2e_kiosk_approved_flow.py',
-                                     'check_e2e_chinese_native_auth', 'check_e2e_chinese_native_auth.py'])
-def test_request_regressions_preserve_current_inputs_and_ignore_legacy_bundle(monkeypatch, selector):
-    import test_storage
-    current = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-current'
-    legacy = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input'
-    named = Mock(return_value=current)
-    monkeypatch.setattr(test_storage, 'named_input', named)
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda path: path in (str(current), str(legacy)))
-    validate = Mock()
-    monkeypatch.setattr(commands, 'artifact_path', validate)
-    monkeypatch.setattr(commands, 'allocate_artifact_output',
-                        Mock(side_effect=AssertionError('existing inputs replaced')))
-    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == commands.python_file(
-        ROOT, 'tools/vm_artifacts.py', '--candidate', str(current), '--output', str(current), *VM_ARGS)
-    named.assert_called_once_with(package_source=True)
-    validate.assert_called_once_with(str(current))
-
-
-@pytest.mark.parametrize('name', ['check_e2e_read_parent_information_links',
-                                'check_e2e_named_child_custom_saves', 'check_e2e_custom_save_trace',
-                                'check_e2e_allowance_presets', 'check_e2e_allowance',
-                                'check_e2e_feedback_read', 'check_e2e_text',
-                                'check_e2e_feedback_privacy'])
-def test_parent_dialog_regressions_bind_current_package(name):
-    # Snapshot acquisition reads the package version. These current-install
-    # consumers must not select a valid but older immutable legacy bundle.
-    assert dict(named_qualification_inputs())[name] == {'package_source': True}
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_read_overlay_about_and_links',

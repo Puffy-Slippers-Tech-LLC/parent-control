@@ -30,11 +30,10 @@ def test_host_work_fills_four_branches_despite_background_io(io_pressure, catego
         'test_automation_identity.py', 'test_about_release.py')]
     plan = buckets(nodes)
     if category == 'unit':
-        # These previously formed eleven exclusive jobs behind the four unit
-        # buckets, leaving three branches idle throughout the serial tail.
+        # Reviewed modules share four unit buckets without a serial tail.
         nodes = [f'tests/unit/test_{name}.py::test_case' for name in (
             'appsnapshot_cleanup_safety', 'baseline_guest_cleanup_safety',
-            'e2e_request_exit', 'e2e_suite_cleanup_safety', 'e2e_toggle',
+            'e2e_request_exit', 'e2e_suite_cleanup_safety',
             'fix_tests', 'fix_tests_cleanup_safety',
             'qualification_storage_cleanup_safety', 'ui_watch',
             'ui_watch_cleanup_safety', 'vm_watch_session_cleanup_safety')]

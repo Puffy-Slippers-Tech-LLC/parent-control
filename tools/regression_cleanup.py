@@ -56,7 +56,7 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Capture retirement and resumable-publication checks add only private journals,
 # files and local descriptors with synchronous interruption doubles. They own no
 # child, VM, display, socket, bus, service or shared cache; compatible in both inventories.
-# E04 complete-closure retirement and recording replacement histories use tiny
+# E04 complete-closure retirement histories use tiny
 # pytest-private files/archives and real local descriptor locks with synchronous
 # failure/privilege doubles. They add no child, VM, service, shared cache/path,
 # display, bus or socket; existing compatible cleanup and unit overlap holds.
@@ -355,11 +355,6 @@ from regression_resources import HOST_WORKERS
 # and cleanup, with no new protected operation or cleanup lifetime.
 # VM-control's natural-expiry reproduction binding uses its existing process-local
 # argument/lease doubles only; the compatible unit/cleanup ownership is unchanged.
-# Recording storage/control safety owns only pytest-private journals, leases,
-# and unique shared-library socket runtimes; no live VM, server or child process.
-# Its unit classification is compatible as well.
-# Synthetic recording labels replace deployed VM names without changing any
-# file, socket, lease or cleanup lifetime; both inventories remain compatible.
 # Fixture producer safety owns only tiny pytest-private storage/locks and small
 # bounded, waited Python descendants. No shared fixture cache, VM, bus, display,
 # socket or external service; compatible in cleanup and unit inventories.
@@ -377,7 +372,6 @@ REVIEWED = frozenset('''
 fixture_provision
 fixture_execution fixture_handoff
 fixture_producer fixture_bundle
-recording_storage
 e2e_natural_expiry
 kiosk_reminder_journey
 kiosk_reminder_registration

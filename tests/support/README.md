@@ -421,10 +421,7 @@ including Jordan's Custom text input, belong to `KIOSK_SESSION_OPERATIONS`;
 overlay operations retain their child-desktop account. Qualify account routing
 through the standalone observer entry, not only direct calls on a preview reader.
 Both surfaces emit the existing form diagnostics, which `UiObservations.call`
-decodes separately from its single final reply. The
-[history regressions](../unit/test_language_persistence_cleanup_safety.py)
-cover account/environment routing, chunked output and missing, replayed or late
-records without relaxing terminal refusal.
+decodes separately from its single final reply.
 
 Parent, kiosk and child-overlay entry use
 `AccessibleUI.complete_language_setup` through the parent/request wrappers.
@@ -444,9 +441,6 @@ The declared input language can already be Chinese from the child's desktop
 setting. Reacquisition must retain that child and language after startup Save;
 do not route an already translated form through an English-only account binding.
 `kiosk-language-jordan-jamie-chinese` supplies case 254's finite approver input.
-Its synthetic-tree/decoder regression covers startup Save, failed Save, changed
-language, wrong child, incomplete offered accounts and translated result refusal.
-It adds no resource owner; existing unit and cleanup classifications apply.
 After choosing an account, it first confirms the chosen public UID and selector
 description in a fresh owned snapshot. A newly
 selected child's language dialog may disable the form; this read does not require
@@ -456,11 +450,7 @@ language readiness: a complete traversal can read the old readiness marker
 before the new child's UID and translated description. Missing selection,
 language completion or full form readback
 keeps the selection terminal and prevents replay.
-`test_selected_child_snapshot_cannot_supply_later_language_readiness` in the
-[restoration regressions](../unit/test_kiosk_language_restoration_cleanup_safety.py)
-models the mixed-time traversal and failed Save. Keep this transition test when
-optimizing snapshot reuse; a complete tree is not a simultaneous view of all
-widget properties.
+A complete tree is not a simultaneous view of all widget properties.
 
 The station restoration qualification's return to Parent reuses
 `onpc_parent::launch` with the fresh `return-desktop` receipt. Its separate
@@ -505,12 +495,8 @@ observation and retries only the preflight; a complete refusal remains terminal.
 Desktop preparation can itself retire an accessibility provider, so
 `AccessibleUI.native_launch_command` invalidates its earlier observation and
 reacquires the whole preflight after `prepare_launch_desktop`, before submission.
-Keep preparation outside the retry predicate too. The
-[native command regressions](../unit/test_e2e_native_app.py) exercise transient
-and persistent post-preparation reads, positive prompt refusals, existing windows
-and uncertain submission for Parent, Jordan and Riley. Retain these focused
-checks when repairing this boundary; an earlier successful desktop read is not
-a current launch proof.
+Keep preparation outside the retry predicate too; an earlier successful desktop
+read is not a current launch proof.
 The launch command runs once outside the wait, with the uncertain-input latch
 set before submission and independent window/activity readback afterward.
 
@@ -563,11 +549,7 @@ These add no live owner beyond the existing guarded envelope.
 Installed-snapshot prerequisite checks use an owned installed observation:
 `ChineseNativeAuthJourney` verifies assets at the public Parent checkpoint.
 The product-free package-command context requires transferred package inputs
-that this installed entry does not have. Retain
-`test_installed_asset_checkpoint_verifies_without_package_transfer` in the
-[native authentication regressions](../unit/test_chinese_native_auth_cleanup_safety.py)
-when reusing or moving prerequisite actions; it exercises the actual recorder
-and refuses missing assets before a reply.
+that this installed entry does not have. Missing assets must refuse before a reply.
 
 `kiosk_language_form` independently reads button
 labels and accessible names plus REQUEST03 values; neither reader performs
@@ -706,10 +688,9 @@ Both-child request-transfer histories reuse `request_flow.transfer_allowances` /
 `onpc_request_flow::prepare_transfer_allowances` for public allowance setup,
 independent child reads and the guarded greeter return. Forward and reverse
 cases and qualifications share this pair; keep each consumer's choice values,
-visit order and immutable comparison endpoints in its plan. The existing
-[transfer regressions](../unit/test_e2e_overlay_valid_choices.py) cover both
-declaration/worker orders and stopping at every refusal boundary for
-[composition preflight](../../docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight).
+visit order and immutable comparison endpoints in its plan. Follow
+[composition preflight](../../docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight)
+for declaration/worker order and refusal boundaries.
 
 FLOW12 overlay-to-kiosk declarations use `request_flow.overlay_to_kiosk` and
 `onpc_request_flow::overlay_to_kiosk`. The caller supplies a fresh source receipt,
@@ -859,11 +840,9 @@ compatible in both unit and cleanup inventories; no new live owner is introduced
 `offline_language_actions` reuses the lease's existing Internet isolation and
 recovery owner. Bind its stages to public installed-policy observations before
 the action. An installed-snapshot history has no transferred installer, so its
-connectivity checkpoint must not require a package-command context. The
-[language-history regressions](../unit/test_language_persistence_cleanup_safety.py)
-exercise the real recorder boundary, require refusal before connectivity input
-when policy observation fails, and check independent recovery. These helpers
-add no storage, process or cleanup owner.
+connectivity checkpoint must not require a package-command context. Failed
+policy observation must refuse before connectivity input; recovery remains
+independent. These helpers add no storage, process or cleanup owner.
 
 Continuous package histories use `package_lifecycle.record_lifecycle_journey`
 with caller-declared operations, actions and comparison endpoints. Its shared
@@ -992,10 +971,7 @@ Distinct-user retained histories compose `journey_blocks.retained_app_activities
 and `activity_checks` compares the original window and draft before resumed
 Submit. Do not copy `retained_app_visits.PLAN` or run its qualification as setup.
 The [qualified scope](../../docs/TestAutomation/E2E-Building-Blocks.md#distinct-user-retained-app-qualification)
-owns available bindings; same-child multiple desktops remain separate. The
-existing [app-activity regressions](../unit/test_e2e_app_activity.py) cover missing
-captures, changed/replayed windows, actual worker order and renamed independent
-consumers without adding a resource or cleanup owner.
+owns available bindings; same-child multiple desktops remain separate.
 
 Shell authentication declarations reuse `request_flow.overlay_authentication`
 for Cancel, fixed approval or rejection, paired with `onpc_request_flow::shell_cancel` /
@@ -1059,12 +1035,7 @@ app policy. The enabled binding instead uses `onpc_parent::set_allowance` and
 independent saved settings/balance reads. Do not copy enabled preparation into
 the disabled history or enable then disable limits to reach its starting state.
 Prove the other child's unaffected access through the same target and route
-with its own window/Submit/result, leaving its policy untouched. The existing
-[app-activity regressions](../unit/test_e2e_app_activity.py) check both complete
-worker orders, every refusal stop, real recorder construction and rejected
-settings/policy readbacks before durable replies. They retain private evidence,
-process-local doubles and bounded waited Perl children; the existing compatible
-unit classification applies, with no new resource or cleanup owner.
+with its own window/Submit/result, leaving its policy untouched.
 
 Keep expected outcomes, case tables, fault injection and independent oracles in
 the owning tests. The broker state-machine model intentionally has independent
@@ -1075,11 +1046,9 @@ Build external authentication tree fixtures from the qualified provider's
 catalogue and observed message branch, independently of the adapter's expected
 strings. Bind the provider version, locale and authenticating/session roles:
 Chinese MATE in the kiosk uses the super-user explanation, not its same-user
-or multiple-identity explanations. The independent `native_tree` fixture and
-`test_chinese_kiosk_refuses_other_native_explanation_branches` in the
-[native authentication regressions](../unit/test_chinese_native_auth_cleanup_safety.py)
-preserve that distinction and refusal before secret input. A fixture copied
-from the adapter's oracle cannot detect a shared wrong expectation.
+or multiple-identity explanations. Preserve that distinction and refusal before
+secret input. A fixture copied from the adapter's oracle cannot detect a shared
+wrong expectation.
 
 Import fixtures explicitly instead of loading every helper as a global plugin.
 Include dependency fixtures in the consumer too; aliases can disambiguate names.

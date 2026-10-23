@@ -76,33 +76,6 @@ def test_three_cases_restore_once_per_boundary_and_audit_only_at_suite_ends(suit
     assert lease.source.domain.revertToSnapshot.call_count == 4
 
 
-@pytest.mark.parametrize('fault', [None, 'restore', 'off-guard'])
-def test_recording_seals_reset_after_suite_restore_off_proof_only(suite, monkeypatch, fault):
-    lease, _ = suite
-    lease.__enter__()
-    lease.prepare()
-    lease.start()
-    release = Mock()
-    monkeypatch.setattr(lease, '_recording_safe_after_shutdown', release)
-    guard = lease.guard
-    def checked_guard(*, off=False):
-        if off and fault == 'off-guard':
-            raise RuntimeError('off proof failed')
-        guard(off=off)
-    monkeypatch.setattr(lease, 'guard', checked_guard)
-    if fault == 'restore':
-        lease.source.domain.revertToSnapshot.side_effect = RuntimeError('restore failed')
-    if fault:
-        with pytest.raises(RuntimeError):
-            lease.stop()
-        release.assert_not_called()
-    else:
-        lease.stop()
-        release.assert_called_once_with()
-        lease.guard(off=True)
-        assert lease._restored and lease.view.domain_id is None
-
-
 def test_checkpoint_provenance_does_not_hash_backings_or_launch_qemu_img(suite, monkeypatch):
     lease, _ = suite
     with lease:

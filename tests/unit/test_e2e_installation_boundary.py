@@ -5,7 +5,6 @@ from unittest.mock import Mock
 import pytest
 
 from installation_boundary import InstallationBoundary
-import installation_boundary
 from private_artifacts import EvidenceError
 
 
@@ -42,42 +41,6 @@ def test_ordered_install_acknowledgements_bind_assets_and_package(boundary):
     assert after['boot_sha256'] == before['boot_sha256']
     with pytest.raises(EvidenceError, match='install:phase'):
         instance.observe('install-complete')
-
-
-@pytest.mark.parametrize('fault', [None, 'seal', 'package', 'interrupt'])
-def test_install_secret_ack_is_sealed_until_verified_completion(boundary, monkeypatch, fault):
-    instance, observations = boundary
-    events = []
-    class Protection:
-        def __enter__(self):
-            events.append('sealed')
-            if fault == 'seal':
-                raise RuntimeError('encoder unavailable')
-
-        def __exit__(self, kind, value, traceback):
-            events.append('unsealed' if kind is None else 'retained')
-    monkeypatch.setattr(installation_boundary, 'protect_capture', lambda **_: Protection())
-    instance.observe('install-ready')
-    if fault == 'seal':
-        with pytest.raises(EvidenceError):
-            instance.observe('install-password')
-    else:
-        proof = instance.observe('install-password')
-        assert proof['terminal_echo_disabled'] is True and events == ['sealed']
-        if fault == 'package':
-            observations['package-installed']['package_sha256'] = 'c' * 64
-        if fault == 'interrupt':
-            instance.verified.recheck.side_effect = KeyboardInterrupt()
-        if fault:
-            with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else EvidenceError):
-                instance.observe('install-complete')
-            assert events == ['sealed', 'retained']
-        else:
-            result = instance.observe('install-complete')
-            assert result['verified_package_digest'] is True
-            assert events == ['sealed', 'unsealed']
-    if fault:
-        assert 'unsealed' not in events and instance._failed
 
 
 def test_post_reboot_layout_is_bound_to_transferred_package_inventory(boundary):

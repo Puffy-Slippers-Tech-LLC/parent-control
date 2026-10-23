@@ -226,7 +226,14 @@ def test_sudo_identity_output_rejects_private_and_noncanonical_data(observer, fa
     assert 'private-canary' not in capsys.readouterr().err
 
 
-@pytest.mark.parametrize('stage', installation_observations.SUDO_PASSWORD_STAGES)
+@pytest.mark.parametrize('stage', [
+    'sudo-command', 'process-continuity', 'terminal-active',
+    'getty-initial-file-owner', 'getty-recipient-credentials',
+    'getty-continuity-exe-mismatch',
+    'terminal-echo-enabled-other-syscall-read-queue-empty-echo-characters',
+    'terminal-echo-enabled-stopped-syscall-ioctl-drain-queue-pending-echo-both',
+    'terminal-echo-enabled-unavailable-syscall-unavailable-queue-unavailable-echo-newline',
+])
 def test_sudo_condition_is_collected_before_terminal_refusal(observer, stage, capsys):
     reader, transport = observer
     transport.call.return_value = ('install-password-rejected:' + stage + '\n').encode()

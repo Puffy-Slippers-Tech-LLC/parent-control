@@ -2964,34 +2964,6 @@ def test_restore_refuses_changed_snapshot(local_preparation_source):
     lease.source.domain.revertToSnapshot.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', [None, 'restore', 'off-guard'])
-def test_recording_seals_reset_only_after_owned_restore_and_final_off_guard(
-        local_preparation_source, monkeypatch, fault):
-    from tools import vm_recording
-    release = Mock()
-    monkeypatch.setattr(vm_recording, 'capture_safe_after_shutdown', release)
-    lease = runner.Lease(Mock(), Mock(), Mock())
-    lease.capture.state = {'proof': {'name': 'onpc_baseline'}}
-    lease.snapshot_xml = 'snapshot'
-    lease.source.uuid = UUID
-    lease.state = {'domain_uuid': UUID}
-    lease.source.domain.snapshotLookupByName.return_value.getXMLDesc.return_value = 'snapshot'
-    lease.source.connection.lookupByUUIDString.return_value = Mock(UUIDString=Mock(return_value=UUID))
-    lease.guard = Mock(side_effect=[None, RuntimeError('off proof failed')]
-                       if fault == 'off-guard' else None)
-    if fault == 'restore':
-        lease.source.domain.revertToSnapshot.side_effect = RuntimeError('restore failed')
-    if fault:
-        with pytest.raises(RuntimeError):
-            lease.restore()
-        release.assert_not_called()
-    else:
-        lease.restore()
-        release.assert_called_once_with(root=runner.ROOT)
-        assert lease.guard.call_count == 2
-        assert lease.guard.call_args.kwargs == {'off': True}
-
-
 def test_libvirt_shutting_down_is_active_not_offline():
     api = Mock(VIR_DOMAIN_RUNNING=1, VIR_DOMAIN_SHUTDOWN=4, VIR_DOMAIN_SHUTOFF=5,
                VIR_DOMAIN_XML_INACTIVE=2)

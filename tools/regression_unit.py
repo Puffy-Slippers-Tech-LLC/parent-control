@@ -224,14 +224,9 @@ waited child for abrupt-interruption recovery. All file/xattr mutations are
 private; there is no live system bus, service, package account, VM, display or
 shared cache. Its existing compatible unit bucket remains appropriate.
 
-launcher_chat uses tiny pytest-private protocol/mailbox trees, in-memory VT
-screens, a private PTY with restored terminal flags, and one bounded, waited
+launcher_chat uses tiny pytest-private protocol/mailbox trees and one bounded, waited
 Codex schema-generator process (no model inference). It has no VM, network,
 display, bus, shared mutable cache or cleanup-inventory entry; compatible.
-Pane-wheel/scrollbar and shell-isolation coverage uses only bounded in-memory
-VT rows. The shared screen double preserves its primary/alternate buffers on
-resize, scrolls on bottom-edge line feeds and consumes OSC controls without
-printing them, with no new resource or lifetime.
 write_e2e_cleanup_safety's agent double now speaks app-server over its existing
 private pipes. Its detached children, nested owner lifetimes, Git fixtures and
 serial cleanup remain unchanged; existing unit/cleanup classifications apply.
@@ -268,13 +263,6 @@ or new child lifetime is added; its compatible unit/cleanup classifications hold
 test_test_checkpoint's validation-order checks use its existing private files
 only; its compatible unit classification is unchanged.
 
-FLOW13 short-daily checks extend accessible_e2e_ui/toggle with in-memory UI
-doubles, pytest-private recorder evidence and bounded waited Perl workers.
-No VM, bus, display, shared path/cache or external service is added; their
-existing compatible classifications and module grouping remain appropriate.
-
-Riley native-grid checks extend e2e_native_grid_usable with private recorder
-files, process-local UI/transport doubles and bounded waited Perl children.
 Native fixture readback extends its existing private descriptor trees and
 ownership doubles. No VM, bus, display, shared cache or new lifecycle owner;
 the existing compatible unit/cleanup classifications remain applicable.
@@ -714,22 +702,11 @@ and GLib doubles; child_preview remains compatible without a real bus/display.
 # private tmp_path recorder files and bounded, waited Perl children. No live
 # guest, display, bus, shared cache or new allocation lifetime; their reviewed
 # app-row/composition/launcher and installed-journey buckets stay compatible.
-# Native command checks use process-local session/command doubles, tiny private
-# recorder files and bounded waited Perl workers; no live guest/display/cache.
-# The new e2e_native_app module and existing recorder/launcher buckets overlap.
-# Native startup evidence checks use bounded synthetic journal/service output
-# and process-local command/AT-SPI doubles in e2e_native_app and
-# e2e_native_grid_usable. No real journal, service, display or new cleanup owner;
-# their compatible unit classifications remain valid.
 # Native activity comparison uses frozen synthetic public values, private
 # pytest reply/marker files, process-local transport doubles and waited Perl
 # children. No live VM, display, socket, shared cache or new resource lifetime.
 # Case 80 adds policy/balance reply checks and the two-child command composition
 # in the same e2e_app_activity module with these private resources; compatible.
-# FLOW09/FLOW14 Parent/child retention extends those same private recorder files,
-# immutable values, transport doubles and bounded waited Perl children. Parent
-# command guards reuse e2e_native_app's process-local doubles. No VM, display,
-# bus, shared cache or cleanup owner is added; both remain compatible.
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,
 # bounded in-memory archives and mocked SSH. Feedback composition retains private
@@ -1177,12 +1154,6 @@ from regression_ui import Bucket
 # with exact private install/sysusers wrappers, plus immutable guest closure
 # staging/imports. All paths remain pytest-private and shell/Python children are
 # bounded and waited; no package manager, native mount or shared resource is used.
-# Recording units use pytest-private identity journals and short owned AF_UNIX
-# sockets, in-process timeline/control doubles, and one bounded single-thread
-# encoder child. Complete-playback checks run tiny fixture clips through serial
-# bounded FFmpeg/FFprobe children with null decoded output. They own no VM,
-# desktop, shared cache or external service.
-# The recording storage safety module is reviewed in the cleanup inventory too.
 # PAM environment history regressions use pytest-private paths and in-process
 # command/account doubles. They acquire no VM, host PAM, bus or process owner.
 # Earlier-package history checks use tiny pytest-private checkpoints and
@@ -1266,9 +1237,6 @@ native_transaction_inputs native_transaction_preflight native_transaction_routes
 system_trusted_fixtures
 system_previous_upgrade
 system_pam_variants
-vm_recording
-watch_recording
-recording_storage_cleanup_safety
 system_first_configure
 e2e_natural_expiry
 e2e_natural_expiry_cleanup_safety
@@ -1313,7 +1281,7 @@ child_preview_cleanup_safety clean_install_cleanup_safety codex_test_rules confi
 dbus_harness_cleanup_safety desktop_session_cleanup_safety dev_privileges dev_tool_installation
 diagnostic_export diagnostic_privacy diagnostic_report diagnostics document_checks
 dynamic_account_fixture e2e_app_rows native_fixtures_cleanup_safety e2e_asset_transfer_cleanup_safety e2e_broker_startup_observations
-e2e_case_composition e2e_command_help e2e_countdown e2e_controller_qualification_cleanup_safety e2e_desktop_keyring
+e2e_case_composition e2e_command_help e2e_controller_qualification_cleanup_safety e2e_desktop_keyring
 e2e_desktop_session e2e_disabled_child e2e_evidence e2e_feedback_read e2e_fresh_desktop
 e2e_execution_cleanup_safety e2e_files_cleanup_safety e2e_fixture_credentials_cleanup_safety e2e_gdm_helper
 e2e_gdm_navigation e2e_gdm_pixels e2e_gdm_product_free e2e_gdm_recipient
@@ -1321,15 +1289,15 @@ e2e_install_helper e2e_install_password_observation e2e_installation_boundary
 e2e_installation_observations e2e_inventory e2e_keyring_fixture_cleanup_safety
 e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_feedback_confinement e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
 e2e_license_viewer
-e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_native_grid_usable e2e_native_app e2e_app_activity
-e2e_baseline_app_bindings e2e_baseline_app_effects e2e_baseline_auth_pause e2e_baseline_journey e2e_estimate_freshness e2e_long_request_binding
+e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_app_activity
+e2e_baseline_app_effects e2e_baseline_auth_pause e2e_baseline_journey e2e_estimate_freshness e2e_long_request_binding
 compatible_native_fixtures
 e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
 e2e_request_choices e2e_request_exit e2e_secret_variables e2e_serial_helper
 e2e_serial_observation e2e_shell_search e2e_shell_search_results e2e_shutdown
 e2e_startup_cache_cleanup_safety e2e_startup_observations e2e_suite_cleanup_safety
-e2e_terminal e2e_terminal_provider e2e_toggle e2e_vt6_authentication e2e_vt6_command e2e_vt6_controller
+e2e_terminal e2e_terminal_provider e2e_vt6_authentication e2e_vt6_command e2e_vt6_controller
 e2e_vt6_diagnostic e2e_vt6_pixels e2e_vt6_prompt e2e_vt6_recipient e2e_vt6_shell e2e_watch
 e2e_watch_cleanup_safety e2e_worker_cleanup_safety error_reporting execution_policy
 execution_policy_ready execution_probe_cleanup_safety extension_manager feedback_collection
@@ -1497,8 +1465,7 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # Package-content tests build small archives in tmp_path and run only bounded,
 # read-only dpkg-deb children. Suite tests use the same private archive fixtures
 # with mocked VM operations; neither needs build admission or exclusive state.
-# LIFE01 checks in e2e_toggle use the same bounded Perl children and private
-# tmp_path contexts; accessible_e2e_ui uses in-memory trees and mocked transport.
+# accessible_e2e_ui uses in-memory trees and mocked transport.
 # Jordan FLOW16 adds private recorder requests and in-memory child receipts;
 # existing compatible unit classifications and cleanup partitions still apply.
 # Its standalone observer check runs one bounded isolated Python child with
@@ -1771,11 +1738,11 @@ def buckets(nodeids):
 # evidence_capture and plan_evidence. Oversized-startup checks inject source
 # usage, never large payloads. No process, shared cache or cleanup/UI owner is
 # added; both existing compatible unit classifications remain appropriate.
-# E04 lifetime/recovery histories use tiny private journals, archives, recording
+# E04 lifetime/recovery histories use tiny private journals, archives,
 # files and descriptor locks with synchronous failure/privilege doubles. They
 # add no VM, service, process, shared cache, display, bus or socket. Retention,
-# recording, bundle and plan-evidence modules keep compatible unit overlap;
-# retention/recording cleanup classifications retain the same private ownership.
+# bundle and plan-evidence modules keep compatible unit overlap;
+# retention cleanup classifications retain the same private ownership.
 # E05 export reuse adds bounded joined thread pools over tiny pytest-private
 # export journals. Threads share only their test's descriptor locks and use the
 # current identity; no credential changes, subprocess, VM, service, socket or

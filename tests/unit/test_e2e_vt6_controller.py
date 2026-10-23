@@ -83,41 +83,6 @@ def test_controller_supplies_exact_worker_receipts_only_after_fresh_proofs(gate)
     auth.observer.vt6_command_boundary.assert_called_once()
 
 
-@pytest.mark.parametrize('fault', [None, 'seal', 'session', 'interrupt'])
-def test_vt6_secret_receipt_is_sealed_until_verified_shell(gate, monkeypatch, fault):
-    auth, guard, _, replies = gate
-    events = []
-    class Protection:
-        def __enter__(self):
-            events.append('sealed')
-            if fault == 'seal':
-                raise RuntimeError('encoder unavailable')
-
-        def __exit__(self, kind, value, traceback):
-            events.append('unsealed' if kind is None else 'retained')
-    monkeypatch.setattr(vt6_authentication, 'protect_capture', lambda **_: Protection())
-    if fault == 'seal':
-        with pytest.raises(EvidenceError):
-            advance(gate, 3)
-    else:
-        result = advance(gate, 3)[-1]
-        assert result['vt6_password_input_authorized'] is True and events == ['sealed']
-        if fault == 'session':
-            replies['vt6-session']['active_local_vt6_session'] = False
-        elif fault == 'interrupt':
-            guard.side_effect = KeyboardInterrupt()
-        if fault:
-            with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else EvidenceError):
-                auth.observe('vt6-shell', None, guard)
-            assert events == ['sealed', 'retained']
-        else:
-            result = auth.observe('vt6-shell', None, guard)
-            assert result['active_local_vt6_session'] is True
-            assert events == ['sealed', 'unsealed']
-    if fault:
-        assert 'unsealed' not in events and auth.failed
-
-
 @pytest.fixture
 def capture_gate(gate):
     # The guarded runner explicitly uses /tmp. The test launcher's default

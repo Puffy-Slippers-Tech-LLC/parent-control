@@ -265,12 +265,6 @@ exclusively at runtime so incomplete checkouts fail safely. Validate partition
 coverage and compatible overlap for the changed scope using the maintained
 launcher, without expanding validation to unrelated host categories.
 
-`test_e2e_baseline_journey.py` uses pytest-private records, in-memory public
-UI/transport/clock doubles and bounded waited Perl children. It owns no VM,
-display, socket, bus, external service, shared cache or fixture build. Its small
-CPU/I/O load permits compatible unit overlap; cleanup and UI inventories gain
-no resource owner. Shared request and recorder checks retain their existing
-private resources and classifications.
 `test_e2e_estimate_freshness.py` similarly owns only private records and
 in-memory clock/transport doubles; it is compatible and adds no live resource.
 

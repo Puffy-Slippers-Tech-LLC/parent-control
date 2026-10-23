@@ -17,7 +17,9 @@ from installation_observations import LOGIN_RESOLUTION_DIAGNOSTICS, REBOOT_PASSW
 from installation_observations import VT6_REBOOT_PASSWORD, VT6_SUDO_PASSWORD
 
 
-@pytest.mark.parametrize('fault,stage', [
+# Exercise each refusal once through the shared proof. Only command identity and
+# terminal echo interact with the action/surface/newline variants below.
+SUDO_FAULTS = ([
     (None, None), ('fixture', 'fixture-identity'), ('leader', 'getty-leader'),
     ('getty-session', 'getty-session'), ('getty-tty', 'getty-terminal'),
     ('getty-foreground', 'getty-terminal'), ('getty-exe', 'getty-initial-exe-mismatch'),
@@ -88,9 +90,19 @@ from installation_observations import VT6_REBOOT_PASSWORD, VT6_SUDO_PASSWORD
          ('file-owner', 'file-owner'), ('file-group', 'file-owner'),
          ('file-writable', 'file-writable'), ('resolve-error', 'exe-resolve'),
          ('exe-mismatch', 'exe-mismatch'), ('credentials', 'credentials'))])
-@pytest.mark.parametrize('newline_echo', [False, True])
-@pytest.mark.parametrize('action', ['install', 'reboot'])
-@pytest.mark.parametrize('terminal', ['serial', 'vt6'])
+
+
+@pytest.mark.parametrize('fault,stage,newline_echo,action,terminal', [
+    (fault, stage, False, 'install', 'vt6') for fault, stage in SUDO_FAULTS
+] + [
+    (fault, stage, newline_echo, action, terminal)
+    for fault, stage in ((None, None), ('command', 'sudo-command'),
+                         ('echo', 'terminal-echo-enabled-other'))
+    for newline_echo in (False, True)
+    for action in ('install', 'reboot')
+    for terminal in ('serial', 'vt6')
+    if (newline_echo, action, terminal) != (False, 'install', 'vt6')
+])
 def test_install_password_requires_exact_sudo_fixture_and_no_echo(fault, stage, newline_echo, action, terminal, capsys):
     vt = terminal == 'vt6'
     if stage == 'terminal-active' and not vt:

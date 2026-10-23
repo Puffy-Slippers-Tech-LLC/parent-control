@@ -518,6 +518,40 @@ def test_reference_repair_does_not_spend_the_only_task_session(rig, monkeypatch,
     assert TaskBudget(rig.run).read()['completed'] == 1
 
 
+def test_busy_reference_wait_preserves_task_and_repair_allowances(rig, monkeypatch):
+    attempts, calls, waits = [], [], []
+    def preflight(*_):
+        attempts.append('probe')
+        if len(attempts) < 3:
+            raise workflow.plan_evidence.ReferenceRefused([dict(condition='busy')])
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        calls.append((state['session_kind'], workflow.task_session_usage(state), state.get('repair_sessions', 0)))
+        complete(rig.plan, state['task_id'])
+        return response(state)
+    monkeypatch.setattr(workflow.plan_evidence, 'preflight', preflight)
+    monkeypatch.setattr(workflow.plan_evidence.time, 'sleep', waits.append)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    assert rig.worker() == 0
+    assert calls == [('task', 1, 0)]
+    assert waits == [1, 1]
+    assert TaskBudget(rig.run).read()['completed'] == 1
+
+
+@pytest.mark.parametrize('marker,status', [('stop', 0), ('cancel', 130)])
+def test_evidence_wait_stop_retains_pending_completion_without_accepting_it(rig, monkeypatch, marker, status):
+    def preserve(*_):
+        raise workflow.plan_evidence.bundle.retention.OwnerBusy('retention: another owner is active')
+    monkeypatch.setattr(workflow.plan_evidence, 'preserve', preserve)
+    monkeypatch.setattr(workflow.plan_evidence.time, 'sleep', lambda _: (rig.run / marker).touch())
+    assert rig.worker() == status
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert saved['pending_completion']['task_id'] == '001'
+    assert saved['task_sessions'] == 1
+    assert not saved.get('repair_sessions')
+    assert TaskBudget(rig.run).read()['completed'] == 0
+
+
 def test_capacity_retry_of_last_repair_keeps_its_kind_and_single_charge(rig, monkeypatch):
     state = state_for(rig.plan, phase='recover', task_sessions=4, total_sessions=7,
                       repair_sessions=2, plan_queue=rig.plan.queue,

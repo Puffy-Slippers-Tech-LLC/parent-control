@@ -210,6 +210,11 @@ def main(argv=None):
                         raise
                     print(json.dumps(error.payload(), sort_keys=True), file=sys.stderr)
                     return 3
+                except evidence_bundle.retention.OwnerBusy:
+                    if namespace is None:
+                        raise
+                    print(json.dumps({'error': 'evidence_busy'}), file=sys.stderr)
+                    return 4
             elif args.action == 'bundle-custody':
                 import evidence_capture
                 result = evidence_capture.inspect_capture(CHECKOUT, uid, gid, args.transaction,

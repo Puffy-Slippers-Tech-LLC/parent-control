@@ -11,6 +11,7 @@ import re
 import stat
 import subprocess
 import sys
+import time
 import uuid
 from contextlib import ExitStack, contextmanager
 
@@ -88,6 +89,33 @@ TURN_FILES = (*SOURCE_FILES, 'agent-error.json', 'rejected-agent-result.json')
 
 
 EvidenceUnavailable = bundle.EvidenceUnavailable
+
+
+class EvidenceWaitStopped(Exception):
+    """A boundary stop interrupted waiting, leaving the handoff resumable."""
+
+
+def wait_for_owner(run, operation):
+    """Wait out live evidence owners without spending a coordinator session."""
+    waiting = False
+    while True:
+        if waiting:
+            if (Path(run) / 'cancel').exists():
+                from detached_launcher import Stopped
+                raise Stopped()
+            if (Path(run) / 'stop').exists():
+                raise EvidenceWaitStopped()
+        try:
+            return operation()
+        except (bundle.retention.OwnerBusy, ReferenceRefused) as error:
+            if isinstance(error, ReferenceRefused) and (not error.diagnostics or
+                    any(item.get('condition') != 'busy' for item in error.diagnostics)):
+                raise
+            if not waiting:
+                print('plan evidence: waiting for an active evidence owner; '
+                      'retained task and session allowance unchanged.', flush=True)
+                waiting = True
+            time.sleep(1)
 
 
 def _turn(path, task_id, *, plan=None):
@@ -1062,22 +1090,8 @@ def _document_source(plan, path, link, resolved, scope):
     source = Path(member['original_path'])
     if not source.is_relative_to(plan.root):
         raise ValueError('plan evidence: original destination escapes checkout')
-    if any(parent.is_symlink() for parent in (source, *source.parents)):
-        raise ValueError('plan evidence: original destination follows a symlink')
-    try:
-        source.lstat()
-    except FileNotFoundError:
-        return  # Exact archive was already verified; no recreated original.
-    # Reappearance is not archive-only authority. Normal source discovery holds
-    # the live owner and verifies its allocation and complete file identity.
-    with bundle.Selection(plan.root, os.geteuid(), os.getegid(),
-            [resolved['record']['context']['target']] if resolved['record']['context']['target'] else [],
-            [], [], references=[str(source)], plan_namespace=plan_namespace(plan.path)) as selected:
-        entry = selected.files[str(source)][0]
-        if (entry['sha256'] != member['sha256'] or entry['bytes'] != member['bytes']
-                or entry['allocation'] != member['source_allocation']
-                or entry['identity'] != resolved['provenance']['identity']):
-            raise ValueError('plan evidence: live original does not match selected proof')
+    # The pinned archive already proves the exact member and its provenance.
+    # Its disposable original is never read or followed by this rewrite.
 
 
 def _queue_destination_allowed(text, link, state):
@@ -1747,6 +1761,13 @@ def _export(plan, run, state, sources, bundles, references):
             completed = subprocess.run([*command, action, *operands, *extra], cwd=plan.root,
                                        capture_output=True, text=True, check=False)
             if completed.returncode:
+                if completed.returncode == 4:
+                    try:
+                        busy = bundle.decoded(completed.stderr) == {'error': 'evidence_busy'}
+                    except ValueError:
+                        busy = False
+                    if busy:
+                        raise bundle.retention.OwnerBusy('plan evidence: evidence owner is active')
                 if completed.returncode == 3:
                     try:
                         failure = bundle.decoded(completed.stderr)
@@ -1762,13 +1783,16 @@ def _export(plan, run, state, sources, bundles, references):
                         raise EvidenceUnavailable(paths)
                 raise ValueError('plan evidence: maintained artifact helper refused: ' + completed.stderr.strip())
             return bundle.decoded(completed.stdout)
-        selected = helper('bundle-plan', '--summary')
-        helper('bundle-export', '--expect', selected['selection_sha256'], '--defer-cleanup')
+        def publish():
+            selected = helper('bundle-plan', '--summary')
+            helper('bundle-export', '--expect', selected['selection_sha256'], '--defer-cleanup')
     else:
-        with bundle.Selection(plan.root, os.geteuid(), os.getegid(), targets,
-                              sources, bundles, plan_namespace=plan_namespace(plan.path),
-                              references=references) as selected:
-            bundle.export(selected, expected=selected.selection_sha256, defer_cleanup=True)
+        def publish():
+            with bundle.Selection(plan.root, os.geteuid(), os.getegid(), targets,
+                                  sources, bundles, plan_namespace=plan_namespace(plan.path),
+                                  references=references) as selected:
+                bundle.export(selected, expected=selected.selection_sha256, defer_cleanup=True)
+    wait_for_owner(run, publish)
 
 
 def rewrite_references(plan, state, index):

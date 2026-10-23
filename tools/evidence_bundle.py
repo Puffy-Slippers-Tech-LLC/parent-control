@@ -27,6 +27,7 @@ else:
     import test_storage as storage
 
 MAX_FILES = 60000
+MAX_SELECTIONS = 256
 MAX_SOURCE_BUDGETS = 64
 MAX_MANIFEST = 64 * 1024 ** 2
 MAX_READ = 16 * 1024 ** 2
@@ -274,6 +275,7 @@ class Selection:
         self.bundle_identities = {}
         self.receipt_identities = {}
         self.session_owners = {}
+        self.pinned_journals = set()
         self.absent_references = set()
         self.source_budgets, self.previous = [], []
         self.plan_namespace = plan_namespace
@@ -416,10 +418,49 @@ class Selection:
         return [base / 'sessions-host', base / 'sessions',
                 *(base / 'sessions' / ('vm-' + target) for target in sorted(self.targets))]
 
+    def pin_journals(self, journals, selected_paths):
+        for journal, uid, gid in sorted(journals):
+            if journal in self.pinned_journals:
+                continue
+            with identity(uid, gid):
+                publication = (journal.parent.name == 'exports' if self.plan_namespace is None else
+                               journal == self.publication_parent() / 'retention')
+                store = retention.Store(journal)
+                if not publication:
+                    # Registration precedes payload writes. Unselected owners
+                    # remain free to write; selected live sources must be idle.
+                    with store.opened() as fd, store.locked(fd, 'writer.lock', shared=True):
+                        state = store.read(fd)
+                        records = ([] if state is None else retention.latest_allocations(
+                            [*state['history'], state]))
+                        needed = any(path.is_relative_to(path_text(record['path']))
+                                     for _, record in records for path in selected_paths)
+                    if not needed:
+                        continue
+                owner = self.export_stack if publication else self.stack
+                state = owner.enter_context(store.inspection())
+                self.pinned_journals.add(journal)
+                if state is None:
+                    continue
+                entries = [*state['history'], state]
+                measured = 0
+                for index, record in retention.latest_allocations(entries):
+                    retention.remove(record, validate_only=True)
+                    measured += retention.allocation_bytes(record)
+                    if record['path'] in self.records:
+                        raise ValueError('bundle: source allocation has ambiguous journal ownership')
+                    self.records[record['path']] = dict(record, journal=str(journal),
+                                                       run=entries[index]['run'])
+                if measured > retention.MAX_RETAINED_BYTES:
+                    raise ValueError('bundle: source journal exceeds its existing budget')
+                self.source_budgets.append(dict(journal=str(journal), allocated_bytes=measured))
+                if len(self.source_budgets) > MAX_SOURCE_BUDGETS:
+                    raise ValueError('bundle: source budget entry limit exceeded')
+
     def load(self):
         values = [*self.sources, *self.bundles, *self.references, *self.record_references, *self.captures]
-        if not values or len(values) > 256:
-            raise ValueError('bundle: select between one and 256 explicit sources')
+        if not values or len(values) > MAX_SELECTIONS:
+            raise ValueError(f'bundle: select between one and {MAX_SELECTIONS} explicit sources')
         if len(set(values)) != len(values):
             raise ValueError('bundle: duplicate selected source')
         if self.references and self.plan_namespace is None:
@@ -440,65 +481,53 @@ class Selection:
                          for value in self.sources]
             plan_sources = all(parts and re.fullmatch(r'[0-9a-f]{32}', parts[0])
                                for parts in relatives)
+        archived = [value for value, exists in present.items()
+                    if exists and Path(value).name == 'evidence.zip']
+        archives = [*self.bundles, *archived]
+        archived_references = set()
+        # Authenticate archives before asking live producers for their owners.
+        # An exact retained member is sufficient proof even while its original
+        # still exists in a journal now owned by a different execution.
+        archives_loaded = bool(archives) and not self.captures
+        if archives_loaded:
+            self.pin_journals(self.catalogue(archives=archives),
+                              [path_text(value) for value in archives])
+            self.load_archives(archived)
+            for value in self.references:
+                if Path(value).name == 'evidence.zip':
+                    continue
+                if value in self.files or value in self.directory_selections:
+                    path = path_text(value)
+                    members = ([value] if value in self.files else
+                               [name for name in self.files if Path(name).is_relative_to(path)])
+                    for member in members:
+                        self.reference_context(Path(member))
+                    archived_references.add(value)
         archive_only = ((not self.sources or plan_sources) and not self.captures
                         and all(not exists or Path(value).name == 'evidence.zip'
+                                or value in archived_references
                                 for value, exists in present.items()))
         if archive_only:
-            self.absent_references.update(value for value, exists in present.items() if not exists)
+            self.absent_references.update(value for value, exists in present.items()
+                                          if not exists and value not in archived_references)
         # Capture-only reads consult finite finished-slot registrations. Opening
         # the producer catalogue here would inspect an unrelated active parent.
         if self.sources or self.bundles or self.references:
-            archives = [*self.bundles, *(value for value, exists in present.items()
-                                       if exists and Path(value).name == 'evidence.zip')]
             journals = (self.catalogue(archives=archives, plan_sources=plan_sources)
                         if archive_only else self.catalogue())
         else:
             journals = ()
         selected_paths = [path_text(value) for value in
                           [*self.sources, *self.bundles,
-                           *(value for value, exists in present.items() if exists)]]
+                           *(value for value, exists in present.items()
+                             if exists and value not in archived_references)]]
         if self.captures and not journals:
             if __package__:
                 from . import evidence_capture
             else:
                 import evidence_capture
             evidence_capture.validate_targets(self.checkout, self.targets)
-        for journal, uid, gid in sorted(journals):
-            with identity(uid, gid):
-                publication = (journal.parent.name == 'exports' if self.plan_namespace is None else
-                               journal == self.publication_parent() / 'retention')
-                store = retention.Store(journal)
-                if not publication:
-                    # Registration precedes payload writes. Read only the
-                    # authenticated metadata to find selected allocations, then
-                    # pin their finished owners before reading any payload.
-                    # An unrelated active producer must remain free to write.
-                    with store.opened() as fd, store.locked(fd, 'writer.lock', shared=True):
-                        state = store.read(fd)
-                        records = ([] if state is None else retention.latest_allocations(
-                            [*state['history'], state]))
-                        needed = any(path.is_relative_to(path_text(record['path']))
-                                     for _, record in records for path in selected_paths)
-                    if not needed:
-                        continue
-                owner = self.export_stack if publication else self.stack
-                state = owner.enter_context(store.inspection())
-                if state is None:
-                    continue
-                entries = [*state['history'], state]
-                measured = 0
-                for index, record in retention.latest_allocations(entries):
-                    retention.remove(record, validate_only=True)
-                    measured += retention.allocation_bytes(record)
-                    if record['path'] in self.records:
-                        raise ValueError('bundle: source allocation has ambiguous journal ownership')
-                    self.records[record['path']] = dict(record, journal=str(journal),
-                                                       run=entries[index]['run'])
-                if measured > retention.MAX_RETAINED_BYTES:
-                    raise ValueError('bundle: source journal exceeds its existing budget')
-                self.source_budgets.append(dict(journal=str(journal), allocated_bytes=measured))
-                if len(self.source_budgets) > MAX_SOURCE_BUDGETS:
-                    raise ValueError('bundle: source budget entry limit exceeded')
+        self.pin_journals(journals, selected_paths)
         if self.captures:
             if __package__:
                 from . import evidence_capture
@@ -539,65 +568,17 @@ class Selection:
             else:
                 import capture_publication
             capture_publication.prepare_selection(self)
-        missing, archived, absent_archives = [], [], []
+        missing, absent_archives = [], []
         for value in self.references:
             path = path_text(value)
             privacy(path)
             if path.name == 'evidence.zip':
                 if not path.parent.name.startswith('onpc-evidence-bundle-'):
                     raise ValueError('bundle: expected a retained evidence bundle')
-                (archived if present[value] else absent_archives).append(value)
-        for value in [*self.bundles, *archived]:
-            path = path_text(value)
-            if path.name != 'evidence.zip' or not path.parent.name.startswith('onpc-evidence-bundle-'):
-                raise ValueError('bundle: expected a retained evidence bundle')
-            self.record(path)
-            with self.open(path.parent / 'receipt.json') as (receipt_fd, receipt_info):
-                if receipt_info.st_size > 4096:
-                    raise ValueError('bundle: invalid receipt size')
-                receipt = decoded(os.read(receipt_fd, 4096))
-                self.receipt_identities[str(path.parent / 'receipt.json')] = fingerprint(receipt_info)
-            with self.open(path) as (fd, info):
-                before = fingerprint(info)
-                checksum = file_digest(fd, info.st_size)
-                verify_receipt(receipt, info, checksum)
-                stream = self.stack.enter_context(os.fdopen(os.dup(fd), 'rb'))
-                archive, manifest = verify_stream(stream)
-                self.stack.callback(archive.close)
-                if (digest(encoded(manifest)) != receipt['selection_sha256']
-                        or fingerprint(os.fstat(fd)) != before
-                        or receipt.get('schema', 1) != manifest['schema']):
-                    raise ValueError('bundle: inherited bundle changed')
-                if manifest['schema'] == 2:
-                    logical.validate_records(manifest['records'], manifest['member_map'],
-                                             manifest['files'], repository=self.repository())
-                    if value in archived:
-                        # A legacy path citation selects the archive itself,
-                        # not its logical claims. Keep the verified bytes and
-                        # receipt intact alongside ordinary controller files;
-                        # mixing those files into schema 2 would invent claims.
-                        self.bundle_identities[value] = before
-                        self.load_source(path)
-                        self.load_source(path.parent / 'receipt.json')
-                        continue
-                    self.logical_records.extend(manifest['records'])
-                    physical_files = {item['member']: item for item in manifest['files']}
-                    for mapping in manifest['member_map']:
-                        key = (mapping['record_id'], mapping['member_id'])
-                        origin = mapping['original_provenance']
-                        if key in self.logical_origins and self.logical_origins[key] != origin:
-                            raise ValueError('bundle: conflicting logical member provenance')
-                        self.logical_origins[key] = origin
-                        physical = physical_files[mapping['physical_member']]
-                        self.logical_storage[key] = physical['path']
-                self.archives[value] = archive
-                self.bundle_identities[value] = before
-                self.previous.append(dict(path=value, sha256=checksum,
-                                          files=len(manifest['files'])))
-                for entry in manifest['files']:
-                    self.add_entry(entry, ('bundle', value, entry['member']))
-                for entry in manifest.get('directories', []):
-                    self.add_directory(entry)
+                if not present[value]:
+                    absent_archives.append(value)
+        if not archives_loaded:
+            self.load_archives(archived)
         for value in absent_archives:
             if value not in self.files:
                 missing.append(value)
@@ -608,7 +589,7 @@ class Selection:
             self.load_source(path_text(value))
         for value in self.references:
             path = path_text(value)
-            if path.name == 'evidence.zip':
+            if path.name == 'evidence.zip' or value in archived_references:
                 continue
             if self.reference_present(path):
                 if value in self.absent_references:
@@ -666,6 +647,59 @@ class Selection:
             self.manifest = self.capture_reuse['manifest']
             self.selection_sha256 = digest(encoded(self.manifest))
         self.revalidate()
+
+    def load_archives(self, archived):
+        for value in [*self.bundles, *archived]:
+            path = path_text(value)
+            if path.name != 'evidence.zip' or not path.parent.name.startswith('onpc-evidence-bundle-'):
+                raise ValueError('bundle: expected a retained evidence bundle')
+            self.record(path)
+            with self.open(path.parent / 'receipt.json') as (receipt_fd, receipt_info):
+                if receipt_info.st_size > 4096:
+                    raise ValueError('bundle: invalid receipt size')
+                receipt = decoded(os.read(receipt_fd, 4096))
+                self.receipt_identities[str(path.parent / 'receipt.json')] = fingerprint(receipt_info)
+            with self.open(path) as (fd, info):
+                before = fingerprint(info)
+                checksum = file_digest(fd, info.st_size)
+                verify_receipt(receipt, info, checksum)
+                stream = self.stack.enter_context(os.fdopen(os.dup(fd), 'rb'))
+                archive, manifest = verify_stream(stream)
+                self.stack.callback(archive.close)
+                if (digest(encoded(manifest)) != receipt['selection_sha256']
+                        or fingerprint(os.fstat(fd)) != before
+                        or receipt.get('schema', 1) != manifest['schema']):
+                    raise ValueError('bundle: inherited bundle changed')
+                if manifest['schema'] == 2:
+                    logical.validate_records(manifest['records'], manifest['member_map'],
+                                             manifest['files'], repository=self.repository())
+                    if value in archived:
+                        # A legacy path citation selects the archive itself,
+                        # not its logical claims. Keep the verified bytes and
+                        # receipt intact alongside ordinary controller files;
+                        # mixing those files into schema 2 would invent claims.
+                        self.bundle_identities[value] = before
+                        self.load_source(path)
+                        self.load_source(path.parent / 'receipt.json')
+                        continue
+                    self.logical_records.extend(manifest['records'])
+                    physical_files = {item['member']: item for item in manifest['files']}
+                    for mapping in manifest['member_map']:
+                        key = (mapping['record_id'], mapping['member_id'])
+                        origin = mapping['original_provenance']
+                        if key in self.logical_origins and self.logical_origins[key] != origin:
+                            raise ValueError('bundle: conflicting logical member provenance')
+                        self.logical_origins[key] = origin
+                        physical = physical_files[mapping['physical_member']]
+                        self.logical_storage[key] = physical['path']
+                self.archives[value] = archive
+                self.bundle_identities[value] = before
+                self.previous.append(dict(path=value, sha256=checksum,
+                                          files=len(manifest['files'])))
+                for entry in manifest['files']:
+                    self.add_entry(entry, ('bundle', value, entry['member']))
+                for entry in manifest.get('directories', []):
+                    self.add_directory(entry)
 
     def reference_context(self, path):
         """Check archived target authority without opening historical owners."""

@@ -833,7 +833,7 @@ def test_rotated_reference_uses_only_exact_verified_selected_bundle(campaign, de
     elif defect == 'live-replacement':
         report.mkdir(mode=0o700)
         original.write_text('unregistered replacement')
-    if defect in ('none', 'directory'):
+    if defect in ('none', 'directory', 'live-replacement'):
         accepted = proof.preserve(campaign.plan, run, state, result)
         assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
             accepted['bundle'], member=str(original)) == b'Exact report for first'
@@ -976,7 +976,7 @@ def test_selected_vm_supporting_proof_publishes_through_real_bundle_reader(
                               member=str(path)) == path.read_bytes()
 
 
-@pytest.mark.parametrize('failure', ['expired', 'permission', 'bad-json', 'foreign', 'duplicate', 'wrong-code'])
+@pytest.mark.parametrize('failure', ['expired', 'permission', 'bad-json', 'foreign', 'duplicate', 'wrong-code', 'busy-invalid'])
 def test_target_helper_only_renews_explicit_structured_missing_references(campaign, monkeypatch, failure):
     run, state, result, report = campaign.accepted('first')
     state['task']['targets'] = ['guest']
@@ -991,13 +991,38 @@ def test_target_helper_only_renews_explicit_structured_missing_references(campai
         payload = bundle.encoded(dict(error='evidence_unavailable', paths=paths)).decode()
         if failure in ('permission', 'bad-json'):
             payload = 'test-artifacts: PermissionError' if failure == 'permission' else 'invalid JSON'
-        return SimpleNamespace(returncode=2 if failure in ('permission', 'wrong-code') else 3,
+        return SimpleNamespace(returncode=(4 if failure == 'busy-invalid' else
+                                          2 if failure in ('permission', 'wrong-code') else 3),
                                stderr=payload, stdout='')
     monkeypatch.setattr(proof.subprocess, 'run', invoke)
     expected = proof.EvidenceUnavailable if failure == 'expired' else ValueError
     with pytest.raises(expected):
         proof.preserve(campaign.plan, run, state, result)
     assert not proof.locator(campaign.plan).exists()
+
+
+@pytest.mark.parametrize('busy_action', ['bundle-plan', 'bundle-export'])
+def test_target_publication_retries_busy_owner_without_recreating_proof(campaign, monkeypatch, busy_action):
+    run, state, result, report = campaign.accepted('first')
+    state['task']['targets'] = ['guest']
+    monkeypatch.setattr(proof, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: 1000})))
+    monkeypatch.setattr(proof, 'recover', lambda _: None)
+    waits, calls = [], []
+    monkeypatch.setattr(proof.time, 'sleep', waits.append)
+
+    def invoke(command, **_):
+        action = command[3]
+        calls.append(action)
+        if action == busy_action and calls.count(action) == 1:
+            return SimpleNamespace(returncode=4, stdout='', stderr='{"error":"evidence_busy"}')
+        return SimpleNamespace(returncode=0, stdout='{"selection_sha256":"exact"}', stderr='')
+
+    monkeypatch.setattr(proof.subprocess, 'run', invoke)
+    proof.preserve(campaign.plan, run, state, result)
+    assert waits == [1]
+    assert calls == (['bundle-plan', 'bundle-plan', 'bundle-export'] if busy_action == 'bundle-plan'
+                     else ['bundle-plan', 'bundle-export', 'bundle-plan', 'bundle-export'])
+    assert len(list((run / 'accepted-proof').iterdir())) == 1
 
 
 def test_evidence_renewal_keeps_exact_rejected_source_across_bounded_rotation(campaign):
@@ -1935,7 +1960,7 @@ def test_declared_queue_rewrite_keeps_task_state_and_protected_claims(campaign):
 
 
 @pytest.mark.parametrize('spelling', ['original', 'exact'])
-def test_declared_original_reappearance_cannot_bypass_live_source_guards(campaign, spelling):
+def test_declared_archived_member_does_not_reopen_reappearing_original(campaign, spelling):
     selected = _structured_publication(campaign)
     original = Path(next(item['original_path'] for item in selected.record['members']
                          if item['member_id'] == selected.consumer['references'][0]['member_id']))
@@ -1946,10 +1971,8 @@ def test_declared_original_reappearance_cannot_bypass_live_source_guards(campaig
     original.unlink()
     preview = proof.preview_document_links(campaign.plan, declaration)
     original.symlink_to(proof.locator(campaign.plan))
-    before = path.read_bytes()
-    with pytest.raises((ValueError, OSError)):
-        proof.apply_document_links(campaign.plan, preview)
-    assert path.read_bytes() == before
+    assert proof.apply_document_links(campaign.plan, preview) == (spelling == 'original')
+    assert selected.reference in path.read_text()
     assert original.is_symlink()
 
 

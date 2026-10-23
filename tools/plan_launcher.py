@@ -686,7 +686,7 @@ def _closeout(plan, spec, run, state):
     # interrupted Git transaction. Close nested owners before recording cleanup.
     launcher.finish_nested(plan.root, run)
     try:
-        index = plan_evidence.preserve(plan, run, state, result)
+        index = plan_evidence.wait_for_owner(run, lambda: plan_evidence.preserve(plan, run, state, result))
     except (plan_evidence.EvidenceUnavailable, plan_evidence.ReferenceRefused) as error:
         if isinstance(error, plan_evidence.ReferenceRefused) and not repairable_reference(error):
             raise
@@ -979,7 +979,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             # Actual publication still verifies proof before task completion.
             reference_repair = False
             try:
-                plan_evidence.preflight(plan, run, state)
+                plan_evidence.wait_for_owner(run, lambda: plan_evidence.preflight(plan, run, state))
             except plan_evidence.ReferenceRefused as error:
                 # A coordinator can repair missing instructions and renew stale
                 # proof. Publication still verifies acceptance before close-out.
@@ -1106,6 +1106,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             launcher.atomic(run / 'checkpoint.json', state)
     except launcher.Stopped:
         status, reason = 130, 'cancelled after owned cleanup'
+    except plan_evidence.EvidenceWaitStopped:
+        reason = 'stopped at a session boundary while waiting for evidence ownership'
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         status, reason = 1, str(error)
     finally:

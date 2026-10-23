@@ -33,20 +33,6 @@ PAYLOAD = b'{"result":"passed","cleanup":"complete"}\n'
 
 
 @contextmanager
-def buffered_history_setup(monkeypatch):
-    """Build volume-only input without physically syncing every generated seal.
-
-    Real files, flushes, identities, locks and hashes remain in use. Publication,
-    interruption, acknowledgement and retirement run after this scope with real
-    fsync; the small sync-failure cases also exercise real persistence boundaries.
-    """
-    with monkeypatch.context() as local:
-        for module in (capture, retention):
-            local.setattr(module, 'os', SimpleNamespace(**(vars(os) | {'fsync': os.fstat})))
-        yield
-
-
-@contextmanager
 def producer_session(tmp_path, monkeypatch, *, journal_name='retention-host'):
     """Inject the shared allocator's checkout; keep its filesystem guards real."""
     checkout = tmp_path / 'checkout'
@@ -582,16 +568,18 @@ def test_publication_preserves_complete_selected_dependency_closure(producer):
 def test_cumulative_history_crosses_selection_limit_and_resumes_exact_publication(producer, monkeypatch):
     import capture_publication as publication
 
+    # Cross the same invocation limit with tiny real archives, not 256 seals.
+    monkeypatch.setattr(bundle, 'MAX_SELECTIONS', 4)
+    monkeypatch.setattr(bundle, 'MAX_SOURCE_BUDGETS', 3)
     identifiers, handles = [], []
-    with buffered_history_setup(monkeypatch):
-        for number in range(capture.MAX_SELECTIONS):
-            handle = capture.issue_session(
-                producer.store, repository=producer.checkout, workflow='capture-fixture', task='P03',
-                check='history-' + str(number), inputs_sha256='c' * 64, sources_sha256='d' * 64,
-                consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)})
-            record = producer.record(context=capture.session_context(handle))
-            identifiers.append(capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER]))
-            handles.append(handle)
+    for number in range(bundle.MAX_SELECTIONS):
+        handle = capture.issue_session(
+            producer.store, repository=producer.checkout, workflow='capture-fixture', task='P03',
+            check='history-' + str(number), inputs_sha256='c' * 64, sources_sha256='d' * 64,
+            consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)})
+        record = producer.record(context=capture.session_context(handle))
+        identifiers.append(capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER]))
+        handles.append(handle)
     # Each batch also leaves room for the inherited publication's budget entry.
     batch = bundle.MAX_SOURCE_BUDGETS - 1
     for start in range(0, len(identifiers), batch):
@@ -621,7 +609,7 @@ def test_cumulative_history_crosses_selection_limit_and_resumes_exact_publicatio
         record = producer.record(context=context, members=[member], cleanup=dict(
             state='complete', record_members=[], scope=dict(owner=context['owner'], resources=[])))
         identifier = capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER])
-        with pytest.raises(ValueError, match='256 explicit sources'):
+        with pytest.raises(ValueError, match='4 explicit sources'):
             with bundle.Selection(producer.checkout, os.geteuid(), os.getegid(),
                                   [], [], [], captures=[*identifiers, identifier]):
                 pytest.fail('oversized individual selection accepted')
@@ -635,7 +623,7 @@ def test_cumulative_history_crosses_selection_limit_and_resumes_exact_publicatio
         request = producer.inspect(identifier)
         parent = bundle.plan_parent(producer.checkout, publication._namespace(request))
         pending = json.loads((parent / 'retention' / publication.JOURNAL).read_bytes())['pending']
-        assert len(pending['requests']) == capture.MAX_SELECTIONS + 1
+        assert len(pending['requests']) == bundle.MAX_SELECTIONS + 1
         receipt = publish_capture(producer, identifier)
         assert str(Path(receipt['path']).parent) == pending['allocation']['path']
         assert receipt['path'] != previous['path'] and receipt['cleanup_complete']
@@ -955,6 +943,8 @@ def test_cumulative_request_history_exceeds_selection_limit_without_losing_oldes
         tmp_path, monkeypatch):
     import capture_publication as publication
 
+    monkeypatch.setattr(bundle, 'MAX_SELECTIONS', 6)
+    monkeypatch.setattr(bundle, 'MAX_SOURCE_BUDGETS', 3)
     def finalize_batch(value, count, *, allocation=None, result=None):
         identifiers = []
         for number in range(count):
@@ -981,8 +971,7 @@ def test_cumulative_request_history_exceeds_selection_limit_without_losing_oldes
             return bundle.export(selected, expected=selected.selection_sha256)
 
     with producer_session(tmp_path, monkeypatch) as value:
-        with buffered_history_setup(monkeypatch):
-            identifiers = finalize_batch(value, 252)
+        identifiers = finalize_batch(value, bundle.MAX_SELECTIONS)
         oldest = identifiers[0]
         request = value.inspect(oldest)
         # Each seal has its own source budget; leave room for the prior archive.
@@ -1001,20 +990,21 @@ def test_cumulative_request_history_exceeds_selection_limit_without_losing_oldes
         info = source.stat()
         allocation = dict(path=str(source), device=info.st_dev, inode=info.st_ino,
                           mode=0o700, journal=str(value.store.path), run=run)
-        added = finalize_batch(value, 7, allocation=allocation, result=result)
+        added = finalize_batch(value, 2, allocation=allocation, result=result)
         receipt = publish_batch(value, added)
 
     assert not Path(initial['path']).exists()
     journal = Path(delivery['journal']) / publication.JOURNAL
     state = json.loads(journal.read_bytes())
     assert state['pending'] is None
-    assert len(state['published']['requests']) == 259
+    total = len(identifiers) + len(added)
+    assert len(state['published']['requests']) == total > bundle.MAX_SELECTIONS
     assert {item['capture_id'] for item in state['published']['requests']} == set(identifiers + added)
     assert next(item for item in state['published']['requests'] if item['capture_id'] == oldest) == request
     with publication.verified_delivery(value.checkout, os.geteuid(), os.getegid(),
                                        oldest, request, delivery) as verified:
         assert verified['receipt'] == {key: receipt[key] for key in verified['receipt']}
-        assert len(verified['manifest']['records']) == 259
+        assert len(verified['manifest']['records']) == total
     record = request['record']
     assert bundle.inspect(value.checkout, os.geteuid(), os.getegid(), receipt['path'],
                           record_id=record['record_id'], member_id=record['members'][0]['member_id'],
@@ -1025,7 +1015,7 @@ def test_cumulative_request_history_exceeds_selection_limit_without_losing_oldes
         with pytest.raises(ValueError, match='metadata.*limit'):
             publication._validate(state, request)
     with monkeypatch.context() as local:
-        local.setattr(logical, 'MAX_ENTRIES', 258)
+        local.setattr(logical, 'MAX_ENTRIES', total - 1)
         with pytest.raises(ValueError, match='invalid request closure'):
             publication._validate(state, request)
     assert journal.read_bytes() == before

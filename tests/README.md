@@ -2049,6 +2049,13 @@ targets' `host/sessions/vm-NAME` is also supported. The reader holds the session
 retention journal and its separate idle worker lock through publication; active,
 unregistered or replaced sessions refuse. Archived session members retain their
 exact original path, journal and target scope after session rotation.
+Plan references already present in a selected verified bundle use that archived
+proof even when the original still exists. They do not require its producer
+journal to be idle. Explicit live sources and references absent from the selected
+archives still require finished owners; archive integrity and target checks remain.
+For scoped plan requests, helper exit 4 with `{"error":"evidence_busy"}` identifies
+temporary owner contention. Controllers wait and reselect the exact publication
+without spending model sessions. Other refusals retain their existing handling.
 Use repeated `--source` arguments for result/JUnit/native/cleanup records,
 input manifests and the corresponding host reports. Directories are inventoried
 recursively with finite depth/file/byte limits; no glob or arbitrary archive

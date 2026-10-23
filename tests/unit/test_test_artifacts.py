@@ -259,7 +259,7 @@ def test_scoped_bundle_helper_derives_owner_from_validated_plan(tmp_path, monkey
     assert json.loads(capsys.readouterr().out)['selection_sha256'] == 'verified'
 
 
-@pytest.mark.parametrize('failure', ['missing', 'permission', 'integrity'])
+@pytest.mark.parametrize('failure', ['missing', 'permission', 'integrity', 'busy'])
 def test_scoped_helper_distinguishes_missing_references_from_refusals(tmp_path, monkeypatch, capsys, failure):
     import evidence_bundle
     import execution_plan
@@ -275,6 +275,8 @@ def test_scoped_helper_distinguishes_missing_references_from_refusals(tmp_path, 
             raise evidence_bundle.EvidenceUnavailable([path])
         if failure == 'permission':
             raise PermissionError('private')
+        if failure == 'busy':
+            raise evidence_bundle.retention.OwnerBusy('retention: another owner is active')
         raise ValueError('bundle: allocation identity or mount changed')
     monkeypatch.setattr(evidence_bundle, 'Selection', selection)
     status = HELPER['main'](['bundle-plan', '--plan', 'docs/Plan.md', '--reference', path])
@@ -283,6 +285,8 @@ def test_scoped_helper_distinguishes_missing_references_from_refusals(tmp_path, 
     if failure == 'missing':
         assert status == 3
         assert json.loads(captured.err) == dict(error='evidence_unavailable', paths=[path])
+    elif failure == 'busy':
+        assert status == 4 and json.loads(captured.err) == dict(error='evidence_busy')
     else:
         assert status == 2 and captured.err.startswith('test-artifacts: ')
 
@@ -296,7 +300,7 @@ def bundle_helper(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def retained_plan_helper(tmp_path, monkeypatch):
+def retained_plan_helper(tmp_path, monkeypatch, request):
     """Real helper/plan/journals; only the installed identity boundary is synthetic."""
     from contextlib import contextmanager, nullcontext
     from types import SimpleNamespace
@@ -351,11 +355,12 @@ def retained_plan_helper(tmp_path, monkeypatch):
     with evidence_bundle.Selection(checkout, uid, gid, ['synthetic-target'],
             list(map(str, originals)), [], plan_namespace=plan.namespace) as selection:
         bundle = evidence_bundle.export(selection, expected=selection.selection_sha256)['path']
-    # Retire the originals through their real bounded owner, never manual unlink.
-    for _ in range(3):
-        with source_owner.session():
-            allocate({'later.json': b'later unrelated result'})
-    assert all(not path.exists() for path in originals)
+    if getattr(request, 'param', 'retired') == 'retired':
+        # Retire through the real bounded owner, never manual unlink.
+        for _ in range(3):
+            with source_owner.session():
+                allocate({'later.json': b'later unrelated result'})
+        assert all(not path.exists() for path in originals)
 
     def arguments(references=None, *, target='synthetic-target', sources=()):
         result = ['bundle-plan', '--plan', plan.path, '--target', target, '--bundle', bundle]
@@ -376,7 +381,8 @@ def retained_plan_helper(tmp_path, monkeypatch):
         archive_owner=test_retention.Store(parent / 'retention'))
 
 
-def test_bundle_plan_resolves_two_retired_reports_during_unrelated_active_target(
+@pytest.mark.parametrize('retained_plan_helper', ['retired', 'retained'], indirect=True)
+def test_bundle_plan_resolves_archived_reports_during_unrelated_active_target(
         retained_plan_helper, monkeypatch, capsys):
     from contextlib import contextmanager
     import evidence_bundle
@@ -385,6 +391,7 @@ def test_bundle_plan_resolves_two_retired_reports_during_unrelated_active_target
     inspected, opened = [], []
     inspection = test_retention.Store.inspection
     open_selected = evidence_bundle.Selection.open
+    originals_present = [path.exists() for path in fixture.originals]
 
     @contextmanager
     def observe_inspection(store, **options):
@@ -424,7 +431,8 @@ def test_bundle_plan_resolves_two_retired_reports_during_unrelated_active_target
         assert fixture.owner.path not in inspected
         assert fixture.archive_owner.path in inspected
         assert live not in opened and live.parent not in opened
-        assert all(not path.exists() for path in fixture.originals)
+        assert [path.exists() for path in fixture.originals] == originals_present
+        assert not set(fixture.originals) & set(opened)
         entries = {item['path']: item for item in result['manifest']['files']}
         assert set(entries) == set(map(str, fixture.originals))
         for path, data in zip(fixture.originals, fixture.contents):
@@ -439,6 +447,7 @@ def test_bundle_plan_resolves_two_retired_reports_during_unrelated_active_target
 
 
 @pytest.mark.parametrize('action', ['bundle-plan', 'bundle-export'])
+@pytest.mark.parametrize('retained_plan_helper', ['retired', 'retained'], indirect=True)
 def test_plan_completion_with_fresh_records_does_not_open_unrelated_active_owner(
         retained_plan_helper, monkeypatch, capsys, action):
     """Close-out mixes finished controller records with already archived proof."""
@@ -448,6 +457,7 @@ def test_plan_completion_with_fresh_records_does_not_open_unrelated_active_owner
     import test_retention
     import test_storage
     fixture = retained_plan_helper
+    originals_present = [path.exists() for path in fixture.originals]
     workflow = test_retention.Store(fixture.archive_owner.path.parent.parent / 'retention')
     with workflow.session():
         run = workflow.path.parent / ('a' * 32)
@@ -527,7 +537,8 @@ def test_plan_completion_with_fresh_records_does_not_open_unrelated_active_owner
         assert fixture.owner.path not in inspected
         assert not any(path.is_relative_to(live.parent) for path in opened)
         assert host_result.read_bytes() == host_bytes
-        assert all(not path.exists() for path in fixture.originals)
+        assert [path.exists() for path in fixture.originals] == originals_present
+        assert not set(fixture.originals) & set(opened)
         with fixture.owner.opened() as fd, fixture.owner.locked(fd, 'writer.lock', blocking=False):
             pass
         if action == 'bundle-plan':
@@ -687,10 +698,11 @@ def test_plan_sources_do_not_bypass_active_target_refusals(
         references = [*fixture.originals, live] if defect == 'live-reference' else fixture.originals
         before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
                   for path in fixture.checkout.rglob('*') if path.is_file()}
-        assert HELPER['main'](fixture.arguments(references, sources=[source])) == 2
+        assert HELPER['main'](fixture.arguments(references, sources=[source])) == (
+            4 if defect == 'live-reference' else 2)
         captured = capsys.readouterr()
         assert not captured.out
-        expected = ('another owner is active' if defect == 'live-reference' else
+        expected = ('evidence_busy' if defect == 'live-reference' else
                     'bundle: source must belong to one recorded allocation')
         assert expected in captured.err
         assert 'evidence_unavailable' not in captured.err
@@ -793,16 +805,18 @@ def test_bundle_plan_active_target_preserves_authority_integrity_and_owner_refus
             [*fixture.originals, live] if defect == 'active-reference' else None,
             target='unregistered' if defect == 'unregistered' else 'synthetic-target',
             sources=[live] if defect == 'active-source' else [])
-        assert HELPER['main'](arguments) == 2
+        assert HELPER['main'](arguments) == (4 if defect.startswith('active-') else 2)
         captured = capsys.readouterr()
-        assert not captured.out and captured.err.startswith('test-artifacts: ')
+        assert not captured.out
         assert 'evidence_unavailable' not in captured.err
         if defect.startswith('active-'):
-            assert 'another owner is active' in captured.err
-        elif defect == 'denied':
-            assert captured.err == 'test-artifacts: PermissionError\n'
-        elif defect == 'unregistered':
-            assert 'registered canonical targets' in captured.err
+            assert json.loads(captured.err) == dict(error='evidence_busy')
+        else:
+            assert captured.err.startswith('test-artifacts: ')
+            if defect == 'denied':
+                assert captured.err == 'test-artifacts: PermissionError\n'
+            elif defect == 'unregistered':
+                assert 'registered canonical targets' in captured.err
 
 
 def test_bundle_plan_archived_selection_shares_readers_and_excludes_writer(
@@ -822,14 +836,14 @@ def test_bundle_plan_archived_selection_shares_readers_and_excludes_writer(
                 with fixture.archive_owner.publication(projected_bytes=0):
                     pytest.fail('writer entered while archive reader held ownership')
         with fixture.archive_owner.publication(projected_bytes=0):
-            assert HELPER['main'](fixture.arguments()) == 2
+            assert HELPER['main'](fixture.arguments()) == 4
             captured = capsys.readouterr()
-            assert not captured.out and 'another owner is active' in captured.err
+            assert not captured.out and json.loads(captured.err) == dict(error='evidence_busy')
     assert evidence_bundle.inspect(fixture.checkout, os.geteuid(), os.getegid(),
                                    str(fixture.bundle))['files'] == 2
 
 
-def test_bundle_plan_refuses_original_reappearing_after_absence_probe(
+def test_bundle_plan_uses_archived_proof_when_original_reappears_during_selection(
         retained_plan_helper, monkeypatch, capsys):
     import evidence_bundle
     fixture = retained_plan_helper
@@ -851,10 +865,11 @@ def test_bundle_plan_refuses_original_reappearing_after_absence_probe(
 
     monkeypatch.setattr(evidence_bundle.Selection, 'reference_present', reappear)
     with fixture.active():
-        assert HELPER['main'](fixture.arguments()) == 2
+        assert HELPER['main'](fixture.arguments()) == 0
         captured = capsys.readouterr()
-        assert not captured.out and captured.err.startswith('test-artifacts: ')
-        assert 'evidence_unavailable' not in captured.err
+        assert not captured.err
+        files = {entry['path']: entry for entry in json.loads(captured.out)['manifest']['files']}
+        assert files[str(original)]['sha256'] == evidence_bundle.digest(fixture.contents[0])
         assert introduced == [original]
         assert original.read_bytes() == b'new mutable report at the old name'
 

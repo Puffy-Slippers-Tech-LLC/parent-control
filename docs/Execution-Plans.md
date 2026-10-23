@@ -120,8 +120,8 @@ and dependency closures. They change destination spans only, including shared
 reference definitions; all uses of a changed definition must be declared with
 the same selection. Existing links must already identify that exact member,
 either by selector or its original path. Generic locators and wrong existing
-reports fail. An absent original can use verified archived proof; a present
-original still undergoes normal live-source ownership/identity checks.
+reports fail. The exact verified archive supplies the proof; rewriting its link
+does not reopen or follow the disposable original, even if that pathname is reused.
 Apply recomputes the preview and proof before the authorized write, refusing
 changed documents or declarations. Canonical queue changes additionally require
 the owning task state and remain confined to simple inline Estimate destinations
@@ -191,9 +191,12 @@ an unpublished accepted result's command and cleanup records. Failed startup
 retries its recorded allocation before admitting another retention slot; changed
 identities and exceeded budgets refuse while preserving the previous owner.
 
-When an original report has rotated, an exact original member in an explicitly
-selected, fully verified bundle can supply its proof. Live sources still undergo
-the normal ownership, identity and conflict checks. If referenced proof is absent,
+An exact original member in an explicitly selected, fully verified bundle supplies
+its proof whether the original report has rotated or remains present. Plan bundle
+publication resolves those archived references before consulting live producers;
+a later execution owning the original journal does not block archived proof.
+Explicit live sources still undergo the normal ownership, identity and conflict
+checks. If referenced proof is absent,
 the controller preserves the exact rejected result and session records, then
 returns to the coordinator to renew affected acceptance within its separate
 repair allowance. Task/queue baselines, targets, suspended work and Git ownership
@@ -208,7 +211,8 @@ normal target checks for every member; a nonempty path-prefix match is insuffici
 Files-only legacy bundles still support exact member references, but cannot prove
 that an entire old folder was captured. Repair those references to independently
 verified exact files rather than guessing folder contents or repeating historical
-acceptance. A present empty or changed original cannot use archived folder proof.
+acceptance. A complete archived folder closure remains usable when its original
+changes; explicitly selecting that live folder still checks its current contents.
 
 Continuations, blocked decisions and prerequisite suspension retain the exact
 renewal source across controller restarts until renewed proof is published and
@@ -238,8 +242,11 @@ remain supported. All ordinary adapters use this shared route, including
 The shared bundle reader resolves explicit plan references under its authorized
 identity, including root-private target sources through the authenticated helper.
 It reports exact missing references separately from ownership, permission and
-integrity failures; only that missing-reference result enters renewal. Mandatory
-controller records and previously accepted publications remain strict inputs.
+integrity failures; only that missing-reference result enters renewal. Busy-owner
+preflight and publication wait without starting model sessions or consuming repair
+allowances. Stop and cancellation remain available while waiting, preserving any
+pending completion for restart. Permission and integrity refusals are not retried.
+Mandatory controller records and previously accepted publications remain strict inputs.
 Legacy prose may cite a workflow's mutable `capture-publication.json` control
 journal under its plan evidence retention directory. Like the accepted locator,
 that citation is navigation, not a retained payload or acceptance proof; the

@@ -1025,7 +1025,9 @@ def test_plan_references_reuse_only_verified_exact_archived_members(evidence, de
         source.write_bytes(b'replacement')
     selection = bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [],
                                  plan_namespace=namespace, references=[str(reference), archive])
-    if defect == 'none':
+    if defect in ('none', 'leaf-link', 'live-replacement'):
+        # The selected archive owns this proof. Never open a later object at
+        # its original pathname, including a replacement link.
         with selection:
             assert selection.files[str(source)][0]['sha256'] == bundle.digest(b'exact proof')
             assert selection.files[str(source)][1][0] == 'bundle'
@@ -1077,29 +1079,26 @@ def test_archived_directory_requires_complete_selected_tree(evidence, monkeypatc
         monkeypatch.setattr(bundle.Selection, 'reference_context', context)
     selection = bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [archive],
                                  plan_namespace=namespace, references=[str(reference)])
-    if defect == 'none':
+    if defect in ('none', 'reappeared'):
         with selection:
             assert set(selection.files) == {str(root / 'result.json'), str(root / 'nested/cleanup.json')}
-            # Absence must remain true until the pinned read scope closes.
-            root.mkdir(mode=0o700)
-            try:
-                with pytest.raises(ValueError, match='absent reference appeared'):
-                    selection.plan()
-            finally:
-                root.rmdir()
+            if defect == 'none':
+                # The unused original may reappear while archived proof is pinned.
+                root.mkdir(mode=0o700)
+                selection.plan()
             renewed = bundle.export(selection, expected=selection.selection_sha256)['path']
         with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [renewed],
                               plan_namespace=namespace, references=[str(root)]) as carried:
             assert carried.directory_selections == selection.directory_selections
     else:
-        expected = (ValueError if defect in ('reappeared', 'wrong-target') else bundle.EvidenceUnavailable)
+        expected = (ValueError if defect == 'wrong-target' else bundle.EvidenceUnavailable)
         with pytest.raises(expected):
             with selection:
                 pytest.fail('unproven directory accepted')
 
 
 @pytest.mark.parametrize('removed', ['some', 'all'])
-def test_live_directory_deletions_cannot_hide_behind_archived_tree(evidence, removed):
+def test_archived_directory_survives_original_changes_but_explicit_sources_are_checked(evidence, removed):
     root = evidence.allocate({'result.json': b'exact proof', 'cleanup.json': b'cleaned'})
     archive = evidence.publish([root])['path']
     (root / 'result.json').unlink()
@@ -1107,14 +1106,19 @@ def test_live_directory_deletions_cannot_hide_behind_archived_tree(evidence, rem
         (root / 'cleanup.json').unlink()
     namespace = 'a' * 64
     bundle.plan_parent(evidence.checkout, namespace, create=True)
+    with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [archive],
+                          plan_namespace=namespace, references=[str(root)]) as selection:
+        assert selection.files[str(root / 'result.json')][1][0] == 'bundle'
+        renewed = bundle.export(selection, expected=selection.selection_sha256)['path']
+    assert evidence.inspect(renewed, member=str(root / 'result.json')) == b'exact proof'
     with pytest.raises(ValueError, match='selected directory|conflicting evidence'):
-        with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [archive],
-                              plan_namespace=namespace, references=[str(root)]):
-            pytest.fail('changed live directory accepted archived proof')
+        with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [str(root)], [archive],
+                              plan_namespace=namespace):
+            pytest.fail('changed explicit live directory accepted')
     assert evidence.inspect(archive, member=str(root / 'result.json')) == b'exact proof'
 
 
-def test_reference_fallback_requires_plan_and_never_weakens_live_revalidation(evidence):
+def test_reference_fallback_requires_plan_and_explicit_sources_keep_live_revalidation(evidence):
     root = evidence.allocate({'result.json': b'exact proof'})
     source = root / 'result.json'
     archive = evidence.publish([root])['path']
@@ -1124,8 +1128,8 @@ def test_reference_fallback_requires_plan_and_never_weakens_live_revalidation(ev
             pytest.fail('unscoped fallback accepted')
     namespace = 'a' * 64
     bundle.plan_parent(evidence.checkout, namespace, create=True)
-    with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [],
-                          plan_namespace=namespace, references=[str(source), archive]) as selection:
+    with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [str(source)], [],
+                          plan_namespace=namespace, references=[archive]) as selection:
         assert selection.files[str(source)][1][0] == 'source'
         source.write_bytes(b'changed after inventory')
         with pytest.raises(ValueError, match='identity changed'):

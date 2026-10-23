@@ -25,8 +25,9 @@ import test_storage
 
 
 @pytest.mark.parametrize('duration', [0.001, 0.025])
+@pytest.mark.parametrize('minimum_interval', [0, 0.1])
 def test_coordinator_journal_pacing_has_no_idle_credit_and_preserves_sync_errors(
-        tmp_path, monkeypatch, duration):
+        tmp_path, monkeypatch, duration, minimum_interval, unpaced_journals):
     import test_io
 
     clock, calls, waits = [0.0], [], []
@@ -48,16 +49,19 @@ def test_coordinator_journal_pacing_has_no_idle_credit_and_preserves_sync_errors
                 raise OSError('injected journal sync failure')
             os.fsync(fd)
 
-        with test_io.low_io():
-            with test_io.low_io():
+        with test_io.low_io(minimum_interval=minimum_interval):
+            with test_io.low_io(minimum_interval=minimum_interval):
                 test_io.sync(stream.fileno(), sync)
+            monkeypatch.setattr(test_io, 'time', SimpleNamespace(
+                monotonic=lambda: -1000,
+                sleep=lambda _: pytest.fail('an active pacer changed clocks')))
             clock[0] += 50  # Idle time cannot buy a subsequent flush burst.
             test_io.sync(stream.fileno(), sync)
             test_io.sync(stream.fileno(), sync)
             with pytest.raises(OSError, match='journal sync failure'):
                 test_io.sync(stream.fileno(), lambda fd: sync(fd, fail=True))
             test_io.sync(stream.fileno(), sync)
-        spacing = duration + max(0.1, 9 * duration)
+        spacing = duration + max(minimum_interval, 9 * duration)
         assert all(after - before == pytest.approx(spacing)
                    for before, after in zip(calls[1:], calls[2:]))
         assert len(waits) == 3

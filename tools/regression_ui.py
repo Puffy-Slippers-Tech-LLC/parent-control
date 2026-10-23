@@ -1,5 +1,9 @@
 """Partition the discovered UI inventory without splitting shared fixtures.
 
+Shared host journal pacing delays real test-tool syncs within each worker;
+it adds no display, process, shared path or cleanup owner. Product API actions
+and existing private compositor/bus reservations remain unchanged.
+
 FLOW02 short-daily saves reuse accessible_adapter's private GTK preview,
 display/bus and owned process group. No new shared state or cleanup owner;
 the Accessible adapter bucket and its existing reservation remain appropriate.

@@ -19,6 +19,7 @@ else:
     from test_storage import directory
 
 EXCLUDE = 'ONPC_TEST_COMPLETED_CASES'
+SAVE_INTERVAL = 5
 RESUME_SELECTION_MISMATCH = 'resume selection differs from checkpoint; start without --resume to reset it'
 
 
@@ -156,6 +157,7 @@ class Checkpoint:
         self.excluded = {kind: self.passed(kind) for kind in self.selected}
         for kind in self.selected:
             self.snapshot(kind)
+        self.synced = time.monotonic()
 
     def entry(self, kind):
         return self.state['categories'].get(kind) if kind in self.selected else None
@@ -216,12 +218,19 @@ class Checkpoint:
         elif event['kind'] == 'finished' and nodeid not in failed:
             # A legitimate pytest parameter ID can exceed snapshot limits.
             # Leave it queued for replay instead of writing an unreadable state.
-            passed.update(completed_cases(json.dumps([nodeid]), replay_oversized=True))
+            completed = completed_cases(json.dumps([nodeid]), replay_oversized=True)
+            if completed <= passed:
+                return
+            passed.update(completed)
         else:
             return
         entry['passed'] = sorted(passed)
         self.dirty = True
-        if event['kind'] == 'failure' or time.monotonic() - self.synced >= 1:
+        # This is a full inventory rewrite plus file/directory synchronization.
+        # Batch routine passes like the report, rather than turning fast unit
+        # completions into a sustained stream of growing durable snapshots.
+        # Failure and finalization still save all pending progress immediately.
+        if event['kind'] == 'failure' or time.monotonic() - self.synced >= SAVE_INTERVAL:
             self.save()
 
     def finish(self, categories):

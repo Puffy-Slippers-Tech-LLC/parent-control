@@ -21,6 +21,7 @@ import regression_schedule
 from regression_resources import Admission, GIB, Sample
 from regression_process import Control
 import test_commands
+from tests.support.launcher import synthetic_report_evidence
 from system_progress import Progress
 
 
@@ -299,24 +300,8 @@ def test_capture(record):
 
 
 @pytest.fixture(autouse=True)
-def isolated_report_evidence(monkeypatch):
+def isolated_report_evidence(synthetic_report_evidence):
     """Keep report I/O checks separate from real capture/publication histories."""
-    import runner_evidence
-
-    class Evidence:
-        def __init__(self, root, directory, *, workflow):
-            self.directory = directory
-            self.commands = []
-            self.finalizations = []
-
-        def command(self, record):
-            self.commands.append(json.loads(json.dumps(record)))
-
-        def finalize(self, **fields):
-            self.finalizations.append(fields)
-            return dict(receipt=None, records=[], references=[], capture_ids=[])
-
-    monkeypatch.setattr(runner_evidence, 'ReportEvidence', Evidence)
 
 
 @pytest.fixture

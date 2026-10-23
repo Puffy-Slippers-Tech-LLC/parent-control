@@ -1,5 +1,14 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Shared host journal pacing adds only process-local timing state and bounded
+sleep between real syncs. Checkpoint batching uses private JSON and a local
+clock double, retaining failure/finalization persistence and sync-error tests.
+Recording, report and capture tests keep real files, locks, syncs and cleanup;
+their existing compatible classifications remain appropriate.
+Resume/report orchestration reuses the shared synthetic custody fixture while
+retaining real checkpoint/report files and counters. Real sealed publication
+remains in runner-evidence/capture tests; no new resource or owner is added.
+
 Directory-closure checks use the existing tiny pytest-private allocations,
 archives and journals, with bounded metadata hashes and no new process, socket,
 display, shared cache or cleanup owner. Their normal unit overlap is unchanged.

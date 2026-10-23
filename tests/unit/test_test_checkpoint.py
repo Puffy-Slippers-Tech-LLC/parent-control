@@ -22,6 +22,9 @@ import regression_selection
 import test_commands
 from test_checkpoint import Checkpoint, EXCLUDE, request_record, resume_arguments
 from tests.support.paths import ROOT
+from tests.support.launcher import synthetic_report_evidence
+
+pytestmark = pytest.mark.usefixtures('synthetic_report_evidence')
 
 
 def event(checkpoint, kind, case, failed=()):
@@ -46,6 +49,67 @@ def test_failed_teardown_revokes_an_earlier_completion(tmp_path):
     event(checkpoint, 'finished', 'case')
     event(checkpoint, 'failure', 'case')
     assert Checkpoint(tmp_path, [('unit', [])], resume=True).passed('unit') == set()
+
+
+def test_large_resume_checkpoint_batches_passes_but_saves_failure_and_shutdown(
+        tmp_path, monkeypatch):
+    import test_checkpoint
+
+    clock = [0.0]
+    monkeypatch.setattr(test_checkpoint, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
+    checkpoint = Checkpoint(tmp_path, [('unit', [])])
+    initial = [f'tests/unit/test_sample.py::test_case[{index}-' + 'x' * 200 + ']'
+               for index in range(2000)]
+    checkpoint.entry('unit')['passed'] = initial
+    checkpoint.save()
+    saves = []
+    save = checkpoint.store.save
+
+    def persist(fd, value, **kwargs):
+        saves.append(clock[0])
+        return save(fd, value, **kwargs)
+
+    monkeypatch.setattr(checkpoint.store, 'save', persist)
+    for index in range(1, 601):
+        clock[0] = index / 10
+        event(checkpoint, 'finished', f'new-{index}')
+    assert saves == list(range(5, 61, 5))
+    path = checkpoint.store.path / checkpoint.name
+    assert set(json.loads(path.read_text())['categories']['unit']['passed']) == (
+        set(initial) | {f'new-{index}' for index in range(1, 601)})
+
+    clock[0] = 60.1
+    event(checkpoint, 'failure', initial[0])
+    assert saves[-1] == 60.1
+    assert initial[0] not in json.loads(path.read_text())['categories']['unit']['passed']
+    event(checkpoint, 'finished', 'pending-at-shutdown')
+    assert 'pending-at-shutdown' not in json.loads(path.read_text())['categories']['unit']['passed']
+    checkpoint.finish([])
+    resumed = Checkpoint(tmp_path, [('unit', [])], resume=True)
+    assert resumed.passed('unit') == checkpoint.passed('unit')
+    assert 'pending-at-shutdown' in resumed.passed('unit')
+    assert not resumed.complete('unit')
+
+
+def test_failed_resume_checkpoint_sync_keeps_pending_passes_for_retry(tmp_path, monkeypatch):
+    import test_checkpoint
+
+    clock = [0.0]
+    monkeypatch.setattr(test_checkpoint, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
+    checkpoint = Checkpoint(tmp_path, [('unit', [])])
+    clock[0] = 5
+
+    def broken(*_args, **_kwargs):
+        raise OSError('checkpoint sync failed')
+
+    with monkeypatch.context() as local:
+        local.setattr(checkpoint.store, 'save', broken)
+        with pytest.raises(OSError, match='checkpoint sync failed'):
+            event(checkpoint, 'finished', 'first')
+    assert checkpoint.dirty and checkpoint.synced == 0
+    event(checkpoint, 'finished', 'second')
+    assert not checkpoint.dirty
+    assert Checkpoint(tmp_path, [('unit', [])], resume=True).passed('unit') == {'first', 'second'}
 
 
 def test_resume_refuses_changed_selectors_but_can_narrow_categories(tmp_path):

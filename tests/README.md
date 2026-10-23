@@ -1366,6 +1366,10 @@ seconds while the coordinator runs. Failure events, category closure and final
 closure force synchronization; fixture failures are durable before cancellation.
 This avoids report traffic repeatedly closing the runner's own I/O pressure gate.
 An abrupt machine failure can lose the latest routine checkpoint interval.
+Resume checkpoints also coalesce successful completions over five seconds,
+instead of rewriting the growing pass inventory every second. Failure events
+and finalization synchronously save pending completions. An abrupt machine
+failure can replay uncheckpointed passes; in-flight work is never certified.
 Retention pins replacement-publication ownership before its source writer lock,
 but reads and verifies cumulative archives only when selecting originals for
 retirement. Nonexpiring startup and finalization preserve those originals without
@@ -1391,11 +1395,16 @@ Runner terminal acknowledgements share one verified cumulative archive while
 its ownership locks and descriptors remain pinned. Each sealed record still
 checks its exact request, delivery and source provenance; later scopes verify
 the archive again.
-The detached coordinator also spaces capture and retention journal syncs by at
-least 100 ms, with an additional recovery interval of nine times a slow sync's
-duration. Every sync still executes and failures propagate. Pacing is local to
-the coordinator's execution context; separately executed test workers retain
-their real durability and fault-injection behavior.
+The detached coordinator spaces capture and retention journal syncs by at
+least 100 ms. Host pytest workers (unit, component, UI and fixture tests) pace
+real `fsync` calls in their fixture/test context, including recording,
+report, evidence and other storage helpers. Workers omit the fixed floor: each
+sync leaves recovery time equal to nine times its measured duration. This
+reduces contention from parallel small-file transactions without withholding
+workers because of unrelated host I/O. Every sync still executes before its
+transaction advances, with the same error propagation and recovery ordering.
+The `unpaced_journals` fixture is reserved for qualifying the pacer itself;
+ordinary durability and fault-injection tests keep real, paced syncs.
 
 The aggregate uses at most four host workers, subject to compatibility and CPU,
 memory and swap admission. Host-wide I/O pressure is recorded but does not gate

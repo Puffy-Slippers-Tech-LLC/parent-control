@@ -1,4 +1,4 @@
-"""Optional low-I/O pacing for a runner coordinator's durable journals."""
+"""Process-local pacing for durable test journals, without skipping syncs."""
 
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -8,12 +8,16 @@ _pacing = ContextVar('test_journal_pacing', default=None)
 
 
 @contextmanager
-def low_io():
-    """Keep pacing process-local; separately executed test workers are unaffected."""
-    if _pacing.get() is not None:
+def low_io(*, minimum_interval=0.1):
+    """Allow workers to pace by sync latency, and coordinators to add a floor."""
+    current = _pacing.get()
+    if current is not None and current[1] >= minimum_interval:
         yield
         return
-    token = _pacing.set([0.0])
+    # Freeze this scope's clock functions. Tests can replace another module's
+    # shared time.monotonic without moving an existing pacing deadline between
+    # the real clock and a synthetic clock.
+    token = _pacing.set([0.0, minimum_interval, time.monotonic, time.sleep])
     try:
         yield
     finally:
@@ -21,21 +25,22 @@ def low_io():
 
 
 def sync(fd, operation):
-    """Perform every requested sync, spacing coordinator journal flushes.
+    """Perform every requested sync, spacing durable flushes.
 
-    Leave at least 100 ms between flushes and nine times the previous sync's
-    duration idle. Never accumulate idle credit or swallow an I/O failure.
+    Leave nine times the previous sync's duration idle, with the caller's
+    minimum interval. Never accumulate idle credit or swallow an I/O failure.
     The caller supplies its OS operation so existing fault injection stays local.
     """
     pacing = _pacing.get()
     if pacing is None:
         return operation(fd)
-    delay = pacing[0] - time.monotonic()
+    deadline, minimum_interval, clock, sleep = pacing
+    delay = deadline - clock()
     if delay > 0:
-        time.sleep(delay)
-    started = time.monotonic()
+        sleep(delay)
+    started = clock()
     try:
         return operation(fd)
     finally:
-        finished = time.monotonic()
-        pacing[0] = finished + max(0.1, 9 * (finished - started))
+        finished = clock()
+        pacing[0] = finished + max(minimum_interval, 9 * (finished - started))

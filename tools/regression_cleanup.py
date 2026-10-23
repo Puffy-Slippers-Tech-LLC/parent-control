@@ -1,5 +1,9 @@
 """Balance cleanup work across the existing branches without splitting fixtures.
 
+Shared host journal pacing retains each real sync and its error before the
+next transaction step. It adds only process-local timing state, no new path,
+process, service or cleanup owner; storage/recording modules remain compatible.
+
 Fedora installed-system reboot-renewal checks retain fixture_provision's
 pytest-private files and in-memory native/lease/transport doubles. No VM,
 subprocess, service, display, socket, shared cache or new cleanup owner is added;

@@ -1,6 +1,7 @@
 """Shared pytest classification for the host-safe test suite."""
 from tests.support.vm_registry import vm_name
 
+import os
 from pathlib import Path
 import warnings
 
@@ -11,6 +12,27 @@ import vm_config
 # Host-safe VM adapters use an explicit fixture selection; product launchers
 # never infer a default from this fixture or from registry order.
 vm_config.select(vm_name())
+
+
+@pytest.fixture
+def unpaced_journals():
+    """Opt out only when qualifying the journal pacer itself."""
+
+
+@pytest.fixture(autouse=True)
+def paced_host_journals(request, monkeypatch):
+    """Keep parallel host fixtures from saturating the disk with tiny syncs."""
+    if (request.node.path.parent.name not in ('unit', 'component', 'ui', 'fixtures')
+            or 'unpaced_journals' in request.fixturenames):
+        yield
+        return
+    import test_io
+    with test_io.low_io(minimum_interval=0):
+        sync = os.fsync
+        # Cover every host-test path at the OS boundary, including helpers that
+        # do not call test_io themselves. Keep the actual OS call and failures.
+        monkeypatch.setattr(os, 'fsync', lambda fd: test_io.sync(fd, sync))
+        yield
 
 
 @pytest.fixture(autouse=True)

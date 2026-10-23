@@ -172,11 +172,19 @@ Keep unqualified branches unavailable on clean captures. F07/F08 qualify idle
 same-boot maintenance refresh, and F13 reviews the complete result.
 
 Execute only the first unchecked row through its complete acceptance and owned
-cleanup. Ordinary host tasks target 15–30 minutes; installed rows allow 30–60
-minutes for one target's indivisible preparation history. Split newly discovered
-independent work before its consumer through the shared prerequisite contract.
-Preserve scenario inputs/order/assertions; preparation checks stop before product
-or worker input and supply no customer acceptance.
+cleanup. Scope is fixture test infrastructure. `Acceptance: installed` means
+the fixture preparation needs a real owned guest; it adds no product acceptance.
+Preserve scenario inputs/order/assertions through focused caller checks and stop
+live preparation before product or worker input.
+
+Follow the design's [validation reuse and invalidation](Fixture-Design.md#validation-reuse-and-invalidation)
+rule: one preparation per distinct path, focused host checks and reuse of valid
+shared safety proof. Routine target ports should fit 20–40 minutes; a new shared
+boundary may need 30–60 minutes. These are planning estimates, not deadlines or
+permission to skip cleanup. Split newly discovered independent work before its
+consumer through the shared prerequisite contract. Avoid unrelated hardening,
+new qualification frameworks, whole-suite sweeps and repeated lifecycle reviews.
+F13 owns the final independent infrastructure review.
 
 ## Close-out
 

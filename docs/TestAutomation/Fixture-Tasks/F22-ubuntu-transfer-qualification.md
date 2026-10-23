@@ -13,7 +13,7 @@ Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
 [source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
 Migrate standalone `runner --qualify-transfer` through
 `Qualification.execute`, `check_graphical_smoke` and `AssetTransfer.provision`.
-Read the complete bootstrap/asset chain. Keep preboot work limited to transport
+Read complete affected functions and necessary bootstrap/asset callers. Keep preboot work limited to transport
 prerequisites; reusable payload moves through shared SSH only after readiness.
 Put the shared fixture-readiness step at Smoke's post-SSH boundary, before its
 first ready reply, for reuse by serial callers. Preserve package/upgrade transfer
@@ -32,7 +32,11 @@ Register/list the planned `check_fixture_transfer` before invoking:
 tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_transfer
 ```
 
-Exercise the real standalone transfer preparation and independent harmless
-native use. Prove product absence, no reusable preboot upload and fail-closed
-uncertain transfer recovery without replay. Stop before graphical input.
+Exercise the real standalone transfer preparation once and independent harmless
+native use. Prove product absence and no reusable preboot upload. Reuse shared
+uncertain-transfer recovery/no-replay proof; add a focused host check for changed
+ordering and a live failure only if this caller introduces a distinct recovery
+boundary under the design's [validation rule](../Fixture-Design.md#validation-reuse-and-invalidation).
+Stop before graphical input. Do not run package installation, transfer UI or
+customer journey acceptance.
 Complete shared qualification and the master's close-out.

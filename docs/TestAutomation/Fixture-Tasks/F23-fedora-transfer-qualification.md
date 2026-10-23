@@ -11,9 +11,11 @@ and [close-out contract](../Fixture-Execution-Plan.md#close-out) throughout this
 
 Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
 [source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
-Migrate standalone `runner --qualify-transfer` through
+Qualify F22's standalone `runner --qualify-transfer` through
 `Qualification.execute`, `check_graphical_smoke` and `AssetTransfer.provision`.
-Read the complete bootstrap/asset chain. Keep preboot work limited to transport
+Reuse its helper, selector and history; change only target gates and evidenced
+Fedora differences. Read complete affected functions and necessary callers.
+Keep preboot work limited to transport
 prerequisites; reusable payload moves through shared SSH only after readiness.
 Qualify F22's shared Smoke readiness step on Fedora; keep package/upgrade
 transfer semantics separate from reusable runtime provisioning.
@@ -21,18 +23,20 @@ An installed app snapshot cannot substitute for this product-free envelope.
 Keep serial aliases gated until their own tasks.
 
 Apply [shared runner integration and qualification](../Fixture-Design.md#runner-integration-and-qualification).
-Preserve enforcing SELinux, exact native admissions and labels. Renew affected
-Ubuntu checks after shared corrections.
+Preserve enforcing SELinux, exact native admissions and labels. Renew Ubuntu proof
+only where invalidated under the design's [validation rule](../Fixture-Design.md#validation-reuse-and-invalidation).
 
 ## Acceptance and cleanup
 
-Register/list the planned `check_fixture_transfer` before invoking:
+Confirm F22's existing `check_fixture_transfer` binding lists Fedora before invoking:
 
 ```sh
 tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_transfer
 ```
 
-Exercise the real standalone transfer preparation and independent harmless
-native use. Prove product absence, no reusable preboot upload and fail-closed
-uncertain transfer recovery without replay. Stop before graphical input.
+Exercise the real standalone transfer preparation once and independent harmless
+native use. Prove product absence and no reusable preboot upload. Reuse F22/shared
+uncertain-transfer recovery proof unless Fedora changes that boundary; do not
+repeat the fault matrix for a target gate extension. Stop before graphical input.
+No package installation, transfer UI or customer journey acceptance is required.
 Complete shared qualification and the master's close-out.

@@ -10,8 +10,8 @@ and [close-out contract](../Fixture-Execution-Plan.md#close-out) throughout this
 ## Scope and implementation
 
 Add explicit [idle maintenance refresh](../Fixture-Design.md#live-refresh-and-recorded-attempts)
-to `tools/test-vm`. Read the complete VM-control/online-snapshot ownership,
-session, process and transport paths and the shared provisioner. Use existing
+to `tools/test-vm`. Read complete affected functions and necessary VM-control,
+maintenance-owner, session/process and shared-provisioner callers. Use existing
 authenticated input handoff, watch and maintenance owner. Register validated
 options/help; this surface is unimplemented until then.
 
@@ -27,14 +27,19 @@ recovery, without promising same-boot rollback or repairing an active scenario.
 
 ## Acceptance and cleanup
 
-Run affected maintenance/provisioning safety tests first. Register/list
+Run focused maintenance/provisioning safety tests. Register/list
 `check_fixture_live_refresh`. In an idle watched Ubuntu maintenance instance,
 use A, change/build B on the host, explicitly sync and independently use B.
 Require unchanged boot/domain and baseline/app snapshot identities, correct native
 activation, unrelated state preservation and repeated verification without writes.
 Prove busy/session/worker, different-subset, corrupt-input and foreign-owner
-refusal before writes. Inject interruption/lost reply and verify unavailable
-readiness plus owned recovery. Finish all input/staging/maintenance cleanup.
+refusal before writes with direct host checks of the maintenance boundary.
+Run one live interrupted/lost-reply replacement to verify unavailable readiness
+plus owned recovery; reuse shared staging/transport fault coverage for other
+injection points. Add a live refusal only where guest state cannot be represented
+by those host checks. Follow the design's [validation rule](../Fixture-Design.md#validation-reuse-and-invalidation).
+Do not extend refresh to active scenarios or add product UI/policy acceptance.
+Finish all input/staging/maintenance cleanup.
 
 Follow the [master](../Fixture-Execution-Plan.md) for reading, resource review,
 owned cleanup and ordinary evidence/Git close-out.

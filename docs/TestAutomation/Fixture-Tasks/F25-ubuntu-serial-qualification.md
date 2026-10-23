@@ -12,7 +12,8 @@ and [close-out contract](../Fixture-Execution-Plan.md#close-out) throughout this
 Use the [runner matrix](../Fixture-Design.md#runner-acceptance-matrix) and its
 [source-backed alias map](../Fixture-Design.md#source-backed-consumer-and-alias-disposition).
 Migrate standalone serial `Smoke`/`check_graphical_serial` and authenticated
-install/refusal aliases. Read the complete credential/getty/bootstrap/asset chain.
+install/refusal aliases. Read complete affected functions and necessary
+credential/getty/bootstrap/asset callers.
 Retain preboot credential/getty lifetime, secret recipients, recording seals and
 single-use input; move reusable fixture bytes to shared owned SSH before serial
 input. Host composition preserves successful-install reboot versus refused-install
@@ -31,7 +32,11 @@ Register/list the planned `check_fixture_serial` before invoking:
 tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_serial
 ```
 
-Exercise actual standalone serial preparation and harmless native use, then
+Exercise actual standalone serial preparation once and harmless native use, then
 stop before serial input/authentication or product assertions. Host tests bind
 authenticated-install/refusal aliases without claiming package/login acceptance.
+Reuse the qualified shared readiness and failure/recovery proof under the
+design's [validation rule](../Fixture-Design.md#validation-reuse-and-invalidation).
+Do not execute successful/refused installs, login/logout or reboot journeys;
+those assertions stay in their existing suites. Add no alias-by-alias live matrix.
 Complete shared qualification and the master's close-out.

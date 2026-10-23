@@ -8,14 +8,17 @@ and [close-out contract](../Fixture-Execution-Plan.md#close-out) throughout this
 
 ## Scope and review
 
-Independently review the final [design](../Fixture-Design.md) implementation and
-all delivered operational owners. Give a GPT-6.1 Sol xHigh reviewer a bounded
-self-contained read-only assignment with `fork_turns="none"`. Check host-only
+Independently review final fixture integration against the [design](../Fixture-Design.md),
+using delivered owner summaries, retained reviews and the remaining migration
+diff. Give a GPT-6.1 Sol xHigh reviewer one bounded self-contained read-only
+assignment with `fork_turns="none"`. Follow changed functions and necessary
+callers at the boundaries below; do not restart each completed task's full audit.
+Check host-only
 construction, minimal complete closures, ABI/content identity, single producer
 lifetime, execution-owned retention/authenticated handoff, input immutability,
 fail-closed SSH provisioning and owned VM recovery.
 
-Verify clean captures on both targets, preserved legacy cleanup, every actual
+Verify retained clean-capture proof on both targets, preserved legacy cleanup, every actual
 consumer/alias disposition and the idle refresh refusal boundary. There must be
 no new cache/pin service, native acknowledgement protocol, supervisor or duplicate
 case installer. Keep scenario checkpoints/assertions and pending capabilities
@@ -30,15 +33,19 @@ xHigh review under AGENTS.md; this Sol infrastructure audit cannot replace it.
 
 ## Acceptance and close-out
 
-Require evidence valid for the final candidate and owned cleanup from both
-targets for clean captures, provisioning, all seven real preparation envelopes and idle same-boot
-refresh. Host failure/interruption/identity tests remain required; review cannot
-substitute for missing or invalidated target proof. Reuse valid retained results
-for unchanged exact bindings; renew affected histories when inputs or contracts
-invalidate them. Validate the F17 recovery bundle linked from the master for
-exact command/input, host-check and cleanup evidence; use the shared
-historical-evidence route only for an actual remaining gap. Insert a bounded
-prerequisite for missing work, resolve actionable findings and renew affected checks.
+Require valid fixture-infrastructure evidence and owned cleanup from both
+targets for clean captures, provisioning, the seven preparation envelopes and
+idle same-boot refresh. Build this coverage from the existing accepted task
+records and exact retained proof; it is not a fresh end-to-end run. Reuse host
+failure/interruption/identity results for unchanged guarantees. Apply the design's
+[invalidation rule](../Fixture-Design.md#validation-reuse-and-invalidation)
+before renewing any history; review cannot replace missing required target proof.
+Inspect the F17 recovery bundle only for a required claim not already covered by
+the accepted evidence chain. Historical narrative links alone do not require
+renewing unrelated results. Insert a bounded prerequisite for an actual missing
+deliverable, resolve actionable findings and rerun only invalidated checks.
+Do not run product installation, login/logout, policy, update or customer journey
+acceptance as part of this audit.
 
 Check Markdown links, plan structure and affected metadata/launcher regressions.
 Verify existing bounded retention has no unfinished producer/input/VM cleanup

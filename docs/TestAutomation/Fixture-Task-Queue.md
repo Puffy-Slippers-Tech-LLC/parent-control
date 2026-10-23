@@ -27,16 +27,16 @@ unimplemented machinery without claiming that work was delivered.
 | [x] | F18 | [Integrate Ubuntu installed E2E preparation](../../tests/integration/README.md#ubuntu-installed-e2e-preparation) | F17 | Online rebind, shared readiness and offline alias composition | [Installed Ubuntu preparation passed](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json): two online resume/rebind and two offline Kiosk histories (16.4 min), independent 12-file/native-runtime checks, refusals, fresh readiness, no-write repeats and unchanged selection after producer-source edits. [Detailed result](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json). Supporting launcher record: `3451eaa3a8050d8252e49e43d9c76ae19cf8c48409cbb820dabf15144a446ab0`. Affected host composition/provenance/ownership checks passed; offline-domain and startup-wait repairs passed live. Watched baseline/producer/credential/staging/input/transport cleanup complete, VM independently off. No worker input, product assertions or customer/E2E credit. |
 | [x] | F19 | [Integrate Fedora installed E2E preparation](../../tests/integration/README.md#fedora-installed-e2e-preparation) | F18 | The same installed E2E preparation on Fedora | [Installed Fedora and renewed Ubuntu preparation passed](../../output/test-runs/host/plans/b49ba5112d8777dfa8ed963ddb0ab32faaa39a2c4fd930bbd168f162ea2cdffd/accepted-evidence.json): two online resume/rebind and two offline Kiosk attempts per target; independent 12-file/native-runtime checks, refusals, fresh readiness, no-write repeats and unchanged selection after producer-source edits. Fedora preserved enforcing SELinux and exact native admissions/labels. 3,263 affected host checks passed; two private-checkout import failures were repaired and both passed on retry. Independent Sol High review: no actionable findings. Watched baseline/producer/credential/staging/input/transport cleanup complete, both VMs independently off. No worker input, product assertions or customer/E2E credit. |
 | [ ] | F20 | [Integrate Ubuntu product-free E2E preparation](Fixture-Tasks/F20-ubuntu-product-free-e2e.md) | F19 | Clean graphical entry; fixtures before customer package input | 30–60 min; one envelope history |
-| [ ] | F21 | [Integrate Fedora product-free E2E preparation](Fixture-Tasks/F21-fedora-product-free-e2e.md) | F20 | The same product-free graphical preparation on Fedora | 30–60 min; one envelope history |
+| [ ] | F21 | [Integrate Fedora product-free E2E preparation](Fixture-Tasks/F21-fedora-product-free-e2e.md) | F20 | The same product-free graphical preparation on Fedora | 20–40 min; reuse F20 paths and shared proof |
 | [ ] | F22 | [Integrate Ubuntu transfer qualification](Fixture-Tasks/F22-ubuntu-transfer-qualification.md) | F21 | Standalone transfer stages reusable payload only after SSH readiness | 30–60 min; one envelope history |
-| [ ] | F23 | [Integrate Fedora transfer qualification](Fixture-Tasks/F23-fedora-transfer-qualification.md) | F22 | The same standalone transfer preparation on Fedora | 30–60 min; one envelope history |
-| [ ] | F25 | [Integrate Ubuntu serial qualification](Fixture-Tasks/F25-ubuntu-serial-qualification.md) | F23 | Standalone serial/authenticated aliases retain recipient/bootstrap guards | 30–60 min; one envelope history |
-| [ ] | F26 | [Integrate Fedora serial qualification](Fixture-Tasks/F26-fedora-serial-qualification.md) | F25 | The same standalone serial preparation on Fedora | 30–60 min; one envelope history |
-| [ ] | F27 | [Integrate Ubuntu recorded serial preparation](Fixture-Tasks/F27-ubuntu-recorded-serial.md) | F26 | Recorded harness owns shared readiness before worker input | 30–60 min; one envelope history |
-| [ ] | F28 | [Integrate Fedora recorded serial preparation](Fixture-Tasks/F28-fedora-recorded-serial.md) | F27 | The same recorder/serial preparation on Fedora | 30–60 min; one envelope history |
+| [ ] | F23 | [Integrate Fedora transfer qualification](Fixture-Tasks/F23-fedora-transfer-qualification.md) | F22 | The same standalone transfer preparation on Fedora | 20–40 min; reuse F22 helper/history |
+| [ ] | F25 | [Integrate Ubuntu serial qualification](Fixture-Tasks/F25-ubuntu-serial-qualification.md) | F23 | Standalone serial/authenticated aliases retain recipient/bootstrap guards | 20–40 min; one preparation, host alias checks |
+| [ ] | F26 | [Integrate Fedora serial qualification](Fixture-Tasks/F26-fedora-serial-qualification.md) | F25 | The same standalone serial preparation on Fedora | 20–40 min; reuse F25 helper/history |
+| [ ] | F27 | [Integrate Ubuntu recorded serial preparation](Fixture-Tasks/F27-ubuntu-recorded-serial.md) | F26 | Recorded harness owns shared readiness before worker input | 20–40 min; one preparation and recorder binding |
+| [ ] | F28 | [Integrate Fedora recorded serial preparation](Fixture-Tasks/F28-fedora-recorded-serial.md) | F27 | The same recorder/serial preparation on Fedora | 20–40 min; reuse F27 helper/history |
 | [ ] | F07 | [Refresh an idle owned Ubuntu VM](Fixture-Tasks/F07-ubuntu-live.md) | F28 | Same-subset diagnostic update at a proven idle maintenance boundary | 30–60 min; one target history |
-| [ ] | F08 | [Refresh an idle owned Fedora VM](Fixture-Tasks/F08-fedora-live.md) | F07 | The same idle same-boot update with Fedora labels/native activation | 30–60 min; one target history |
-| [ ] | F13 | [Audit the final fixture lifecycle](Fixture-Tasks/F13-audit.md) | F08 | Independent review, complete consumer disposition and exact both-target proof | 20–30 min |
+| [ ] | F08 | [Refresh an idle owned Fedora VM](Fixture-Tasks/F08-fedora-live.md) | F07 | The same idle same-boot update with Fedora labels/native activation | 20–40 min; one A-to-B update, reuse safety proof |
+| [ ] | F13 | [Audit the final fixture lifecycle](Fixture-Tasks/F13-audit.md) | F08 | Independent review, complete consumer disposition and exact both-target proof | 20–30 min; retained proof and integration review |
 
 The earlier unfinished F04/F14 cache tasks, F24/F30 legacy codecs,
 F31/F32/F33/F50 native/process/import machinery and F34–F49 repeated
@@ -45,7 +45,10 @@ briefs are removed. Existing producer/retention/VM safety contracts remain.
 
 Each installed runner row qualifies its actual envelope once against clean
 captures. These are fixture preparation checks and stop before product/worker
-input; they supply no product or E2E completion credit. All target rows keep
-their own refusal, positive-use and owned-cleanup proof. Shared changes renew
-affected earlier target results. New independent work follows the
+input; they supply no product or E2E completion credit. Each target proves its
+actual fixture boundary, positive use and owned cleanup. Reuse unchanged shared
+refusal/failure proof and renew only invalidated results under the design's
+[validation rule](Fixture-Design.md#validation-reuse-and-invalidation).
+No product acceptance or full-suite sweep is required. Estimates include focused
+checks and close-out; they are not execution deadlines. New independent work follows the
 [shared prerequisite contract](../Execution-Plans.md#execution-and-delegation).

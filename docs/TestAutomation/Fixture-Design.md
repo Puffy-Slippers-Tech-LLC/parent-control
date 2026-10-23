@@ -254,8 +254,9 @@ standalone reuse and renewed Ubuntu qualification.
 Qualify each runner branch once against these clean captures. Unmigrated branches
 refuse clean captures before input; an implementation task enables only its
 qualified branch/target. No second legacy qualification pass or runtime
-qualification-receipt service is required. Shared changes renew affected prior
-target checks. This plan supplies fixture infrastructure acceptance only.
+qualification-receipt service is required. Shared changes renew only invalidated
+fixture-infrastructure proof under the [bounded validation rule](#validation-reuse-and-invalidation).
+This plan supplies fixture infrastructure acceptance only.
 
 F09 delivered Ubuntu's [product-free system preparation](../../tests/integration/README.md#ubuntu-product-free-system-preparation),
 including the three Parent bootstrap aliases. Its registered
@@ -323,27 +324,34 @@ installed-only restore checks stay with installed callers. Preserve separate
 package/upgrade transfer semantics, inventory and preservation witnesses.
 Keep runtime subsets finite; add no generic runner framework or case installer.
 
+The scope is fixture test infrastructure. Product installation, authentication,
+login/logout, reboot/update behavior, policy enforcement and customer journeys
+remain acceptance targets of their existing suites. Preserve those assertions
+when changing callers; do not run them to accept a fixture migration. Referenced
+HAR stages, scenario checkpoints and aliases identify compatibility boundaries,
+not extra live acceptance for this plan.
+
 Each target/envelope task must:
 
 - For a nonempty closure, select and retain its immutable input before
   restoration, provision after guarded SSH readiness, and check current readiness
   before releasing input.
   Enable only the qualified target/branch; unqualified branches refuse.
-- Run affected host composition/provenance/ownership checks. Bind all aliases,
+- Run focused host composition/provenance/ownership checks. Bind all aliases,
   including ordered wrapper/loop overrides and dormant guards, to their actual
   preparation boundary. Check missing/incompatible refusal before guest mutation
   or worker input and selection immutability despite host source edits.
-- Exercise each distinct real preparation boundary on its declared target.
+- Exercise each distinct real preparation boundary once on its declared target.
   Independently verify selected manifest bytes/metadata and harmless runtime use,
-  no-write repeats and fresh attempt/boot bindings with prior readiness refused.
+  no-write repeats and fresh attempt/boot bindings. Reuse the shared stale-readiness
+  refusal proof unless this task changes its binding or reset boundary; do not
+  add another restore solely to repeat an unchanged guarantee.
   Product-free branches preserve product absence. An empty closure verifies
   absence of movable payload and gains no dependency on a native input.
-- Reuse shared corruption, source-edit, interruption/lost-reply and ownership
-  proofs for unchanged contracts. Add or renew focused checks for changed wiring
-  or a distinct failure boundary; do not repeat the full shared matrix for each
-  alias or copy installed-history implementations. Retain the exact input binding
-  in each envelope's evidence. Renew affected earlier-target proof after shared
-  changes; Fedora retains enforcing SELinux and exact native admissions/labels.
+- Apply the validation reuse rule below to corruption, source-edit,
+  interruption/lost-reply and ownership checks. Retain the exact input binding
+  in each envelope's evidence. Fedora retains enforcing SELinux and exact native
+  admissions/labels.
 - Stop before customer/worker input or product assertions. Preserve scenario
   mutations; copy no complete fixture collection into results. Finish watched
   owned restoration and credential/staging/input/transport cleanup, then update
@@ -354,6 +362,48 @@ shared refusal/immutability guarantees; installed histories prove real boundary
 wiring and target behavior. Record which retained shared proof applies. A new or
 changed integration path must still establish its own input and readiness guards.
 Preparation supplies no customer/E2E acceptance.
+
+### Validation reuse and invalidation
+
+Select checks by the changed fixture guarantee and actual caller, not by every
+module imported transitively. Run the affected test files/cases once after the
+last relevant edit, plus the master's required close-out consistency selection.
+Do not select the entire fixture, launcher, storage, system or E2E suites merely
+because the integration uses them. Documentation-only close-out does not repeat
+unchanged implementation checks or VM histories.
+
+Keep one live preparation per distinct path: product-free entry, package,
+upgrade and empty GDM entry remain distinct; aliases with the same preparation
+use host composition checks. Stop at fixture readiness, independent byte/runtime
+readback and cleanup. No-op provision repeats run in that same attempt. Beyond
+required preparation and owned cleanup, an extra restore, reboot, snapshot build
+or source mutation needs a changed guarantee that cannot be established by
+existing proof or a focused host check. Use the
+smallest registered selector covering the required preparation; do not bypass
+its assertions or add a filtering framework to shorten it.
+
+Reuse valid shared refusal, corruption, source-edit immunity, lost-reply and
+ownership/recovery proof from F03/F15/F05/F06 and later delivered owners when the
+same contracts remain unchanged. Check a new caller's input/readiness ordering
+at host level; inject a live failure only for a new guest/lifecycle boundary that
+shared proof cannot cover. Reuse the established helpers and histories rather
+than creating a qualification framework or a matrix per alias.
+
+Before renewing an earlier envelope or the other target, identify the changed
+input/contract, its affected binding and the smallest check that proves it.
+A target allowlist extension, a new caller or documentation alone does not
+invalidate every earlier target/envelope. Shared provisioning, native activation,
+restore or ownership changes require the affected target proof; choose a
+representative caller for an unchanged shared path and retain separate proof
+only where caller behavior differs. Preserve exact evidence and cleanup under
+the existing evidence contract; missing required proof is still a blocker.
+
+At handoff, record the focused selection and reused proof in the existing task
+result, with a reason for any wider renewal. Do not create another evidence
+document. One independent final infrastructure review belongs to F13; routine
+ports need no additional full lifecycle audit. Targeted review remains appropriate
+for changed security/ownership boundaries, and core backend review mandates
+still apply if product code is changed.
 
 ### Source-backed consumer and alias disposition
 

@@ -17,15 +17,19 @@ preserve the ordinary provisioner's changed-request and restore-only reset guard
 
 ## Acceptance and cleanup
 
-Run affected safety tests and register/list `check_fixture_live_refresh` for
+Run focused affected safety tests and confirm `check_fixture_live_refresh` lists
 this target. Repeat F07's A-to-B history in the same idle owned boot/domain with
 unchanged snapshot identities, independent byte/runtime readback, exact native
 activation and enforcing SELinux. Preserve unrelated state and untrusted controls.
-Require busy/uncertain/foreign/different-subset refusal before writes, no-op repeat
-and failed/lost-reply unavailability followed by existing owned recovery.
+Reuse F07's busy/uncertain/foreign/different-subset host refusal proof and
+failed/lost-reply recovery history where contracts are unchanged; verify the
+same-boot A-to-B update and no-op repeat once on Fedora. Add live failure proof
+only for changed Fedora native/SELinux replacement or recovery behavior under
+the design's [validation rule](../Fixture-Design.md#validation-reuse-and-invalidation).
 Do not add in-use updates, a scanner, broad trust or service restarts.
-Finish watched maintenance/input/staging cleanup, renew affected Ubuntu checks
-after shared changes and update the maintained public interface documentation.
+Finish watched maintenance/input/staging cleanup, renew only invalidated Ubuntu
+fixture proof and update the maintained public interface documentation. Product
+UI, policy and customer journeys remain outside this acceptance.
 
 Follow the [master](../Fixture-Execution-Plan.md) for reading, resource review,
 owned cleanup and ordinary evidence/Git close-out.

@@ -1348,11 +1348,37 @@ def follow(run, stream=None):
     return detached_launcher.follow(run, stream, label='fix-tests')
 
 
+def stop_all(root):
+    """Cancel this checkout's repair owners before waiting for any cleanup."""
+    runs = []
+    legacy = root / 'artifacts/fix-tests'
+    if (legacy / 'owner').exists():
+        with lock(legacy / 'owner') as owner:
+            if busy(owner):
+                run = current_run(legacy)
+                if run is None:
+                    raise ValueError('active legacy fix-tests owner has no readable run record')
+                (run / 'cancel').touch(mode=0o600)
+                runs.append(run)
+    for kind in ('fix-tests-host', 'fix-tests'):
+        run, _ = detached_launcher.select(root, kind, None, stop=True)
+        if run is not None:
+            runs.append(run)
+    if not runs:
+        print('fix-tests: no active launcher.')
+        return 0
+    status = 0
+    for run in runs:
+        print(f'fix-tests: stopping {run.name}; log: {run / "output"}', flush=True)
+        status = follow(run) or status
+    return status
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     from vm_selection import SELECTOR_HELP
     parser.add_argument('--vm', help=SELECTOR_HELP)
-    add_options(parser, stop_help='stop the active run, like Ctrl+C')
+    add_options(parser, stop_help='stop active runs in this checkout; categories or --vm narrow the scope')
     parser.add_argument('--resume', action='store_true',
                         help='resume passed categories and the failed/interrupted test checkpoint')
     parser.add_argument('--model', help='repair model (only gpt-6.1-sol is supported)')
@@ -1364,7 +1390,7 @@ def main(argv=None):
                      'or unit tests/unit/test_fix_tests.py -q. Launcher options are recognized '
                      'anywhere and removed from the forwarded arguments. '
                      'Omitting categories selects every leaf. Host and VM workflows have '
-                     'separate sessions; attach or stop using the same scope.')
+                     'separate sessions; attach using the same scope. Bare --stop cancels both scopes.')
     args, categories = parser.parse_known_args(argv)
     root = Path(__file__).resolve().parents[1]
     if args.resume and not categories and not args.stop:
@@ -1393,6 +1419,8 @@ def main(argv=None):
 
     previous = signal.signal(signal.SIGINT, cancel)
     try:
+        if args.stop and not args.categories and args.vm is None:
+            return stop_all(root)
         from vm_selection import execution_selection
         from test_commands import repair_host_only_request
         host_only = repair_host_only_request(root, args.categories)

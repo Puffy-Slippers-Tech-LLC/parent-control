@@ -433,8 +433,11 @@ Categories, rounds and model options apply to new runs; attaching keeps the acti
 Host-only repair runs keep their own workflow owner and output under
 `output/test-runs/host/fix-tests-host/`; VM-containing runs use the existing
 `output/test-runs/host/fix-tests/`. Separate host and VM repair runs may overlap.
-Attach or cancel with the same scope, for example `tools/fix-tests host --stop`
-or `tools/fix-tests vm --vm NAME --stop`. No categories select the VM namespace.
+Attach with the same scope. Bare `tools/fix-tests --stop` cancels active host
+and VM repair runs in the current checkout, requesting both cancellations before
+waiting for owned cleanup. Categories or `--vm` narrow cancellation, for example
+`tools/fix-tests host --stop` or `tools/fix-tests vm --vm NAME --stop`.
+Without `--stop`, no categories select the VM namespace.
 
 The launcher itself is Python scripting. New runs validate the selected model
 and effort against the Codex CLI catalog before testing. Classification and

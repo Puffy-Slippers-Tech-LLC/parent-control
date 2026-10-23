@@ -5,6 +5,8 @@ import json
 import io
 import os
 import tomllib
+from contextlib import ExitStack
+import fcntl
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -433,6 +435,47 @@ def test_host_selection_does_not_discover_vms(monkeypatch, categories):
     monkeypatch.setattr(fix_tests, 'select', Mock(return_value=(None, False)))
     assert fix_tests.main(categories) == 0
     selection.assert_not_called()
+
+
+@pytest.mark.parametrize('active', [(), ('fix-tests-host',), ('fix-tests',),
+                                   ('fix-tests-host', 'fix-tests'),
+                                   ('legacy', 'fix-tests-host', 'fix-tests')])
+def test_bare_stop_cancels_all_checkout_owners_before_waiting(tmp_path, monkeypatch, active):
+    import test_storage
+    import vm_selection
+
+    root = tmp_path / 'checkout'
+    monkeypatch.setattr(fix_tests, '__file__', str(root / 'tools/fix_tests.py'))
+    monkeypatch.setattr(vm_selection, 'execution_selection',
+                        Mock(side_effect=AssertionError('stop must not discover VMs')))
+    monkeypatch.setattr(fix_tests, 'select',
+                        Mock(side_effect=AssertionError('stop must not start or attach by category')))
+    runs = {}
+    with ExitStack() as owners:
+        for kind in ('legacy', 'fix-tests-host', 'fix-tests', 'foreign'):
+            if kind == 'legacy':
+                directory = detached_launcher.private_directory(root / 'artifacts/fix-tests')
+            else:
+                directory = test_storage.directory(
+                    'fix-tests-host' if kind == 'foreign' else kind,
+                    root=tmp_path / 'other-checkout' if kind == 'foreign' else root)
+            run = detached_launcher.private_directory(directory / ('a' * 32))
+            detached_launcher.atomic(directory / 'current.json', {'run': run.name})
+            runs[kind] = run
+            if kind in active or kind == 'foreign':
+                owner = owners.enter_context(detached_launcher.lock(directory / 'owner'))
+                fcntl.flock(owner, fcntl.LOCK_EX)
+
+        def follow(run):
+            assert {kind for kind, path in runs.items() if (path / 'cancel').exists()} == set(active)
+            assert run in [runs[kind] for kind in active]
+            return 130
+
+        observer = Mock(side_effect=follow)
+        monkeypatch.setattr(fix_tests, 'follow', observer)
+        assert fix_tests.main(['--stop']) == (130 if active else 0)
+        assert observer.call_count == len(active)
+        assert {kind for kind, path in runs.items() if (path / 'cancel').exists()} == set(active)
 
 
 def test_rounds_repair_only_failed_categories_with_latest_prompt(capsys):

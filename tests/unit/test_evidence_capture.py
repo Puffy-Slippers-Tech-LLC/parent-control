@@ -1394,6 +1394,16 @@ def test_interrupted_slot_cleanup_resumes_only_recorded_identity(
         slot.rename(saved)
     slot.mkdir(mode=0o700)
     try:
+        # Distinguish a reused filesystem identity from a cleanup guard failure
+        # without emitting private paths or changing the refusal assertion.
+        replacement = slot.stat()
+        recorded = acknowledgement['caller_slot']
+        print('slot cleanup identity diagnostic:', {
+            'removed': removed,
+            'replacement_matches_recorded_identity': (
+                replacement.st_dev, replacement.st_ino
+            ) == (recorded['device'], recorded['inode']),
+        })
         with pytest.raises(ValueError, match='replaced|identity'):
             with value.store.session():
                 pytest.fail('cleanup adopted a replacement slot')

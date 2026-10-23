@@ -252,6 +252,7 @@ def test_real_startup_forwards_mode_and_snapshot(tmp_path, monkeypatch):
     context = SimpleNamespace(directory=tmp_path, installed_snapshot='installed-test',
         host_key='public-host-key', verified=Mock(), commands=Mock(),
         lease=SimpleNamespace(source=SimpleNamespace(uuid='vm-identity'),
+            capture=SimpleNamespace(state={'guest': {'fixture_boundary': 'legacy'}}),
             view=SimpleNamespace(domain_id=1), state={'run': 'attempt'}, guard=Mock()))
     monkeypatch.setattr(installed_journey.system, 'address', Mock(return_value='test-host'))
     monkeypatch.setattr(installed_journey, 'Transport', Mock())

@@ -3272,6 +3272,22 @@ def test_baseline_file_replaced_by_committed_directory_stays_protected(git_plan)
 
 @pytest.mark.parametrize('pending', [False, True], ids=['inherited-baseline', 'accepted-restart'])
 def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan, monkeypatch, pending):
+    # This check followed the last teardown event in an abruptly exited unit
+    # worker. Keep value-free milestones outside pytest capture so an exec or
+    # abrupt exit cannot discard the evidence needed to distinguish them.
+    def diagnostic(phase):
+        if os.environ.get('ONPC_REGRESSION_EVENTS') == '1':
+            sys.__stdout__.write('\nONPC-BASELINE-DIAGNOSTIC ' + phase + '\n')
+            sys.__stdout__.flush()
+
+    diagnostic('accepted-restart' if pending else 'inherited-baseline')
+    original_reload = workflow.reload_controller
+
+    def reload(*args, **kwargs):
+        diagnostic('controller-reload')
+        return original_reload(*args, **kwargs)
+
+    monkeypatch.setattr(workflow, 'reload_controller', reload)
     f = git_plan
     (f.root / 'task.py').write_text('pre-existing work\n')
     (f.root / 'report.md').write_text('earlier generated report\n')
@@ -3306,6 +3322,7 @@ def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan,
 
     def execute(root, spec, run, owner):
         state = json.loads((run / 'checkpoint.json').read_text())
+        diagnostic('execute-task-' + state['task_id'])
         assert 'task.py' not in state['stage_baseline']
         if state['task_id'] == '002':
             assert f.git('log', '-1', '--format=%s').stdout.strip() == 'TA: Completed task 001'
@@ -3338,7 +3355,9 @@ def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan,
                      suspended_tasks={'002': consumer})
     TaskBudget(f.run).initialize(0)
     owner = os.open(f.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    diagnostic('worker-enter')
     assert workflow.worker(f.root, f.run, owner, spec, state) == 0
+    diagnostic('worker-returned')
     assert calls == (['002'] if pending else ['001', '002'])
     assert json.loads((f.run / 'result.json').read_text()) == dict(status=0, tasks=2)
     assert f.plan.next_task() is None

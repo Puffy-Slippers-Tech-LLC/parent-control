@@ -235,7 +235,9 @@ def test_profile_controller_uses_guard_recheck_and_two_independent_reads(os_id):
     receipt = {**assets.verify(g), 'unchanged_state': True, 'runtime_locale': 'UTF-8'}
     transport = SimpleNamespace(config={'run': 'owned'}, guard=Mock(), call=Mock(
         return_value=(json.dumps(receipt, sort_keys=True) + '\n').encode()))
-    verified = SimpleNamespace(recheck=Mock())
+    # The Chinese profile sends no fixture hashes, but the verified-input
+    # interface still supplies the asset mapping used by the controller.
+    verified = SimpleNamespace(recheck=Mock(), asset_files={})
     controller = native_fixtures.NativeFixtures(transport, verified, profile='chinese')
     assert controller.verify() == {**receipt, 'independent_readback': True}
     assert transport.call.call_count == 2 and transport.guard.call_count == 2

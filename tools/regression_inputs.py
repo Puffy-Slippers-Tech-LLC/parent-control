@@ -5,7 +5,10 @@ import subprocess
 
 
 def identity(root):
-    listing = subprocess.run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+    # Installed evidence producers run as root in the dispatcher's validated,
+    # developer-owned checkout. Scope trust to this read, as provenance does.
+    listing = subprocess.run(['git', '-c', 'safe.directory=' + str(root),
+                              'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
                              cwd=root, check=True, stdout=subprocess.PIPE).stdout
     digest = hashlib.sha256()
     for name in sorted(set(listing.split(b'\0')) - {b''}):

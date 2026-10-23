@@ -153,6 +153,8 @@ def session_prompt(plan, spec, state):
 Read AGENTS.md, docs/Execution-Plans.md, master {plan.path}, ordered queue
 {plan.queue}, and the selected brief
 {state['task']['brief']}; follow only applicable owning contracts and source.
+Apply docs/Mandates/Test-Scope-Mandate.md before adding or restoring coverage;
+do not recreate excluded non-product tests for task briefs or old task histories.
 Use these exact checkout-relative paths. Resolve other document links relative
 to their containing document; do not infer filenames from titles or launcher names.
 Your coordinator model for this session is {spec.model} {spec.effort}.

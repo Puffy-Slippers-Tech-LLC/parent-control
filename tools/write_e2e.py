@@ -391,6 +391,8 @@ findings when available, checking them against current source and evidence.
 """
     common = f"""
 Task {task}: follow AGENTS.md and {PLAN}, using its scoped reading routes.
+Apply docs/Mandates/Test-Scope-Mandate.md before adding or restoring coverage;
+do not recreate excluded non-product tests for task briefs or old qualifications.
 This tools/write-e2e session stops at the phase boundary below.
 {vm_instructions}
 

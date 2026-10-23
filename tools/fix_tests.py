@@ -185,6 +185,8 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'This is one independent repair attempt in tools/fix-tests. '
             + instructions + 'Preserve unrelated work. Follow AGENTS.md '
             'and docs/Approval-Tools.md and tests/README.md#handling-test-failures. '
+            'Apply docs/Mandates/Test-Scope-Mandate.md before adding or restoring coverage; '
+            'do not recreate excluded non-product tests for stale selectors or repair histories. '
             'Current product behavior alone never proves a test is wrong. For a behavioral '
             'mismatch, preserve evidence and identify the test, expected versus actual results '
             'and authoritative requirement. Before accepting changed behavior or altering '

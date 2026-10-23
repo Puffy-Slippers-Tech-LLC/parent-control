@@ -30,7 +30,6 @@ MAX_FILES = 60000
 MAX_SOURCE_BUDGETS = 64
 MAX_MANIFEST = 64 * 1024 ** 2
 MAX_READ = 16 * 1024 ** 2
-MAX_BYTES = 1024 ** 3
 SCHEMA = 1
 ARCHIVE_SYNC_BYTES = 4 * 1024 ** 2
 ARCHIVE_BYTES_PER_SECOND = 4 * 1024 ** 2
@@ -222,8 +221,8 @@ def safe(info, uid, *, directory=False):
 
 
 def stream_bytes(stream, size, output=None):
-    if type(size) is not int or not 0 <= size <= MAX_BYTES:
-        raise ValueError('bundle: file size exceeds the finite selection limit')
+    if type(size) is not int or size < 0:
+        raise ValueError('bundle: invalid file size')
     result = hashlib.sha256()
     remaining, previous = size, b''
     while remaining:
@@ -276,7 +275,6 @@ class Selection:
         self.session_owners = {}
         self.absent_references = set()
         self.source_budgets, self.previous = [], []
-        self.total_bytes = 0
         self.plan_namespace = plan_namespace
 
     def publication_parent(self, *, create=False):
@@ -635,8 +633,6 @@ class Selection:
         self.logical_bytes = sum(item['bytes'] for item in self.manifest['files'])
         # ZIP_STORED, names, two manifest members, blocks and directory metadata.
         self.projected_bytes = self.logical_bytes + len(data) + len(self.files) * 512 + 65536
-        if self.projected_bytes > MAX_BYTES:
-            raise ValueError('bundle: selection exceeds the 1 GiB bundle limit')
         self.selection_sha256 = digest(data)
         namespace = getattr(self, 'capture_namespace', self.plan_namespace)
         export_journal = None
@@ -893,9 +889,8 @@ class Selection:
                 self.files[entry['path']] = (entry, origin)
             return
         self.files[entry['path']] = (entry, origin)
-        self.total_bytes += entry['bytes']
-        if len(self.files) > MAX_FILES or self.total_bytes > MAX_BYTES:
-            raise ValueError('bundle: finite selection limit exceeded')
+        if len(self.files) > MAX_FILES:
+            raise ValueError('bundle: file count exceeds the finite selection limit')
 
     def plan(self):
         self.revalidate()
@@ -1023,8 +1018,6 @@ def verify_stream(stream):
     """Verify every stored member; never extract archive paths."""
     stream.seek(0, os.SEEK_END)
     size = stream.tell()
-    if size > MAX_BYTES:
-        raise ValueError('bundle: archive exceeds limit')
     if size < 22:
         raise ValueError('bundle: incomplete archive directory')
     stream.seek(-22, os.SEEK_END)
@@ -1076,7 +1069,7 @@ def verify_stream(stream):
                     or not 0 <= item['allocated_bytes'] <= retention.MAX_RETAINED_BYTES):
                 raise ValueError('bundle: invalid source budget provenance')
             path_text(item['journal'])
-        expected, paths, total = ['manifest.json', 'manifest.sha256'], set(), 0
+        expected, paths = ['manifest.json', 'manifest.sha256'], set()
         for index, entry in enumerate(manifest['files']):
             if not isinstance(entry, dict) or set(entry) != {
                     'path', 'bytes', 'allocated_bytes', 'sha256', 'identity', 'allocation', 'member'}:
@@ -1086,7 +1079,7 @@ def verify_stream(stream):
             if (str(path) in paths or entry['member'] != f'files/{index:08d}'
                     or not isinstance(entry['sha256'], str)
                     or re.fullmatch('[0-9a-f]{64}', entry['sha256']) is None
-                    or type(entry['bytes']) is not int or not 0 <= entry['bytes'] <= MAX_BYTES):
+                    or type(entry['bytes']) is not int or entry['bytes'] < 0):
                 raise ValueError('bundle: ambiguous file manifest')
             record, identity_value = entry['allocation'], entry['identity']
             if (not isinstance(record, dict) or set(record) != {
@@ -1134,8 +1127,7 @@ def verify_stream(stream):
                 raise ValueError('bundle: inconsistent storage provenance')
             paths.add(str(path))
             expected.append(entry['member'])
-            total += entry['bytes']
-            if total > MAX_BYTES or archive.getinfo(entry['member']).file_size != entry['bytes']:
+            if archive.getinfo(entry['member']).file_size != entry['bytes']:
                 raise ValueError('bundle: invalid member size')
             with archive.open(entry['member']) as source:
                 if stream_bytes(source, entry['bytes']) != entry['sha256']:

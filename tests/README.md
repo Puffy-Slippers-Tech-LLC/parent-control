@@ -2158,10 +2158,11 @@ original target, attempt, inputs, verdict, cleanup and selected member digest;
 same bytes from another claim do not satisfy them. Preview/apply introduces no
 new acceptance, role downgrade, historical migration or publication gate.
 
-Bundles contain at most 60,000 files, a 64-MiB manifest and 1 GiB total projected
-output. Source depth is at most 32, with at most 256 explicit selections. The
-unchanged export journal accounts all simultaneous old and staging allocations;
-an insufficient budget refuses before rotation. Plan each finite campaign and
+Bundles contain at most 60,000 files and a 64-MiB manifest, without a separate
+bundle byte ceiling. Source depth is at most 32, with at most 256 explicit
+selections. The unchanged 4-GiB export journal budget accounts all simultaneous
+old and staging allocations; an insufficient budget refuses before rotation.
+Plan each finite campaign and
 preserve required proof before another source session can rotate it. Alternate
 two cumulative target bundles when needed; keep each target's newest complete
 bundle within the three-export window and check both after every later export.

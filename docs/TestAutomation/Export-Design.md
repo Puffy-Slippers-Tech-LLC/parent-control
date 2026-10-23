@@ -238,9 +238,11 @@ finishing a task does not release accepted proof still needed by its workflow.
 Missing required evidence blocks acceptance rather than inventing a pass.
 
 Reuse existing limits: three retained generations and 4 GiB allocated blocks per
-journal; 1 GiB projected bundle output, 60,000 files/logical members, 64-MiB
-manifest, depth 32, 256 selections and bounded reads. Charge sealed subowners to
-their parent. Preflight old + seal + staging + committed-unretired + control and
+journal; 60,000 files/logical members, 64-MiB manifest, depth 32, 256 selections
+and bounded reads. Charge sealed subowners to their parent. Bundles have no
+separate byte ceiling; the journal budget still
+admits all simultaneous copies. The per-capture source bound remains unchanged.
+Preflight old + seal + staging + committed-unretired + control and
 recovery bytes/files before allocation, then check actual use before commit.
 Count physical copies on both sides. A pending transaction must recover its
 recorded stage before admitting another.
@@ -927,9 +929,10 @@ oversized current run; finalization preserves that run, while execution startup
 can later retire it after verified recovery. Publications preflight existing plus
 projected payload and check actual old plus staging use; precommit failure leaves
 prior exports intact, committed failure resumes recorded retirement. Bundles
-remain limited to 1 GiB, 60,000 files, 64-MiB manifest, depth 32 and 256 explicit
-selections. Identical records at the same original path deduplicate; identical
-bytes at different paths remain distinct members. Use bounded cumulative replacement and accounting; E03/E04/P12 deliver it without changing
+remain limited to 60,000 files, 64-MiB manifest, depth 32 and 256 explicit
+selections, without a separate bundle byte ceiling. Identical records at the same
+original path deduplicate; identical bytes at different paths remain distinct
+members. Use bounded cumulative replacement and accounting; E03/E04/P12 deliver it without changing
 budgets or provenance merely to fit a campaign.
 
 ### Controller dependency inventory

@@ -7,6 +7,9 @@ the existing tiny private journals and restart allocations; compatible unit
 scheduling remains appropriate, with no cleanup/UI owner or new shared state.
 Terminal-batch verification likewise uses the existing runner_evidence private
 journals and process-local reader counters, without a new resource owner.
+The over-1-GiB bundle regression hashes and verifies pytest-private sparse zero
+files with fixed-size streaming buffers; it allocates no bulk payload blocks,
+publishes no large archive and preserves compatible overlap.
 
 evidence_policy uses bounded in-memory declarations only. E10's plan/document
 integration checks use pytest-private documents, existing tiny owned journals,

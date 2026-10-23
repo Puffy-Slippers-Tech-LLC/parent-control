@@ -661,15 +661,62 @@ def test_malformed_source_selections_are_refused(evidence, kind):
             pytest.fail('malformed selection accepted')
 
 
-def test_oversized_source_and_stale_plan_are_refused(evidence, monkeypatch):
-    root = evidence.allocate({'result.json': b'proof'})
+def test_file_count_limit_and_stale_plan_are_refused(evidence, monkeypatch):
+    root = evidence.allocate({'result.json': b'proof', 'cleanup.json': b'complete'})
     with evidence.select([root]) as selection:
         with pytest.raises(ValueError, match='selection changed'):
             bundle.export(selection, expected='0' * 64)
-    monkeypatch.setattr(bundle, 'MAX_BYTES', 4)
-    with pytest.raises(ValueError, match='limit'):
+    monkeypatch.setattr(bundle, 'MAX_FILES', 1)
+    with pytest.raises(ValueError, match='file count'):
         with evidence.select([root]):
-            pytest.fail('oversized source accepted')
+            pytest.fail('excessive file count accepted')
+
+
+def test_bundle_over_one_gib_is_planned_and_verified_with_retention_still_enforced(
+        evidence, tmp_path, monkeypatch):
+    root = evidence.allocate({'history.zip': b''})
+    source = root / 'history.zip'
+    size = 1024 ** 3 + 1
+    with source.open('r+b') as stream:
+        stream.truncate(size)
+
+    class SparseWriter:
+        """Keep this real ZIP's zero payload sparse instead of writing a GiB."""
+        def __init__(self, stream):
+            self.stream = stream
+
+        def __getattr__(self, name):
+            return getattr(self.stream, name)
+
+        def write(self, data):
+            if data and not data.strip(b'\0'):
+                self.stream.seek(len(data), os.SEEK_CUR)
+                return len(data)
+            return self.stream.write(data)
+
+    archive_path = tmp_path / 'large-evidence.zip'
+    with evidence.select([source]) as selection:
+        plan = selection.plan()
+        assert plan['logical_bytes'] == size
+        assert plan['projected_bytes'] > size
+        with archive_path.open('w+b') as stream:
+            with zipfile.ZipFile(SparseWriter(stream), 'w', compression=zipfile.ZIP_STORED) as archive:
+                with source.open('rb') as original, archive.open('files/00000000', 'w', force_zip64=True) as output:
+                    assert bundle.stream_bytes(original, size, output) == plan['manifest']['files'][0]['sha256']
+                data = bundle.encoded(plan['manifest'])
+                archive.writestr('manifest.json', data)
+                archive.writestr('manifest.sha256', bundle.digest(data))
+            assert stream.tell() > size
+            verified, manifest = bundle.verify_stream(stream)
+            verified.close()
+            assert manifest == plan['manifest']
+        # Removing the bundle ceiling must not bypass publication's existing
+        # simultaneous-space admission or allocate a partial export on refusal.
+        monkeypatch.setattr(bundle.retention, 'MAX_RETAINED_BYTES', 4096)
+        with pytest.raises(bundle.retention.CapacityExceeded):
+            bundle.export(selection, expected=plan['selection_sha256'])
+    assert source.stat().st_size == size
+    assert not list(evidence.exports.path.parent.glob('onpc-evidence-bundle-*'))
 
 
 def archive_bytes(manifest, payload=b'proof', *, extra=None, checksum=None):
@@ -810,15 +857,11 @@ def test_inspection_refuses_unsafe_ranges_and_unselected_paths(evidence, options
     assert evidence.inspect(output, member=str(root / 'result.json'), offset=100) == b''
 
 
-def test_archive_size_and_duplicate_member_names_are_refused(evidence, monkeypatch):
+def test_duplicate_archive_member_names_are_refused(evidence):
     root = evidence.allocate({'result.json': b'proof'})
     with evidence.select([root]) as selection:
         manifest = selection.manifest
     data = archive_bytes(manifest)
-    with monkeypatch.context() as patch:
-        patch.setattr(bundle, 'MAX_BYTES', len(data) - 1)
-        with pytest.raises(ValueError, match='archive exceeds'):
-            bundle.verify_stream(io.BytesIO(data))
     output = io.BytesIO(data)
     with pytest.warns(UserWarning, match='Duplicate name'):
         with zipfile.ZipFile(output, 'a') as archive:

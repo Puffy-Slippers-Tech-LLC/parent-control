@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify Ubuntu/Fedora installed E2E preparation, stopping before worker input."""
+"""Qualify baseline native/activity preparation before installed worker input."""
 import argparse
 import json
 import sys
@@ -13,4 +13,5 @@ if __name__ == '__main__':
     arguments = parser.parse_args()
     sys.exit(main(assets=named_input(vm_source=True, fixture_source=True),
                   selection=json.loads(arguments.fixture_selection),
-                  source_selection=json.loads(arguments.fixture_source_selection)))
+                  source_selection=json.loads(arguments.fixture_source_selection),
+                  baseline_activity=True))

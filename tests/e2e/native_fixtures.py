@@ -1,4 +1,4 @@
-"""Read-only verification of native fixtures prepared by prepare-vm."""
+"""Read-only verification of baseline or attempt-provisioned native fixtures."""
 import hashlib
 import json
 from pathlib import Path
@@ -21,6 +21,7 @@ def guest_source():
     modules = {
         'guest_files': Path(__file__).with_name('guest_files.py'),
         'native_assets': ROOT / 'tests/fixtures/native_assets.py',
+        'baseline_environment': ROOT / 'tests/fixtures/baseline_environment.py',
         'baseline_assets': ROOT / 'tests/fixtures/baseline_assets.py',
         'native_trust': ROOT / 'tests/fixtures/native_trust.py',
         'session_control': Path(__file__).with_name('session_control.py'),
@@ -54,19 +55,34 @@ class NativeFixtures:
         names = (activity_sources() if self.profile == 'activity' else
                  riley_grid_sources() if self.profile == 'riley-grid' else sources())
         selection = getattr(self.verified, 'fixture_selection', None)
+        selected_activity = False
         if selection is not None:
-            require(self.profile in ('native', 'chinese'), 'fixtures:e2e-profile-not-qualified')
-            from e2e_fixture_preparation import asset_hashes
-            prepared = self.verified.fixture_prepared
+            from e2e_fixture_preparation import (ACTIVITY_CALLER, ACTIVITY_SUBSETS,
+                                                 SUBSETS, asset_hashes, qualified_subsets)
+            prepared = getattr(self.verified, 'fixture_prepared', None)
+            require(type(prepared) is dict, 'fixtures:readiness-required')
+            subsets = qualified_subsets(prepared.get('subsets', SUBSETS),
+                caller=prepared.get('caller'), product_free=prepared.get('product_free', False))
+            selected_activity = (self.profile == 'activity' and subsets == ACTIVITY_SUBSETS
+                                 and prepared.get('caller') == ACTIVITY_CALLER)
+            require(self.profile in ('native', 'chinese') or selected_activity,
+                    'fixtures:e2e-profile-not-qualified')
+            require({'controller', 'receipt'} <= set(prepared)
+                    and prepared['controller'] is not None and prepared['receipt'] is not None,
+                    'fixtures:readiness-required')
             prepared['controller'].require_ready(prepared['receipt'])
-            files = asset_hashes(selection)
+            files = asset_hashes(selection, **({'subsets': subsets, 'caller': prepared['caller']}
+                                               if subsets != SUBSETS else {}))
         else:
             files = self.verified.asset_files
         expected = ({name: files[name] for name in names}
                     if self.profile != 'chinese' else {})
         if self.profile not in ('chinese', 'activity'):
             require(len({expected[name] for name in executable_sources()}) == 4, 'native:identical-roles')
-        raw = self.transport.call(['/usr/bin/python3', '-I', '-', action, self.profile,
+        raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
+                                   ('activity-selected' if selected_activity else
+                                    'native-selected' if selection is not None and self.profile == 'native'
+                                    else self.profile),
                                    json.dumps(expected, sort_keys=True)],
                                   input=guest_source(), timeout=90)
         require(type(raw) is bytes and 0 < len(raw) <= 8192, 'native:response-bound')
@@ -74,6 +90,8 @@ class NativeFixtures:
         require(type(value) is dict and raw == (json.dumps(value, sort_keys=True) + '\n').encode(),
                 'native:response-schema')
         self.verified.recheck()
+        if selection is not None:
+            prepared['controller'].require_ready(prepared['receipt'])
         return value
 
     def refuse(self):

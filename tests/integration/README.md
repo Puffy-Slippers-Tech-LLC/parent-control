@@ -190,8 +190,10 @@ reboot preserves the selected bytes and scenario mutations.
 
 ### Ubuntu installed E2E preparation
 
-Clean Ubuntu 26.04 and Fedora 44 installed E2E attempts select their immutable `native`
-runtime input before VM acquisition. After app-snapshot restoration, guarded
+Clean Ubuntu 26.04 and Fedora 44 installed E2E attempts select their immutable runtime
+input before VM acquisition. Unrelated callers retain the `native` closure;
+`BaselineJourneyQualification` binds only `check_e2e_baseline_journey` to the
+finite `native` plus `activity` union. After app-snapshot restoration, guarded
 SSH readiness and fresh credential binding, `InstalledSetup.provision` uses the
 [shared provisioner](../support/README.md#attempt-owned-fixture-provisioning)
 before scenario asset transfer and input. `InstalledJourney` and the
@@ -207,10 +209,15 @@ tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
 tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_installed
 ```
 
-This preparation-only check stops before worker or product assertions. It
-independently checks selected manifest bytes and harmless native use as Riley,
+This preparation-only check selects that baseline union and stops before worker
+or product assertions. It calls the same installed setup and actual
+`NativeFixtures(profile='activity').verify()` before scenario transfer, using
+selected manifest hashes and current attempt readiness. It independently checks
+selected manifest bytes and harmless native and activity use as Riley,
 missing/incompatible refusal, fresh attempt readiness, no-write repeats and
-unchanged selection after actual producer-source edits. Results retain package
+unchanged selection after actual producer-source edits. The actual activity
+consumer also refuses absent, incompatible and prior-generation readiness.
+Results retain package
 metadata and frozen helpers rather than the complete fixture collection.
 Scenario asset mutations remain separate. Watched baseline restoration and
 owned credential, staging, input and transport cleanup are required.
@@ -222,7 +229,8 @@ boundaries; unqualified fixture profiles remain gated. This supplies no customer
 Fedora 44 uses the same installed boundary and preparation-only selector above.
 Its immutable input must match the selected VM and restored guest. Two online
 resume/rebind attempts and two explicit offline Kiosk attachments independently
-verify the native runtime, enforcing SELinux, exact finite admissions and labels.
+verify the selected native/activity runtime, enforcing SELinux, exact finite
+admissions and labels.
 Fresh attempt readiness, prior-generation refusal, unchanged selection after
 producer-source edits and watched restoration remain required on both branches.
 

@@ -91,12 +91,12 @@ def authority():
     return child, parent, source
 
 
-def readback(child, expected):
+def readback(child, expected, *, selected=False):
     require(type(expected) is dict and set(expected) == set(sources())
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
             and len({expected[source] for source in executable_sources()}) == 4)
-    verify_native_policy(expected)
+    verify_native_policy(expected, selected=selected)
     result = {}
     with versioned_directory(child):
         for source, (target, mode) in destinations(child).items():
@@ -151,7 +151,7 @@ def activity_root_file(path, mode=0o600, gid=0, limit=LIMIT):
         return data
 
 
-def verify_native_policy(expected):
+def verify_native_policy(expected, *, selected=False):
     """Read-only Fedora preparation guard; never supplies a product outcome."""
     if session_control.package_format() != 'rpm':
         return
@@ -159,12 +159,13 @@ def verify_native_policy(expected):
                      for role in ('child', 'standard'))
     rules = native_policy_files(expected, children)
     gid = grp.getgrnam('fapolicyd').gr_gid
-    record = json.loads(activity_root_file('/var/lib/onpc-baseline-fixtures.json'))
-    require(set(record) == {'purpose', 'files', 'pending'}
-            and record['purpose'] == 'onpc-reusable-fixtures-v1' and record['pending'] is None)
+    if not selected:
+        record = json.loads(activity_root_file('/var/lib/onpc-baseline-fixtures.json'))
+        require(set(record) == {'purpose', 'files', 'pending'}
+                and record['purpose'] == 'onpc-reusable-fixtures-v1' and record['pending'] is None)
     for path, data in rules.items():
         spec = {'sha256': hashlib.sha256(data).hexdigest(), 'uid': 0, 'gid': gid, 'mode': 0o644}
-        require(record['files'].get(path) == spec
+        require((selected or record['files'].get(path) == spec)
                 and activity_root_file(path, 0o644, gid) == data
                 and not os.path.lexists(path + '.onpc-baseline-new'))
     def command(argv):
@@ -263,6 +264,78 @@ def activity_readback(expected):
     return {'files': result, 'native_trust': True}
 
 
+def selected_activity_readback(expected):
+    """Independent read of the attempt's finite activity union, without legacy receipts."""
+    try:
+        import native_trust as trust
+    except ImportError:
+        from tests.fixtures import native_trust as trust
+    require(os.geteuid() == 0 and type(expected) is dict
+            and set(expected) == set(activity_sources())
+            and all(type(value) is str and len(value) == 64
+                    and all(c in '0123456789abcdef' for c in value)
+                    for value in expected.values()))
+    read = activity_root_file
+    backend = trust.validate_backend_record(json.loads(read(trust.BACKEND_RECORD)))
+    target = 'fedora' if session_control.package_format() == 'rpm' else 'ubuntu'
+    metadata = backend['metadata']
+    config = read(trust.BACKEND_CONFIG, metadata['mode'], metadata['gid'])
+    require(backend['complete'] and backend['os_id'] == target
+            and bytes.fromhex(backend['after_hex']) == config
+            and trust.file_backend_config(config, target) == config
+            and not os.path.lexists(trust.BACKEND_PENDING)
+            and not os.path.lexists(trust.TRUST_PENDING))
+    files, entries = {}, {}
+    for source, path in zip(activity_sources(), (ACTIVITY_EXECUTABLE,
+                            *(ACTIVITY_PREFIX + '/' + name for name in GUI_FILES))):
+        mode = 0o755 if path == ACTIVITY_EXECUTABLE else 0o644
+        raw = read(path, mode)
+        require(hashlib.sha256(raw).hexdigest() == expected[source])
+        entries[path] = {'size': len(raw), 'sha256': expected[source]}
+        files[source] = {'sha256': expected[source], 'mode': mode}
+    gid = grp.getgrnam('fapolicyd').gr_gid
+    require(trust.trust_entries(read('/etc/fapolicyd/trust.d/onpc-fixture-runtime.trust',
+                                    gid=gid)) == entries)
+
+    def command(argv):
+        result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+            check=True, timeout=30, env={**os.environ, 'LC_ALL': 'C'})
+        require(len(result.stdout) <= 33554432 and len(result.stderr) <= LIMIT)
+        return result.stdout.decode('utf-8')
+
+    cli = trust.native_tool_paths(target)['cli']
+    require(Path('/usr/sbin/fapolicyd-cli').resolve() == Path(cli))
+    data = read(cli, 0o755, limit=16777216)
+    if target == 'fedora':
+        require(command(['rpm', '-qf', '--queryformat', '%{NAME}', cli]) == 'fapolicyd')
+        checksums = command(['rpm', '-q', '--queryformat',
+                            '%{FILEDIGESTALGO}\n[%{FILENAMES}\t%{FILEDIGESTS}\n]', 'fapolicyd']).splitlines()
+        require(checksums and checksums[0] == '8')
+        matches = [line.split('\t')[1] for line in checksums[1:]
+                   if line.split('\t')[0] == cli and len(line.split('\t')) == 2]
+        require(matches == [hashlib.sha256(data).hexdigest()])
+    else:
+        require(command(['dpkg-query', '-S', cli]).strip() == 'fapolicyd: ' + cli)
+        matches = [line.split()[0] for line in command(
+            ['dpkg-query', '--control-show', 'fapolicyd', 'md5sums']).splitlines()
+            if len(line.split()) == 2 and line.split()[1] == cli.lstrip('/')]
+        require(matches == [hashlib.md5(data).hexdigest()])
+    from_paths = [path for path, _ in source_destinations('@other@').values()
+                  if path.startswith(PREFIX + '/')]
+    from_paths.extend(legacy_executable_paths(prefix=PREFIX))
+    from_paths.extend(('/opt/onpc-test-fixtures-command/native-fixture',
+                       '/opt/onpc-test-fixtures-whitespace/native fixture'))
+    rows = {path: [] for path in (*entries, *from_paths)}
+    for line in command([cli, '--dump-db']).splitlines():
+        fields = trust.database_row(line)
+        if fields is not None and fields[1] in rows:
+            rows[fields[1]].append(fields)
+    require(all(rows[path] == [['filedb', path, str(spec['size']), spec['sha256']]]
+                for path, spec in entries.items())
+            and all(not rows[path] for path in from_paths))
+    return {'files': files, 'native_trust': True}
+
+
 def product_tree(g, path, parent):
     """Bounded read-only preservation witness for installed product directories.
 
@@ -312,7 +385,10 @@ def product_tree(g, path, parent):
 
 def execute(action, expected, profile='native'):
     require(action in ('read', 'refuse'))
-    require(profile in ('native', 'chinese', 'riley-grid', 'activity'))
+    require(profile in ('native', 'native-selected', 'chinese', 'riley-grid', 'activity', 'activity-selected'))
+    if profile == 'activity-selected':
+        require(action == 'read')
+        return selected_activity_readback(expected)
     if profile == 'activity':
         require(action == 'read')
         return activity_readback(expected)
@@ -366,7 +442,7 @@ def execute(action, expected, profile='native'):
     elif profile == 'riley-grid':
         result = riley_readback(child, expected)
     else:
-        result = readback(child, expected)
+        result = readback(child, expected, selected=profile == 'native-selected')
     require(session_control.source_session(session_control.sessions(), parent.pw_uid) == entry)
     return result
 

@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Required tasks: C04o, C04p, C04l, C04s, C04r, C04i, C04w.
+Required tasks: C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j1.
 Estimate: 30–60 min; session exception: complete ordered baseline qualification history.
 
 Apply the [master contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract),
@@ -44,7 +44,7 @@ After a repair, run the affected host regressions, including composition
 preflight, actual worker order/refusals, decoder and independent public effect
 comparisons with finite timeouts. The outstanding Ubuntu COMPLETE history uses
 `tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_baseline_journey'`.
-Run Fedora only if its retained pass is missing or fails applicability review,
+Run Fedora only if no complete pass was recorded or a concrete change invalidates it,
 using the same selector and explicit target selection. Keep each complete 1800-second
 history and original observation/freshness bounds.
 Resolve any newly independent operation through the prerequisite contract, not
@@ -53,9 +53,10 @@ by weakening results or growing this composition into a provider project.
 Publish exact candidate/package/source/assets, baseline/fixture and provider
 identities, complete caller/composition, command, values, ordered public outcomes,
 timeout, collection and restoration in the recipe/catalogue. Map each required
-baseline/C05 assertion to its retained per-target result; preserve inspectable
-reports through the plan's accepted-evidence route, rather than only report
-summaries or short-lived links. Include observed ordinary-route gaps for the
+baseline/C05 assertion to its recorded per-target result under the
+[completion policy](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
+Do not collect proof bundles, repair expired report links or rerun passed work
+because diagnostic files have rotated. Include observed ordinary-route gaps for the
 C06a/C06 handoff without adding deliberate-breach tests to this baseline.
 Renew invalidated earlier both-target operation scope after shared edits.
 Finish collection, workers,
@@ -79,20 +80,69 @@ observations through `restore-disabled`, then failed at `restore-saved` after
 guard refused an unknown, visible modal alert without an application/surface ID.
 This was not the history deadline. No product defect or alert owner is established.
 
-The previous handoff reports a verified 683-member cumulative bundle for complete
-results, the alert diagnostic, callers, review, host checks and cleanup. Resolve
-and verify its exact retained members through the plan's accepted-evidence route
-before reuse; the [catalogue status](../TestAutomation/E2E-Building-Blocks.md#c04j-complete-baseline-composition)
-and this summary alone are not inspectable proof. The handoff records both
-targets restored and independently confirmed off; workers/callbacks closed and serial cleanup
-completed. No developer decision is pending. Diagnose the Ubuntu alert in the
+The previous handoff recorded complete Fedora results, the alert diagnostic,
+callers, host checks and cleanup; archive rotation does not invalidate that pass.
+The [catalogue status](../TestAutomation/E2E-Building-Blocks.md#c04j-complete-baseline-composition)
+retains the assertion boundaries. Both targets were restored and independently
+confirmed off; workers/callbacks closed and serial cleanup completed.
+No developer decision is pending. Diagnose the Ubuntu alert in the
 actual Parent desktop through bounded maintained maintenance reproduction before
 another formal attempt. Preserve the unknown-prompt refusal and all final save,
 settings and balance assertions. Renew Ubuntu's COMPLETE history after repair;
 reuse Fedora's pass only if its exact candidate/caller/provider scope remains
 valid. Shared changes require both-target applicability review and renewal of
-invalidated histories. Keep this row unchecked and the pointer on C04j.
+invalidated histories. C04j1 has passed; C04j remains unchecked and is next.
 
 Acceptance requires both complete target histories, applicable separate feature
 and pause evidence, and verified collection/restoration. A bounded maintenance
 reproduction can diagnose the alert but cannot supply the missing Ubuntu pass.
+
+## Selected-input prerequisite
+
+C04j1 passed both targets' actual online/offline installed preparation and selected
+activity verifier; see the [result and applicability decision](../TestAutomation/E2E-Building-Blocks.md#c04j1-selected-activity-input-preparation).
+The fixed baseline caller now selects native plus activity with current readiness
+and selected runtime readback. Its earlier native-only/profile-refusal gap is
+resolved. The changed caller/input envelope means Fedora's earlier complete pass
+remains historical and requires renewal for this envelope; separate feature and
+pause evidence remains reusable. This supplies no missing customer acceptance.
+
+Resume the bounded Parent-desktop alert diagnosis before the missing complete
+Ubuntu history. Preserve every assertion, prompt refusal and the 1800-second
+limit, and renew the affected complete Fedora history.
+
+The prerequisite-discovery session changed no executable source and ran no formal installed history.
+Ubuntu app-snapshot preparation succeeded, then owned stop restored the baseline;
+both guests were independently observed off. Separate feature/pause evidence,
+all original failures and the import repair remain preserved.
+Independent Sol High review passed after historical scheduling wording was
+clarified. All existing rows retain their completion, relative order and scope;
+738 scoped host checks, five-document link checks and read-only plan validation
+passed. At that checkpoint the next selection was unchecked C04j1, with five unfinished rows.
+Serial recovery passed for both targets, and final host recovery succeeded after
+the unrelated active test released its lock. This task's workers ended; no
+foreign process or result was changed. Owned cleanup is complete.
+
+## Historical response repair checkpoint
+
+The rejected parity rewrite was reversed. The original queue scopes, order,
+dependencies and completion states were restored; C04j and both C05 gates still
+require their complete histories. At that checkpoint C04j remained unchecked
+and Next task remained C04j. No activity-fixture prerequisite had been accepted
+or completed; the later source diagnosis and unchecked C04j1 insertion above
+supersede that scheduling state without granting acceptance.
+
+The later bounded diagnostic stopped before the alert at a standalone fixture
+import. Its mechanical import closure repair remains in place; 58 focused
+checks and the recorded 400-check host result passed. The subsequent review
+reported an unqualified selected-input activity profile. Resolve that preparation
+boundary through maintained shared routes without weakening any assertion;
+then resume the bounded Parent-desktop diagnostic before another formal history.
+These partial results supply no missing Ubuntu installed acceptance.
+
+Response repair validation: independent Sol High scope review passed against
+all 37 retained queue rows; 315 scoped host consistency checks and nine-document
+link checks passed. The launcher then selected C04j with four unfinished rows.
+Both guests were independently observed off, and serial recovery/cleanup passed
+after validation. No new installed run, product/source edit, staging, commit or
+push occurred in this response repair; unrelated work remains preserved.

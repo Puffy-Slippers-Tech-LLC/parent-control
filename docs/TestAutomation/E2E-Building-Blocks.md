@@ -1056,6 +1056,38 @@ Observe the same session/request after a wait and reacquire both recipient
 proofs; only the same empty native input field may wait for bounded readback.
 Replacement or other refusal stops immediately, without another input.
 
+#### C04j1 selected activity input preparation
+
+`check_fixture_e2e_installed` qualifies the fixed baseline caller's immutable
+`native` plus `activity` union through `prepare_installed_setup`, including the
+actual `NativeFixtures(profile='activity').verify()` before asset or worker
+input. Other callers retain native-only defaults. Activity hashes come from the
+selected manifest; verification uses current attempt readiness and independent
+runtime trust readback rather than the legacy embedded-fixture receipt.
+
+The actual command was
+`tools/run-tests integration --vm 'onpc-Ubuntu26.04,onpc-Fedora44' check_fixture_e2e_installed`:
+Ubuntu passed in 18.6 minutes and Fedora in 11.7 minutes. Each passed two online
+resume/rebind and two explicit offline attachment attempts, exact selected
+bytes/modes/role owners/native admissions, harmless native/activity use, frozen
+selection after producer edits, no-write repeats, fresh attempt/boot binding and
+missing/incompatible/stale consumer-readiness refusals. Fedora retained enforcing
+SELinux with exact labels/admissions. Collection and baseline restoration passed;
+serial owned cleanup passed and both guests were independently observed off.
+
+Existing affected host consumers passed. New unit coverage is limited to four
+shared attempt-readiness cases; wrapper/helper matrices were removed under the
+[test scope mandate](../Mandates/Test-Scope-Mandate.md). Frozen installed/system
+input closures now include the required `baseline_environment` alias. No product
+backend or package input changed.
+
+This is preparation acceptance only. The baseline caller now selects a different
+input/preparation envelope, with selected activity and current runtime readback.
+Fedora's earlier complete customer pass remains historical; it does not cover
+this new envelope. C04j must renew that affected complete history and diagnose
+Ubuntu's final Parent save before its missing complete history. Separate
+feature/pause results remain reusable; C04, C05 and the E2E queue stay open.
+
 <a id="c04j-complete-baseline-composition"></a>
 
 #### Complete baseline composition
@@ -1063,13 +1095,28 @@ Replacement or other refusal stops immediately, without another input.
 `baseline_journey.PLAN` / `BaselineJourney` and
 `onpc_baseline_journey::run` compose the
 [finite core history](E2E-Scenario-Recipes.md#commands-bounds-and-restoration).
-Fedora's complete history is qualified; Ubuntu remains pending after an unknown
+Fedora retains a historical complete pass for its earlier input envelope;
+the selected-input applicability decision above requires renewal in C04j.
+Ubuntu remains pending after an unknown
 modal alert refused the final Parent restoration input. A partial history and
 outer restoration do not replace missing public restoration or collection.
 Diagnose the actual prompt boundary without bypassing refusal, extending the
 1800-second history limit or removing final assertions. Renew any history
 invalidated by a shared repair; unchanged complete evidence needs exact
 applicability review before reuse.
+
+The rejected parity scope reduction was reversed; C04j retains the entire
+history on both targets. A later diagnostic stopped at a standalone fixture
+import before reaching Ubuntu's final-save alert. The mechanical import repair
+and its recorded 58/400-check results remain; review also reported an
+unqualified selected-input activity profile. C04j1 resolved that finite
+installed native/activity preparation gap through the actual online/offline
+boundary and activity verifier, as recorded above. C04j resumes the alert
+diagnosis and affected complete histories without new customer acceptance.
+Neither partial diagnostic nor response repair
+supplies the missing Ubuntu pass. Fedora's recorded pass remains historical;
+the concrete input-envelope change above, rather than rotated diagnostics,
+requires renewal. Completed prerequisite tasks remain completed.
 
 The caller owns order, values, immutable per-approval captures and comparison
 endpoints. Shared operations own public inputs, guarded authentication, native

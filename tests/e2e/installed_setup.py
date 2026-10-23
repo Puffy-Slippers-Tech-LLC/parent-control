@@ -12,6 +12,7 @@ from guest_inputs import Bundle
 def inputs(root):
     return Bundle(root, [('Makefile', 'install-source/Makefile'),
         # Guest enforcement helpers use these maintained flat fixture aliases.
+        ('tests/fixtures/baseline_environment.py', 'baseline_environment.py'),
         ('tests/fixtures/baseline_assets.py', 'baseline_assets.py'),
         ('tests/fixtures/native_assets.py', 'native_assets.py'),
         ('tests/fixtures/native_trust.py', 'native_trust.py'),
@@ -84,13 +85,15 @@ class InstalledSetup:
         self.directory, self.verified, self.transport = directory, verified, transport
         self.attempted = False
 
-    def provision(self, guard, *, fixture_selection=None, observer=None):
+    def provision(self, guard, *, fixture_selection=None, observer=None,
+                  fixture_subsets=('native',), fixture_caller=None):
         """Refresh this attempt's guarded helpers, including on reused snapshots."""
         require(not self.attempted, 'setup:already-attempted')
         self.attempted = True
         guard()
         if fixture_selection is not None:
-            from e2e_fixture_preparation import validate_input
+            from e2e_fixture_preparation import qualified_subsets, validate_input
+            qualified_subsets(fixture_subsets, caller=fixture_caller)
             fixture_selection = validate_input(fixture_selection)
         self.verified.recheck()
         payload = self.directory / 'input'
@@ -114,7 +117,10 @@ class InstalledSetup:
                        'directory': self.directory}
             if observer is not None:
                 observer('before', context)
-            prepared = prepare(self.transport, self.verified.lease, self.directory, fixture_selection)
+            options = ({'subsets': fixture_subsets, 'caller': fixture_caller}
+                       if fixture_subsets != ('native',) else {})
+            prepared = prepare(self.transport, self.verified.lease, self.directory,
+                               fixture_selection, **options)
             if observer is not None:
                 observer('ready', prepared)
             self.verified.fixture_selection = fixture_selection

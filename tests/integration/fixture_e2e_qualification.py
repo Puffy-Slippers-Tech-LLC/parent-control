@@ -30,6 +30,37 @@ from tools.test_storage import authenticated_input
 from tests.fixtures import native_assets
 
 
+def activity_readiness_refusals(vm, verified, previous):
+    """Exercise the actual consumer guard without permitting a guest read."""
+    from native_fixtures import NativeFixtures
+    from private_artifacts import EvidenceError
+    current = verified.fixture_prepared
+    def forbidden(*_args, **_kwargs):
+        raise system.Error('fixture-e2e:unready-consumer-released')
+    guarded = SimpleNamespace(config=dict(vm.config), guard=vm.guard, call=forbidden)
+    candidates = [
+        ('missing', None, 'fixtures:readiness-required'),
+        ('incompatible', {**current, 'subsets': ('native',), 'caller': None},
+         'fixtures:e2e-profile-not-qualified')]
+    if previous:
+        candidates.append(('stale', {**current, **previous},
+                           'fixture-provision:terminal-attempt'))
+    result = {}
+    try:
+        for label, prepared, reason in candidates:
+            verified.fixture_prepared = prepared
+            try:
+                NativeFixtures(guarded, verified, profile='activity').verify()
+            except (ValueError, EvidenceError) as error:
+                system.require(str(error) == reason, 'fixture-e2e:consumer-refusal-changed')
+                result[label] = reason
+            else:
+                raise system.Error('fixture-e2e:unready-consumer-accepted')
+    finally:
+        verified.fixture_prepared = current
+    return result
+
+
 def selected_target():
     name = proof.prepare_vm.vm_config.selected().name
     system.require(name in proof.TARGETS, 'fixture-e2e:target-not-qualified')
@@ -57,14 +88,14 @@ def refused_inputs(context, selection):
     return result
 
 
-def observer(selection, manifest, result, previous, source):
+def observer(selection, manifest, result, previous, source, *, subsets=preparation.SUBSETS):
     state = {}
     def observe(stage, context):
         vm, lease, directory = (context[key] for key in ('vm', 'lease', 'directory'))
         if stage == 'before':
             state['refusals'] = refused_inputs(context, selection)
             shared.wait_environment(vm, lease, directory)
-            before = proof.audit(vm, manifest, preparation.SUBSETS)
+            before = proof.audit(vm, manifest, subsets)
             system.require(before['installed'] and not before['files']
                 and not before['unselected_present'] and not before['staging'],
                 'fixture-e2e:capture-not-clean')
@@ -72,21 +103,22 @@ def observer(selection, manifest, result, previous, source):
             return
         system.require(stage == 'ready' and 'before' in state, 'fixture-e2e:observer-order')
         controller, receipt = context['controller'], context['receipt']
-        observed = proof.audit(vm, manifest, preparation.SUBSETS)
-        members = proof.validate_readback(observed, manifest, preparation.SUBSETS,
+        observed = proof.audit(vm, manifest, subsets)
+        members = proof.validate_readback(observed, manifest, subsets,
                                          receipt.binding, installed=True)
         proof.unchanged_policy(state['before'], observed)
         witnesses = proof.runtime_witnesses(vm, members, observed['accounts'], selection.target,
-                                           only=(native_assets.executable_path('A'),))
-        before_repeat = proof.audit(vm, manifest, preparation.SUBSETS)
+            only=(native_assets.executable_path('A'),) +
+                 ((native_assets.ACTIVITY_EXECUTABLE,) if 'activity' in subsets else ()))
+        before_repeat = proof.audit(vm, manifest, subsets)
         edit = shared.source_edit_proof(source, selection, manifest)
         system.require(fixture_execution.verify(selection) == manifest,
                        'fixture-e2e:selected-input-changed')
-        repeated = controller.provision(selection, preparation.SUBSETS,
+        repeated = controller.provision(selection, subsets,
                                          attempt_id=preparation.attempt_id(directory))
         controller.require_ready(repeated)
         system.require(repeated == receipt, 'fixture-e2e:version-switched')
-        final = proof.audit(vm, manifest, preparation.SUBSETS)
+        final = proof.audit(vm, manifest, subsets)
         proof.verify_repeat(before_repeat, final)
         proof.unchanged_policy(state['before'], final)
         if previous:
@@ -110,7 +142,8 @@ def observer(selection, manifest, result, previous, source):
     return observe
 
 
-def run_history(suite, directory, assets, selection, observe, mode):
+def run_history(suite, directory, assets, selection, observe, mode, *, baseline_activity=False,
+                result=None, previous=None):
     """Actual Suite online branch and KioskEntry's separate offline attachment."""
     lease = suite.lease
     with lease:
@@ -145,15 +178,34 @@ def run_history(suite, directory, assets, selection, observe, mode):
         context = SimpleNamespace(directory=directory, verified=verified, lease=lease,
                                   fixture_selection=selection.record(),
                                   asset_transfer=AssetTransfer(verified))
-        prepare_installed_setup(context, vm, lease.guard, observer=observe)
+        if baseline_activity:
+            context.fixture_subsets = ('native', 'activity')
+            context.fixture_caller = 'check_e2e_baseline_journey'
+        prepared = prepare_installed_setup(context, vm, lease.guard, observer=observe)
+        if baseline_activity:
+            # Exercise the actual consumer before any worker starts. Include
+            # its independent reads in the no-write audit, not just provision().
+            system.require(prepared['activity_fixture'] == {
+                'verified_files': len(native_assets.activity_sources()),
+                'native_trust': True, 'independent_readback': True},
+                'fixture-e2e:activity-consumer-not-verified')
+            result['consumer_refusals'] = activity_readiness_refusals(vm, verified, previous)
+            manifest = fixture_execution.verify(selection)
+            final = proof.audit(vm, manifest, context.fixture_subsets)
+            proof.verify_repeat(result['readback'], final)
+            result['activity_fixture'] = prepared['activity_fixture']
         assets_receipt = context.asset_transfer.observe(ReadOnlyObservations(vm))
         verified.fixture_prepared['controller'].require_ready(verified.fixture_prepared['receipt'])
         return assets_receipt
 
 
-def qualify_pinned(directory, assets, selection, manifest, source):
+def qualify_pinned(directory, assets, selection, manifest, source, *, baseline_activity=False):
     suite = Suite(open_source)
-    result = {'target': selected_target(), 'selection': selection.record(), 'attempts': []}
+    subsets = ('native', 'activity') if baseline_activity else preparation.SUBSETS
+    result = {'target': selected_target(), 'selection': selection.record(),
+              'subsets': list(subsets),
+              'caller': preparation.ACTIVITY_CALLER if baseline_activity else None,
+              'attempts': []}
     private = directory / 'private'
     private.mkdir(mode=0o700)
     suite.commands = system.EvidenceCommands(private)
@@ -173,8 +225,12 @@ def qualify_pinned(directory, assets, selection, manifest, source):
             attempt = {'app_snapshot_mode': mode,
                        'restore_owner': 'Suite.prepare_case' if mode == 'online' else
                                         'KioskEntryQualification.attach_installed_snapshot'}
+            observe = observer(selection, manifest, attempt, previous, source, subsets=subsets)
+            prior = dict(previous)
             attempt['assets'] = run_history(suite, history, history / 'input', selection,
-                        observer(selection, manifest, attempt, previous, source), mode)
+                        observe, mode, **({'baseline_activity': True, 'result': attempt,
+                                          'previous': prior}
+                                         if baseline_activity else {}))
             system.require(suite.lease.state['phase'] == 'complete'
                 and suite.lease.view.snapshot()[1] and suite.lease.view.domain_id is None,
                 'fixture-e2e:attempt-cleanup-incomplete')
@@ -196,7 +252,7 @@ def qualify_pinned(directory, assets, selection, manifest, source):
     return result
 
 
-def qualify(directory, assets, selection, source_selection):
+def qualify(directory, assets, selection, source_selection, *, baseline_activity=False):
     target = proof.TARGETS[selected_target()]
     selection = fixture_execution.Selection.from_record(
         preparation.validate_input(selection, target=target))
@@ -206,10 +262,11 @@ def qualify(directory, assets, selection, source_selection):
             manifest = fixture_execution.verify(selection)
             fixture_provision.authenticated_bundle(selection)
             shared.source_edit_proof(source, selection, manifest)
-            return qualify_pinned(directory, assets, selection, manifest, source)
+            return qualify_pinned(directory, assets, selection, manifest, source,
+                **({'baseline_activity': True} if baseline_activity else {}))
 
 
-def main(*, assets, selection, source_selection):
+def main(*, assets, selection, source_selection, baseline_activity=False):
     directory = None
     try:
         system.require(os.geteuid() == 0, 'fixture-e2e:root-required')
@@ -217,7 +274,8 @@ def main(*, assets, selection, source_selection):
         os.umask(0o077)
         with session():
             directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-fixture-e2e-'))
-            result = qualify(directory, assets, selection, source_selection)
+            result = qualify(directory, assets, selection, source_selection,
+                             baseline_activity=baseline_activity)
             (directory / 'result.json').write_bytes(system.baseline.encode(result))
         print('fixture-e2e: passed; evidence=' + str(directory), flush=True)
         return 0

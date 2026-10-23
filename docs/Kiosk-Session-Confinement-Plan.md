@@ -74,8 +74,10 @@ The queue is the sole order. C04p1/p delivered shared fixture/core-effects
 applicability; C04l/s/r/i delivered language, request-choice, reminder and About
 coverage, and C04l/w delivered the finite human-pause/session-lifetime checks.
 Renew only missing or invalidated evidence. C04j's core orchestration is
-implemented; its Ubuntu complete-history qualification remains blocked by the
-final Parent restoration alert. C04 then audits readiness, and C05u/f accept
+implemented; C04j1 qualified its selected native/activity input preparation on
+both targets. C04j now diagnoses the Ubuntu final Parent restoration alert and
+completes the affected histories under the recorded input-envelope applicability
+decision. C04 audits readiness, and C05u/f accept
 matching retained complete evidence or execute missing/invalidated histories.
 
 New general feature bindings belong to the E2E queue, including the already

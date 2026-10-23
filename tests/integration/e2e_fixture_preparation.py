@@ -1,9 +1,20 @@
-"""Qualified E2E native closure after owned restoration and SSH readiness."""
+"""Qualified E2E runtime closures after owned restoration and SSH readiness."""
 from tools import fixture_execution, fixture_manifest, fixture_provision
 from system_fixture_preparation import attempt_id, guest_target, register_staging
 import xml.etree.ElementTree as ET
 
 SUBSETS = ('native',)
+ACTIVITY_SUBSETS = ('native', 'activity')
+ACTIVITY_CALLER = 'check_e2e_baseline_journey'
+
+
+def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
+    """Only the baseline's installed caller may select the activity closure."""
+    if (type(subsets) is not tuple or
+            (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
+             and caller == ACTIVITY_CALLER and not product_free))):
+        raise ValueError('fixtures:e2e-profile-not-qualified')
+    return subsets
 
 
 def online_restore(lease):
@@ -39,7 +50,9 @@ def require_product_free_restore(lease):
         raise ValueError('fixtures:e2e-product-free-baseline-required')
 
 
-def prepare(vm, lease, directory, selection, *, product_free=False):
+def prepare(vm, lease, directory, selection, *, product_free=False,
+            subsets=SUBSETS, caller=None):
+    subsets = qualified_subsets(subsets, caller=caller, product_free=product_free)
     guest = lease.capture.state['guest']
     target = guest_target(guest)
     if product_free:
@@ -54,19 +67,26 @@ def prepare(vm, lease, directory, selection, *, product_free=False):
     identity = attempt_id(directory)
     controller = fixture_provision.Provisioner(lease, vm,
         register_staging=lambda path: register_staging(directory, lease, identity, path))
-    receipt = controller.provision(record, SUBSETS, attempt_id=identity)
+    receipt = controller.provision(record, subsets, attempt_id=identity)
     controller.require_ready(receipt)
     return {'vm': vm, 'lease': lease, 'directory': directory,
             'controller': controller, 'receipt': receipt,
+            'subsets': subsets, 'caller': caller,
             **({'product_free': True} if product_free else {})}
 
 
-def asset_hashes(selection):
+def asset_hashes(selection, *, subsets=SUBSETS, caller=None):
     """Bind legacy public observation keys to the selected runtime bytes."""
+    subsets = qualified_subsets(subsets, caller=caller)
     manifest = fixture_execution.verify(selection_record(selection))
     declarations = fixture_manifest.declarations()
     from tests.fixtures import native_assets
     destinations = native_assets.source_destinations('@other@')
+    if subsets == ACTIVITY_SUBSETS:
+        destinations.update(zip(native_assets.activity_sources(), (
+            (native_assets.ACTIVITY_EXECUTABLE, 0o755),
+            *((native_assets.ACTIVITY_PREFIX + '/' + name, 0o644)
+              for name in native_assets.GUI_FILES))))
     return {source: next(manifest['members'][key]['sha256']
                         for key, item in declarations.items()
                         if item['destination'] == destination)

@@ -1,4 +1,4 @@
-"""Private pytest files, in-memory guest/transport doubles and waited Perl only.
+"""Private pytest files, in-memory doubles and bounded waited Python/Perl children.
 
 No live account, VM, display, bus, shared cache or heavy fixture build. Compatible
 in unit and cleanup scheduling; all ownership mutations remain process-local doubles.
@@ -8,6 +8,8 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -35,6 +37,28 @@ def private_directories(path, root):
     while path != root:
         path.chmod(0o755)
         path = path.parent
+
+
+def test_generated_guest_module_closure_imports_without_checkout():
+    # Exercise the real embedded modules, stopping before request handling or
+    # guest actions so no account, filesystem or session probes can run.
+    modules, boundary, _ = controller.guest_source().partition(
+        b'import io\nrequest = sys.argv.pop()\n')
+    assert boundary
+    program = '''
+import importlib.util
+import sys
+assert importlib.util.find_spec('tests') is None
+exec(sys.stdin.buffer.read())
+assert 'tests' not in sys.modules
+assert baseline_assets.desktop_settings_files is baseline_environment.desktop_settings_files
+assert baseline_assets.automatic_update_files is baseline_environment.automatic_update_files
+assert baseline_assets.ASSETS is native_assets.ASSETS
+'''
+    result = subprocess.run([sys.executable, '-I', '-S', '-c', program],
+                            input=modules, capture_output=True, timeout=15, check=False)
+    assert result.returncode == 0, result.stderr.decode(errors='replace')
+    assert not result.stdout and not result.stderr
 
 
 @pytest.fixture
@@ -314,6 +338,51 @@ def test_controller_uncertain_transport_never_replays(monkeypatch):
     with pytest.raises(OSError): fixture.verify()
     with pytest.raises(EvidenceError, match='replay'): fixture.verify()
     assert fixture.failed and transport.call.call_count == 1
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'stale', 'stale-after-read'])
+def test_selected_activity_checks_current_readiness_before_and_after_each_read(monkeypatch, fault):
+    # Shared execution identity: a fixture read cannot release readiness from
+    # another attempt, including a change during the read. The installed
+    # qualification owns fixture contents and caller composition.
+    import e2e_fixture_preparation as preparation
+    from tests.fixtures.native_assets import activity_sources
+    events = []
+    hashes = {name: hashlib.sha256(name.encode()).hexdigest() for name in activity_sources()}
+    projected = Mock(return_value=hashes)
+    monkeypatch.setattr(preparation, 'asset_hashes', projected)
+    readiness = Mock()
+    def ready(_):
+        events.append('ready')
+        if fault == 'stale' or fault == 'stale-after-read' and readiness.require_ready.call_count == 2:
+            raise ValueError('fixtures:stale-readiness')
+    readiness.require_ready.side_effect = ready
+    prepared = {'controller': readiness, 'receipt': 'current', 'subsets': ('native', 'activity'),
+                'caller': 'check_e2e_baseline_journey'}
+    if fault == 'missing': prepared = None
+    value = {'files': {name: {} for name in activity_sources()}, 'native_trust': True}
+    def call(argv, **_):
+        assert argv[4] == 'activity-selected'
+        assert json.loads(argv[5]) == hashes
+        events.append('read')
+        return (json.dumps(value, sort_keys=True) + '\n').encode()
+    transport = SimpleNamespace(config={'run': 'owned'}, guard=Mock(), call=Mock(side_effect=call))
+    verified = SimpleNamespace(recheck=Mock(), fixture_selection={'selected': True},
+                               fixture_prepared=prepared)
+    fixture = controller.NativeFixtures(transport, verified, profile='activity')
+    if fault:
+        code = 'readiness-required' if fault == 'missing' else 'stale-readiness'
+        with pytest.raises((EvidenceError, ValueError), match=code): fixture.verify()
+        assert fixture.failed
+        assert transport.call.call_count == int(fault == 'stale-after-read')
+        with pytest.raises(EvidenceError, match='replay'): fixture.verify()
+    else:
+        assert fixture.verify() == {'verified_files': 3, 'native_trust': True,
+                                    'independent_readback': True}
+        assert events == ['ready', 'read', 'ready', 'ready', 'read', 'ready']
+        assert projected.call_count == 2
+
+
 
 
 def test_all_public_fixture_rows_and_default_matches_are_required():

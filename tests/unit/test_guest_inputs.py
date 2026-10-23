@@ -99,7 +99,7 @@ def test_real_setup_closure_imports_without_checkout_or_host_observer(tmp_path):
     assert {'system_guest.py', 'e2e_dynamic_account.py', 'owned_commands.py',
             'guest_install_recipe.py', 'guest/redact.py', 'system_kiosk_confinement.py',
             'system_kiosk_admission.py', 'system_kiosk_feedback.py',
-            'baseline_assets.py', 'native_assets.py'} <= frozen.files.keys()
+            'baseline_environment.py', 'baseline_assets.py', 'native_assets.py'} <= frozen.files.keys()
     assert 'system_removal.py' not in frozen.files
     assert 'watch_activity.py' not in frozen.files
     frozen.stage(tmp_path)

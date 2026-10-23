@@ -319,11 +319,22 @@ def prepare_installed_setup(context, transport, guard, *, observer=None):
     clean = context.lease.capture.state['guest'].get('fixture_boundary') == 'clean'
     options = {}
     if clean:
-        from e2e_fixture_preparation import validate_input
+        from e2e_fixture_preparation import SUBSETS, qualified_subsets, validate_input
+        subsets = qualified_subsets(getattr(context, 'fixture_subsets', SUBSETS),
+            caller=getattr(context, 'fixture_caller', None),
+            product_free=getattr(context, 'product_free', False))
         options = {'fixture_selection': validate_input(getattr(context, 'fixture_selection', None))}
+        if subsets != SUBSETS:
+            options.update(fixture_subsets=subsets, fixture_caller=context.fixture_caller)
         if observer is not None:
             options['observer'] = observer
     prepared = InstalledSetup(context.directory, context.verified, transport).provision(guard, **options)
+    if clean and subsets != SUBSETS:
+        from native_fixtures import NativeFixtures
+        guard()
+        prepared['activity_fixture'] = NativeFixtures(
+            transport, context.verified, profile='activity').verify()
+        guard()
     if getattr(context, 'asset_transfer', None) is not None:
         context.asset_transfer.provision_installed(context.lease, transport)
     if clean:
@@ -384,10 +395,17 @@ class InstalledJourney:
         self.review = review
         self.actions = actions or {}
         if getattr(context, 'fixture_selection', None) is not None:
-            require(all(getattr(action, 'fixture_profile', 'native') in ('native', 'chinese')
+            from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS, SUBSETS
+            activity = (getattr(context, 'fixture_subsets', SUBSETS) == ACTIVITY_SUBSETS
+                and getattr(context, 'fixture_caller', None) == ACTIVITY_CALLER
+                and not getattr(context, 'product_free', False))
+            require(getattr(context, 'fixture_subsets', SUBSETS) == SUBSETS or activity,
+                    'fixtures:e2e-profile-not-qualified')
+            require(all(getattr(action, 'fixture_profile', 'native') in
+                        (('native', 'chinese', 'activity') if activity else ('native', 'chinese'))
                         for action in self.actions.values())
-                    and not any(tag.endswith('native-activity-launch')
-                                for tag in plan.screen_tags.values()),
+                    and (activity or not any(tag.endswith('native-activity-launch')
+                                            for tag in plan.screen_tags.values())),
                     'fixtures:e2e-profile-not-qualified')
         require(set(self.actions) == set(plan.stage_actions.values())
                 and set(plan.stage_actions) <= set(plan.stages), plan.prefix + ':stage-actions')
@@ -657,11 +675,14 @@ class InstalledJourney:
                 if install_current:
                     observed['setup'] = setup.run(guard, verify=False)
                 else:
-                    prepare_installed_setup(context, transport, guard)
+                    prepared = prepare_installed_setup(context, transport, guard)
                     observed['setup'] = {'installed_snapshot': context.installed_snapshot}
+                    if prepared is not None and 'activity_fixture' in prepared:
+                        observed['setup']['activity_fixture'] = prepared['activity_fixture']
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
-            if any(tag.endswith('native-activity-launch') for tag in plan.screen_tags.values()):
+            if ('activity_fixture' not in observed['setup'] and
+                    any(tag.endswith('native-activity-launch') for tag in plan.screen_tags.values())):
                 from native_fixtures import NativeFixtures
                 guard()
                 observed['setup']['activity_fixture'] = NativeFixtures(

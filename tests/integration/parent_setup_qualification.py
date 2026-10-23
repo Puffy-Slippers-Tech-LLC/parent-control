@@ -105,6 +105,8 @@ class ParentJourneyQualification(smoke.Qualification):
     observation_only = False
 
     upgrade_assets = False
+    fixture_subsets = ('native',)
+    fixture_caller = None
 
     def attach_installed_snapshot(self, lease):
         """Reuse a prepared app snapshot; default qualifications stay on baseline."""
@@ -147,6 +149,8 @@ class ParentJourneyQualification(smoke.Qualification):
             context = SimpleNamespace(directory=self.directory, lease=lease, verified=self.verified,
                                       commands=self.commands, host_key=host_key)
             context.fixture_selection = getattr(self, 'fixture_selection', None)
+            context.fixture_subsets = self.fixture_subsets
+            context.fixture_caller = self.fixture_caller
             self.prepare_context(context)
 
             def progress(stage, observed):
@@ -341,6 +345,10 @@ class BaselineAppEffectsQualification(KioskEntryQualification):
 
 
 class BaselineJourneyQualification(KioskEntryQualification):
+    # This fixed caller selects its finite closure before VM acquisition.
+    fixture_subsets = ('native', 'activity')
+    fixture_caller = 'check_e2e_baseline_journey'
+
     @staticmethod
     def journey(context, progress):
         from app_snapshot import snapshot_name

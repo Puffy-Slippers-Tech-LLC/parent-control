@@ -406,6 +406,50 @@ incomplete full scenario. It supplies no HAR09/HAR10, login/logout, product or
 customer acceptance. Unchanged Ubuntu preparation and shared safety proof remain
 applicable; host composition preserves the recorder's stage, seal and shutdown guards.
 
+## Idle fixture maintenance refresh
+
+Ubuntu 26.04 supports a dedicated product-free maintenance guest with the fixed
+`trusted-hard` subset:
+
+```sh
+tools/test-vm --vm onpc-Ubuntu26.04 start --fixture-maintenance
+tools/test-vm --vm onpc-Ubuntu26.04 sync-fixtures
+tools/test-vm --vm onpc-Ubuntu26.04 stop
+```
+
+Start retains authenticated host input A. After fixture source edits, sync builds
+and retains B in the same host owner, verifies A and B, and replaces only the
+same selected destinations and exact native entries. An unchanged selection
+only verifies; it does not rewrite payloads or native policy. Refresh does not
+rebuild product packages or snapshots.
+
+The exclusive maintenance owner proves an idle login-session boundary before
+fixture use. Only the greeter, root/greeter service managers and the owner's
+root SSH observation are allowed; other or unknown sessions refuse. A bounded
+wait permits prior owned root SSH sessions to close. Foreign owners and active
+workers refuse. Arbitrary guest commands, probes, reboot or keyboard input retire
+refresh eligibility before acting. Read-only status, screenshot and domain or
+snapshot observations preserve it.
+
+Readiness binds the exact VM UUID, boot, run, input and diagnostic generation.
+The owner persists pending state before fixture use and publishes readiness only
+after byte, native activation and runtime verification. Uncertainty makes the
+maintenance generation unavailable until normal owned stop/recovery. Both inputs
+remain retained through cleanup. Interrupted record cleanup after completed
+recovery requires independent exact off-state, configuration, snapshot and guest
+audits. This route does not refresh active scenarios, change subsets, promise
+same-boot rollback or enable Fedora refresh.
+
+`tools/run-tests integration --vm onpc-Ubuntu26.04 check_fixture_live_refresh`
+qualifies this engineering boundary. Its two phases use A before editing/building
+B on the host, then independently verify/use B in the unchanged boot/domain,
+preserve baseline/app snapshots and unrelated state, and repeat without writes.
+A real staged lost reply proves unavailable readiness and owned recovery.
+Focused host checks cover busy/session/worker, foreign-owner, corrupt-input and
+different-subset refusal before writes. The watch starts before each phase's
+report owner so its retained storage cannot hold the next phase's report lock.
+This supplies no customer or E2E acceptance credit.
+
 ## Retained-session native dependency update
 
 Stable ID **289** is pending and has no executable binding for the rebuilt

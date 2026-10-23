@@ -69,7 +69,7 @@ def confined_file(root, relative):
         if component.is_symlink():
             raise ValueError('test-runner:invalid-test-path')
     if not candidate.is_file() or not candidate.resolve().is_relative_to(root.resolve()):
-        raise ValueError('test-runner:missing-or-external-test')
+        raise ValueError('test-runner:missing-or-external-test:' + relative)
     return candidate
 
 
@@ -102,6 +102,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     integration.add_argument('--list', action='store_true')
     integration.add_argument('--fixture-selection', help=argparse.SUPPRESS)
     integration.add_argument('--fixture-source-selection', help=argparse.SUPPRESS)
+    integration.add_argument('--fixture-replacement-selection', help=argparse.SUPPRESS)
+    integration.add_argument('--fixture-refresh-phase', choices=('retain-a', 'replace-b'), help=argparse.SUPPRESS)
     system = categories.add_parser('system', allow_abbrev=False)
     system.add_argument('--artifacts', type=Path)
     system.add_argument('--previous-artifacts', type=Path)
@@ -136,11 +138,14 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     vm = categories.add_parser('vm', allow_abbrev=False,
         epilog='Root guest commands: tools/test-vm --vm NAME exec '
                '[--timeout SECONDS] -- COMMAND [ARG ...]. '
-               'Requires an owned running online app snapshot; never restores it.')
+               'Requires an owned running maintenance instance; never restores it. '
+               'Idle Ubuntu fixture refresh: start --fixture-maintenance, then sync-fixtures '
+               'to build and synchronize trusted-hard from current host sources. '
+               'Guest input retires refresh eligibility; stop restores the baseline.')
     for category in (integration, system, e2e, appsnapshot, vm):
         category.add_argument('--vm', help='required configured VM name or ID; optional for declaration listing')
     vm.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reboot',
-                                      'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec',
+                                      'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',
                                       'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                                       'reproduce-kiosk-preferences',
                                       'reproduce-baseline-app-effects', 'reproduce-baseline-auth-pause',
@@ -160,6 +165,9 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'repeat-remembered-return', 'enter-remembered-return'))
     vm.add_argument('keys', nargs='*', type=int)
     vm.add_argument('--new-name')
+    vm.add_argument('--fixture-maintenance', action='store_true',
+                    help='start an idle fixture-maintenance instance; guest input retires refresh eligibility')
+    vm.add_argument('--fixture-selection', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.category == 'system' and sum(
             argument == '--id' or argument.startswith('--id=') for argument in argv) > 1:
@@ -191,6 +199,23 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('vm-probe: use exec -- COMMAND [ARG ...]')
         if (args.action == 'rename') != (args.new_name is not None):
             raise ValueError('test-runner:rename-requires-new-name')
+        if args.fixture_maintenance and args.action != 'start':
+            raise ValueError('test-runner:fixture-maintenance-requires-start')
+        if (args.action == 'sync-fixtures') != (args.fixture_selection is not None):
+            raise ValueError('test-runner:fixture-sync-requires-selection')
+        fixture_options = []
+        if args.fixture_maintenance or args.action == 'sync-fixtures':
+            if configured.name != 'onpc-Ubuntu26.04':
+                raise ValueError('test-runner:fixture-target-not-qualified')
+            if args.fixture_selection is not None:
+                if len(args.fixture_selection) > 8192:
+                    raise ValueError('test-runner:invalid-fixture-selection')
+                sys.path.insert(0, str(root))
+                from tools.fixture_execution import Selection
+                selected = Selection.from_record(json.loads(args.fixture_selection))
+                if selected.target != 'ubuntu':
+                    raise ValueError('test-runner:fixture-target-not-qualified')
+                fixture_options = ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
         if args.new_name is not None:
             if (not args.new_name or len(args.new_name) > 63 or
                     not all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?', label)
@@ -210,7 +235,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         target = confined_file(root, 'tests/integration/vm_control.py')
         return ['/usr/bin/python3', '-B', str(target), *vm_args, '--expected-uuid', identity,
                 args.action, *map(str, args.keys),
-                *(['--new-name', args.new_name] if args.new_name is not None else [])]
+                *(['--new-name', args.new_name] if args.new_name is not None else []),
+                *(['--fixture-maintenance'] if args.fixture_maintenance else []), *fixture_options]
     if args.category == 'integration':
         fixture_options = []
         name = args.test.removesuffix('.py') if args.test is not None else None
@@ -220,6 +246,15 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         transfer = name == 'check_fixture_transfer'
         serial = name in ('check_graphical_serial', 'check_fixture_serial')
         recorded_serial = name == 'check_fixture_recorded_serial'
+        live_refresh = name == 'check_fixture_live_refresh'
+        if live_refresh and not args.list and configured.name != 'onpc-Ubuntu26.04':
+            raise ValueError('test-runner:fixture-target-not-qualified')
+        if (args.fixture_refresh_phase is not None or args.fixture_replacement_selection is not None) and not live_refresh:
+            raise ValueError('test-runner:unexpected-fixture-refresh-selection')
+        if live_refresh and not allow_missing_artifacts and (args.fixture_refresh_phase is None or args.fixture_selection is None
+                or args.fixture_source_selection is None
+                or (args.fixture_refresh_phase == 'replace-b') != (args.fixture_replacement_selection is not None)):
+            raise ValueError('test-runner:incomplete-fixture-refresh-selection')
         sys.path.insert(0, str(root / 'tools'))
         try:
             from test_commands import INSTALLED_E2E_FIXTURE_SELECTORS, PRODUCT_FREE_E2E_FIXTURE_SELECTORS
@@ -244,11 +279,11 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         if args.fixture_source_selection is not None and (
                 args.list or name not in ('check_fixture_system_product_free',
                                           'check_fixture_system_installed', 'check_fixture_e2e_installed',
-                                          'check_fixture_e2e_product_free')
+                                          'check_fixture_e2e_product_free', 'check_fixture_live_refresh')
                 or args.fixture_selection is None):
             raise ValueError('test-runner:unexpected-fixture-source-selection')
         if args.fixture_selection is not None:
-            if args.list or not (bootstrap or installed or installed_e2e or product_free_e2e or transfer or serial or recorded_serial or name == 'check_fixture_provisioning'):
+            if args.list or not (bootstrap or installed or installed_e2e or product_free_e2e or transfer or serial or recorded_serial or live_refresh or name == 'check_fixture_provisioning'):
                 raise ValueError('test-runner:unexpected-fixture-selection')
             if len(args.fixture_selection) > 8192:
                 raise ValueError('test-runner:invalid-fixture-selection')
@@ -268,6 +303,15 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 from tools.fixture_execution import validate_source_selection
                 source = validate_source_selection(json.loads(args.fixture_source_selection), selected)
                 fixture_options += ['--fixture-source-selection', json.dumps(source, sort_keys=True)]
+            if live_refresh:
+                fixture_options += ['--fixture-refresh-phase', args.fixture_refresh_phase]
+                if args.fixture_replacement_selection is not None:
+                    if len(args.fixture_replacement_selection) > 8192:
+                        raise ValueError('test-runner:invalid-fixture-selection')
+                    replacement = Selection.from_record(json.loads(args.fixture_replacement_selection))
+                    if replacement.target != selected.target:
+                        raise ValueError('test-runner:fixture-target-not-qualified')
+                    fixture_options += ['--fixture-replacement-selection', json.dumps(replacement.record(), sort_keys=True)]
         if args.list:
             if args.test is not None:
                 raise ValueError('test-runner:list-does-not-select-test')
@@ -396,7 +440,7 @@ def child_retention_owner(argv):
     return (argv[0] in ('system', 'e2e') or
             argv[0] == 'integration' and len(argv) > 1 and
             argv[1].removesuffix('.py') in ('check_graphical_smoke', 'check_e2e_watch',
-                                          'check_fixture_recorded_serial'))
+                                          'check_fixture_recorded_serial', 'check_fixture_live_refresh'))
 
 
 def run(root, argv, caller):

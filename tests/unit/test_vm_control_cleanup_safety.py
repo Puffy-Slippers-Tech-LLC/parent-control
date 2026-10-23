@@ -20,6 +20,111 @@ import vm_control as control
 VM_ARGS = ['--vm', vm_name()]
 
 
+@pytest.mark.parametrize('extra', [None, 'desktop', 'tty', 'user-manager', 'other-ssh', 'unknown'])
+def test_idle_maintenance_session_boundary_accepts_only_owned_background_sessions(extra):
+    from fixture_maintenance import idle_sessions
+    ssh = {'Class': 'user', 'Type': 'tty', 'Service': 'sshd', 'User': '0', 'Remote': 'yes'}
+    greeter = {'Class': 'greeter', 'Type': 'wayland', 'Service': 'gdm-launch-environment',
+               'User': '120', 'Remote': 'no'}
+    manager = {'Class': 'manager-early', 'Type': 'unspecified', 'Service': 'systemd-user',
+               'User': '0', 'Remote': 'no'}
+    sessions = [('own', ssh), ('greeter', greeter), ('root-manager', manager),
+                ('greeter-manager', dict(manager, User='120'))]
+    if extra is not None:
+        props = {'desktop': dict(greeter, Class='user', Service='gdm-password', User='1001'),
+                 'tty': dict(ssh, User='1001'),
+                 'user-manager': dict(manager, User='1001'),
+                 'other-ssh': dict(ssh), 'unknown': {}}[extra]
+        sessions.append(('foreign', props))
+    assert idle_sessions(sessions, 'own') is (extra is None)
+    assert idle_sessions(sessions, 'own', allow_prior_ssh=True) is (extra in (None, 'other-ssh'))
+    assert idle_sessions(sessions, None) is False
+    sessions[0] = ('own', dict(ssh, Class='unknown'))
+    assert idle_sessions(sessions, 'own', allow_prior_ssh=True) is False
+
+
+@pytest.mark.parametrize('fault', [None, 'owned-start', 'foreign-start', 'report-write', 'report-close'])
+def test_fixture_qualification_starts_watch_before_report_owner(tmp_path, monkeypatch, fault):
+    from contextlib import contextmanager, nullcontext
+    import fixture_live_refresh_qualification as qualification
+    from tools import test_storage
+    active = []
+    events = []
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
+    state = tmp_path / 'state'
+    state.mkdir()
+    selected = SimpleNamespace(target='ubuntu', record=lambda: {'selected': 'A'})
+    monkeypatch.setattr(qualification, 'selected_target', lambda: None)
+    actual_require = qualification.require
+    monkeypatch.setattr(qualification, 'require', lambda value, reason:
+        None if reason == 'root-required' else actual_require(value, reason))
+    monkeypatch.setattr(qualification.os, 'umask', lambda mode: 0o022)
+    monkeypatch.setattr(qualification.fixture_execution.Selection, 'from_record', lambda value: selected)
+    monkeypatch.setattr(qualification.fixture_execution, 'validate_source_selection', lambda value, selection: value)
+    monkeypatch.setattr(qualification.fixture_execution, 'verify', lambda value: {})
+    monkeypatch.setattr(qualification.fixture_provision, 'authenticated_bundle', lambda value: {})
+    monkeypatch.setattr(qualification, 'authenticated_input', lambda value: nullcontext(12))
+    monkeypatch.setattr(test_storage, 'scratch_directory', lambda: scratch)
+    source = Mock()
+    monkeypatch.setattr(qualification, 'open_source', lambda: (source, Mock()))
+    leases = []
+    def lease_factory(source, commands, inspect, **kwargs):
+        lease = SimpleNamespace(commands=commands, directory=state, fd=None, state=None,
+            original_id=None, ownership_run=None, release=Mock())
+        leases.append(lease)
+        return lease
+    monkeypatch.setattr(qualification.system, 'Lease', lease_factory)
+    @contextmanager
+    def report():
+        events.append('report-open')
+        active.append(True)
+        try:
+            yield
+        finally:
+            active.pop()
+            events.append('report-close')
+        if fault == 'report-close' and events.count('report-close') == 1:
+            raise ValueError('simulated report closure failure')
+    monkeypatch.setattr(qualification, 'recovery_session', report)
+    monkeypatch.setattr(qualification, 'allocate', lambda factory, **kwargs: factory(dir=tmp_path, **kwargs))
+    def operate(lease, action, keys, **kwargs):
+        events.append(action)
+        assert not active  # A keeper must not inherit a phase report owner.
+        if action == 'start':
+            assert kwargs == {'fixture_maintenance': True}
+            if fault != 'foreign-start':
+                lease.fd, lease.original_id, lease.ownership_run = 17, -1, 'owned-run'
+                lease.state = {'phase': 'running', 'run': 'owned-run'}
+            if fault in ('owned-start', 'foreign-start'):
+                raise ValueError('simulated startup refusal')
+        else:
+            assert action == 'stop' and len(leases) == 2
+            lease.state = {'phase': 'complete'}
+    monkeypatch.setattr(qualification.control, 'operate', operate)
+    def use(*args):
+        assert active and events == ['start', 'report-open']
+        return {'outcome': 'passed'}
+    monkeypatch.setattr(qualification, 'retain_a', use)
+    original_encode = qualification.system.baseline.encode
+    def encode(value):
+        if fault == 'report-write' and value == {'outcome': 'passed'}:
+            raise OSError('simulated result write failure')
+        return original_encode(value)
+    monkeypatch.setattr(qualification.system.baseline, 'encode', encode)
+    assert qualification.main(phase='retain-a', selection={}, source_selection={}) == (1 if fault else 0)
+    assert events[0] == 'start'
+    assert events.count('stop') == (1 if fault in ('owned-start', 'report-write', 'report-close') else 0)
+    if fault == 'owned-start':
+        assert events.index('stop') < events.index('report-open')
+    source.close.assert_called_once()
+
+
+def recovery_context(**_options):
+    from contextlib import nullcontext
+    return nullcontext()
+
+
 def reopened(lease):
     result = runner.Lease(lease.source, lease.commands, lease.inspect,
                           directory=lease.directory, anchor=lease.capture.anchor, graphics_type='vnc')
@@ -31,6 +136,306 @@ def start(lease):
     with patch('vm_probe.prepare_maintenance_transport'):
         control.operate(lease, 'start', [])
     lease.release()
+
+
+@pytest.fixture
+def fixture_maintenance_rig(lease_rig, monkeypatch):
+    """Real controller locks/journal; finite SSH and provisioner doubles only."""
+    import fixture_maintenance as maintenance
+    from tools import fixture_provision
+    lease, current = lease_rig
+    start(lease)
+    held = reopened(lease)
+    control.resume(held, fixture_maintenance=True)
+    held.capture.state['guest'].update(fixture_boundary='clean', ubuntu_version='26.04')
+    transport = Mock()
+    transport.call.side_effect = lambda argv, **kwargs: (
+        b'a' * 64 + b'\n' if argv[-1] == fixture_provision.BOOT_SHA256_PROBE else b'{"idle":true}\n')
+    maintenance.initialize(held, transport=transport)
+    writes = []
+    boundary = Mock()
+    boundary.call.side_effect = lambda action, request, payloads: writes.append(action)
+    monkeypatch.setattr(fixture_provision, 'authenticated_bundle', Mock(return_value={}))
+    monkeypatch.setattr(maintenance.fixture_execution.Selection, 'from_record',
+                        lambda value: SimpleNamespace(record=lambda: value))
+
+    class Controller:
+        failure = False
+
+        def __init__(self, lease, transport, *, register_staging, boundary):
+            self.lease, self.boundary, self.register = lease, boundary, register_staging
+            self.receipt = None
+
+        def resume_maintenance(self, selection, subsets, *, attempt_id, expected_binding,
+                               maintenance_owner):
+            assert maintenance._load(self.lease)['phase'] == 'pending'
+            assert maintenance_owner(expected_binding) is True
+            self.receipt = fixture_provision.Readiness(expected_binding, {})
+            return self.receipt
+
+        def provision(self, selection, subsets, *, attempt_id):
+            binding = (self.receipt.binding if self.receipt else dict(
+                run=held.state['run'], vm_uuid=UUID, boot_sha256='a' * 64,
+                generation=0, attempt_id=attempt_id, subsets=list(subsets)))
+            if not self.receipt:
+                self.register('/run/onpc-fixture-' + 'b' * 64)
+                self.boundary.call('place', {'binding': binding})
+            if self.failure:
+                raise TimeoutError('lost-reply')
+            return fixture_provision.Readiness(binding, {})
+
+        def replace(self, selection, subsets, *, readiness, maintenance_owner):
+            assert maintenance_owner(readiness.binding) is True
+            binding = dict(readiness.binding, generation=readiness.binding['generation'] + 1)
+            self.register('/run/onpc-fixture-' + 'c' * 64)
+            self.boundary.call('replace', {'binding': binding})
+            if self.failure:
+                raise TimeoutError('lost-reply')
+            return fixture_provision.Readiness(binding, {})
+
+        def require_ready(self, receipt):
+            assert receipt.binding['boot_sha256'] == 'a' * 64
+
+    monkeypatch.setattr(fixture_provision, 'Provisioner', Controller)
+    yield SimpleNamespace(lease=held, original=lease, current=current, transport=transport,
+        maintenance=maintenance, writes=writes, boundary=boundary, controller=Controller,
+        a={'target': 'ubuntu', 'build_identity': 'a' * 64},
+        b={'target': 'ubuntu', 'build_identity': 'b' * 64})
+    held.release()
+
+
+def test_fixture_refresh_persists_generation_across_owned_cli_calls(fixture_maintenance_rig):
+    rig = fixture_maintenance_rig
+    sync = lambda selection: rig.maintenance.synchronize(
+        rig.lease, selection, transport=rig.transport, boundary=rig.boundary)
+    initial = sync(rig.a)
+    rig.lease.release()
+    next_lease = reopened(rig.original)
+    try:
+        control.resume(next_lease, fixture_maintenance=True)
+        rig.lease = next_lease
+        replaced = sync(rig.b)
+        repeated = sync(rig.b)
+        assert initial.binding['generation'] == 0
+        assert replaced.binding == repeated.binding
+        assert replaced.binding['generation'] == 1
+        assert rig.writes == ['place', 'replace']
+        record = rig.maintenance._load(next_lease)
+        assert record['phase'] == 'ready' and record['retained'] == [rig.a, rig.b]
+        assert len(record['staging']) == 2
+        assert rig.current['id'] == 71
+        assert rig.original.source.domain.revertToSnapshot.call_count == 1
+    finally:
+        next_lease.release()
+
+
+@pytest.mark.parametrize('fault', ['session', 'worker', 'unknown-owner', 'subset', 'corrupt-input'])
+def test_fixture_refresh_refuses_uncertain_or_busy_activity_before_writes(
+        fixture_maintenance_rig, fault, monkeypatch):
+    rig = fixture_maintenance_rig
+    kwargs = dict(transport=rig.transport, boundary=rig.boundary)
+    if fault == 'session':
+        rig.transport.call.side_effect = lambda argv, **kwargs: (
+            b'a' * 64 + b'\n' if argv[-1] != rig.maintenance.SESSION_PROBE else b'busy\n')
+    elif fault == 'worker':
+        # Any arbitrary action capable of starting a worker permanently retires
+        # the dedicated lineage before that action receives guest input.
+        rig.maintenance.invalidate(rig.lease)
+    elif fault == 'unknown-owner':
+        path = rig.lease.directory / rig.maintenance.NAME
+        record = json.loads(path.read_bytes())
+        record['owner']['run'] = 'f' * 32
+        path.write_bytes(runner.baseline.encode(record))
+    elif fault == 'subset':
+        kwargs['subsets'] = ('trusted-soft',)
+    else:
+        monkeypatch.setattr(rig.maintenance.fixture_provision, 'authenticated_bundle',
+                            Mock(side_effect=ValueError('corrupt-input')))
+    with pytest.raises((runner.Error, ValueError)):
+        rig.maintenance.synchronize(rig.lease, rig.a, **kwargs)
+    assert rig.writes == []
+
+
+def test_fixture_refresh_other_launcher_cannot_adopt_locked_maintenance(fixture_maintenance_rig):
+    rig = fixture_maintenance_rig
+    competitor = reopened(rig.original)
+    try:
+        with pytest.raises(runner.Error, match='busy-controller'):
+            control.resume(competitor, fixture_maintenance=True)
+        assert rig.writes == []
+    finally:
+        competitor.release()
+
+
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_independent_fixture_runtime_use_is_persistently_owned(
+        fixture_maintenance_rig, monkeypatch, interrupted):
+    import fixture_live_refresh_qualification as qualification
+    rig = fixture_maintenance_rig
+    receipt = rig.maintenance.synchronize(rig.lease, rig.a,
+        transport=rig.transport, boundary=rig.boundary)
+    monkeypatch.setattr(qualification.proof, 'audit', lambda *args: {'accounts': {}})
+    monkeypatch.setattr(qualification.proof, 'validate_readback', lambda *args, **kwargs: {})
+    def witness(*args):
+        assert rig.maintenance._load(rig.lease)['phase'] == 'pending'
+        if interrupted:
+            raise TimeoutError('uncertain independent runtime reply')
+        return {'owned_process_closed': True}
+    monkeypatch.setattr(qualification.proof, 'runtime_witnesses', witness)
+    if interrupted:
+        with pytest.raises(TimeoutError):
+            qualification.observed_runtime(rig.lease, rig.transport, {}, receipt)
+    else:
+        qualification.observed_runtime(rig.lease, rig.transport, {}, receipt)
+    assert rig.maintenance._load(rig.lease)['phase'] == ('unavailable' if interrupted else 'ready')
+
+
+def test_fixture_refresh_reuses_initial_transport_without_reopening_ssh_files(
+        fixture_maintenance_rig, monkeypatch):
+    import vm_probe
+    rig = fixture_maintenance_rig
+    monkeypatch.setattr(vm_probe, 'connect', Mock(side_effect=AssertionError('SSH reopened')))
+    assert rig.maintenance.transport_for(rig.lease) is rig.transport
+    rig.maintenance.synchronize(rig.lease, rig.a, boundary=rig.boundary)
+    assert rig.writes == ['place']
+
+
+def test_fixture_refresh_reconstruction_uncertainty_latches_before_fixture_witness(
+        fixture_maintenance_rig, monkeypatch):
+    rig = fixture_maintenance_rig
+    kwargs = dict(transport=rig.transport, boundary=rig.boundary)
+    rig.maintenance.synchronize(rig.lease, rig.a, **kwargs)
+
+    def interrupted(self, *args, **kwargs):
+        assert rig.maintenance._load(rig.lease)['phase'] == 'pending'
+        raise KeyboardInterrupt('interrupted-fixture-witness')
+
+    monkeypatch.setattr(rig.controller, 'resume_maintenance', interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        rig.maintenance.synchronize(rig.lease, rig.b, **kwargs)
+    assert rig.maintenance._load(rig.lease)['phase'] == 'unavailable'
+    with pytest.raises(runner.Error, match='unavailable-until-owned-stop'):
+        rig.maintenance.synchronize(rig.lease, rig.a, **kwargs)
+    assert rig.writes == ['place']
+
+
+@pytest.mark.parametrize('action', ['reboot', 'send-key'])
+def test_arbitrary_maintenance_action_retires_fixture_refresh_before_input(
+        fixture_maintenance_rig, monkeypatch, action):
+    import vm_probe
+    rig = fixture_maintenance_rig
+    rig.lease.release()
+    held = reopened(rig.original)
+    transport = Mock()
+    monkeypatch.setattr(vm_probe, 'connect', lambda lease: transport)
+
+    def check_retired(*args):
+        assert rig.maintenance._load(held)['phase'] == 'unavailable'
+
+    transport.reboot.side_effect = check_retired
+    rig.original.source.domain.sendKey.side_effect = check_retired
+    try:
+        control.operate(held, action, [28] if action == 'send-key' else [])
+        assert rig.maintenance._load(held)['phase'] == 'unavailable'
+    finally:
+        held.release()
+
+
+def test_fixture_refresh_lost_reply_retains_both_inputs_until_owned_stop(fixture_maintenance_rig):
+    rig = fixture_maintenance_rig
+    kwargs = dict(transport=rig.transport, boundary=rig.boundary)
+    rig.maintenance.synchronize(rig.lease, rig.a, **kwargs)
+    rig.controller.failure = True
+    with pytest.raises(TimeoutError):
+        rig.maintenance.synchronize(rig.lease, rig.b, **kwargs)
+    record = rig.maintenance._load(rig.lease)
+    assert record['phase'] == 'unavailable' and record['retained'] == [rig.a, rig.b]
+    rig.lease.release()
+    resumed = reopened(rig.original)
+    try:
+        control.resume(resumed, fixture_maintenance=True)
+        with pytest.raises(runner.Error, match='unavailable-until-owned-stop'):
+            rig.maintenance.synchronize(resumed, rig.b, **kwargs)
+        assert rig.writes == ['place', 'replace']
+    finally:
+        resumed.release()
+    stopped = reopened(rig.original)
+    try:
+        with patch('vm_probe.connect', lambda lease: None):
+            control.operate(stopped, 'stop', [])
+        assert stopped.state['phase'] == 'complete' and rig.current['id'] == -1
+        assert not (stopped.directory / rig.maintenance.NAME).exists()
+    finally:
+        stopped.release()
+
+
+@pytest.mark.parametrize('fault', [None, 'running', 'run', 'baseline', 'domain',
+                                  'snapshot', 'configuration', 'guest', 'record-link'])
+def test_completed_off_maintenance_stop_recovers_interrupted_record_cleanup(
+        fixture_maintenance_rig, monkeypatch, fault):
+    import fixture_live_refresh_qualification as qualification
+    rig = fixture_maintenance_rig
+    receipt = rig.maintenance.synchronize(rig.lease, rig.a,
+        transport=rig.transport, boundary=rig.boundary)
+    monkeypatch.setattr(qualification.fixture_execution, 'validate_source_selection',
+                        lambda value, selection: value)
+    rig.original.source.domain.listAllSnapshots.return_value = []
+    qualification.write_checkpoint(rig.lease, SimpleNamespace(record=lambda: rig.a), {}, receipt)
+    rig.lease.release()
+    stopped = reopened(rig.original)
+    try:
+        with patch('vm_probe.connect', lambda lease: None), patch.object(
+                qualification, 'cleanup_checkpoint', side_effect=KeyboardInterrupt('cleanup interrupted')):
+            with pytest.raises(KeyboardInterrupt, match='cleanup interrupted'):
+                control.operate(stopped, 'stop', [])
+        assert stopped.state['phase'] == 'complete' and rig.current['id'] == -1
+    finally:
+        stopped.release()
+    paths = [stopped.directory / name for name in (rig.maintenance.NAME, qualification.NAME)]
+    before = [path.read_bytes() for path in paths]
+    if fault == 'running':
+        rig.original.source.off, rig.current['id'] = False, stopped.state['domain_id']
+    elif fault == 'run':
+        path = stopped.directory / 'vm-control.json'
+        owner = json.loads(path.read_bytes())
+        owner['run'] = 'f' * 32
+        path.write_bytes(runner.baseline.encode(owner))
+    elif fault in ('baseline', 'domain'):
+        state = json.loads(stopped.journal.read_bytes())
+        state['baseline_sha256' if fault == 'baseline' else 'domain_uuid'] = 'f' * (64 if fault == 'baseline' else 36)
+        stopped.journal.write_bytes(runner.baseline.encode(state))
+    elif fault == 'snapshot':
+        rig.original.source.baseline_xml += ' '
+    elif fault == 'configuration':
+        rig.current['xml'] = rig.current['xml'].replace('</domain>', '<description>foreign</description></domain>')
+    elif fault == 'record-link':
+        saved = paths[1].with_name('displaced-checkpoint.json')
+        paths[1].rename(saved)
+        paths[1].symlink_to(saved.name)
+    held = reopened(rig.original)
+    if fault == 'guest':
+        held.inspect = Mock(return_value={})
+    journal_before = stopped.journal.read_bytes()
+    snapshots = rig.original.source.domain.revertToSnapshot.call_count
+    definitions = rig.original.source.connection.defineXML.call_count
+    shutdowns = rig.original.source.shutdown_calls
+    starts = rig.original.source.domain.create.call_count
+    try:
+        if fault:
+            with pytest.raises(runner.Error):
+                control.operate(held, 'stop', [])
+            assert [path.read_bytes() for path in paths] == before
+        else:
+            control.operate(held, 'stop', [])
+            assert held.state['phase'] == 'complete'
+            assert all(not path.exists() for path in paths)
+        assert stopped.journal.read_bytes() == journal_before
+        assert rig.original.source.domain.revertToSnapshot.call_count == snapshots
+        assert rig.original.source.connection.defineXML.call_count == definitions
+        assert rig.original.source.shutdown_calls == shutdowns
+        assert rig.original.source.domain.create.call_count == starts
+    finally:
+        held.release()
 
 
 @pytest.mark.parametrize('phase', [
@@ -196,6 +601,7 @@ def test_automatic_preparation_recovery_stops_only_proven_maintenance(
         lease_rig, tmp_path, monkeypatch, fault):
     import check_graphical_recovery as recovery
     import vm_probe
+    monkeypatch.setattr(recovery, 'recovery_session', recovery_context)
     monkeypatch.setattr(vm_probe, 'connect',
                         lambda held: setattr(held, 'shutdown_request', Mock()))
     lease, current = lease_rig
@@ -448,7 +854,7 @@ def test_kiosk_refusal_reproduction_enters_once_and_keeps_read_failures_for_prob
     monkeypatch.setattr(ui_observations, 'UiObservations', lambda _: SimpleNamespace(observe=reads, boot_proof='a'*64))
     monkeypatch.setattr(vm_probe, 'connect', lambda lease: object())
     monkeypatch.setattr(vm_probe, 'operation', lambda label: nullcontext())
-    monkeypatch.setattr(qualification_storage, 'recovery_session', lambda: nullcontext())
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *args, **kwargs: str(tmp_path))
     monkeypatch.setattr('time.sleep', lambda seconds: None)
     vm_probe.reproduce_kiosk_refusal(SimpleNamespace(commands=SimpleNamespace()))
@@ -486,7 +892,7 @@ def test_kiosk_latency_retains_completed_cycles_and_never_replays_refused_input(
     monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
     enter = Mock(return_value=0)
     monkeypatch.setattr(kiosk_entry, 'enter_station', enter)
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
     if failure:
@@ -546,7 +952,7 @@ def test_prompt_latency_reuses_guarded_cancel_and_stops_on_refusal(tmp_path, mon
     if failure == 'journal':
         monkeypatch.setattr(vm_probe, 'logout_latency', Mock(
             side_effect=runner.Error('synthetic-refusal')))
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
     if failure:
@@ -757,7 +1163,7 @@ def test_auth_pause_boundary_uses_original_session_guard_without_acceptance(
     import session_control
     import ui_observations
     from baseline_auth_pause import PLAN
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     credentials = Mock()
     monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock(return_value=credentials))
@@ -958,7 +1364,7 @@ def test_unlock_capture_starts_before_first_recipient_proof_and_closes_after_wor
     import e2e_worker
     import qualification_storage
     from desktop_session import RETAINED_UNLOCK_PLAN
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock())
     monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=object()))
@@ -1098,7 +1504,7 @@ def test_retained_kiosk_approval_probe_requires_choices_before_single_public_req
     monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
     capture = Mock()
     monkeypatch.setattr(vm_probe, 'capture_kiosk_native_log', capture)
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
     if failure:
@@ -1129,7 +1535,7 @@ def test_native_log_capture_failure_preserves_observer_failure_and_never_claims_
     monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=observer))
     transport = SimpleNamespace(call=Mock(return_value=b'{"uid":1005,"since":100}'))
     monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     capture = Mock(side_effect=runner.Error('journal-refusal') if fault == 'journal' else None)
     monkeypatch.setattr(vm_probe, 'capture_kiosk_native_log', capture)
@@ -1226,7 +1632,7 @@ def test_fixed_kiosk_reproduction_retains_native_log_even_when_worker_refuses(
     import fixture_credentials
     import e2e_worker
     import qualification_storage
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock())
     transport = SimpleNamespace(call=Mock(return_value=b'{"uid":1005,"since":100}'))
@@ -1269,7 +1675,7 @@ def test_preferences_boundary_diagnostic_runs_once_without_acceptance_and_requir
     import qualification_storage
     import ui_observations
     from kiosk_preferences_confinement import PLAN
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock())
     monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=object()))
@@ -1330,7 +1736,7 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
     plan = baseline_app_effects.PLAN
     boundary = 'allowed-use-command'
     prefix = plan.stages[:plan.stages.index(boundary)]
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock())
     assets = Mock()
@@ -1542,7 +1948,7 @@ def test_retained_app_probe_stops_at_first_refusal_and_retains_independent_resul
     observer = SimpleNamespace(observe=Mock(side_effect=observe))
     monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=observer))
     monkeypatch.setattr(vm_probe, 'connect', Mock())
-    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', recovery_context)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
     vm_probe.probe_retained_app_launch(lease)
@@ -2189,4 +2595,5 @@ def test_explicit_online_recovery_routes_without_adopting_maintenance(
         with pytest.raises(RuntimeError, match='maintenance-route'):
             control.operate(lease, 'recover-online', [71])
         recover.assert_not_called()
-        resume.assert_called_once_with(lease, stopping=False, recovery_instance=71)
+        resume.assert_called_once_with(lease, stopping=False, recovery_instance=71,
+                                       fixture_maintenance=False)

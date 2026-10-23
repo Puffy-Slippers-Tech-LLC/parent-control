@@ -638,10 +638,12 @@ replacement by name alone.
 | `tools/test-vm --vm NAME rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
 | `tools/test-vm --vm NAME rename-disk` | Rename the idle pinned guest's single QCOW2 image to `NAME.qcow2` in its existing directory; update domain/internal-snapshot references and provenance, preserving bytes and inode; refuses overlays, shared disks, destination collisions and unfinished controllers |
 | `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, record and boot an isolated maintenance attempt |
+| `tools/test-vm --vm NAME start --fixture-maintenance` | Start dedicated product-free Ubuntu maintenance with authenticated retained `trusted-hard` input; see [idle fixture maintenance](../tests/integration/README.md#idle-fixture-maintenance-refresh) |
+| `tools/test-vm --vm NAME sync-fixtures` | Build/select current native input in that same host owner and explicitly verify or replace the idle maintenance generation; refuse uncertain ownership, sessions and changed subsets |
 | `tools/test-vm --vm NAME reboot` | Request reboot over the same recorded instance's guarded SSH transport and verify its new boot; preserve guest state |
 | `tools/test-vm --vm NAME send-key 28` | Send 1–16 numeric Linux keycodes (1–255) to that instance; no shell or host command |
 | `tools/test-vm --vm NAME screenshot` | Capture the owned running guest through the legacy `/tmp/onpc-vm-screen-*` allocation; migration to [shared storage](Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes) remains required. This is separate from the caller-owned PNG export exception. |
-| `tools/test-vm --vm NAME stop` | Stop only that recorded maintenance instance, verify/restore the outer baseline and original domain configuration, leave it off |
+| `tools/test-vm --vm NAME stop` | Stop only that recorded maintenance instance, verify/restore the outer baseline and original domain configuration, leave it off; interrupted record cleanup after completion requires exact off-state, configuration, snapshot and guest audits before retiring matching records |
 | `tools/test-vm --vm NAME reset` | Restore the accepted outer baseline while idle, leaving the VM off |
 | `tools/test-vm --vm NAME recover-online ID` | After explicit authorization of the inspected instance, recover an interrupted online maintenance or graphical test start with matching private snapshot and isolation proofs; restore the baseline and leave it off |
 
@@ -654,8 +656,9 @@ host shell is exposed. Guest root commands have no program allowlist; shell
 programs and interpreters execute only inside the isolated guest. No reset occurs
 between reboot/input/probe steps. Probing neither starts nor restores a guest,
 rotates its keys nor adjusts its clock. It requires the current online app
-snapshot's private credential record and the existing maintenance ownership
-journal; manually started guests and active test controllers are refused.
+snapshot's private credential record, or the dedicated baseline-maintenance
+transport, and the existing maintenance ownership journal; manually started
+guests and active test controllers are refused.
 The default command deadline is 120 seconds; `--timeout` accepts 1–86400 seconds.
 This is finite command execution, without an interactive terminal.
 The probe authenticates as guest root independently of the foreground desktop

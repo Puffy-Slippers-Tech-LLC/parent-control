@@ -140,6 +140,35 @@ class Files:
                 owner=self.uid_map(uid), group=self.gid_map(gid), mode=mode)
             os.fsync(parent)
 
+    def replace(self, path, data, *, expected, uid=0, gid=0, mode=0o644):
+        """Overwrite only a pinned, independently verified ordinary owned file.
+
+        An interrupted write is terminal and belongs to snapshot restoration.
+        No unlink, fallback creation or per-file rollback is permitted.
+        """
+        target = PurePosixPath(path)
+        with self.directory(str(target.parent), uid=uid) as parent:
+            old, before = guest_files.read_regular(parent, target.name,
+                owner=self.uid_map(uid), mode=mode, limit=LIMIT)
+            require(old == expected and before.st_gid == self.gid_map(gid), 'replacement-old-file')
+            fd = os.open(target.name, os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+            try:
+                require(guest_files.identity(os.fstat(fd)) == guest_files.identity(before),
+                        'replacement-file-changed')
+                view = memoryview(data)
+                while view:
+                    count = os.write(fd, view)
+                    require(count > 0, 'replacement-write')
+                    view = view[count:]
+                os.ftruncate(fd, len(data))
+                os.fsync(fd)
+                require(guest_files.identity(os.fstat(fd)) == guest_files.identity(
+                    os.stat(target.name, dir_fd=parent, follow_symlinks=False)),
+                    'replacement-file-changed')
+            finally:
+                os.close(fd)
+            os.fsync(parent)
+
     def names(self, path):
         with self.directory(path) as parent:
             names = os.listdir(parent)
@@ -450,13 +479,19 @@ class Native:
         if self.target['os'] == 'fedora':
             for member in request['members'].values():
                 self.command(['/usr/sbin/restorecon', '-F', '--', member['destination']])
+        previous = request.get('replaces')
         if trusted:
-            f.write(TRUST, b'# Exact attempt-owned fixture trust.\n', mode=0o600)
+            if previous is None:
+                f.write(TRUST, b'# Exact attempt-owned fixture trust.\n', mode=0o600)
             for path in sorted(trusted):
-                self.command([self.cli, '--file', 'add', path, '--trust-file', PurePosixPath(TRUST).name])
-            require(native_trust.trust_entries(f.read(TRUST, mode=0o600)) == trusted,
-                    'generated-native-trust')
+                self.command([self.cli, '--file', 'add' if previous is None else 'update',
+                              path, '--trust-file', PurePosixPath(TRUST).name])
+            # The native CLI may rewrite its owned fragment with root's GID.
+            # Canonicalize only this exact CLI output before independent readback.
             f.chown(TRUST, uid=0, gid=self.gid, mode=0o600)
+            require(native_trust.trust_entries(f.read(TRUST, mode=0o600,
+                    gid=self.gid)) == trusted,
+                    'generated-native-trust')
             if self.target['os'] == 'fedora':
                 self.command(['/usr/sbin/restorecon', '-F', '--', TRUST])
             self.command([self.cli, '--update'])
@@ -466,7 +501,10 @@ class Native:
             self._event('Updated', identity, after=cursor)
             self.verify_database(request)
         for path, data in rules.items():
-            f.write(path, data, gid=self.gid, mode=0o644)
+            if previous is None:
+                f.write(path, data, gid=self.gid, mode=0o644)
+            else:
+                f.replace(path, data, expected=self._rules(previous)[path], gid=self.gid, mode=0o644)
             self.command(['/usr/sbin/restorecon', '-F', '--', path])
         if rules:
             self.command(['/usr/sbin/fagenrules', '--load'])
@@ -575,12 +613,13 @@ class Guest:
         self.guard = guard
 
     def _validate(self, request):
-        require(type(request) is dict and set(request) ==
+        require(type(request) is dict and set(request) - {'replaces'} ==
                 {'binding', 'target', 'members', 'absences', 'accounts', 'staging', 'repeat',
                  'stage_identity', 'stage_files'}, 'request')
         binding = request['binding']
         require(type(binding) is dict and set(binding) == {'vm_uuid', 'run', 'boot_sha256',
-                'attempt_id', 'manifest_sha256', 'content_identity', 'subsets'}, 'binding')
+                'attempt_id', 'manifest_sha256', 'content_identity', 'subsets', 'generation'}, 'binding')
+        require(type(binding['generation']) is int and binding['generation'] >= 0, 'generation')
         for field in ('boot_sha256', 'manifest_sha256', 'content_identity'):
             require(type(binding[field]) is str and HEX.fullmatch(binding[field]), 'binding-digest')
         require(type(binding['attempt_id']) is str and
@@ -618,6 +657,16 @@ class Guest:
         absences = [item['destination'] for item in fixture_manifest.ABSENCES
                     if set(binding['subsets']).intersection(item['subsets'])]
         require(request['absences'] == absences, 'absences')
+        if 'replaces' in request:
+            previous = request['replaces']
+            require(type(previous) is dict and 'replaces' not in previous
+                    and previous['repeat'] is True and request['repeat'] is False, 'replacement')
+            self._validate(previous)
+            require(all(binding[key] == previous['binding'][key] for key in
+                ('vm_uuid', 'run', 'boot_sha256', 'attempt_id', 'subsets')) and
+                binding['generation'] == previous['binding']['generation'] + 1 and
+                set(request['members']) == set(previous['members']),
+                'replacement-binding')
 
     def _stage(self, request, *, files=False):
         info = self.files.info(request['staging'])
@@ -643,18 +692,21 @@ class Guest:
         if action in ('stage', 'place', 'activate', 'clean'):
             self._stage(request, files=action in ('place', 'activate', 'clean'))
         if action == 'preflight':
+            previous = request.get('replaces')
             for m in members.values():
                 path, uid = m['destination'], m['uid']
                 f.preflight(path, uid=uid)
                 if f.exists(path, uid=uid):
-                    require(request['repeat'], 'unknown-destination')
-                    self._bytes(m, path)
+                    require(request['repeat'] or previous is not None, 'unknown-destination')
+                    expected = next(old for old in previous['members'].values()
+                        if old['destination'] == path) if previous is not None else m
+                    self._bytes(expected, path)
                 else:
-                    require(not request['repeat'], 'missing-destination')
+                    require(not request['repeat'] and previous is None, 'missing-destination')
             for path in request['absences']:
                 f.preflight(path)
                 require(not f.exists(path), 'required-absence')
-            self.native.preflight(request)
+            self.native.preflight(previous if previous is not None else request)
             require(not f.exists(stage), 'staging-collision')
         elif action == 'reserve':
             require(not request['repeat'], 'repeat-write')
@@ -680,12 +732,17 @@ class Guest:
             require(not request['repeat'], 'repeat-write')
             # Recheck the complete destination/native set after transfer and
             # before the first placement, then create only new declared files.
-            for m in members.values():
+            previous = request.get('replaces')
+            old_bytes = {}
+            for key, m in members.items():
                 f.preflight(m['destination'], uid=m['uid'])
-                require(not f.exists(m['destination'], uid=m['uid']), 'placement-collision')
+                if previous is None:
+                    require(not f.exists(m['destination'], uid=m['uid']), 'placement-collision')
+                else:
+                    old_bytes[key] = self._bytes(previous['members'][key], m['destination'])
             for path in request['absences']:
                 require(not f.exists(path), 'required-absence')
-            self.native.preflight(request)
+            self.native.preflight(previous if previous is not None else request)
             staged = {}
             for key, m in members.items():
                 data, identity = f.read_identity(stage + '/' + key, mode=0o600)
@@ -693,13 +750,16 @@ class Guest:
                         len(data) == m['length'] and sha(data) == m['sha256'], 'stage-modified')
                 staged[key] = data
             for key, m in members.items():
-                f.write(m['destination'], staged[key],
-                        uid=m['uid'], gid=m['gid'], mode=m['mode'])
+                if previous is None:
+                    f.write(m['destination'], staged[key], uid=m['uid'], gid=m['gid'], mode=m['mode'])
+                else:
+                    f.replace(m['destination'], staged[key], expected=old_bytes[key],
+                              uid=m['uid'], gid=m['gid'], mode=m['mode'])
         elif action == 'activate':
             require(not request['repeat'], 'repeat-write')
             for member in members.values():
                 self._bytes(member, member['destination'])
-            self.native.preflight(request)
+            self.native.preflight(request.get('replaces', request))
             self.native.activate(request)
         elif action == 'readback':
             observed = {}

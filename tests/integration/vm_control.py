@@ -178,7 +178,7 @@ def save_owner(lease):
     runner.baseline.sync_directory(lease.directory)
 
 
-def resume(lease, *, stopping=False, recovery_instance=None):
+def resume(lease, *, stopping=False, recovery_instance=None, fixture_maintenance=False):
     """Only adopt this helper's exact recorded instance, never another controller."""
     base = runner.baseline
     lease.capture.directory_identity = lease.capture.private_directory()
@@ -203,7 +203,7 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
         'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
         state['phase'] in (('start-requested',) if recovery_instance is not None else
-                          ('running', 'cleanup-requested', *prestart) if stopping else ('running',)) and isinstance(state['run'], str) and
+                          ('running', 'cleanup-requested', 'complete', *prestart) if stopping else ('running',)) and isinstance(state['run'], str) and
         re.fullmatch(r'[0-9a-f]{32}', state['run']) and
         ((state['domain_id'] is None) if recovery_instance is not None else
          (interrupted_off or (type(state['domain_id']) is int and state['domain_id'] >= 0))) and
@@ -215,6 +215,10 @@ def resume(lease, *, stopping=False, recovery_instance=None):
     runner.require(owner == expected,
                    'vm-control:not-owned')
     current_id = lease.source.domain.ID()
+    # Completion can precede retirement of the maintenance records. That
+    # bookkeeping recovery never authorizes touching a running instance.
+    runner.require(state['phase'] != 'complete' or current_id == -1,
+                   'vm-control:completed-instance-running')
     runner.require(not lease.source.domain.autostart() and
                    (current_id == recovery_instance if recovery_instance is not None else
                     current_id == -1 if interrupted_off else
@@ -233,6 +237,8 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         active = lease.source.domain.XMLDesc(0)
         runner.require(active == lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE),
                        'vm-control:off-configuration-changed')
+        runner.require(state['phase'] != 'complete' or active == lease.original_xml,
+                       'vm-control:completed-configuration-changed')
         if active == lease.original_xml:
             lease.view.run = None
             lease.view.domain_id = None
@@ -267,6 +273,9 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         lease.state['domain_id'] = recovery_instance
         save_owner(lease)
         lease.save('running')
+    if not stopping and not fixture_maintenance:
+        from fixture_maintenance import invalidate
+        invalidate(lease)
     return restored_off
 
 
@@ -285,13 +294,14 @@ def recover_preparation(lease):
         operate(lease, 'stop', [])
 
 
-def operate(lease, action, keys):
+def operate(lease, action, keys, *, fixture_maintenance=False):
     # All maintenance paths use the same intent scope as transport and leases.
     with operation('VM maintenance: ' + action):
-        return _operate(lease, action, keys)
+        return _operate(lease, action, keys, fixture_maintenance=fixture_maintenance)
 
 
-def _operate(lease, action, keys):
+def _operate(lease, action, keys, *, fixture_maintenance=False):
+    runner.require(not fixture_maintenance or action == 'start', 'vm-control:arguments')
     if action == 'recover-online':
         # This is an explicit caller-observed instance, not ordinary startup
         # recovery. Route non-maintenance test attempts to their own controller;
@@ -323,11 +333,15 @@ def _operate(lease, action, keys):
             prepare_maintenance_transport(lease)
             lease.watch_detached = True
             lease.start()
+            if fixture_maintenance:
+                from fixture_maintenance import initialize
+                initialize(lease)
         else:
             lease.finish()
         return
     restored_off = resume(lease, stopping=action == 'stop',
-                          recovery_instance=keys[0] if action == 'recover-online' else None)
+                          recovery_instance=keys[0] if action == 'recover-online' else None,
+                          fixture_maintenance=action == 'screenshot')
     lease.guard(off=restored_off)
     if action == 'recover-online':
         lease.stop_by_restore()
@@ -345,7 +359,8 @@ def _operate(lease, action, keys):
                 lease.source.domain.XMLDesc(0) == lease.original_xml and
                 lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE) ==
                 lease.original_xml, 'vm-control:off-configuration-changed')
-            lease.save('complete')
+            if lease.state['phase'] != 'complete':
+                lease.save('complete')
         else:
             if lease.view.run != lease.state['run']:
                 lease.stop_by_restore()
@@ -379,6 +394,11 @@ def _operate(lease, action, keys):
             raise
     else:
         raise runner.Error('vm-control:invalid-operation')
+    if action in ('stop', 'recover-online'):
+        from fixture_live_refresh_qualification import cleanup_checkpoint
+        from fixture_maintenance import cleanup
+        cleanup_checkpoint(lease)
+        cleanup(lease)
 
 
 def main(argv=None):
@@ -393,7 +413,7 @@ def main(argv=None):
     parser.add_argument('--vm', help='required configured VM name or ID (validated before parsing)')
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reset',
-                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec',
+                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',
                                           'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                                           'reproduce-kiosk-preferences',
                                           'reproduce-baseline-app-effects',
@@ -414,6 +434,8 @@ def main(argv=None):
                                           'repeat-remembered-return', 'enter-remembered-return'))
     parser.add_argument('keys', nargs='*', type=int)
     parser.add_argument('--new-name')
+    parser.add_argument('--fixture-maintenance', action='store_true')
+    parser.add_argument('--fixture-selection')
     args = parser.parse_args(argv)
     source = lease = connection = None
     try:
@@ -431,8 +453,18 @@ def main(argv=None):
                          and not args.keys)), 'vm-control:arguments')
         runner.require((args.action == 'rename') == (args.new_name is not None), 'vm-control:arguments')
         runner.require(args.action != 'exec' or probe is not None, 'vm-control:arguments')
+        runner.require(not args.fixture_maintenance or args.action == 'start', 'vm-control:arguments')
+        runner.require((args.action == 'sync-fixtures') == (args.fixture_selection is not None),
+                       'vm-control:arguments')
         if args.new_name is not None:
             runner.baseline.guest_contract.vm_config.validate_name(args.new_name)
+        fixture_selection = None
+        if args.fixture_selection is not None:
+            from tools import fixture_execution, fixture_provision
+            fixture_selection = fixture_execution.Selection.from_record(
+                json.loads(args.fixture_selection)).record()
+            runner.require(fixture_selection['target'] == 'ubuntu', 'vm-control:fixture-target')
+            fixture_provision.authenticated_bundle(fixture_selection)
         os.umask(0o077)
         from watch_activity import event
         event('Maintenance: ' + args.action)
@@ -518,6 +550,11 @@ def main(argv=None):
              'reproduce-remembered-return': reproduce_remembered_return,
              'repeat-remembered-return': repeat_remembered_return,
              'enter-remembered-return': enter_remembered_return}[args.action](lease)
+        elif args.action == 'sync-fixtures':
+            from fixture_maintenance import synchronize
+            resume(lease, fixture_maintenance=True)
+            receipt = synchronize(lease, fixture_selection)
+            print(json.dumps({'fixture_readiness': receipt.binding}, sort_keys=True))
         elif args.action == 'exec':
             from vm_probe import execute
             with operation('Probing the owned guest as root'):
@@ -565,7 +602,7 @@ def main(argv=None):
             resume(lease)
             probe_revoke_balances(lease)
         else:
-            operate(lease, args.action, args.keys)
+            operate(lease, args.action, args.keys, fixture_maintenance=args.fixture_maintenance)
         event('Maintenance: ' + args.action + ' complete')
         print('vm-control: operation complete', file=sys.stderr, flush=True)
         return 0

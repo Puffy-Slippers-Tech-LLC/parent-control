@@ -293,7 +293,7 @@ def validate_source_selection(record, selection):
     return dict(record)
 
 
-def prepare_source_edit(*, target, root=ROOT):
+def prepare_source_edit(*, target, root=ROOT, edit=True):
     """Select from a private actual source origin, then edit only that origin.
 
     This finite host qualification proof is registered before its first write.
@@ -326,6 +326,10 @@ def prepare_source_edit(*, target, root=ROOT):
         if verify(selected)['inputs']['source'] != original:
             raise ValueError('fixture execution: source proof does not match selected build')
         _publication_allocation(record)
+        if not edit:
+            handoff = selected.record() | {'allocation': str(path),
+                                          'device': info.st_dev, 'inode': info.st_ino}
+            return selected, validate_source_selection(handoff, selected)
         changed = 'tests/fixtures/onpc_test_application.c'
         origin = source / changed
         origin.write_bytes(origin.read_bytes() + b'\n/* qualification edit after fixture selection */\n')
@@ -352,14 +356,83 @@ def prepare_source_edit(*, target, root=ROOT):
             os.close(allocation)
 
 
+def prepare_live_replacement(selection, source_selection):
+    """After A was used, change its private host origin and build immutable B."""
+    selection = Selection.from_record(selection)
+    source_selection = validate_source_selection(source_selection, selection)
+    store, run = _owner()
+    if str(store.path) != selection.journal or run != selection.run:
+        raise ValueError('fixture execution: live source requires its original producer owner')
+    original = verify(selection)['inputs']
+    # Pin the allocation, then release the shared journal read lock before
+    # prepare registers B. The existing live owner still excludes retirement.
+    with storage.authenticated_input(source_selection, root=storage.ROOT) as authenticated:
+        allocation = os.dup(authenticated)
+    try:
+        source = Path('/proc/self/fd/' + str(allocation)) / 'source'
+        before, _ = bundle.source_snapshot(source)
+        if before != original['source']:
+            raise ValueError('fixture execution: live source changed before A use')
+        changed = 'tests/fixtures/onpc_test_application.c'
+        origin = source / changed
+        # An emitted object changes the native executable, without changing its
+        # harmless witness or any product behavior.
+        origin.write_bytes(origin.read_bytes() +
+            b'\nstatic const char onpc_live_refresh_generation[] __attribute__((used)) = "fixture-refresh-B";\n')
+        after, _ = bundle.source_snapshot(source)
+        if (set(after) != set(before) or after[changed] == before[changed]
+                or any(after[name] != before[name] for name in before if name != changed)):
+            raise ValueError('fixture execution: live edit changed unexpected sources')
+        replacement = prepare(target=selection.target, root=source)
+        manifest = verify(replacement)
+        if (manifest['inputs']['source'] != after or replacement == selection
+                or manifest['inputs']['toolchain']['environment'] != original['toolchain']['environment']):
+            raise ValueError('fixture execution: live replacement input mismatch')
+        proof = {'schema': 'onpc-fixture-live-refresh-source-v1',
+                 'selection': selection.record(), 'replacement_selection': replacement.record(),
+                 'before': before, 'after': after,
+                 'environment': original['toolchain']['environment'], 'edited': changed}
+        with storage.authenticated_input(source_selection, root=storage.ROOT) as current:
+            before, after = os.fstat(allocation), os.fstat(current)
+            if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
+                raise ValueError('fixture execution: live source allocation replaced')
+            output = os.open('source-edit.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=current)
+            with os.fdopen(output, 'wb') as stream:
+                stream.write(bundle.encoded(proof) + b'\n')
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.fsync(current)
+        return replacement
+    finally:
+        os.close(allocation)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--target', choices=tuple(bundle.TARGETS), required=True)
     parser.add_argument('--qualify-source-edit', action='store_true')
+    parser.add_argument('--live-refresh-source', action='store_true')
+    parser.add_argument('--live-refresh-selection')
+    parser.add_argument('--live-refresh-source-selection')
     args = parser.parse_args()
     try:
         source = None
-        if args.qualify_source_edit:
+        if args.live_refresh_selection is not None:
+            if (args.qualify_source_edit or args.live_refresh_source
+                    or args.live_refresh_source_selection is None):
+                raise ValueError('fixture execution: invalid live replacement arguments')
+            selection = prepare_live_replacement(json.loads(args.live_refresh_selection),
+                json.loads(args.live_refresh_source_selection))
+            if selection.target != args.target:
+                raise ValueError('fixture execution: live replacement target mismatch')
+        elif args.live_refresh_source_selection is not None:
+            raise ValueError('fixture execution: live replacement selection required')
+        elif args.live_refresh_source:
+            if args.qualify_source_edit:
+                raise ValueError('fixture execution: conflicting source proof options')
+            selection, source = prepare_source_edit(target=args.target, edit=False)
+        elif args.qualify_source_edit:
             selection, source = prepare_source_edit(target=args.target)
         else:
             selection = prepare(target=args.target)

@@ -113,9 +113,11 @@ behavior keeps that target unavailable.
 
 ## Live refresh and recorded attempts
 
-Live replacement remains proposed; ordinary provisioning allows first placement
-and identical read-only repeats. It rejects changed selections and existing
-destinations; owned off-state restore resets the generation.
+Ubuntu's fixed `trusted-hard` subset supports explicit live replacement through
+the [idle maintenance route](../../tests/integration/README.md#idle-fixture-maintenance-refresh).
+Ordinary provisioning allows first placement and identical read-only repeats.
+It rejects changed selections and existing destinations; owned off-state restore
+resets the generation. Fedora live replacement remains unavailable.
 
 Refresh requires verified retained input and an idle, owned maintenance guest:
 no test/fixture worker, fixture-using graphical session or unowned process may

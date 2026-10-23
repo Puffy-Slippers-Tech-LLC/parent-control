@@ -433,6 +433,8 @@ def category_run(root, category, argv, *, pipe=True):
             command[1:1] = ['--coverage-prefix=' + str(root / 'child'),
                            '--coverage-output=' + directory]
     with Control().installed(pipe=pipe) as control:
+        if test_commands.live_refresh_selection(category, argv):
+            return test_commands.run_live_refresh(root, commands[-1], control=control, environment=env)
         preparation = test_commands.qualification_artifact_command(root, category, argv)
         if preparation is not None:
             status = control.run(preparation, cwd=root, env=env)

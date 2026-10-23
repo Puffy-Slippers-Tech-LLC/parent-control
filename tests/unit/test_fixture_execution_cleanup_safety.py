@@ -110,6 +110,42 @@ def test_product_edits_do_not_invalidate_fixture_but_fixture_edits_freeze_select
         assert calls == ['ubuntu', 'ubuntu']
 
 
+def test_live_refresh_builds_b_only_after_the_original_source_was_used(rig):
+    source, store, calls, _ = rig
+    original_bytes = (source / SOURCE).read_bytes()
+    with store.session():
+        selected, origin = execution.prepare_source_edit(target='ubuntu', root=source, edit=False)
+        before = execution.verify(selected)
+        frozen = Path(origin['allocation']) / 'source'
+        assert (frozen / SOURCE).read_bytes() == original_bytes
+        assert not (Path(origin['allocation']) / 'source-edit.json').exists()
+        assert calls == ['ubuntu']
+        # This independent verification represents the first phase completing;
+        # only the subsequent explicit build operation may edit the origin.
+        replacement = execution.prepare_live_replacement(selected.record(), origin)
+        after = execution.verify(replacement)
+        proof = json.loads((Path(origin['allocation']) / 'source-edit.json').read_bytes())
+        assert proof['selection'] == selected.record()
+        assert proof['replacement_selection'] == replacement.record()
+        assert proof['before'] == before['inputs']['source']
+        assert proof['after'] == after['inputs']['source']
+        assert proof['before'][SOURCE] != proof['after'][SOURCE]
+        assert selected.key != replacement.key and calls == ['ubuntu', 'ubuntu']
+        assert execution.verify(selected) == before
+        assert (source / SOURCE).read_bytes() == original_bytes
+
+
+def test_live_refresh_refuses_a_changed_origin_before_building_b(rig):
+    source, store, calls, _ = rig
+    with store.session():
+        selected, origin = execution.prepare_source_edit(target='ubuntu', root=source, edit=False)
+        frozen = Path(origin['allocation']) / 'source' / SOURCE
+        frozen.write_bytes(b'foreign source edit\n')
+        with pytest.raises(ValueError, match='live source changed'):
+            execution.prepare_live_replacement(selected.record(), origin)
+        assert calls == ['ubuntu'] and frozen.read_bytes() == b'foreign source edit\n'
+
+
 @pytest.mark.parametrize('reuse', [False, True])
 @pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
 def test_source_edit_proof_uses_actual_private_origin_and_edits_after_selection(rig, monkeypatch, reuse, target):

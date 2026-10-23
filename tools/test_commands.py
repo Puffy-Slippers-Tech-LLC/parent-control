@@ -701,6 +701,81 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
     return options
 
 
+def live_refresh_selection(category, args):
+    return (category == 'integration' and len(args) == 1
+            and args[0].removesuffix('.py') == 'check_fixture_live_refresh')
+
+
+def run_live_refresh(root, command, *, control, environment):
+    """Keep A's host owner alive while a fixed maintenance history builds B."""
+    from fixture_execution import Selection, validate_source_selection
+    from vm_selection import selected
+    from vm_pool import arguments as checkout_arguments
+    from dev_privileges import check
+    if selected().name != 'onpc-Ubuntu26.04':
+        raise ValueError('fixture live refresh target is unavailable')
+    check('/usr/local/libexec/onpc-test-runner')
+
+    def build(*options):
+        records, sources, pending = [], [], b''
+        def output(data):
+            nonlocal pending
+            sys.stdout.write(data.decode('utf-8', errors='replace'))
+            sys.stdout.flush()
+            pending += data
+            while b'\n' in pending:
+                line, pending = pending.split(b'\n', 1)
+                if line.startswith(b'fixture-execution: selection='):
+                    records.append(line.partition(b'=')[2])
+                elif line.startswith(b'fixture-execution: source-edit='):
+                    sources.append(line.partition(b'=')[2])
+            if len(pending) > 65536 or len(records) > 1 or len(sources) > 1:
+                raise ValueError('fixture live refresh builder output is invalid')
+        status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', 'ubuntu', *options),
+                             cwd=root, env=environment, output=output, timeout=600.0)
+        if status or len(records) != 1:
+            raise ValueError('fixture live refresh preparation failed; status=' + str(status))
+        return Selection.from_record(json.loads(records[0])), sources
+
+    def privileged(options):
+        return [command[0], '--disable-internal-agent', '--keep-cwd', command[1],
+                *checkout_arguments(), '--unattended', *command[2:], *options]
+
+    original, sources = build('--live-refresh-source')
+    if len(sources) != 1:
+        raise ValueError('fixture live refresh source proof is missing')
+    source = validate_source_selection(json.loads(sources[0]), original)
+    options = ['--fixture-selection', json.dumps(original.record(), sort_keys=True),
+               '--fixture-source-selection', json.dumps(source, sort_keys=True)]
+    completed, retained = False, False
+    try:
+        status = control.run(privileged([*options, '--fixture-refresh-phase', 'retain-a']),
+                             cwd=root, env=environment, cooperative=True)
+        if status:
+            return status
+        retained = True
+        replacement, extra = build('--live-refresh-selection', json.dumps(original.record()),
+                                   '--live-refresh-source-selection', json.dumps(source))
+        if extra or replacement.target != original.target or replacement == original:
+            raise ValueError('fixture live refresh replacement is invalid')
+        status = control.run(privileged([*options, '--fixture-refresh-phase', 'replace-b',
+            '--fixture-replacement-selection', json.dumps(replacement.record(), sort_keys=True)]),
+            cwd=root, env=environment, cooperative=True)
+        completed = status == 0
+        return status
+    finally:
+        # A failed build or cancellation must still finish the owned restore.
+        if retained and not completed:
+            from test_storage import scratch_descriptors
+            cleanup = ['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                       '/usr/local/libexec/onpc-test-runner', *checkout_arguments(), 'vm',
+                       '--vm', selected().name, 'stop']
+            status = subprocess.run(cleanup, cwd=root, env=environment,
+                                    pass_fds=scratch_descriptors(), check=False).returncode
+            if status:
+                raise ValueError('fixture live refresh owned cleanup failed; status=' + str(status))
+
+
 def make_command(root, target, assignments=()):
     makefile = host.confined_file(root, 'Makefile')
     if not re.search(r'^' + re.escape(target) + r'\s*:', Path(makefile).read_text(), re.M):
@@ -746,7 +821,7 @@ def plan(root, category, argv):
         from vm_selection import arguments
         vm_args = arguments() if '--list' not in argv else []
         command = dispatcher['selection'](root, [category, *argv, *vm_args],
-                                          allow_missing_artifacts=category in ('system', 'e2e'))
+            allow_missing_artifacts=category in ('system', 'e2e') or live_refresh_selection(category, argv))
         selectors = dict(value.split('=', 1) for value in command
                          if value.startswith(('--area=', '--test=', '--id=')))
         explicit_native = any(value == '--native-artifacts' or value.startswith('--native-artifacts=')
@@ -1027,6 +1102,10 @@ def _main(argv=None, *, detached=False, checkpoint=None):
             status = subprocess.run(command, env=env, check=False).returncode
             if status:
                 return status if status > 0 else 128 - status
+        if live_refresh_selection(category, args):
+            from regression_process import Control
+            with Control().installed() as control:
+                return run_live_refresh(root, commands[-1], control=control, environment=env)
         commands[-1] += qualification_fixture_options(root, category, args)
         if commands[-1][0] == '/usr/bin/pkexec':
             from dev_privileges import check

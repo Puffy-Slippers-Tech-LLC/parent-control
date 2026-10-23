@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F07 — [Refresh an idle owned Ubuntu VM](Fixture-Tasks/F07-ubuntu-live.md)**.
+Next task: **F08 — [Refresh an idle owned Fedora VM](Fixture-Tasks/F08-fedora-live.md)**.
 
 ## Outcome and status
 
@@ -196,6 +196,17 @@ checks passed. The same Fedora build and manifest as F26 preserve shared safety
 proof; unchanged Ubuntu recorded acceptance remains applicable. The queue retains
 exact results and inputs. Owned cleanup passed and public status independently
 confirmed Fedora off. No worker/serial input or customer/E2E acceptance was claimed.
+F07 delivered Ubuntu's [idle fixture maintenance refresh](../../tests/integration/README.md#idle-fixture-maintenance-refresh).
+The [installed history](../../output/test-runs/host/reports/20261023T203305Z-fa31f414/report.md)
+used A before a real private host source edit/build of B, then independently
+verified B's bytes, exact native activation and harmless runtime use in the same
+boot/domain. Snapshot identities and unrelated state were preserved; identical
+repeats made no writes. A real staged lost reply withheld readiness until watched
+owned baseline recovery completed. Focused host checks cover idle/session/worker,
+foreign-owner, corrupt-input and subset refusals. Independent Sol High review
+findings were resolved, including pending-state persistence and phase report/watch
+ownership. Maintenance/input/staging/transport cleanup passed, and public status
+independently confirmed Ubuntu off. No product or customer/E2E credit is claimed.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

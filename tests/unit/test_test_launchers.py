@@ -442,6 +442,114 @@ def source_proof_selection(selected):
                                 'device': 5, 'inode': 6}
 
 
+def test_live_refresh_plan_reserves_preparation_for_its_host_orchestrator(monkeypatch):
+    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+    planned, _ = commands.plan(ROOT, 'integration', ['check_fixture_live_refresh'])
+    assert planned == [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
+                        'integration', 'check_fixture_live_refresh', '--vm', 'onpc-Ubuntu26.04']]
+    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Fedora44')
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        commands.plan(ROOT, 'integration', ['check_fixture_live_refresh'])
+
+
+@pytest.mark.parametrize(('action', 'status'), [('start', 0), ('start', 7), ('sync-fixtures', 0)])
+def test_public_fixture_maintenance_keeps_one_selector_and_pins_sync_input(
+        monkeypatch, frozen_fixture_selection, action, status):
+    from contextlib import contextmanager
+    import dev_privileges
+    import fixture_execution
+    import test_retention
+    import test_storage
+    import vm_pool
+    monkeypatch.setattr(dev_privileges, 'check', Mock())
+    monkeypatch.setattr(vm_pool, 'arguments', lambda: ['--vm-checkout=receipt'])
+    monkeypatch.setattr(test_storage, 'directory', lambda kind: ROOT / 'unused-state')
+    active = []
+    sessions = []
+    @contextmanager
+    def session(**kwargs):
+        sessions.append(kwargs)
+        active.append(True)
+        try:
+            yield
+        finally:
+            active.pop()
+    store = SimpleNamespace(session=session, opened=lambda: nullcontext(12),
+                            read=lambda fd: {'run': 'b' * 32})
+    monkeypatch.setattr(test_retention, 'Store', lambda path: store)
+    def prepare(**kwargs):
+        assert active and kwargs == {'target': 'ubuntu'}
+        return frozen_fixture_selection
+    monkeypatch.setattr(fixture_execution, 'prepare', prepare)
+    calls = []
+    def run(command, **kwargs):
+        calls.append(command)
+        assert command.count('--vm') == 1
+        assert command[3] == '--vm-checkout=receipt'
+        assert bool(active) == (action == 'sync-fixtures')
+        return SimpleNamespace(returncode=status)
+    monkeypatch.setattr(subprocess, 'run', run)
+    function = runpy.run_path(str(ROOT / 'tools/test-vm'))['fixture_maintenance']
+    options = ['start', '--fixture-maintenance'] if action == 'start' else [action]
+    assert function(options, SimpleNamespace(name='onpc-Ubuntu26.04')) == status
+    assert len(calls) == 1
+    assert sessions == ([{}] if action == 'start' and status == 0 else
+                        [{'run': 'b' * 32}] if action == 'sync-fixtures' else [])
+
+
+@pytest.mark.parametrize('failure', [None, 'retain-a', 'build-b', 'replace-b'])
+def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
+        monkeypatch, frozen_fixture_selection, failure):
+    import dev_privileges
+    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+    monkeypatch.setattr(dev_privileges, 'check', Mock())
+    original = frozen_fixture_selection
+    replacement = replace(original, key='d' * 64, build_identity='e' * 64,
+        allocation=original.allocation.replace('a' * 64, 'd' * 64))
+    source = source_proof_selection(original)
+    events = []
+
+    def run(command, **kwargs):
+        if '--live-refresh-source' in command:
+            events.append('build-a')
+            kwargs['output'](b'fixture-execution: selection=' + json.dumps(original.record()).encode() + b'\n')
+            kwargs['output'](b'fixture-execution: source-edit=' + json.dumps(source).encode() + b'\n')
+        elif '--live-refresh-selection' in command:
+            assert events == ['build-a', 'retain-a']
+            events.append('build-b')
+            if failure == 'build-b':
+                return 7
+            kwargs['output'](b'fixture-execution: selection=' + json.dumps(replacement.record()).encode() + b'\n')
+        elif command[-1] == 'retain-a':
+            events.append('retain-a')
+            if failure == 'retain-a':
+                return 8
+        else:
+            events.append('replace-b')
+            assert json.loads(command[command.index('--fixture-replacement-selection') + 1]) == replacement.record()
+            if failure == 'replace-b':
+                return 9
+        return 0
+
+    cleanup = Mock(return_value=SimpleNamespace(returncode=0))
+    monkeypatch.setattr(commands.subprocess, 'run', cleanup)
+    control = SimpleNamespace(run=run)
+    command = ['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
+               'integration', 'check_fixture_live_refresh', '--vm', 'onpc-Ubuntu26.04']
+    if failure == 'build-b':
+        with pytest.raises(ValueError, match='preparation failed'):
+            commands.run_live_refresh(ROOT, command, control=control, environment={})
+    else:
+        assert commands.run_live_refresh(ROOT, command, control=control, environment={}) == (
+            8 if failure == 'retain-a' else 9 if failure else 0)
+    assert events[:2] == ['build-a', 'retain-a']
+    if failure != 'retain-a':
+        assert events[:3] == ['build-a', 'retain-a', 'build-b']
+    assert cleanup.call_count == (1 if failure in ('build-b', 'replace-b') else 0)
+    if failure in ('build-b', 'replace-b'):
+        assert cleanup.call_args.args[0][-4:] == ['vm', '--vm', 'onpc-Ubuntu26.04', 'stop']
+
+
 @pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
 @pytest.mark.parametrize('selector', ['check_fixture_e2e_installed', 'check_fixture_e2e_product_free'])
 def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fixture_selection, vm, target, selector):

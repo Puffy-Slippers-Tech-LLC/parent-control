@@ -71,10 +71,10 @@ class FilesystemBoundary:
         if action == 'inspect':
             reply = {'accounts': copy.deepcopy(self.accounts), 'target': self.target}
         elif action == 'preflight':
-            for item in members.values():
+            for item in request.get('replaces', request)['members'].values():
                 path = self.path(item['destination'])
                 if path.is_symlink() or path.exists() and (
-                        not path.is_file() or path.read_bytes() != self.payload(item)
+                        not path.is_file() or sha(path.read_bytes()) != item['sha256']
                         or self.metadata.get(item['destination']) != self.expected(item)):
                     raise ValueError('foreign-or-modified-destination')
             for name in request['absences']:
@@ -225,6 +225,93 @@ def test_identical_repeat_verifies_without_writes_or_registration(rig):
     assert rig.boundary.writes == writes and rig.registered == registered
     assert [action for action, _ in rig.boundary.calls] == [
         'inspect', 'preflight', 'readback', 'witness']
+
+
+def replacement_input(rig):
+    old = copy.deepcopy(rig.input)
+    new = copy.deepcopy(old)
+    new['content_identity'] = 'f' * 64
+    new['manifest']['build_identity'] = 'a' * 64
+    for key in new['payloads']:
+        new['payloads'][key] += b' replacement'
+        new['manifest']['members'][key].update(
+            length=len(new['payloads'][key]), sha256=sha(new['payloads'][key]))
+    selection = {'build_identity': 'a' * 64}
+    rig.reader.side_effect = lambda value: new if value == selection else old
+    return selection, new
+
+
+def test_owned_replacement_verifies_both_inputs_then_retires_old_readiness(rig):
+    old = execute(rig)
+    selection, new = replacement_input(rig)
+    observed = []
+    def owner(binding):
+        observed.append((binding['generation'], rig.control._receipt))
+        return True
+    rig.boundary.calls.clear()
+    ready = rig.control.replace(selection, ['mechanical'], readiness=old, maintenance_owner=owner)
+    assert ready.binding['generation'] == old.binding['generation'] + 1
+    assert ready.binding['boot_sha256'] == old.binding['boot_sha256']
+    assert ready.binding['vm_uuid'] == old.binding['vm_uuid']
+    assert observed and any(receipt is None for _, receipt in observed)
+    actions = [action for action, _ in rig.boundary.calls]
+    assert actions[:6] == ['inspect', 'preflight', 'readback', 'witness', 'inspect', 'preflight']
+    assert actions[6:] == ['reserve', 'stage', 'place', 'activate', 'readback', 'witness', 'clean']
+    assert rig.control.require_ready(ready) == ready
+    writes = rig.boundary.writes[:]
+    assert rig.control.provision(selection, ['mechanical'], attempt_id=rig.attempt) == ready
+    assert rig.boundary.writes == writes
+    assert all(rig.boundary.path(m['destination']).read_bytes() == new['payloads'][key]
+               for key, m in rig.control._request['members'].items())
+
+
+@pytest.mark.parametrize('fault', ['busy', 'changed-old', 'bad-new', 'subset'])
+def test_replacement_refuses_before_mutation_and_latches_failure(rig, fault):
+    old = execute(rig)
+    selection, new = replacement_input(rig)
+    writes, registered = rig.boundary.writes[:], rig.registered[:]
+    if fault == 'changed-old':
+        item = next(iter(rig.control._request['members'].values()))
+        rig.boundary.path(item['destination']).write_bytes(b'foreign')
+    if fault == 'bad-new':
+        key = next(iter(fixture_manifest.select(['mechanical'])))
+        new['manifest']['members'][key]['sha256'] = '0' * 64
+    with pytest.raises(ValueError):
+        rig.control.replace(selection, ['native'] if fault == 'subset' else ['mechanical'],
+            readiness=old, maintenance_owner=lambda _: fault != 'busy')
+    assert rig.boundary.writes == writes and rig.registered == registered
+    assert_terminal(rig)
+
+
+@pytest.mark.parametrize('phase', ['stage', 'place', 'activate', 'readback', 'witness', 'clean'])
+def test_replacement_uncertain_result_cannot_republish_or_replay(rig, phase):
+    old = execute(rig)
+    selection, _ = replacement_input(rig)
+    rig.boundary.lost_reply = phase
+    with pytest.raises(TimeoutError):
+        rig.control.replace(selection, ['mechanical'], readiness=old, maintenance_owner=lambda _: True)
+    assert_terminal(rig)
+    facade = provision.Provisioner(rig.lease, rig.transport, register_staging=rig.registered.append,
+        boundary=rig.boundary, input_reader=rig.reader)
+    with pytest.raises(ValueError, match='terminal-attempt'):
+        facade.resume_maintenance(rig.selection, ['mechanical'], attempt_id=rig.attempt,
+            expected_binding=old.binding, maintenance_owner=lambda _: True)
+
+
+def test_maintenance_resume_is_exact_read_only_and_requires_persistent_owner(rig):
+    ready = execute(rig)
+    # A reopened command has a fresh ephemeral lease; its persistent record
+    # remains the only authority for this exact successful binding.
+    lease = copy.copy(rig.lease)
+    del lease._fixture_provision_state
+    control = provision.Provisioner(lease, rig.transport, register_staging=rig.registered.append,
+        boundary=rig.boundary, input_reader=rig.reader)
+    writes, registered = rig.boundary.writes[:], rig.registered[:]
+    renewed = control.resume_maintenance(rig.selection, ['mechanical'], attempt_id=rig.attempt,
+        expected_binding=ready.binding, maintenance_owner=lambda b: b == ready.binding)
+    assert renewed == ready
+    assert rig.boundary.writes == writes and rig.registered == registered
+    assert control.require_ready(renewed) == renewed
 
 
 def configure_target(rig, target):
@@ -632,6 +719,49 @@ def test_real_guest_places_exact_selected_bytes_modes_and_cleans_owned_stage(rea
         r.boundary.call('place', repeat)
 
 
+@pytest.mark.parametrize('fault', [None, 'modified-old', 'modified-stage'])
+def test_real_guest_replaces_only_verified_owned_files(real_guest, fault):
+    r = real_guest
+    guest_stage(r)
+    r.boundary.call('place', r.request)
+    r.boundary.call('activate', r.request)
+    r.boundary.call('clean', r.request)
+    old = copy.deepcopy(r.request)
+    old['repeat'] = True
+    request = copy.deepcopy(r.request)
+    request['binding'].update(generation=1, content_identity='a' * 64)
+    request['staging'] = '/run/onpc-fixture-' + provision.digest(request['binding'])
+    request.update(replaces=old, stage_identity=None, stage_files=None)
+    payloads = {key: data + b' replacement' for key, data in r.payloads.items()}
+    for key, data in payloads.items():
+        request['members'][key].update(length=len(data), sha256=sha(data))
+    before = {m['destination']: r.files.read(m['destination'], uid=m['uid'],
+        gid=m['gid'], mode=m['mode']) for m in old['members'].values()}
+    assert r.boundary.call('preflight', request) == {'ok': True}
+    request['stage_identity'] = r.boundary.call('reserve', request)['identity']
+    request['stage_files'] = r.boundary.call('stage', request, payloads)['identities']
+    if fault is not None:
+        key = next(iter(payloads))
+        path = (request['members'][key]['destination'] if fault == 'modified-old' else
+                request['staging'] + '/' + key)
+        (r.root / path.lstrip('/')).write_bytes(b'foreign bytes')
+        with pytest.raises(ValueError):
+            r.boundary.call('place', request)
+        for member_key, m in old['members'].items():
+            if fault == 'modified-old' and member_key == key:
+                continue
+            assert (r.root / m['destination'].lstrip('/')).read_bytes() == before[m['destination']]
+        return
+    r.boundary.call('place', request)
+    r.boundary.call('activate', request)
+    observed = r.boundary.call('readback', request)
+    assert observed['files'] == {key: {name: m[name] for name in
+        ('sha256', 'length', 'mode', 'uid', 'gid')} for key, m in request['members'].items()}
+    r.boundary.call('witness', request)
+    r.boundary.call('clean', request)
+    assert not r.files.exists(request['staging'])
+
+
 @pytest.mark.parametrize('fault', ['unknown', 'modified', 'file-link', 'hardlink',
                                   'fifo', 'directory', 'mode', 'owner', 'unsafe-parent', 'parent-link'])
 def test_real_guest_refuses_foreign_modified_and_unsafe_paths_without_mutation(real_guest, fault):
@@ -774,6 +904,14 @@ class NativeCommands:
             path = self.files.root / guest.TRUST.lstrip('/')
             with path.open('ab') as stream:
                 stream.write(f"{argv[3]} {item['length']} {item['sha256']}\n".encode())
+        if argv[1:3] == ['--file', 'update']:
+            assert argv[4:] == ['--trust-file', Path(guest.TRUST).name]
+            item = next(item for item in self.request['members'].values()
+                        if item['destination'] == argv[3])
+            path = self.files.root / guest.TRUST.lstrip('/')
+            rows = path.read_text().splitlines(keepends=True)
+            path.write_text(''.join(f"{argv[3]} {item['length']} {item['sha256']}\n"
+                if row.startswith(argv[3] + ' ') else row for row in rows))
         if argv[1:] == ['--update']:
             self.installed = True
         if argv[1:] == ['--dump-db']:
@@ -827,6 +965,43 @@ def test_real_native_uses_exact_public_trust_actions_and_preserves_environment(r
     r.native_api.preflight({**r.request, 'repeat': True})
     assert [argv for argv in r.commands.calls[len(before):]
             if argv[1:3] == ['--file', 'add'] or argv[1:] == ['--update']] == []
+
+
+@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
+def test_real_native_replacement_updates_only_owned_trust_entries(real_native, monkeypatch, target):
+    r = real_native
+    if target == 'fedora':
+        r.request['target'] = {'os': 'fedora', 'release': '44', 'architecture': 'x86_64'}
+        r.native_api = guest.Native(r.files, r.commands, r.request['target'], service_gid=1234)
+        # Tool provenance and stock-policy checks have their own real-file
+        # regressions. This seam isolates exact trust/rule replacement and labels.
+        monkeypatch.setattr(r.native_api, '_backend', Mock())
+        monkeypatch.setattr(r.native_api, '_stock', Mock())
+    r.native_api.preflight(r.request)
+    r.native_api.activate(r.request)
+    old = {**copy.deepcopy(r.request), 'repeat': True}
+    r.native_api.preflight(old)
+    new = copy.deepcopy(r.request)
+    for m in new['members'].values():
+        # Duplicate runtime copies must remain identical in both generations.
+        m['sha256'] = sha(bytes.fromhex(m['sha256']) + b' replacement')
+        m['length'] += 1
+    new['replaces'] = old
+    r.commands.request = new
+    r.commands.calls.clear()
+    r.native_api.activate(new)
+    r.native_api.verify(new)
+    trusted = sorted(m['destination'] for m in new['members'].values() if m['native_action'] == 'trust')
+    updates = [argv for argv in r.commands.calls if argv[1:3] == ['--file', 'update']]
+    assert updates == [[r.native_api.cli, '--file', 'update', path, '--trust-file',
+                        Path(guest.TRUST).name] for path in trusted]
+    assert not any(argv[1:3] in (['--file', 'add'], ['--file', 'delete']) for argv in r.commands.calls)
+    assert len([argv for argv in r.commands.calls if argv[1:] == ['--update']]) == 1
+    assert r.files.read('/etc/fapolicyd/trust.d/vendor.trust', mode=0o600) == b'# preserve vendor trust\n'
+    for path, data in r.native_api._rules(new).items():
+        assert r.files.read(path, gid=r.native_api.gid) == data
+    if target == 'fedora':
+        assert [argv for argv in r.commands.calls if argv == ['/usr/sbin/fagenrules', '--load']]
 
 
 def test_native_database_mismatch_retains_exact_fixture_diagnostic(real_native):

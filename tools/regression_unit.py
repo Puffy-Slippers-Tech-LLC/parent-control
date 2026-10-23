@@ -1148,6 +1148,10 @@ from regression_ui import Bucket
 # doubles and small records process-local, without sockets, services or children.
 # VM-control's fixed reproduction binding adds only mocks to its reviewed private
 # fixture resources; no live maintenance lease or guest is acquired by host tests.
+# Idle fixture-refresh guards, retained A/B builds and dispatcher chronology use
+# those private lease/journal roots and in-memory transport/command doubles.
+# They add no live VM, service, display, shared cache or process owner; existing
+# compatible fixture_execution/fixture_provision/vm_control and launcher buckets apply.
 # First-configuration controller checks use tiny pytest-private wrapper/witness
 # files, bounded waited harmless shell children and process-local PAM/command
 # doubles. Their conversation owns only bounded libc response allocations.

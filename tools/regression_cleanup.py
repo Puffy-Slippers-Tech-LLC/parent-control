@@ -244,6 +244,9 @@ from regression_resources import HOST_WORKERS
 # Dual-target fixture_execution source-edit proof retains private journal/bundle
 # state and its existing bounded waited descendant; no new resource owner is
 # added, so existing compatible cleanup/unit classifications remain valid.
+# Idle refresh and independent-runtime uncertainty checks keep the same private
+# fixture journals/lease files and synchronous doubles. The existing compatible
+# fixture_execution, fixture_provision and vm_control cleanup buckets still apply.
 
 
 # DESK13 shares those private doubles/evidence and waited Perl lifetimes; its

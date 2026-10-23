@@ -72,6 +72,31 @@ def fixture_selection(checkout):
         1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
 
 
+@pytest.mark.parametrize('phase', ['retain-a', 'replace-b'])
+def test_live_refresh_dispatch_requires_exact_phase_inputs_and_ubuntu(checkout, fixture_selection, phase):
+    (checkout / 'tests/integration/check_fixture_live_refresh.py').touch()
+    source = fixture_selection | {'allocation': '/tmp/onpc-fixture-source-edit-private',
+                                  'device': 5, 'inode': 6}
+    replacement = fixture_selection | {'key': 'd' * 64, 'build_identity': 'e' * 64,
+        'allocation': fixture_selection['allocation'].replace('a' * 64, 'd' * 64)}
+    options = ['--fixture-selection', json.dumps(fixture_selection),
+               '--fixture-source-selection', json.dumps(source), '--fixture-refresh-phase', phase]
+    if phase == 'replace-b':
+        options += ['--fixture-replacement-selection', json.dumps(replacement)]
+    args = ['integration', 'check_fixture_live_refresh', '--vm', 'onpc-Ubuntu26.04']
+    command = runner['selection'](checkout, [*args, *options])
+    assert command[:3] == ['/usr/bin/python3', '-B', str(checkout / 'tests/integration/check_fixture_live_refresh.py')]
+    assert command[command.index('--fixture-refresh-phase') + 1] == phase
+    with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+        runner['selection'](checkout, ['integration', 'check_fixture_live_refresh',
+            '--vm', 'onpc-Fedora44', *options])
+    with pytest.raises(ValueError, match='incomplete-fixture-refresh'):
+        runner['selection'](checkout, args)
+    with pytest.raises(ValueError, match='unexpected-fixture-refresh'):
+        runner['selection'](checkout, ['integration', 'check_future_feature',
+            '--vm', 'onpc-Ubuntu26.04', '--fixture-refresh-phase', phase])
+
+
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('selector', FIXTURE_WRAPPERS)
 @pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
@@ -524,6 +549,14 @@ def test_selected_producer_dispatch_keeps_command_without_parent_owner(
         assert invocation.kwargs['pass_fds'] == scratch_descriptors()
     owner.assert_not_called()
     inherited.assert_not_called()
+
+
+@pytest.mark.parametrize('phase', ['retain-a', 'replace-b'])
+def test_live_refresh_phases_own_storage_without_idle_vm_retention_guard(phase):
+    assert runner['child_retention_owner'](['integration', 'check_fixture_live_refresh',
+                                           '--fixture-refresh-phase', phase])
+    assert runner['child_retention_owner'](['integration', 'check_fixture_live_refresh.py',
+                                           '--fixture-refresh-phase', phase])
 
 
 @pytest.mark.parametrize('unattended', [False, True])

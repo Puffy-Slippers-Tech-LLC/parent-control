@@ -86,6 +86,26 @@ def _new_state():
             'selection': None, 'lock': threading.Lock()}
 
 
+def selected_input(reader, selection, subsets):
+    declared = fixture_manifest.select(subsets)
+    require(type(subsets) in (tuple, list), 'subsets')
+    loaded = reader(selection)
+    manifest, payloads = loaded['manifest'], loaded['payloads']
+    require(type(loaded['content_identity']) is str and
+            HEX.fullmatch(loaded['content_identity']), 'content-identity')
+    require(set(manifest['members']) == set(fixture_manifest.declarations())
+            and manifest['absences'] == fixture_manifest.ABSENCES, 'manifest-membership')
+    for key, declaration in declared.items():
+        member = manifest['members'][key]
+        require({name: member.get(name) for name in declaration if name != 'source'} ==
+                {name: value for name, value in declaration.items() if name != 'source'},
+                'member-declaration')
+        require(type(payloads[key]) is bytes and 0 < len(payloads[key]) <= fixture_manifest.MAX_MEMBER
+                and len(payloads[key]) == member['length']
+                and hashlib.sha256(payloads[key]).hexdigest() == member['sha256'], 'member-bytes')
+    return loaded
+
+
 def reset_after_restore(lease):
     """Retire a generation only at the existing VM owner's off restore boundary.
 
@@ -256,11 +276,16 @@ class Provisioner:
     def _step(self, action, request, payloads=None):
         state = self._guard()
         binding = request['binding']
+        owner = getattr(self, '_maintenance_owner', None)
+        if owner is not None:
+            require(owner(deepcopy(binding)) is True, 'maintenance-owner')
         require(state['domain_uuid'] == binding['vm_uuid'] and state['run'] == binding['run']
                 and self._boot() == binding['boot_sha256'], 'stale-attempt')
         result = self.boundary.call(action, deepcopy(request), payloads)
         self._guard()
         require(self._boot() == binding['boot_sha256'], 'stale-boot')
+        if owner is not None:
+            require(owner(deepcopy(binding)) is True, 'maintenance-owner')
         return result
 
     def _readback(self, request):
@@ -271,6 +296,139 @@ class Provisioner:
                                                    'labels': True}, 'readback')
         require(self._step('witness', request) == {'ready': True}, 'witness')
         return expected
+
+    def _install(self, request, payloads):
+        self.register_staging(request['staging'])
+        for action in ('reserve', 'stage', 'place', 'activate'):
+            reply = self._step(action, request,
+                {key: payloads[key] for key in request['members']} if action == 'stage' else None)
+            valid = lambda value: type(value) is list and len(value) == 2 and all(
+                type(number) is int and number > 0 for number in value)
+            if action == 'reserve':
+                require(type(reply) is dict and set(reply) == {'ok', 'identity'} and
+                        reply['ok'] is True and valid(reply['identity']), action)
+                request['stage_identity'] = reply['identity']
+            elif action == 'stage':
+                require(type(reply) is dict and set(reply) == {'ok', 'identities'} and
+                        reply['ok'] is True and type(reply['identities']) is dict and
+                        set(reply['identities']) == set(request['members']) and
+                        all(valid(v) for v in reply['identities'].values()), action)
+                request['stage_files'] = reply['identities']
+            else:
+                require(reply == {'ok': True}, action)
+        files = self._readback(request)
+        require(self._step('clean', request) == {'ok': True}, 'staging-cleanup')
+        return files
+
+    def _maintenance_request(self, selection, subsets, attempt_id, generation):
+        loaded = selected_input(self.input_reader, selection, subsets)
+        manifest = loaded['manifest']
+        state = self._guard()
+        require(type(attempt_id) is str and re.fullmatch(
+            r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', attempt_id), 'attempt-id')
+        require(type(generation) is int and generation >= 0, 'generation')
+        binding = {'vm_uuid': state['domain_uuid'], 'run': state['run'],
+                   'boot_sha256': self._boot(), 'attempt_id': attempt_id,
+                   'manifest_sha256': digest(manifest), 'content_identity': loaded['content_identity'],
+                   'subsets': sorted(subsets), 'generation': generation}
+        request = {'binding': binding, 'target': manifest['inputs']['target'],
+                   'members': {}, 'absences': [], 'accounts': {}, 'repeat': True,
+                   'stage_identity': None, 'stage_files': None,
+                   'staging': '/run/onpc-fixture-' + digest(binding)}
+        inspected = self._step('inspect', request)
+        accounts = accepted_accounts(inspected['accounts'])
+        require(inspected['target'] == request['target'], 'incompatible-target')
+        request['accounts'] = accounts
+        for key in fixture_manifest.select(subsets):
+            member = deepcopy(manifest['members'][key])
+            for role, account in accounts.items():
+                member['destination'] = member['destination'].replace('@' + role + '@', account['home'])
+            owner = accounts[member['owner']]
+            member.update(uid=owner['uid'], gid=owner['gid'])
+            request['members'][key] = member
+        request['absences'] = [item['destination'] for item in manifest['absences']
+                               if set(subsets).intersection(item['subsets'])]
+        return request, loaded['payloads']
+
+    def resume_maintenance(self, selection, subsets, *, attempt_id, expected_binding,
+                           maintenance_owner):
+        """Reconstruct readiness only from the existing persistent idle owner.
+
+        The caller must refuse pending/failed persistent records before calling.
+        This performs no guest mutation and never adopts an unrecorded closure.
+        """
+        acquired = self._shared['lock'].acquire(blocking=False)
+        try:
+            require(acquired, 'concurrent-provisioning')
+            require(callable(maintenance_owner), 'maintenance-owner')
+            self._maintenance_owner = maintenance_owner
+            require(maintenance_owner(deepcopy(expected_binding)) is True, 'maintenance-owner')
+            require(self._receipt is None or self._receipt.binding == expected_binding,
+                    'existing-readiness')
+            request, _ = self._maintenance_request(selection, subsets, attempt_id,
+                                                   expected_binding['generation'])
+            require(request['binding'] == expected_binding, 'changed-maintenance-binding')
+            require(self._step('preflight', request) == {'ok': True}, 'preflight')
+            files = self._readback(request)
+            self._request = deepcopy(request)
+            self._selection = deepcopy(selection.record() if hasattr(selection, 'record') else selection)
+            self._receipt = Readiness(deepcopy(expected_binding), files)
+            return deepcopy(self._receipt)
+        except BaseException:
+            self.failed, self._receipt = True, None
+            raise
+        finally:
+            self._maintenance_owner = None
+            if acquired:
+                self._shared['lock'].release()
+
+    def replace(self, selection, subsets, *, readiness, maintenance_owner):
+        """Replace the exact verified closure under the persistent idle VM owner.
+
+        The caller records its pending transaction before entry and retains A
+        and B through owned restore. Any failure leaves its persistent owner
+        latched; this object cannot roll back, retry, or clear that latch.
+        """
+        acquired = self._shared['lock'].acquire(blocking=False)
+        try:
+            require(acquired, 'concurrent-provisioning')
+            self._guard()
+            require(callable(maintenance_owner), 'maintenance-owner')
+            self._maintenance_owner = maintenance_owner
+            require(self._receipt is not None and readiness == self._receipt, 'readiness-required')
+            old, _ = self._maintenance_request(self._selection,
+                self._request['binding']['subsets'], self._request['binding']['attempt_id'],
+                self._request['binding'].get('generation', 0))
+            require(old['binding'] == {**self._request['binding'],
+                    'generation': self._request['binding'].get('generation', 0)}, 'changed-old-input')
+            require(old['accounts'] == self._request['accounts'] and
+                    old['members'] == self._request['members'], 'changed-old-input')
+            require(self._step('preflight', old) == {'ok': True}, 'preflight')
+            self._readback(old)
+            request, payloads = self._maintenance_request(selection, subsets,
+                old['binding']['attempt_id'], old['binding']['generation'] + 1)
+            require(request['binding']['subsets'] == old['binding']['subsets'] and
+                    request['target'] == old['target'] and request['accounts'] == old['accounts'] and
+                    {k: m['destination'] for k, m in request['members'].items()} ==
+                    {k: m['destination'] for k, m in old['members'].items()}, 'replacement-closure')
+            require(request['binding']['boot_sha256'] == old['binding']['boot_sha256'], 'stale-boot')
+            request['repeat'], request['replaces'] = False, old
+            require(self._step('preflight', request) == {'ok': True}, 'preflight')
+            # Retire A before even the staging intent can mutate the guest.
+            self._receipt = None
+            files = self._install(request, payloads)
+            request.pop('replaces')
+            self._request = deepcopy(request)
+            self._selection = deepcopy(selection.record() if hasattr(selection, 'record') else selection)
+            self._receipt = Readiness(deepcopy(request['binding']), deepcopy(files))
+            return deepcopy(self._receipt)
+        except BaseException:
+            self.failed, self._receipt = True, None
+            raise
+        finally:
+            self._maintenance_owner = None
+            if acquired:
+                self._shared['lock'].release()
 
     def wait_environment(self):
         """Observe native startup before an independent fixture-free audit."""
@@ -307,27 +465,15 @@ class Provisioner:
             declared = fixture_manifest.select(subsets)
             require(type(subsets) in (tuple, list), 'subsets')
             frozen_selection = deepcopy(selection.record() if hasattr(selection, 'record') else selection)
-            loaded = self.input_reader(selection)
+            loaded = selected_input(self.input_reader, selection, subsets)
             manifest, payloads = loaded['manifest'], loaded['payloads']
-            require(type(loaded['content_identity']) is str and
-                    HEX.fullmatch(loaded['content_identity']), 'content-identity')
-            # The authenticated reader validates the complete bundle. Check the
-            # selected finite descriptors here too, including injected readers.
-            require(set(manifest['members']) == set(fixture_manifest.declarations())
-                    and manifest['absences'] == fixture_manifest.ABSENCES, 'manifest-membership')
-            for key, declaration in declared.items():
-                member = manifest['members'][key]
-                require({name: member.get(name) for name in declaration if name != 'source'} ==
-                        {name: value for name, value in declaration.items() if name != 'source'},
-                        'member-declaration')
-                require(type(payloads[key]) is bytes and 0 < len(payloads[key]) <= fixture_manifest.MAX_MEMBER
-                        and len(payloads[key]) == member['length']
-                        and hashlib.sha256(payloads[key]).hexdigest() == member['sha256'], 'member-bytes')
             state = self._guard()
             binding = {'vm_uuid': state['domain_uuid'], 'run': state['run'],
                        'boot_sha256': self._boot(), 'attempt_id': attempt_id,
                        'manifest_sha256': digest(manifest),
-                       'content_identity': loaded['content_identity'], 'subsets': sorted(subsets)}
+                       'content_identity': loaded['content_identity'], 'subsets': sorted(subsets),
+                       'generation': self._request['binding']['generation']
+                       if self._receipt is not None else 0}
             if self._receipt is not None:
                 require(binding == self._request['binding'] and frozen_selection == self._selection,
                         'changed-request')
@@ -361,26 +507,7 @@ class Provisioner:
             request['absences'] = [item['destination'] for item in manifest['absences']
                                    if set(subsets).intersection(item['subsets'])]
             require(self._step('preflight', request) == {'ok': True}, 'preflight')
-            self.register_staging(request['staging'])
-            for action in ('reserve', 'stage', 'place', 'activate'):
-                selected_payloads = {key: payloads[key] for key in declared} if action == 'stage' else None
-                reply = self._step(action, request, selected_payloads)
-                valid_identity = lambda value: (type(value) is list and len(value) == 2
-                    and all(type(number) is int and number > 0 for number in value))
-                if action == 'reserve':
-                    require(type(reply) is dict and set(reply) == {'ok', 'identity'}
-                            and reply['ok'] is True and valid_identity(reply['identity']), action)
-                    request['stage_identity'] = reply['identity']
-                elif action == 'stage':
-                    require(type(reply) is dict and set(reply) == {'ok', 'identities'}
-                            and reply['ok'] is True and type(reply['identities']) is dict
-                            and set(reply['identities']) == set(declared)
-                            and all(valid_identity(v) for v in reply['identities'].values()), action)
-                    request['stage_files'] = reply['identities']
-                else:
-                    require(reply == {'ok': True}, action)
-            files = self._readback(request)
-            require(self._step('clean', request) == {'ok': True}, 'staging-cleanup')
+            files = self._install(request, payloads)
             self._request, self._selection = deepcopy(request), frozen_selection
             self._receipt = Readiness(deepcopy(binding), deepcopy(files))
             return deepcopy(self._receipt)

@@ -138,7 +138,12 @@ another provisioner cannot bypass them. Subset changes require a fresh clean
 attempt. After the existing VM owner has restored its snapshot and verified the
 guest off, `reset_after_restore(lease)` retires that generation before the next
 prepare. Old objects and receipts stay unusable. Reboot alone grants no reset.
-Live refresh also needs the later qualified idle-maintenance boundary.
+The separate [idle maintenance refresh](../integration/README.md#idle-fixture-maintenance-refresh)
+owner may reconstruct a verified persisted generation with `resume_maintenance`
+and explicitly `replace` it with authenticated, retained, same-subset input.
+It persists pending readiness before fixture use and makes uncertain operations
+unavailable until owned recovery. This does not change ordinary provisioning's
+immutable-attempt contract.
 `wait_environment()` observes native startup before an independent clean audit;
 it grants no fixture readiness. The shared guest boundary waits up to 180 seconds
 for one activating service invocation to become active, pinning its invocation

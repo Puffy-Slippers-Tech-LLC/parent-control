@@ -1,12 +1,17 @@
 """Runner terminal histories with private storage and real publication/rotation.
 
-No VM, process, display, socket, service, shared cache or fixture build is owned.
+The contention cases own one forked child, a private pipe and an owned thread.
+No VM, display, service, shared cache or fixture build is owned.
 """
 import hashlib
+from contextlib import contextmanager
+import fcntl
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import tempfile
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -70,6 +75,160 @@ def finish(evidence, *, members=(), **updates):
 def exact_reference(result, member):
     return next(reference for reference in result['references']
                 if reference['member_id'] == member['member_id'])
+
+
+def test_concurrent_report_publication_waits_and_preserves_both_custody_transfers(
+        environment, monkeypatch):
+    root, store = environment
+    context = multiprocessing.get_context('fork')
+    parent, child = context.Pipe()
+
+    def publish_other_report():
+        parent.close()
+        # The fork occurs before publication. Drop only this child's inherited
+        # copies of the parent's recorded leases; the parent keeps its ownership.
+        for descriptor in list(retention._locks):
+            os.close(descriptor)
+        retention._locks.clear()
+        retention._sessions.clear()
+        os.environ.pop(retention.VARIABLE, None)
+        os.environ.pop(retention.OWNER_VARIABLE, None)
+        try:
+            assert child.recv() == 'publish'
+            other = retention.Store(store.path.with_name('retention-vm'))
+            real_locked = retention.Store.locked
+
+            @contextmanager
+            def observed_lock(self, fd, name, **options):
+                if name == 'producer.lock':
+                    probe = os.open(name, os.O_RDWR | os.O_NOFOLLOW, dir_fd=fd)
+                    try:
+                        with pytest.raises(BlockingIOError):
+                            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    finally:
+                        os.close(probe)
+                    child.send('contended')
+                with real_locked(self, fd, name, **options) as descriptor:
+                    yield descriptor
+
+            with monkeypatch.context() as local:
+                local.setattr(retention.Store, 'locked', observed_lock)
+                with other.session():
+                    evidence = runner.ReportEvidence(root, allocate())
+                    result = finish(evidence)
+            charges = json.loads((other.path / 'current.json').read_bytes())['captures']
+            assert all(charge.get('acknowledgement') for charge in charges)
+            child.send(dict(result=result))
+        except BaseException as error:
+            child.send(dict(error=f'{type(error).__name__}: {error}'))
+        finally:
+            child.close()
+
+    process = context.Process(target=publish_other_report)
+    with store.session():
+        evidence = runner.ReportEvidence(root, allocate())
+        process.start()
+        child.close()
+        try:
+            def pause(stage):
+                if stage == 'publication.registered':
+                    parent.send('publish')
+                    assert parent.poll(60), 'second producer did not attempt publication'
+                    assert parent.recv() == 'contended'
+
+            with monkeypatch.context() as local:
+                local.setattr(runner.publication, 'checkpoint', pause)
+                first = finish(evidence)
+            assert parent.poll(60), 'second producer did not finish after custody transfer'
+            outcome = parent.recv()
+            assert 'error' not in outcome, outcome
+            process.join(60)
+            assert process.exitcode == 0
+            charges = json.loads((store.path / 'current.json').read_bytes())['captures']
+            assert all(charge.get('acknowledgement') for charge in charges)
+            for result in (first, outcome['result']):
+                for record in result['records']:
+                    for member in record['members']:
+                        assert runner.resolve_reference(root, exact_reference(result, member)) == (
+                            Path(member['original_path']).read_bytes())
+        finally:
+            parent.close()
+            if process.is_alive():
+                process.terminate()
+            process.join(60)
+            assert not process.is_alive()
+
+
+def test_nested_workflow_publication_refuses_and_releases_admission(environment, monkeypatch):
+    root, store = environment
+    with store.session():
+        evidence = runner.ReportEvidence(root, allocate())
+
+        def nested(stage):
+            if stage == 'publication.registered':
+                with pytest.raises(ValueError, match='nested workflow publication'):
+                    with bundle.Selection(root, os.geteuid(), os.getegid(), [], [], [],
+                                          captures=[evidence._start['capture_id']]):
+                        pytest.fail('nested publication acquired the workflow owner')
+
+        with monkeypatch.context() as local:
+            local.setattr(runner.publication, 'checkpoint', nested)
+            first = finish(evidence)
+        later = finish(runner.ReportEvidence(root, allocate()))
+    for result in (first, later):
+        member = result['records'][0]['members'][0]
+        assert runner.resolve_reference(root, exact_reference(result, member))
+
+
+def test_source_retirement_waits_for_concurrent_destination_publication(environment, monkeypatch):
+    root, store = environment
+    with store.session():
+        directory = allocate()
+        result = finish(runner.ReportEvidence(root, directory))
+    # The next admission must retire this acknowledged source, rather than just
+    # reading a custody record that is not yet needed for deletion.
+    for _ in range(2):
+        with store.session():
+            pass
+    destination = retention.Store(Path(runner.reference_locator(root, 'regression')).parent)
+    attempted, completed = threading.Event(), threading.Event()
+    outcome = []
+    real_locked = retention.Store.locked
+
+    @contextmanager
+    def observed_lock(self, fd, name, **options):
+        if self.path == destination.path and name == 'owner.lock' and options.get('shared'):
+            attempted.set()
+        with real_locked(self, fd, name, **options) as descriptor:
+            yield descriptor
+
+    def retire_source():
+        try:
+            with store.session():
+                pass
+        except BaseException as error:
+            outcome.append(error)
+        finally:
+            completed.set()
+
+    monkeypatch.setattr(retention.Store, 'locked', observed_lock)
+    worker = threading.Thread(target=retire_source, daemon=True)
+    try:
+        with destination.opened() as fd, destination.locked(fd, 'owner.lock'):
+            worker.start()
+            assert attempted.wait(60), 'retirement did not inspect its replacement custody'
+            assert not completed.wait(0.1), 'retirement refused a transient destination owner'
+        worker.join(60)
+        assert not worker.is_alive()
+        assert not outcome, outcome
+        assert not directory.exists()
+        for record in result['records']:
+            for member in record['members']:
+                assert runner.resolve_reference(root, exact_reference(result, member))
+    finally:
+        if worker.ident is not None:
+            worker.join(60)
+            assert not worker.is_alive()
 
 
 def test_generated_document_link_uses_exact_runner_proof_after_rotation(environment, monkeypatch, capsys):

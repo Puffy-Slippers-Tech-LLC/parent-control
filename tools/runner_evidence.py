@@ -398,12 +398,12 @@ class ReportEvidence:
         with bundle.Selection(self.root, caller['uid'], caller['gid'], targets, [], [],
                               captures=sorted(identifiers), include_host_captures=True) as selected:
             receipt = bundle.export(selected, expected=selected.selection_sha256)
-        # Leave the start charge pending until every terminal acknowledgement
-        # has succeeded, including truthful failed/interrupted terminal records.
-        for item in [*self._prepared[1:], self._prepared[0]]:
-            request = capture.inspect_capture(self.root, caller['uid'], caller['gid'], item['capture_id'])
-            capture.acknowledge_capture(self.root, caller['uid'], caller['gid'], item['capture_id'],
-                expected=request['request_sha256'], session_handle=item['handle'])
+            # Keep workflow publication serialized through custody transfer.
+            # Leave startup required until every terminal acknowledgement succeeds.
+            for item in [*self._prepared[1:], self._prepared[0]]:
+                request = capture.inspect_capture(self.root, caller['uid'], caller['gid'], item['capture_id'])
+                capture.acknowledge_capture(self.root, caller['uid'], caller['gid'], item['capture_id'],
+                    expected=request['request_sha256'], session_handle=item['handle'])
         records = [item['record'] for item in self._prepared]
         references = [dict(schema=1, workflow=self.workflow, record_id=record['record_id'],
                            member_id=member['member_id'], closure_sha256=record['closure_sha256'])

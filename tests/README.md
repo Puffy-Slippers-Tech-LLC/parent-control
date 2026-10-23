@@ -2567,6 +2567,10 @@ and closure digest. `runner_evidence.resolve_reference` derives the workflow's
 existing publication journal and verifies the current cumulative archive under
 its reader lock; original report paths and superseded export paths can retire.
 A denied publication is attempted once and preserves the required original.
+Concurrent producers in one workflow serialize selection planning, cumulative
+publication and source acknowledgement under the same workflow admission lock.
+Source retirement waits for an active destination publication before verifying
+custody; source ownership and other inspection admission checks remain intact.
 Cumulative authenticated request history uses the shared 60,000-entry and 64-MiB
 metadata bounds, alongside the existing archive and retention limits. The
 256-input limit applies separately to each explicit publication selection.

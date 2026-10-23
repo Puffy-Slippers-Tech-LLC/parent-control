@@ -98,9 +98,17 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
     import tempfile
     with tempfile.TemporaryDirectory(prefix='onpc-transfer-test-', dir='/tmp') as directory:
         options = [option, '--artifacts=' + directory]
+        selection = None
+        if option == '--qualify-transfer':
+            from tools.fixture_execution import Selection
+            selection = Selection('ubuntu', 'a' * 64,
+                '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private', 1, 2,
+                '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
+            options.extend(('--fixture-selection', json.dumps(selection, sort_keys=True)))
         plan = runner['preflight'](options)
-        assert plan == {'mode': mode, 'artifacts': directory}
-        assert select_vm(ROOT, ['e2e', *options])[-2:] == options
+        assert plan == {'mode': mode, 'artifacts': directory,
+                        **({'fixture_selection': selection} if selection else {})}
+        assert select_vm(ROOT, ['e2e', *options])[-len(options):] == options
         for extra in ('--list', '--ready', '--scenario=E2E-001', '--scenario='):
             with pytest.raises(ValueError, match='qualification-cannot-select-scenarios'):
                 runner['preflight']([*options, extra])
@@ -108,6 +116,14 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
         assert runner['preflight'](command[3:]) == plan
     with pytest.raises(ValueError, match='missing-artifact-directory'):
         runner['preflight'](options)
+
+
+def test_transfer_requires_immutable_selection_and_only_qualified_target(tmp_path):
+    with pytest.raises(ValueError, match='execution-selection-required'):
+        runner['preflight'](['--qualify-transfer', '--artifacts=' + str(tmp_path)])
+    with pytest.raises(ValueError, match='transfer-target-not-qualified'):
+        runner['preflight'](['--vm', 'onpc-Fedora44', '--qualify-transfer',
+                             '--artifacts=' + str(tmp_path)], allow_missing_artifacts=True)
 
 
 @pytest.mark.parametrize('selector,count', [('E2E-001', 1), ('E2E-023/fullscreen', 1)])

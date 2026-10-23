@@ -214,7 +214,7 @@ unchanged selection after actual producer-source edits. Results retain package
 metadata and frozen helpers rather than the complete fixture collection.
 Scenario asset mutations remain separate. Watched baseline restoration and
 owned credential, staging, input and transport cleanup are required.
-Fedora product-free E2E, standalone transfer/serial, recorded serial and unqualified fixture profiles
+Fedora standalone transfer, standalone/recorded serial and unqualified fixture profiles
 retain their separate gates. This supplies no customer or E2E acceptance.
 
 ### Fedora installed E2E preparation
@@ -275,6 +275,30 @@ The same independent readback/runtime, refusal, no-write repeat, fresh readiness
 source-edit immunity and product-absence checks apply. Stop before customer or
 worker input and product assertions; finish watched baseline restoration and
 owned cleanup. This supplies no customer or E2E acceptance.
+
+### Ubuntu standalone transfer preparation
+
+Standalone `runner --qualify-transfer` selects its immutable `native` input
+before VM acquisition and uses the product-free baseline. Preboot work stages
+only SSH transport prerequisites. `Qualification.execute` defers asset delivery;
+Smoke provisions the selected runtime after guarded SSH readiness, transfers
+package-only scenario assets separately, and rechecks readiness before its first
+ready reply. Package/upgrade inventory, collision and replay guards remain owned
+by `AssetTransfer`.
+
+```sh
+tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_transfer
+```
+
+This preparation-only selector exercises that real controller and Smoke boundary
+once, independently reads the selected native files, runs A harmlessly as Riley,
+and verifies product absence, no preboot payload, no-write repeats and current
+attempt/boot readiness. Focused host checks protect input refusal, immutable
+selection and ordering; unchanged shared uncertain-transfer/recovery proof is
+reused. It stops before graphical or customer input. Watched baseline restoration
+and owned staging, input and transport cleanup remain required. Fedora transfer
+and all standalone/recorded serial aliases retain their separate gates. This
+supplies no customer or E2E acceptance.
 
 ## Retained-session native dependency update
 

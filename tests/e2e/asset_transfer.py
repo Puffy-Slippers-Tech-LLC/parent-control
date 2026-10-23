@@ -233,6 +233,7 @@ class AssetTransfer:
         self._attempted = False
         self._failure = None
         self._receipt = None
+        self._deferred_selection = None
 
     def provision_installed(self, lease, transport):
         """One current-package transfer after running snapshot restoration/setup."""
@@ -246,6 +247,8 @@ class AssetTransfer:
         require(not self._attempted, 'transfer:already-attempted')
         self._attempted = True
         try:
+            require(self._deferred_selection is None or product_free,
+                    'transfer:outside-provisioning')
             require(lease is not None and lease is self.verified.lease, 'transfer:outside-provisioning')
             clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
             require(not product_free or clean, 'transfer:outside-provisioning')
@@ -254,6 +257,9 @@ class AssetTransfer:
                 require(prepared is not None and prepared['lease'] is lease
                         and prepared.get('product_free', False) is product_free,
                         'fixtures:runner-not-qualified-for-clean-snapshot')
+                require(self._deferred_selection is None or
+                        prepared.get('selection') == self._deferred_selection,
+                        'transfer:outside-provisioning')
                 prepared['controller'].require_ready(prepared['receipt'])
             if product_free:
                 from e2e_fixture_preparation import require_product_free_restore
@@ -280,6 +286,18 @@ class AssetTransfer:
                     timeout=30, attempts=1)
                 require(existing in (b'0\n', b'1\n'), 'transfer:destination-probe')
                 require(existing == b'0\n', 'transfer:destination-exists')
+            if self._deferred_selection is not None:
+                # Standalone Smoke bootstraps transport only. Package delivery
+                # remains separate from the shared reusable native closure.
+                from system_runner import PAYLOAD
+                existing = transport.call(['/usr/bin/python3', '-c',
+                    "import os;print(int(os.path.lexists('/var/tmp/onpc-system-input')))"],
+                    timeout=30, attempts=1)
+                require(existing in (b'0\n', b'1\n'), 'transfer:destination-probe')
+                require(existing == b'0\n', 'transfer:destination-exists')
+                transport.copy(False, str(self.verified.assets) + '/', PAYLOAD + '/')
+                lease.guard()
+                self.verified.recheck()
             program = inspect.getsource(provision_installed_assets) + (
                 '\nimport json,sys\nprovision_installed_assets(json.load(sys.stdin))\n')
             if product_free:
@@ -302,7 +320,9 @@ class AssetTransfer:
             print('e2e:asset-transfer-rejected code=' + self._failure, file=sys.stderr, flush=True)
             raise
 
-    def provision(self, lease, guestfs):
+    def provision(self, lease, guestfs, *, fixture_selection=None):
+        if fixture_selection is not None:
+            return self._defer(lease, fixture_selection)
         require(not self._attempted, 'transfer:already-attempted')
         self._attempted = True
         try:
@@ -382,6 +402,33 @@ class AssetTransfer:
             code = str(error) if isinstance(error, EvidenceError) and str(error) in TRANSFER_REFUSALS else (
                 self._failure)
             print('e2e:asset-transfer-rejected code=' + code, file=sys.stderr, flush=True)
+            raise
+
+    def _defer(self, lease, selection):
+        """Authenticate the standalone envelope without opening the guest disk."""
+        require(not self._attempted and self._deferred_selection is None,
+                'transfer:already-attempted')
+        try:
+            require(lease is not None and lease is self.verified.lease,
+                    'transfer:outside-provisioning')
+            from smoke_fixture_preparation import validate_input
+            from system_fixture_preparation import guest_target
+            from e2e_fixture_preparation import require_product_free_restore
+            record = validate_input(selection, target=guest_target(lease.capture.state['guest']))
+            require(guest_target(lease.capture.state['guest']) == 'ubuntu',
+                    'fixtures:transfer-target-not-qualified')
+            require_product_free_restore(lease)
+            require(lease.fd is not None and lease.state['phase'] == 'isolated'
+                    and lease.state['domain_id'] is None, 'transfer:outside-provisioning')
+            lease.guard(off=True)
+            self.verified.recheck()
+            require(not any(name.startswith('fixtures/') for name in self.verified.asset_files),
+                    'provenance:package-only-fixtures')
+            self._deferred_selection = record
+            return {'deferred_until_ssh': True}
+        except BaseException:
+            self._attempted = True
+            self._failure = 'transfer:provisioning-failed'
             raise
 
     def observe(self, observations):

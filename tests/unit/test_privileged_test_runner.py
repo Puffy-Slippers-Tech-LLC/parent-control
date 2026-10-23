@@ -136,13 +136,42 @@ def test_product_free_e2e_dispatch_is_bound_to_qualified_target(checkout, fixtur
 
 
 @pytest.mark.parametrize('options', [
-    ['--list'], ['--qualify-transfer'], ['--qualify-install'], ['--qualify-install-refusal'],
+    ['--list'], ['--qualify-install'], ['--qualify-install-refusal'],
 ])
 def test_e2e_fixture_selection_does_not_enable_other_envelopes(fixture_selection, options):
     root = Path(__file__).resolve().parents[2]
     with pytest.raises(ValueError, match='unexpected-fixture-selection'):
         runner['selection'](root, ['e2e', *options, '--vm', 'onpc-Ubuntu26.04',
             '--fixture-selection', json.dumps(fixture_selection)])
+
+
+def test_transfer_dispatch_is_ubuntu_only_and_preserves_frozen_record(checkout, fixture_selection):
+    (checkout / 'tests/integration/check_fixture_transfer.py').touch()
+    options = ['--fixture-selection', json.dumps(fixture_selection)]
+    command = runner['selection'](checkout, ['integration', 'check_fixture_transfer',
+        '--vm', 'onpc-Ubuntu26.04', *options])
+    assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
+    for suffix in ('', '.py'):
+        with pytest.raises(ValueError, match='fixture-target-not-qualified'):
+            runner['selection'](checkout, ['integration', 'check_fixture_transfer' + suffix,
+                '--vm', 'onpc-Fedora44', *options])
+
+
+def test_transfer_e2e_dispatch_preserves_selection_without_enabling_install(
+        checkout, fixture_selection):
+    root = checkout
+    e2e = root / 'tests/e2e'
+    e2e.mkdir()
+    (e2e / 'runner.py').write_text('def preflight(argv, **kwargs):\n    return {}\n')
+    artifacts = checkout / 'onpc-transfer-artifacts'
+    artifacts.mkdir()
+    options = ['--fixture-selection', json.dumps(fixture_selection)]
+    command = runner['selection'](root, ['e2e', '--qualify-transfer',
+        '--artifacts', str(artifacts), '--vm', 'onpc-Ubuntu26.04', *options])
+    assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
+    with pytest.raises(ValueError, match='unexpected-fixture-selection'):
+        runner['selection'](root, ['e2e', '--qualify-transfer',
+            '--artifacts', str(artifacts), '--vm', 'onpc-Fedora44', *options])
 
 
 @pytest.mark.parametrize('payload', ['{', 'null', '[]', '{}', 'x' * 8193])
@@ -450,7 +479,8 @@ def test_e2e_child_owns_capture_across_real_subprocess_boundary(
     child = e2e / 'runner.py'
     child.write_text(textwrap.dedent('''\
         def preflight(argv, **kwargs):
-            return dict(mode=MODE_LITERAL, artifacts='/tmp/onpc-selected', cases=[])
+            return dict(mode=MODE_LITERAL, artifacts='/tmp/onpc-selected', cases=[],
+                        fixture_selection={'frozen': True})
         if __name__ != '__main__':
             # Declaration preflight must not initialize any producer machinery.
             pass

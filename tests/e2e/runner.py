@@ -53,9 +53,12 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-install', action='store_true')
     qualification.add_argument('--qualify-install-refusal', action='store_true')
     args = parser.parse_args(argv)
+    if (args.qualify_transfer or args.qualify_install or args.qualify_install_refusal) and (
+            args.list or args.scenario is not None or args.id is not None or args.ready):
+        raise ValueError('e2e:qualification-cannot-select-scenarios')
     fixture_selection = None
     if args.fixture_selection is not None:
-        if (args.list or args.qualify_transfer or args.qualify_install or args.qualify_install_refusal
+        if (args.list or args.qualify_install or args.qualify_install_refusal
                 or configured is not None and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44')):
             raise ValueError('e2e:unexpected-fixture-selection')
         if len(args.fixture_selection) > 8192:
@@ -71,6 +74,14 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
                 and selected.target != targets.get(configured.name)):
             raise ValueError('e2e:fixture-target-not-qualified')
         fixture_selection = selected.record()
+    if args.qualify_transfer:
+        if configured is not None and configured.name != 'onpc-Ubuntu26.04':
+            raise ValueError('fixtures:transfer-target-not-qualified')
+        if fixture_selection is None:
+            if not allow_missing_artifacts:
+                raise ValueError('fixtures:execution-selection-required')
+        elif fixture_selection['target'] != 'ubuntu':
+            raise ValueError('fixtures:transfer-target-not-qualified')
     if not args.list:
         password_config.read_password(root)
     if args.qualify_transfer or args.qualify_install or args.qualify_install_refusal:
@@ -82,7 +93,8 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
         return {'mode': ('deliberate-installation-refusal-qualification'
                          if args.qualify_install_refusal else
                          'authenticated-installation-qualification' if args.qualify_install
-                         else 'asset-transfer-qualification'), 'artifacts': str(args.artifacts)}
+                         else 'asset-transfer-qualification'), 'artifacts': str(args.artifacts),
+                **({'fixture_selection': fixture_selection} if fixture_selection is not None else {})}
     if args.list and args.artifacts is not None:
         raise ValueError('e2e:listing-does-not-use-artifacts')
     api = runpy.run_path(str(confined_file(root, 'tests/e2e/inventory.py')))
@@ -173,7 +185,8 @@ def main(argv=None):
                     return check_graphical_smoke.main(assets=Path(plan['artifacts']),
                                                      provision_credentials=True, serial=True,
                                                      install_refusal=True)
-                return check_graphical_smoke.main(assets=Path(plan['artifacts']))
+                return check_graphical_smoke.main(assets=Path(plan['artifacts']),
+                    transfer_qualification=True, fixture_selection=plan['fixture_selection'])
             if plan['mode'] == 'execution-preflight':
                 sys.path.insert(0, str(ROOT / 'tests/e2e'))
                 import execution

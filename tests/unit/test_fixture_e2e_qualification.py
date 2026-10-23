@@ -31,6 +31,97 @@ def lease_for(target, mode='online'):
                       ('internal' if mode == 'online' else 'no') + '"/></domainsnapshot>')
 
 
+def test_transfer_target_and_missing_input_refuse_without_guest_mutation(monkeypatch, selection):
+    import smoke_fixture_preparation as transfer
+    verify = Mock()
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
+    with pytest.raises(ValueError, match='execution-selection-required'):
+        transfer.validate_input(None)
+    if selection.target == 'fedora':
+        with pytest.raises(ValueError, match='transfer-target-not-qualified'):
+            transfer.validate_input(selection.record())
+        verify.assert_not_called()
+    else:
+        assert transfer.validate_input(selection.record()) == selection.record()
+        verify.assert_called_once_with(selection.record())
+
+
+@pytest.mark.parametrize('serial,install', [(False, False), (True, False), (True, True)])
+@pytest.mark.parametrize('supplied', [False, True])
+def test_standalone_clean_input_and_serial_gates_precede_prepare(
+        monkeypatch, tmp_path, selection, serial, install, supplied):
+    import check_graphical_smoke as smoke
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', Mock())
+    lease = lease_for('ubuntu')
+    lease.prepare = Mock()
+    result = {'steps': []}
+    controller = smoke.Qualification(tmp_path, Mock(), smoke.runner.RunLedger(), Mock(), result,
+        'host', assets=tmp_path, serial=serial, install=install)
+    controller.checkpoint = Mock()
+    controller.fixture_selection = selection.record() if supplied else None
+    if supplied and selection.target == 'ubuntu' and not serial:
+        # The qualified branch reaches the real preparation boundary.
+        lease.prepare.side_effect = RuntimeError('preparation-boundary')
+        code = 'preparation-boundary'
+    else:
+        code = ('execution-selection-required' if not supplied else
+                'transfer-target-not-qualified' if selection.target == 'fedora' else
+                'transfer-branch-not-qualified')
+    with pytest.raises((ValueError, RuntimeError, smoke.EvidenceError), match=code):
+        controller.execute(lease, Mock())
+    assert lease.prepare.call_count == int(code == 'preparation-boundary')
+
+
+@pytest.mark.parametrize('stale', [False, True])
+def test_smoke_transfer_provisions_after_ssh_and_checks_before_first_reply(
+        monkeypatch, tmp_path, stale):
+    import json
+    import check_graphical_smoke as smoke
+    import smoke_fixture_preparation as transfer_preparation
+    events = []
+    (tmp_path / 'ready.request.json').write_text(json.dumps({'stage': 'ready', 'screenshot': None}))
+    lease, transport, observations = Mock(), Mock(), Mock()
+    lease.state = {'run': 'a' * 32}
+    lease.guard.side_effect = lambda: events.append('guard')
+    transport.probe_ready.side_effect = lambda **_: events.append('ssh-ready')
+    native = Mock()
+    def ready(_):
+        events.append('native-ready')
+        if stale and native.require_ready.call_count == 2:
+            raise ValueError('fixtures:stale-readiness')
+    native.require_ready.side_effect = ready
+    prepared = {'controller': native, 'receipt': 'native', 'lease': lease}
+    prepare = Mock(side_effect=lambda *args: events.append('native') or prepared)
+    monkeypatch.setattr(transfer_preparation, 'prepare', prepare)
+    monkeypatch.setattr(smoke.runner, 'address', lambda *_args, **_kwargs: '192.0.2.1')
+    monkeypatch.setattr(smoke, 'Transport', Mock(return_value=transport))
+    monkeypatch.setattr(smoke, 'ReadOnlyObservations', Mock(return_value=observations))
+    monkeypatch.setattr(smoke, 'harness_observation', lambda *_: events.append('greeter'))
+    assets = Mock()
+    assets.provision_product_free.side_effect = lambda *_: events.append('assets')
+    assets.observe.side_effect = lambda _: events.append('inventory') or {'verified': True}
+    def observed(stage, _):
+        assert not (tmp_path / 'ready.reply.json').exists()
+        events.append('observe-' + stage)
+    control = smoke.Smoke(tmp_path, lease, Mock(), 'key',
+        progress=lambda stage, data: events.append('progress-' + ('start' if data is None else 'done')),
+        transfer=assets, fixture_selection={'frozen': True}, fixture_observer=observed)
+    if stale:
+        with pytest.raises(ValueError, match='stale-readiness'):
+            control.step()
+        assert not (tmp_path / 'ready.reply.json').exists()
+        with pytest.raises(RuntimeError, match='previous-failure'):
+            control.step()
+    else:
+        control.step()
+        assert (tmp_path / 'ready.reply.json').is_file()
+    assert events == ['progress-start', 'guard', 'ssh-ready', 'observe-before', 'native',
+                      'assets', 'native-ready', 'observe-ready', 'inventory', 'greeter',
+                      'progress-done', 'guard', 'native-ready']
+    assert assets.verified.fixture_prepared is prepared
+    prepare.assert_called_once_with(transport, lease, tmp_path, {'frozen': True})
+
+
 def test_missing_incompatible_refuse_before_staging_and_guest_calls(monkeypatch, tmp_path, selection):
     verify, factory, vm = Mock(), Mock(), Mock()
     monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
@@ -477,11 +568,17 @@ def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch
         for kwargs in calls:
             bound = signature.bind(**kwargs)
             bound.apply_defaults()
-            scope = dict(vars(smoke), **bound.arguments)
+            scope = dict(vars(smoke), **bound.arguments, transfer_entry=False)
             exec(program, scope)
             cls = scope['qualification_class']
             alternatives.setdefault(path.stem, []).append(cls.__name__)
             if path.stem in ('check_parent_about', 'check_parent_access'):
+                scope.update(qualification=SimpleNamespace(), fixture_selection={'private': True})
+                with pytest.raises(CommandError, match='^fixtures:e2e-installed-branch-not-qualified$'):
+                    exec(selection_guard, scope)
+                assert not hasattr(scope['qualification'], 'fixture_selection')
+            if cls is smoke.Qualification and any(kwargs.get(name, False) for name in
+                    ('serial', 'install', 'install_refusal')):
                 scope.update(qualification=SimpleNamespace(), fixture_selection={'private': True})
                 with pytest.raises(CommandError, match='^fixtures:e2e-installed-branch-not-qualified$'):
                     exec(selection_guard, scope)
@@ -507,3 +604,11 @@ def test_every_wrapper_final_ordered_class_matches_installed_aliases(monkeypatch
         'ApprovalFlowRejectionQualification', 'ApprovalFlowCancelQualification']
     assert alternatives['check_e2e_time_profiles_daily'] == [
         'DailyTimeProfileQualification', 'SameDailyTimeProfileQualification']
+    bound = signature.bind(assets=Path('/private/assets'), transfer_qualification=True)
+    bound.apply_defaults()
+    scope = dict(vars(smoke), **bound.arguments, transfer_entry=True)
+    exec(program, scope)
+    assert scope['qualification_class'] is smoke.Qualification
+    scope.update(qualification=SimpleNamespace(), fixture_selection={'frozen': True})
+    exec(selection_guard, scope)
+    assert scope['qualification'].fixture_selection == {'frozen': True}

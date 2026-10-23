@@ -58,6 +58,49 @@ def test_real_staged_bytes_copied_before_readonly_observation(attempt):
     assert api.GuestFS.call_count == 1
 
 
+def test_standalone_defers_all_asset_uploads_and_binds_frozen_selection(
+        attempt, tmp_path, monkeypatch):
+    import smoke_fixture_preparation as preparation
+    from tools.fixture_execution import Selection
+    _old, lease, guest, api = attempt
+    lease.capture.state['guest'] = {'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}
+    lease.installed_name, lease.online_pending = None, False
+    selected = Selection('ubuntu', 'a' * 64,
+                         '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
+                         1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64).record()
+    monkeypatch.setattr(preparation.shared.fixture_execution, 'verify', Mock())
+    assets = tmp_path / 'package-only'
+    assets.mkdir()
+    inventory = {'package.deb': 'd' * 64}
+    inventory_path = assets / 'transfer-sha256.json'
+    inventory_path.write_text(json.dumps(inventory))
+    files = {**inventory, 'transfer-sha256.json': hashlib.sha256(inventory_path.read_bytes()).hexdigest()}
+    verified = SimpleNamespace(lease=lease, assets=assets, asset_files=files,
+        inputs={'package_sha256': inventory['package.deb']}, recheck=Mock(), upgrade_inputs=None)
+    control = transfer.AssetTransfer(verified)
+    assert control.provision(lease, api, fixture_selection=selected) == {'deferred_until_ssh': True}
+    api.GuestFS.assert_not_called()
+    assert guest.uploads == 0
+    assert control._receipt is None
+    selected['target'] = 'fedora'
+    assert control._deferred_selection['target'] == 'ubuntu'
+    with pytest.raises(transfer.EvidenceError, match='already-attempted'):
+        control.provision(lease, api, fixture_selection=control._deferred_selection)
+    native = Mock()
+    verified.fixture_prepared = {'controller': native, 'receipt': 'native', 'lease': lease,
+        'product_free': True, 'selection': dict(control._deferred_selection)}
+    lease.state.update(phase='running', domain_id=12, domain_uuid='vm', run='attempt')
+    transport = Mock(config={'domain_uuid': 'vm', 'domain_id': 12, 'run': 'attempt'})
+    transport.call.side_effect = [b'0\n', b'0\n', b'']
+    result = control.provision_product_free(lease, transport)
+    assert result == {'files': len(files), 'sha256': provenance.digest(files)}
+    transport.copy.assert_called_once_with(False, str(assets) + '/', '/var/tmp/onpc-system-input/')
+    native.require_ready.assert_called_once_with('native')
+    with pytest.raises(transfer.EvidenceError, match='already-attempted'):
+        control.provision_product_free(lease, transport)
+    api.GuestFS.assert_not_called()
+
+
 @pytest.mark.parametrize('installed', [False, True])
 def test_missing_lease_refuses_without_metadata_or_guest_access(attempt, installed):
     control, lease, guest, api = attempt

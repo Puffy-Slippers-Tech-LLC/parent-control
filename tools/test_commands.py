@@ -586,13 +586,20 @@ def fixture_execution_target(category, args):
                      and args[0].removesuffix('.py') in INSTALLED_E2E_FIXTURE_SELECTORS)
     product_free_e2e = (category == 'integration' and len(args) == 1
                        and args[0].removesuffix('.py') in PRODUCT_FREE_E2E_FIXTURE_SELECTORS)
+    transfer = ((category == 'integration' and len(args) == 1
+                 and args[0].removesuffix('.py') == 'check_fixture_transfer')
+                or category == 'e2e' and '--qualify-transfer' in args)
     scenarios = (category == 'e2e' and not any(argument in (
         '--qualify-transfer', '--qualify-install', '--qualify-install-refusal') for argument in args))
-    if not provisioning and not bootstrap and not installed and not installed_e2e and not product_free_e2e and not scenarios and category != 'system':
+    if not provisioning and not bootstrap and not installed and not installed_e2e and not product_free_e2e and not transfer and not scenarios and category != 'system':
         return None
     from vm_selection import selected
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
+    if transfer:
+        if target != 'ubuntu':
+            raise ValueError('fixture transfer target is unavailable')
+        return target
     if product_free_e2e:
         if target is None:
             raise ValueError('fixture product-free E2E target is unavailable')

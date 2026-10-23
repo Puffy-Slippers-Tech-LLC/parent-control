@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F22 — [Integrate Ubuntu transfer qualification](Fixture-Tasks/F22-ubuntu-transfer-qualification.md)**.
+Next task: **F23 — [Integrate Fedora transfer qualification](Fixture-Tasks/F23-fedora-transfer-qualification.md)**.
 
 ## Outcome and status
 
@@ -131,6 +131,17 @@ Focused host checks preserve alias composition and dormant guards. Shared
 provisioning/ownership proof remains applicable, so no Ubuntu live renewal was
 needed. The queue records exact evidence and cleanup. This supplies no
 customer/E2E acceptance.
+F22 delivered Ubuntu's [standalone transfer preparation](../../tests/integration/README.md#ubuntu-standalone-transfer-preparation).
+The real `Qualification.execute` and Smoke boundary passed one product-free
+history: transport-only preboot work, native provisioning after SSH readiness,
+separate package-only delivery and readiness before the first reply. Independent
+12-file readback, harmless Riley runtime use, input refusals and no-write repeats
+passed without graphical or customer input. Focused host checks preserve immutable
+selection, final alias composition and serial/Fedora gates. The new qualification's
+evidence-session mismatch was repaired through the existing shared allocation
+route and re-reviewed; the installed retry passed. Shared F03/F15/F06 safety proof
+remains applicable. Watched restoration, owned cleanup and an independent off-state
+check passed. The queue retains exact evidence. This supplies no customer/E2E credit.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

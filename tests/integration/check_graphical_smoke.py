@@ -165,7 +165,8 @@ def matched_serial_screens(directory):
 class Smoke:
     def __init__(self, directory, lease, commands, host_key, progress=None, transfer=None,
                  authenticate=False, serial=False, installation=None, vt6_prompt=False,
-                 vt6_auth=False, verified=None, functional=False):
+                 vt6_auth=False, verified=None, functional=False,
+                 fixture_selection=None, fixture_observer=None):
         self.directory, self.lease, self.commands = directory, lease, commands
         self.host_key = host_key
         self.steps = []
@@ -173,6 +174,9 @@ class Smoke:
         self.transport = None
         self.progress = progress
         self.transfer = transfer
+        self.fixture_selection = fixture_selection
+        self.fixture_observer = fixture_observer
+        self.fixture_prepared = None
         require(type(functional) is bool and (not functional or
                 (serial and authenticate and installation is None and not vt6_auth and not vt6_prompt)),
                 'smoke:functional-prerequisites')
@@ -267,6 +271,19 @@ class Smoke:
             self.vm = ReadOnlyObservations(transport, on_diagnostic=(
                 lambda condition: self.progress(self.stages[len(self.steps)],
                     {'recipient_refusal': condition})) if self.progress is not None else None)
+            if self.fixture_selection is not None:
+                from smoke_fixture_preparation import prepare
+                context = {'vm': transport, 'lease': self.lease, 'directory': self.directory}
+                if self.fixture_observer is not None:
+                    self.fixture_observer('before', context)
+                self.fixture_prepared = prepare(transport, self.lease, self.directory,
+                                                self.fixture_selection)
+                if self.transfer is not None:
+                    self.transfer.verified.fixture_prepared = self.fixture_prepared
+                    self.transfer.provision_product_free(self.lease, transport)
+                self.fixture_prepared['controller'].require_ready(self.fixture_prepared['receipt'])
+                if self.fixture_observer is not None:
+                    self.fixture_observer('ready', self.fixture_prepared)
             reply = {'observation': 'active-greeter-no-user-session'}
             reply['authenticate'] = self.stages == AUTH_STAGES
             reply['serial'] = self.functional or self.stages == SERIAL_STAGES
@@ -399,6 +416,8 @@ class Smoke:
             # guest action. Raw screenshots/SSH identities never enter reports.
             self.progress(stage, self.steps[-1])
         self.lease.guard()
+        if stage == 'ready' and self.fixture_prepared is not None:
+            self.fixture_prepared['controller'].require_ready(self.fixture_prepared['receipt'])
         if self.vt6_auth:
             # A durable checkpoint failure above prevents input. Recheck the
             # owned worker after persistence, immediately before publication.
@@ -433,10 +452,12 @@ class Smoke:
 
 def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
                 *, progress=None, on_failure=None, transfer=None, credentials=None, serial=False,
-                installation=None, vt6_prompt=False, vt6_auth=False, verified=None):
+                installation=None, vt6_prompt=False, vt6_auth=False, verified=None,
+                fixture_selection=None, fixture_observer=None):
     smoke = Smoke(directory, lease, commands, host_key, progress, transfer,
                   authenticate=credentials is not None, serial=serial, installation=installation,
-                  vt6_prompt=vt6_prompt, vt6_auth=vt6_auth, verified=verified)
+                  vt6_prompt=vt6_prompt, vt6_auth=vt6_auth, verified=verified,
+                  fixture_selection=fixture_selection, fixture_observer=fixture_observer)
     def validate():
         require(len(smoke.steps) == len(smoke.stages), 'smoke:missing-stages')
         module_result(directory)
@@ -484,6 +505,8 @@ class Qualification:
         self.install_refusal = install_refusal
         self.vt6_prompt = vt6_prompt
         self.vt6_auth = vt6_auth
+        self.fixture_selection = None
+        self.fixture_observer = None
 
     def checkpoint(self, event):
         self.sequence += 1
@@ -573,6 +596,8 @@ class Qualification:
             self.result['installation_diagnostic'] = dict(observed)
             self.checkpoint('stage-rejected')
         else:
+            if stage == 'ready' and self.fixture_selection is not None and 'assets' in observed:
+                self.result['asset_transfer'] = dict(observed['assets'])
             if stage == 'reboot-requested':
                 self.result['reboot_request_pending'] = False
             self.result['steps'].append(dict(observed))
@@ -585,15 +610,32 @@ class Qualification:
 
     def execute(self, lease, guestfs):
         try:
+            selected = self.fixture_selection
+            captured = getattr(lease.capture, 'state', {})
+            if (isinstance(captured, dict) and captured.get('guest', {}).get('fixture_boundary') == 'clean'
+                    and (self.assets is not None or self.serial)):
+                from smoke_fixture_preparation import validate_input
+                selected = validate_input(selected)
+            if selected is not None:
+                from smoke_fixture_preparation import validate_input
+                from system_fixture_preparation import guest_target
+                require(self.assets is not None and not any((self.serial, self.install,
+                        self.install_refusal, self.credentials is not None,
+                        self.vt6_prompt, self.vt6_auth)), 'fixtures:transfer-branch-not-qualified')
+                selected = validate_input(selected, target=guest_target(lease.capture.state['guest']))
+                require(guest_target(lease.capture.state['guest']) == 'ubuntu',
+                        'fixtures:transfer-target-not-qualified')
             self.checkpoint('attempt-started')
             with self.ledger.measure('preparation'):
                 lease.prepare()
                 host_key = runner.bootstrap(self.commands, lease, self.directory,
                                             guestfs, observation_only=True,
-                                            environment_only=self.assets is None and not self.serial)
+                                            environment_only=self.assets is None and not self.serial,
+                                            **({'e2e_product_free': True} if selected is not None else {}))
                 lease.guard(off=True)
                 lease.save('isolated')
-                self.verified = VerifiedInputs(lease=lease, assets=self.assets)
+                self.verified = VerifiedInputs(lease=lease, assets=self.assets,
+                    **({'package_only': True} if selected is not None else {}))
                 self.result['provenance'] = self.verified.inputs
                 self.checkpoint('inputs-captured')
                 if self.credentials is not None:
@@ -613,8 +655,10 @@ class Qualification:
                 if self.assets is not None:
                     self.transfer = AssetTransfer(self.verified)
                     self.checkpoint('asset-transfer-started')
-                    self.result['asset_transfer'] = self.transfer.provision(lease, guestfs)
-                    self.checkpoint('asset-transfer-verified')
+                    self.result['asset_transfer'] = self.transfer.provision(lease, guestfs,
+                        **({'fixture_selection': selected} if selected is not None else {}))
+                    self.checkpoint('asset-transfer-deferred' if selected is not None
+                                    else 'asset-transfer-verified')
                 installation = (InstallationBoundary(None, self.verified, self.transfer,
                                                      refusal=self.install_refusal)
                                 if self.install or self.install_refusal else None)
@@ -625,6 +669,8 @@ class Qualification:
                     self.verified.source_files, progress=self.progress, on_failure=self.failure,
                     transfer=self.transfer, credentials=self.credentials, serial=self.serial,
                     installation=installation, vt6_prompt=self.vt6_prompt,
+                    **({'fixture_selection': selected, 'fixture_observer': self.fixture_observer}
+                       if selected is not None else {}),
                     **({'vt6_auth': True, 'verified': self.verified} if self.vt6_auth else {})))
         except BaseException as error:
             code = str(error) if isinstance(error, EvidenceError) else runner.error_category(error)
@@ -741,7 +787,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None,
-         fixture_selection=None):
+         fixture_selection=None, transfer_qualification=False):
     require(type(baseline_journey) is bool and (not baseline_journey or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and parent_entry is None and approval_flow is None
@@ -1488,6 +1534,16 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         parser = argparse.ArgumentParser(allow_abbrev=False)
         parser.add_argument('--fixture-selection', required=True)
         fixture_selection = selection_record(json.loads(parser.parse_args().fixture_selection))
+    transfer_entry = transfer_qualification
+    require(type(transfer_entry) is bool and (not transfer_entry or
+            assets is not None and not any((serial, install, install_refusal,
+                provision_credentials, product_free_entry, parent_setup))),
+            'fixtures:transfer-branch-not-qualified')
+    if transfer_entry:
+        from smoke_fixture_preparation import validate_input
+        from vm_config import selected
+        require(selected().name == 'onpc-Ubuntu26.04', 'fixtures:transfer-target-not-qualified')
+        fixture_selection = validate_input(fixture_selection, target='ubuntu')
     if product_free_entry or gdm_product_free:
         from vm_config import selected
         require(selected().name in ('onpc-Ubuntu26.04', 'onpc-Fedora44'),
@@ -2294,7 +2350,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     qualification.fixture_selection = fixture_selection
                 elif fixture_selection is not None:
                     from parent_setup_qualification import KioskEntryQualification, ProductFreeEntryQualification
-                    require(issubclass(qualification_class, (KioskEntryQualification, ProductFreeEntryQualification)),
+                    require((transfer_entry and qualification_class is Qualification) or
+                            issubclass(qualification_class, (KioskEntryQualification, ProductFreeEntryQualification)),
                             'fixtures:e2e-installed-branch-not-qualified')
                     qualification.fixture_selection = fixture_selection
                 lease.finalize = qualification.finalize

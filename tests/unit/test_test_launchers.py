@@ -38,10 +38,12 @@ def named_qualification_inputs():
                 break
 
 
-@pytest.mark.parametrize(('name', 'options'), list(named_qualification_inputs()))
+@pytest.mark.parametrize(('name', 'options', 'target'), [
+    (name, options, target) for name, options in named_qualification_inputs()
+    for target in (vm_name(0), vm_name(1))
+    if name != 'check_fixture_transfer' or target == 'onpc-Ubuntu26.04'])
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('build_status', [0, 7])
-@pytest.mark.parametrize('target', [vm_name(0), vm_name(1)])
 def test_every_named_input_consumer_prepares_before_dispatch(
         monkeypatch, synthetic_package_identity, name, options, suffix, build_status, target):
     import dev_privileges
@@ -57,7 +59,8 @@ def test_every_named_input_consumer_prepares_before_dispatch(
     fixture_options = (['--fixture-selection', '{"frozen":"fixture"}']
                        if name in ('check_fixture_provisioning', 'check_fixture_system_installed',
                                    *PRODUCT_FREE_FIXTURE_SELECTORS,
-                                   *commands.INSTALLED_E2E_FIXTURE_SELECTORS) else [])
+                                   *commands.INSTALLED_E2E_FIXTURE_SELECTORS,
+                                   'check_fixture_transfer') else [])
     freeze = Mock(return_value=fixture_options)
     monkeypatch.setattr(commands, 'qualification_fixture_options', freeze)
     execute = Mock(side_effect=[build_status, 0])
@@ -91,7 +94,7 @@ def test_every_named_input_consumer_prepares_before_dispatch(
 @pytest.mark.parametrize(('category', 'args'), [
     ('integration', ['check_future_feature']), ('integration', ['--list']),
     ('integration', ['check_fixture_provisioning', '--list']),
-    ('system', ['--list']), ('e2e', ['--qualify-transfer']),
+    ('system', ['--list']), ('e2e', ['--qualify-install']),
 ])
 @pytest.mark.parametrize('vm', ['onpc-Ubuntu26.04', 'onpc-Fedora44'])
 def test_fixture_qualification_ignores_unrelated_selections(monkeypatch, category, args, vm):
@@ -107,6 +110,41 @@ def test_fixture_qualification_refuses_other_target_before_preparing(monkeypatch
     control = Mock()
     with pytest.raises(ValueError, match='target is unavailable'):
         commands.qualification_fixture_options(ROOT, 'integration', ['check_fixture_provisioning'], control=control)
+    control.run.assert_not_called()
+
+
+@pytest.mark.parametrize(('category', 'arguments'), [
+    ('integration', ['check_fixture_transfer']),
+    ('integration', ['check_fixture_transfer.py']),
+    ('e2e', ['--qualify-transfer']),
+])
+def test_transfer_freezes_exact_input_before_privileged_dispatch(
+        monkeypatch, frozen_fixture_selection, category, arguments):
+    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
+    record = frozen_fixture_selection.record()
+    def execute(command, **options):
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
+                                               '--target', 'ubuntu')
+        options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
+        return 0
+    assert commands.qualification_fixture_options(ROOT, category, arguments,
+        control=SimpleNamespace(run=execute), environment={}) == [
+            '--fixture-selection', json.dumps(record, sort_keys=True)]
+    assert commands.qualification_input_options(ROOT, 'check_fixture_transfer') == {
+        'vm_source': True, 'fixture_source': True}
+
+
+@pytest.mark.parametrize(('category', 'arguments'), [
+    ('integration', ['check_fixture_transfer']), ('e2e', ['--qualify-transfer']),
+])
+def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatch, category, arguments):
+    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Fedora44')
+    control = Mock()
+    with pytest.raises(ValueError, match='fixture transfer target is unavailable'):
+        commands.qualification_fixture_options(ROOT, category, arguments, control=control)
+    if category == 'integration':
+        with pytest.raises(ValueError, match='fixture transfer target is unavailable'):
+            commands.qualification_artifact_command(ROOT, category, arguments)
     control.run.assert_not_called()
 
 

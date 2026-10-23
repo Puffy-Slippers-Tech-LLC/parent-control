@@ -1075,8 +1075,12 @@ Follow [one-time setup](../../docs/Approval-Tools.md#one-time-setup) when instal
 dispatcher changes require a refresh.
 
 `tools/run-tests e2e --vm NAME --qualify-transfer --artifacts '<verified-build-directory>'`
-runs the existing guarded credential-free graphical worker with package/fixture
-delivery. Build current inputs with `tools/run-tests artifacts build` first.
+runs the existing guarded credential-free graphical worker with package delivery
+on Ubuntu 26.04. The launcher retains an immutable native fixture selection before
+VM acquisition; the product-free baseline receives only SSH prerequisites before
+boot. Smoke provisions that selected runtime after SSH readiness, then transfers
+package-only assets and rechecks readiness before its first ready reply.
+Build current package inputs with `tools/run-tests artifacts build` first.
 The qualification rejects scenario/list selectors; all pending customer cases
 stay closed. This is diagnostic runner evidence, with no product installation.
 Refresh the installed dispatcher through `./setup.sh --test-tools-only` when
@@ -1090,12 +1094,14 @@ artifacts still refuse without VM preparation. Held-lease checks preserve the
 private staged artifacts and baseline; they do not rescan checkout files.
 
 The controller freezes artifacts with `stage_assets`, makes the staging root
-0700, and binds it to `VerifiedInputs`. `AssetTransfer.provision` accepts only
-that same held, isolated, never-started lease. After offline SSH bootstrap and
-before worker startup, it uses the existing guarded `mounted_guest` and public
-libguestfs upload/checksum APIs to copy pinned descriptors into the fresh fixed
-`/var/lib/onpc-e2e-assets` directory. Package alias and exact transfer inventory
-must match controller-captured digests.
+0700, and binds it to `VerifiedInputs`. For the qualified standalone transfer,
+`AssetTransfer.provision` validates that same held, isolated, never-started lease
+and defers payload delivery without opening the guest disk. Its post-SSH
+`provision_product_free` path separately delivers package-only assets to the fresh
+fixed `/var/lib/onpc-e2e-assets` directory after shared native readiness.
+The older offline libguestfs upload/checksum path remains gated on clean captures;
+standalone serial/authenticated aliases await their own fixture qualification.
+Package alias and exact transfer inventory must match controller-captured digests.
 The manifest contains exactly one platform package alias, `package.deb` or
 `package.rpm`, matching the prepared baseline and captured artifact digest.
 Ambiguous aliases, cross-platform packages and an unsupported historical RPM
@@ -1111,7 +1117,7 @@ unexpected empty directories; every directory must be an ancestor of a
 transferred file. Only count/digest evidence
 returns. A mismatch prevents the ready acknowledgement and latches failure;
 later replies cannot clear it. Ordered checkpoints retain transfer start and
-successful offline verification. The outer lease owns all cleanup, including
+successful transfer verification. The outer lease owns all cleanup, including
 partial transfer failure; the transfer helper never boots, stops or restores.
 Authenticated secret/console transport uses the separate contracts below.
 Host regressions execute the exact probe against filesystem fixtures, checking

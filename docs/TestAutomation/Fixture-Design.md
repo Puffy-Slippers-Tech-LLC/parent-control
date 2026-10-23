@@ -300,6 +300,14 @@ readback. Each VM retains its explicit package-format declaration; there is no
 default. The RPM probe verifies the pinned v1.3/current package pair without
 changing Ubuntu's v1.2/current readback or releasing customer input.
 
+F22 delivered Ubuntu's [standalone transfer preparation](../../tests/integration/README.md#ubuntu-standalone-transfer-preparation).
+`Qualification.execute` keeps preboot work transport-only and defers assets.
+Smoke provisions the immutable native selection after SSH readiness, transfers
+package-only inputs separately and rechecks readiness before its first reply.
+One real preparation passed independent 12-file/native-runtime checks, input
+refusals, no-write repeats, product absence and owned baseline restoration,
+before graphical input. Fedora transfer and serial envelopes remain gated.
+
 ### Runner acceptance matrix
 
 | Envelope | Actual preparation boundary | Selector suffix / subset (status below) | Ubuntu / Fedora tasks |
@@ -316,8 +324,9 @@ changing Ubuntu's v1.2/current readback or releasing customer input.
 registered and qualified on both targets. `check_fixture_e2e_installed` is
 registered and qualified on Ubuntu 26.04 and Fedora 44.
 `check_fixture_e2e_product_free` is registered and qualified on both targets.
-The other three matrix selectors
-are planned `check_fixture_SUFFIX` names, not executable until registered/listed.
+`check_fixture_transfer` is registered and qualified on Ubuntu 26.04 only.
+The two serial matrix selectors are planned `check_fixture_SUFFIX` names,
+not executable until registered/listed.
 Each invokes the real preparation branch, reads selected bytes
 independently, uses a harmless fixture over owned SSH and cleans up before product
 or worker input under the qualification contract below. Distinct restore/
@@ -493,9 +502,9 @@ Ubuntu's native backend environment prerequisite through the
 [clean snapshot owner](../../tests/integration/Environment.md#ubuntu-clean-snapshots);
 F05/F06 delivered both-target installed provisioning acceptance through the
 [shared provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning).
-The two system matrix selectors and installed E2E selector are delivered on both
-targets; product-free E2E preparation is delivered on Ubuntu only.
-The remaining three matrix selectors and `check_fixture_live_refresh`
+The two system matrix selectors and both E2E selectors are delivered on both
+targets; standalone transfer is delivered on Ubuntu only.
+The two serial matrix selectors and `check_fixture_live_refresh`
 remain **planned and unimplemented** until their own registration/listing;
 examples in briefs grant no operation. Other runner dispatch remains unavailable.
 

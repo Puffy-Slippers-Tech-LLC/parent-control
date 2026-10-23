@@ -426,11 +426,13 @@ def verified_delivery(checkout, uid, gid, capture_id, request, delivery):
 
 
 @contextmanager
-def delivery_scope(checkout, uid, gid, request):
+def delivery_scope(checkout, uid, gid, request, *, defer_verification=False):
     """Verify one pinned workflow generation for multiple exact deliveries.
 
     Reuse lasts only while its journal locks and verified archive remain open.
     Each delivery still authenticates its caller, repository and full request.
+    Retirement may pin journal ownership first and defer archive reads until
+    an exact delivery is needed, before deleting any source bytes.
     """
     capture._validate_request(request)
     stack = ExitStack()
@@ -454,8 +456,19 @@ def delivery_scope(checkout, uid, gid, request):
             entries = [] if current is None else [*current['history'], current]
             if not any(allocation == item for _, item in retention.latest_allocations(entries)):
                 raise ValueError('capture publication: destination allocation is not retained')
-            verified, read = stack.enter_context(bundle.verified_record(allocation, uid, checkout=checkout))
-            _verify_generation(generation, verified)
+        verified = None
+
+        def verify_archive():
+            nonlocal verified
+            if verified is None:
+                with bundle.identity(uid, gid):
+                    candidate, _ = stack.enter_context(bundle.verified_record(allocation, uid, checkout=checkout))
+                    _verify_generation(generation, candidate)
+                    verified = candidate
+            return verified
+
+        if not defer_verification:
+            verify_archive()
 
         def verify(capture_id, request, delivery):
             capture._validate_request(request)
@@ -467,6 +480,7 @@ def delivery_scope(checkout, uid, gid, request):
                 raise ValueError('capture publication: foreign delivery')
             if request not in generation['requests']:
                 raise ValueError('capture publication: request is not published')
+            verified = verify_archive()
             return dict(receipt=copy.deepcopy(generation['receipt']), manifest=verified['manifest'],
                         allocation=copy.deepcopy(allocation), delivery=copy.deepcopy(delivery))
 

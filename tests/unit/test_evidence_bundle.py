@@ -418,6 +418,56 @@ def test_group_failure_after_first_member_never_publishes_partial_bundle(evidenc
         'first.json': b'first proof', 'second.json': b'second proof'}
 
 
+@pytest.mark.parametrize('sync_failure', [False, True])
+def test_bulk_archive_writes_are_paced_and_sync_failure_preserves_prior_proof(
+        evidence, monkeypatch, sync_failure):
+    previous_source = evidence.allocate({'previous.json': b'previous proof'})
+    previous = evidence.publish([previous_source])
+    payload = b'bounded evidence copy\n' * 10000
+    source = evidence.allocate({'result.log': payload})
+    before = (evidence.exports.path / 'current.json').read_bytes()
+    batch, rate = 32768, 131072
+    clock, waits, sizes = [0.0], [], []
+    real_sync = os.fsync
+
+    def sleep(delay):
+        assert 0 < delay <= batch / rate
+        waits.append(delay)
+        clock[0] += delay
+
+    def sync(fd):
+        size = os.fstat(fd).st_size
+        if size > batch // 2:
+            sizes.append(size)
+            if sync_failure:
+                raise OSError('injected archive batch sync failure')
+            if len(sizes) == 1:
+                # A slow first batch must not buy an unpaced remainder.
+                clock[0] += 10
+        real_sync(fd)
+
+    with monkeypatch.context() as local:
+        local.setattr(bundle, 'ARCHIVE_SYNC_BYTES', batch)
+        local.setattr(bundle, 'ARCHIVE_BYTES_PER_SECOND', rate)
+        local.setattr(bundle, 'time', SimpleNamespace(monotonic=lambda: clock[0], sleep=sleep))
+        local.setattr(bundle, 'os', SimpleNamespace(**(vars(os) | {'fsync': sync})))
+        if sync_failure:
+            with pytest.raises(OSError, match='archive batch sync failure'):
+                evidence.publish([source])
+        else:
+            result = evidence.publish([source])
+    assert sizes
+    assert all(0 <= after - before <= batch for before, after in zip([0, *sizes], sizes))
+    if sync_failure:
+        assert (evidence.exports.path / 'current.json').read_bytes() == before
+        assert not (evidence.exports.path / bundle.retention.PUBLICATION).exists()
+    else:
+        assert waits and sum(waits) >= (len(payload) // batch - 1) * batch / rate
+        assert evidence.inspect(result['path'], member=str(source / 'result.log'), count=len(payload)) == payload
+    assert Path(previous['path']).exists()
+    assert (source / 'result.log').read_bytes() == payload
+
+
 @pytest.mark.parametrize('fault', ['mode', 'symlink', 'hardlink', 'fifo', 'parent-link',
                                   'allocation-replacement', 'mount', 'owner'])
 def test_unsafe_sources_are_refused_without_changing_journal(evidence, monkeypatch, fault):

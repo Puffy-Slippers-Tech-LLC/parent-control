@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import stat
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -29,6 +30,20 @@ from tests.support.paths import ROOT
 CONSUMER = 'a' * 64
 REVISION = 'b' * 64
 PAYLOAD = b'{"result":"passed","cleanup":"complete"}\n'
+
+
+@contextmanager
+def buffered_history_setup(monkeypatch):
+    """Build volume-only input without physically syncing every generated seal.
+
+    Real files, flushes, identities, locks and hashes remain in use. Publication,
+    interruption, acknowledgement and retirement run after this scope with real
+    fsync; the small sync-failure cases also exercise real persistence boundaries.
+    """
+    with monkeypatch.context() as local:
+        for module in (capture, retention):
+            local.setattr(module, 'os', SimpleNamespace(**(vars(os) | {'fsync': os.fstat})))
+        yield
 
 
 @contextmanager
@@ -134,6 +149,32 @@ def test_finished_seal_is_readable_while_parent_and_unselected_sibling_are_activ
     assert not sealed.is_relative_to(producer.source)
     assert request['request_sha256'] == logical.digest(
         {key: value for key, value in request.items() if key != 'request_sha256'})
+
+
+@pytest.mark.parametrize('fault', ['file', 'directory'])
+def test_capture_sync_failure_preserves_required_source_and_retries_same_slot(
+        producer, monkeypatch, fault):
+    real_sync, calls = os.fsync, []
+
+    def sync(fd):
+        stage = 'directory' if stat.S_ISDIR(os.fstat(fd).st_mode) else 'file'
+        calls.append(stage)
+        if stage == fault:
+            raise OSError('injected capture ' + fault + ' sync failure')
+        real_sync(fd)
+
+    with monkeypatch.context() as local:
+        local.setattr(capture, 'os', SimpleNamespace(**(vars(os) | {'fsync': sync})))
+        with pytest.raises(OSError, match='injected capture'):
+            producer.finalize()
+    assert calls == (['file'] if fault == 'file' else ['file', 'directory'])
+    with producer.store.opened() as fd:
+        charge, = producer.store.read(fd)['captures']
+    assert producer.result.read_bytes() == PAYLOAD
+    assert Path(charge['path']).is_dir()
+    identifier = producer.finalize()
+    assert identifier == charge['capture_id']
+    assert producer.inspect(identifier)['record'] == producer.record()
 
 
 @pytest.mark.parametrize('handle', [None, {}, object(), '/forged/journal'])
@@ -542,14 +583,15 @@ def test_cumulative_history_crosses_selection_limit_and_resumes_exact_publicatio
     import capture_publication as publication
 
     identifiers, handles = [], []
-    for number in range(capture.MAX_SELECTIONS):
-        handle = capture.issue_session(
-            producer.store, repository=producer.checkout, workflow='capture-fixture', task='P03',
-            check='history-' + str(number), inputs_sha256='c' * 64, sources_sha256='d' * 64,
-            consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)})
-        record = producer.record(context=capture.session_context(handle))
-        identifiers.append(capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER]))
-        handles.append(handle)
+    with buffered_history_setup(monkeypatch):
+        for number in range(capture.MAX_SELECTIONS):
+            handle = capture.issue_session(
+                producer.store, repository=producer.checkout, workflow='capture-fixture', task='P03',
+                check='history-' + str(number), inputs_sha256='c' * 64, sources_sha256='d' * 64,
+                consumers={CONSUMER: dict(consumer_id=CONSUMER, revision_sha256=REVISION)})
+            record = producer.record(context=capture.session_context(handle))
+            identifiers.append(capture.finalize_capture(handle, record=record, consumer_ids=[CONSUMER]))
+            handles.append(handle)
     # Each batch also leaves room for the inherited publication's budget entry.
     batch = bundle.MAX_SOURCE_BUDGETS - 1
     for start in range(0, len(identifiers), batch):
@@ -939,7 +981,8 @@ def test_cumulative_request_history_exceeds_selection_limit_without_losing_oldes
             return bundle.export(selected, expected=selected.selection_sha256)
 
     with producer_session(tmp_path, monkeypatch) as value:
-        identifiers = finalize_batch(value, 252)
+        with buffered_history_setup(monkeypatch):
+            identifiers = finalize_batch(value, 252)
         oldest = identifiers[0]
         request = value.inspect(oldest)
         # Each seal has its own source budget; leave room for the prior archive.

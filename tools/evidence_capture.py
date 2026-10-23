@@ -1404,9 +1404,7 @@ def retirement_scope(store, fd):
                 workflow = (checkout, caller['uid'], caller['gid'], publication._namespace(request))
                 if workflow not in workflows:
                     workflows[workflow] = destinations.enter_context(publication.delivery_scope(
-                        checkout, caller['uid'], caller['gid'], request))
-                replacement = workflows[workflow](identifier, request, acknowledgement['delivery'])
-                _destination_originals(charge, replacement)
+                        checkout, caller['uid'], caller['gid'], request, defer_verification=True))
                 recording_owner = destinations.enter_context(_recording_scope(charge))
                 if recording_owner is not None:
                     required = recording_owner.state['required']
@@ -1414,7 +1412,7 @@ def retirement_scope(store, fd):
                             or required['acknowledgement'] != acknowledgement):
                         raise ValueError('capture: recording owner has not durably retained this acknowledgement')
                     recording_owners[identifier] = recording_owner
-                verified[identifier] = charge
+                verified[identifier] = (charge, workflows[workflow])
             except (KeyError, ValueError, OSError) as error:
                 failures[identifier] = error
 
@@ -1424,9 +1422,17 @@ def retirement_scope(store, fd):
             # Audit the entire selection before deleting any original or seal.
             for entry, charge in selected:
                 identifier = charge['capture_id']
-                if identifier not in verified or verified[identifier] != charge:
+                if identifier not in verified or verified[identifier][0] != charge:
                     raise ValueError('capture: required source has no verified acknowledgement; '
                                      'finish its recorded publication') from failures.get(identifier)
+                acknowledgement = charge['acknowledgement']
+                try:
+                    replacement = verified[identifier][1](identifier,
+                        acknowledgement['request'], acknowledgement['delivery'])
+                    _destination_originals(charge, replacement)
+                except (KeyError, ValueError, OSError) as error:
+                    raise ValueError('capture: required source has no verified acknowledgement; '
+                                     'finish its recorded publication') from error
                 _charge_owner(store, fd, entry, charge)
                 if not cleanup:
                     with _original_scope(store, entry, charge, missing=True,

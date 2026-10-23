@@ -1348,6 +1348,21 @@ seconds while the coordinator runs. Failure events, category closure and final
 closure force synchronization; fixture failures are durable before cancellation.
 This avoids report traffic repeatedly closing the runner's own I/O pressure gate.
 An abrupt machine failure can lose the latest routine checkpoint interval.
+Retention pins replacement-publication ownership before its source writer lock,
+but reads and verifies cumulative archives only when selecting originals for
+retirement. Nonexpiring startup and finalization preserve those originals without
+rereading their replacement payloads. Actual retirement still verifies complete
+replacement custody before deleting any original or sealed slot.
+The two capture-history size-limit regressions buffer physical sync only while
+generating their hundreds of input seals, using module-local OS references.
+Their publication, interruption, acknowledgement and retirement boundaries keep
+real sync. Small file/directory sync-failure regressions preserve required-source
+and same-slot retry coverage without repeating those flushes for every input.
+Bulk evidence ZIP writes synchronize at most 1 MiB at a time and pace copying
+at 4 MiB/s, including failed-run publication. Each batch has its own time budget;
+slow reads cannot accumulate credit for a later write burst. The final sync has less
+than 1 MiB of queued archive writes. Small bundles keep their normal final sync;
+large publication takes longer to avoid a short full-disk write burst.
 
 The aggregate uses at most four host workers, subject to compatibility and CPU,
 memory and swap admission. Host-wide I/O pressure is recorded but does not gate

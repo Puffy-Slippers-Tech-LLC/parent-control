@@ -382,6 +382,25 @@ def test_stale_owner_acknowledgement_cannot_release_required_report(
         assert archive.read_bytes() == b'foreign replacement must survive\n'
 
 
+def test_retention_reads_replacement_archive_only_when_retiring_sources(tmp_path, monkeypatch):
+    history = required_report_history(tmp_path, monkeypatch, 'acknowledged')
+    verify = Mock(wraps=history.bundle.verified_record)
+    monkeypatch.setattr(history.bundle, 'verified_record', verify)
+
+    # Startup recovery and nonexpiring session boundaries need only custody
+    # locks. They must not reread a cumulative archive for retained originals.
+    history.store.reconcile(lambda: None, completed_guard=lambda paths: None)
+    rotate = retirement_history_route(history, monkeypatch, 'ordinary')
+    assert verify.call_count == 0
+    assert history.source.exists()
+
+    # Actual rotation verifies the complete destination before deleting bytes.
+    rotate()
+    assert verify.call_count == 1
+    assert not history.source.exists()
+    assert_complete_report(history, history.receipt)
+
+
 @pytest.mark.parametrize('route', ['ordinary', 'host', 'privileged'])
 @pytest.mark.parametrize('replace_remaining', [False, True])
 def test_required_report_partial_retirement_keeps_exact_remaining_identity(

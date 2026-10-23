@@ -1755,3 +1755,13 @@ def buckets(nodeids):
 # runner captures, journals and ZIPs with in-process descriptor locks. It adds no
 # live helper, shared storage, subprocess or cleanup/UI owner; compatible overlap
 # and the existing evidence-module classifications remain appropriate.
+# Deferred retirement verification uses the existing tiny private report-history
+# fixture and real locks; it adds no live/shared resource or subprocess. Retention
+# cleanup remains compatible in both unit and cleanup inventories.
+# Capture-history volume setup buffers only capture/retention fsync calls through
+# module-local OS references. Real private files, hashes, locks and all exercised
+# publication/retirement boundaries remain; two tiny real sync-failure checks add
+# no process, shared path or cleanup/UI resource. Compatible scope is unchanged.
+# Bundle pacing checks use small private files, a fake clock and real local
+# sync with an injected batch failure. They preserve ordinary compatible unit
+# resources and introduce no process, shared path or cleanup/UI owner.

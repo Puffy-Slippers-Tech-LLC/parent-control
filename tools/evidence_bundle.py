@@ -16,6 +16,7 @@ import re
 import stat
 import struct
 import tempfile
+import time
 import zipfile
 
 if __package__:
@@ -31,6 +32,42 @@ MAX_MANIFEST = 64 * 1024 ** 2
 MAX_READ = 16 * 1024 ** 2
 MAX_BYTES = 1024 ** 3
 SCHEMA = 1
+ARCHIVE_SYNC_BYTES = 1024 ** 2
+ARCHIVE_BYTES_PER_SECOND = 4 * 1024 ** 2
+
+
+class _ArchiveWriter:
+    """Bound dirty archive bytes and pace bulk copies before their final sync."""
+
+    def __init__(self, destination):
+        self.destination = destination
+        self.pending = 0
+
+    def __getattr__(self, name):
+        return getattr(self.destination, name)
+
+    def write(self, data):
+        view = memoryview(data)
+        offset = 0
+        while offset < len(view):
+            if not self.pending:
+                self.started = time.monotonic()
+            chunk = view[offset:offset + ARCHIVE_SYNC_BYTES - self.pending]
+            count = self.destination.write(chunk)
+            if count != len(chunk):
+                raise OSError('bundle: incomplete archive write')
+            offset += count
+            self.pending += count
+            if self.pending == ARCHIVE_SYNC_BYTES:
+                self.destination.flush()
+                os.fsync(self.destination.fileno())
+                self.pending = 0
+                # Each batch has its own budget; slow source processing must
+                # never accumulate credit for a later burst of archive writes.
+                delay = ARCHIVE_SYNC_BYTES / ARCHIVE_BYTES_PER_SECOND - (time.monotonic() - self.started)
+                if delay > 0:
+                    time.sleep(delay)
+        return offset
 
 
 class EvidenceUnavailable(FileNotFoundError):
@@ -853,7 +890,7 @@ class Selection:
     def write(self, destination):
         self.revalidate()
         os.fchmod(destination.fileno(), 0o600)
-        with zipfile.ZipFile(destination, 'w', compression=zipfile.ZIP_STORED) as archive:
+        with zipfile.ZipFile(_ArchiveWriter(destination), 'w', compression=zipfile.ZIP_STORED) as archive:
             for entry, origin in self.files.values():
                 with archive.open(entry['member'], 'w', force_zip64=True) as output:
                     if origin[0] == 'source':

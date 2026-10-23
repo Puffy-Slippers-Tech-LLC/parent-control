@@ -17,15 +17,14 @@ Retain preboot credential/getty lifetime, secret recipients, recording seals and
 single-use input; move reusable fixture bytes to shared owned SSH before serial
 input. Host composition preserves successful-install reboot versus refused-install
 logout/no-reboot assertions. Recorded serial remains gated until its own tasks.
+Reuse F22's post-SSH Smoke readiness step for these aliases; retain their
+credential/getty and recipient guards at the existing boundaries.
 
-Reuse the execution-owned immutable input and single SSH provisioner on clean
-captures. Bind readiness to the actual restored/rebound boot and attempt.
-Enable only this qualified target/branch; other unmigrated branches must refuse.
+Apply [shared runner integration and qualification](../Fixture-Design.md#runner-integration-and-qualification).
 Keep platform-specific corrections in their shared owning adapter.
 
 ## Acceptance and cleanup
 
-Run exact affected host composition/provenance/ownership safety selections.
 Register/list the planned `check_fixture_serial` before invoking:
 
 ```sh
@@ -35,9 +34,4 @@ tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_serial
 Exercise actual standalone serial preparation and harmless native use, then
 stop before serial input/authentication or product assertions. Host tests bind
 authenticated-install/refusal aliases without claiming package/login acceptance.
-Prove selected manifest bytes independently, positive runtime use, fresh readiness,
-missing/incompatible refusal before input and no version switch under host edits.
-No complete fixture collection is copied into results; preserve scenario mutations.
-Finish watched owned restoration and credential/staging/input/transport cleanup.
-Update delivered runner/support owners and close through the
-[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.
+Complete shared qualification and the master's close-out.

@@ -17,15 +17,15 @@ credential/getty/provisioning chain. Preserve setup/start ordering, private seal
 HAR09/HAR10 stage completion, durable observations before replies, boot continuity,
 logout/session absence and owned worker shutdown. This is a distinct preparation
 caller from standalone Smoke.
+Reuse the qualified post-SSH Smoke readiness step. Bind its selected input and
+readiness to recorder provenance before the ready reply; keep recorder-specific
+setup/start ordering and cleanup in this caller.
 
-Reuse the execution-owned immutable input and single SSH provisioner on clean
-captures. Bind readiness to the actual restored/rebound boot and attempt.
-Enable only this qualified target/branch; other unmigrated branches must refuse.
+Apply [shared runner integration and qualification](../Fixture-Design.md#runner-integration-and-qualification).
 Keep platform-specific corrections in their shared owning adapter.
 
 ## Acceptance and cleanup
 
-Run exact affected host composition/provenance/ownership safety selections.
 Register/list the planned `check_fixture_recorded_serial` before invoking:
 
 ```sh
@@ -36,9 +36,4 @@ Invoke the actual recorded harness preparation through shared readiness and
 harmless native use. Stop before serial worker input or product assertions.
 Host composition preserves serial/secret guards; recorder provenance binds the
 same immutable fixture input. Finish recorder cleanup as well as VM/transport.
-Prove selected manifest bytes independently, positive runtime use, fresh readiness,
-missing/incompatible refusal before input and no version switch under host edits.
-No complete fixture collection is copied into results; preserve scenario mutations.
-Finish watched owned restoration and credential/staging/input/transport cleanup.
-Update delivered runner/support owners and close through the
-[master](../Fixture-Execution-Plan.md). This supplies no customer/E2E acceptance.
+Complete shared qualification and the master's close-out.

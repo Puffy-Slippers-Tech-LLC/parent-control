@@ -12,6 +12,8 @@ and [close-out contract](../Fixture-Execution-Plan.md#close-out) throughout this
 Qualify F07's [idle maintenance refresh](../Fixture-Design.md#live-refresh-and-recorded-attempts)
 on Fedora. Read its complete owner/idle/provisioning path and the Fedora native/
 SELinux operations. Add only evidenced platform corrections in shared owners.
+Reuse F07's explicit maintenance replacement operation and retained A/B inputs;
+preserve the ordinary provisioner's changed-request and restore-only reset guards.
 
 ## Acceptance and cleanup
 

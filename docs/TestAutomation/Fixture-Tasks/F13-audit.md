@@ -35,10 +35,10 @@ targets for clean captures, provisioning, all seven real preparation envelopes a
 refresh. Host failure/interruption/identity tests remain required; review cannot
 substitute for missing or invalidated target proof. Reuse valid retained results
 for unchanged exact bindings; renew affected histories when inputs or contracts
-invalidate them. Resolve the master's recorded F17 command/host evidence gap
-through the shared historical-evidence route, without inferring that proof from
-the separate installed results. Insert a bounded prerequisite
-for missing work, resolve actionable findings and renew affected checks.
+invalidate them. Validate the F17 recovery bundle linked from the master for
+exact command/input, host-check and cleanup evidence; use the shared
+historical-evidence route only for an actual remaining gap. Insert a bounded
+prerequisite for missing work, resolve actionable findings and renew affected checks.
 
 Check Markdown links, plan structure and affected metadata/launcher regressions.
 Verify existing bounded retention has no unfinished producer/input/VM cleanup

@@ -18,8 +18,11 @@ options/help; this surface is unimplemented until then.
 Before mutation prove the existing idle boundary excludes fixture workers,
 fixture-using graphical sessions and other launchers. Busy, foreign or uncertain
 ownership refuses; do not add a supervisor, process scan or launch barrier.
-Allow only the same declared subset/destinations. Provision using F15 and record
-a diagnostic generation. Failure makes maintenance unavailable until normal owned
+Implement the design's explicit maintenance replacement operation over F15's
+shared mechanics. Verify retained A and same-subset B before writes, invalidate
+old readiness and publish a new diagnostic generation only after verification.
+Keep ordinary attempt provisioning immutable; its restore-only reset is not a
+refresh API. Failure makes maintenance unavailable until normal owned
 recovery, without promising same-boot rollback or repairing an active scenario.
 
 ## Acceptance and cleanup

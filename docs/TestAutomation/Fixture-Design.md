@@ -210,6 +210,18 @@ same native activation/readback/witness checks run before new fixture use.
 If the existing idle boundary cannot exclude other fixture launchers, refuse
 refresh there; do not silently weaken it or implement a new supervisor.
 
+F15 currently accepts first placement and identical read-only repeats. It
+rejects changed selections and existing destinations; resetting its generation
+requires an owned off-state restore. F07 must add an explicit maintenance-only
+replacement operation using the shared staging, native and readback mechanics.
+Keep ordinary attempt provisioning immutable. Before replacement, independently
+verify the complete old closure and its ownership against the retained A input,
+then preflight B with the same subset/destinations. Retain both inputs through
+cleanup. Invalidate A readiness before the first write; publish B readiness only
+after exact placement, native activation and independent byte/runtime checks.
+Replace only A's verified files and exact native entries, preserving unrelated
+state. Never clear the attempt latch or delete destinations to bypass F15's guards.
+
 A successful A-to-B update keeps boot/domain and baseline/app snapshot identities
 unchanged and records a new diagnostic generation. It changes no product service
 or policy. Failure marks maintenance unavailable until ordinary owned recovery;
@@ -291,10 +303,9 @@ registered and qualified on Ubuntu 26.04 and Fedora 44. The other four matrix se
 are planned `check_fixture_SUFFIX` names, not executable until registered/listed.
 Each invokes the real preparation branch, reads selected bytes
 independently, uses a harmless fixture over owned SSH and cleans up before product
-or worker input. Prove missing/incompatible refusal, a fresh attempt/boot record
-and an unchanged input despite host edits. Product-free branches preserve product
-absence. Distinct restore/preparation branches need their own proof, not name
-similarity. Preserve all customer assertions and scenario checkpoints.
+or worker input under the qualification contract below. Distinct restore/
+preparation branches need their own proof. Preserve all customer assertions and
+scenario checkpoints.
 
 The headless trusted witness runs the selected hard executable as Riley, requires
 exactly `ONPC_TEST_APPLICATION_READY` and exit 0, and needs no desktop file.
@@ -302,6 +313,47 @@ The native witness reads A and its adjacent two modules, runs A with
 `--stay-alive` as Riley, checks the same marker and terminates only its recorded
 owned process, requiring exit 0. These modes open no GUI. Use existing owned
 process helpers; a marker without manifest byte readback is insufficient.
+
+### Runner integration and qualification
+
+F20–F28 reuse a small post-SSH fixture-readiness helper around F15 and existing
+attempt/staging ownership. Each caller retains its restore, credential and input
+guards. Standalone transfer, serial Smoke and recorded serial share this step;
+installed-only restore checks stay with installed callers. Preserve separate
+package/upgrade transfer semantics, inventory and preservation witnesses.
+Keep runtime subsets finite; add no generic runner framework or case installer.
+
+Each target/envelope task must:
+
+- For a nonempty closure, select and retain its immutable input before
+  restoration, provision after guarded SSH readiness, and check current readiness
+  before releasing input.
+  Enable only the qualified target/branch; unqualified branches refuse.
+- Run affected host composition/provenance/ownership checks. Bind all aliases,
+  including ordered wrapper/loop overrides and dormant guards, to their actual
+  preparation boundary. Check missing/incompatible refusal before guest mutation
+  or worker input and selection immutability despite host source edits.
+- Exercise each distinct real preparation boundary on its declared target.
+  Independently verify selected manifest bytes/metadata and harmless runtime use,
+  no-write repeats and fresh attempt/boot bindings with prior readiness refused.
+  Product-free branches preserve product absence. An empty closure verifies
+  absence of movable payload and gains no dependency on a native input.
+- Reuse shared corruption, source-edit, interruption/lost-reply and ownership
+  proofs for unchanged contracts. Add or renew focused checks for changed wiring
+  or a distinct failure boundary; do not repeat the full shared matrix for each
+  alias or copy installed-history implementations. Retain the exact input binding
+  in each envelope's evidence. Renew affected earlier-target proof after shared
+  changes; Fedora retains enforcing SELinux and exact native admissions/labels.
+- Stop before customer/worker input or product assertions. Preserve scenario
+  mutations; copy no complete fixture collection into results. Finish watched
+  owned restoration and credential/staging/input/transport cleanup, then update
+  delivered operational owners and follow the master's close-out contract.
+
+Reuse existing byte/runtime audit and qualification helpers. Host checks protect
+shared refusal/immutability guarantees; installed histories prove real boundary
+wiring and target behavior. Record which retained shared proof applies. A new or
+changed integration path must still establish its own input and readiness guards.
+Preparation supplies no customer/E2E acceptance.
 
 ### Source-backed consumer and alias disposition
 
@@ -375,10 +427,10 @@ Ubuntu's native backend environment prerequisite through the
 [clean snapshot owner](../../tests/integration/Environment.md#ubuntu-clean-snapshots);
 F05/F06 delivered both-target installed provisioning acceptance through the
 [shared provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning).
-The two system matrix selectors are delivered on both targets. The remaining
-five matrix selectors and `check_fixture_live_refresh` remain **planned and
-unimplemented** until their own registration/listing; examples in briefs grant
-no operation. Other runner dispatch remains unavailable.
+The two system matrix selectors and installed E2E selector are delivered on both
+targets. The remaining four matrix selectors and `check_fixture_live_refresh`
+remain **planned and unimplemented** until their own registration/listing;
+examples in briefs grant no operation. Other runner dispatch remains unavailable.
 
 ## Acceptance and ownership handoff
 

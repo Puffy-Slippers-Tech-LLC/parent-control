@@ -135,6 +135,9 @@ An older interrupted execution must use the shared
 Follow [AGENTS.md](../../AGENTS.md), the [documentation map](README.md), and
 [ordinary execution/delegation](../Execution-Plans.md#execution-and-delegation).
 Read the selected brief, relevant design section and complete affected call chains.
+The design's [runner integration and qualification](Fixture-Design.md#runner-integration-and-qualification)
+owns the common F20–F28 implementation and acceptance requirements; briefs add
+only their distinct preparation boundaries and target checks.
 Current [approval](../Approval-Tools.md),
 [VM](../Mandates/VM-Mandate.MD) and
 [storage](../Mandates/Test-Storage-Mandate.md) rules apply until their delivered

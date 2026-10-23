@@ -1,6 +1,6 @@
 """The qualified native closure after installed E2E restore and SSH rebind."""
 from tools import fixture_execution, fixture_manifest, fixture_provision
-from system_fixture_preparation import attempt_id, register_staging
+from system_fixture_preparation import attempt_id, guest_target, register_staging
 import xml.etree.ElementTree as ET
 
 SUBSETS = ('native',)
@@ -11,27 +11,28 @@ def online_restore(lease):
     return memory is not None and memory.get('snapshot') == 'internal'
 
 
-def selection_record(value, target='ubuntu'):
+def selection_record(value, target=None):
     if value is None:
         raise ValueError('fixtures:execution-selection-required')
     selection = fixture_execution.Selection.from_record(
         value.record() if isinstance(value, fixture_execution.Selection) else value)
-    if selection.target != target:
+    if selection.target not in ('ubuntu', 'fedora') or (target is not None and selection.target != target):
         raise ValueError('fixtures:e2e-installed-target-not-qualified')
     return selection.record()
 
 
-def validate_input(value):
-    record = selection_record(value)
+def validate_input(value, target=None):
+    record = selection_record(value, target=target)
     fixture_execution.verify(record)
     return record
 
 
 def prepare(vm, lease, directory, selection):
     guest = lease.capture.state['guest']
-    if guest.get('fixture_boundary') != 'clean' or guest.get('ubuntu_version') != '26.04':
+    target = guest_target(guest)
+    if target is None:
         raise ValueError('fixtures:e2e-installed-target-not-qualified')
-    record = validate_input(selection)
+    record = validate_input(selection, target=target)
     if (lease.online_pending is not False or not lease.installed_name
             or (online_restore(lease) and lease.online_bootstrap is not None)
             or (not online_restore(lease) and lease._restored_name != lease.installed_name)):

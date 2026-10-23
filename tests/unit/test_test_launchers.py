@@ -54,14 +54,6 @@ def test_every_named_input_consumer_prepares_before_dispatch(
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    if name in commands.INSTALLED_E2E_FIXTURE_SELECTORS and target != 'onpc-Ubuntu26.04':
-        execute = Mock()
-        monkeypatch.setattr(regression_process.Control, 'run', execute)
-        with pytest.raises(ValueError, match='installed E2E target is unavailable'):
-            regression_process.category_run(ROOT, 'integration', [name + suffix], pipe=False)
-        allocate.assert_not_called()
-        execute.assert_not_called()
-        return
     fixture_options = (['--fixture-selection', '{"frozen":"fixture"}']
                        if name in ('check_fixture_provisioning', 'check_fixture_system_installed',
                                    *PRODUCT_FREE_FIXTURE_SELECTORS,
@@ -333,13 +325,16 @@ def source_proof_selection(selected):
                                 'device': 5, 'inode': 6}
 
 
-def test_installed_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fixture_selection):
-    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
-    record = frozen_fixture_selection.record()
-    source = source_proof_selection(frozen_fixture_selection)
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_installed_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fixture_selection, vm, target):
+    monkeypatch.setenv('ONPC_TEST_VM', vm)
+    selected = replace(frozen_fixture_selection, target=target,
+        allocation=frozen_fixture_selection.allocation.replace('runtime-ubuntu-', 'runtime-' + target + '-'))
+    record = selected.record()
+    source = source_proof_selection(selected)
     def execute(command, **options):
         assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
-            '--target', 'ubuntu', '--qualify-source-edit')
+            '--target', target, '--qualify-source-edit')
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n'
             + 'fixture-execution: source-edit=' + json.dumps(source) + '\n').encode())
         return 0
@@ -351,7 +346,7 @@ def test_installed_e2e_qualification_freezes_input_and_source_proof(monkeypatch,
         'vm_source': True, 'fixture_source': True}
     dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
     command = dispatch(ROOT, ['integration', 'check_fixture_e2e_installed',
-                             '--vm', 'onpc-Ubuntu26.04', *options])
+                             '--vm', vm, *options])
     assert command[3:] == options
 
 
@@ -361,12 +356,14 @@ def test_installed_e2e_qualification_freezes_input_and_source_proof(monkeypatch,
     ('integration', ['check_e2e_native_fixtures']),
     ('e2e', ['--ready']),
 ])
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
 def test_installed_e2e_freezes_before_privileged_dispatch(
-        monkeypatch, frozen_fixture_selection, category, arguments):
-    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Ubuntu26.04')
-    record = frozen_fixture_selection.record()
+        monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
+    monkeypatch.setenv('ONPC_TEST_VM', vm)
+    record = replace(frozen_fixture_selection, target=target,
+        allocation=frozen_fixture_selection.allocation.replace('runtime-ubuntu-', 'runtime-' + target + '-')).record()
     def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', 'ubuntu')
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target)
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
         return 0
     assert commands.qualification_fixture_options(ROOT, category, arguments,
@@ -375,8 +372,9 @@ def test_installed_e2e_freezes_before_privileged_dispatch(
 
 
 @pytest.mark.parametrize('selector', ['check_fixture_e2e_installed', 'check_e2e_approval_flow'])
-def test_installed_e2e_refuses_fedora_before_preparing(monkeypatch, selector):
-    monkeypatch.setenv('ONPC_TEST_VM', 'onpc-Fedora44')
+def test_installed_e2e_refuses_unqualified_target_before_preparing(monkeypatch, selector):
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified'))
     control = Mock()
     for operation in (
             lambda: commands.plan(ROOT, 'integration', [selector]),
@@ -387,8 +385,9 @@ def test_installed_e2e_refuses_fedora_before_preparing(monkeypatch, selector):
     control.run.assert_not_called()
 
 
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
 def test_e2e_preflight_preserves_frozen_selection_without_opening_bundle(
-        monkeypatch, frozen_fixture_selection):
+        monkeypatch, frozen_fixture_selection, vm, target):
     namespace = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))
     dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
     preflight = namespace['preflight']
@@ -399,12 +398,13 @@ def test_e2e_preflight_preserves_frozen_selection_without_opening_bundle(
     }
     monkeypatch.setattr(namespace['runpy'], 'run_path', lambda path: (
         {'preflight': preflight} if str(path).endswith('/tests/e2e/runner.py') else declarations))
-    record = frozen_fixture_selection.record()
-    plan = preflight(['--ready', '--vm', 'onpc-Ubuntu26.04',
+    record = replace(frozen_fixture_selection, target=target,
+        allocation=frozen_fixture_selection.allocation.replace('runtime-ubuntu-', 'runtime-' + target + '-')).record()
+    plan = preflight(['--ready', '--vm', vm,
                       '--fixture-selection', json.dumps(record)], allow_missing_artifacts=True)
     assert plan['fixture_selection'] == record
     assert plan['mode'] == 'execution-preflight'
-    command = dispatch(ROOT, ['e2e', '--ready', '--vm', 'onpc-Ubuntu26.04',
+    command = dispatch(ROOT, ['e2e', '--ready', '--vm', vm,
                        '--fixture-selection', json.dumps(record)], allow_missing_artifacts=True)
     assert command[-2:] == ['--fixture-selection', json.dumps(record, sort_keys=True)]
 

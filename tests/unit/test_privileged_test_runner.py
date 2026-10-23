@@ -107,13 +107,17 @@ def test_installed_system_dispatch_is_bound_to_qualified_target(checkout, fixtur
 
 @pytest.mark.parametrize('name', ['check_fixture_e2e_installed', 'check_e2e_approval_flow',
                                   'check_e2e_native_fixtures'])
-def test_installed_e2e_dispatch_is_ubuntu_only(checkout, fixture_selection, name):
+@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+def test_installed_e2e_dispatch_is_bound_to_qualified_target(checkout, fixture_selection, name, vm, target):
     (checkout / 'tests/integration' / (name + '.py')).touch()
+    fixture_selection['target'] = target
+    fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
     arguments = ['integration', name, '--fixture-selection', json.dumps(fixture_selection)]
-    command = runner['selection'](checkout, [*arguments, '--vm', 'onpc-Ubuntu26.04'])
+    command = runner['selection'](checkout, [*arguments, '--vm', vm])
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
-        runner['selection'](checkout, [*arguments, '--vm', 'onpc-Fedora44'])
+        runner['selection'](checkout, [*arguments, '--vm',
+            'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04'])
 
 
 @pytest.mark.parametrize('options', [
@@ -259,7 +263,7 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
     root = Path(__file__).resolve().parents[2]
     tools = checkout / 'tools'
     for name in ('onpc-test-runner', 'regression_process.py', 'test_launcher.py', 'test_activity.py',
-                 'test_retention.py', 'test_input_transfer.py', 'test_storage.py',
+                 'test_retention.py', 'test_io.py', 'test_input_transfer.py', 'test_storage.py',
                  'evidence_capture.py', 'evidence_identity.py',
                  'dev_checkout.py', 'install_test_runner.py', 'vm_pool.py'):
         shutil.copy2(root / 'tools' / name, tools / name)

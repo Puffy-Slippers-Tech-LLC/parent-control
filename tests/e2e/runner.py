@@ -56,7 +56,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     fixture_selection = None
     if args.fixture_selection is not None:
         if (args.list or args.qualify_transfer or args.qualify_install or args.qualify_install_refusal
-                or configured is not None and configured.name != 'onpc-Ubuntu26.04'):
+                or configured is not None and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44')):
             raise ValueError('e2e:unexpected-fixture-selection')
         if len(args.fixture_selection) > 8192:
             raise ValueError('e2e:invalid-fixture-selection')
@@ -66,7 +66,9 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
         finally:
             sys.path.pop(0)
         selected = Selection.from_record(json.loads(args.fixture_selection))
-        if selected.target != 'ubuntu':
+        targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+        if (selected.target not in targets.values() or configured is not None
+                and selected.target != targets.get(configured.name)):
             raise ValueError('e2e:fixture-target-not-qualified')
         fixture_selection = selected.record()
     if not args.list:

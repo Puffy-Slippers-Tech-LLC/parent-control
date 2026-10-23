@@ -10,30 +10,37 @@ import fixture_e2e_qualification as qualification
 from tools import fixture_execution
 
 
-@pytest.fixture
-def selection():
-    return fixture_execution.Selection('ubuntu', 'a' * 64,
-        '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
+@pytest.fixture(params=['ubuntu', 'fedora'])
+def selection(request):
+    target = request.param
+    return fixture_execution.Selection(target, 'a' * 64,
+        '/tmp/onpc-native-runtime-' + target + '-' + 'a' * 64 + '-private',
         1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64)
 
 
-def lease_for(mode='online'):
+def lease_for(target, mode='online'):
     # Ordinary smoke Lease has no installed_online property. The shared owner
     # records actual snapshot XML; SuiteLease's convenience property is optional.
-    return SimpleNamespace(capture=SimpleNamespace(state={'guest': {
-        'fixture_boundary': 'clean', 'ubuntu_version': '26.04'}}),
+    guest = {'fixture_boundary': 'clean'}
+    guest.update({'ubuntu_version': '26.04'} if target == 'ubuntu' else
+                 {'os_id': 'fedora', 'version': '44'})
+    return SimpleNamespace(capture=SimpleNamespace(state={'guest': guest}),
         installed_name='onpc-private', _restored_name='onpc-private',
         online_pending=False, online_bootstrap=None,
         installed_xml='<domainsnapshot><memory snapshot="' +
                       ('internal' if mode == 'online' else 'no') + '"/></domainsnapshot>')
 
 
-def test_missing_incompatible_refuse_before_staging_and_guest_calls(tmp_path, selection):
-    vm = Mock()
-    lease = lease_for()
+def test_missing_incompatible_refuse_before_staging_and_guest_calls(monkeypatch, tmp_path, selection):
+    verify, factory, vm = Mock(), Mock(), Mock()
+    monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
+    monkeypatch.setattr(preparation.fixture_provision, 'Provisioner', factory)
+    lease = lease_for(selection.target)
     assert qualification.refused_inputs({'vm': vm, 'lease': lease, 'directory': tmp_path},
         selection) == {'missing': 'fixtures:execution-selection-required',
                       'incompatible': 'fixtures:e2e-installed-target-not-qualified'}
+    verify.assert_not_called()
+    factory.assert_not_called()
     assert not list(tmp_path.iterdir()) and not vm.mock_calls
     assert not hasattr(lease, '_fixture_provision_state')
 
@@ -42,7 +49,7 @@ def test_missing_incompatible_refuse_before_staging_and_guest_calls(tmp_path, se
 @pytest.mark.parametrize('failure', [None, 'pending', 'rebind', 'restore'])
 def test_actual_restore_and_rebind_gate_precedes_provision(
         monkeypatch, tmp_path, selection, mode, failure):
-    lease = lease_for(mode)
+    lease = lease_for(selection.target, mode)
     if failure == 'pending':
         lease.online_pending = True
     if failure == 'rebind':
@@ -69,10 +76,10 @@ def test_actual_restore_and_rebind_gate_precedes_provision(
 
 
 @pytest.mark.parametrize('guest', [
-    {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '44'},
+    {'fixture_boundary': 'clean', 'os_id': 'fedora', 'version': '43'},
     {'ubuntu_version': '26.04'}, {'fixture_boundary': 'clean', 'ubuntu_version': '24.04'}])
 def test_unqualified_guest_refuses_before_input_and_transport(monkeypatch, tmp_path, selection, guest):
-    lease = lease_for()
+    lease = lease_for(selection.target)
     lease.capture.state['guest'] = guest
     verify, factory, vm = Mock(), Mock(), Mock()
     monkeypatch.setattr(preparation.fixture_execution, 'verify', verify)
@@ -102,7 +109,7 @@ def test_shared_journey_setup_checks_readiness_after_asset_transfer(monkeypatch,
     import installed_journey
     import installed_setup
     events = []
-    lease = lease_for()
+    lease = lease_for(selection.target)
     verified = SimpleNamespace()
     controller = Mock()
     controller.require_ready.side_effect = lambda _: events.append('ready')
@@ -141,8 +148,9 @@ def test_authenticated_selections_outlive_every_history_and_cleanup(monkeypatch,
         events.append('pin-runtime' if record == selection.record() else 'pin-source')
         yield 11
         events.append('unpin-runtime' if record == selection.record() else 'unpin-source')
-    monkeypatch.setattr(qualification, 'selected_target', lambda: 'onpc-Ubuntu26.04')
-    monkeypatch.setattr(preparation, 'validate_input', lambda value: value)
+    target_name = {'ubuntu': 'onpc-Ubuntu26.04', 'fedora': 'onpc-Fedora44'}[selection.target]
+    monkeypatch.setattr(qualification, 'selected_target', lambda: target_name)
+    monkeypatch.setattr(preparation, 'validate_input', lambda value, **_: value)
     monkeypatch.setattr(qualification.fixture_execution, 'validate_source_selection', lambda *_: {})
     monkeypatch.setattr(qualification, 'authenticated_input', pin)
     monkeypatch.setattr(qualification.fixture_execution, 'verify', lambda _: {})

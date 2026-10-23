@@ -380,7 +380,10 @@ now passed on these clean captures, including enforcing labels, exact admissions
 untrusted runtime controls and interrupted-stage recovery, with renewed Ubuntu
 proof. Fedora's [installed-system preparation](README.md#fedora-installed-system-preparation)
 uses explicit offline app restoration, fresh SSH bootstrap and hard-only
-provisioning with enforcing labels and exact native readback. Other runner
+provisioning with enforcing labels and exact native readback. Fedora's
+[installed E2E preparation](README.md#fedora-installed-e2e-preparation) additionally
+qualifies online resume/credential rebind and explicit offline Kiosk attachment,
+with the same clean captures and exact native/SELinux verification. Other runner
 envelopes remain gated pending their own qualification.
 
 ### Verified finite native transaction inputs

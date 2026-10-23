@@ -190,7 +190,7 @@ reboot preserves the selected bytes and scenario mutations.
 
 ### Ubuntu installed E2E preparation
 
-Clean Ubuntu 26.04 installed E2E attempts select their immutable `native`
+Clean Ubuntu 26.04 and Fedora 44 installed E2E attempts select their immutable `native`
 runtime input before VM acquisition. After app-snapshot restoration, guarded
 SSH readiness and fresh credential binding, `InstalledSetup.provision` uses the
 [shared provisioner](../support/README.md#attempt-owned-fixture-provisioning)
@@ -204,6 +204,7 @@ boot. Online captures retain their private-console and sharing checks.
 
 ```sh
 tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
+tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_installed
 ```
 
 This preparation-only check stops before worker or product assertions. It
@@ -212,9 +213,18 @@ missing/incompatible refusal, fresh attempt readiness, no-write repeats and
 unchanged selection after actual producer-source edits. Results retain package
 metadata and frozen helpers rather than the complete fixture collection.
 Scenario asset mutations remain separate. Watched baseline restoration and
-owned credential, staging, input and transport cleanup are required. Fedora,
-product-free E2E, standalone transfer/serial, recorded serial and unqualified fixture profiles
+owned credential, staging, input and transport cleanup are required.
+Product-free E2E, standalone transfer/serial, recorded serial and unqualified fixture profiles
 retain their separate gates. This supplies no customer or E2E acceptance.
+
+### Fedora installed E2E preparation
+
+Fedora 44 uses the same installed boundary and preparation-only selector above.
+Its immutable input must match the selected VM and restored guest. Two online
+resume/rebind attempts and two explicit offline Kiosk attachments independently
+verify the native runtime, enforcing SELinux, exact finite admissions and labels.
+Fresh attempt readiness, prior-generation refusal, unchanged selection after
+producer-source edits and watched restoration remain required on both branches.
 
 ## Retained-session native dependency update
 

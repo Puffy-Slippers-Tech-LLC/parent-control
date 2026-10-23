@@ -583,12 +583,12 @@ def fixture_execution_target(category, args):
     targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
     target = targets.get(selected().name)
     if installed_e2e:
-        if target != 'ubuntu':
+        if target is None:
             raise ValueError('fixture installed E2E target is unavailable')
         return target
     if scenarios:
-        # Other targets keep the preparation guard owned by their E2E branch.
-        return target if target == 'ubuntu' else None
+        # Product-free and other envelopes keep their own preparation guards.
+        return target
     if installed:
         if target is None:
             raise ValueError('fixture installed system target is unavailable')

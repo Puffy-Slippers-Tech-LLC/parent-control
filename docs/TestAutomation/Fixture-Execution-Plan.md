@@ -1,7 +1,7 @@
 # Host-owned fixture execution plan
 
 Task queue: [Ordered task queue](Fixture-Task-Queue.md).
-Next task: **F19 — [Integrate Fedora installed E2E preparation](Fixture-Tasks/F19-fedora-installed-e2e.md)**.
+Next task: **F20 — [Integrate Ubuntu product-free E2E preparation](Fixture-Tasks/F20-ubuntu-product-free-e2e.md)**.
 
 ## Outcome and status
 
@@ -94,6 +94,19 @@ Both repairs passed host checks and the complete installed history. Watched
 baseline restoration and owned producer, credential, staging, input and transport
 cleanup passed; Ubuntu independently ended off. The queue records the exact
 runner result. This supplies no customer/E2E acceptance.
+F19 delivered the same [Fedora installed E2E boundary](../../tests/integration/README.md#fedora-installed-e2e-preparation).
+Two online resume/rebind and two explicit offline Kiosk attempts passed on Fedora,
+with the complete Ubuntu history renewed after the shared target-gate changes.
+Both targets independently verified the selected 12-file native runtime, harmless
+Riley use, input refusals, fresh readiness, no-write repeats and immutable input
+after producer-source edits. Fedora preserved enforcing SELinux and exact native
+admissions/labels. Affected host composition, provenance and ownership checks
+passed; a private synthetic checkout's missing import was repaired and retested.
+Independent Sol High review found no actionable issues. Watched restoration and
+owned producer, credential, staging, input and transport cleanup completed, and
+both VMs independently ended off. The [verified evidence bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-o3u0qv4d/evidence.zip)
+retains both installed results, exact input manifests and host reports. This
+supplies no customer/E2E acceptance.
 Later tasks remain unimplemented;
 other runner dispatch stays unavailable until target and envelope qualification. Host inputs and
 host checks supply no installed acceptance.

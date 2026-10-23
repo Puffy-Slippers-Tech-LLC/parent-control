@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify Ubuntu installed E2E preparation, stopping before worker input."""
+"""Qualify Ubuntu/Fedora installed E2E preparation, stopping before worker input."""
 import argparse
 import json
 import sys

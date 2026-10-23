@@ -170,7 +170,8 @@ use that same hard-only boundary after explicit offline app restoration and
 fresh SSH bootstrap. Read-only readiness renewal after a session reboot
 checks the same selected bytes and native state without resetting scenario
 mutations. Ubuntu's [installed E2E preparation](../integration/README.md#ubuntu-installed-e2e-preparation)
-uses the immutable native selection after online resume/credential rebind or
+and the same [Fedora boundary](../integration/README.md#fedora-installed-e2e-preparation)
+use the immutable native selection after online resume/credential rebind or
 explicit offline restoration, before setup releases scenario input. Its
 preparation-only selector retains separate proof of both restore branches.
 Other ordinary runner branches and engineering selectors

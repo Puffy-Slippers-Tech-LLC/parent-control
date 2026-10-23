@@ -223,7 +223,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         finally:
             sys.path.pop(0)
         installed_e2e = name in INSTALLED_E2E_FIXTURE_SELECTORS
-        if installed_e2e and not args.list and configured.name != 'onpc-Ubuntu26.04':
+        if installed_e2e and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if installed and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
             raise ValueError('test-runner:fixture-target-not-qualified')
@@ -287,7 +287,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         if args.artifacts is not None:
             options.append('--artifacts=' + str(args.artifacts))
         if args.fixture_selection is not None:
-            if (args.list or configured.name != 'onpc-Ubuntu26.04' or args.qualify_transfer
+            if (args.list or configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44') or args.qualify_transfer
                     or args.qualify_install or args.qualify_install_refusal):
                 raise ValueError('test-runner:unexpected-fixture-selection')
             if len(args.fixture_selection) > 8192:
@@ -298,7 +298,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             finally:
                 sys.path.pop(0)
             selected = Selection.from_record(json.loads(args.fixture_selection))
-            if selected.target != 'ubuntu':
+            targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+            if selected.target != targets.get(configured.name):
                 raise ValueError('test-runner:fixture-target-not-qualified')
             options += ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
         # Validate inventory before caller privilege checks or execution.

@@ -776,7 +776,15 @@ an actionable retained checkpoint; the launcher never creates branches or
 changes Git configuration.
 
 This boundary is shared by ordinary-plan launchers, `write-e2e` (including its
-optimization commits), and `fix-tests`. It adds no propagation operation to
+optimization commits), and `fix-tests`. Every committing launcher must use
+`launcher_git.commit_push_propagate()` for the entire commit, source push and
+destination propagation operation. Commit creation and propagation helpers are
+private to the shared Git module; launchers must not import or call them or
+implement separate commit/push sequences. A repository regression check enforces
+that private-helper boundary. There is no commit-only or push-disabled close-out
+option. Callers retain acceptance, staging and source-pull policy, while the
+shared operation owns the repository-wide lock and resumable Git writes.
+It adds no propagation operation to
 read-only checks or launchers that do not commit and push. Task completion and
 selection of further work wait until every destination has been pushed.
 
@@ -895,7 +903,7 @@ single state machine containing every task type's acceptance branches.
 | [`launcher_runtime.py`](../tools/launcher_runtime.py) | Common options, locked task budget and live limit changes | Worker defines an accepted task boundary and default budget |
 | [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, following | Worker command, validated namespace, lifecycle callbacks |
 | [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) | Synchronized overview/totals and execution/status column widths and input routing | `WorkflowView`: progress and plan-total projections, question support and optional composer |
-| [`launcher_git.py`](../tools/launcher_git.py) / [`launcher_worktrees.py`](../tools/launcher_worktrees.py) | Upstream reconciliation, literal paths, commit recovery and shared post-push worktree propagation | Workflow owns source pull/push policy and commit scope; propagation shares destination discovery, stash/merge/restore, automatic conflict resolution and recovery |
+| [`launcher_git.py`](../tools/launcher_git.py) / [`launcher_worktrees.py`](../tools/launcher_worktrees.py) | Upstream reconciliation, literal paths and mandatory commit/push/propagation close-out with recovery | Workflow owns source-pull policy and commit scope; shared Git owns commit, push, destination discovery, stash/merge/restore, automatic conflict resolution and recovery |
 
 The current adapters use these components according to their workflow:
 

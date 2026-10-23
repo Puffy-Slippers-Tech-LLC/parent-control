@@ -318,7 +318,7 @@ def test_failed_push_resumes_before_tests_without_duplicate_commit(checkout):
     run, _ = fix_tests.select(root, categories=('unit',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 1
-    assert 'repair push failed' in output.getvalue()
+    assert 'completion push failed' in output.getvalue()
     accepted = json.loads((run / 'checkpoint.json').read_text())
     assert accepted['pending'] and accepted['commit_intent']
     before = (root / 'calls').read_text()
@@ -349,7 +349,7 @@ def test_structured_verified_push_retry_carries_original_proof_without_another_a
     run, _ = fix_tests.select(root, categories=('unit',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 1, output.getvalue()
-    assert 'repair push failed' in output.getvalue()
+    assert 'completion push failed' in output.getvalue()
     state = json.loads((run / 'checkpoint.json').read_text())
     entry = state['repairs'][state['pending']]
     assert len(state['runner_attempts']) == 2 and len(state['turns']) == 1
@@ -432,6 +432,7 @@ def test_diagnostics_and_failed_verification_are_never_committed(checkout):
 @pytest.mark.parametrize('failure', ['stage', 'commit', 'push', 'after_commit', 'propagate'])
 def test_repair_git_recovers_each_interrupted_closeout_step(checkout, monkeypatch, failure):
     import fix_tests_git
+    import launcher_git
     root, _ = checkout
     run = root / 'closeout'
     run.mkdir()
@@ -440,25 +441,25 @@ def test_repair_git_recovers_each_interrupted_closeout_step(checkout, monkeypatc
     commits.begin(target)
     (root / 'owned.py').write_text('validated fix\n')
     commits.record(target, dict(status='test_fixed', stage_paths=['owned.py']))
-    original_commit, original_git = fix_tests_git.finish_commit, fix_tests_git.git_output
+    original_git = fix_tests_git.git_output
     def reject(*args, **kwargs):
         raise ValueError('injected Git interruption')
-    def after_commit(*args, **kwargs):
-        original_commit(*args, **kwargs)
-        raise OSError('injected Git interruption')
-    def reject_push(root, *args, **kwargs):
-        if args == ('push',):
+    def interrupted_git(root, *args, **kwargs):
+        if failure == 'commit' and 'commit' in args:
             return subprocess.CompletedProcess(args, 1, '', 'injected Git interruption')
-        return original_git(root, *args, **kwargs)
+        if failure == 'push' and args == ('push',):
+            return subprocess.CompletedProcess(args, 1, '', 'injected Git interruption')
+        result = original_git(root, *args, **kwargs)
+        if failure == 'after_commit' and 'commit' in args:
+            raise OSError('injected Git interruption')
+        return result
     with monkeypatch.context() as patch:
         if failure == 'stage':
             patch.setattr(fix_tests_git, 'stage_task', reject)
-        elif failure in ('commit', 'after_commit'):
-            patch.setattr(fix_tests_git, 'finish_commit', after_commit if failure == 'after_commit' else reject)
         elif failure == 'propagate':
-            patch.setattr(fix_tests_git, 'propagate_worktrees', reject)
+            patch.setattr(launcher_git, '_propagate_worktrees', reject)
         else:
-            patch.setattr(fix_tests_git, 'git_output', reject_push)
+            patch.setattr(fix_tests_git, 'git_output', interrupted_git)
         with pytest.raises((OSError, ValueError), match='injected Git interruption'):
             commits.verified(target)
     fix_tests_git.RepairCommits(root, run).finish_pending()

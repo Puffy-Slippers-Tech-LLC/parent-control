@@ -1557,7 +1557,7 @@ def commit_checkout(tmp_path, tmp_path_factory):
 
 
 @pytest.mark.parametrize('optimization,empty', [(False, False), (True, False), (True, True)])
-def test_commit_interruption_recovers_once_including_deleted_paths(commit_checkout, optimization, empty):
+def test_commit_interruption_recovers_once_including_deleted_paths(commit_checkout, monkeypatch, optimization, empty):
     root = commit_checkout
     (root / 'deleted').write_text('old mechanics')
     subprocess.run(['git', 'add', '--', workflow.PLAN, workflow.QUEUE, 'deleted'], cwd=root, check=True)
@@ -1576,8 +1576,16 @@ def test_commit_interruption_recovers_once_including_deleted_paths(commit_checko
     state['queue_before'] = workflow.queue_state(root)[1] if optimization else before
     state['pending_completion'] = result
     # Model death after Git returns but before the accepted state is checkpointed.
-    paths = workflow.stage_completion(root, state, result)
-    workflow.finish_commit(root, root, state, paths)
+    git = workflow.git_output
+    def interrupted_git(root, *args, **kwargs):
+        result = git(root, *args, **kwargs)
+        if 'commit' in args:
+            raise OSError('interrupted after commit')
+        return result
+    with monkeypatch.context() as patch:
+        patch.setattr(workflow, 'git_output', interrupted_git)
+        with pytest.raises(OSError, match='after commit'):
+            workflow.recover_completion(root, root, state)
     persisted = json.loads((root / 'checkpoint.json').read_text())
     recovered = workflow.recover_completion(root, root, persisted)
     assert subprocess.run(['git', 'rev-list', '--count', 'HEAD'], cwd=root,
@@ -1623,7 +1631,8 @@ def test_push_failure_retries_existing_commit_before_counting_completion(commit_
                                                                        optimization):
     root = commit_checkout
     propagated = []
-    monkeypatch.setattr(workflow, 'propagate_worktrees',
+    import launcher_git
+    monkeypatch.setattr(launcher_git, '_propagate_worktrees',
                         lambda root, run, state, commit, **_: propagated.append(commit))
     before = workflow.queue_state(root)[1]
     state = dict(workflow.fresh_state('001'), commit_required=True, in_flight=True,
@@ -1679,7 +1688,8 @@ def test_commit_recovery_keeps_verified_identity_and_later_active_work(commit_ch
     root = commit_checkout
     state = dict(workflow.fresh_state('001'), commit_required=True)
     paths = workflow.stage_completion(root, state, reply('task_complete', 'passed'))
-    commit = workflow.finish_commit(root, root, state, paths)
+    message = 'TA: Completed task 001'
+    commit = workflow.commit_push_propagate(root, root, state, paths, message, git=workflow.git_output)
     if mutation == 'head':
         state['commit_intent'].pop('commit')  # Legacy intent with no recorded commit.
         subprocess.run(['git', 'commit', '--allow-empty', '-qm', 'External commit'], cwd=root, check=True)
@@ -1689,11 +1699,11 @@ def test_commit_recovery_keeps_verified_identity_and_later_active_work(commit_ch
             subprocess.run(['git', 'add', '--', workflow.PLAN], cwd=root, check=True)
     if mutation == 'head':
         with pytest.raises(ValueError, match='HEAD changed outside pending completion'):
-            workflow.finish_commit(root, root, state, paths)
+            workflow.commit_push_propagate(root, root, state, paths, message, git=workflow.git_output)
     else:
         status = workflow.git_output(root, 'status', '--porcelain').stdout
         index = workflow.git_output(root, 'diff', '--cached', '--binary').stdout
-        assert workflow.finish_commit(root, root, state, paths) == commit
+        assert workflow.commit_push_propagate(root, root, state, paths, message, git=workflow.git_output) == commit
         assert workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip() == commit
         assert (root / workflow.PLAN).read_text() == 'External edit'
         assert workflow.git_output(root, 'status', '--porcelain').stdout == status

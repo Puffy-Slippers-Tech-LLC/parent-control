@@ -1,5 +1,6 @@
 """Private Git worktrees/remotes; bounded waited children, no live services or agents."""
 
+import ast
 import fcntl
 import json
 import os
@@ -9,7 +10,25 @@ from types import SimpleNamespace
 
 import pytest
 
+import launcher_git
 import launcher_worktrees as propagation
+
+
+def test_launchers_cannot_reference_private_git_closeout_helpers():
+    tools = Path(launcher_git.__file__).parent
+    forbidden = {'finish_commit', '_finish_commit', 'propagate_worktrees', '_propagate_worktrees'}
+    violations = []
+    for path in sorted(tools.iterdir()):
+        if not path.is_file() or path.name == 'launcher_git.py':
+            continue
+        if path.suffix != '.py' and not path.read_bytes().startswith(b'#!/usr/bin/python3'):
+            continue
+        for node in ast.walk(ast.parse(path.read_text(), filename=str(path))):
+            if (isinstance(node, ast.ImportFrom) and node.module == 'launcher_git'
+                    and any(alias.name in forbidden | {'*'} for alias in node.names)
+                    or isinstance(node, ast.Attribute) and node.attr in forbidden):
+                violations.append(f'{path.name}:{node.lineno}')
+    assert not violations, 'Use commit_push_propagate(): ' + ', '.join(violations)
 
 
 @pytest.fixture
@@ -299,6 +318,39 @@ def test_source_closeout_lock_is_reentrant_for_its_propagation(trees):
     with propagation.transaction_lock(f.root, f.run, git=f.git):
         propagation.propagate(f.root, f.run, {}, commit, git=f.git)
     assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() == commit
+
+
+@pytest.mark.parametrize('boundary', ['commit', 'source-push', 'destination-push'])
+def test_shared_closeout_retries_exact_commit_and_finishes_every_push(trees, boundary):
+    f = trees
+    (f.other / 'unstaged').write_text('destination active work\n')
+    (f.root / 'shared').write_text('accepted task\n')
+    state = {}
+    paths = launcher_git.stage_task(f.root, ['shared'])
+    message = 'TA: Completed task 001'
+    def interrupted_git(root, *args, **kwargs):
+        result = f.git(root, *args, **kwargs)
+        if (boundary == 'commit' and root == f.root and 'commit' in args
+                or boundary == 'source-push' and root == f.root and args == ('push',)
+                or boundary == 'destination-push' and root == f.other and args == ('push',)):
+            raise OSError('interrupted after Git write')
+        return result
+    with pytest.raises(OSError, match='after Git write'):
+        launcher_git.commit_push_propagate(f.root, f.run, state, paths, message, git=interrupted_git)
+    commit = f.git(f.root, 'rev-parse', 'HEAD').stdout.strip()
+    if boundary == 'commit':
+        assert f.git(f.root, 'rev-parse', '@{upstream}').stdout.strip() != commit
+    if boundary != 'destination-push':
+        assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() != commit
+    saved = json.loads((f.run / 'checkpoint.json').read_text())
+    assert launcher_git.commit_push_propagate(f.root, f.run, saved, paths, message, git=f.git) == commit
+    for checkout in (f.root, f.other):
+        assert f.git(checkout, 'rev-parse', 'HEAD').stdout.strip() == commit
+        assert f.git(checkout, 'rev-parse', '@{upstream}').stdout.strip() == commit
+        assert f.git(checkout, 'rev-list', '--count', 'HEAD').stdout.strip() == '2'
+    assert saved['worktree_propagation']['targets'][0]['phase'] == 'done'
+    assert (f.other / 'unstaged').read_text() == 'destination active work\n'
+    assert not f.git(f.other, 'stash', 'list').stdout
 
 
 @pytest.mark.parametrize('defect', [None, 'head', 'branch', 'stash', 'unrelated-head', 'active'])

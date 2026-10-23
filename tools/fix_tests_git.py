@@ -3,7 +3,7 @@
 import json
 
 import detached_launcher as launcher
-from launcher_git import (closeout_lock, finish_commit, git_output, propagate_worktrees, stage_task, validate_closeout_ownership,
+from launcher_git import (closeout_lock, commit_push_propagate, git_output, stage_task, validate_closeout_ownership,
                           validate_pull_identity, worktree_fingerprint, worktree_snapshot,
                           session_changes)
 
@@ -118,12 +118,7 @@ class RepairCommits:
         check_files()
         category, case, vm = entry['failure']
         message = f'TA: Fixed {category} {case or "infrastructure"}' + (f' on {vm}' if vm else '')
-        commit = finish_commit(self.root, self.run, self.state, paths, message)
-        validate_pull_identity(self.root, self.state)
-        pushed = git_output(self.root, 'push', check=False)
-        if pushed.returncode:
-            raise ValueError('repair push failed: ' + pushed.stderr.strip())
-        propagate_worktrees(self.root, self.run, self.state, commit, git=git_output)
+        commit = commit_push_propagate(self.root, self.run, self.state, paths, message, git=git_output)
         print(f'fix-tests: committed and pushed verified repair: {commit}', flush=True)
         del self.state['repairs'][key]
         for field in ('pending', 'commit_intent', 'pull_intent', 'worktree_propagation'):

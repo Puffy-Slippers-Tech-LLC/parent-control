@@ -79,9 +79,10 @@ def test_plan_adapter_inherits_shared_commit_and_push_policy(plan_adapter, monke
     monkeypatch.setattr(workflow, 'main', lambda spec: calls.append(spec) or 7)
     assert invoke() == 7
     assert calls == [spec]
-    assert calls[0].commit_prefix == 'TA' and calls[0].push is True
+    assert calls[0].commit_prefix == 'TA'
     assert workflow.PlanWorkflow('execute-plan').commit_prefix == 'TA'
-    assert workflow.PlanWorkflow('execute-plan').push is True
+    with pytest.raises(TypeError):
+        workflow.PlanWorkflow('execute-plan', push=False)
 
 
 def test_plan_adapter_default_check_has_no_execution_side_effects(
@@ -204,7 +205,7 @@ def rig(tmp_path, monkeypatch):
     monkeypatch.setattr(workflow, 'worktree_snapshot', lambda _: {})
     monkeypatch.setattr(workflow, 'git_output', lambda *_args, **_kwargs: SimpleNamespace(stdout='', stderr='', returncode=0))
     monkeypatch.setattr(workflow, 'stage_task', lambda root, paths, **kwargs: paths)
-    monkeypatch.setattr(workflow, 'finish_commit', lambda *_args: None)
+    monkeypatch.setattr(workflow, 'commit_push_propagate', lambda *_args, **_kwargs: None)
     monkeypatch.setattr(workflow, 'pull_before_commit', lambda *_args, **_kwargs: None)
     spec = workflow.PlanWorkflow('fixture-plan', plan.path, effort='xhigh')
     calls = []
@@ -2156,14 +2157,15 @@ def test_retained_completion_recovers_estimate_closeout_without_another_session(
     monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda root, run: events.append(('cleanup', run)))
     monkeypatch.setattr(workflow, 'stage_task', lambda root, paths, **kwargs:
                         events.append(('stage', paths)) or paths)
-    monkeypatch.setattr(workflow, 'finish_commit', lambda *_args: events.append(('commit', None)))
+    monkeypatch.setattr(workflow, 'commit_push_propagate',
+                        lambda *_args, **_kwargs: events.append(('closeout', None)))
     monkeypatch.setattr(workflow, 'git_output', lambda root, *args, **kwargs:
                         events.append((args[0], None)) or SimpleNamespace(returncode=0))
     owner = os.open(rig.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
-    spec = replace(rig.spec, commit_prefix='Fixture', push=True)
+    spec = replace(rig.spec, commit_prefix='Fixture')
     assert workflow.worker(rig.root, rig.run, owner, spec, recovered) == 0
     assert rig.calls == []
-    assert [event[0] for event in events] == ['cleanup', 'cleanup', 'stage', 'commit', 'push', 'cleanup']
+    assert [event[0] for event in events] == ['cleanup', 'cleanup', 'stage', 'closeout', 'cleanup']
     assert events[0][1] == previous
     assert TaskBudget(rig.run).read()['completed'] == 1
     final = json.loads((rig.run / 'checkpoint.json').read_text())
@@ -2333,7 +2335,8 @@ def test_closeout_stages_only_claimed_files(rig, monkeypatch):
     (rig.root / 'unrelated.py').write_text('# Concurrent work outside the claimed task.\n')
     staged, committed = [], []
     monkeypatch.setattr(workflow, 'stage_task', lambda root, paths, **kwargs: staged.extend(paths) or paths)
-    monkeypatch.setattr(workflow, 'finish_commit', lambda root, run, state, paths, message: committed.extend(paths))
+    monkeypatch.setattr(workflow, 'commit_push_propagate',
+                        lambda root, run, state, paths, message, **_: committed.extend(paths))
     workflow.closeout(rig.plan, replace(rig.spec, commit_prefix='Fixture'), rig.run, state)
     assert staged == committed == ['docs/plan.md', 'docs/queue.md']
     assert 'unrelated.py' not in staged
@@ -2357,8 +2360,7 @@ def test_closeout_preserves_proof_after_cleanup_before_git(rig, monkeypatch, pub
     monkeypatch.setattr(workflow.plan_evidence, 'preserve', preserve)
     monkeypatch.setattr(workflow, 'pull_before_commit', lambda *_, **__: events.append('pull'))
     monkeypatch.setattr(workflow, 'stage_task', lambda _, paths, **__: events.append('stage') or paths)
-    monkeypatch.setattr(workflow, 'finish_commit', lambda *_: events.append('commit'))
-    monkeypatch.setattr(workflow, 'propagate_worktrees', lambda *_, **__: events.append('propagate'))
+    monkeypatch.setattr(workflow, 'commit_push_propagate', lambda *_, **__: events.append('closeout'))
     if publication_fails:
         with pytest.raises(ValueError, match='exact proof unavailable'):
             workflow.closeout(rig.plan, rig.spec, rig.run, state)
@@ -2366,7 +2368,7 @@ def test_closeout_preserves_proof_after_cleanup_before_git(rig, monkeypatch, pub
         assert state['pending_completion']['status'] == 'task_complete'
     else:
         assert workflow.closeout(rig.plan, rig.spec, rig.run, state)
-        assert events == ['cleanup', 'proof', 'pull', 'stage', 'commit', 'propagate']
+        assert events == ['cleanup', 'proof', 'pull', 'stage', 'closeout']
 
 
 @pytest.mark.parametrize('exhausted, reference_gate', [(False, False), (True, False), (False, True)])
@@ -2801,10 +2803,10 @@ def test_real_handoffs_survive_five_restarts_and_git_retry_after_raw_rotation(
     state = real_plan_evidence.restart()
     mode[0] = 'complete'
     failing = [True]
-    def git(root, *args, **kwargs):
-        return SimpleNamespace(stdout='', stderr='private push retry',
-                               returncode=int(args == ('push',) and failing[0]))
-    monkeypatch.setattr(workflow, 'git_output', git)
+    def closeout(*args, **kwargs):
+        if failing[0]:
+            raise ValueError('completion push failed: private push retry')
+    monkeypatch.setattr(workflow, 'commit_push_propagate', closeout)
     assert rig.worker(state) == 1
     accepted_run = rig.run
     accepted_state = json.loads((accepted_run / 'checkpoint.json').read_text())
@@ -2952,11 +2954,11 @@ def test_structured_acceptance_survives_runner_rotations_and_fresh_git_retry(
         return result
 
     failing = [True]
-    def git(root, *args, **kwargs):
-        return SimpleNamespace(stdout='', stderr='private push retry',
-                               returncode=int(args == ('push',) and failing[0]))
+    def closeout(*args, **kwargs):
+        if failing[0]:
+            raise ValueError('completion push failed: private push retry')
     monkeypatch.setattr(workflow, 'execute', execute)
-    monkeypatch.setattr(workflow, 'git_output', git)
+    monkeypatch.setattr(workflow, 'commit_push_propagate', closeout)
     assert rig.worker() == 1
     accepted_run = rig.run
     accepted = proof.recover(rig.plan)
@@ -3021,7 +3023,7 @@ def test_default_git_failure_retains_acceptance_and_retries_before_next_task(rig
     def pull(*args, **kwargs):
         operation('pull')
 
-    def commit(root, run, state, paths, message):
+    def commit(root, run, state, paths, message, **kwargs):
         operation('commit')
         assert message == 'TA: Completed task 001'
 
@@ -3033,7 +3035,8 @@ def test_default_git_failure_retains_acceptance_and_retries_before_next_task(rig
         return SimpleNamespace(stdout='', stderr='', returncode=0)
 
     monkeypatch.setattr(workflow, 'stage_task', stage)
-    monkeypatch.setattr(workflow, 'finish_commit', commit)
+    monkeypatch.setattr(workflow, 'commit_push_propagate', launcher_git.commit_push_propagate)
+    monkeypatch.setattr(launcher_git, '_finish_commit', commit)
     monkeypatch.setattr(workflow, 'pull_before_commit', pull)
     monkeypatch.setattr(workflow, 'git_output', git)
     TaskBudget(rig.run).initialize(0)
@@ -3616,7 +3619,7 @@ def test_explicit_replan_preserves_evidence_unfinished_work_and_git_state(replan
         pytest.fail('reconciliation attempted task execution, Git mutation or VM selection')
     monkeypatch.setattr(workflow, 'session_command', lambda *_: ['unused-model-command'])
     monkeypatch.setattr(workflow, 'stage_task', unexpected)
-    monkeypatch.setattr(workflow, 'finish_commit', unexpected)
+    monkeypatch.setattr(workflow, 'commit_push_propagate', unexpected)
     monkeypatch.setattr(workflow, 'execute', unexpected)
     assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, check=True) == dict(
         run=scene.run.name, next_task='pre', reconciled=False, checked=True)
@@ -4124,7 +4127,7 @@ def test_staging_race_preserves_edits_and_requests_existing_reconciliation(git_p
         return result
 
     with pytest.raises(launcher_git.GitReconciliationRequired, match='Owned files changed after staging'):
-        launcher_git.finish_commit(f.root, f.run, state, paths, 'TA: Completed task 001', git=racing_git)
+        launcher_git._finish_commit(f.root, f.run, state, paths, 'TA: Completed task 001', git=racing_git)
     assert 'commit_intent' not in state
     assert f.git('rev-parse', 'HEAD').stdout == before
     assert (f.root / 'task.py').read_text() == 'concurrent edits\n'
@@ -4138,13 +4141,13 @@ def test_pending_commit_recovers_original_ancestor_without_adopting_later_edits(
     launcher_git.pull_before_commit(f.root, f.run, state)
     (f.root / 'task.py').write_text('accepted task\n')
     paths = launcher_git.stage_task(f.root, ['task.py'])
-    commit = launcher_git.finish_commit(f.root, f.run, state, paths, message)
+    commit = launcher_git._finish_commit(f.root, f.run, state, paths, message)
     if record == 'propagation':
         state['commit_intent'].pop('commit')  # Checkpoint from an older launcher.
         state['worktree_propagation'] = dict(commit=commit, targets=[])
     (f.root / 'task.py').write_text('concurrent work after completion\n')
     f.git('add', '--', 'task.py')
-    assert launcher_git.finish_commit(f.root, f.run, state, paths, message) == commit
+    assert launcher_git._finish_commit(f.root, f.run, state, paths, message) == commit
     assert (f.root / 'task.py').read_text() == 'concurrent work after completion\n'
     (f.root / 'task.py').write_text('later committed task changes\n')
     f.git('add', '--', 'task.py')
@@ -4154,7 +4157,7 @@ def test_pending_commit_recovers_original_ancestor_without_adopting_later_edits(
     (f.root / 'task.py').write_text('later unstaged work too\n')
     head = f.git('rev-parse', 'HEAD').stdout
     index = f.git('ls-files', '--stage', '-z').stdout
-    assert launcher_git.finish_commit(f.root, f.run, state, paths, message) == commit
+    assert launcher_git._finish_commit(f.root, f.run, state, paths, message) == commit
     assert f.git('rev-parse', 'HEAD').stdout == head
     assert f.git('ls-files', '--stage', '-z').stdout == index
     assert (f.root / 'task.py').read_text() == 'later unstaged work too\n'
@@ -4162,11 +4165,11 @@ def test_pending_commit_recovers_original_ancestor_without_adopting_later_edits(
     entries = state['commit_intent']['entries']
     state['commit_intent']['entries'] = ''
     with pytest.raises(ValueError, match='HEAD changed outside pending completion'):
-        launcher_git.finish_commit(f.root, f.run, state, paths, message)
+        launcher_git._finish_commit(f.root, f.run, state, paths, message)
     state['commit_intent']['entries'] = entries
     f.git('update-ref', 'HEAD', state['commit_intent']['parent'])
     with pytest.raises(ValueError, match='HEAD changed outside pending completion'):
-        launcher_git.finish_commit(f.root, f.run, state, paths, message)
+        launcher_git._finish_commit(f.root, f.run, state, paths, message)
 
 
 @pytest.mark.parametrize('change', ['branch', 'upstream', 'missing-identity'])
@@ -4176,7 +4179,7 @@ def test_pending_commit_recovery_preserves_branch_and_upstream_identity(git_plan
     launcher_git.pull_before_commit(f.root, f.run, state)
     (f.root / 'task.py').write_text('accepted task\n')
     paths = launcher_git.stage_task(f.root, ['task.py'])
-    launcher_git.finish_commit(f.root, f.run, state, paths, 'TA: Completed task 001')
+    launcher_git._finish_commit(f.root, f.run, state, paths, 'TA: Completed task 001')
     assert 'commit_intent' in state
     if change == 'branch':
         upstream = state['pull_intent']['upstream']
@@ -4200,7 +4203,7 @@ def test_written_completion_survives_branch_drift_and_coordinator_repair(git_pla
     complete(f.plan, '001')
     state['pending_completion'] = response(state)
     branch = f.git('branch', '--show-current').stdout.strip()
-    finish = workflow.finish_commit
+    finish = launcher_git._finish_commit
     commits, repairs = [], []
     def changed_branch(*args, **kwargs):
         commit = finish(*args, **kwargs)
@@ -4216,7 +4219,7 @@ def test_written_completion_survives_branch_drift_and_coordinator_repair(git_pla
         assert saved['git_reconciliation']['branch'] == branch
         f.git('branch', '-m', branch)
         return response(saved)
-    monkeypatch.setattr(workflow, 'finish_commit', changed_branch)
+    monkeypatch.setattr(launcher_git, '_finish_commit', changed_branch)
     monkeypatch.setattr(workflow, 'execute', execute)
     monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda *_: None)
     monkeypatch.setattr(workflow.signal, 'signal', lambda *_: None)

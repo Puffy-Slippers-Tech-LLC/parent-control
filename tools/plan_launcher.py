@@ -27,7 +27,7 @@ import plan_evidence
 import plan_evidence_recovery
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace
 from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequired,
-                          closeout_lock, finish_commit, git_output, propagate_worktrees,
+                          closeout_lock, commit_push_propagate, git_output,
                           pull_before_commit, reconciliation_instructions, stage_task,
                           validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_progress
@@ -45,7 +45,6 @@ class PlanWorkflow:
     model: str = 'gpt-6.1-sol'
     effort: str = 'high'
     commit_prefix: str | None = 'TA'
-    push: bool = True
     vm: bool = False
     max_sessions: int = 5
 
@@ -721,19 +720,8 @@ def _closeout(plan, spec, run, state):
         validate_session_result(result, lambda result: validate_result(plan, state, result))
         if state.get('commit_intent') is None:
             paths = stage_task(plan.root, paths, required_paths=(plan.path, plan.queue))
-        committed = finish_commit(plan.root, run, state, paths,
-                                  f"{spec.commit_prefix}: Completed task {state['task_id']}")
-        if spec.push:
-            if state.get('pull_intent') is not None:
-                _, head = validate_pull_identity(plan.root, state, git=git_output)
-                if (committed is not None and head != committed
-                        and git_output(plan.root, 'merge-base', '--is-ancestor', committed,
-                                       head, check=False).returncode):
-                    raise ValueError('HEAD changed after completion commit; inspect retained checkpoint before push')
-            pushed = git_output(plan.root, 'push', check=False)
-            if pushed.returncode:
-                raise ValueError('completion push failed: ' + pushed.stderr.strip())
-            propagate_worktrees(plan.root, run, state, committed, git=git_output)
+        commit_push_propagate(plan.root, run, state, paths,
+                              f"{spec.commit_prefix}: Completed task {state['task_id']}", git=git_output)
     state.update(phase='complete', in_flight=False, summary=result['summary'], handoff=result['handoff'])
     state.pop('pending_completion', None)
     state.pop('commit_intent', None)

@@ -148,6 +148,10 @@ and UI inventories gain no module.
 Explicit propagation reconciliation reuses those private Git/checkpoint fixtures
 and bounded waited children, including backup and retained-stash checks. Its
 resource ownership and compatible unit classification remain unchanged.
+Mandatory Git close-out checks reuse these private worktrees/remotes and bounded
+waited Git children. The private-helper boundary check only parses checkout
+source. Existing unit/cleanup classifications remain valid; no shared resource,
+service, cache, VM, display or UI inventory is added.
 Automatic controller-reload checks keep the same private records and lock trees,
 with process-local exec/descriptor doubles. Public detached checks also exercise
 real interpreter replacement, bounded local app-server doubles and private Git

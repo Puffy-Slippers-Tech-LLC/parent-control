@@ -18,7 +18,7 @@ from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_a
 from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
                               retain_result_rejection, result_recovery_instructions, task_limit,
                               validate_session_result, warn_remaining)
-from launcher_git import closeout_lock, git_output, propagate_worktrees, worktree_snapshot, session_changes
+from launcher_git import closeout_lock, commit_push_propagate, git_output, worktree_snapshot, session_changes
 
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
@@ -903,14 +903,6 @@ def stage_completion(root, state, result):
                       require_closeout=not state.get('optimization_session'))
 
 
-def finish_commit(root, run, state, paths):
-    from launcher_git import finish_commit as commit
-    batch = state.get('optimization', {}).get('pending', [])
-    message = (f'TA: Refactored task {batch[0]} to {batch[-1]}'
-               if state.get('optimization_session') else f"TA: Completed task {state['task_id']}")
-    return commit(root, run, state, paths, message, git=git_output)
-
-
 def finish_completion(root, run, state, result, updated):
     with closeout_lock(root, run, state):
         return _finish_completion(root, run, state, result, updated)
@@ -924,11 +916,10 @@ def _finish_completion(root, run, state, result, updated):
     else:
         paths = stage_completion(root, state, result)
     if state.get('commit_required'):
-        commit = finish_commit(root, run, state, paths)
-        pushed = git_output(root, 'push', check=False)
-        if pushed.returncode:
-            raise ValueError('completion push failed: ' + pushed.stderr.strip())
-        propagate_worktrees(root, run, state, commit, git=git_output)
+        batch = state.get('optimization', {}).get('pending', [])
+        message = (f'TA: Refactored task {batch[0]} to {batch[-1]}'
+                   if state.get('optimization_session') else f"TA: Completed task {state['task_id']}")
+        commit = commit_push_propagate(root, run, state, paths, message, git=git_output)
         if state.get('optimization_session'):
             updated['optimization'] = {'pending': [], 'last_checkpoint': {
                 'tasks': list(state['optimization']['pending']), 'commit': commit}}

@@ -304,7 +304,7 @@ def closeout_lock(root, run, state):
     return transaction_lock(root, run)
 
 
-def propagate_worktrees(root, run, state, commit, *, git=None):
+def _propagate_worktrees(root, run, state, commit, *, git=None):
     """Shared post-push boundary for ordinary plans, E2E and verified repairs."""
     if not (root / 'config/worktree.json').exists() and not state.get('worktree_propagation'):
         return
@@ -312,7 +312,30 @@ def propagate_worktrees(root, run, state, commit, *, git=None):
     propagate(root, run, state, commit, git=git or git_output)
 
 
-def finish_commit(root, run, state, paths, message, *, git=None):
+def commit_push_propagate(root, run, state, paths, message, *, git=None):
+    """Finish launcher Git close-out; return only after every destination is pushed.
+
+    Callers own acceptance, staging and any source pull. Commit intent and
+    propagation checkpoints remain intact on failure for the same retry route.
+    """
+    git = git or git_output
+    with closeout_lock(root, run, state):
+        if state.get('pull_intent') is not None:
+            validate_pull_identity(root, state, git=git)
+        commit = _finish_commit(root, run, state, paths, message, git=git)
+        if state.get('pull_intent') is not None:
+            _, head = validate_pull_identity(root, state, git=git)
+            if head != commit and git(root, 'merge-base', '--is-ancestor', commit,
+                                      head, check=False).returncode:
+                raise ValueError('HEAD changed after completion commit; inspect retained checkpoint before push')
+        pushed = git(root, 'push', check=False)
+        if pushed.returncode:
+            raise ValueError('completion push failed: ' + pushed.stderr.strip())
+        _propagate_worktrees(root, run, state, commit, git=git)
+        return commit
+
+
+def _finish_commit(root, run, state, paths, message, *, git=None):
     """Checkpoint commit intent before writing Git, and recognize a completed write."""
     git = git or git_output
     head = git(root, 'rev-parse', '--verify', 'HEAD', check=False)
@@ -377,4 +400,4 @@ def finish_commit(root, run, state, paths, message, *, git=None):
         raise ValueError('completion commit failed: ' + result.stderr.strip())
     # Verify the same committed write on the normal path as on recovery; hooks
     # must not silently change the validated content or include unrelated files.
-    return finish_commit(root, run, state, paths, message, git=git)
+    return _finish_commit(root, run, state, paths, message, git=git)

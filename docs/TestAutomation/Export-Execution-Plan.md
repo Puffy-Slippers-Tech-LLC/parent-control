@@ -1,7 +1,7 @@
 # Test evidence and export infrastructure
 
 Task queue: [Ordered infrastructure queue](Export-Task-Queue.md).
-Next task: **E08 — [Unify local Markdown reference checks](Export-Tasks/E08-markdown.md)**.
+Next task: **E09 — [Generate and validate specific evidence links](Export-Tasks/E09-validation.md)**.
 
 Reduce missing, wrong and expired evidence references through the existing shared
 storage, retention, verified bundle and plan-driver code. The

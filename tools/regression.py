@@ -355,6 +355,10 @@ class Dashboard:
         self.restore_terminal()
         if not self.finished:
             self.finished = True
+            # Retire live details before publishing the durable summary; an
+            # attached observer may still poll while evidence is finalized.
+            if hasattr(self.stream, 'frame'):
+                self.stream.frame([])
             self.controller(time.monotonic(), self.render(time.monotonic()), force=True)
             self.stream.write('\n'.join(self.render(time.monotonic())) + '\n')
             self.stream.flush()

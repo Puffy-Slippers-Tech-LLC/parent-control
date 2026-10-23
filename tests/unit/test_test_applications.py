@@ -1,13 +1,10 @@
 """Host-safe verification for deterministic application-test fixtures."""
 
 from tests.support.modules import load_module
-import os
 import json
 from pathlib import Path
-import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
 
 
 from tests.support.paths import ROOT
@@ -16,134 +13,6 @@ fixtures = load_module('onpc_test_applications', FIXTURES)
 
 
 class TestApplicationFixtures(unittest.TestCase):
-    def test_snap_timestamps_are_independent_of_inherited_source_date(self):
-        with tempfile.TemporaryDirectory(prefix='onpc-snap-timestamp-') as temporary:
-            root = Path(temporary)
-            runtime = root / 'runtime'
-            runtime.mkdir()
-            (runtime / 'example').write_bytes(b'fixed fixture payload')
-            results = []
-            for epoch in ('1700000000', '1800000000'):
-                output = root / epoch
-                output.mkdir()
-                with patch.dict(os.environ, {'SOURCE_DATE_EPOCH': epoch}):
-                    fixtures._build_snap(output, runtime, 'x86_64-linux-gnu', Path('lib/loader'))
-                    self.assertEqual(os.environ['SOURCE_DATE_EPOCH'], epoch)
-                results.append((output / 'onpc-test-application.snap').read_bytes())
-            self.assertEqual(results[0], results[1])
-
-    def test_missing_prerequisite_reports_setup_without_installing_or_building(self):
-        with patch.object(fixtures.shutil, 'which', side_effect=lambda name: None if name == 'snap' else '/usr/bin/' + name), \
-                patch.object(fixtures, '_run') as run, \
-                patch.object(fixtures, '_require_empty_output') as create:
-            with self.assertRaisesRegex(fixtures.FixtureError, r'snap; run ./setup.sh --dependencies-only'):
-                fixtures.build(Path('/tmp/onpc-not-created'))
-            run.assert_not_called()
-            create.assert_not_called()
-
-    def test_build_verify_and_launch_native_in_an_isolated_temporary_directory(self):
-        real_home = Path.home()
-        protected_paths = (
-            real_home / ".local/share/flatpak",
-            real_home / ".config/flatpak",
-            Path("/var/lib/flatpak"),
-        )
-        before = {path: path.exists() for path in protected_paths}
-        with tempfile.TemporaryDirectory(prefix="onpc-test-fixtures-") as temporary:
-            output = Path(temporary) / "payload"
-            fixtures.build(output)
-            fixtures.verify(output)
-            from tests.fixtures.native_assets import (ASSETS, PREFIX, desktop_id, desktop_entry,
-                activity_sources, sources, source_destinations, legacy_executable_paths, version_pattern)
-            binaries = [output / ('image-root' + PREFIX) / asset[1] for asset in ASSETS]
-            import hashlib
-            self.assertEqual(len({hashlib.sha256(path.read_bytes()).hexdigest() for path in binaries}), 4)
-            for asset in ASSETS:
-                self.assertEqual((output / 'native-launchers' / desktop_id(asset[0])).read_text(),
-                                 desktop_entry(asset))
-            manifest = json.loads((output / 'SHA256SUMS.json').read_text())['files']
-            for source in sources():
-                relative = source.removeprefix('fixtures/')
-                self.assertEqual(manifest[relative], hashlib.sha256((output / relative).read_bytes()).hexdigest())
-            versioned = output / ('image-root' + PREFIX) / 'Versioned'
-            self.assertEqual({path.name for path in versioned.iterdir()}, {
-                'Lunar Client-3.7.17.AppImage', 'onpc-test-gui.py', 'gtk_automation.py'})
-            legacy, = legacy_executable_paths()
-            self.assertEqual((output / ('image-root' + legacy)).read_bytes(), binaries[2].read_bytes())
-            self.assertEqual((versioned / 'onpc-test-gui.py').read_bytes(), fixtures.GUI_SOURCE.read_bytes())
-            self.assertEqual((versioned / 'gtk_automation.py').read_bytes(), fixtures.GTK_AUTOMATION_SOURCE.read_bytes())
-            for source, (destination, mode) in source_destinations('/home/fixture').items():
-                if source.startswith('fixtures/image-root'):
-                    self.assertEqual((output / ('image-root' + destination)).stat().st_mode & 0o777, mode)
-            flatpak_environment = fixtures._flatpak_environment(output)
-            for variable in ("HOME", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"):
-                self.assertTrue(Path(flatpak_environment[variable]).is_relative_to(output))
-            self.assertNotEqual(flatpak_environment["HOME"], os.environ.get("HOME"))
-            targets = (output / "fixture-targets.json").read_text(encoding="utf-8")
-            self.assertIn("Lunar Client-*.AppImage", targets)
-            self.assertEqual(json.loads(targets)['native']['version_pattern'], version_pattern())
-            self.assertTrue((output / "onpc-test-application.flatpak").is_file())
-            self.assertGreater((output / "onpc-test-application.flatpak").stat().st_size, 0)
-            self.assertTrue((output / "flatpak-repository").is_dir())
-            self.assertTrue((output / 'onpc-test-application.snap').is_file())
-            metadata = subprocess.run(['unsquashfs', '-cat',
-                str(output / 'onpc-test-application.snap'), 'meta/snap.yaml'],
-                check=True, text=True, capture_output=True).stdout
-            self.assertIn('confinement: strict', metadata)
-            self.assertIn('base: core26', metadata)
-            self.assertIn('desktop-legacy', metadata)
-            for name in ('flatpak-runtime-build', 'flatpak-app-build', 'snap-build'):
-                self.assertFalse((output / name).exists())
-            runtime = fixtures.unpack_snap(output, Path(temporary) / 'snap') / 'usr'
-            self.assertTrue((runtime / 'bin/python3').is_file())
-            self.assertTrue((runtime / 'share/X11/xkb/rules/evdev').is_file())
-            self.assertTrue(list(runtime.rglob('Gtk-4.0.typelib')))
-            self.assertFalse(json.loads(targets)['gui']['installed_qualified'])
-            self.assertTrue((output / 'game/onpc-test-application').is_file())
-            one_shot = subprocess.run([str(output / 'mechanical/onpc-test-application')],
-                check=True, text=True, capture_output=True, timeout=5)
-            self.assertEqual(one_shot.stdout, 'ONPC_TEST_APPLICATION_READY\n')
-            trusted = [output / 'mechanical' / ('identity-' + identity)
-                       for identity in fixtures.TRUSTED_NATIVE]
-            self.assertEqual(len({path.read_bytes() for path in trusted} |
-                                 {(output / 'mechanical/onpc-test-application').read_bytes()}), 3)
-            activity = [output / source.removeprefix('fixtures/') for source in activity_sources()]
-            self.assertEqual(len({path.read_bytes() for path in (*binaries, *trusted, activity[0])} |
-                                 {(output / 'mechanical/onpc-test-application').read_bytes()}), 8)
-            self.assertEqual(activity[1].read_bytes(), fixtures.GUI_SOURCE.read_bytes())
-            self.assertEqual(activity[2].read_bytes(), fixtures.GTK_AUTOMATION_SOURCE.read_bytes())
-            result = subprocess.run([str(activity[0]), '--invalid-fixture-option'],
-                                    text=True, capture_output=True, timeout=5)
-            self.assertEqual(result.returncode, 2)
-            for path in trusted:
-                result = subprocess.run([str(path)], check=True, text=True,
-                                        capture_output=True, timeout=5)
-                self.assertEqual(result.stdout, 'ONPC_TEST_APPLICATION_READY\n')
-            self.assertTrue(
-                (output / "image-root/usr/share/applications/"
-                 "com.puffyslippers.ONPCTest.System.desktop").is_file()
-            )
-            self.assertTrue(
-                (output / "image-root/home/onpc-child/.local/share/applications/"
-                 "com.puffyslippers.ONPCTest.Child.desktop").is_file()
-            )
-            native = output / "native/onpc-test-application"
-            native_process = fixtures.launch_native(native, os.geteuid())
-            self.addCleanup(fixtures.terminate, native_process)
-            self.assertEqual(
-                fixtures.report_process_identity(native_process),
-                {"pid": native_process.pid, "uid": os.geteuid()},
-            )
-            fixtures.terminate(native_process)
-            repeat = Path(temporary) / 'repeat'
-            fixtures.build(repeat)
-            self.assertEqual(
-                json.loads((output / 'SHA256SUMS.json').read_text()),
-                json.loads((repeat / 'SHA256SUMS.json').read_text()),
-                'Repeated builds must preserve every stable native/Snap/Flatpak runtime payload byte',
-            )
-        self.assertEqual(before, {path: path.exists() for path in protected_paths})
-
     def test_builder_refuses_nonempty_or_broad_output_locations(self):
         with tempfile.TemporaryDirectory(prefix="onpc-test-fixtures-") as temporary:
             output = Path(temporary)

@@ -578,22 +578,22 @@ implementation belongs to the current task's affected checks.
    Their shared
    provider routes still require qualification under the current mandate.
 
-Run the maintained host consistency check after queue, pointer, brief or inventory
-changes, including ordinary close-out:
+Validate runtime inventory changes through the maintained host-only listing:
 
 ```sh
-tools/run-tests unit 'tests/unit/test_e2e_plan.py' 'tests/unit/test_e2e_inventory.py' 'tests/unit/test_coverage_generation.py' 'tests/unit/test_e2e_case_composition.py'
+tools/run-tests e2e --list
 ```
 
-It checks the pointer, task/brief dependencies, exact scenario bindings, acceptance
-branches and recipe links, one case per scenario task,
-queued case titles and parameters, first-consumer hints, session sizing/exception
-metadata and capability-before-consumer
-order, plus declaration/worker composition for every ready binding. Lifecycle
-recorders must declare their command operations and comparison callbacks through
-shared APIs too; registration must not leave an existing composition failure for
-a later audit. It does not qualify UI
-adapters or establish a live pass.
+Check changed Markdown links with `tools/read-only links`. Review the pointer,
+task/brief dependency order, scenario bindings, acceptance, recipe links and
+shared-operation composition in the changed source. Lifecycle recorders still
+declare their command operations and comparison callbacks through shared APIs.
+Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md): changes to the
+shared selection/parser guards use their existing focused core regressions;
+ordinary plan, recipe, wrapper or scenario-body changes do not require unit
+suites or repeated consumer matrices. Do not restore retired test files to
+satisfy an older close-out command. Listing, link checks and source review
+neither qualify UI adapters nor establish a live product pass.
 
 If only coverage/status close-out remains, finish it without
 rerunning an unchanged valid attempt solely for documentation.

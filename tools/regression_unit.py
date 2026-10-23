@@ -62,7 +62,9 @@ inside module-private pytest disk scratch, then renders rules in memory. It
 owns no GUI/runtime packaging, display, bus, VM, shared cache or background
 process. Compatible unit overlap is appropriate; cleanup/UI inventories gain
 no module. The existing native/baseline cleanup modules retain their private
-file/double ownership, and test_test_applications retains artifact admission.
+file/double ownership. test_test_applications now uses only private files for
+output-refusal and manifest integrity checks, with no build or child process;
+it shares ordinary unit packing.
 Scheduled-collection regressions use private checkout files and an in-process
 owned-controller double. No execution lease, cleanup, display or subprocess is
 acquired; test_test_launchers retains its compatible unit classification.
@@ -1235,31 +1237,31 @@ vm_internet_cleanup_safety baseline_fixtures_cleanup_safety
 about_dialog accessible_e2e_ui accessible_observation adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice chinese_language_assets_cleanup_safety evidence_bundle
 authentication_evidence automation_ids backing_verification_cleanup_safety baseline_guest_cleanup_safety broker_properties
 broker_state_machine build_package build_test_artifacts bump_version catalog catalog_scope challenges_cleanup_safety child_preview
-child_preview_cleanup_safety clean_install_cleanup_safety codex_test_rules config core coverage_generation customer_reboot_cleanup_safety data_migration
+child_preview_cleanup_safety clean_install_cleanup_safety codex_test_rules config core customer_reboot_cleanup_safety data_migration
 dbus_harness_cleanup_safety desktop_session_cleanup_safety dev_privileges dev_tool_installation
 diagnostic_export diagnostic_privacy diagnostic_report diagnostics document_checks
-dynamic_account_fixture e2e_app_rows native_fixtures_cleanup_safety e2e_asset_transfer_cleanup_safety e2e_broker_startup_observations
+dynamic_account_fixture e2e_app_rows native_fixtures_cleanup_safety e2e_asset_transfer_cleanup_safety
 e2e_case_composition e2e_command_help e2e_controller_qualification_cleanup_safety e2e_desktop_keyring
-e2e_desktop_session e2e_disabled_child e2e_evidence e2e_feedback_read e2e_fresh_desktop
+e2e_desktop_session e2e_evidence e2e_feedback_read e2e_fresh_desktop
 e2e_execution_cleanup_safety e2e_files_cleanup_safety e2e_fixture_credentials_cleanup_safety e2e_gdm_helper
 e2e_gdm_navigation e2e_gdm_pixels e2e_gdm_product_free e2e_gdm_recipient
 e2e_install_helper e2e_install_password_observation e2e_installation_boundary
-e2e_installation_observations e2e_inventory e2e_keyring_fixture_cleanup_safety
-e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_feedback_confinement e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
+e2e_inventory e2e_keyring_fixture_cleanup_safety
+e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_feedback_confinement e2e_leased_recording_cleanup_safety
 e2e_license_viewer
 e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch
-e2e_baseline_auth_pause e2e_estimate_freshness e2e_long_request_binding
+e2e_baseline_auth_pause e2e_estimate_freshness
 compatible_native_fixtures
-e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
+e2e_plan e2e_pointer_helper e2e_progress
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
-e2e_request_choices e2e_request_exit e2e_secret_variables e2e_serial_helper
+e2e_secret_variables e2e_serial_helper
 e2e_serial_observation e2e_shell_search e2e_shell_search_results e2e_shutdown
-e2e_startup_cache_cleanup_safety e2e_startup_observations e2e_suite_cleanup_safety
+e2e_startup_cache_cleanup_safety e2e_suite_cleanup_safety
 e2e_terminal e2e_terminal_provider e2e_vt6_authentication e2e_vt6_command e2e_vt6_controller
-e2e_vt6_diagnostic e2e_vt6_pixels e2e_vt6_prompt e2e_vt6_recipient e2e_vt6_shell e2e_watch
+e2e_vt6_pixels e2e_vt6_prompt e2e_vt6_recipient e2e_vt6_shell e2e_watch
 e2e_watch_cleanup_safety e2e_worker_cleanup_safety error_reporting execution_policy
 execution_policy_ready execution_probe_cleanup_safety extension_manager feedback_collection
-feedback_transport fedora_pam fedora_execution_policy fix_tests fix_tests_cleanup_safety fixture_cleanup_safety fixture_gui_adapter floating_islands
+feedback_transport fedora_pam fedora_execution_policy fix_tests fix_tests_cleanup_safety fixture_cleanup_safety floating_islands
 graphical_attachment_cleanup_safety graphical_backend graphical_expiry graphical_host_policy
 graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_cleanup_safety
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety guest_inputs
@@ -1286,16 +1288,13 @@ system_diagnostics system_enforcement system_enforcement_cleanup_safety system_g
 system_info system_kiosk_scope
 system_probe_decision system_probe_sandbox_cleanup_safety system_qualification
 system_remote_accounts system_runner system_runner_cleanup_safety system_snapshots systemd_unit
-terminal_cleanup_safety test_account_password test_activity test_artifacts test_launchers
+terminal_cleanup_safety test_account_password test_activity test_applications test_artifacts test_launchers
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety
 ui_cleanup_safety ui_watch ui_watch_cleanup_safety uninstall unit_test_launcher usage_query_retry verify_test_traceability
 vm_backup_cleanup_safety vm_config vm_control_cleanup_safety vm_pool vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
 write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 """.split())
 
-# C04p's three e2e_baseline_app*/e2e_long_request_binding modules use private
-# pytest records, in-process public API doubles and bounded, waited Perl children
-# with captured pipes; no VM/display/bus/shared cache or new cleanup owner.
 # Baseline app-effects diagnostics in vm_control_cleanup_safety likewise use
 # private request/evidence files and mocked workers, credentials and leases;
 # compatible unit and cleanup scheduling remain appropriate.
@@ -1543,12 +1542,6 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # and process-local read-failure doubles. test_storage_cleanup_safety remains
 # compatible; no live evidence, VM, process or shared storage owner is touched.
 
-# Full fixture construction uses private native/Snap/Flatpak output and HOME/XDG
-# trees, reads installed runtime inputs and owns its native child. Keep it out
-# of ordinary unit packing: use the existing artifact CPU/RAM/I/O admission and
-# companion policy, which already covers this same fixture builder.
-BUILD_REVIEWED = frozenset({'test_applications'})
-
 # Ordering hints only; default weight balances selected case counts. Keep whole
 # module fixtures together; work_units owns the function-private exception.
 ESTIMATES = {
@@ -1562,7 +1555,6 @@ ESTIMATES = {
     'test_broker_properties.py': 20,
     'test_broker_state_machine.py': 20,
     'test_package_payload.py': 15,
-    'test_test_applications.py': 60,
     # Retain existing weights until measured again. Explicit archive modules
     # still perform real private sealing/publication and recovery.
     'test_runner_evidence.py': 100,
@@ -1589,21 +1581,19 @@ def buckets(nodeids):
                 or not path.name.startswith('test_') or path.suffix != '.py'):
             raise ValueError('Unit inventory contains an invalid test path')
         files.setdefault(filename, []).append(nodeid)
-    modules, builds, exclusive = [], [], []
+    modules, exclusive = [], []
     for path, ids in sorted(files.items()):
         filename = PurePosixPath(path).name
         reviewed = (len(PurePosixPath(path).parts) == 3
                     and filename.removeprefix('test_').removesuffix('.py') in REVIEWED)
-        build = (len(PurePosixPath(path).parts) == 3
-                 and filename.removeprefix('test_').removesuffix('.py') in BUILD_REVIEWED)
         bucket = Bucket('Unit — ' + path.removeprefix('tests/unit/'), (path,), tuple(ids),
-                        'unit' if reviewed else 'artifacts' if build else 'unit-exclusive',
+                        'unit' if reviewed else 'unit-exclusive',
                         ESTIMATES.get(filename, .3 + len(ids) * (
                             .02 if filename.endswith('_cleanup_safety.py') else .05)))
         if reviewed:
             modules.extend(work_units(path, ids, bucket.kind, bucket.estimate))
         else:
-            (builds if build else exclusive).append(bucket)
+            exclusive.append(bucket)
     groups = [[] for _ in range(min(HOST_WORKERS, len(modules)))]
     estimates = [0.0] * len(groups)
     for module in sorted(modules, key=lambda item: (-item.estimate, item.name)):
@@ -1614,7 +1604,7 @@ def buckets(nodeids):
                      tuple(path for module in group for path in module.paths),
                      tuple(node for module in group for node in module.nodeids),
                      'unit', estimates[index]) for index, group in enumerate(groups)]
-    return result + builds + exclusive
+    return result + exclusive
 # Completed-result discard tests use private pytest journals, local descriptor
 # locks and process-local dispatcher/VM doubles. No live VM or shared storage;
 # test_test_retention_cleanup_safety remains compatible in both inventories.

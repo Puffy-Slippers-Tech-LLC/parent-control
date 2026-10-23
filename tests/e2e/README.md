@@ -1310,13 +1310,12 @@ Both `matches_pinned_recipient` Booleans in that run are **invalid**: the initia
 parser compared a digest with the stored `(boot, recipient)` tuple. The corrected
 parser compares with its recipient member; the digest already binds the boot.
 The correction cannot qualify continuity retroactively. Attempt 6 below now
-qualifies its matching branch live; the replaced/false branch is locally tested.
+qualifies its matching branch live.
 The old run's executable/configuration/timing fields are unaffected.
-[test_e2e_vt6_diagnostic.py](../unit/test_e2e_vt6_diagnostic.py) executes the fixed
-guest program and covers malformed/private output, late ownership loss, no gate
-advancement, and both matching/replaced digests pinned through the real reader.
-Controller and [cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py)
-cover durable diagnostics without authorization and checkpoint refusal.
+The [shared credential and execution boundaries](../../docs/Mandates/Test-Scope-Mandate.md)
+own allowed direct safety coverage; diagnostic helpers do not gain a separate
+unit matrix. Controller and [cleanup regressions](../unit/test_graphical_smoke_cleanup_safety.py)
+retain their applicable authorization and ownership checks.
 
 **Finite fixture login window — preparation and password readiness qualified:**
 `fixture_credentials.provision_vt6_login_window` now reuses the existing

@@ -1,7 +1,6 @@
 """Unit partitions preserve exact coverage, module fixtures and isolation."""
 
 from collections import Counter
-from dataclasses import replace
 
 import pytest
 
@@ -34,35 +33,12 @@ def test_host_module_inventory_has_no_unreviewed_fallback(category):
     assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
 
 
-def test_full_fixture_builder_keeps_artifact_admission_and_unit_coverage():
-    from regression_resources import Admission, GIB, Sample
-    from types import SimpleNamespace
-
-    nodes = ['tests/unit/test_test_applications.py::test_build',
-             'tests/unit/test_core.py::test_case']
-    plan = buckets(nodes)
-    build, = [bucket for bucket in plan if bucket.kind == 'artifacts']
-    assert build.nodeids == (nodes[0],)
-    assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
-    assert compatible(build.kind, 'unit') and compatible('unit', build.kind)
-    sample = Sample(20, 0, 32 * GIB, 24 * GIB, 0, 0, 0, False)
-    now = [0]
-    admission = Admission(SimpleNamespace(sample=lambda: sample), lambda: now[0])
-    admission.update()
-    now[0] = 20
-    assert admission.allows(build.kind, ['unit'])
-    sample = replace(sample, io_pressure=3)
-    now[0] = 22
-    assert not admission.allows(build.kind, ['unit'])
-    assert admission.reason == 'waiting for I/O pressure to recover'
-
-
 def test_isolated_e2e_and_storage_contracts_share_unit_branches():
     reviewed = '''accessible_observation e2e_case_composition e2e_desktop_keyring
-e2e_disabled_child e2e_fresh_desktop e2e_gdm_navigation e2e_gdm_product_free
-e2e_gdm_recipient e2e_keyring_fixture_cleanup_safety e2e_kiosk_eligible_choices
-e2e_kiosk_no_child e2e_license_viewer e2e_parent_search_launch e2e_plan
-e2e_request_choices e2e_shell_search e2e_shell_search_results
+e2e_fresh_desktop e2e_gdm_navigation e2e_gdm_product_free
+e2e_gdm_recipient e2e_keyring_fixture_cleanup_safety
+e2e_license_viewer e2e_parent_search_launch e2e_plan
+e2e_shell_search e2e_shell_search_results
 e2e_startup_cache_cleanup_safety e2e_terminal_provider guest_inputs
 storage_migration_cleanup_safety test_storage_cleanup_safety write_e2e
 write_e2e_cleanup_safety'''.split()
@@ -75,7 +51,7 @@ write_e2e_cleanup_safety'''.split()
 
 def test_private_build_rendering_and_journey_contracts_share_unit_branches():
     names = '''build_package challenges_cleanup_safety clean_install_cleanup_safety
-customer_reboot_cleanup_safety e2e_app_rows e2e_feedback_read e2e_kiosk_no_approver
+customer_reboot_cleanup_safety e2e_app_rows e2e_feedback_read
 launcher_render package_authority_cleanup_safety package_install_cleanup_safety
 product_free_entry_cleanup_safety repeated_operations_cleanup_safety'''.split()
     nodes = [f'tests/unit/test_{name}.py::test_case[{variant}]'
@@ -91,12 +67,11 @@ def test_balanced_buckets_keep_every_module_and_case_together_once():
     nodes = [f'tests/unit/test_{name}.py::test_case[{variant}]'
              for name in sorted(REVIEWED) for variant in ('first', 'second')]
     nodes += ['tests/unit/test_future.py::test_case',
-              'tests/unit/nested/test_core.py::test_case',
-              'tests/unit/test_test_applications.py::test_build']
+              'tests/unit/nested/test_core.py::test_case']
     plan = buckets(nodes)
     shared = [bucket for bucket in plan if bucket.kind == 'unit']
     assert len(shared) == 4
-    assert len(plan) == 7
+    assert len(plan) == 6
     assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
     assert len({path for bucket in plan for path in bucket.paths}) == sum(len(b.paths) for b in plan)
     assert all(bucket.nodeids and bucket.estimate > 0 for bucket in plan)

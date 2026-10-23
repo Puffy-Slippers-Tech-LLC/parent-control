@@ -208,10 +208,9 @@ reviewed modules across up to four branches. The [unit buckets](../tools/regress
 are shared with `host`; each module and its fixtures stay in one worker. Workers
 use private pytest temporary trees, disabled shared caches and process-local
 doubles. Package/native fixtures build into private staging directories.
-Unknown modules run exclusively as a runtime safeguard. Reviewed full
-application-fixture construction runs as a separate unit-test job using artifact
-build resource admission and compatible companions, rather than ordinary unit
-packing.
+Unknown modules run exclusively as a runtime safeguard. The retained fixture
+output-refusal and manifest checks use small private files and ordinary unit
+packing; fixture construction runs through its normal builder workflow.
 This selection adds no other categories or cleanup prerequisite inventory.
 
 Unit file/case selectors, `-k`, `-m` and scoped ignores preserve the exact
@@ -232,7 +231,7 @@ in the left terminal of `tools/watch`, using the shared reconnectable session an
 cooperative cancellation. Inspection/collection-only
 commands keep their existing behavior. Unit buckets use the same CPU, memory,
 swap and compatibility limits as other host work; I/O pressure is advisory for
-ordinary units, while full fixture construction retains artifact I/O limits.
+ordinary units. Actual artifact construction retains its artifact I/O limits.
 
 ### Host test parallelism review
 
@@ -2468,7 +2467,7 @@ only while Dogtail boots its private graphical runtime. WebKit creates
 `/var/tmp` as a symlink inside its sandbox, so placing `XDG_RUNTIME_DIR` beneath
 that path causes sandbox startup to abort. The runtime keeps its existing owned
 teardown; no sandbox protection is disabled. Success, failure and interruption
-restore pytest's disk-backed default ([regressions](unit/test_support.py)). See the
+restore pytest's disk-backed default. See the
 [upstream sandbox layout](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/Launcher/glib/BubblewrapLauncher.cpp).
 This legacy Dogtail boot route and its [observer ownership check](support/ui_watch.py)
 still require migration to the centrally owned short-runtime

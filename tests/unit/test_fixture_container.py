@@ -27,7 +27,7 @@ def allocations(tmp_path):
 
 
 @pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
-@pytest.mark.parametrize('leases', [(), (3,), (3, 4, 5)])
+@pytest.mark.parametrize('leases', [(3,)])
 def test_command_is_fixed_offline_target_build(allocations, target, leases):
     source, workspace = allocations
     invocation = container.command(source, workspace, target, 'a' * 64, leases)

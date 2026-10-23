@@ -33,7 +33,7 @@ def test_host_work_fills_four_branches_despite_background_io(io_pressure, catego
         # Reviewed modules share four unit buckets without a serial tail.
         nodes = [f'tests/unit/test_{name}.py::test_case' for name in (
             'appsnapshot_cleanup_safety', 'baseline_guest_cleanup_safety',
-            'e2e_request_exit', 'e2e_suite_cleanup_safety',
+            'e2e_suite_cleanup_safety',
             'fix_tests', 'fix_tests_cleanup_safety',
             'qualification_storage_cleanup_safety', 'ui_watch',
             'ui_watch_cleanup_safety', 'vm_watch_session_cleanup_safety')]
@@ -44,7 +44,7 @@ def test_host_work_fills_four_branches_despite_background_io(io_pressure, catego
         nodes = [f'tests/unit/test_{name}.py::test_case' for name in (
             'build_package', 'challenges_cleanup_safety', 'clean_install_cleanup_safety',
             'customer_reboot_cleanup_safety', 'e2e_app_rows', 'e2e_feedback_read',
-            'e2e_kiosk_no_approver', 'launcher_render', 'package_authority_cleanup_safety',
+            'launcher_render', 'package_authority_cleanup_safety',
             'package_install_cleanup_safety', 'product_free_entry_cleanup_safety',
             'repeated_operations_cleanup_safety')]
         plan = unit_buckets(nodes)

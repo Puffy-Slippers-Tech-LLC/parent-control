@@ -10,6 +10,7 @@ import hashlib
 import os
 from pathlib import Path
 import pwd
+import re
 import stat
 import uuid
 import weakref
@@ -1196,13 +1197,14 @@ def _destination_originals(charge, verified):
     """Bind archived provenance to the producer's private before-copy witness."""
     record = charge['intent']['record']
     context = record['context']
-    if context['task'] == 'runner-start' and context['check'] == 'report-start':
+    if context['task'] in ('runner-start', 'archive-start') and context['check'] == 'report-start':
         # A lifecycle seal protects later producer bytes during preparation.
         # Publishing that seal alone must never authorize whole-run retirement,
         # including via the finished-owner helper after a lost process.
         reference = dict(record_id=record['record_id'], closure_sha256=record['closure_sha256'])
+        terminal_task = 'runner-terminal' if context['task'] == 'runner-start' else 'archive-terminal'
         terminals = [candidate for candidate in verified['manifest']['records']
-            if candidate['context']['task'] == 'runner-terminal'
+            if candidate['context']['task'] == terminal_task
             and all(candidate['context'][key] == context[key]
                     for key in ('repository', 'workflow', 'owner', 'run'))
             and reference in candidate['dependencies']]
@@ -1393,19 +1395,41 @@ def retirement_scope(store, fd):
                 if previous[1] != charge:
                     raise ValueError('capture: conflicting required source claims')
     with ExitStack() as destinations:
-        publication = _publication_module() if charges else None
+        publication = None
         verified, failures, recording_owners, workflows = {}, {}, {}, {}
+        legacy, acknowledgements = {}, {}
         # Deterministic trusted journal ordering; no source writer is held here.
         ordered = sorted(charges.items(), key=lambda pair: (
             pair[1][1].get('acknowledgement', {}).get('delivery', {}).get('journal', ''), pair[0]))
         for identifier, (entry, charge) in ordered:
             try:
                 _charge_owner(store, fd, entry, charge)
+                context = charge['intent']['record']['context']
+                # Reserved namespaces of the removed automatic runner producers.
+                # Explicit exports use other task/workflow names; the public
+                # ReportEvidence default 'regression' remains guarded below.
+                routine = (context['workflow'] in {
+                    'system', 'e2e', 'vm-test-queue', 'standalone-qualifications',
+                    'recovery-diagnostics'} or re.fullmatch(
+                        r'regression/[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}', context['workflow']))
+                if (routine and 'recording_source' not in charge['intent']
+                        and (context['task'] == 'runner-terminal'
+                             or context['task'] == 'runner-start'
+                             and context['check'] == 'report-start')):
+                    # Normal source recovery/rotation still owns the run. An old
+                    # automatic archive is no longer a prerequisite to retirement.
+                    acknowledgements[identifier] = (_acknowledgement(
+                        charge, charge['acknowledgement']) if 'acknowledgement' in charge else None)
+                    legacy[identifier] = charge
+                    continue
                 acknowledgement = _acknowledgement(charge, charge['acknowledgement'])
+                acknowledgements[identifier] = acknowledgement
                 producer = acknowledgement['request']['producer']
                 caller = producer['caller']
                 request = acknowledgement['request']
                 checkout = producer['repository']['root']
+                if publication is None:
+                    publication = _publication_module()
                 workflow = (checkout, caller['uid'], caller['gid'], publication._namespace(request))
                 if workflow not in workflows:
                     workflows[workflow] = destinations.enter_context(publication.delivery_scope(
@@ -1427,34 +1451,36 @@ def retirement_scope(store, fd):
             # Audit the entire selection before deleting any original or seal.
             for entry, charge in selected:
                 identifier = charge['capture_id']
-                if identifier not in verified or verified[identifier][0] != charge:
+                routine = legacy.get(identifier) == charge
+                if not routine and (identifier not in verified or verified[identifier][0] != charge):
                     raise ValueError('capture: required source has no verified acknowledgement; '
                                      'finish its recorded publication') from failures.get(identifier)
-                acknowledgement = charge['acknowledgement']
-                try:
-                    replacement = verified[identifier][1](identifier,
-                        acknowledgement['request'], acknowledgement['delivery'])
-                    _destination_originals(charge, replacement)
-                except (KeyError, ValueError, OSError) as error:
-                    raise ValueError('capture: required source has no verified acknowledgement; '
-                                     'finish its recorded publication') from error
+                acknowledgement = acknowledgements[identifier]
+                if not routine:
+                    try:
+                        replacement = verified[identifier][1](identifier,
+                            acknowledgement['request'], acknowledgement['delivery'])
+                        _destination_originals(charge, replacement)
+                    except (KeyError, ValueError, OSError) as error:
+                        raise ValueError('capture: required source has no verified acknowledgement; '
+                                         'finish its recorded publication') from error
                 _charge_owner(store, fd, entry, charge)
-                if not cleanup:
+                if not cleanup and not routine:
                     with _original_scope(store, entry, charge, missing=True,
                             recording_owner=recording_owners.get(identifier)):
                         pass
                 retention.remove({key: charge[key] for key in ('path', 'device', 'inode', 'mode')},
                                  validate_only=True)
-                acknowledgement = charge['acknowledgement']
-                caller = acknowledgement['request']['producer']['caller']
-                with _identity(caller['uid'], caller['gid']):
-                    retention.remove(acknowledgement['caller_slot'], validate_only=True)
+                if acknowledgement is not None:
+                    caller = acknowledgement['request']['producer']['caller']
+                    with _identity(caller['uid'], caller['gid']):
+                        retention.remove(acknowledgement['caller_slot'], validate_only=True)
             if cleanup:
                 for _, charge in selected:
-                    acknowledgement = charge['acknowledgement']
+                    acknowledgement = acknowledgements[charge['capture_id']]
                     private_slot = {key: charge[key] for key in ('path', 'device', 'inode', 'mode')}
                     retention.remove(private_slot)
-                    if acknowledgement['caller_slot'] != private_slot:
+                    if acknowledgement is not None and acknowledgement['caller_slot'] != private_slot:
                         caller = acknowledgement['request']['producer']['caller']
                         with _identity(caller['uid'], caller['gid']):
                             retention.remove(acknowledgement['caller_slot'])

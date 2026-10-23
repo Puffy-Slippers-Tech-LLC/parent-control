@@ -33,7 +33,8 @@ PAYLOAD = b'{"result":"passed","cleanup":"complete"}\n'
 
 
 @contextmanager
-def producer_session(tmp_path, monkeypatch, *, journal_name='retention-host'):
+def producer_session(tmp_path, monkeypatch, *, journal_name='retention-host',
+                     workflow='capture-fixture', task='P03'):
     """Inject the shared allocator's checkout; keep its filesystem guards real."""
     checkout = tmp_path / 'checkout'
     checkout.mkdir(mode=0o700)
@@ -57,8 +58,9 @@ def producer_session(tmp_path, monkeypatch, *, journal_name='retention-host'):
         sibling.write_bytes(b'producer still running\n')
         sibling.chmod(0o600)
         handle = capture.issue_session(
-            store, repository=checkout, workflow='capture-fixture', task='P03',
-            check='sealed-producer', target='', inputs_sha256='c' * 64,
+            store, repository=checkout, workflow=workflow, task=task,
+            check='report-start' if task == 'runner-start' else 'sealed-producer',
+            target='', inputs_sha256='c' * 64,
             sources_sha256='d' * 64,
             consumers={CONSUMER: dict(consumer_id=CONSUMER,
                                       revision_sha256=REVISION)})
@@ -1302,6 +1304,85 @@ def test_direct_fourth_session_cannot_rotate_a_required_capture_away(
     entries = [*json.loads(before)['history'], json.loads(before)]
     charges = [charge for entry in entries for charge in entry.get('captures', [])]
     assert len(charges) == 1 and charges[0]['capture_id'] == identifier
+
+
+@pytest.mark.parametrize('workflow', [
+    'regression/20261023T123456Z-abcdef01', 'system', 'e2e', 'vm-test-queue',
+    'standalone-qualifications', 'recovery-diagnostics'])
+@pytest.mark.parametrize('task', ['runner-start', 'runner-terminal'])
+def test_legacy_automatic_runner_capture_retires_without_publication(
+        tmp_path, monkeypatch, workflow, task):
+    with producer_session(tmp_path, monkeypatch, workflow=workflow, task=task) as value:
+        value.finalize()
+        state = json.loads((value.store.path / 'current.json').read_bytes())
+        slot = Path(state['captures'][0]['path'])
+    # Historical runner output may already have expired. It is not read again.
+    value.result.unlink()
+    for _ in range(4):
+        with value.store.session():
+            pass
+    assert not slot.exists()
+    assert not value.source.exists()
+    state = json.loads((value.store.path / 'current.json').read_bytes())
+    assert not any(entry.get('captures') for entry in [*state['history'], state])
+
+
+def test_legacy_automatic_runner_capture_retires_after_archive_expires(
+        tmp_path, monkeypatch):
+    with producer_session(tmp_path, monkeypatch, workflow='e2e', task='runner-terminal') as value:
+        identifier = value.finalize()
+        receipt = publish_capture(value, identifier)
+        acknowledgement = acknowledge(value, identifier)
+    Path(receipt['path']).unlink()
+    for _ in range(4):
+        with value.store.session():
+            pass
+    assert not value.source.exists()
+    assert not Path(acknowledgement['caller_slot']['path']).exists()
+
+
+@pytest.mark.parametrize('workflow,task', [
+    ('regression', 'runner-start'), ('capture-fixture', 'runner-terminal'),
+    ('e2e', 'explicit-export'), ('regression/not-a-report', 'runner-terminal')])
+def test_explicit_capture_is_not_legacy_runner_retirement(
+        tmp_path, monkeypatch, workflow, task):
+    with producer_session(tmp_path, monkeypatch, workflow=workflow, task=task) as value:
+        value.finalize()
+    for _ in range(2):
+        with value.store.session():
+            pass
+    before = (value.store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='capture'):
+        with value.store.session():
+            pytest.fail('explicit capture retired without publication')
+    assert (value.store.path / 'current.json').read_bytes() == before
+    assert value.result.read_bytes() == PAYLOAD
+
+
+@pytest.mark.parametrize('change', ['slot-identity', 'owner-context'])
+def test_legacy_runner_retirement_refuses_changed_identity_or_owner(
+        tmp_path, monkeypatch, change):
+    with producer_session(tmp_path, monkeypatch, workflow='system', task='runner-terminal') as value:
+        value.finalize()
+    for _ in range(2):
+        with value.store.session():
+            pass
+    with value.store.opened() as fd, value.store.locked(fd, 'owner.lock', blocking=False), \
+            value.store.locked(fd, 'writer.lock'):
+        state = value.store.read(fd)
+        charge = next(charge for entry in [*state['history'], state]
+                      for charge in entry.get('captures', []))
+        if change == 'slot-identity':
+            charge['inode'] += 1
+        else:
+            charge['intent']['producer']['owner']['journal'] += '-foreign'
+        value.store.save(fd, state)
+    before = (value.store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='capture|replaced'):
+        with value.store.session():
+            pytest.fail('changed legacy owner or slot admitted retirement')
+    assert (value.store.path / 'current.json').read_bytes() == before
+    assert value.result.read_bytes() == PAYLOAD
 
 
 def test_verified_ack_releases_exact_source_after_retained_session_rotation(

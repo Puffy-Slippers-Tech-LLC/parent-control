@@ -243,7 +243,6 @@ def test_native_approval_stages_complete_installed_payload_before_vm(tmp_path, m
     monkeypatch.setattr(smoke.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(smoke.os, 'getegid', lambda: 0)
     monkeypatch.setattr(smoke, 'storage_session', lambda **kwargs: nullcontext())
-    monkeypatch.setattr(smoke, 'checkpoint_inputs', lambda directory: None)
     monkeypatch.setattr(smoke.runner.baseline.guest_contract, 'CHECKOUT', smoke.ROOT)
     monkeypatch.setattr(smoke.os, 'umask', Mock())
     monkeypatch.setattr(smoke.signal, 'signal', Mock())

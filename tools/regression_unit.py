@@ -5,9 +5,9 @@ sleep between real syncs. Checkpoint batching uses private JSON and a local
 clock double, retaining failure/finalization persistence and sync-error tests.
 Recording, report and capture tests keep real files, locks, syncs and cleanup;
 their existing compatible classifications remain appropriate.
-Resume/report orchestration reuses the shared synthetic custody fixture while
-retaining real checkpoint/report files and counters. Real sealed publication
-remains in runner-evidence/capture tests; no new resource or owner is added.
+Resume/report orchestration uses private checkpoint/result files and in-process
+command doubles. Explicit archive tests retain their own private publication
+resources; ordinary reports add no resource or owner.
 
 Directory-closure checks use the existing tiny pytest-private allocations,
 archives and journals, with bounded metadata hashes and no new process, socket,
@@ -125,6 +125,10 @@ pytest-private reply files and process-local UI/recording-control doubles. No
 encoder, VM, display, bus, shared cache or new cleanup owner is acquired; its
 existing compatible unit/cleanup partition remains appropriate.
 
+Report-expiry checks in execution_plan_launcher use absent paths and in-process
+doubles instead of archive production. write_e2e and its cleanup module likewise
+remove turn-copy resources; their existing private worker/Git owners and compatible
+classifications remain, with no new cleanup/UI inventory owner.
 execution_plan_launcher uses tiny pytest-private Markdown/checkpoint/lock trees,
 process-local Git/agent/cleanup doubles, recorded private nested-directory
 identities with synchronous ownership doubles, in-memory VT panes and four finite
@@ -252,10 +256,9 @@ Repair failure-context checks extend fix_tests with tiny pytest-private report,
 queue and command files plus a process-local artifact-reader double. No live
 Polkit, VM, bus, display, shared path/cache or new child lifetime is introduced;
 its existing compatible unit classification remains appropriate.
-Specialized evidence consumers add private retention/publication journals,
-finite JSON/ZIP closures and complete controller capsules. Real source-byte
-restart checks copy the reviewed inventory into pytest-private trees; launcher
-children and local Git remotes retain their existing recorded, waited owners.
+Repair and E2E resume checks use private checkpoints, current result files and
+source inventories. Launcher children and local Git remotes retain their
+existing recorded, waited owners.
 No model, remote service, VM, display, bus, shared cache or new cleanup owner
 is added. fix_tests/write_e2e and their cleanup modules remain compatible;
 the UI inventory gains no module or resource.
@@ -1635,18 +1638,17 @@ ESTIMATES = {
     'test_broker_state_machine.py': 20,
     'test_package_payload.py': 15,
     'test_test_applications.py': 60,
-    # Real private sealing/publication and recovery dominate these modules;
-    # case counts alone substantially underweight their filesystem work.
+    # Retain existing weights until measured again. Explicit archive modules
+    # still perform real private sealing/publication and recovery.
     'test_runner_evidence.py': 100,
     # The real 252+7 capture history alone measured about 216 seconds.
     'test_evidence_capture.py': 400,
     'test_evidence_bundle.py': 85,
     'test_e2e_evidence.py': 90,
     'test_system_runner.py': 55,
-    # E07's real publication/restart histories take roughly seven minutes;
-    # keep their unchanged module fixtures together without packing other
-    # filesystem-heavy modules into the same timed worker.
-    'test_execution_plan_launcher.py': 450,
+    # Task restart/expiry checks now use private checkpoints, not cumulative
+    # archives. Existing bounded Git/agent doubles and compatible ownership stay.
+    'test_execution_plan_launcher.py': 60,
 }
 
 
@@ -1751,12 +1753,12 @@ def buckets(nodeids):
 # socket, bus, service, shared cache or new cleanup owner is acquired;
 # bounded CPU/I/O permits compatible unit
 # overlap and cleanup/UI gain no module.
-# E06a qualification/system/collector producer histories add tiny private
-# journals, finite immutable proof and synchronous VM/command/identity doubles.
+# Qualification/system/collector checks use private current reports, retention
+# journals, command logs and synchronous VM/command/identity doubles. Qualification
+# logging also owns finite, waited Python children with private captured pipes.
 # Existing qualification_storage, baseline_guest, system_runner, e2e_evidence,
 # e2e_execution and e2e_worker modules retain their compatible classifications.
-# No live helper, VM, socket, display, bus, cache or additional process is owned;
-# actual-byte controller histories likewise stay within their private checkout.
+# No live helper, VM, socket, display, bus, cache or new cleanup owner is acquired.
 # Child-owner dispatcher qualification adds bounded, waited Python children and
 # private generated entrypoints. Control subprocess/cancellation mechanics stay
 # in their existing inventory; no real helper, VM, account or shared state is used.

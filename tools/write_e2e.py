@@ -441,11 +441,11 @@ may be empty when nothing has been independently verified.
 Previous progress: {json.dumps(state.get('progress'), ensure_ascii=False)}
 Last formal live acceptance: {json.dumps(acceptance_evidence(state), ensure_ascii=False)}
 Previous diagnostic progress: {json.dumps(state.get('diagnostic_progress'), ensure_ascii=False)}
-When a runner supplies structured evidence, return it in checks using
-kind (host or installed), target, result and evidence. Evidence is the exact
-onpc-plan-evidence version-1 JSON string containing reference, consumer and record.
-Retain the original runner declaration; diagnostic tails cannot supply acceptance.
-Return checks null for legacy handoffs without runner-issued declarations.
+Each checks item contains only kind (host or installed), target and actual result.
+No evidence field or report reference is required.
+Do not collect or renew report bundles for the launcher.
+The task owns validation; a completed predecessor needs no further proof.
+Return checks null when no per-check summary is needed.
 {BLOCKER_INSTRUCTIONS}
 Missing generated qualification assets are routine test preparation. Use the
 maintained artifact builder to prepare missing named inputs, then resume validation
@@ -480,15 +480,15 @@ that prerequisite in a fresh session without counting this task complete.
 Reconcile interrupted close-out for task {task}, which is already checked in the
 queue but has no valid completion response. This task remains yours; do not
 implement the next unchecked task or take its pointer as acceptance evidence.
-Inspect `{previous}/handoff.txt`, `output`, `prompt.txt`, `checkpoint.json` and
-`agent-result.json`, current task source, close-out records and retained test
-reports. The last safe handoff below may predate successful acceptance.
-Verify required host and live acceptance, regressions, collection and owned
-cleanup against the task's contract and current source. Reuse sufficient retained
-passing evidence; run missing or invalidated checks through maintained routes.
-Reconstruct a deleted brief from the task's contracts and retained task evidence
-when necessary. Do not rewrite previous run artifacts or invent a passing result.
-If acceptance and close-out are established, keep the queue closed and return
+Use the existing checkpoint/handoff, current task source, recorded outcomes and
+Git close-out state to finish the interrupted operation. The last safe handoff
+below may predate successful checks. Preserve recorded validation and finish
+only actual unfinished work and owned cleanup. Run checks that were never
+completed or whose inputs changed in the current work, through maintained routes.
+Missing or rotated reports require no collection, proof checking or reruns.
+Reconstruct a deleted brief from the task's contracts only if unfinished scope
+needs it. Do not rewrite previous run artifacts or invent a passing result.
+When the task's checks and cleanup are complete, keep the queue closed and return
 task_complete with verified validation outcomes and every task-owned stage_path.
 The launcher will stage those files before selecting the next task.
 If work remains, restore this task's unchecked row, brief and first-unchecked
@@ -549,12 +549,15 @@ This is the mandatory optimization after three completed tasks, not a queue task
 ## Scope
 Tasks {batch[0]} to {batch[-1]} in {QUEUE}; exact completed IDs: {', '.join(batch)}.
 Do not implement or close another task, change queue status/order or advance its pointer.
+Optimize the current delivered code. Completed tasks stay complete: do not collect
+proof, repair old report links or repeat their validation. Refactoring changes
+own only their affected checks; unchanged code needs no new test run.
 
 ## Ask 1
 Analyze lessons and successful experiences from this batch that can make future
 tasks easier, increase first-time pass rate, reduce trial-and-error sessions and
-completion time. Read current implementations, delivered queue scope and existing
-runner evidence referenced by close-out. Add or merge actionable guidance into
+completion time. Read current implementations and delivered queue scope.
+Trust completed tasks; do not collect or revalidate their reports. Add useful guidance into
 its owning instructions or mandates; search existing guidance and avoid duplicates.
 Do not create a lessons archive or infer lessons unsupported by evidence.
 
@@ -586,8 +589,8 @@ current source; do not inspect prior Codex sessions, memories or transcripts.
 No ordinary delegation; the shared mandatory backend_reviewer remains required for
 core backend changes. Run tests through tools/run-tests and preserve ONPC_WORKFLOW_DIRECTORY.
 {LIVE_DIAGNOSIS_INSTRUCTIONS}
-This optimization is resumable; recheck interrupted operations and owned cleanup
-using the retained runner evidence before continuing. Missing authority or a
+This optimization is resumable; use its checkpoint to finish interrupted operations
+and owned cleanup. Missing historical reports require no work. Missing authority or a
 required behavior decision returns blocked with a concrete question.
 
 Return the existing structured result with task_id {state['task_id']}.
@@ -596,12 +599,12 @@ host_validated true, live_result passed or not_run as appropriate, progress outc
 not_applicable, and explicit optimization-owned stage_paths (deletions included).
 After failed live validation, completion requires a subsequent clean live pass;
 not_run cannot clear that failure, including after blockers or diagnostic rounds.
-No changes or lessons is a valid audited outcome; report the evidence in summary.
+No changes or lessons is a valid audited outcome; summarize the findings briefly.
 A failed live validation returns ready_for_vm with host_validated true and a
 failed live_result. After that failure, useful unresolved live diagnosis may return
 investigating as above; reasoning with no useful next step returns stalled.
 Keep summary under 600 characters and handoff under 16000; carry only findings,
-decisions, remaining work, exact selectors and evidence paths across sessions.
+decisions, remaining work and relevant check selectors across sessions.
 {BLOCKER_INSTRUCTIONS}
 
 Previous optimization handoff:
@@ -681,40 +684,31 @@ def validate_progress(state, result):
     return progress
 
 
-def consume_evidence(root, state, result):
-    """Authenticate explicit claims without turning legacy handoff prose into proof."""
-    from types import SimpleNamespace
-    import plan_evidence
+def validate_checks(state, result):
+    """Check reported outcomes and target scope without reading report files."""
     checks = result.get('checks')
     if checks is None:
-        if (result['live_result'] != 'not_run' and (
-                any(check['kind'] == 'installed' for check in
-                    ((acceptance_evidence(state) or {}).get('checks') or []))
-                or any(claim['binding']['task_id'] == state['task_id']
-                    and claim['consumer']['expected_context']['target']
-                    for claim in state.get('evidence_consumers', {}).values()))):
-            raise ValueError('structured formal evidence cannot fall back to a legacy live result')
-        return {}
+        return
     if not isinstance(checks, list) or not checks:
-        raise ValueError('structured E2E evidence requires nonempty checks')
+        raise ValueError('reported E2E checks must be nonempty')
     binding = state.get('vm')
     targets = binding.get('vms', []) if isinstance(binding, dict) else [binding] if binding else []
     for check in checks:
-        if (not isinstance(check, dict) or set(check) != {'kind', 'target', 'result', 'evidence'}
+        if (not isinstance(check, dict) or not {'kind', 'target', 'result'}.issubset(check)
+                or set(check) - {'kind', 'target', 'result', 'evidence'}
                 or check['kind'] not in ('host', 'installed')
                 or check['result'] not in ('passed', 'failed', 'not_run')
                 or not isinstance(check['target'], str)
-                or not isinstance(check['evidence'], str)
-                or plan_evidence._structured(check['evidence']) is None
+                or 'evidence' in check and not isinstance(check['evidence'], str)
                 or check['kind'] == 'host' and check['target']
                 or check['kind'] == 'installed' and (not check['target'] or
                     targets and check['target'] not in targets)):
-            raise ValueError('invalid structured E2E evidence check or target')
+            raise ValueError('invalid E2E check or target')
     if (result['host_validated'] and not any(check['kind'] == 'host' and
             check['result'] == 'passed' for check in checks)
             or any(check['kind'] == 'host' and check['result'] != 'passed'
                    for check in checks) and result['host_validated']):
-        raise ValueError('structured evidence does not establish host validation')
+        raise ValueError('reported checks do not match host validation')
     installed = [check for check in checks if check['kind'] == 'installed']
     if (result['live_result'] != 'not_run' and not any(
             check['result'] == result['live_result'] for check in installed)
@@ -722,17 +716,8 @@ def consume_evidence(root, state, result):
             or result['live_result'] == 'passed' and targets and
                 set(check['target'] for check in installed) != set(targets)
             or result['live_result'] == 'not_run' and any(check['result'] != 'not_run' for check in installed)):
-        raise ValueError('structured evidence does not match the formal live result')
-    context = dict(state, task={'plan': PLAN, 'task_id': state['task_id']},
-                   evidence_attempt=state.get('task_sessions', 0))
-    return plan_evidence.consume(SimpleNamespace(root=root), context, result, register=False)
-
-
-def verify_retained_evidence(root, state):
-    """Recheck exact retained declarations before a continuation or Git retry."""
-    for retained in (acceptance_evidence(state), state.get('diagnostic_evidence')):
-        if retained and retained.get('checks') is not None:
-            consume_evidence(root, dict(state, task_sessions=retained['session']), retained)
+        raise ValueError('reported checks do not match the live result')
+    return
 
 
 def accept_result(root, state, result, before):
@@ -751,20 +736,9 @@ def accept_result(root, state, result, before):
         validate_blocker(blocker)
     elif blocker is not None:
         raise ValueError('only a blocked result may ask a question')
-    verify_retained_evidence(root, state)
-    registrations = consume_evidence(root, state, result)
+    validate_checks(state, result)
     progress = validate_progress(state, result)
     acceptance = acceptance_evidence(state)
-    if result['live_result'] != 'not_run' and result.get('checks'):
-        import plan_evidence
-        previous = {claim['reference']['record_id']
-                    for claim in state.get('evidence_consumers', {}).values()
-                    if claim['binding']['task_id'] == state['task_id']
-                    and claim['binding']['attempt'] != state.get('task_sessions', 0)
-                    and claim['consumer']['expected_context']['target']}
-        if any(plan_evidence._structured(check['evidence'])['reference']['record_id'] in previous
-               for check in result['checks'] if check['kind'] == 'installed'):
-            raise ValueError('a prior formal runner attempt cannot become a new live attempt')
     outstanding_failure = bool(acceptance and acceptance['live_result'] == 'failed')
     if result['status'] == 'investigating':
         if not outstanding_failure or result['live_result'] != 'not_run':
@@ -797,7 +771,7 @@ def accept_result(root, state, result, before):
                     diagnostic_continuation=result['status'] == 'investigating',
                     phase='complete' if result['status'] == 'task_complete' else
                           'blocked' if result['status'] == 'blocked' else 'optimize')
-        return retain_evidence_state(updated, result, registrations)
+        return retain_diagnostic_state(updated, result)
     if any(after.get(key) != complete for key, complete in before.items() if key != task):
         raise ValueError('agent changed another task status; inspect the queue')
     status = result['status']
@@ -845,13 +819,11 @@ def accept_result(root, state, result, before):
                         'live' if status in ('ready_for_vm', 'investigating') else
                         'recover' if status == 'stalled' else 'blocked')
     if current != task and status == 'blocked':
-        return defer_to_prerequisite(root, retain_evidence_state(updated, result, registrations))
-    return retain_evidence_state(updated, result, registrations)
+        return defer_to_prerequisite(root, retain_diagnostic_state(updated, result))
+    return retain_diagnostic_state(updated, result)
 
 
-def retain_evidence_state(state, result, registrations):
-    if registrations:
-        state['evidence_consumers'] = registrations
+def retain_diagnostic_state(state, result):
     if result['status'] == 'investigating' and result.get('checks') is not None:
         state['diagnostic_evidence'] = dict(checks=result['checks'], live_result='not_run',
             host_validated=result['host_validated'], session=state.get('task_sessions', 0))
@@ -909,8 +881,7 @@ def finish_completion(root, run, state, result, updated):
 
 
 def _finish_completion(root, run, state, result, updated):
-    verify_retained_evidence(root, state)
-    consume_evidence(root, state, result)
+    validate_checks(state, result)
     if state.get('commit_intent'):
         paths = state['commit_intent']['paths']
     else:
@@ -1094,25 +1065,6 @@ def execute(root, run, owner, phase, live_attempts=0):
     return read_session_result(run)
 
 
-def carry_evidence_turns(run, state):
-    """Carry exact closed controller records before startup rotates their owner."""
-    from repair_evidence import carry_turns
-    for retained in (state, *state.get('suspended_tasks', {}).values()):
-        if retained.get('evidence_turns'):
-            retained['evidence_turns'] = carry_turns(run, retained['evidence_turns'])
-
-
-def retain_evidence_turn(run, state):
-    from repair_evidence import retain_turn
-    identity = dict(workflow='write-e2e', task=state['task_id'],
-                    session=state['task_sessions'], live_attempts_before=state['live_attempts'],
-                    phase=state['phase'])
-    reference = retain_turn(run, identity)
-    references = state.setdefault('evidence_turns', [])
-    if reference not in references:
-        references.append(reference)
-
-
 def task_info_instructions(run, task):
     from launcher_chat import task_info_instructions as instructions
     return instructions(run, task) + 'Describe the task in parent/child scenario language.\n'
@@ -1128,8 +1080,8 @@ def worker(root, run, owner, tasks, state_json):
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, cancel)
-    # on_start carries retained capsules after allocation and before spawn.
-    # Its checkpoint can therefore contain newer paths than the prepared argv.
+    # on_start saves recovered task state after allocation and before spawn.
+    # Its checkpoint can therefore be newer than the prepared argv.
     checkpoint = run / 'checkpoint.json'
     state = json.loads(checkpoint.read_text() if checkpoint.exists() else state_json)
     state['commit_required'] = True
@@ -1188,7 +1140,6 @@ def worker(root, run, owner, tasks, state_json):
             if controller_sources() != sources:
                 reason = 'controller sources changed; restart tools/write-e2e from the retained boundary'
                 break
-            verify_retained_evidence(root, state)
             if state['phase'] == 'complete' and optimization_due(state):
                 state = start_optimization(state)
                 launcher.atomic(run / 'checkpoint.json', state)
@@ -1272,7 +1223,6 @@ def worker(root, run, owner, tasks, state_json):
             model, effort = session_model(state)
             print(f"\nwrite-e2e: session {count}; "
                   f"task {task}; {model} {effort}", flush=True)
-            turn_retained = False
             try:
                 try:
                     result = execute(root, run, owner, state['phase'], state['live_attempts'])
@@ -1281,19 +1231,7 @@ def worker(root, run, owner, tasks, state_json):
                     candidates.update(session_changes(root, state['worktree_before']))
                     state['stage_candidates'] = sorted(candidates)
                     launcher.atomic(run / 'checkpoint.json', state)
-                    # Transport failure and cancellation can still leave an
-                    # exactly closed turn. Retain it before outer recovery so
-                    # subsequent owner rotation cannot erase the interruption.
-                    if (run / 'nested-closed').exists():
-                        # The marker closes admission before cleanup inspects
-                        # every owner. Only a successful inspection closes a turn.
-                        launcher.finish_nested(root, run)
-                        retain_evidence_turn(run, state)
-                        turn_retained = True
-                launcher.finish_nested(root, run)
-                if not turn_retained:
-                    retain_evidence_turn(run, state)
-                    turn_retained = True
+                    launcher.finish_nested(root, run)
                 if controller_sources() != sources:
                     state['source_changed_result'] = result
                     launcher.atomic(run / 'checkpoint.json', state)
@@ -1302,8 +1240,6 @@ def worker(root, run, owner, tasks, state_json):
                 updated = validate_session_result(result, lambda result: accept_result(root, state, result, before))
             except SessionResultRejected as error:
                 launcher.finish_nested(root, run)
-                if not turn_retained:
-                    retain_evidence_turn(run, state)
                 state.update(phase='optimize' if state.get('optimization_session') else 'recover',
                              in_flight=False)
                 retain_result_rejection(run, error, label='write-e2e', checkpoint=state)
@@ -1379,6 +1315,8 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
         # Progress keys name frames in one launcher, unlike cumulative task sessions.
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             saved.pop('progress_keys', None)
+            for key in ('evidence_turns', 'evidence_consumers', 'diagnostic_evidence'):
+                saved.pop(key, None)
         if state.get('result_recovery'):
             used = state.get('task_sessions', 0)
             return dict(state, recovery_run=str(previous), total_sessions=used,
@@ -1521,7 +1459,6 @@ def select(root, argv):
                 str(root), str(run), str(owner), json.dumps(args.tasks), json.dumps(state)]
 
     def start(run):
-        carry_evidence_turns(run, initial_checkpoint)
         launcher.atomic(run / 'limits.json', initial_limits)
         launcher.atomic(run / 'checkpoint.json', initial_checkpoint)
         save_binding(run, binding)

@@ -73,7 +73,7 @@ def closeout_structure(rows, selected, *, completed=()):
             if len(row) > 7:  # Optional Estimate column, before the trailing delimiter.
                 row[6] = '<selected task estimate>'
         elif row[2] in completed and len(row) > 7:
-            row[6] = evidence_references(row[6])
+            row[6] = '<completed task note>'
         normalized.append(row)
     return normalized
 
@@ -186,7 +186,8 @@ class Plan:
         """Presentation drift cannot silently replace retained task obligations."""
         if before is not None:
             current = {row[2]: row for row in self.structure()}
-            if any(row[2] not in current or current[row[2]][5] != row[5] for row in before):
+            if any(row[2] not in current or
+                   row[2] not in completed and current[row[2]][5] != row[5] for row in before):
                 raise ValueError('task scope changed; retain the queue for review')
             def dependencies(value):
                 return {item.strip() for item in value.split(',')} - {'', '—', '-', 'Baseline'}
@@ -196,6 +197,8 @@ class Plan:
                     raise ValueError(f'task {identity} requires an unknown or later task')
                 earlier.add(identity)
             for row in before:
+                if row[2] in completed:
+                    continue  # Historical descriptions and reports do not reopen work.
                 now = current[row[2]]
                 if not dependencies(row[4]).issubset(dependencies(now[4])):
                     raise ValueError('task prerequisites changed; retain the queue for review')
@@ -204,9 +207,6 @@ class Plan:
                     new_link = re.fullmatch(r'\[[^\]]+\]\(([^)]+)\)', now[3])
                     if old_link is None or new_link is None or old_link[1] != new_link[1]:
                         raise ValueError('unfinished task brief changed; retain its acceptance obligations')
-                if row[2] in completed and len(row) > 7:
-                    if len(now) != len(row) or evidence_references(now[6]) != evidence_references(row[6]):
-                        raise ValueError('completed task evidence claim changed; retain its accepted history')
 
     def prerequisite_repair(self, state):
         """Recognize only a new dependency block for the unfinished consumer.

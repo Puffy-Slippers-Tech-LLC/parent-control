@@ -768,12 +768,15 @@ def test_legacy_controller_lease_excludes_all_named_leases(rig, monkeypatch):
             os.close(descriptor)
 
 
-@pytest.mark.parametrize('requested, expected_host', [
-    (['all'], [['host']]), (['vm'], []), (['host', 'vm'], [['host']]),
-    (['system', '--area', 'authorization', '--test', 'case[param]'], []),
+@pytest.mark.parametrize('requested, expected_host, failed_guest, handoff_fault', [
+    (['all'], [['host']], True, None), (['vm'], [], True, None),
+    (['host', 'vm'], [['host']], True, None),
+    (['system', '--area', 'authorization', '--test', 'case[param]'], [], True, None),
+    (['vm'], [], False, None),
+    (['vm'], [], True, 'missing'), (['vm'], [], True, 'malformed'),
 ])
 def test_queue_controller_runs_host_once_and_admits_guests_independently(
-        tmp_path, monkeypatch, requested, expected_host):
+        tmp_path, monkeypatch, requested, expected_host, failed_guest, handoff_fault):
     from contextlib import contextmanager
     import threading
     import time
@@ -781,19 +784,14 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
     import vm_test_queue as queue
     import vm_selection
     import runner_evidence
-    captured = []
-    class Evidence:
-        def __init__(self, root, directory, **kwargs):
-            self.directory = directory
-        def command(self, value):
-            captured.append(value)
-        def finalize(self, **kwargs):
-            assert kwargs['cleanup'] == 'pending'
-            assert {member['path'].name for member in kwargs['members']} >= {'results.json', 'failure.json'}
-            return dict(references=[])
-    monkeypatch.setattr(runner_evidence, 'ReportEvidence', Evidence)
+    def unexpected(*args, **kwargs):
+        pytest.fail('queue progression tried to capture or resolve archived reports')
+    monkeypatch.setattr(runner_evidence, 'ReportEvidence', unexpected)
+    monkeypatch.setattr(runner_evidence, 'recover_pending', unexpected)
+    monkeypatch.setattr(runner_evidence, 'resolve_reference', unexpected)
     vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True) for index in range(5)]
     monkeypatch.setenv(vm_selection.BATCH, json.dumps({'vms': [vm.name for vm in vms], 'concurrency': 2}))
+    monkeypatch.setenv('ONPC_RUNNER_INVOCATION', '{"target":"previous-worker"}')
     monkeypatch.setattr(vm_config, 'registry', lambda: {vm.name: vm for vm in vms})
     monkeypatch.setattr(queue.test_activity, 'retention_path', lambda root: tmp_path / 'journal')
     monkeypatch.setattr(queue.test_launcher, 'environment', lambda root: dict(os.environ))
@@ -801,7 +799,7 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
     monkeypatch.setattr(queue.test_retention, 'allocate',
                         lambda factory, **kwargs: original_allocate(factory, dir=tmp_path, **kwargs))
     hosts = []
-    # This controller test owns scheduling/evidence. Real option and input
+    # This controller test owns scheduling/results. Real option and input
     # validation is exercised by the focused launcher tests against ROOT.
     monkeypatch.setattr(test_commands, 'validate_one', lambda *_: None)
     monkeypatch.setattr(test_commands, '_main', lambda argv, **kwargs: hosts.append(argv) or 0)
@@ -820,6 +818,7 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
             mode, name = command[3:5]
             assert env[vm_selection.VARIABLE] == name
             assert vm_selection.BATCH not in env
+            assert 'ONPC_RUNNER_INVOCATION' not in env
             with gate:
                 calls.append((mode, name))
                 assert mode == '--execute'
@@ -832,34 +831,45 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
                 free_started.set()
             assert command[5:] == (requested if 'system' in requested else ['system', 'e2e'])
             time.sleep(.02)
-            if name == 'guest-0':
+            if name == 'guest-0' and failed_guest:
                 handoff = tmp_path / 'guest-failure.json'
                 handoff.write_text(json.dumps({'categories': ['e2e'], 'failures': [
                     dict(category='e2e', case='E2E-004/terminal', vm='')]}))
+                if handoff_fault == 'missing':
+                    handoff.unlink()
+                elif handoff_fault == 'malformed':
+                    handoff.write_text('{"categories": null}')
                 output(f'Failure handoff: {handoff}\n'.encode())
             else:
-                output(b'test output\n')
+                output(b'test output\nRunner evidence: {broken\nFailure handoff: /expired/report.json\n')
             with gate:
                 active -= 1
-            return 1 if name == 'guest-0' else 0
+            return 1 if name == 'guest-0' and failed_guest else 0
     monkeypatch.setattr(queue, 'Control', FakeControl)
-    assert queue.run(tmp_path, requested) == 1
+    assert queue.run(tmp_path, requested) == int(failed_guest)
     assert hosts == expected_host
     assert len(calls) == len(vms)
     assert sorted(name for mode, name in calls if mode == '--execute') == [vm.name for vm in vms]
     assert peak == 2
     evidence, = tmp_path.glob('onpc-vm-queue-*')
-    handoff = json.loads((evidence / 'failure.json').read_text())
-    assert handoff['categories'] == ['e2e']
-    assert handoff['failures'] == [dict(category='e2e', case='E2E-004/terminal', vm='guest-0')]
-    assert set(json.loads((evidence / 'results.json').read_text())) == {vm.name for vm in vms}
-    assert [record['target'] for record in captured] == [vm.name for vm in vms]
-    assert all(record['provenance'] == 'worker-join' and record['cleanup'] == 'pending'
-               and record['argv'] == (requested if 'system' in requested else ['system', 'e2e'])
-               for record in captured)
+    if failed_guest:
+        handoff = json.loads((evidence / 'failure.json').read_text())
+        if handoff_fault:
+            assert handoff['categories'] == ['system', 'e2e']
+            assert handoff['failures'] == [dict(category=kind, case='', vm='guest-0')
+                                          for kind in ('system', 'e2e')]
+        else:
+            assert handoff['categories'] == ['e2e']
+            assert handoff['failures'] == [dict(category='e2e', case='E2E-004/terminal', vm='guest-0')]
+    else:
+        assert not (evidence / 'failure.json').exists()
+    results = json.loads((evidence / 'results.json').read_text())
+    assert set(results) == {vm.name for vm in vms}
+    assert [results[vm.name]['status'] for vm in vms] == [int(failed_guest), 0, 0, 0, 0]
+    assert all(set(result) == {'status', 'handoffs'} for result in results.values())
     for vm in vms:
         text = (evidence / (vm.name + '.log')).read_text()
-        assert text.startswith('Failure handoff: ' if vm.name == 'guest-0' else 'test output\n')
+        assert text.startswith('Failure handoff: ' if vm.name == 'guest-0' and failed_guest else 'test output\n')
 
 
 def test_focused_queue_split_preserves_resume_and_exact_options():

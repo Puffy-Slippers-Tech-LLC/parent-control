@@ -23,8 +23,6 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
-import plan_evidence
-import plan_evidence_recovery
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace
 from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequired,
                           closeout_lock, commit_push_propagate, git_output,
@@ -61,9 +59,8 @@ def task_session_usage(state):
     return state['task_sessions'] - repairs
 
 
-def coordinator_repair(state, *, references=False):
-    return references or any(state.get(key) for key in (
-        'git_reconciliation', 'evidence_renewal', 'result_recovery', 'evidence_capture_requires_brief'))
+def coordinator_repair(state):
+    return any(state.get(key) for key in ('git_reconciliation', 'result_recovery'))
 
 
 def capacity_session_spec(spec, state):
@@ -73,12 +70,6 @@ def capacity_session_spec(spec, state):
             and spec.model == 'gpt-6.1-sol'):
         return replace(spec, model='gpt-6-astra')
     return spec
-
-
-def repairable_reference(error):
-    return bool(error.diagnostics) and all(item.get('condition') in
-        ('missing', 'fragment', 'stale', 'pending', 'busy', 'protected', 'identity', 'conflict')
-        for item in error.diagnostics)
 
 
 def task_record(task):
@@ -99,10 +90,11 @@ def validate_result_payload(state, result):
             or not isinstance(result['checks'], list)):
         raise ValueError('invalid plan session result; retain checkpoint for recovery')
     for check in result['checks']:
-        if (not isinstance(check, dict) or not {'kind', 'target', 'result', 'evidence'}.issubset(check)
+        if (not isinstance(check, dict) or not {'kind', 'target', 'result'}.issubset(check)
                 or check['kind'] not in ('installed', 'review', 'host', 'reconciliation')
                 or check['result'] not in ('passed', 'failed', 'not_run')
-                or any(not isinstance(check[key], str) for key in ('target', 'evidence'))):
+                or not isinstance(check['target'], str)
+                or 'evidence' in check and not isinstance(check['evidence'], str)):
             raise ValueError('invalid acceptance check')
     if result['status'] == 'blocked':
         validate_blocker(result['blocker'])
@@ -113,10 +105,10 @@ def validate_result_payload(state, result):
         required = state['task']['acceptance']
         targets = state['task']['targets'] or ['']
         if (not result['cleanup_complete'] or not result['checks']
-                or any(check['result'] != 'passed' or not check['evidence'].strip() for check in result['checks'])
+                or any(check['result'] != 'passed' for check in result['checks'])
                 or any(not any(check['kind'] == required and check['target'] == target
                                for check in result['checks']) for target in targets)):
-            raise ValueError('completion requires passing scoped acceptance evidence and owned cleanup')
+            raise ValueError('completion requires passing scoped checks and owned cleanup')
 
 
 def prerequisite_handoff(plan, state, result):
@@ -131,12 +123,6 @@ def validate_result(plan, state, result):
         raise ValueError('master plan queue changed since its checkpoint; reconcile the retained handoff')
     validate_result_payload(state, result)
     validate_task_metadata(plan, state)
-    try:
-        plan_evidence.consume(plan, state, result, register=False)
-    except plan_evidence.EvidenceUnavailable:
-        # Exact absence is renewed by closeout; context, integrity and authority
-        # failures remain ordinary response refusals, never missing proof.
-        pass
     complete = result['status'] == 'task_complete'
     if prerequisite_handoff(plan, state, result):
         if state.get('git_reconciliation'):
@@ -186,19 +172,19 @@ Delegate scoped implementation or review to subagents configured as required by
 AGENTS.md when the coordinator or plan_worker defaults do not meet those requirements.
 Use the shared backend_reviewer role for the mandatory independent backend review.
 Give each subagent explicit scope and disjoint write ownership. Join and close
-all subagents before acceptance, handoff or cleanup. You own the final decision.
+all subagents before completion, handoff or cleanup. You own the final decision.
 Preserve pre-existing work; do not stage, commit, push or run another workflow
 launcher. The controller owns Git close-out after validated task completion.
-Finish the task's actual acceptance ({state['task']['acceptance']}) on all named
-targets {state['task']['targets']}, and owned cleanup. Use maintained public
-routes; an evidence summary, source review or host test cannot substitute for
-required installed acceptance. Verify exact input/evidence applicability.
-Only after acceptance, check this queue row, advance the master Next task pointer
-to the first unchecked row (Next task: none. when finished), record concise
-evidence in the queue/reference and remove its temporary brief if appropriate.
+Complete the task's checks ({state['task']['acceptance']}) on its targets
+{state['task']['targets']} and finish owned cleanup. You own that validation.
+Use maintained public routes and check the actual requested behavior.
+Then check this queue row and advance Next task to the first unchecked row
+(Next task: none. when finished). A short completion note is enough; do not
+create proof files, collect report bundles or repair completed tasks' report links.
+Remove the temporary brief if appropriate.
 Preserve every other row's status, order and scope. If this session cannot finish,
 leave this task unchecked and the pointer on it; return continue with a usable
-handoff. At close-out, you may update this row's Estimate with timing/evidence;
+handoff. At close-out, you may update this row's Estimate with a short result;
 keep its Scope and Requires unchanged. For a newly discovered prerequisite,
 insert only explicit unchecked prerequisite rows immediately before this unfinished consumer, with valid briefs
 and backward Requires links, and move Next task to the first new prerequisite.
@@ -209,22 +195,15 @@ cleanup return prerequisite_required; this suspends the consumer without any
 acceptance credit and resumes it after its declared prerequisites pass. Do not
 use this route to drop obligations, skip blockers or reorder existing work.
 An interrupted predecessor may have checked its row before saving an accepted
-result. Reconcile its retained evidence and cleanup, complete missing work or
+result. Reconcile its recorded outcome and cleanup, complete missing work or
 restore its unchecked row/brief/pointer before returning continue or blocked.
 {BLOCKER_INSTRUCTIONS}
 Return the required JSON response.
-Each checks item names kind, one declared canonical target (empty only when the
-brief declares no Targets), actual
-passed/failed/not_run result and exact retained evidence or review findings.
-For a runner-issued structured handoff, use a JSON string as checks[].evidence:
-schema "onpc-plan-evidence", version 1, and the exact reference, consumer and
-record objects returned by the producer. Select one declared member and retain
-its original target, inputs, attempt, verdict and cleanup. Do not invent those
-objects or replace installed acceptance with diagnostic proof. Legacy exact
-report paths remain supported when no structured handoff is available.
+Each checks item contains only kind, one declared canonical target (empty only when the
+brief declares no Targets), and the actual passed/failed/not_run result.
+No evidence field or report reference is required.
 Never report task_complete unless every required check passed and cleanup ended.
 Previous handoff/recovery: {state.get('handoff', 'No prior session.')}
-Verified closed-turn records: {json.dumps(state.get('evidence_turns', []))}
 {('The preceding turn ended because the provider was at capacity. Reconcile partial '
   'work and retained command/test results after owned cleanup, then continue this '
   'same task and session. No acceptance or extra task-session allowance was granted. Failure: '
@@ -236,22 +215,6 @@ above remains required. The current combined brief replaces only the former
 single-target scheduling and queue close-out instructions.
 {reconciliation_instructions(state)}
 {result_recovery_instructions(state.get('result_recovery'), allowance='separate coordinator repair allowance')}
-{('Acceptance evidence expired before publication. Inspect the exact retained '
-  'response, command record and captured task inputs at '
-  + state['evidence_renewal']['evidence_source']['path'] + '. '
-  + state['evidence_renewal']['reason'] + '\n'
-  'Preserve the task, queue baseline, suspended consumers, acceptance targets '
-  'and Git ownership. Reuse verified surviving proof and rerun checks whose '
-  'detailed proof is lost. The checkpoint retains any applied evidence-recovery '
-  'transaction; do not reapply it or invent an expired receipt. Restore the '
-  'captured brief and unchecked row/pointer if returning continue. Return a '
-  'new result with exact available evidence before close-out.\n')
- if state.get('evidence_renewal') else ''}
-{('The temporary brief is missing and no exact earlier brief snapshot was retained. '
-  'Restore the authorized brief and return continue with the task unchecked. '
-  'The next session must capture its exact restored input before completion; '
-  'do not report task_complete in this restoration session.')
- if state.get('evidence_capture_requires_brief') else ''}
 """
 
 
@@ -322,18 +285,24 @@ def recover_rejected_completion(plan, state, previous):
 
 
 def initial_state(plan, spec, directory, *, reloading=False):
-    plan_evidence.recover(plan)
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
+        # Old controllers could stop a completed task solely to archive reports.
+        # Its saved successful result still owns completion; report lifetime does not.
+        for saved in [state, *state.get('suspended_tasks', {}).values()]:
+            renewal = saved.pop('evidence_renewal', None)
+            if (renewal and not saved.get('pending_completion')
+                    and renewal.get('result', {}).get('status') == 'task_complete'
+                    and renewal['result'].get('task_id') == saved.get('task_id')
+                    and plan.state().get(saved['task_id']) is True):
+                validate_result_payload(saved, renewal['result'])
+                saved.update(pending_completion=renewal['result'], in_flight=False)
+            for key in ('evidence_inputs', 'evidence_source', 'evidence_turns',
+                        'evidence_capture_requires_brief', 'evidence_consumers'):
+                saved.pop(key, None)
         if capacity_session_recovery(state) and not reloading:
             state['capacity_recovery']['restart'] = True
-        state = plan_evidence_recovery.recover_evidence(
-            plan, state, previous,
-            verify_proof=lambda correction, request: plan_evidence_recovery.verify_proof(
-                plan, correction, request),
-            read_authorization=lambda request: plan_evidence_recovery.read_authorization(plan, request),
-            verify_only=reloading)
         if (state.get('consolidation_obligations') and not any(
                 state.get(key) for key in ('in_flight', 'pending_completion',
                                           'git_reconciliation', 'pull_intent', 'result_recovery',
@@ -425,6 +394,7 @@ def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=No
     A checked row must already have been accepted and recorded in Git.
     """
     from test_storage import directory as storage_directory
+    import plan_evidence_recovery  # Explicit administrative route only.
     if not isinstance(identity, str) or len(identity) != 32 or any(
             character not in '0123456789abcdef' for character in identity):
         raise ValueError('reconciliation needs the exact retained run ID')
@@ -681,33 +651,9 @@ def _closeout(plan, spec, run, state):
     result = state['pending_completion']
     if not state.get('pull_intent'):
         validate_session_result(result, lambda result: validate_result(plan, state, result))
-    # Acceptance must outlive the disposable model session, including a later
-    # interrupted Git transaction. Close nested owners before recording cleanup.
     launcher.finish_nested(plan.root, run)
-    try:
-        index = plan_evidence.wait_for_owner(run, lambda: plan_evidence.preserve(plan, run, state, result))
-    except (plan_evidence.EvidenceUnavailable, plan_evidence.ReferenceRefused) as error:
-        if isinstance(error, plan_evidence.ReferenceRefused) and not repairable_reference(error):
-            raise
-        if any(state.get(key) for key in ('commit_intent', 'pull_intent', 'git_reconciliation')):
-            raise GitReconciliationRequired(
-                'Recover exact retained proof before Git close-out; preserve the original transaction '
-                'and accepted inputs. Do not renew acceptance across an unfinished Git transaction.\n'
-                + str(error)) from error
-        plan_evidence._source(plan, run, state, result)
-        state.update(phase='recover', in_flight=False, plan_queue=plan.queue,
-                     evidence_renewal=dict(reason=str(error), result=result,
-                                          evidence_source=state['evidence_source']),
-                     handoff=result['handoff'] + '\n' + str(error))
-        state.pop('pending_completion')
-        state.pop('evidence_source')
-        launcher.atomic(run / 'checkpoint.json', state)
-        print(f'{spec.name}: {error} Returning to the coordinator within the existing '
-              'session limit; no task accepted.', flush=True)
-        return False
-    state.pop('evidence_renewal', None)  # Exact renewed proof is now durably verified.
-    plan_evidence.rewrite_references(plan, state, index)
-    validate_session_result(result, lambda result: validate_result(plan, state, result))
+    # The task owns its checks. Keep its result in the existing checkpoint;
+    # disposable diagnostics and historical links are not close-out prerequisites.
     if spec.commit_prefix:
         paths = state.get('commit_intent', {}).get('paths')
         state['plan_queue'] = plan.queue
@@ -769,54 +715,21 @@ def execute(root, spec, run, owner):
 
 RESPONSE_VALIDATOR_SOURCES = (
     'plan_launcher.py', 'execution_plan.py', 'document_checks.py',
-    'launcher_runtime.py', 'plan_evidence.py', 'plan_evidence_recovery.py',
-    'evidence_bundle.py', 'detached_launcher.py',
-    # Explicit retained-decision closure audited in Export-Design.md. Storage
-    # locks include input-transfer admission; helper dispatch authenticates the
-    # owner before preservation, and Git/question/reconciliation retain state.
-    'test_retention.py', 'test_storage.py', 'test_input_transfer.py',
-    'launcher_git.py', 'launcher_worktrees.py', 'onpc-test-artifacts', 'launcher_question.py',
-    'plan_reconciliation.py', 'vm_selection.py', 'vm_pool.py', '../tests/integration/vm_config.py',
-    'evidence_identity.py', 'evidence_policy.py', 'evidence_capture.py', 'capture_publication.py',
-    'recording_storage.py', 'artifact_export.py',
-    # Runner terminal records now supply the exact provenance retained by
-    # evidence consumers; reload before accepting decisions from changed code.
-    'runner_evidence.py', 'regression.py', 'regression_process.py',
-    'regression_events.py', 'test_commands.py', 'vm_test_queue.py',
-    'regression_inputs.py',
-    'test_recovery.py',
-    # Qualification and collector producers determine the retained result,
-    # candidate and true outer cleanup provenance.
-    '../tests/integration/qualification_storage.py',
-    '../tests/integration/system_runner.py', '../tests/integration/vm_probe.py',
-    '../tests/integration/baseline_guest.py',
-    '../tests/integration/check_graphical_recovery.py',
-    '../tests/integration/check_graphical_smoke.py', '../tests/integration/check_e2e_watch.py',
-    '../tests/e2e/private_artifacts.py', '../tests/e2e/execution.py', '../tests/e2e/e2e_worker.py',
-    'onpc-test-runner', '../tests/e2e/runner.py',
-    '../tests/integration/guest_inputs.py', '../tests/integration/owned_commands.py',
-    '../tests/e2e/evidence.py', '../tests/e2e/secret_variables.py',
+    'launcher_runtime.py', 'detached_launcher.py',
+    # Shared storage retirement still protects owned resources and any older
+    # required captures. These guards do not collect task archives.
+    'test_retention.py', 'test_storage.py', 'test_io.py', 'test_input_transfer.py',
+    'evidence_capture.py', 'evidence_identity.py', 'capture_publication.py',
+    'evidence_bundle.py', 'recording_storage.py', 'artifact_export.py',
+    'launcher_git.py', 'launcher_worktrees.py', 'launcher_question.py',
+    'plan_reconciliation.py', 'vm_selection.py', 'vm_pool.py',
+    '../tests/integration/vm_config.py', 'plan_response.schema.json',
 )
-
 
 def response_validator_sources():
     """Detect repairs that this process cannot load by retrying an agent turn."""
     return {name: hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
             for name in RESPONSE_VALIDATOR_SOURCES}
-
-
-def evidence_recovery_pending(plan, state):
-    """Detect a startup-only request without applying or authorizing it here."""
-    if state.get('phase') == 'complete':
-        return False
-    request = plan_evidence_recovery.request_from_brief(plan, state)
-    if request is None:
-        return False
-    marker = state.get('evidence_recovery')
-    # Startup owns full marker/proof verification. The running controller only
-    # needs to distinguish its exact already-applied request from a new one.
-    return (not isinstance(marker, dict) or marker.get('request_sha256')
-            != plan_evidence_recovery.digest(plan_evidence_recovery.encoded(request)))
 
 
 def reload_controller(root, run, owner, spec):
@@ -847,9 +760,6 @@ def reload_state(root, run, owner, spec, state):
                 or state.get('in_flight') or (run / 'result.json').exists()):
             raise ValueError('controller reload requires the current idle session boundary and owner')
         plan = load_plan(root, spec.plan, state)
-        if evidence_recovery_pending(plan, state):
-            raise ValueError('selected task has an unapplied evidence recovery request; '
-                             'resume with a fresh run for inactive controller verification')
         launcher.finish_nested(root, run)
         return initial_state(plan, spec, run.parent, reloading=True)
 
@@ -870,8 +780,6 @@ def worker(root, run, owner, spec, state, *, reloading=False):
         validator_sources = response_validator_sources()
         reload_reason = ('launcher validation code changed during the session; '
                          'reloading controller and revalidating the retained handoff')
-        evidence_recovery_reason = ('selected task has an unapplied evidence recovery request; '
-                                    'resume with a fresh run for inactive controller verification')
         if state.get('recovery_run'):
             launcher.finish_nested(root, Path(state['recovery_run']))
         if reloading and (run / 'cancel').exists():
@@ -939,11 +847,6 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 if state.get('consolidation_obligations'):
                     selected['consolidation_obligations'] = state['consolidation_obligations']
                 state = selected
-            # Check after selection as well as continuations: a newly selected
-            # brief can already contain a request requiring inactive ownership.
-            if evidence_recovery_pending(plan, state):
-                status, reason = 1, evidence_recovery_reason
-                break
             if state['phase'] == 'blocked':
                 launcher.atomic(run / 'chat-state.json', {'session': state.get('total_sessions'),
                     'task_id': state['task_id'], 'task_session': state['task_sessions'], 'status': 'blocked'})
@@ -960,22 +863,6 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 if response_validator_sources() != validator_sources:
                     reload, reason = True, reload_reason
                     break
-                if evidence_recovery_pending(plan, state):
-                    status, reason = 1, evidence_recovery_reason
-                    break
-            # Repairable references need a coordinator, not a dead controller.
-            # Actual publication still verifies proof before task completion.
-            reference_repair = False
-            try:
-                plan_evidence.wait_for_owner(run, lambda: plan_evidence.preflight(plan, run, state))
-            except plan_evidence.ReferenceRefused as error:
-                # A coordinator can repair missing instructions and renew stale
-                # proof. Publication still verifies acceptance before close-out.
-                if not repairable_reference(error):
-                    raise
-                reference_repair = True
-                state['handoff'] = state.get('handoff', '') + '\nRepair before completing this task: ' + str(error)
-                print(f'{spec.name}: {error}; returning repairs to the coordinator.', flush=True)
             retrying_capacity = capacity_retry(state)
             if not retrying_capacity and not budget.admit():
                 if completed_state is not None:
@@ -983,7 +870,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 reason = 'task limit reached'
                 break
             if not retrying_capacity:
-                state['session_kind'] = 'repair' if coordinator_repair(state, references=reference_repair) else 'task'
+                state['session_kind'] = 'repair' if coordinator_repair(state) else 'task'
                 used = task_session_usage(state)
                 if state['session_kind'] == 'repair':
                     if state.get('repair_sessions', 0) >= MAX_REPAIR_SESSIONS:
@@ -1010,7 +897,6 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 if state['session_kind'] == 'repair':
                     state['repair_sessions'] = state.get('repair_sessions', 0) + 1
                 state['total_sessions'] += 1
-            plan_evidence.capture(plan, run, state)
             # Clear the preceding response before publishing a new in-flight turn,
             # so restart recovery cannot adopt a stale response for this task.
             (run / 'agent-result.json').unlink(missing_ok=True)
@@ -1040,7 +926,6 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 state.update(phase='recover', in_flight=False, capacity_recovery={
                     'message': str(error), 'retry_after': time.time() + delay,
                     'session': state['total_sessions'], 'failures': failures, 'exhausted': exhausted})
-                plan_evidence.retain_turn(plan, run, state)
                 launcher.atomic(run / 'checkpoint.json', state)
                 if exhausted:
                     status, reason = 1, f'model capacity recovery exhausted: {error}'
@@ -1057,15 +942,9 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 state.pop('capacity_recovery', None)
                 state.update(phase='recover', in_flight=False, plan_queue=plan.queue)
                 retain_result_rejection(run, error, label=spec.name, checkpoint=state)
-                plan_evidence.retain_turn(plan, run, state)
                 launcher.atomic(run / 'checkpoint.json', state)
                 continue
-            # A continuation, answer or prerequisite can outlive this response's
-            # run. Freeze its closed proof before another turn replaces the
-            # result, prompt and nested-owner inventory.
             launcher.finish_nested(root, run)
-            plan_evidence.retain_turn(plan, run, state, result,
-                                      publish=result['status'] != 'task_complete')
             state.pop('result_recovery', None)
             state.pop('capacity_recovery', None)
             state.update(summary=result['summary'], handoff=result['handoff'], in_flight=False)
@@ -1094,8 +973,6 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             launcher.atomic(run / 'checkpoint.json', state)
     except launcher.Stopped:
         status, reason = 130, 'cancelled after owned cleanup'
-    except plan_evidence.EvidenceWaitStopped:
-        reason = 'stopped at a session boundary while waiting for evidence ownership'
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         status, reason = 1, str(error)
     finally:
@@ -1192,7 +1069,6 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
         initial = {}
         initial_info = {}
         initial_remaining = 0
-        initial_plan = None
         def attach(selected):
             check_binding(selected, binding, stopping=args.stop)
             if args.tasks is not None:
@@ -1206,12 +1082,11 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                     warn_remaining(limit, remaining + budget.read()['completed'], label=spec.name)
                 print(f"{spec.name}: limits now tasks={limit if limit is not None else 'all'}", flush=True)
         def command(selected, owner):
-            nonlocal initial_remaining, initial_plan
+            nonlocal initial_remaining
             previous = launcher.current_run(selected.parent)
             saved = (json.loads((previous / 'checkpoint.json').read_text())
                      if previous is not None and (previous / 'checkpoint.json').exists() else {})
             plan = load_plan(root, path, saved)
-            initial_plan = plan
             validation_error = None
             try:
                 records = [task_record(task) for task in plan.tasks() if not task.complete]
@@ -1241,9 +1116,6 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
         def start(selected):
             TaskBudget(selected).initialize(args.tasks if args.tasks is not None else 1,
                                             remaining=initial_remaining)
-            # Git recovery and suspended consumers may start no model session.
-            # Move their exact captured inputs forward on every registered run.
-            plan_evidence.carry(initial_plan, selected, initial)
             launcher.atomic(selected / 'checkpoint.json', initial)
             if initial_info:
                 launcher.atomic(selected / 'task-info.json', initial_info)
@@ -1257,11 +1129,10 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             display = None
             def prepare(selected):
                 nonlocal display
-                # Recovery can verify a large cumulative archive. Paint before
-                # that work, keeping signal-based Ctrl+C until chat can poll.
+                # Paint before startup validation; keep Ctrl+C available.
                 display = observer.enter_context(WorkflowView().display(sys.stdout, selected))
                 display.update([{'key': 'startup', 'lines': [
-                    f'{spec.name}: validating saved plan and evidence…']}], [])
+                    f'{spec.name}: resuming task queue…']}], [])
             run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
                                            on_attach=attach, on_start=start, on_prepare=prepare,
                                            namespace=plan_namespace(path), resumable_start=True)
@@ -1294,10 +1165,10 @@ if __name__ == '__main__':
     mode, root, run, owner, spec, *options = sys.argv[1:]
     root, run, owner, spec = Path(root), Path(run), int(owner), PlanWorkflow(**json.loads(spec))
     if mode in ('--worker', '--reload-worker'):
-        # on_start may have moved exact active/suspended proof into this newly
-        # registered run after command construction. Its published checkpoint,
+        # on_start may have saved active/suspended task state in this newly
+        # registered run after command construction. Its checkpoint,
         # rather than the earlier argv snapshot, is the worker's input.
-        initial = json.loads(plan_evidence_recovery._read(run / 'checkpoint.json'))
+        initial = json.loads((run / 'checkpoint.json').read_text())
         sys.exit(worker(root, run, owner, spec, initial, **(
             {'reloading': True} if mode == '--reload-worker' else {})))
     if mode == '--supervise':

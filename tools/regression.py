@@ -368,10 +368,7 @@ class Report:
     def __init__(self, root):
         self.root = root
         self.retention_session = None
-        self.evidence = None
-        self.members = {}
         self.commands = []
-        self.receipt = None
         try:
             self.initialize(root)
         except BaseException:
@@ -396,8 +393,6 @@ class Report:
             # Give these reports their own bounded ring, just like reconnect
             # transcripts, without adopting fixture recovery authority.
             store = Store(directory('state', root=root) / 'standalone-reports')
-            from runner_evidence import recover_pending
-            recover_pending(root, store)
             self.retention_session = store.session()
             self.retention_session.__enter__()
         created = None
@@ -429,18 +424,11 @@ class Report:
                 self.release_session(*failure)
             raise
         try:
-            from runner_evidence import ReportEvidence
-            # A report is a complete publication scope. Sharing one workflow
-            # across executions recopied every earlier run at each close-out.
-            # Recovery retains this name in the immutable startup record.
-            self.evidence = ReportEvidence(root, self.directory,
-                                           workflow='regression/' + self.directory.name)
             self.stream = (self.directory / 'report.md').open('x', encoding='utf-8')
         except BaseException:
             self.release_session(*sys.exc_info())
             raise
         os.chmod(self.directory / 'report.md', 0o600)
-        self.member(self.directory / 'report.md', 'result')
         self.dirty = set()
         self.last_sync = time.monotonic()
         self.last_snapshot = -float('inf')
@@ -499,12 +487,6 @@ class Report:
             stream.flush()
         os.replace(temporary, path)
         self.dirty.add(path)
-        self.member(path, 'input' if name.startswith('inventory-') else
-                    'command' if name.startswith('command-') else 'result')
-
-    def member(self, path, role):
-        self.members[str(path)] = dict(path=str(path), role=role)
-
     def command(self, record):
         previous = next((item for item in self.commands if item['sequence'] == record['sequence']), None)
         if previous is not None:
@@ -514,7 +496,6 @@ class Report:
             return
         self.publish(f'command-{record["sequence"]:03d}.json', record)
         self.commands.append(record)
-        self.evidence.command(record)
         self.checkpoint(force=True)
 
     def resources(self, sample):
@@ -524,7 +505,6 @@ class Report:
             stream.write(json.dumps(sample, sort_keys=True) + '\n')
             stream.flush()
         self.dirty.add(path)
-        self.member(path, 'diagnostic')
 
     def schedule(self, event):
         with (self.directory / 'schedule.jsonl').open('a', encoding='utf-8') as stream:
@@ -532,7 +512,6 @@ class Report:
             stream.write(json.dumps({'monotonic': time.monotonic(), **event}, sort_keys=True) + '\n')
             stream.flush()
         self.dirty.add(self.directory / 'schedule.jsonl')
-        self.member(self.directory / 'schedule.jsonl', 'command')
 
     def checkpoint(self, *, force=False):
         # Keep output immediately readable, but do not turn thousands of test
@@ -570,20 +549,7 @@ class Report:
         if session is not None:
             session.__exit__(*(error or (None, None, None)))
 
-    def finalize(self, *, categories=(), status=None, cleanup='pending', sources_sha256=None):
-        try:
-            if not self.stream.closed:
-                raise ValueError('report must be closed before evidence capture')
-            if self.receipt is None:
-                self.receipt = self.evidence.finalize(
-                    categories=[{field.name: getattr(item, field.name) for field in fields(item)}
-                                for item in categories], status=status, cleanup=cleanup,
-                    members=list(self.members.values()), sources_sha256=sources_sha256)
-            return self.receipt
-        finally:
-            self.release_session(*sys.exc_info())
-
-    def close(self, *, defer_capture=False):
+    def close(self, *, release=True):
         try:
             try:
                 if not self.stream.closed:
@@ -593,8 +559,8 @@ class Report:
         except BaseException:
             self.release_session(*sys.exc_info())
             raise
-        if not defer_capture:
-            self.finalize()
+        if release:
+            self.release_session()
 
 
 class Execution:
@@ -621,7 +587,6 @@ class Execution:
         filename = f'category-{run.sequence:03d}.log'
         self.raw = (run.report.directory / filename).open('xb')
         os.chmod(self.raw.name, 0o600)
-        run.report.member(Path(self.raw.name), 'command')
         try:
             item.state = 'Running'
             item.started = time.monotonic()
@@ -787,18 +752,38 @@ class Execution:
             from vm_selection import VARIABLE
             category = self.item.retry_category or self.item.name
             if category == 'coverage':
-                # These two finite report outputs are the coverage producer's
-                # result closure, rather than disposable pytest scratch. The
-                # adapter validates their existing execution ownership before
-                # reading; a passing command with missing output cannot supply
-                # complete proof.
-                for line in self.captured:
-                    if line.startswith('run-tests: output='):
-                        directory = Path(line.removeprefix('run-tests: output='))
-                        for name in ('coverage.xml', '.coverage'):
-                            path = directory / name
-                            if path.exists() or self.item.state == 'Passed':
-                                self.run.report.member(path, 'result')
+                # Coverage outputs are part of the command's actual result.
+                # Validate their presence/type without copying them into proof archives.
+                if self.item.state == 'Passed':
+                    from test_retention import Store, VARIABLE as RETENTION_VARIABLE, directory, owner_descriptor, private
+                    directories = [Path(line.removeprefix('run-tests: output='))
+                                   for line in self.captured if line.startswith('run-tests: output=')]
+                    try:
+                        if len(directories) != 1:
+                            raise ValueError('coverage command needs one output directory')
+                        owner_descriptor()
+                        journal, owner_run = json.loads(os.environ[RETENTION_VARIABLE])
+                        store = Store(journal)
+                        with store.opened() as journal_fd, store.locked(journal_fd, 'writer.lock', shared=True):
+                            state = store.read(journal_fd)
+                            if state is None or state['run'] != owner_run or state['finished']:
+                                raise ValueError('coverage command has no active output owner')
+                            target = directory(directories[0])
+                            try:
+                                info = os.fstat(target)
+                                private(info)
+                                record = dict(path=str(directories[0]), device=info.st_dev,
+                                              inode=info.st_ino, mode=0o700)
+                                if record not in state['paths']:
+                                    raise ValueError('coverage output is not registered to this run')
+                                for name in ('coverage.xml', '.coverage'):
+                                    private(os.stat(name, dir_fd=target, follow_symlinks=False), regular=True)
+                            finally:
+                                os.close(target)
+                    except (OSError, ValueError) as error:
+                        self.item.state = 'Failed'
+                        self.item.failures = max(1, self.item.failures)
+                        raise ValueError('coverage command did not produce valid result files') from error
             status = ('diagnostic' if self.collect else
                       'failed' if self.item.state == 'Failed' else
                       'interrupted' if self.run.control.stopped.is_set() else
@@ -1442,8 +1427,6 @@ def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
     # including after the inner command controller has restored its handlers.
     with Control().installed() as storage_control:
         store = test_retention.Store(test_activity.retention_path(root))
-        from test_recovery import _recover_finalized
-        _recover_finalized(root, store)
         with store.session(
                 recover=lambda state: recover_initial_checks(root, state)):
             if storage_control.stopped.is_set():
@@ -1463,7 +1446,6 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
     run = None
     status = 1
     failed = False
-    finalization_complete = True
     with Control().installed() as control:
         try:
             report = Report(root)
@@ -1515,7 +1497,6 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                     print('\033[31m[✗] Report initialization - 0% (0/1)\033[0m')
             except (Exception, KeyboardInterrupt):
                 status = 1
-                finalization_complete = False
                 if run is not None:
                     run.dashboard.restore_terminal()
                 print('Regression final evidence could not be saved; result is failed.', file=sys.stderr)
@@ -1525,22 +1506,19 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                         run.dashboard.finish()
                     except (Exception, KeyboardInterrupt):
                         status = 1
-                        finalization_complete = False
                         run.dashboard.restore_terminal()
                         print('Regression final display could not be saved; result is failed.', file=sys.stderr)
                 if report is not None:
                     try:
-                        report.close(defer_capture=True)
+                        report.close(release=False)
                     except (Exception, KeyboardInterrupt):
                         status = 1
-                        finalization_complete = False
                         print('Regression final evidence could not be synced; result is failed.', file=sys.stderr)
     if run is not None and run.includes_vm:
         try:
             from vm_recording import report_finished
             report_finished()
         except (Exception, KeyboardInterrupt) as error:
-            finalization_complete = False
             status = 1
             print(f'Regression recording finalization failed: {error}', file=sys.stderr, flush=True)
     if report is not None and (status == 1 or (run is not None and any(
@@ -1566,30 +1544,17 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
             handoff.write_text(json.dumps({'prompt': prompt, 'categories': retries,
                                           'failures': failures}, indent=2))
             handoff.chmod(0o600)
-            report.member(handoff, 'result')
             with handoff.open('rb') as stream:
                 os.fsync(stream.fileno())
             report.sync_directory()
             print(f'Failure handoff: {handoff.resolve()}', flush=True)
             print("For failure investigation, read and follow the handoff's prompt field.", flush=True)
         except OSError:
-            finalization_complete = False
             status = 1
             print('Regression failure handoff could not be saved; original report preserved.',
                   file=sys.stderr, flush=True)
     if report is not None:
-        try:
-            cleanup = ('pending' if not finalization_complete or run is None or any(
-                command['cleanup'] == 'pending' for command in report.commands) else
-                'failed' if any(command['cleanup'] == 'failed' for command in report.commands) else 'complete')
-            report.capture_result = report.finalize(
-                categories=run.categories if run else (),
-                status='passed' if status == 0 else 'interrupted' if status == 130 else 'failed',
-                cleanup=cleanup, sources_sha256=run.inputs if run else None)
-        except (OSError, ValueError) as error:
-            status = 1
-            print(f'Regression evidence capture failed; original evidence preserved: {error}',
-                  file=sys.stderr, flush=True)
+        report.release_session()
     return status
 
 

@@ -1,6 +1,12 @@
 # Test evidence and export design
 
-Preserve exact test evidence when ordinary reports rotate. Finalize a finite set
+Use this design only for an explicitly requested evidence export or archival
+inspection. Routine test runs, task completion, preparation and repair keep
+their ordinary results and diagnostics without automatic proof publication.
+Completed tasks stay complete when reports rotate; follow the shared
+[completion policy](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
+
+For the requested export, preserve exact selected evidence. Finalize a finite set
 of records, copy it through the existing verified bundle writer, record the
 receipt with its owner, then allow the original to retire. Runtime contracts in
 the [test guide](../../tests/README.md#aggregate-output-retention) and
@@ -132,7 +138,7 @@ read-only and performs no rotation or writes to workflow state.
 | Condition | Behavior |
 | --- | --- |
 | Wrong identity, corrupt bytes, unsafe ownership, untrusted publication or conflicting records | Block the affected operation and preserve evidence. |
-| Missing proof required by current acceptance or an active dependency | Resolve exact archived proof or block acceptance; never infer a pass. |
+| Missing member selected by the explicit archive operation | Resolve the exact member or fail that archive operation; completed task status is unchanged. |
 | Newly authored evidence or required instruction reference is broken or ambiguous | Block its publication with document, line and identity details. |
 | Equivalent spelling or harmless formatting with an unchanged claim and verified identity | Normalize or warn. |
 | Unchanged unavailable history with no active dependency | Record nonpassing unavailability once and give an advisory. |

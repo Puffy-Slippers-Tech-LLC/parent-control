@@ -18,6 +18,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # doubles and private records; enforcement adds closed one-shot variants only.
 # No live trust DB, VM, bus, socket or process owner is added; both existing
 # unit and cleanup compatible classifications remain applicable.
+# Task completion no longer archives/carries turns; expiry regressions use only
+# private checkpoints and missing paths. Existing owned cleanup children and
+# compatible unit/cleanup classifications remain; no UI or shared resource added.
 # write_e2e_cleanup_safety's app-server double retains the existing private
 # pipes, recorded child/nested-test owners and waited cleanup. No live model,
 # VM, shared cache or new lifetime is introduced; compatible in both inventories.
@@ -94,8 +97,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Non-case diagnostic/repair replay uses those same private checkpoints and
 # waited children, including resumed entry. It changes no resource lifetime;
 # fix_tests_cleanup_safety remains compatible in both inventories.
-# Specialized evidence/source-restart histories reuse private launcher trees,
-# finite JSON/ZIP journals and the same identity-recorded, waited child doubles.
+# Repair/E2E source-restart checks reuse private launcher checkpoints, current
+# results and the same identity-recorded, waited child doubles.
 # They acquire no model, VM, external service, shared cache, bus/display or new
 # cleanup owner; repair and E2E cleanup modules stay compatible in both inventories.
 # Session-limit resume reuses its private checkpoints and finite recorded child
@@ -471,11 +474,12 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # cleanup resource is shared, so the existing compatible classification applies.
 
 # Online snapshot, baseline CPU and maintenance recovery/rollback regressions
-# E06a qualification/collector cleanup histories use only their pytest-private
-# retained files, descriptor locks and synchronous command/VM/identity doubles.
+# Qualification/collector cleanup checks use pytest-private current reports,
+# retention locks, synchronous VM/identity doubles and finite, waited Python
+# command children with private pipes.
 # Qualification storage, baseline guest and E2E execution/worker keep compatible
 # unit and cleanup classifications; no live guest, helper, bus, display, socket,
-# shared cache or additional process/cleanup owner is introduced.
+# shared cache or new cleanup owner is introduced.
 # Per-VM spectator publication cleanup uses private tmp_path registrations and
 # mocked servers; it touches no live sockets, processes, VM leases or displays.
 # retain private tmp_path journals and VM/transport doubles. No new shared
@@ -606,8 +610,8 @@ ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_e2e_suite_cleanup_safety.py': 21,
              'test_graphical_lease.py': 8.5,
              'test_e2e_execution_cleanup_safety.py': 20,
-             # Private qualification capture/recovery performs real sealing and
-             # publication; retain compatible scheduling with realistic weight.
+             # Private result/log rotation keeps compatible ownership. Retain
+             # the existing weight until the reduced module is measured again.
              'test_qualification_storage_cleanup_safety.py': 100,
              'test_e2e_recording_cleanup_safety.py': 10,
              # Output-ancestor/handoff checks mutate pytest-private metadata

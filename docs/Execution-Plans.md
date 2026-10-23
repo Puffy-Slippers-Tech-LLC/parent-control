@@ -4,7 +4,7 @@ Use this structure when asked to turn a large job into an execution plan. Create
 a short master plan, one ordered task queue and a separate brief for each
 unfinished task, following the [E2E queue](TestAutomation/E2E-Task-Queue.md).
 The master owns the sole next-task pointer; the queue owns order, prerequisites,
-completion and concise evidence. Briefs own finite deliverables and acceptance.
+completion and a short result note. Each task owns its deliverable and validation.
 Link enduring requirements to their existing owners instead of copying them.
 Planning, source review and partial progress do not complete execution tasks.
 
@@ -30,251 +30,52 @@ following columns; IDs are stable labels, never sort keys:
 List dependencies as comma-separated earlier IDs. Every unfinished row links
 to an existing regular Markdown brief in the checkout. Keep scheduling exclusions
 separate. An optional `## Deferred future work` heading ends the active queue;
-rows below it never run automatically. Completed rows may link to retained
-evidence after their temporary briefs are removed.
+rows below it never run automatically. Completed rows need only a plain task
+title and, when useful, a short result note after their temporary briefs are removed.
 The queue determines task selection; the master pointer is a readable summary.
 A stale or missing pointer does not prevent execution. Transition and restart
-checks protect task identities, order, scope and completion, while allowing titles,
-planning estimates and added backward dependencies to evolve. Existing dependencies
-and other unfinished tasks' brief destinations remain protected. Completed evidence
-claims retain their labels, wording and link count; verified destination repairs
-remain allowed. New unchecked tasks may
-be appended during a run. Only the selected task may become complete; removing,
-reordering or skipping existing tasks still requires explicit reconciliation.
-The selected brief, retained queue scope and passing scoped acceptance own completion,
-rather than an exact copy of the queue's presentation cells. Evidence publication independently
-checks changed claims and their actual proof.
-
-Before repairing an expired evidence link, verify that its replacement retains
-the same result, exact inputs/scope and cleanup record. Prefer a verified retained
-bundle or accepted result and its command log over a short-lived report link.
-A destination repair changes no acceptance or completion and needs no manual
-replan, metadata commit or `--reconcile` operation. Changed scopes, acceptance kinds,
-target sets and removing or reordering existing tasks still follow explicit
-reconciliation; reordering the same target set is harmless. Do not recreate an
-expired report or fabricate proof. If a running controller predates this rule, preserve its queue baseline
-and record the verified replacements in the current brief; return `continue`
-for a fresh controller at the session boundary under the restart rule below.
+checks protect task identities, order and completion, and preserve unfinished
+scope and dependencies. Titles, planning estimates and result notes may evolve.
+New unchecked tasks may be appended during a run. Only the selected task may
+become complete; removing, reordering or skipping existing tasks still requires
+explicit reconciliation. A completed row stays complete without reopening its
+brief, reports or validation.
 
 Each brief includes `Acceptance: installed`, `Acceptance: host`,
 `Acceptance: review` or `Acceptance: reconciliation` on its own line. Installed
-briefs also declare `Targets: canonical-name, other-canonical-name`. Include
-passing acceptance evidence for every declared target, regardless of acceptance
-kind; use an empty check target only when the brief declares no targets. Include
-purpose, scope, prerequisites, exact reading/implementation routes, finite
-validation, expected results, cleanup and close-out. Mark planned selectors as
+briefs also declare `Targets: canonical-name, other-canonical-name`. These
+existing metadata fields select the task's checks; they do not require archival
+proof. The task reports the actual result for each declared target; use an empty
+check target only when no targets are declared. Include purpose, finite scope,
+prerequisites, necessary reading/implementation routes, expected results and
+cleanup. Mark planned selectors as
 unimplemented until registered. Keep indivisible installed histories together;
 split independent large work before execution without reducing acceptance.
 
 ### Accepted evidence lifetime and historical recovery
 
-Before an ordinary plan closes an accepted task, the controller preserves its
-selected plan/queue/brief inputs, exact result, prompt, command record, referenced
-reports and owned-cleanup record through the shared verified bundle publication.
-Publication explicitly selects the union of the task's declared targets and the
-run's saved VM selection, so supporting proof from other selected VMs retains its
-recorded journal ownership. This evidence-read scope changes neither the task's
-acceptance targets nor VM-operation authority. Runs without a saved selection
-retain their declared-target scope. A selected VM with no evidence journal yet
-contributes no sources; inaccessible or unsafe journals still refuse.
-The plan namespace has its own bounded publication journal, separate from model
-sessions and ordinary artifact exports. Each generation carries forward all
-previous accepted proof within the existing limits; missing or changed proof and
-budget exhaustion refuse close-out. The stable `accepted-evidence.json` locator
-names the verified bundle and original members. Selected queue evidence links
-and verified destinations in previously completed rows move to that locator
-only after verification, retaining their labels and claims. Unfinished consumers
-remain protected. A locator alone is no acceptance.
+A task is responsible for its own validation and owned cleanup before marking
+its row `[x]`. Once marked done, it is done. Launchers and later agent sessions
+select the next unchecked task and trust completed prerequisites.
 
-Publication uses the [bundle selection boundary](../tests/README.md#complete-qualification-evidence-bundles):
-live launcher control updates and unrelated worktree merges do not invalidate
-unchanged proof. Changed acceptance inputs still require the normal controller
-validation and reconciliation; retained evidence keeps its original source identity.
+Keep only the normal queue status, short result/handoff and current checkpoint
+needed to resume interrupted work. Do not automatically collect or publish proof
+bundles, preserve every turn, rewrite historical report links, run evidence
+preflights or start acceptance-renewal sessions. A missing, expired or rotated
+report never reopens a completed task or blocks the next task. A later code
+change needs its own affected checks within the current task, not renewal of
+historical completion.
 
-The accepted-evidence reader supports strict locator/ledger schemas 1 and 2.
-Schema 2 binds the exact ledger member, segment receipts, task proof and logical
-record closures described in the [evidence wire contract](TestAutomation/Export-Design.md#canonical-identities-and-wire-records).
-`plan_evidence.resolve_reference` resolves a structured member selector through a
-trusted `reference_scope(plan, document=...)`, checks the declared consumer's exact
-context against the authenticated checkout and plan journal, and keeps ownership
-and archive descriptors held throughout verification. Relocated segment storage
-preserves the logical selector. Generic/schema 1 locators remain navigation and
-cannot satisfy a structured reference. The ordinary preservation producer still
-writes schema 1; versioned publication is delivered separately.
+Normal test output and useful failure diagnostics retain their existing bounded
+storage. Ownership, input safety, cancellation, cleanup and Git transaction
+recovery still apply to active operations. None requires an archive of previous
+task results.
 
-For explicitly declared document evidence, `plan_evidence.generate_reference`
-verifies a consumer's exact selector before returning a document-relative link.
-`reference_scope(plan, document=..., workflow=...)` selects the authenticated
-runner publication when a workflow is supplied; omitting it selects the plan's
-schema-2 accepted locator. Neither route accepts an arbitrary publication path.
-`collect_document_references`, `preview_document_links` and `apply_document_links`
-share bounded declarations and the Markdown parser. A declaration contains
-`document` (checkout-relative Markdown), `sha256` (original UTF-8 bytes), and
-`references`: at most 256 objects with `start` (the link's original character
-offset), `consumer`, `selector` (kind/record/member/closure), and `workflow`
-(runner workflow or null). The consumer comes from the owning producer/contract;
-document JSON grants no evidence or rewrite authority.
-
-Previews bind original document bytes, requested contexts, exact member digests
-and dependency closures. They change destination spans only, including shared
-reference definitions; all uses of a changed definition must be declared with
-the same selection. Existing links must already identify that exact member,
-either by selector or its original path. Generic locators and wrong existing
-reports fail. The exact verified archive supplies the proof; rewriting its link
-does not reopen or follow the disposable original, even if that pathname is reused.
-Apply recomputes the preview and proof before the authorized write, refusing
-changed documents or declarations. Canonical queue changes additionally require
-the owning task state and remain confined to simple inline Estimate destinations
-for the selected task or previously completed rows. Unfinished/suspended claims,
-labels, checkpoints and unrelated work receive no new rewrite permission.
-The existing schema-1 queue rewrite remains compatibility navigation, not exact
-proof. Historical inventory and migration remain separate work.
-
-`plan_evidence.check_document_references` applies the shared proportional policy
-to explicit declarations. Its independent `contracts` mapping is supplied by
-the owning workflow, keyed by consumer ID; declaration JSON cannot grant its
-own role. Document-only claims use a null selector/workflow. Evidence claims
-retain their exact selector and authenticated reader; a document role cannot
-hide an evidence selector. For this gate, `revision_sha256` hashes the literal
-containing claim line with its destination excluded. Labels and surrounding
-target/result wording remain literal. Equivalent relative destinations still
-undergo identity checks; presentation edits outside that claim do not change it.
-
-The policy returns bounded typed findings and exact `ReferenceBinding` records,
-never acceptance. Owner-retained bindings serialize through `payload` and
-`from_payload`. Only an inactive historical consumer's exact unchanged binding
-can make missing proof advisory; new or changed loss remains blocking. Optional
-document links and anchors require a matching presentation contract. Changed roles,
-claims, context, ownership and integrity retain strict precedence. Owners keep
-availability debt once in their existing records, without opening repair turns
-or creating another ledger. Active relevance belongs to each consumer, not its
-whole document. An unchanged inactive historical missing-proof diagnostic uses
-`retain_historical_unavailability`, rather than asking for another acceptance
-run. Repeated checks reuse that exact binding; activating its consumer or changing
-its reference, claim or contract restores strict validation.
-
-Before admitting a session, ordinary plans check current master/brief reading
-links, declared active proof and the existing publication capacity lower bound.
-Missing links, fragments, stale proof and pending/busy references are handed to
-the existing coordinator for repair within its separate repair allowance. These findings
-do not stop the controller before it can attempt that repair. Protected-owner,
-identity and conflicting-reference findings use the same bounded repair route;
-the coordinator must restore the authorized identity or select exact authorized
-proof, preserving every verification guard. Integrity, denial and capacity failures
-still refuse; publication independently verifies
-acceptance and complete proof before completion.
-Workflow-owned `reference_documents`, `reference_contracts`, JSON
-`reference_bindings` and `active_reference_consumers` carry explicit role policy
-in the checkpoint. Undeclared instruction links stay required. This preflight
-allocates no proof, reserves no capacity and grants no acceptance. Offline
-`--check` remains structure-only and needs no historical local output.
-At accepted publication, changed instruction/evidence references are checked
-against captured plan inputs and the immutable pre-turn Git baseline for other
-explicit Markdown stage paths. Older in-flight checkpoints without that Git
-identity receive no historical exception for those additional documents; their
-references undergo strict validation. New evidence sources join the existing strict
-publication selection; exact authored selectors require their owning declaration.
-Unchanged unrelated history is not materialized. The actual publication and
-retirement transactions still independently verify complete proof and capacity.
-Plan document aliases reuse verification only inside held owner/archive scopes;
-apply starts a fresh scope and rechecks document and proof identities.
-
-Publication recovery verifies the committed payload and publishes its matching
-locator before retiring recorded older generations. Ordinary session and export
-rotation remains bounded and unchanged.
-Before replacing an accepted locator, recovery verifies that the new cumulative
-archive retains every original member and provenance from its predecessor.
-Task renewal preserves the earlier attempt's bytes as well. Retention uses the
-existing generation lifetime without adding an aggregate storage quota.
-Every fresh controller carries exact active and suspended task inputs, including
-an unpublished accepted result's command and cleanup records. Failed startup
-retries its recorded allocation before admitting another retention slot; changed
-identities and exceeded budgets refuse while preserving the previous owner.
-
-An exact original member in an explicitly selected, fully verified bundle supplies
-its proof whether the original report has rotated or remains present. Plan bundle
-publication resolves those archived references before consulting live producers;
-a later execution owning the original journal does not block archived proof.
-Explicit live sources still undergo the normal ownership, identity and conflict
-checks. If referenced proof is absent,
-the controller preserves the exact rejected result and session records, then
-returns to the coordinator to renew affected acceptance within its separate
-repair allowance. Task/queue baselines, targets, suspended work and Git ownership
-remain protected. This recovery does not adopt unknown allocations, recreate
-expired reports or forgive integrity failures; unfinished Git transactions still
-refuse renewal and return to Git reconciliation for exact-proof recovery, keeping
-the accepted result, original transaction and branch/upstream identity.
-
-New bundle captures also retain a complete nonempty selected directory's file
-closure. An expired folder reference requires that authenticated closure and the
-normal target checks for every member; a nonempty path-prefix match is insufficient.
-Files-only legacy bundles still support exact member references, but cannot prove
-that an entire old folder was captured. Repair those references to independently
-verified exact files rather than guessing folder contents or repeating historical
-acceptance. A complete archived folder closure remains usable when its original
-changes; explicitly selecting that live folder still checks its current contents.
-
-Continuations, blocked decisions and prerequisite suspension retain the exact
-renewal source across controller restarts until renewed proof is published and
-verified; a non-completion handoff never releases that evidence.
-Ordinary turns also retain version-1 `onpc-plan-turn` manifests binding their
-original response or provider error, prompt, commands, selected inputs and closed
-nested-owner inventory. Valid handoffs and readable rejected responses preserve
-their explicit reports through the same cumulative publication transaction before
-another turn can replace them. Working publication leaves the accepted task set
-unchanged; an empty set, a locator or a closed turn grants no acceptance. Startup
-carries active and suspended turn records forward without resetting counters.
-Missing exact proof retains the response for the existing renewal route; authority,
-integrity and conflicting live-source failures still refuse.
-
-An ordinary result can carry a JSON string in `checks[].evidence` with exactly
-`schema: "onpc-plan-evidence"`, `version: 1`, `reference`, `consumer` and `record`.
-The last three values are the original runner-issued member reference, consumer
-declaration and full logical record. The controller authenticates the member
-through the runner's current cumulative publication and verifies the complete
-context, original verdict, target and cleanup before registering the claim against
-this plan task, attempt and check. It never infers those identities from prose.
-Passed checks require complete, cleaned required evidence; diagnostic proof cannot
-replace installed acceptance. Legacy exact paths and schema-1 accepted ledgers
-remain supported. All ordinary adapters use this shared route, including
-`execute-plan`, `reliability-plan`, `kiosk-prompt`, `kiosk-desktop`,
-`kiosk-prompt-new` and `export`, with their existing policies unchanged.
-The shared bundle reader resolves explicit plan references under its authorized
-identity, including root-private target sources through the authenticated helper.
-It reports exact missing references separately from ownership, permission and
-integrity failures; only that missing-reference result enters renewal. Busy-owner
-preflight and publication wait without starting model sessions or consuming repair
-allowances. Stop and cancellation remain available while waiting, preserving any
-pending completion for restart. Permission and integrity refusals are not retried.
-Mandatory controller records and previously accepted publications remain strict inputs.
-Legacy prose may cite a workflow's mutable `capture-publication.json` control
-journal under its plan evidence retention directory. Like the accepted locator,
-that citation is navigation, not a retained payload or acceptance proof; the
-collector leaves it out of bundle inputs and queue destination rewrites. Cite
-the exact runner-issued reference or retained report for proof. This exception
-does not permit reading journals as evidence or exempt files with the same name
-inside registered allocations from normal preservation and verification.
-
-Where detailed historical proof is already lost, destination-only repair cannot
-make a stronger claim than the retained record supports. A selected recovery
-brief may contain one finite `plan-evidence-recovery` JSON request, binding its
-exact task/acceptance, protected checkpoint baseline, queue bytes, retained
-developer authorization and exact before/after evidence links. A fresh inactive
-controller verifies the request and bundle provenance before applying it. The
-route permits only explicit completed-row proof-loss disclosures and verified
-destination repairs for completed rows or suspended consumers. Disclosures retain
-the original label with ` — detailed proof unavailable; retained accepted
-completion`; they grant no missing check result or new acceptance.
-
-The controller retains the exact original checkpoint, queue claims and
-authorization before atomic publication, then updates only the corresponding
-saved evidence cells. Completion, relative order, Scope, Requires, task identity,
-acceptance, session counts and Git ownership remain protected. Interrupted
-publication resumes only its exact recorded transaction. This route needs no
-agent commit, competing launcher, manual checkpoint edit or general replan.
-Ordinary transition guards remain strict. An agent preparing such a request for
-a controller that predates the repair returns `continue`, leaving its task open
-until the fresh controller applies the request and live acceptance passes.
+The legacy `plan_evidence`, evidence inventory/link readers and bundle/recovery
+APIs remain available for explicitly requested archival inspection or repair.
+Their identity, permission and integrity checks apply only to that requested
+operation. They are optional tools, not launcher/task completion dependencies;
+new launchers and session prompts must follow this same completion policy.
 
 ## Execution and delegation
 
@@ -296,10 +97,10 @@ owning contracts/source. The shared coordinator prompt supplies the validated
 checkout-relative master, queue and selected brief paths. Use those exact paths;
 resolve other document links relative to their containing document rather than
 guessing filenames from titles or launcher names. Preserve pre-existing changes
-and valid evidence. Apply [source discovery](Approval-Tools.md#source-discovery-before-reads)
+and useful current results. Apply [source discovery](Approval-Tools.md#source-discovery-before-reads)
 before reading unverified source/test paths. Execute
-the first unchecked task through implementation, required acceptance, owned cleanup
-and close-out. A blocker keeps its row unchecked and its pointer unchanged. Record
+the first unchecked task through implementation, its scoped checks, owned cleanup
+and close-out. Trust checked prerequisite rows; do not inspect their old reports. A blocker keeps its row unchecked and its pointer unchanged. Record
 the concrete blocker and return condition; do not silently skip it. Propose a
 bounded prerequisite insertion before its consumer when new work is discovered.
 The ordinary-plan driver accepts only a contiguous new unchecked prerequisite
@@ -361,12 +162,11 @@ credit and changes no generic implementation, consultation or escalation policy.
 Their existing consultation/repair boundaries still apply; reusable infrastructure
 does not move acceptance or resource ownership into an observer or worker.
 
-Run the lowest effective maintained checks and every task-required installed
-history. Keep customer acceptance separate from engineering probes and preparation.
-Do not weaken expectations to pass; follow
-[failure handling](../tests/README.md#handling-test-failures). Retained evidence
-must match the candidate, exact scope and required cleanup. Preserve useful
-historical results and schedule invalidated histories explicitly.
+Run the lowest effective maintained checks required by the current task,
+including installed journeys when the behavior requires them. Keep customer
+checks separate from engineering probes and preparation. Do not weaken
+expectations to pass; follow [failure handling](../tests/README.md#handling-test-failures).
+Report meaningful failures and unresolved work in the normal handoff.
 
 ## Common launcher interface
 
@@ -390,9 +190,9 @@ Repair sessions and retries do not complete additional tasks. Its existing
 
 Plan launchers and `write-e2e` stop between sessions with `--stop`.
 `fix-tests` and `run-tests` retain their cooperative cancellation semantics.
-Fresh ordinary-plan observers paint their startup panel before validating saved
-plan evidence, then reuse that screen when the backend starts. Ctrl+C retains
-signal-based cancellation during preflight; chat input starts after publication.
+Fresh ordinary-plan observers paint their startup panel before loading the saved
+queue/checkpoint, then reuse that screen when the backend starts. Ctrl+C retains
+signal-based cancellation during startup; chat input starts when the owner is ready.
 Closing an observer terminal detaches. Repeating the command reconnects to
 the same owner and retained checkpoint; model defaults do not change an active
 run. Attachment and `--stop` use the master's stable checkout-relative path and
@@ -401,8 +201,8 @@ execution still validate the plan. A fresh plan run automatically resumes unfini
 Git close-out and interrupted validation. It allows five more task implementation
 sessions for that task; attaching never renews this allowance. Ordinary-plan
 coordinator repairs use a separate allowance of **three sessions per task**.
-Git reconciliation, evidence renewal, repairable reference preflight and rejected
-response correction consume only that repair allowance. Normal task continuations
+Git reconciliation and rejected response correction consume only that repair
+allowance. Report expiry causes no repair session. Normal task continuations
 consume only the implementation allowance. Both kinds retain unique turn identities
 and count toward total coordinator activity, but grant no task completion.
 The repair count survives reloads, fresh runs, prerequisite suspension and reviewed
@@ -472,12 +272,6 @@ Reload preserves task/session counts, session caps, suspended consumers, answers
 capacity retry state and live task limits; it allocates no new retention slot and
 grants no extra work. Stop and cancellation still take precedence. A failed reload
 or startup validation retains a resumable failure instead of retrying unchecked.
-An unapplied request prepared during a session also stops the controller at that
-boundary, even when source files also changed; automatic reload cannot apply this
-administrative transaction. Resume with a fresh run for inactive verification.
-Matching an applied request's identity
-only avoids an unnecessary restart; startup still owns its full proof and
-checkpoint verification.
 An explicit `serverOverloaded` failed turn in an ordinary plan returns to the
 same task and logical coordinator session after supervisor and nested cleanup.
 Retry the configured model after delays of 5, 10, 20, 40 and 80 seconds. If all
@@ -524,7 +318,7 @@ Daybreak, resolve access for the identity, workspace or API project and product
 surface in use before resuming; follow the
 [official OpenAI guidance](https://learn.chatgpt.com/docs/cyber-safety).
 Resume through the same launcher after resolution, preserving the saved task and
-rechecking prior evidence and owned cleanup.
+finishing any interrupted work and owned cleanup.
 
 All launchers use the same terminal layout: tasks overview at top left, plan
 totals at top right, execution details and optional input at bottom left, current
@@ -884,7 +678,7 @@ retained active/suspended acceptance metadata. A transferred brief must always
 exist in the original base; this exception cannot establish its missing targets.
 This exception does not apply to ordinary restart, merge reconciliation or task
 close-out. The original checkpoint is archived before atomic adoption, with its
-rejected results, handoffs, counters, accepted proof and Git ownership preserved.
+rejected results, handoffs, counters, completion status and Git ownership preserved.
 The destination checkpoint is never created or copied.
 
 A rejected structural handoff can enter this route only with the exact retained
@@ -942,7 +736,7 @@ A new ordinary plan needs Markdown and a thin wrapper constructing `PlanWorkflow
 or the generic `execute-plan --plan` command. Specialized state machines such as
 E2E acceptance and test repair compose the same ownership, budgets, Git and
 presentation pieces while retaining their purpose-specific rules. New adapters
-must preserve identity, cancellation, retention and acceptance guards and cover
+must preserve identity, cancellation, retention and current-task result guards and cover
 their own interruption/recovery boundaries. Plan namespaces are hashes of the
 master's checkout-relative path under the shared storage allocator, keeping
 independent plans separate and competing invocations of one plan serialized.

@@ -94,7 +94,6 @@ def test_real_source_bytes_stop_before_acceptance_and_replay_without_another_ses
     resumed = workflow.initial_state(root, tmp_path)
     second = tmp_path / 'second'
     second.mkdir(mode=0o700)
-    workflow.carry_evidence_turns(second, resumed)
     launcher.atomic(second / 'checkpoint.json', resumed)
     (second / 'stop').touch()
     workflow.TaskBudget(second).initialize(1)
@@ -106,12 +105,12 @@ def test_real_source_bytes_stop_before_acceptance_and_replay_without_another_ses
     if stall:
         assert replayed['model_tier'] == 2
     assert 'source_changed_result' not in replayed
-    assert all(Path(item['path']).parent == second for item in replayed['evidence_turns'])
+    assert not replayed.get('evidence_turns')
     assert json.loads((second / 'result.json').read_text()) == dict(status=1 if stall else 0, sessions=0, tasks=0)
     assert workflow.queue_state(root)[0] == '001'
 
 
-def test_interrupted_turn_marker_requires_successful_nested_cleanup(tmp_path, monkeypatch):
+def test_interrupted_response_requires_successful_nested_cleanup(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
     root = tmp_path / 'task'
@@ -1823,7 +1822,8 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(
     assert 'Next coordinator and implementer: gpt-6.1-sol high.' in handoff
     assert 'Continue with GPT-6-Astra High' not in handoff
     interrupted = json.loads((run / 'checkpoint.json').read_text())
-    assert interrupted['evidence_turns']
+    assert not interrupted.get('evidence_turns')
+    assert interrupted['in_flight']
     assert interrupted['live_attempts'] == 0
     recovered, started = select_vm(root, [])
     assert started and recovered != run
@@ -1842,9 +1842,7 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(
     assert workflow.queue_state(root) == ('002' if live == 'passed' else '001',
                                          {'001': live == 'passed', '002': False})
     state = json.loads((recovered / 'checkpoint.json').read_text())
-    assert {item['sha256'] for item in interrupted['evidence_turns']} <= {
-        item['sha256'] for item in state['evidence_turns']}
-    assert all(Path(item['path']).parent == recovered for item in state['evidence_turns'])
+    assert not state.get('evidence_turns')
     assert state['live_attempts'] == 1
     assert state['phase'] == ('complete' if live == 'passed' else 'live')
     assert 'RECOVERED HANDOFF' in (recovered / 'handoff.txt').read_text()

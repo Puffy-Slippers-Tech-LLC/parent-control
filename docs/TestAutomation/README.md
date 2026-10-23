@@ -11,13 +11,18 @@ For checkout edits during a run and reconnecting to existing work, follow
 [runner reconnection](../../tests/README.md#aggregate-execution-and-reconnection)
 and [failure handling](../../tests/README.md#handling-test-failures). Concurrent
 edits supply no reason to discard valid results or overwrite unrelated work.
+Each task owns its checks before completion. A checked row stays done, and the
+next session selects the next unchecked row without revalidating predecessor
+reports. The shared [completion policy](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
+applies to all launchers and agent sessions; optional archives and expired
+diagnostic files do not govern task progression.
 
 ## Document ownership
 
 | Source | Owns | Does not establish |
 | --- | --- | --- |
 | [Approval tools](../Approval-Tools.md) | Authorized command routes, setup and unattended execution | Permission for work outside the requested scope |
-| [Generic execution plans](../Execution-Plans.md) | Shared master/queue/brief format, launcher extension boundaries, task budgets and delegation | A replacement for E2E-specific acceptance, repair rules or model ladders |
+| [Generic execution plans](../Execution-Plans.md) | Shared plan format, stable completion, launcher extension boundaries, task budgets and delegation | A replacement for the current task's E2E checks, repair rules or model ladders |
 | [Test scope mandate](../Mandates/Test-Scope-Mandate.md) | Required product/core infrastructure coverage, limits on recursive tests, exclusion of test-tool UI tests and reduction criteria | Permission to delete a failing product assertion to obtain a pass |
 | [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) | GUI versus supporting-command selection, public IDs, external-provider exception and input/result guards | Qualification of an adapter merely because its technique is permitted |
 | [Application UI API](Application-UI-API.md) | Product-control operations, canonical values, adapter boundaries and control inventory | Installed desktop qualification or route selection independent of the UI mandate |
@@ -55,9 +60,10 @@ historical, with current readiness in its inventory/catalogue owner.
 
 ## Status vocabulary
 
-- **Task complete (`[x]`)** means the task's recorded deliverable and close-out
-  passed when completed. A later mandate or dependency change can make its block
-  or scenario pending without erasing that history.
+- **Task complete (`[x]`)** means the task owned its checks and close-out when
+  completed. It stays complete without retained reports or further proof. A
+  later behavior/dependency change receives affected checks in the current task;
+  it does not reopen historical queue rows.
 - **Block ready** means the exact catalogue scope has an implementation and the
   required qualification under the current automation mandate. A qualified
   slice is reusable even while other bindings keep the overall block pending.
@@ -112,6 +118,8 @@ For documentation reconciliation:
 4. Run `tools/read-only links` for changed Markdown and the host consistency
    selection in [close-out](E2E-Execution-Contracts.md#completion-and-document-cleanup).
    Refactored test code also needs its affected regressions and resource review.
+   Expired historical output links are informational; they do not require
+   recreating reports, rerunning tasks or repairing completed rows.
 
 Check renamed headings against incoming links as well: the link reader checks
 local Markdown fragments under its [reader contract](../Approval-Tools.md#launcher-inspection-and-workspace-edits).

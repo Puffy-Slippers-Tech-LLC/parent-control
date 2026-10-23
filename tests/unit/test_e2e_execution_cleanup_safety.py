@@ -13,8 +13,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from tests.support.e2e_evidence import (attempt as evidence_attempt, capture_owner,
-                                        captured_bytes)
+from tests.support.e2e_evidence import attempt as evidence_attempt
 
 from tests.support.paths import ROOT
 from tests.support.vm_baseline import local_preparation_source
@@ -26,8 +25,6 @@ import suite_lease
 import vm_config
 from private_artifacts import EvidenceError, PrivateCollector
 REAL_BOOTSTRAP = execution.system.bootstrap
-REAL_START_CAPTURE = PrivateCollector.start_capture
-REAL_TERMINAL_CAPTURE = PrivateCollector.capture_terminal
 
 
 @pytest.mark.parametrize('kind,fields', [
@@ -85,11 +82,6 @@ E2E_CASES = {'synthetic-smoke': execute}
 
 @pytest.fixture
 def harness(evidence_attempt, tmp_path, monkeypatch, local_preparation_source, request):
-    # These existing cases isolate VM/recorder cleanup. Dedicated capture cases
-    # below use the real methods and a registered private retention session.
-    monkeypatch.setattr(PrivateCollector, 'start_capture', lambda *args, **kwargs: None)
-    monkeypatch.setattr(PrivateCollector, 'capture_terminal', lambda *args, **kwargs:
-        dict(receipt={}, references=[], consumers=[], records=[]))
     _, _, _, inventory_path, inputs = evidence_attempt
     path = tmp_path / 'tests/e2e/scenarios.json'
     path.write_bytes(inventory_path.read_bytes())
@@ -573,8 +565,8 @@ def test_declaration_or_worker_success_alone_cannot_pass(harness, mutation):
 @pytest.fixture
 def public(harness, monkeypatch):
     import qualification_storage
-    # These dispatch fixtures already substitute capture/VM ownership. The
-    # dedicated real child-owner and collector histories exercise that boundary.
+    # These dispatch fixtures substitute VM ownership. The dedicated real
+    # child-owner and current-run collector histories exercise that boundary.
     monkeypatch.setattr(qualification_storage, 'session', lambda **kwargs: ExitStack())
     # The fake controller belongs to this test checkout, including executable
     # copies used for local validation. Keep the production path guard intact.
@@ -615,10 +607,24 @@ def test_public_main_runs_selected_callback_and_emits_post_close_result(public, 
     assert 'private-canary' not in json.dumps(result)
 
 
-@pytest.mark.parametrize('failure', ['action', 'preparation', 'terminal-write', 'collector-close'])
+@pytest.mark.parametrize('failure', ['action', 'preparation', 'terminal-write', 'collector-close',
+                                     'suite', 'progress', 'interruption'])
 def test_public_failure_is_terminal_and_retains_original_attempt(public, monkeypatch, capsys, failure):
     if failure == 'action': public.worker.side_effect = RuntimeError('private-canary')
     elif failure == 'preparation': execution.preflight_source.side_effect = RuntimeError('private-canary')
+    elif failure == 'interruption': public.worker.side_effect = KeyboardInterrupt('private-canary')
+    elif failure == 'suite':
+        factory = suite_lease.Suite
+        def failed_suite(*args):
+            suite = factory(*args)
+            suite.close.side_effect = RuntimeError('private-canary')
+            return suite
+        monkeypatch.setattr(suite_lease, 'Suite', failed_suite)
+    elif failure == 'progress':
+        import e2e_watch
+        publication = Mock()
+        publication.close.side_effect = RuntimeError('private-canary')
+        monkeypatch.setattr(e2e_watch, 'ProgressPublication', lambda *_: publication)
     else:
         collect = execution.PrivateCollector
         def broken(**kwargs):
@@ -644,11 +650,12 @@ def test_public_failure_is_terminal_and_retains_original_attempt(public, monkeyp
     result = json.loads(capsys.readouterr().out.splitlines()[-1])
     assert result['outcome'] == 'failed'
     assert result['attempts'][0]['outcome'] == (
-        'failed' if failure in ('action', 'preparation') else 'passed')
+        'failed' if failure in ('action', 'preparation', 'interruption') else 'passed')
     assert 'private-canary' not in json.dumps(result)
+    assert all(c._fd is None for c in public.collectors)
     if failure != 'terminal-write':
         terminal = json.loads((public.collectors[0].path / 'invocation-terminal-candidate.json').read_text())
-        assert terminal['outcome'] == ('passed' if failure == 'collector-close' else 'failed')
+        assert terminal['outcome'] == ('passed' if failure in ('collector-close', 'progress') else 'failed')
 
 
 @pytest.mark.parametrize('failure', [None, 1])
@@ -703,70 +710,6 @@ def test_suite_candidates_require_final_audit_before_invocation_acceptance(
     assert result['suite_cleanup']['outcome'] == ('failed' if failure == 'audit' else 'passed')
     assert result['outcome'] == ('passed' if failure is None else 'failed')
     assert 'private-canary' not in json.dumps(result)
-
-
-@pytest.mark.parametrize('failure', [None, 'suite', 'collector', 'progress', 'interruption'])
-def test_real_outer_capture_binds_candidate_to_post_cleanup_authority(
-        public, capture_owner, monkeypatch, capsys, failure):
-    from tools import test_retention
-    root, store = capture_owner
-    assert root == public.root
-    monkeypatch.setattr(PrivateCollector, 'start_capture', REAL_START_CAPTURE)
-    monkeypatch.setattr(PrivateCollector, 'capture_terminal', REAL_TERMINAL_CAPTURE)
-    monkeypatch.setattr(execution, 'ROOT', root)
-    monkeypatch.setattr(execution.system.baseline.guest_contract, 'CHECKOUT', root)
-    monkeypatch.chdir(root)
-    if failure == 'suite':
-        factory = suite_lease.Suite
-        def failed_suite(*args):
-            suite = factory(*args)
-            suite.close.side_effect = RuntimeError('private-canary')
-            return suite
-        monkeypatch.setattr(suite_lease, 'Suite', failed_suite)
-    elif failure == 'interruption':
-        public.worker.side_effect = KeyboardInterrupt('private-canary')
-    elif failure == 'progress':
-        import e2e_watch
-        publication = Mock()
-        publication.close.side_effect = RuntimeError('private-canary')
-        monkeypatch.setattr(e2e_watch, 'ProgressPublication', lambda *_: publication)
-    elif failure == 'collector':
-        factory = execution.PrivateCollector
-        def failed_collector(**kwargs):
-            collector = factory(**kwargs)
-            if kwargs['run_id'].startswith('invocation-'):
-                close = collector.close
-                def failed_close():
-                    close()
-                    raise OSError('private-canary')
-                collector.close = failed_close
-            return collector
-        monkeypatch.setattr(execution, 'PrivateCollector', failed_collector)
-    with store.session():
-        assert execution.main(public.plan) == (0 if failure is None else 1)
-        report = json.loads(capsys.readouterr().out.splitlines()[-1])
-        assert report['outcome'] == ('passed' if failure is None else 'failed')
-        outer = public.collectors[0]
-        result = outer._captured['result']
-        terminal = result['records'][-1]
-        expected = captured_bytes(root, result)
-        payload = json.loads(next(value for path, value in expected.items()
-            if path.endswith('/terminal.json')))
-        assert payload['original_result']['outcome'] == report['outcome']
-        assert terminal['context']['check'] == 'invocation'
-        assert terminal['status'] == report['outcome']
-        candidate = outer.path / 'invocation-terminal-candidate.json'
-        assert payload['candidate']['sha256'] == hashlib.sha256(candidate.read_bytes()).hexdigest()
-        if failure in ('collector', 'progress'):
-            assert json.loads(candidate.read_bytes())['outcome'] == 'passed'
-            assert terminal['cleanup']['state'] == 'failed'
-        assert terminal['dependencies']
-        assert 'private-canary' not in json.dumps(payload)
-    for _ in range(5):
-        with store.session():
-            pass
-    assert not candidate.exists()
-    assert captured_bytes(root, result) == expected
 
 
 @pytest.mark.parametrize('fault', ['symlink', 'baseline-changed'])

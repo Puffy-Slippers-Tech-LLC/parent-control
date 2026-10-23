@@ -231,9 +231,59 @@ def test_inaccessible_targets_are_read_failures_not_missing_or_success(tmp_path,
     assert not captured.err
 
 
+def test_routine_links_skip_disposable_reports_without_reading_them(tmp_path, monkeypatch, capsys):
+    root = tmp_path / 'checkout'
+    (root / 'docs').mkdir(parents=True)
+    source = root / 'docs/guide.md'
+    reports = ('[expired](../output/test-runs/expired/report.md#lost-heading)\n'
+               '[protected](../output/test-runs/private/report.md#unreadable-heading)\n')
+    source.write_text(reports)
+    monkeypatch.setattr(checks, 'ROOT', root)
+    original_stat, original_read = checks.Path.stat, checks.read_text
+    inspected_reports = []
+
+    def outside_reports(path, *args, **kwargs):
+        if checks.Path(os.path.abspath(path)).is_relative_to(root / 'output/test-runs'):
+            inspected_reports.append(path)
+            if 'private' in path.parts:
+                raise PermissionError(errno.EACCES, 'private report')
+        return original_stat(path, *args, **kwargs)
+
+    def source_only(path):
+        assert path == source
+        return original_read(path)
+
+    monkeypatch.setattr(checks.Path, 'stat', outside_reports)
+    monkeypatch.setattr(checks, 'read_text', source_only)
+    monkeypatch.setattr(checks.subprocess, 'run', lambda *_args, **_kwargs:
+                        pytest.fail('routine document check invoked a privileged reader'))
+    assert checks.check_links([source]) == 0
+    assert capsys.readouterr().out == 'links: documents=1 checked=0 missing=0 skipped_reports=2\n'
+    source.write_text(reports + '[missing source](absent.md)\n')
+    assert checks.check_links([source]) == 1
+    assert capsys.readouterr().out == ('links: document=1 line=3 missing local target\n'
+                                      'links: documents=1 checked=1 missing=1 skipped_reports=2\n')
+    assert inspected_reports == []
+
+
+def test_explicit_report_document_keeps_target_and_fragment_checks(tmp_path, monkeypatch, capsys):
+    root = tmp_path / 'checkout'
+    reports = root / 'output/test-runs/report'
+    reports.mkdir(parents=True)
+    source = reports / 'report.md'
+    source.write_text('[missing](absent.md)\n[fragment](target.md#absent)\n')
+    (reports / 'target.md').write_text('# Present\n')
+    monkeypatch.setattr(checks, 'ROOT', root)
+    assert checks.check_links([source]) == 1
+    assert capsys.readouterr().out == ('links: document=1 line=1 missing local target\n'
+                                      'links: document=1 line=2 missing local fragment\n'
+                                      'links: documents=1 checked=2 missing=2\n')
+
+
 @pytest.mark.parametrize('outcome', ['verified', 'refused', 'malformed', 'timeout', 'unavailable'])
-def test_protected_evidence_links_use_only_the_guarded_metadata_reader(
-        tmp_path, monkeypatch, capsys, outcome):
+def test_explicit_protected_link_inspection_uses_only_the_guarded_metadata_reader(
+        tmp_path, monkeypatch, outcome):
+    from evidence_policy import Condition
     root = tmp_path / 'checkout'
     (root / 'docs').mkdir(parents=True)
     source = root / 'docs/guide.md'
@@ -263,18 +313,15 @@ def test_protected_evidence_links_use_only_the_guarded_metadata_reader(
     monkeypatch.setattr(checks, 'ROOT', root)
     monkeypatch.setattr(type(target), 'stat', denied)
     monkeypatch.setattr(checks.subprocess, 'run', metadata_reader)
-    assert checks.check_links([source]) == (0 if outcome == 'verified' else 2)
+    text = source.read_text()
+    link = next(checks.references(text))
+    assert checks.link_condition(source, text, link) == (None if outcome == 'verified' else Condition.DENIED)
     assert len(calls) == 1
-    captured = capsys.readouterr()
-    expected = 'links: documents=1 checked=1 missing=0\n' if outcome == 'verified' else (
-        'links: document=1 line=1 inaccessible local target\n'
-        'links: documents=1 checked=1 missing=0 inaccessible=1\n')
-    assert captured.out == expected
-    assert not captured.err
 
 
 def test_parent_steps_through_symlinks_cannot_verify_an_unrelated_artifact(
-        tmp_path, monkeypatch, capsys):
+        tmp_path, monkeypatch):
+    from evidence_policy import Condition
     root = tmp_path / 'checkout'
     evidence = root / 'output/test-runs'
     evidence.mkdir(parents=True)
@@ -296,10 +343,8 @@ def test_parent_steps_through_symlinks_cannot_verify_an_unrelated_artifact(
     monkeypatch.setattr(type(target), 'stat', denied)
     monkeypatch.setattr(checks.subprocess, 'run', lambda *args, **kwargs:
                         pytest.fail('a different normalized target must not reach the reader'))
-    assert checks.check_links([source]) == 2
-    assert capsys.readouterr().out == (
-        'links: document=1 line=1 inaccessible local target\n'
-        'links: documents=1 checked=1 missing=0 inaccessible=1\n')
+    text = source.read_text()
+    assert checks.link_condition(source, text, next(checks.references(text))) == Condition.DENIED
 
 
 def test_link_existence_is_relative_to_each_document(tmp_path, capsys):

@@ -34,7 +34,7 @@ and legacy diagnostic migration alone are not durable copies of required proof.
 | Disposable standalone scratch | `tools.test_storage.scratch_directory()` as the parent of `TemporaryDirectory`, temporary files or subprocess scratch. |
 | Host fixture production | `tools.fixture_producer.Store().producer(...)` reserves one durable slot in `tools.test_storage.fixture_directory()`. Register each scratch/staging child with `Producer.allocate()` before payload writes; use `Producer.environment()` for compiler scratch. |
 | Retained reports, artifacts or failure evidence | `tools.test_retention.allocate(tempfile.mkdtemp, prefix='onpc-...')` inside the owning retention session. Register the empty allocation before writing payloads. |
-| Finalized producer subset during active execution | `tools.evidence_capture` under the live producer session; use its registered, independently finished sealed subowner and `tools.capture_publication` for verified cumulative publication. Slots and recovery state are charged to the parent. Required originals retire only with source-owner acknowledgement and pinned replacement verification. See [sealed handoffs](../../tests/README.md#sealed-producer-handoffs). |
+| Explicitly requested archive of a finalized producer subset | `tools.evidence_capture` under the live producer session; use its registered, independently finished sealed subowner and `tools.capture_publication` for verified publication. Routine reports and test completion do not use this route. Required originals of the requested export retire only with source-owner acknowledgement and pinned replacement verification. See [sealed handoffs](../../tests/README.md#sealed-producer-handoffs). |
 | Atomic qualification evidence export | `tools.test_retention.Store.publication()` and its single `allocate` method, with complete verification before commit/recovery retirement; use the maintained [bundle route](../../tests/README.md#complete-qualification-evidence-bundles). |
 | Qualification evidence | `tests.integration.qualification_storage.session()` and its `allocate` helper; reuse an existing qualification session. |
 | Recovery diagnostics | `tests.integration.qualification_storage.recovery_session()` and its `allocate` helper, preserving the separate unfinished VM journal. |
@@ -216,11 +216,12 @@ discard authorization. Preserve current-run evidence at a budget failure;
 failed or interrupted recovery retains diagnostics without clearing or rotating
 the unfinished VM journal.
 
-Accepted ordinary-plan proof uses the shared bundle writer and verified
-publication in its plan namespace, with the same bounded limits. Its stable
-locator and historical-disclosure transaction follow the
-[execution-plan evidence owner](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
-They do not pin disposable allocations or authorize checkpoint edits by agents.
+Task completion follows the shared
+[completion policy](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
+Launchers keep their current checkpoint and normal diagnostics, without
+automatically archiving proof or carrying report bundles across tasks. Report
+rotation never reopens completed work. Explicitly requested archives still use
+the validated export/storage routes; their lifetime does not govern task status.
 
 Changes to allocation or cleanup must cover the affected lifetime, interruption,
 identity/refusal and retention boundaries through the maintained test launchers.

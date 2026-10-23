@@ -4,9 +4,7 @@ from tests.support.vm_registry import vm_name
 import subprocess
 import json
 import tomllib
-import os
 from pathlib import Path
-import tempfile
 
 import pytest
 
@@ -14,119 +12,81 @@ import write_e2e as workflow
 from tests.support.write_e2e_fixtures import prepare, reply, prerequisite_writes
 
 
-@pytest.fixture
-def structured_evidence(tmp_path, monkeypatch):
-    import evidence_capture as capture
-    import runner_evidence as runner
-    import test_retention as retention
-    import test_storage as storage
-
+@pytest.mark.parametrize('legacy', [False, True])
+def test_check_summaries_survive_missing_reports_and_preserve_real_outcomes(tmp_path, monkeypatch, legacy):
+    import plan_evidence
     prepare(tmp_path)
-    monkeypatch.setattr(storage, 'ROOT', tmp_path)
-    monkeypatch.setattr(storage, 'BASE', tmp_path / 'output/test-runs')
-    monkeypatch.delenv(retention.VARIABLE, raising=False)
-    monkeypatch.delenv(retention.OWNER_VARIABLE, raising=False)
-    monkeypatch.delenv('ONPC_RUNNER_INVOCATION', raising=False)
-    monkeypatch.setattr(capture, '_authenticated_caller',
-                        lambda: dict(uid=os.geteuid(), gid=os.getegid()))
-    monkeypatch.setattr(capture, 'validate_targets', lambda *_: None)
-    monkeypatch.setattr(runner.regression_inputs, 'identity', lambda _: 'f' * 64)
-    store = retention.Store(storage.directory('state') / 'retention-host')
-
-    def publish(kind, status, *, cleanup='complete'):
-        with store.session():
-            directory = Path(retention.allocate(tempfile.mkdtemp, prefix='onpc-e2e-proof-'))
-            path = directory / 'report.json'
-            path.write_text(json.dumps(dict(original_result=status, selector=['exact-case'])))
-            path.chmod(0o600)
-            evidence = runner.ReportEvidence(tmp_path, directory, store=store,
-                workflow='e2e' if kind == 'installed' else 'regression')
-            published = evidence.finalize(categories=[dict(name='unit', selected_ids=['exact-case'])],
-                status=status, cleanup=cleanup, members=[dict(path=path, role='result')],
-                inputs=dict(selector=['exact-case']), target=vm_name() if kind == 'installed' else '',
-                check='invocation' if kind == 'installed' else 'unit')
-        record = published['records'][-1]
-        member = next(item for item in record['members'] if item['original_path'] == str(path))
-        reference = next(item for item in published['references'] if item['member_id'] == member['member_id'])
-        consumer = next(item for item in published['consumers'] if item['expected_context'] == record['context'])
-        declaration = dict(schema='onpc-plan-evidence', version=1, reference=reference,
-                           consumer=consumer, record=record)
-        return dict(kind=kind, target=record['context']['target'], result=status,
-                    evidence=json.dumps(declaration)), path
-
-    return tmp_path, publish
-
-
-def test_exact_archived_e2e_failure_remains_distinct_from_diagnosis_and_promotion(structured_evidence):
-    root, publish = structured_evidence
-    host, host_path = publish('host', 'passed')
-    failed, failed_path = publish('installed', 'failed')
-    first_failure = failed
-    for _ in range(5):
-        publish('host', 'passed')
-    assert not host_path.exists() and not failed_path.exists()
+    def unexpected(*_args, **_kwargs):
+        pytest.fail('task validation tried to inspect an archived report')
+    monkeypatch.setattr(plan_evidence, 'consume', unexpected)
+    host = dict(kind='host', target='', result='passed')
+    live = dict(kind='installed', target=vm_name(), result='failed')
+    if legacy:
+        host['evidence'] = '/expired/host-report.json'
+        live['evidence'] = '/expired/live-report.json'
     state = dict(workflow.fresh_state('001'), vm=vm_name(), task_sessions=1)
-    before = workflow.queue_state(root)[1]
-    state = workflow.accept_result(root, state, reply(checks=[host, failed]), before)
-    formal = json.loads(json.dumps(state['acceptance']))
+    before = workflow.queue_state(tmp_path)[1]
+    state = workflow.accept_result(tmp_path, state, reply(checks=[host, live]), before)
+    failure = json.loads(json.dumps(state['acceptance']))
     assert state['failed_attempts'] == state['live_attempts'] == 1
     state['task_sessions'] = 2
-    unchanged = json.loads(json.dumps(state))
-    with pytest.raises(ValueError, match='cannot fall back to a legacy live result'):
-        workflow.accept_result(root, state, reply('task_complete', 'passed'), before)
-    assert state == unchanged and workflow.queue_state(root)[1] == before
-    state = workflow.accept_result(root, state,
+    state = workflow.accept_result(tmp_path, state,
         reply('investigating', 'not_run', checks=[host]), before)
-    assert state['acceptance'] == formal
+    assert state['acceptance'] == failure
     assert state['failed_attempts'] == state['live_attempts'] == 1
-    assert state['diagnostic_evidence']['checks'] == [host]
     state['task_sessions'] = 3
     progress = dict(state['progress'], repair_outcome='failed_repair')
-    with pytest.raises(ValueError, match='prior formal runner attempt'):
-        workflow.accept_result(root, state, reply(checks=[host, failed], progress=progress), before)
-    failed, _ = publish('installed', 'failed')
-    state = workflow.accept_result(root, state, reply(checks=[host, failed], progress=progress), before)
+    state = workflow.accept_result(tmp_path, state, reply(checks=[host, live], progress=progress), before)
     assert state['failed_attempts'] == state['live_attempts'] == 2
-    assert state['model_tier'] == 1 and state['task_sessions'] == 3
-    # A different intervening formal failure does not make the first attempt
-    # available for another acceptance/promotion credit.
-    state['task_sessions'] = 4
-    original = json.loads(json.dumps(state))
-    with pytest.raises(ValueError, match='prior formal runner attempt'):
-        workflow.accept_result(root, state, reply(checks=[host, first_failure]), before)
-    assert state == original
-    assert workflow.queue_state(root)[0] == '001'
+    assert state['model_tier'] == 1
+    (tmp_path / workflow.QUEUE).write_text('| [x] | 001 | First |\n| [ ] | 002 | Second |\n')
+    (tmp_path / workflow.PLAN).write_text('Next task: **002 — Second**.\n')
+    completed = workflow.accept_result(tmp_path, state, reply('task_complete', 'passed'), before)
+    assert completed['phase'] == 'complete'
+    assert completed['acceptance']['live_result'] == 'passed'
+    assert workflow.queue_state(tmp_path)[0] == '002'
 
 
-@pytest.mark.parametrize('failure', ['missing', 'denied', 'partial-pass', 'wrong-target', 'skipped-target'])
-def test_structured_proof_refusal_never_spends_an_acceptance_attempt(
-        structured_evidence, monkeypatch, failure):
-    import runner_evidence
-    root, publish = structured_evidence
-    host, _ = publish('host', 'passed')
-    live, _ = publish('installed', 'passed', cleanup='pending' if failure == 'partial-pass' else 'complete')
+@pytest.mark.parametrize('failure', ['wrong-target', 'skipped-target', 'failed-target', 'host-result',
+                                     'legacy-evidence-type'])
+def test_reported_checks_must_match_selected_targets_and_outcomes(tmp_path, failure):
+    prepare(tmp_path)
+    host = dict(kind='host', target='', result='passed', evidence='')
+    live = dict(kind='installed', target=vm_name(), result='passed', evidence='')
     state = dict(workflow.fresh_state('001'), vm=vm_name(), task_sessions=1)
     if failure == 'skipped-target':
         state['vm'] = dict(vms=[vm_name(), 'another-selected-target'], concurrency=1)
-    before = workflow.queue_state(root)[1]
-    if failure in ('missing', 'denied'):
-        calls = []
-        def refused(*args, **kwargs):
-            calls.append((args, kwargs))
-            if failure == 'missing':
-                raise FileNotFoundError('exact archived member missing')
-            raise PermissionError('artifact reader denied')
-        monkeypatch.setattr(runner_evidence, 'resolve_reference', refused)
-    if failure == 'wrong-target':
-        live = dict(live, target='unselected-target')
+    elif failure == 'wrong-target':
+        live['target'] = 'unselected-target'
+    elif failure == 'failed-target':
+        live['result'] = 'failed'
+    elif failure == 'legacy-evidence-type':
+        live['evidence'] = True
+    else:
+        host['result'] = 'failed'
+    before = workflow.queue_state(tmp_path)[1]
     original = json.loads(json.dumps(state))
-    with pytest.raises((OSError, ValueError)):
-        workflow.accept_result(root, state, reply('blocked', 'passed', checks=[host, live]), before)
+    with pytest.raises(ValueError):
+        workflow.accept_result(tmp_path, state, reply('blocked', 'passed', checks=[host, live]), before)
     assert state == original
-    assert state['failed_attempts'] == state['live_attempts'] == 0
-    assert workflow.queue_state(root)[1] == before
-    if failure in ('missing', 'denied'):
-        assert len(calls) == 1
+    assert workflow.queue_state(tmp_path)[1] == before
+
+
+def test_restart_ignores_missing_legacy_turn_archives(tmp_path, monkeypatch):
+    prepare(tmp_path)
+    previous = tmp_path / 'previous'
+    previous.mkdir()
+    state = dict(workflow.fresh_state('001'), phase='live', task_sessions=2,
+        evidence_turns=[dict(path='/expired/turn.json', sha256='old')],
+        evidence_consumers={'expired': 'record'}, diagnostic_evidence={'expired': 'report'})
+    workflow.launcher.atomic(previous / 'checkpoint.json', state)
+    original = (previous / 'checkpoint.json').read_bytes()
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    resumed = workflow.initial_state(tmp_path, tmp_path)
+    assert resumed['task_id'] == '001' and resumed['phase'] == 'live'
+    assert resumed['task_sessions'] == 2
+    assert not any(key in resumed for key in ('evidence_turns', 'evidence_consumers', 'diagnostic_evidence'))
+    assert (previous / 'checkpoint.json').read_bytes() == original
 
 
 def test_launcher_restart_preserves_task_error_and_original_timestamp(tmp_path, monkeypatch):

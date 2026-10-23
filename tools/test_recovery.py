@@ -2,36 +2,6 @@
 
 import test_activity
 import test_retention
-import os
-
-
-def _recover_finalized(root, store):
-    """Finish source-owned runner captures before startup can retire bytes."""
-    if not store.path.exists():
-        return False
-    with (store.opened() as fd,
-          store.locked(fd, 'owner.lock', shared=True, blocking=False),
-          store.locked(fd, 'writer.lock', shared=True)):
-        state = store.read(fd)
-        ready = state is not None and state['finished'] and 'recovery-required' not in os.listdir(fd)
-    if not ready:
-        return False
-    from runner_evidence import recover_pending
-    return bool(recover_pending(root, store))
-
-
-def _reconcile(root, store, guard):
-    _recover_finalized(root, store)
-    try:
-        store.reconcile(guard, completed_guard=lambda paths: None)
-    except ValueError:
-        # Reconciliation commits the finished owner before capacity retirement.
-        # If its required runner closure stopped that retirement, finish it
-        # under that same run and retry. Other refusals retain their error.
-        if not _recover_finalized(root, store):
-            raise
-        store.reconcile(guard, completed_guard=lambda paths: None)
-    _recover_finalized(root, store)
 
 
 def before_run(root, argv, *, categories=None):
@@ -51,7 +21,7 @@ def cleanup_host(root):
     with test_activity.activity(root, host_only=True):
         path = test_activity.retention_path(root)
         if path.exists():
-            _reconcile(root, test_retention.Store(path), lambda: None)
+            test_retention.Store(path).reconcile(lambda: None, completed_guard=lambda paths: None)
     return 0
 
 
@@ -72,7 +42,7 @@ def cleanup(root):
             raise ValueError(f'retention: automatic recovery failed (status={status}); '
                              'see diagnostics above; previous evidence preserved')
     if store.path.exists():
-        _reconcile(root, store, guard)
+        store.reconcile(guard, completed_guard=lambda paths: None)
     else:
         guard()
     print('Automatic recovery: ready; evidence retained within storage limits.', flush=True)

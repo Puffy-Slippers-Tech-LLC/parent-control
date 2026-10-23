@@ -21,7 +21,6 @@ import regression_schedule
 from regression_resources import Admission, GIB, Sample
 from regression_process import Control
 import test_commands
-from tests.support.launcher import synthetic_report_evidence
 from system_progress import Progress
 
 
@@ -299,11 +298,6 @@ def test_capture(record):
     assert 'private-test-output' not in output
 
 
-@pytest.fixture(autouse=True)
-def isolated_report_evidence(synthetic_report_evidence):
-    """Keep report I/O checks separate from real capture/publication histories."""
-
-
 @pytest.fixture
 def report(tmp_path):
     result = regression.Report(tmp_path)
@@ -311,7 +305,7 @@ def report(tmp_path):
     result.close()
 
 
-def test_standalone_report_holds_owner_through_diagnostic_capture(tmp_path, monkeypatch):
+def test_standalone_report_holds_owner_until_late_failure_handoff_finishes(tmp_path, monkeypatch):
     import test_retention
     monkeypatch.delenv(test_retention.VARIABLE, raising=False)
     monkeypatch.delenv(test_retention.OWNER_VARIABLE, raising=False)
@@ -319,12 +313,12 @@ def test_standalone_report_holds_owner_through_diagnostic_capture(tmp_path, monk
     owner = report.retention_session
     assert owner is not None
     assert test_retention.owner_descriptor() >= 0
-    report.close()
+    report.close(release=False)
+    assert report.stream.closed and report.retention_session is owner
+    assert test_retention.owner_descriptor() >= 0
+    report.release_session()
     assert report.retention_session is None
     assert test_retention.token() is None
-    closure = report.evidence.finalizations[0]
-    assert closure['status'] is None and closure['cleanup'] == 'pending'
-    assert dict(path=str(report.directory / 'report.md'), role='result') in closure['members']
 
 
 def test_closed_command_keeps_exact_inventory_failure_and_cleanup(report, tmp_path):
@@ -348,9 +342,81 @@ def test_closed_command_keeps_exact_inventory_failure_and_cleanup(report, tmp_pa
     assert record['completed_ids'] == record['failed_ids'] == ['file.py::case[param]']
     assert record['exit_status'] == 1 and record['cleanup'] == 'failed'
     assert execution.raw.closed
-    assert report.evidence.commands == [record]
+    assert report.commands == [record]
     execution.close()
-    assert len(report.evidence.commands) == 1
+    assert report.commands == [record]
+
+
+@pytest.mark.parametrize('output', ['valid', 'missing-marker', 'missing-file', 'invalid-file',
+                                  'stale', 'unregistered', 'replaced', 'symlink', 'ancestor-symlink'])
+def test_successful_coverage_requires_its_actual_outputs(tmp_path, monkeypatch, output):
+    import test_retention
+    monkeypatch.delenv(test_retention.VARIABLE, raising=False)
+    monkeypatch.delenv(test_retention.OWNER_VARIABLE, raising=False)
+    store = test_retention.Store(tmp_path / 'coverage-retention')
+    parent = tmp_path / 'coverage-parent'
+    parent.mkdir(mode=0o700)
+    directory = parent / 'coverage-output'
+
+    def create_outputs(*, register=True):
+        directory.mkdir(mode=0o700)
+        if register and output != 'unregistered':
+            test_retention.retain(directory)
+        for name in ('coverage.xml', '.coverage'):
+            if output == 'missing-file' and name == '.coverage':
+                continue
+            path = directory / name
+            if output == 'invalid-file' and name == '.coverage':
+                path.mkdir(mode=0o700)
+            elif output == 'symlink' and name == '.coverage':
+                path.symlink_to('coverage.xml')
+            else:
+                path.write_bytes(b'<coverage/>' if name == 'coverage.xml' else b'coverage database')
+                path.chmod(0o600)
+
+    if output == 'stale':
+        with store.session():
+            create_outputs()
+    with store.session():
+        if output != 'stale':
+            create_outputs()
+        report = regression.Report(tmp_path)
+        displaced = None
+        try:
+            if output == 'replaced':
+                displaced = directory.with_name('original-output')
+                directory.rename(displaced)
+                create_outputs(register=False)
+            elif output == 'ancestor-symlink':
+                displaced = parent.with_name('original-parent')
+                parent.rename(displaced)
+                parent.symlink_to(displaced, target_is_directory=True)
+            run = regression.Run(tmp_path, report, Control(), host_only=True)
+            run.dashboard.stream = io.StringIO()
+            item = regression.Category('coverage', total=1, retry_category='coverage')
+            run.categories = [item]
+            execution = regression.Execution(run, item, command=['tools/run-tests', 'coverage'])
+            if output != 'missing-marker':
+                execution.output(('run-tests: output=' + str(directory) + '\n').encode())
+            if output == 'valid':
+                execution.finish(0)
+                assert report.commands[-1]['status'] == 'passed'
+                assert report.commands[-1]['cleanup'] == 'complete'
+            else:
+                with pytest.raises(ValueError, match='valid result files'):
+                    execution.finish(0)
+                assert item.state == 'Failed'
+            assert execution.raw.closed
+        finally:
+            if output == 'replaced' and displaced is not None:
+                for path in directory.iterdir():
+                    path.unlink()
+                directory.rmdir()
+                displaced.rename(directory)
+            elif output == 'ancestor-symlink' and displaced is not None:
+                parent.unlink()
+                displaced.rename(parent)
+            report.close()
 
 
 @pytest.mark.parametrize('failed', [False, True])
@@ -989,9 +1055,9 @@ def test_first_failure_cancels_and_finalizes_with_handoff(
     assert run.categories[0].state == 'Failed'
     assert run.report.stream.closed
     assert 'normal owned cleanup finished' in (run.report.directory / 'report.md').read_text()
-    closure = run.report.evidence.finalizations[-1]
-    assert dict(path=str(run.report.directory / 'failure.json'), role='result') in closure['members']
-    assert closure['categories'][0]['state'] == 'Failed'
+    saved = json.loads((run.report.directory / 'progress.json').read_text())
+    assert saved[0]['state'] == 'Failed'
+    assert run.report.retention_session is None
     assert f'Failure handoff: {run.report.directory / "failure.json"}' in capsys.readouterr().out
     failure = json.loads((run.report.directory / 'failure.json').read_text())
     assert failure['failures'] == [dict(category=run.categories[0].retry_category,
@@ -1174,6 +1240,13 @@ def test_completed_collection_inventory_guards_remain_active_during_cancellation
 
 @pytest.mark.parametrize('outcome', ['passed', 'failed', 'error', 'interrupted', 'interrupted-failure'])
 def test_saved_investigation_prompt_links_closed_report(tmp_path, monkeypatch, capsys, outcome):
+    import evidence_bundle
+    import runner_evidence
+    def no_archive(*_args, **_kwargs):
+        pytest.fail('ordinary report attempted archival proof collection or recovery')
+    monkeypatch.setattr(runner_evidence, 'ReportEvidence', no_archive)
+    monkeypatch.setattr(runner_evidence, 'recover_pending', no_archive)
+    monkeypatch.setattr(evidence_bundle, 'export', no_archive)
     runs = []
 
     def execute(run):

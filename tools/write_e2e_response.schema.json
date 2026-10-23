@@ -25,10 +25,9 @@
         "properties": {
           "kind": {"type": "string", "enum": ["host", "installed"]},
           "target": {"type": "string"},
-          "result": {"type": "string", "enum": ["passed", "failed", "not_run"]},
-          "evidence": {"type": "string"}
+          "result": {"type": "string", "enum": ["passed", "failed", "not_run"]}
         },
-        "required": ["kind", "target", "result", "evidence"],
+        "required": ["kind", "target", "result"],
         "additionalProperties": false
       }
     },

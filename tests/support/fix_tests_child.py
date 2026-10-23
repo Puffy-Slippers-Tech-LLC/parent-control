@@ -10,39 +10,6 @@ import sys
 import time
 
 
-def structured_report(root, category, case, passed, options):
-    """Publish the private runner double's exact closed attempt."""
-    import tempfile
-    import runner_evidence
-    import test_retention
-    import test_storage
-
-    test_storage.ROOT = root
-    test_storage.BASE = root / 'output/test-runs'
-    runner_evidence.regression_inputs.identity = lambda *_: 'f' * 64
-    store = test_retention.Store(test_storage.directory('state') / 'retention-host')
-    target = dict(category=category, case=case, vm='') if isinstance(case, str) else case
-    with store.session():
-        report = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-private-repair-'))
-        members = []
-        if case is not None:
-            failure = report / 'failure.json'
-            value = dict(prompt='LATEST FAILURE ONLY', categories=[target['category']], failures=[target])
-            failure.write_text(json.dumps(value))
-            failure.chmod(0o600)
-            (root / 'failure.json').write_text(json.dumps(value))
-            members.append(dict(path=failure, role='result'))
-            print(f'Failure handoff: {failure}', flush=True)
-        producer = runner_evidence.ReportEvidence(root, report)
-        producer.command(dict(category=category, check=category, target='', status='passed' if case is None else 'failed',
-            cleanup='complete', selected_ids=list(dict.fromkeys([*passed, *([case] if isinstance(case, str) and case else [])])),
-            completed_ids=passed, resumed_ids=[], failed_ids=[case] if isinstance(case, str) and case else [],
-            exit_status=0 if case is None else 1, argv=[category, *options]))
-        proof = producer.finalize(categories=[dict(name=category)], cleanup='complete',
-                                  status='passed' if case is None else 'failed', members=members)
-        print('Runner evidence: ' + json.dumps(proof), flush=True)
-
-
 def main():
     root = Path.cwd()
     kind, *args = sys.argv[1:]
@@ -179,10 +146,6 @@ def main():
                     guest = Checkpoint(root, [(category, options)], resume=True, binding=item['vm'])
                     guest.event(category, dict(kind='finished', nodeid=item['case']), set())
                     guest.save()
-            if script.get('structured') and index < script.get('structured_until', len(script['tests'])):
-                completed = [node for node in passed if node and node not in script.get('unexecuted', [])]
-                structured_report(root, category, case, completed, options)
-                return 0 if case is None else 1
             if case is None:
                 return 0
             target = dict(category=category, case=case, vm='') if isinstance(case, str) else case

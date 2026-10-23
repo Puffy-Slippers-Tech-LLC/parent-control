@@ -1,4 +1,4 @@
-"""Finite runner closures under the existing live producer and capture journal.
+"""Explicit finite archives under the existing live producer and capture journal.
 
 Callers choose closed files explicitly. Mutable outer handoffs are separate
 records, and publication never changes a runner verdict or executes a check.
@@ -33,6 +33,8 @@ def _json(value):
 
 
 class ReportEvidence:
+    """An explicitly requested archive, independent of normal task completion."""
+
     def __init__(self, root, directory, *, store=None, workflow='regression',
                  terminal_context=None, recovery_allowlist=None):
         self.root, self.directory = Path(root), Path(directory)
@@ -108,7 +110,7 @@ class ReportEvidence:
         consumer_id = logical.digest(dict(workflow=self.workflow, run=self.binding[3],
             directory=str(self.directory), phase='started', input_sha256=checksum))
         handle = capture.issue_session(self.store, repository=self.root,
-            workflow=self.workflow, task='runner-start', check='report-start',
+            workflow=self.workflow, task='archive-start', check='report-start',
             target='' if self.terminal_context is None else self.terminal_context['target'],
             inputs_sha256=checksum, sources_sha256=self.sources_sha256,
             consumers={consumer_id: dict(consumer_id=consumer_id, revision_sha256=checksum)})
@@ -342,8 +344,10 @@ class ReportEvidence:
                               for reference in dependency['dependencies']}
                 dependency_roots = [dependency for dependency in records
                                     if dependency['record_id'] not in referenced]
+                terminal_task = ('runner-terminal' if self._start['record']['context']['task'] ==
+                                 'runner-start' else 'archive-terminal')
                 handle = capture.issue_session(self.store, repository=self.root,
-                    workflow=self.workflow, task='runner-terminal', check=item.get('check') or 'report',
+                    workflow=self.workflow, task=terminal_task, check=item.get('check') or 'report',
                     target=item.get('target') or '', inputs_sha256=input_sha,
                     sources_sha256=sources_sha256, consumers=consumers,
                     dependencies=records if aggregate else ())
@@ -602,7 +606,8 @@ def recover_pending(root, store):
             if not pending:
                 return []
             if any(charge['intent']['record']['context']['task'] not in
-                   ('runner-start', 'runner-terminal') for charge in pending):
+                   ('runner-start', 'runner-terminal', 'archive-start', 'archive-terminal')
+                   for charge in pending):
                 raise ValueError('runner evidence: non-runner pending capture requires its own recovery')
             original_run = state['run']
     results = []
@@ -612,7 +617,7 @@ def recover_pending(root, store):
             state = store.read(binding[1])
         charges = state.get('captures', [])
         starts = [charge for charge in charges if not charge.get('acknowledgement')
-                  and charge['intent']['record']['context']['task'] == 'runner-start']
+                  and charge['intent']['record']['context']['task'] in ('runner-start', 'archive-start')]
         if not starts:
             raise ValueError('runner evidence: pending source has no runner lifecycle')
         by_record = {charge['intent']['record']['record_id']: charge for charge in charges}
@@ -661,8 +666,10 @@ def recover_pending(root, store):
                 raise ValueError('runner evidence: foreign report allocation')
             reference = dict(record_id=start['record']['record_id'],
                              closure_sha256=start['record']['closure_sha256'])
+            terminal_task = ('runner-terminal' if context['task'] == 'runner-start'
+                             else 'archive-terminal')
             terminals = [item for item in charges
-                if item['intent']['record']['context']['task'] == 'runner-terminal'
+                if item['intent']['record']['context']['task'] == terminal_task
                 and reference in item['intent']['record']['dependencies']]
             if len(terminals) > 1:
                 raise ValueError('runner evidence: ambiguous retained terminal closure')
@@ -699,7 +706,7 @@ def recover_pending(root, store):
             evidence._recovery_dependencies = [resume(item) for item in charges
                 if item['capture_id'] != charge['capture_id'] and not item.get('acknowledgement')
                 and item['intent']['record']['context']['workflow'] == context['workflow']
-                and item['intent']['record']['context']['task'] == 'runner-terminal'] if not exact_producer else []
+                and item['intent']['record']['context']['task'] == terminal_task] if not exact_producer else []
             declaration_path = Path(source[0]['original_path']).parent / 'terminal-preparation.json'
             try:
                 declared_member = evidence._member(declaration_path, 'input')

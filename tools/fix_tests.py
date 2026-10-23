@@ -258,105 +258,30 @@ def read_tail(path):
         return stream.read().decode('utf-8', errors='replace')
 
 
-def handoff(run, *, root=None, runner_handoffs=()):
+def handoff(run, *, root=None):
     lines = read_tail(run / 'last-test.log').splitlines()
     paths = [line.removeprefix('Failure handoff: ') for line in lines
              if line.startswith('Failure handoff: ')]
-    if not paths and runner_handoffs:
-        # A complete structured declaration can be larger than the diagnostic
-        # tail. Recover only the terminal report's exact original failure member.
-        paths = list(dict.fromkeys(member['original_path']
-            for member in runner_handoffs[-1]['records'][-1]['members']
-            if member['role'] == 'result' and Path(member['original_path']).name == 'failure.json'))
-        if len(paths) != 1:
-            raise ValueError('exact terminal failure handoff is missing or ambiguous')
     if not paths:
         errors = [line for line in lines if line.startswith('Test runner infrastructure failed: ')]
         detail = ('; ' + errors[-1][:2000]) if errors else ''
         raise ValueError('test runner did not produce a failure handoff' + detail + '; see last-test.log')
     from repair_evidence import read_failure
-    value = read_failure(root, paths[-1], runner_handoffs)
+    value = read_failure(paths[-1])
     if (not isinstance(value, dict) or not isinstance(value.get('prompt'), str)
             or not value['prompt'].strip() or not isinstance(value.get('categories'), list)):
         raise ValueError('invalid test failure handoff')
     if root is not None:
         from repair_evidence import capture
-        evidence = capture(root, run / f'failure-evidence-{uuid.uuid4().hex}.json',
-                           paths[-1], read_tail(run / 'last-test.log'))
-        value['prompt'] += ('\nRetained private failure context (bounded log tails): '
-                            + evidence + '\nRead this copy if execution evidence has rotated.')
+        try:
+            context = capture(root, run / f'failure-evidence-{uuid.uuid4().hex}.json',
+                              paths[-1], read_tail(run / 'last-test.log'))
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            value['prompt'] += '\nOptional diagnostic copy unavailable; use the current runner output.'
+        else:
+            value['prompt'] += ('\nRetained private failure context (bounded log tails): '
+                                + context + '\nRead this copy if the original report has rotated.')
     return value
-
-
-def runner_case_pass(root, attempt, target):
-    """Require the archived command's exact selection and completed case.
-
-    An aggregate pass, another target's pass or a bounded diagnostic copy cannot
-    establish that the repaired case reached teardown under our selectors.
-    """
-    from repair_evidence import verify_runner
-    from runner_evidence import resolve_reference
-    category, case, vm = target
-    if attempt['category'] not in ('all', category):
-        return None
-    expected = [category, attempt['selectors'].get(category, [])]
-    def commands(handoff_value, *, nested=False):
-        verify_runner(root, handoff_value)
-        for record, consumer in zip(handoff_value['records'], handoff_value['consumers']):
-            if (record['context']['task'] != 'runner-terminal'
-                    or record['cleanup']['state'] != 'complete'):
-                continue
-            payloads = {}
-            for member in record['members']:
-                if (member['role'] not in ('input', 'command') or not re.fullmatch(
-                        r'[0-9]{4}-(input|command)\.json', Path(member['original_path']).name)):
-                    continue
-                reference = next(item for item in handoff_value['references']
-                                 if item['record_id'] == record['record_id']
-                                 and item['member_id'] == member['member_id'])
-                value = json.loads(resolve_reference(root, reference, consumer=consumer))
-                if isinstance(value, dict):
-                    if member['role'] == 'input' and value.get('categories') is not None:
-                        payloads['input'] = value
-                    if member['role'] == 'command' and isinstance(value.get('commands'), list):
-                        payloads['command'] = value
-            if set(payloads) != {'input', 'command'}:
-                continue
-            invocation = payloads['input'].get('invocation', {})
-            selection = invocation.get('selection', [])
-            # Only this exact producer invocation may establish applicability.
-            matches = (expected in selection or attempt['category'] == 'all'
-                       and selection == [['all', []]])
-            if (not matches or invocation.get('target', vm) != vm
-                    or not nested and invocation != attempt['invocation']):
-                continue
-            matching = []
-            for command in payloads['command']['commands']:
-                if (not nested and command.get('provenance') == 'worker-join'
-                        and command.get('target') == vm and expected in command.get('selection', [])
-                        and command.get('cleanup') == 'complete'):
-                    for worker in command.get('worker_evidence', []):
-                        yield from commands(worker, nested=True)
-                if (command.get('category') != category or command.get('target', '') != vm
-                        or command.get('collect')):
-                    continue
-                matching.append(command)
-            if case:
-                yield from (command for command in matching if command.get('cleanup') == 'complete')
-            elif (matching and record['status'] == 'passed' and record['completeness'] == 'complete'
-                  and all(command.get('status') == 'passed' and command.get('exit_status') == 0
-                          and command.get('cleanup') == 'complete'
-                          and not command.get('failed_ids')
-                          and set(command.get('selected_ids', [])) <= set(command.get('completed_ids', []))
-                          for command in matching)):
-                yield matching[0]
-    selected_commands = [command for handoff_value in attempt['handoffs']
-                         for command in commands(handoff_value)]
-    if case and any(case in command.get('failed_ids', []) for command in selected_commands):
-        return None
-    if any(not case or case in command.get('completed_ids', []) for command in selected_commands):
-        return True
-    return None
 
 
 def failure_target(failure, category):
@@ -628,10 +553,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     active_task = None
     budget = TaskBudget(run)
     from fix_tests_git import RepairCommits
-    from repair_evidence import controller_sources, read_turn, retain_runner, retain_turn
+    from repair_evidence import controller_sources
     commits = None
     sources = controller_sources()
-    runner_handoffs = []
     latest_attempt = None
     restart_continuation = None
     loop_state = {}
@@ -656,13 +580,6 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if continuation is not None:
                 commits.state['controller_restart']['continuation'] = continuation
             commits.save()
-            if continuation is not None:
-                turn = retain_turn(run, dict(continuation['session'], boundary='authorized_continuation'),
-                                   require_cleanup=False)
-                commits.state.setdefault('turns', []).append(turn)
-                key = commits.key(tuple(continuation['failure'][name] for name in ('category', 'case', 'vm')))
-                commits.state['repairs'][key].setdefault('turns', []).append(turn)
-                commits.save()
             print('fix-tests: repair controller sources changed; exact handoff retained. '
                   'Reloading automatically in the same run.', flush=True)
             raise ControllerReload()
@@ -723,7 +640,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise Stopped()
 
     def execute(kind, category='', options=(), *, agent_model=None, agent_effort=None, vm=None):
-        nonlocal runner_handoffs, latest_attempt, test_replay
+        nonlocal latest_attempt, test_replay
         check_stop()
         check_controller()
         if test_replay is not None:
@@ -747,20 +664,11 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         with subprocess.Popen(command, cwd=root, env=environment(), stdin=subprocess.PIPE,
                               pass_fds=(owner, *detached_launcher.scratch_descriptors()), start_new_session=True) as child:
             status = child.wait()
-        # Full producer declarations must survive before a retry overwrites the
-        # log or ordinary bounded presentation compacts it.
-        if kind != 'agent' and (run / 'last-test.log').exists():
-            runner_handoffs = retain_runner(root, run, run / 'last-test.log')
+        if kind == 'test':
             latest_attempt = dict(category=category, selectors={
                 name: spec['args'] for name, spec in inventory.items()},
-                run=str(run), invocation=invocation, status=status, handoffs=runner_handoffs)
-            commits.state.setdefault('runner_attempts', []).append(latest_attempt)
-            commits.save()
-        elif kind == 'agent':
-            turn = retain_turn(run, dict(options, exit_status=status), require_cleanup=False)
-            commits.state.setdefault('turns', []).append(turn)
-            target = tuple(options['failure'][name] for name in ('category', 'case', 'vm'))
-            commits.state['repairs'][commits.key(target)].setdefault('turns', []).append(turn)
+                run=str(run), invocation=invocation, status=status)
+            commits.state['runner_attempt'] = latest_attempt
             commits.save()
         sys.stdout.flush()
         compact_log(run / 'output', writer_fd=1)
@@ -816,7 +724,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if test_replay is not None and test_replay['kind'] == 'recovery':
             recovery_status = execute('recovery')
             if recovery_status:
-                failure = handoff(run, root=root, runner_handoffs=runner_handoffs)
+                failure = handoff(run, root=root)
                 failed(category)
                 return failure
             recovered = True
@@ -882,14 +790,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 if recovery_status:
                     if status_line is not None:
                         print(status_line, flush=True)
-                    failure = handoff(run, root=root, runner_handoffs=runner_handoffs)
+                    failure = handoff(run, root=root)
                     failed(category)
                     return failure
                 recovered = True
                 continue
             if status_line is not None:
                 print(status_line, flush=True)
-            failure = handoff(run, root=root, runner_handoffs=runner_handoffs)
+            failure = handoff(run, root=root)
             close_verified(category=category)
             failed(category)
             return failure
@@ -906,9 +814,6 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         entry = commits.state['repairs'][commits.key(failure_key)]
         failure_prompt = prompt
         replay = entry.get('pending_response')
-        if latest_attempt is not None:
-            entry.setdefault('failure_attempts', []).append(latest_attempt)
-            commits.save()
         diagnostic = previous is not None and previous.get('status') == 'diagnostic_ready'
         classification = ((('diagnostic evidence: ' if diagnostic else 'verification_failed: ')
                            + previous['summary']) if previous else None)
@@ -981,16 +886,18 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 classification=classification, repair_id=repair_id, attempt=attempt,
                 blocker_summary=blocker_summary, result_recovery=result_recovery)
             check_controller()
-            replaying = replay is not None
+            replaying = replay is not None and 'response' in replay
             if replaying:
-                capsule = read_turn(replay['turn'])
                 metadata = replay['session']
                 status = replay['exit_status']
-                if (metadata['failure'] != target
-                        or capsule['identity'] != dict(metadata, exit_status=status)):
+                if metadata['failure'] != target:
                     raise ValueError('retained repair response identity changed')
-                (run / 'agent-result.json').write_bytes(base64.b64decode(capsule['files']['agent-result.json'], validate=True))
-                (run / 'prompt.txt').write_bytes(base64.b64decode(capsule['files']['prompt.txt'], validate=True))
+                if replay['response'] is None:
+                    (run / 'agent-result.json').unlink(missing_ok=True)
+                else:
+                    (run / 'agent-result.json').write_bytes(
+                        base64.b64decode(replay['response'], validate=True))
+                (run / 'prompt.txt').write_text(replay['prompt'], encoding='utf-8')
                 sessions = case_sessions.get(failure_key, 0)
                 repair_id, attempt = metadata['repair_id'], metadata['attempt']
                 phase = replay['phase']
@@ -1037,7 +944,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                                  agent_model=agent_model, agent_effort=agent_effort)
                 commits.capture_session(failure_key, before)
                 if status == 0:
-                    entry['pending_response'] = dict(turn=commits.state['turns'][-1], session=metadata,
+                    from plan_evidence import _read
+                    try:
+                        response = base64.b64encode(_read(run / 'agent-result.json')).decode('ascii')
+                    except FileNotFoundError:
+                        response = None
+                    entry['pending_response'] = dict(response=response,
+                        prompt=(run / 'prompt.txt').read_text(encoding='utf-8'), session=metadata,
                         exit_status=status, phase=phase, model=agent_model, effort=agent_effort,
                         classification=classification,
                         failure=dict(prompt=failure_prompt, categories=[category], failures=[target]))
@@ -1120,17 +1033,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if event == 'verification' and passed is True:
             check_stop()
             commits.verified(tuple(repair['failure'][key] for key in ('category', 'case', 'vm')),
-                             evidence=latest_attempt)
+                             attempt=latest_attempt)
 
     def outcome(failure, target):
         result = verification_outcome(failure, target)
         if result is False:
             return result
-        if latest_attempt is not None and latest_attempt['handoffs']:
-            return runner_case_pass(root, latest_attempt, target)
-        entry = commits.state['repairs'].get(commits.key(target), {})
-        if any(item['handoffs'] for item in entry.get('failure_attempts', [])):
-            return None  # A structured failure cannot fall back to mutable proof.
         if not target[1]:
             return result
         # A different failure is not a pass. Require the runner's validated,
@@ -1156,7 +1064,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                           checkpoint.complete(target[0]) and outcome(None, target))
                 if passed is True:
                     check_stop()
-                    commits.verified(target, evidence=latest_attempt)
+                    commits.verified(target, attempt=latest_attempt)
 
     status = 1
     limited = False
@@ -1200,9 +1108,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             restart_continuation = continuation
             developer_answers = continuation['answers']
             atomic(run / 'developer-answers.json', developer_answers)
-        latest_attempt = next(reversed(commits.state.get('runner_attempts', [])), None)
-        if latest_attempt is not None:
-            runner_handoffs = latest_attempt['handoffs']
+        latest_attempt = commits.state.get('runner_attempt')
         commits.guard = check_controller
         commits.state['controller_sources'] = sources
         commits.save()
@@ -1293,17 +1199,19 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
             if not retained_git['repairs'] and retained_git.get('pending') is None:
                 retained_git = None  # Completed history stays with its original run.
             else:
-                entries = list(retained_git['repairs'].values())
-                required = [attempt for entry in entries for attempt in entry.get('failure_attempts', [])]
-                required.extend(entry['verification_attempt'] for entry in entries if 'verification_attempt' in entry)
-                attempts = retained_git.get('runner_attempts', [])
-                if attempts and any(attempts[-1]['category'] in ('all', entry['failure'][0])
-                    and attempts[-1]['selectors'].get(entry['failure'][0]) == entry['args'] for entry in entries):
-                    required.append(attempts[-1])  # Interrupted after runner cleanup, before verification.
-                retained_git['runner_attempts'] = [attempt for attempt in attempts if attempt in required]
-                turn_ids = {reference['sha256'] for entry in entries for reference in entry.get('turns', [])}
-                retained_git['turns'] = [reference for reference in retained_git.get('turns', [])
-                                         if reference['sha256'] in turn_ids]
+                # Keep active decisions and Git ownership, not historical reports.
+                attempts = retained_git.pop('runner_attempts', [])
+                if attempts and 'runner_attempt' not in retained_git:
+                    retained_git['runner_attempt'] = {
+                        key: value for key, value in attempts[-1].items() if key != 'handoffs'}
+                retained_git.pop('turns', None)
+                for entry in retained_git['repairs'].values():
+                    entry.pop('turns', None)
+                    entry.pop('failure_attempts', None)
+                    if entry.get('verification_attempt'):
+                        entry['verification_attempt'].pop('handoffs', None)
+                    if entry.get('pending_response'):
+                        entry['pending_response'].pop('turn', None)
         selected_model, _ = initial_model(model, effort)
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
@@ -1316,15 +1224,6 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
     def started(run):
         if retained_git is not None:
-            from repair_evidence import carry_turns
-            retained_git['turns'] = carry_turns(run, retained_git.get('turns', []))
-            carried = {reference['sha256']: reference for reference in retained_git['turns']}
-            for entry in retained_git['repairs'].values():
-                if 'turns' in entry:
-                    entry['turns'] = [carried[item['sha256']] for item in entry['turns']]
-                if 'pending_response' in entry:
-                    reference = entry['pending_response']['turn']
-                    entry['pending_response']['turn'] = carried[reference['sha256']]
             atomic(run / 'checkpoint.json', retained_git)
         TaskBudget(run).initialize(tasks)
         save_binding(run, name)

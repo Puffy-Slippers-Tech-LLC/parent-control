@@ -317,11 +317,14 @@ Both accept regular files up to 8 MiB, refuse final symlinks/special files, and
 expose no code, command, output-file or interpreter options. Link-check exits:
 0 success, 1 missing targets/fragments, 2 invalid request/read failure. Failure diagnostics
 give document argument number/line without copying prose or destinations.
-For inaccessible destinations within this checkout's `output/test-runs/`, the
-unprivileged checker uses only the [approved artifact reader's](../tests/README.md#prompt-free-test-artifact-access)
-metadata action. It does not read protected contents or change permissions.
-Other inaccessible destinations, or a refused/unavailable reader, return 2 and
-are reported separately from missing files, even when other links are missing.
+Links from documents outside this checkout's `output/test-runs/` into that tree
+are disposable report references. Routine `links` skips their availability and
+fragments without opening, inspecting or invoking privileged readers; a nonzero
+`skipped_reports` count appears in its summary. An explicitly supplied document
+inside that output tree still receives ordinary target and fragment checks.
+Other inaccessible destinations return 2 and are reported separately from
+missing files. Explicit semantic `link_condition` and artifact-reader operations
+retain their normal permission and integrity checks.
 
 `tools/document_checks.py` owns the shared `Link` representation: character
 offsets for the complete link, label and destination, use-site line, syntax kind
@@ -352,6 +355,12 @@ Protected queue comparison and rewriting use `simple_inline_references`, the
 existing narrower grammar and conservative code masking: images, references,
 titles, angle destinations, escapes and nested parentheses remain literal
 protected claims.
+
+The following evidence readers are optional archival tools for an explicit
+inspection or repair request. Routine tasks, launcher close-out and new agent
+sessions do not invoke them or require their outputs. The shared
+[completion policy](Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
+governs task progression even when old reports have expired.
 
 `tools/read-only evidence-links --plan 'docs/Plan.md' --declarations 'declarations.json'`
 provides read-only semantic validation and a finite destination-change preview.
@@ -492,7 +501,7 @@ validated legacy `/tmp/onpc-*` bundles remain accepted inputs, not output exampl
 | Established regressions | `make test-all VM=NAME` / `tools/run-tests all --vm NAME` / `tools/run-tests --vm NAME` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. With only `--vm NAME`, starts `all` when idle; [reconnection](../tests/README.md#aggregate-execution-and-reconnection) retains the original canonical selection. |
 | Scripted test repair | `tools/fix-tests [--vm NAME] [CATEGORY ...] [--model MODEL] [--effort EFFORT] [--rounds X] [--tasks N]` / `tools/fix-tests --vm NAME --stop` | Granular pass only by default; --rounds X adds X-1 verification rounds; explicit selectors remain fixed. The [repair policy](../tests/README.md#scripted-repair-loop) owns GPT-6.1 Sol Medium → High → xHigh → Max escalation, with Low → Medium → High → xHigh for unit failures (including mixed/aggregate runs), five sessions per case/VM including answered blockers, and bounded diagnostic changes handed to launcher-owned execution. The launcher commits and pushes each repair's owned paths after confirming its specific case passed, before another repair; Git failures retain close-out for restart. Fresh serial Standard-speed sessions preserve stronger effort overrides; other models are refused and final-tier stalls may stop early. Different-case/preparation interruptions leave verification unknown without an exact runner-owned case pass. Existing sandbox/rules and owned cleanup apply; no automatic setup or authority expansion. |
 | Scripted E2E implementation | `tools/write-e2e --vm NAME [--tasks N]` / `tools/write-e2e --vm NAME --stop` | The [launcher policy](../tests/README.md#scripted-e2e-implementation) owns fresh serial model selection, promotion/advice, the shared task limit, built-in per-task session caps and resumable close-out. Launcher-owned staging, commit and `git push` after every accepted task; every three completed close-outs adds a resumable Sol High lessons/composition audit with a refactor commit and push. Explicit literal paths exclude unrelated work and output artifacts; existing grants, safe session-boundary stop and guarded owned cancellation/cleanup apply. |
-| Execution plans | `tools/execute-plan --plan PATH [--tasks N] [--stop] [--check]` | The [shared plan contract](Execution-Plans.md) owns format, task budgets, delegated work and safe resumption. Zero/negative task limits mean all remaining; oversized limits warn and finish with the queue. The shared driver pulls the current branch's upstream, reconciles conflicts and affected acceptance, then commits and pushes each accepted task's owned paths before advancement; `--check` makes no Git changes. Existing ownership, retained evidence, permissions and operation-specific mandates apply. |
+| Execution plans | `tools/execute-plan --plan PATH [--tasks N] [--stop] [--check]` | The [shared plan contract](Execution-Plans.md) owns format, task budgets and safe resumption. Zero/negative task limits mean all remaining; oversized limits warn and finish with the queue. Each task owns its checks. The driver completes owned cleanup and Git close-out, then advances to the next unchecked row without collecting archives or rechecking old reports; `--check` makes no Git changes. Ownership, permissions and operation-specific mandates apply. |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
 | Complete VM category | `tools/run-tests vm [--vm NAME] [--continue-on-errors]` | System and ready E2E coverage; required package inputs are prepared automatically; independent host runs may overlap |
 | Combined complete categories | `tools/run-tests host vm --vm NAME` | Equals `all`; `vm` expands to `system e2e`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; combined runs reserve both scope locks |

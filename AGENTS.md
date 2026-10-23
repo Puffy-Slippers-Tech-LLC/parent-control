@@ -84,6 +84,14 @@
 
 ## Tests and acceptance
 
+- Each task owns its scoped checks and cleanup before marking itself done.
+  A checked task stays done: launchers and later sessions move to the next
+  unchecked task and trust completed prerequisites. Do not collect proof bundles,
+  recheck old reports, repair expired evidence links or rerun completed work to
+  prove it again. Keep a short result/handoff and normal failure diagnostics.
+  New changes receive their own affected checks within the current task. This
+  rule applies to existing and future launchers, plans and agent sessions; see
+  [task completion](docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
 - Apply the [test scope mandate](docs/Mandates/Test-Scope-Mandate.md) when
   planning or maintaining coverage: test product behavior and core test
   infrastructure, limit recursive tests, and exclude UI tests of test tools.
@@ -143,9 +151,9 @@ preparation lifetime, which a task's example command cannot establish.
 - Edit text with native `apply_patch`. Check changed Markdown with
   `tools/read-only links`; use `tools/read-only words` when counts matter.
 - Keep routine failure/fix/verification details in conversation or existing
-  runner artifacts. Update current contracts and active handoffs. Create a new
-  evidence document only when requested or an active acceptance/recovery need
-  has no existing artifact.
+  runner artifacts. Update current contracts and active handoffs. Create or
+  collect separate evidence documents or archives only when explicitly requested;
+  task completion does not require them.
 - Signal only explicitly spawned, identity-recorded processes. Follow the
   [cleanup contract](tests/README.md#cleanup-safety-prerequisites); cleanup is
   serial ownership/recovery, never a regression-test prerequisite run.

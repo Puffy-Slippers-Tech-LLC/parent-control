@@ -6,6 +6,12 @@ it does not repeat completed setup tasks or historical acceptance results.
 
 Use the section for the selected operation; an ordinary focused check does not
 need the launcher implementation or retention details below.
+Each task owns its checks and cleanup before marking itself done. Launchers
+and later sessions trust completed rows and move to the next unchecked task.
+They do not collect archives or revalidate old reports to prove completion;
+report expiry never reopens a task. Follow the shared
+[completion policy](../docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
+for current and future launcher/session behavior.
 
 | Operation | Read |
 | --- | --- |
@@ -472,14 +478,14 @@ output/error tails, read through the scoped artifact reader when privileged.
 They survive ordinary execution-journal rotation for the repair run's lifetime;
 missing/refused reads and size limits remain explicit. Bulk captures retain their
 normal retention policy. A snapshot is investigation evidence, never a pass.
-Version-1 runner handoffs separately retain exact logical records, consumers and
-member references through the shared cumulative publication. Repair verification
-uses the original selector, case, target and completed-command identities;
-archived failure records keep their original verdict. Missing or denied full
-proof cannot fall back to a diagnostic tail or an unrelated aggregate pass.
-Closed repair/E2E responses, prompts, command records and cleanup inventories
-are copied in full within their existing launcher allocation before a fresh
-session overwrites them. Fresh controllers carry those exact capsules forward.
+Repair verification uses the existing runner checkpoint for the exact category,
+selectors, case and target after teardown. An unrelated failure or aggregate
+summary cannot substitute for that case's result. Completed repairs and saved
+Git close-out do not reopen old reports or archive declarations.
+The repair launcher keeps its current unvalidated response, prompt and session
+metadata in the existing checkpoint for interrupted recovery. It does not copy
+whole turn trees or carry proof bundles across tasks. Optional bounded failure
+context is diagnostic; unavailable copies do not change a test result.
 When reviewed decision dependencies change, `fix-tests` automatically replaces
 its controller at a child-free boundary in the same live run. It retains the
 owner lock, output stream, scratch leases, selectors, rounds, task counts,
@@ -736,14 +742,12 @@ from a descendant HEAD after verifying the original committed tree against the
 intent; later edits remain untouched. Unrecorded HEAD changes or mismatched
 completion contents refuse, avoiding duplicate or unrelated completion credit.
 Push recovery retries the push after recognizing the existing commit.
-Structured E2E results use optional `checks` with the ordinary
-`onpc-plan-evidence` version-1 declaration. The shared reader authenticates the
-original record, consumer, target, inputs, verdict and cleanup. Passing live
-claims cover every selected target; formal acceptance and diagnostic observations
-retain distinct producer attempts. Continuation and accepted Git retry reverify
-the retained declarations without spending another model session. Legacy results
-retain their existing handoff and acceptance policy. After structured formal proof
-has been recorded, later formal results keep that full-proof requirement.
+E2E results report the current task's host/live outcomes and may include scoped
+`checks` containing kind, target and result. Passing live results cover the selected
+targets. Saved results may contain an ignored legacy `evidence` string; new
+responses need no evidence field. Continuations and Git
+retries use the saved outcome without reopening referenced files, authenticating
+archival declarations or collecting turn capsules. A completed task stays done.
 Missing Git identity, remote/upstream configuration or a failing Git hook remains
 an actionable close-out failure; the launcher does not change Git configuration
 or bypass hooks.
@@ -751,7 +755,10 @@ or bypass hooks.
 Every **three accepted and committed tasks**, a fresh **GPT-6.1 Sol High** session
 runs before another queue task. Its scope is the batch's exact three completed
 queue IDs, displayed as the actual first-to-last ID range (IDs may have suffixes
-or inserted prerequisites). It analyzes evidenced lessons from successful work
+or inserted prerequisites). This required session optimizes the current code;
+it does not collect proof, inspect old reports or repeat completed tasks' checks.
+Refactoring changes receive only their affected validation; unchanged code needs
+no new test run. It analyzes lessons from successful work
 and merges useful guidance into the owning instructions/mandates without
 duplicates. It also audits the batch's delivered or affected ready E2E cases:
 cases compose shared building blocks, harness and libraries with finite case
@@ -1393,15 +1400,15 @@ slow reads cannot accumulate credit for a later write burst. Every bulk flush
 also leaves recovery time equal to its duration, capped at one second, even when
 a slow flush exhausts the throughput budget. This bounds dirty archive writes
 while avoiding thousands of tiny syncs and multiplied disk-contention delays.
-Small bundles keep their normal final sync. Ordinary-plan completion publishes
-the durable closed turn together with accepted proof in one cumulative archive;
-continuations and rejected turns still publish before another session can replace
-their evidence. Final verification and interrupted-publication recovery remain
-required before acceptance or retirement.
-Runner terminal acknowledgements share one verified cumulative archive while
-its ownership locks and descriptors remain pinned. Each sealed record still
-checks its exact request, delivery and source provenance; later scopes verify
-the archive again.
+Small bundles keep their normal final sync. These are archive-publication
+mechanics, not task progression requirements: ordinary plans and E2E
+implementation do not publish closed turns or cumulative proof before advancing.
+Explicit archive operations keep their normal verification and recovery guards.
+For an explicitly requested legacy archive, acknowledgements share one verified
+cumulative archive while its ownership locks and descriptors remain pinned.
+Each selected record checks its request, delivery and source provenance; later
+archive inspections verify it again. Ordinary runner completion uses no such
+acknowledgement.
 The detached coordinator spaces capture and retention journal syncs by at
 least 100 ms. Host pytest workers (unit, component, UI and fixture tests) pace
 real `fsync` calls in their fixture/test context, including recording,
@@ -1686,19 +1693,13 @@ Each capture still requires its exact authenticated request and original-file
 provenance. Releasing that scope ends reuse; later recovery verifies the archive
 again, including corruption and replacement checks.
 
-Artifact exports also use a bounded journal: each export starts a retention
-session, so exporting the same report repeatedly can evict a different report
-still needed for close-out. Reuse an existing retained export, preserve required
-reports before their execution journal rotates, and verify their actual paths
-after the final export/preparation/check. A remembered export path is not a
-retention guarantee; see [artifact access](#prompt-free-test-artifact-access).
-
-Ordinary plans preserve accepted proof through the same verified bundle format
-and publication transactions, in a separate bounded journal within their plan
-namespace. The [execution-plan evidence contract](../docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
-owns exact-input capture, the cumulative stable locator and controller adoption
-of authorized historical disclosures. This does not change ordinary session or
-export limits, adopt foreign evidence, or excuse missing detailed proof.
+Artifact exports also use a bounded journal: each explicitly requested export
+starts a retention session and can retire older exports. Reuse an existing
+retained export when available; see [artifact access](#prompt-free-test-artifact-access).
+An expired report/export affects its availability for inspection, never a
+completed task's status. Ordinary plans follow the shared
+[completion policy](../docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
+without cumulative proof publication, evidence renewal or historical-link repair.
 
 Multi-file evidence uses `Store.inspection()` and `Store.publication()` in the
 same export journal, with the same three-run/4-GiB limits. Read-only inspections
@@ -2100,13 +2101,14 @@ pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-read '<returned-
 Omit `--bundle` for the first bundle. The plan inventories every selected original
 path, logical/allocated size, file/allocation identity, owning journal/run and
 SHA-256; `--summary` displays allocation totals instead of the complete file list.
-Ordinary execution plans additionally use repeated `--reference` paths with a
-validated `--plan`. The shared reader resolves those references with its journal
+Explicit legacy plan-archive operations support repeated `--reference` paths
+with a validated `--plan`. The shared reader resolves those references with its journal
 leases held: live files retain normal identity checks, and an absent file can use
 its exact original member in an explicitly selected verified bundle. Missing
 references return exit 3 and finite JSON `error: evidence_unavailable` plus exact
-`paths`, allowing the controller to renew acceptance. Other failures remain exit 2;
-mandatory `--source` and `--bundle` inputs never receive this renewal exception.
+`paths` for the requested inspection. This does not renew acceptance or reopen
+tasks. Other failures remain exit 2; mandatory `--source` and `--bundle` inputs
+never receive this missing-reference distinction.
 When references have vanished and only finished bundles are selected, discovery
 authenticates and inspects their exact publication owners, without inspecting
 unrelated current producer journals, including those for the same target. The
@@ -2187,7 +2189,7 @@ returns verified metadata/closure plus a bounded diagnostic slice, explicitly
 marking an incomplete slice for large members. No capture or custody operation
 is introduced by this reader interface.
 
-For authored evidence links, use the explicit
+When explicitly asked to author archival evidence links, use the
 [document evidence interfaces](../docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
 and `tools/read-only evidence-links --plan ... --declarations ...`. Generated
 destinations select one authenticated record/member/closure; disposable report
@@ -2598,109 +2600,46 @@ evidence or the affected complete history again.
 
 ### Sealed producer handoffs
 
-Runner reports use `tools/runner_evidence.py::ReportEvidence` inside their live
-retention owner. `regression.Report` keeps a standalone owner alive from first
-registration through terminal capture; aggregate reports reuse their existing
-owner. Each report uses its own `regression/<report-id>` publication workflow,
-so closing a run publishes only that report's closure instead of recopying the
-history of unrelated runs. References carry that workflow and remain resolvable
-after original report rotation. Recovery reuses the workflow in the sealed
-startup record; existing shared `regression` publications remain readable.
-Disk pacing and publication verification are unchanged.
-Before result writes, an immutable sealed startup lifecycle record binds
-the run, owner, source identity and report allocation. It stays required until
-terminal publication and is acknowledged last, preserving originals even if
-preparing the terminal record fails. Each closed execution records its actual command, exact selected,
-resumed, completed and failed IDs, target, exit status, log and cleanup state.
-The final report closure includes the original inventory revisions, progress,
-resource/schedule records and failure handoff after outer recording cleanup.
-Coverage's finite XML and database results join that closure before their
-execution allocation rotates; its child creates them with private permissions.
-Unfinished executions and failed setup/teardown remain partial or failed proof;
-capture supplies no new test pass.
+Routine reports use their existing registered allocation and bounded retention.
+`regression.Report` writes command outcomes, exact selected/resumed/completed and
+failed IDs, progress and useful logs. Closing it syncs those files and releases
+its owner; it does not build archives, seal proof or publish receipts. Coverage
+commands must produce their actual private XML and database results. Report
+rotation affects inspection availability, never completed task status.
 
-Startup acknowledgement requires a verified terminal record that depends on
-that exact startup record. After an interrupted owner finishes, the next runner
-startup resumes its pending capture under the original run and capture identities.
-Recovery uses the registered report allocation and bounded, authenticated closed
-members; it preserves an existing terminal declaration or records an interrupted,
-partial result with pending cleanup. It never reruns checks or promotes their
-outcome. Existing initial-check recovery still owns an unfinished legacy run;
-foreign, replaced, active or cleanup-marked sources refuse capture recovery.
+Normal owned rotation also retires legacy automatic runner archive requirements,
+including interrupted or expired publications, without rebuilding them. It still
+checks recorded ownership and allocation identities. Explicit archives and
+required recording captures retain their own publication guards.
+
+A VM batch launches the selected workers, joins their owned processes and uses
+their actual exit status after guarded cleanup. It keeps target-specific logs and
+`results.json`; it does not read old worker reports to verify archival claims.
+A successful worker's obsolete diagnostic pointer is ignored. Failed-worker
+details remain useful diagnosis, without a second proof protocol.
+
+Qualification and recovery sessions keep their selected owner/run guards,
+separate journals, private command logs and actual result files. System and E2E
+controllers preserve input validation, selected cases, assertions and outer
+cleanup. The E2E collector validates only its current private copies and excludes
+secrets; it creates no startup/terminal archive or transitive record graph.
+Post-cleanup return values and exit status remain authoritative, including late
+failures. Normal watch recordings retain their own policy.
+
+The following sealed capture/publication APIs support explicitly requested
+archival operations only. Ordinary test runs, preparation, repair and task
+progression do not invoke or recover them. A requested archive keeps its identity,
+permission and integrity guards; failure of that export does not reopen a
+completed task.
 
 `ReportEvidence.finalize` accepts explicit closed members with `path` and `role`,
-seals the command/result/input/cleanup records, publishes their dependency closure
-through the existing cumulative capture transaction and acknowledges it under
-the source owner. Its returned version-1 references bind workflow, record, member
-and closure digest. `runner_evidence.resolve_reference` derives the workflow's
-existing publication journal and verifies the current cumulative archive under
-its reader lock; original report paths and superseded export paths can retire.
-A denied publication is attempted once and preserves the required original.
-Concurrent producers in one workflow serialize selection planning, cumulative
-publication and source acknowledgement under the same workflow admission lock.
-Source retirement waits for an active destination publication before verifying
-custody; source ownership and other inspection admission checks remain intact.
-Cumulative authenticated request history uses the shared 60,000-entry and 64-MiB
-metadata bounds, alongside the existing archive and retention limits. The
-256-input limit applies separately to each explicit publication selection.
-Ordinary plan consumers use the same cumulative proof for closed handoffs and
-exact runner references under the [plan evidence contract](../docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
-Working publication preserves original reports and verdicts without adding an
-accepted task or retry allowance. Its narrowly selected controller capsules and
-already archived target references do not require inspecting unrelated active
-producers; live selected sources retain the normal ownership and conflict checks.
-The library's `Selection(..., include_host_captures=True)` explicitly admits
-host records alongside an exact named-target capture selection. Its default and
-the artifact helper retain the existing refusal of a host capture selected as a
-named target. Checkout validation reuses the bundle reader's private-user-group
-policy, including refusal of writable groups containing unrelated accounts.
-
-VM queue workers finish their own reports and emit their structured evidence
-handoff. The batch retains exact guest selections, target-specific logs, worker
-references and the joined result under its separate owner. It verifies worker
-records before carrying their cleanup status; an absent closure remains pending.
-Each worker's immutable input includes the batch's fresh invocation identity and
-exact selection, which the join verifies through the published member. Stale
-attempts and different selections refuse. A parsing or proof-resolution failure
-captures the available batch closure as failed with pending cleanup; publication
-failure leaves the startup requirement in place without an authentication retry.
-It does not adopt the workers' allocations. `regression_process.host_run` and
-`category_run` stream into the owning execution; `test_commands` retains its
-existing aggregate, focused and inspection routing. Qualification, system/E2E
-collector and recovery-diagnostic closures use the producer boundaries below.
-The latest-only watch recording policy is unchanged.
-
-Named `qualification_storage.session` and `recovery_session` scopes capture only
-their finite approved result, input, command and diagnostic members. Shared and
-selected-target recovery journals remain separate from unfinished VM execution
-state. Diagnostic records never become passing acceptance; deliberately live
-maintenance records retain pending cleanup and the original VM run identity.
-Later cleanup is a distinct record with that identity. Preparation diagnostics
-retain their original 16-KiB tail bound and explicit native-log availability.
-Raw worker settings, credentials, authentication material and unreviewed captures
-stay outside the selected proof.
-
-The selected system/E2E/smoke/watch child holds its own live retention owner.
-The dispatcher keeps its existing selected command, cancellation and scratch
-descriptor route, forwarding only an explicitly validated requested run. That
-run chooses provenance and grants no capture authority. Named scopes and
-controller reuse require a matching in-process owner; the legacy unnamed
-allocation-only route issues no capture handle. Package and standalone imports
-keep each caller's storage, capture and publication state together.
-
-System capture follows outer suite, source and host cleanup, including partial
-staging failures. Its immutable selected-input checkpoint comes from the same
-verified manifest as terminal capture, including files without an extension.
-Command ledgers exclude stdin and raw transport payloads. Original result,
-JUnit/TAP and collected guest bytes remain the original verdict's proof.
-
-Each E2E collector checkpoints its exact synced, registered immutable inventory
-outside the collector directory before returning a successful registration.
-Recovery verifies original hashes and file identities and refuses unregistered
-files. The outer terminal record follows suite, progress and collector cleanup
-and binds the original candidate digest; a passing candidate cannot hide a late
-failure. Worker, attempt and invocation records retain their dependency closure.
-Capture supplies no qualification of a VM, UI provider or product behavior.
+seals their command/result/input/cleanup records, publishes the selected closure
+and acknowledges it under the source owner. Returned references bind workflow,
+record, member and closure digest. `runner_evidence.resolve_reference` verifies
+an explicitly selected archive under its owner lock. Existing legacy publications
+remain readable. Concurrent explicit producers serialize publication and
+acknowledgement; source retirement keeps the normal ownership and integrity
+guards.
 
 `tools/evidence_capture.py` owns authenticated finalized subsets for evidence
 producers. A producer obtains an opaque in-process handle only inside its live

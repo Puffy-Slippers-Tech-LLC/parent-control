@@ -355,8 +355,8 @@ inspection or controlled experiments are needed. Finish maintenance cleanup, cod
 and run clean acceptance; experimental results never replace the required public
 actions/results or a failed attempt's retained evidence.
 
-Before preparation or live runs, plan the required report lifetimes under
-[completion and document cleanup](#completion-and-document-cleanup).
+Each task owns its checks and records their outcome once. Completed prerequisites
+stay complete; report rotation does not require requalification or another run.
 
 Each attempt starts with fresh declared state and its own session/window ledger.
 For post-installation work, run `./tools/prepare-appsnapshot --vm NAME --y --overwrite false`
@@ -392,7 +392,7 @@ Preserve valid unchanged results. Later changes require affected checks and
 qualification within the regression scope above; the historical decision is
 not acceptance for newly changed code or additional registered cases.
 
-Staged artifacts, evidence and VM ownership must remain valid. Checkout edits
+Inputs used by the current attempt and VM ownership must remain valid. Checkout edits
 during a run follow the [documentation map's contract](README.md); they do not
 by themselves invalidate the attempt or its completed safety prerequisites.
 
@@ -428,30 +428,29 @@ composition qualification and that target's C05 baseline acceptance. C05u/C05f
 remain separate installed acceptance gates, closed only when selected after C04.
 Do not repeat an unchanged complete history solely to change its task label.
 
-Reuse requires retained, inspectable public-action/result evidence for **every**
-core-history assertion in the finite baseline recipe and the consuming C05 brief,
-plus the recipe's separately reusable existing feature and confinement-pause
-checks, with the
-exact target, candidate package/source/assets, baseline, fixture identities,
-complete caller/composition and provider bindings. Verify the command, finite
-inputs, ordered intermediate outcomes, timeout, collection and owned restoration;
-record that applicability check and the original installed result in C05's
-handoff/checks. Existing feature and separate pause checks need not be repeated inside the core
-history. A task summary, ready label, host pass, partial qualification or
-collection of separate operation passes cannot establish the complete core history.
+Acceptance retains every core-history assertion in the finite baseline recipe
+and consuming C05 brief: negative effects, grant/use/revocation, original
+activity preservation, fresh repeated requests and public Parent restoration.
+It also retains the separately reusable feature and confinement-pause checks.
+Use the recorded exact target, candidate package/source/assets, baseline,
+fixture identities, complete caller/composition, provider bindings, finite
+inputs, ordered public results, timeout, collection and owned restoration to
+decide applicability. A host pass, partial history or collection of separate
+operation passes cannot establish the complete core history.
 
-Missing, failed, expired or invalidated core-history evidence requires execution
-of the affected **complete** history on its target through the registered baseline
-selector. Missing or invalidated separate feature/pause evidence requires renewal
-of that separate slice; it does not by itself require replaying a valid core
-history. Both kinds of evidence remain required for acceptance.
-Shared changes require checking both targets and rerunning each
-invalidated history. Documentation-only edits do not by themselves invalidate
-unchanged installed evidence. Preserve original failures and valid other-target
-results. No future row is checked automatically, no installed acceptance is
-relabelled host-only, and no registered E2E case or other plan is completed by
-this reuse. Final post-protection acceptance still needs its applicable final
-candidate histories.
+Use the completed task's recorded scope, target and outcome to decide whether
+the same history already covers the selected task. If it does, record that reuse
+briefly and move on. Do not collect old reports, verify archive identities or
+repeat passed work because diagnostic files are missing or expired.
+
+A core history that never ran, failed, or is invalidated by a concrete code/input
+change needs execution of the affected complete history through the registered
+baseline selector. Separate feature/pause changes need their affected slice,
+without replaying an unchanged core history. Shared changes require both-target
+applicability review and renewal of invalidated histories. Documentation changes
+and artifact rotation alone do not invalidate a pass. Preserve original failures
+and valid other-target results. Close only the selected row; no registered E2E
+case, other plan or final post-protection acceptance closes through this reuse.
 
 ### Capability acceptance
 
@@ -530,19 +529,11 @@ close-out without claiming an E2E pass or changing scenario readiness.
 
 After the guard is released and cleanup succeeds:
 
-Plan required report lifetimes before live validation using the
-[retention owner](../../tests/README.md#aggregate-output-retention): account for
-preparation, acceptance, regression runs and exports that rotate their respective
-journals. Finish input preparation before the live acceptance slices where
-possible. Group exact affected selectors in one supported runner invocation
-when it preserves each independent attempt and its required assertions; do not
-broaden the selection or combine customer histories. Reuse existing retained
-exports and plan any needed export before its source report expires.
-
-Verify that all required acceptance reports are still retained after the final
-preparation, validation or export. A handoff's report reference does not replace
-missing acceptance evidence; repeat only the affected slice if its required
-report has been removed.
+The task owns validation and cleanup. Record a short outcome in its existing
+queue/checkpoint, check the row and move to the next unchecked task. Normal runner
+reports are disposable diagnostics: no export, archive, proof-loss repair or
+repeat run is required to preserve completion. A concrete regression or changed
+implementation belongs to the current task's affected checks.
 
 1. After **every completed E2E scenario**, run
    `tools/generate_test_coverage.sh`. This approved executable runs the requested

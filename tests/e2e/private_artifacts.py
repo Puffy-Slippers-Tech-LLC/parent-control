@@ -1,7 +1,6 @@
 """Private, bounded evidence copies. Never import a worker or control a guest."""
 
 import base64
-import copy
 import hashlib
 import json
 import os
@@ -109,8 +108,6 @@ class PrivateCollector:
         self._identity = (info.st_dev, info.st_ino)
         self._records = {}
         self._reports = {}
-        self._capture = None
-        self._captured = None
 
     def __enter__(self):
         return self
@@ -122,86 +119,6 @@ class PrivateCollector:
         if self._fd is not None:
             os.close(self._fd)
             self._fd = None
-
-    def start_capture(self, root, *, store=None, target='', check='collector', inputs=None):
-        """Protect this producer before its first report, under its live owner.
-
-        Disposable collector fixtures need no publication. Controllers explicitly
-        call this method; a missing producer session is a refusal, never a
-        disposable-storage fallback.
-        """
-        require(not self._records and not self._reports and self._capture is None,
-                'artifact:capture-already-started')
-        self._check_directory()
-        from tools.runner_evidence import ReportEvidence
-        self._capture = ReportEvidence(root, self.path, store=store, workflow='e2e',
-            terminal_context=dict(target=target, check=check, inputs=inputs,
-                                  cleanup_resources=[]), recovery_allowlist=[])
-        self._checkpoint_capture()
-
-    def _capture_members(self):
-        roles = {'screen': 'media', 'input-provenance': 'input',
-                 'action-trace': 'command', 'cleanup': 'cleanup', 'outcomes': 'result'}
-        return [dict(path=self.path / record['path'],
-                     role=roles.get(record['kind'], 'diagnostic'))
-                for record in self._records.values()] + [
-            dict(path=self.path / name, role='result') for name in self._reports]
-
-    def _checkpoint_capture(self):
-        if self._capture is not None:
-            self._capture.checkpoint_members(self._capture_members())
-
-    def capture_terminal(self, document, *, target, check, candidate=None,
-                         inputs=None, commands=(), cleanup='pending', dependencies=(),
-                         members=(), status=None, cleanup_resources=()):
-        """Capture the outer post-close verdict and every exact reviewed copy.
-
-        The candidate's digest identifies its original immutable bytes; only
-        ``document`` supplies the terminal verdict. This deliberately runs after
-        controller cleanup and collector close, including their late failures.
-        """
-        require(self._fd is None and self._capture is not None,
-                'artifact:capture-requires-closed-owner')
-        if self._captured is not None:
-            require(document == self._captured['document'], 'artifact:terminal-changed')
-            return copy.deepcopy(self._captured['result'])
-        fd = _directory(self.path)
-        try:
-            info = os.fstat(fd)
-            require((info.st_dev, info.st_ino) == self._identity,
-                    'artifact:directory-replaced')
-            self._fd = fd
-            self.verify(list(self._records.values()))
-        finally:
-            self._fd = None
-            os.close(fd)
-        candidate_binding = None
-        if candidate is not None:
-            require(candidate in self._reports, 'artifact:missing-candidate')
-            candidate_binding = dict(path=str(self.path / candidate),
-                                     sha256=self._reports[candidate])
-        # A separate registered allocation permits a truly post-close ledger.
-        # Its own writer follows the same fsync-before-registration contract.
-        with PrivateCollector(run_id=self.run_id, secrets=list(self._registered_secrets)) as outer:
-            terminal = outer.save_report('terminal', dict(
-                original_result=document, candidate=candidate_binding,
-                inputs=inputs, commands=list(commands)))
-        selected = self._capture_members()
-        selected.extend(members)
-        selected.append(dict(path=terminal, role='result'))
-        status = status or document.get('outcome', 'failed')
-        require(status in ('passed', 'failed', 'interrupted', 'diagnostic'),
-                'artifact:terminal-outcome')
-        result = self._capture.finalize(categories=[dict(name='e2e',
-            selected_ids=document.get('expected_cases', [document.get('case_id')]))],
-            status=status, cleanup=cleanup, members=selected,
-            inputs=dict(original_inputs=inputs, candidate=candidate_binding,
-                        commands=list(commands)), target=target, check=check,
-            dependencies=dependencies, cleanup_resources=cleanup_resources)
-        # Copy through JSON: callers may append references to their outward
-        # report, but cannot mutate the retained terminal snapshot.
-        self._captured = dict(document=json.loads(json.dumps(document)), result=result)
-        return copy.deepcopy(result)
 
     def check_secrets(self, data):
         require(not any(value in data for value in self._secrets), 'artifact:secret-detected')
@@ -259,7 +176,6 @@ class PrivateCollector:
                   'sha256': hashlib.sha256(data).hexdigest(), 'size_bytes': len(data),
                   'run_id': self.run_id, 'redaction': 'reviewed-secret-checked-v1'}
         self._records[artifact_id] = record
-        self._checkpoint_capture()
         return dict(record)
 
     def copy(self, source_directory, name, artifact_id, kind, *, reviewed=False):
@@ -314,5 +230,4 @@ class PrivateCollector:
         name = report_id + '.json'
         self._write(name, data)
         self._reports[name] = hashlib.sha256(data).hexdigest()
-        self._checkpoint_capture()
         return self.path / name

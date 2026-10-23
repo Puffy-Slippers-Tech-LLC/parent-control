@@ -22,9 +22,7 @@ import regression_selection
 import test_commands
 from test_checkpoint import Checkpoint, EXCLUDE, ONLY, request_record, resume_arguments
 from tests.support.paths import ROOT
-from tests.support.launcher import synthetic_report_evidence
 
-pytestmark = pytest.mark.usefixtures('synthetic_report_evidence')
 
 
 def event(checkpoint, kind, case, failed=()):

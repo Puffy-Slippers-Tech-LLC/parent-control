@@ -499,16 +499,23 @@ def link_condition(path, text, link, *, anchors=None):
 
 
 def check_links(paths):
-    checked = missing = inaccessible = 0
+    checked = missing = inaccessible = skipped_reports = 0
     anchors = {}
     for document, path in enumerate(paths, 1):
         text = read_text(path)
+        source_in_reports = Path(os.path.abspath(path)).is_relative_to(ROOT / 'output/test-runs')
         for link in references(text):
             target = local_destination(link.destination)
             if target is None or (not target.path and target.fragment is None):
                 continue
-            checked += 1
             target_path = path.parent / target.path if target.path else path
+            # Repository documents do not depend on disposable reports. Explicit
+            # report-document inspections still check that document's own links.
+            if (not source_in_reports and
+                    Path(os.path.abspath(target_path)).is_relative_to(ROOT / 'output/test-runs')):
+                skipped_reports += 1
+                continue
+            checked += 1
             failure = None
             try:
                 target_path.stat()
@@ -529,6 +536,8 @@ def check_links(paths):
                 # Do not echo source prose, URLs, filenames or account data.
                 print(f'links: document={document} line={link.line} {failure}')
     suffix = f' inaccessible={inaccessible}' if inaccessible else ''
+    if skipped_reports:
+        suffix += f' skipped_reports={skipped_reports}'
     print(f'links: documents={len(paths)} checked={checked} missing={missing}{suffix}')
     if inaccessible:
         return 2

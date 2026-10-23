@@ -11,12 +11,11 @@
     "stage_paths": {"type": "array", "items": {"type": "string"}},
     "checks": {"type": "array", "items": {
       "type": "object", "additionalProperties": false,
-      "required": ["kind", "target", "result", "evidence"],
+      "required": ["kind", "target", "result"],
       "properties": {
         "kind": {"enum": ["installed", "review", "host", "reconciliation"]},
         "target": {"type": "string"},
-        "result": {"enum": ["passed", "failed", "not_run"]},
-        "evidence": {"type": "string"}
+        "result": {"enum": ["passed", "failed", "not_run"]}
       }
     }},
     "blocker": {"anyOf": [{"type": "null"}, {

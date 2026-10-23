@@ -382,9 +382,9 @@ It stops before starting a serial worker, attaching a console or releasing input
 The full scenario deliberately remains incomplete and rejected; no HAR09/HAR10,
 login/logout, product or customer acceptance is claimed. Host checks preserve
 those stage, private-seal, recipient, continuity and owned-shutdown guards.
-The check requires recorder/collector closure, terminal evidence capture and
-watched baseline/credential/staging/input/transport cleanup. Its evidence producer
-owns its session in the child process that seals the recording.
+The check requires recorder/collector closure and watched
+baseline/credential/staging/input/transport cleanup. Its child owns the ordinary
+result and command-log allocation; no proof archive is required.
 
 ### Fedora recorded serial preparation
 
@@ -399,8 +399,8 @@ tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_recorded_serial
 One actual recorded preparation independently verifies the 12 native files,
 harmless Riley runtime use, enforcing SELinux and exact native admissions/labels.
 Input refusals, no-write repeats, product absence and current attempt/boot readiness
-pass through the same shared helper. Recorder/collector closure, terminal capture
-and watched baseline/credential/staging/input/transport cleanup are required.
+pass through the same shared helper. Recorder/collector closure and watched
+baseline/credential/staging/input/transport cleanup are required.
 The check stops before worker or serial input and deliberately rejects the
 incomplete full scenario. It supplies no HAR09/HAR10, login/logout, product or
 customer acceptance. Unchanged Ubuntu preparation and shared safety proof remain

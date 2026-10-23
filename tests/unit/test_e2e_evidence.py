@@ -17,7 +17,7 @@ import inventory
 import private_artifacts
 
 EvidenceError = private_artifacts.EvidenceError
-from tests.support.e2e_evidence import SECRET, attempt, capture_owner, captured_bytes
+from tests.support.e2e_evidence import SECRET, attempt
 
 
 def test_valid_synthetic_attempt_passes_with_partial_scope_and_private_copies(attempt):
@@ -469,199 +469,17 @@ def test_full_selection_executes_each_variant_once_and_cannot_reuse_another_case
             contract.validate(records, collector)
 
 
-@pytest.mark.parametrize('outcome,cleanup', [('passed', 'complete'), ('failed', 'failed'),
-                                          ('interrupted', 'pending')])
-def test_closed_collectors_capture_exact_two_target_verdicts_and_survive_rotation(
-        capture_owner, outcome, cleanup):
-    root, store = capture_owner
-    results, originals = [], []
-    with store.session():
-        for target in ('ubuntu', 'fedora'):
-            collector = private_artifacts.PrivateCollector(run_id='attempt-' + target, secrets=[SECRET])
-            collector.start_capture(root, store=store)
-            media = collector.add('screen', 'screen', b'reviewed pixels ' + target.encode(), reviewed=True)
-            candidate = collector.save_report('candidate', {'outcome': 'passed', 'target': target})
-            candidate_bytes = candidate.read_bytes()
-            report = dict(outcome=outcome, case_id='E2E-001/synthetic',
-                first_failure=None if outcome == 'passed' else dict(category='cleanup', code='original'),
-                cleanup=dict(state=cleanup))
-            collector.close()
-            result = collector.capture_terminal(report, target=target, check=report['case_id'],
-                candidate='candidate.json', cleanup=cleanup,
-                inputs=dict(inventory_sha256='a' * 64, target=target),
-                commands=[dict(argv=['tools/run-tests', 'e2e', '--vm', target, '--id', '1'])])
-            assert report['outcome'] == outcome
-            terminal = result['records'][-1]
-            assert terminal['context']['target'] == target
-            assert terminal['context']['check'] == report['case_id']
-            assert terminal['status'] == outcome and terminal['cleanup']['state'] == cleanup
-            assert terminal['completeness'] == ('complete' if outcome == 'passed' else 'partial')
-            expected = captured_bytes(root, result)
-            payload = json.loads(next(value for path, value in expected.items()
-                if path.endswith('/terminal.json')))
-            assert payload['original_result'] == report
-            assert payload['candidate'] == dict(path=str(candidate),
-                sha256=hashlib.sha256(candidate_bytes).hexdigest())
-            assert expected[str(candidate)] == candidate_bytes
-            assert expected[str(collector.path / media['path'])] == b'reviewed pixels ' + target.encode()
-            results.append((result, expected))
-            originals.append(candidate)
-    for _ in range(5):
-        with store.session():
-            pass
-    assert all(not path.exists() for path in originals)
-    for result, expected in results:
-        assert captured_bytes(root, result) == expected
-
-
-@pytest.mark.parametrize('mutation', ['report', 'media', 'unregistered', 'directory'])
-def test_closed_capture_rechecks_original_collector_guards(capture_owner, mutation):
-    root, store = capture_owner
-    with store.session():
-        collector = private_artifacts.PrivateCollector(run_id='attempt-one', secrets=[])
-        collector.start_capture(root, store=store)
-        media = collector.add('screen', 'screen', b'reviewed', reviewed=True)
-        candidate = collector.save_report('candidate', {'outcome': 'passed'})
-        collector.close()
-        if mutation == 'report': candidate.write_bytes(b'changed')
-        elif mutation == 'media': (collector.path / media['path']).write_bytes(b'changed')
-        elif mutation == 'unregistered': (collector.path / 'unknown').write_bytes(b'unknown')
-        else:
-            original_directory = collector.path.with_name(collector.path.name + '-original')
-            collector.path.rename(original_directory)
-            collector.path.mkdir(mode=0o700)
-        try:
-            with pytest.raises(EvidenceError, match='artifact:'):
-                collector.capture_terminal(dict(outcome='passed'), target='ubuntu', check='case',
-                    candidate='candidate.json', cleanup='complete')
-        finally:
-            if mutation == 'directory':
-                # Restore the original registered allocation before its owner
-                # audits finalization; only this test's empty replacement goes.
-                collector.path.rmdir()
-                original_directory.rename(collector.path)
-
-
-def test_closed_capture_denied_publication_preserves_original_and_refuses_rotation(
-        capture_owner, monkeypatch):
-    from tools import evidence_bundle
-    root, store = capture_owner
-    denied = []
-    def refuse(*args, **kwargs):
-        denied.append(True)
-        raise PermissionError('synthetic denied helper')
-    with store.session():
-        collector = private_artifacts.PrivateCollector(run_id='attempt-one', secrets=[])
-        collector.start_capture(root, store=store)
-        path = collector.save_report('candidate', {'outcome': 'failed', 'first_failure': 'original'})
-        original = path.read_bytes()
-        collector.close()
-        monkeypatch.setattr(evidence_bundle, 'export', refuse)
-        with pytest.raises(PermissionError, match='denied helper'):
-            collector.capture_terminal(dict(outcome='failed', first_failure='original'),
-                target='ubuntu', check='case', candidate='candidate.json', cleanup='failed')
-    assert denied == [True] and path.read_bytes() == original
-    for _ in range(2):
-        with store.session():
-            pass
-    with pytest.raises(ValueError, match='acknowledgement|publication'):
-        with store.session():
-            pass
-    assert path.read_bytes() == original and denied == [True]
-
-
-@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
-def test_lost_collector_recovers_durable_exact_inventory_without_terminal_object(
-        capture_owner, target):
-    from tools import runner_evidence
-    root, store = capture_owner
-    with pytest.raises(KeyboardInterrupt, match='synthetic controller loss'):
-        with store.session() as original_run:
-            collector = private_artifacts.PrivateCollector(run_id='lost-' + target, secrets=[SECRET])
-            collector.start_capture(root, store=store, target=target,
-                check='E2E-001/synthetic', inputs=dict(inventory_sha256='a' * 64))
-            media = collector.add('screen', 'screen', b'reviewed required proof', reviewed=True)
-            partial = collector.save_report('before-cleanup', dict(outcome='failed',
-                first_failure=dict(category='product', code='original-failure'),
-                cleanup=dict(state='pending')))
-            directory = collector.path
-            original = {str(partial): partial.read_bytes(),
-                str(directory / media['path']): (directory / media['path']).read_bytes()}
-            # Lose the live collector without calling capture_terminal. Only
-            # the independently synced producer inventory can supply recovery.
-            collector.close()
-            del collector
-            raise KeyboardInterrupt('synthetic controller loss')
-    recovered, = runner_evidence.recover_pending(root, store)
-    terminal = recovered['records'][-1]
-    assert terminal['context']['run'] == original_run
-    assert terminal['context']['target'] == target
-    assert terminal['context']['check'] == 'E2E-001/synthetic'
-    assert terminal['status'] == 'interrupted'
-    assert terminal['completeness'] == 'partial'
-    assert terminal['cleanup']['state'] == 'pending'
-    assert all(consumer['role'] == 'historical_information' for consumer in recovered['consumers'])
-    expected = captured_bytes(root, recovered)
-    assert all(expected[path] == value for path, value in original.items())
-    assert runner_evidence.recover_pending(root, store) == []
-    for _ in range(5):
-        with store.session():
-            pass
-    assert not directory.exists()
-    assert captured_bytes(root, recovered) == expected
-
-
-@pytest.mark.parametrize('mutation', ['bytes', 'unregistered', 'identity'])
-def test_lost_collector_recovery_refuses_changed_or_unregistered_originals(
-        capture_owner, mutation):
-    from tools import runner_evidence
-    root, store = capture_owner
-    with store.session() as original_run:
-        collector = private_artifacts.PrivateCollector(run_id='lost-collector', secrets=[])
-        collector.start_capture(root, store=store, target='ubuntu', check='E2E-001/synthetic')
-        path = collector.save_report('before-cleanup', dict(outcome='failed', first_failure='original'))
-        original = path.read_bytes()
-        collector.close()
-        del collector
-    if mutation == 'bytes':
-        path.write_bytes(b'changed original proof')
-    elif mutation == 'unregistered':
-        unknown = path.parent / 'unregistered.json'
-        unknown.write_bytes(b'{"unreviewed":true}')
-        unknown.chmod(0o600)
-    else:
-        replacement = path.parent / 'replacement.json'
-        replacement.write_bytes(original)
-        replacement.chmod(0o600)
-        replacement.replace(path)
-    before = {entry.name: entry.read_bytes() for entry in path.parent.iterdir()}
-    with pytest.raises(ValueError, match='recovery (proof|identity|file)|unregistered'):
-        runner_evidence.recover_pending(root, store)
-    assert {entry.name: entry.read_bytes() for entry in path.parent.iterdir()} == before
-    state = json.loads((store.path / 'current.json').read_bytes())
-    assert state['run'] == original_run
-    assert state['captures'] and all(not item.get('acknowledgement') for item in state['captures'])
-
-
-def test_lost_nested_collectors_recover_each_exact_owner_inventory(capture_owner):
-    from tools import runner_evidence
-    root, store = capture_owner
-    originals = {}
-    with store.session():
-        for check in ('invocation', 'attempt', 'worker'):
-            collector = private_artifacts.PrivateCollector(run_id='lost-' + check, secrets=[])
-            collector.start_capture(root, store=store, target='ubuntu', check=check)
-            path = collector.save_report('partial', dict(outcome='failed', check=check))
-            originals[str(path)] = path.read_bytes()
-            collector.close()
-    recovered = runner_evidence.recover_pending(root, store)
-    assert {result['records'][-1]['context']['check'] for result in recovered} == {
-        'invocation', 'attempt', 'worker'}
-    for result in recovered:
-        terminal = result['records'][-1]
-        assert terminal['status'] == 'interrupted'
-        assert terminal['cleanup']['state'] == 'pending'
-        assert terminal['context']['target'] == 'ubuntu'
-        proof = captured_bytes(root, result)
-        assert any(proof.get(path) == value for path, value in originals.items())
-    assert runner_evidence.recover_pending(root, store) == []
+def test_current_collector_writes_reviewed_copies_without_archive_publication(tmp_path, monkeypatch):
+    from tools import evidence_bundle, runner_evidence
+    def no_archive(*_args, **_kwargs):
+        pytest.fail('current-attempt collection attempted archival proof publication')
+    monkeypatch.setattr(runner_evidence, 'ReportEvidence', no_archive)
+    monkeypatch.setattr(runner_evidence, 'recover_pending', no_archive)
+    monkeypatch.setattr(evidence_bundle, 'export', no_archive)
+    with private_artifacts.PrivateCollector(run_id='current-attempt', secrets=[SECRET], parent=tmp_path) as collector:
+        artifact = collector.add('screen', 'screen', b'reviewed pixels', reviewed=True)
+        report = collector.save_report('result', dict(outcome='passed'))
+        collector.verify([artifact])
+    assert collector._fd is None
+    assert (collector.path / artifact['path']).read_bytes() == b'reviewed pixels'
+    assert json.loads(report.read_text()) == dict(outcome='passed')

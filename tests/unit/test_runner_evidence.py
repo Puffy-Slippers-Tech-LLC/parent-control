@@ -22,7 +22,6 @@ import regression
 import runner_evidence as runner
 import test_retention as retention
 import test_storage as storage
-import vm_test_queue
 
 
 @pytest.fixture
@@ -111,6 +110,30 @@ def test_terminal_batch_verifies_one_pinned_archive_for_all_acknowledgements(env
         assert len(scopes) == len(verifications) == 1
         charges = json.loads((store.path / 'current.json').read_bytes())['captures']
         assert all(charge.get('acknowledgement') for charge in charges)
+
+
+def test_explicit_system_archive_still_requires_publication(environment, monkeypatch):
+    root, store = environment
+    with store.session():
+        evidence = runner.ReportEvidence(root, allocate(), workflow='system')
+        def denied(*args, **kwargs):
+            raise PermissionError('explicit publication unavailable')
+        with monkeypatch.context() as local:
+            local.setattr(bundle, 'export', denied)
+            with pytest.raises(PermissionError):
+                finish(evidence)
+        state = json.loads((store.path / 'current.json').read_bytes())
+        assert {item['intent']['record']['context']['task'] for item in state['captures']} == {
+            'archive-start', 'archive-terminal'}
+    for _ in range(2):
+        with store.session():
+            pass
+    before = (store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='capture'):
+        with store.session():
+            pytest.fail('explicit archive was treated as legacy automatic output')
+    assert (store.path / 'current.json').read_bytes() == before
+    assert evidence.directory.exists()
 
 
 def test_concurrent_report_publication_waits_and_preserves_both_custody_transfers(
@@ -276,11 +299,9 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
     (docs / 'Queue.md').write_text('Unchanged queue.\n')
     plan = SimpleNamespace(root=root, path='docs/Plan.md', queue='docs/Queue.md')
     with store.session():
-        producer = regression.Report(root)
-        producer.write('original document proof\n')
+        producer = runner.ReportEvidence(root, allocate())
         producer.command(command())
-        producer.close(defer_capture=True)
-        first = producer.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
+        first = finish(producer)
     record = next(item for item in first['records'] if item['context']['check'] == 'unit')
     member = next(item for item in record['members'] if item['role'] == 'result')
     consumer = next(item for item in first['consumers'] if item['expected_context'] == record['context'])
@@ -297,10 +318,9 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
     # Four real producer admissions retire the original; no acceptance rerun.
     for index in range(4):
         with store.session():
-            later = regression.Report(root)
+            later = runner.ReportEvidence(root, allocate())
             later.command(command())
-            later.close(defer_capture=True)
-            latest = later.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
+            latest = finish(later)
     assert not original.exists()
     new_record = next(item for item in latest['records'] if item['context']['check'] == 'unit')
     new_member = next(item for item in new_record['members'] if item['role'] == 'result')
@@ -311,7 +331,7 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
     with pytest.raises(ValueError, match='context mismatch'):
         proof.preview_document_links(plan, other_attempt)
     with store.session():
-        active = regression.Report(root)
+        active = runner.ReportEvidence(root, allocate())
         try:
             preview = proof.preview_document_links(plan, declaration)
             destination = preview['edits'][0]['after']
@@ -342,79 +362,7 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
             assert not original.exists() and not (root / 'sentinel').exists()
         finally:
             active.command(command(check='active-completed'))
-            active.close(defer_capture=True)
-            active.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
-
-
-def test_report_publications_stay_independent_and_survive_original_rotation_without_rerun(environment):
-    root, store = environment
-    invocations = 0
-    with store.session():
-        producer = regression.Report(root)
-        directory = producer.directory
-        report = directory / 'report.md'
-        producer.write('original report A\n')
-        log = closed_file(directory, 'command.log', b'exact complete command output\n')
-        producer.member(log, 'command')
-        invocations += 1
-        producer.command(command(log=str(log)))
-        categories = [regression.Category('unit', total=1, done=1, state='Passed',
-            nodeids=('test_module.py::exact_case',), resumed_nodeids=('prior-case',))]
-        producer.snapshot(categories)
-        producer.close(defer_capture=True)
-        first = producer.finalize(categories=categories, status='passed',
-                                  cleanup='complete', sources_sha256='f' * 64)
-        expected = {member['member_id']: Path(member['original_path']).read_bytes()
-                    for record in first['records'] for member in record['members']}
-        original_receipt = Path(first['receipt']['path'])
-        assert producer.finalize() == first
-    workflows = {first['records'][0]['context']['workflow']}
-    for index in range(5):
-        with store.session():
-            later = regression.Report(root)
-            later.command(command(check=f'later-{index}'))
-            later.close(defer_capture=True)
-            published = later.finalize(status='passed', cleanup='complete', sources_sha256='f' * 64)
-            workflow = published['records'][0]['context']['workflow']
-            assert workflow not in workflows
-            workflows.add(workflow)
-            verified = bundle.inspect(root, os.geteuid(), os.getegid(), published['receipt']['path'])
-            assert {record['record_id'] for record in verified['manifest']['records']} == {
-                record['record_id'] for record in published['records']}
-            assert verified['manifest']['inherited'] == []
-    assert not report.exists()
-    assert not report.parent.exists()
-    assert original_receipt.exists()
-    for record in first['records']:
-        assert record['context']['sources_sha256'] == 'f' * 64
-        for member in record['members']:
-            consumer = next(value for value in first['consumers']
-                            if value['expected_context'] == record['context'])
-            saved = runner.resolve_reference(root, exact_reference(first, member), consumer=consumer)
-            assert saved == expected[member['member_id']]
-            assert hashlib.sha256(saved).hexdigest() == member['sha256']
-    assert invocations == 1
-    report_record = first['records'][-1]
-    assert report_record['dependencies'] == sorted([
-        dict(record_id=record['record_id'], closure_sha256=record['closure_sha256'])
-        for record in first['records'][:-1]], key=lambda item: item['record_id'])
-
-
-def test_standalone_report_first_use_owns_capture_until_close(environment, monkeypatch):
-    root, _ = environment
-    monkeypatch.setattr(runner.regression_inputs, 'identity', lambda root: 'e' * 64)
-    producer = regression.Report(root)
-    producer.write('standalone first-use diagnostic\n')
-    producer.close()
-    assert producer.retention_session is None
-    assert retention.VARIABLE not in os.environ
-    record = producer.receipt['records'][-1]
-    assert record['status'] == 'diagnostic'
-    assert record['cleanup']['state'] == 'pending'
-    member = next(value for value in record['members']
-                  if value['original_path'] == str(producer.directory / 'report.md'))
-    assert b'standalone first-use' in runner.resolve_reference(
-        root, exact_reference(producer.receipt, member))
+            finish(active)
 
 
 @pytest.mark.parametrize('status,cleanup,exit_status', [
@@ -564,59 +512,6 @@ def test_exact_absence_requires_verified_publication_before_renewal(environment,
             for key in ('record_id', 'member_id', 'closure_sha256')}]
 
 
-@pytest.mark.parametrize('cleanup', ['complete', 'pending', 'failed'])
-def test_batch_join_verifies_real_worker_selection_attempt_and_cleanup(environment, monkeypatch, cleanup):
-    root, store = environment
-    invocation = dict(batch_run='a' * 32, attempt='b' * 32,
-                      target='fixture-guest', selection=[('system', ['--id', '3'])])
-    monkeypatch.setenv('ONPC_RUNNER_INVOCATION', json.dumps(invocation))
-    with store.session():
-        report = regression.Report(root)
-        report.command(command(target=invocation['target'], cleanup=cleanup))
-        categories = [regression.Category('system', total=1, done=1, state='Passed',
-                                         nodeids=('exact_case',))]
-        report.snapshot(categories)
-        report.close(defer_capture=True)
-        proof = report.finalize(categories=categories, status='passed', cleanup=cleanup,
-                                sources_sha256='f' * 64)
-    assert vm_test_queue.worker_cleanup(root, invocation['target'], 0, [proof], invocation) == cleanup
-    for changed in (dict(invocation, attempt='c' * 32),
-                    dict(invocation, selection=[['system', ['--id', '4']]])):
-        with pytest.raises(ValueError, match='invocation does not match'):
-            vm_test_queue.worker_cleanup(root, invocation['target'], 0, [proof], changed)
-    changed_proof = json.loads(json.dumps(proof))
-    changed_proof['references'][0]['closure_sha256'] = '0' * 64
-    with pytest.raises(ValueError, match='closure changed'):
-        vm_test_queue.worker_cleanup(root, invocation['target'], 0, [changed_proof], invocation)
-    assert vm_test_queue.worker_cleanup(root, invocation['target'], 0, [], invocation) == 'pending'
-
-
-@pytest.mark.parametrize('failure', ['malformed-handoff', 'resolver-refusal'])
-def test_batch_processing_failure_captures_real_partial_closure(environment, failure):
-    root, store = environment
-    vms = [SimpleNamespace(name='fixture-guest')]
-    selection = [['system', ['--id', '3']]]
-    with store.session():
-        with pytest.raises((ValueError, FileNotFoundError)):
-            with vm_test_queue.batch_evidence(root, store, vms, selection) as (directory, evidence):
-                log = closed_file(directory, 'fixture-guest.log', b'original worker output\n')
-                if failure == 'malformed-handoff':
-                    json.loads('{broken')
-                else:
-                    runner.resolve_reference(root, dict(schema=1, workflow='missing',
-                        record_id='a' * 64, member_id='b' * 64, closure_sha256='c' * 64))
-        proof = evidence._result
-        assert proof is not None
-        terminal = proof['records'][-1]
-        assert terminal['status'] == 'failed'
-        assert terminal['completeness'] == 'partial'
-        assert terminal['cleanup']['state'] == 'pending'
-        member = next(item for item in terminal['members'] if item['original_path'] == str(log))
-        assert runner.resolve_reference(root, exact_reference(proof, member)) == b'original worker output\n'
-        assert all(charge.get('acknowledgement') for charge in
-                   json.loads((store.path / 'current.json').read_bytes())['captures'])
-
-
 def test_finished_owner_cannot_acknowledge_startup_without_terminal_closure(environment):
     root, store = environment
     with store.session():
@@ -640,34 +535,7 @@ def test_finished_owner_cannot_acknowledge_startup_without_terminal_closure(envi
     assert original.read_bytes() == b'interrupted result bytes\n'
 
 
-def test_coverage_terminal_retains_declared_outputs_through_rotation(environment):
-    root, store = environment
-    with store.session():
-        report = regression.Report(root)
-        run = regression.Run(root, report, regression.Control(), host_only=True)
-        item = regression.Category('coverage', total=1, retry_category='coverage')
-        run.categories = [item]
-        run.dashboard.categories = run.categories
-        output = allocate()
-        payloads = {'coverage.xml': b'<coverage original="true"/>', '.coverage': b'original coverage database'}
-        for name, value in payloads.items():
-            closed_file(output, name, value)
-        execution = regression.Execution(run, item, command=['tools/run-tests', 'coverage'])
-        execution.output(('run-tests: output=' + str(output) + '\n').encode())
-        execution.finish(0)
-        report.close(defer_capture=True)
-        proof = report.finalize(categories=run.categories, status='passed', cleanup='complete')
-    for _ in range(5):
-        with store.session():
-            pass
-    assert not output.exists()
-    for name, value in payloads.items():
-        member = next(member for member in proof['records'][-1]['members']
-                      if member['original_path'] == str(output / name))
-        assert runner.resolve_reference(root, exact_reference(proof, member)) == value
-
-
-def test_capture_recovery_keeps_existing_interrupted_initial_checks_route(environment, monkeypatch):
+def test_interrupted_initial_checks_recovery_preserves_existing_report(environment, monkeypatch):
     root, store = environment
     with store.session():
         parent = storage.directory('reports', root=root)
@@ -952,36 +820,6 @@ def test_checkpoint_identity_is_rechecked_after_sealing_before_publication(envir
         assert original.read_bytes() == b'original immutable proof'
         state = json.loads((store.path / 'current.json').read_bytes())
         assert state['captures'] and all(not item.get('acknowledgement') for item in state['captures'])
-
-
-def test_recovery_without_terminal_declaration_preserves_closed_coverage_outputs(environment):
-    root, store = environment
-    with store.session():
-        report = regression.Report(root)
-        run = regression.Run(root, report, regression.Control(), host_only=True)
-        category = regression.Category('coverage', total=1, retry_category='coverage')
-        run.categories = [category]
-        run.dashboard.categories = run.categories
-        output = allocate()
-        originals = {'coverage.xml': b'<coverage original="yes"/>', '.coverage': b'exact database'}
-        for name, value in originals.items():
-            closed_file(output, name, value)
-        execution = regression.Execution(run, category, command=['tools/run-tests', 'coverage'])
-        execution.output(('run-tests: output=' + str(output) + '\n').encode())
-        execution.finish(0)
-        report.close(defer_capture=True)
-        directory = report.directory
-        del execution, report, run
-    recovered, = runner.recover_pending(root, store)
-    assert recovered['records'][-1]['status'] == 'interrupted'
-    for _ in range(5):
-        with store.session():
-            pass
-    assert not directory.exists() and not output.exists()
-    for name, value in originals.items():
-        member = next(member for member in recovered['records'][-1]['members']
-                      if member['original_path'] == str(output / name))
-        assert runner.resolve_reference(root, exact_reference(recovered, member)) == value
 
 
 @pytest.mark.parametrize('change', ['replaced', 'foreign'])

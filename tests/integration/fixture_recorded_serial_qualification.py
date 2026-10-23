@@ -129,7 +129,6 @@ def qualify_pinned(directory, assets, selection, manifest):
         and attempt['lease_phase'] == 'complete'
         and attempt['outcomes']['cleanup']['outcome'] == 'passed'
         and attempt['outcomes']['collection']['category'] == 'scenario-evidence-missing'
-        and attempt.get('evidence_capture') is not None
         and context.recorder._closed and context.recorder.collector._fd is None
         and record['cleanup']['lease_phase'] == 'complete'
         and all(value is True for key, value in record['cleanup'].items() if key != 'lease_phase')
@@ -142,7 +141,7 @@ def qualify_pinned(directory, assets, selection, manifest):
         deliberate_incomplete_scenario=True, scenario_acceptance_claimed=False,
         worker_started=False, serial_console_attached=False, serial_input_released=False,
         authentication_started=False, installation_started=False,
-        recorder_closed=True, collector_closed=True, terminal_capture_complete=True,
+        recorder_closed=True, collector_closed=True,
         owned_baseline_restoration_verified=True, outcome='passed')
     return result
 

@@ -8,20 +8,12 @@ from unittest.mock import Mock
 import pytest
 
 from tests.support.paths import ROOT
-from tests.support.e2e_evidence import capture_owner, captured_bytes
 import e2e_worker as runtime
 import system_runner
-REAL_START_CAPTURE = runtime.PrivateCollector.start_capture
-REAL_TERMINAL_CAPTURE = runtime.PrivateCollector.capture_terminal
 
 
 @pytest.fixture
 def attempt(tmp_path, monkeypatch):
-    # These ownership cases isolate worker cleanup. Retained capture histories
-    # restore the real methods explicitly under their own private owner below.
-    monkeypatch.setattr(runtime.PrivateCollector, 'start_capture', lambda *args, **kwargs: None)
-    monkeypatch.setattr(runtime.PrivateCollector, 'capture_terminal', lambda *args, **kwargs:
-        dict(receipt={}, references=[], consumers=[], records=[]))
     directory = tmp_path / 'work'
     directory.mkdir(mode=0o700)
     reports = tmp_path / 'reports'
@@ -486,59 +478,3 @@ def test_time03_active_guard_refuses_and_owns_cleanup(attempt, monkeypatch, faul
     attempt.server.close.assert_called_once()
     assert report(attempt)['outcome'] == 'failed'
     assert report(attempt)['worker_stopped'] and report(attempt)['callback_closed']
-
-
-@pytest.mark.parametrize('fault', [None, 'failure', 'interruption', 'cleanup'])
-def test_real_worker_collector_captures_original_diagnostic_terminal_and_rotates(
-        attempt, capture_owner, monkeypatch, fault):
-    from private_artifacts import PrivateCollector
-    root, store = capture_owner
-    def capture_from_private_checkout(collector, source_root, **options):
-        # Distribution staging keeps its real checkout/source identity. Only
-        # this fixture's retained evidence owner uses the private checkout.
-        assert source_root == ROOT
-        return REAL_START_CAPTURE(collector, root, **options)
-    monkeypatch.setattr(PrivateCollector, 'start_capture', capture_from_private_checkout)
-    monkeypatch.setattr(PrivateCollector, 'capture_terminal', REAL_TERMINAL_CAPTURE)
-    error = None
-    if fault == 'failure':
-        error = RuntimeError('private-canary')
-        attempt.worker.poll.side_effect = error
-    elif fault == 'interruption':
-        error = KeyboardInterrupt('private-canary')
-        attempt.worker.poll.side_effect = error
-    elif fault == 'cleanup':
-        error = RuntimeError('private-canary')
-        attempt.server.close.side_effect = error
-    with store.session():
-        collector = PrivateCollector(run_id='worker-' + 'a' * 32, secrets=[])
-        monkeypatch.setattr(runtime, 'PrivateCollector', lambda **kwargs: collector)
-        if error is not None:
-            with pytest.raises(type(error)) as caught:
-                attempt.run()
-            assert caught.value is error
-            original_result = caught.value.onpc_worker_result
-        else:
-            original_result = attempt.run()
-        captured = collector._captured['result']
-        record = captured['records'][-1]
-        assert record['status'] == 'diagnostic'
-        assert record['context']['check'] == 'worker'
-        assert record['cleanup']['state'] == ('failed' if fault == 'cleanup' else 'complete')
-        assert all(consumer['role'] == 'historical_information' for consumer in captured['consumers'])
-        expected = captured_bytes(root, captured)
-        terminal = json.loads(next(value for path, value in expected.items()
-            if path.endswith('/terminal.json')))
-        assert terminal['original_result']['outcome'] == original_result['outcome']
-        assert terminal['original_result']['first_failure'] == original_result['first_failure']
-        assert terminal['commands'] == [dict(argv=list(runtime.COMMAND), serial=False, maintenance=False)]
-        assert terminal['inputs']['expected_sources'] == attempt.options['expected_inputs']
-        assert terminal['inputs']['staged_sources']
-        assert 'private-canary' not in json.dumps(terminal)
-        assert not any(path.endswith('/vars.json') for path in expected)
-        candidate = collector.path / 'worker-result.json'
-    for _ in range(5):
-        with store.session():
-            pass
-    assert not candidate.exists()
-    assert captured_bytes(root, captured) == expected

@@ -37,9 +37,7 @@ def test_prepare_baseline_is_an_executable_project_tool():
     assert not (ROOT / 'tools/prepare-baseline').exists()
 
 
-@pytest.mark.parametrize('refusal', [None, 'finished, unmarked owner required',
-                                    'pending source belongs to a superseded run'])
-def test_host_build_recovers_pending_evidence_before_new_session(monkeypatch, tmp_path, refusal):
+def test_host_build_uses_current_session_without_archival_recovery(monkeypatch, tmp_path):
     # Private doubles exercise startup ordering without journals, VM work or builds.
     monkeypatch.setattr(sys, 'path', list(sys.path))
     host = load_module('onpc_test_prepare_vm_host', ROOT / 'tools/prepare_vm_host.py')
@@ -49,7 +47,6 @@ def test_host_build_recovers_pending_evidence_before_new_session(monkeypatch, tm
     store = None
     path = tmp_path / 'retention'
     control = object()
-    error = ValueError(refusal) if refusal else None
 
     def activity(root, *, named_vm):
         pytest.fail('private worker must not reacquire the public owner activity lock')
@@ -72,10 +69,7 @@ def test_host_build_recovers_pending_evidence_before_new_session(monkeypatch, tm
         yield control
 
     def recover(root, owner):
-        assert active and root == host.ROOT and owner is store
-        events.append('recovery')
-        if error is not None:
-            raise error
+        pytest.fail('package preparation must not depend on archival recovery')
 
     def build(root, package_format, owner, environment, *, label):
         assert active and root == host.ROOT and package_format == 'rpm'
@@ -94,12 +88,6 @@ def test_host_build_recovers_pending_evidence_before_new_session(monkeypatch, tm
     }.items():
         monkeypatch.setitem(sys.modules, name, module)
 
-    if error is not None:
-        with pytest.raises(ValueError) as caught:
-            host.build_worker('rpm', -1)
-        assert caught.value is error
-        assert events == ['recovery']
-    else:
-        assert host.build_worker('rpm', -1) == 23
-        assert events == ['recovery', 'session', 'control', 'build']
+    assert host.build_worker('rpm', -1) == 23
+    assert events == ['session', 'control', 'build']
     assert active

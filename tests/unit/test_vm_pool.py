@@ -252,7 +252,8 @@ def test_repair_worker_retains_reservation_and_finishes_queued_cancellation(
         finally:
             active.pop()
     monkeypatch.setattr(vm_pool, 'selected_reservation', reserve)
-    def execute(*args):
+    def execute(*args, reloading=False):
+        assert reloading is False
         assert active == [True]
         assert not (tmp_path / 'result.json').exists()
         return 7
@@ -291,8 +292,8 @@ def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkey
         assert process.stdin.closed and process.stdout.closed
 
 
-@pytest.mark.parametrize('cleanup_status', [0, 1])
-def test_vm_worker_recovers_under_its_reservation_before_testing(monkeypatch, cleanup_status):
+@pytest.mark.parametrize('cleanup_status, run_status', [(0, 0), (0, 1), (1, None)])
+def test_vm_worker_recovers_under_its_reservation_before_testing(monkeypatch, cleanup_status, run_status):
     from contextlib import contextmanager, nullcontext
     from unittest.mock import Mock
     import test_commands
@@ -316,8 +317,8 @@ def test_vm_worker_recovers_under_its_reservation_before_testing(monkeypatch, cl
     monkeypatch.setattr(vm_test_queue.test_activity, 'activity', lambda *a, **k: nullcontext())
     monkeypatch.setattr(test_recovery, 'cleanup', lambda root: events.append('recovery') or cleanup_status)
     monkeypatch.setattr(test_checkpoint, 'Checkpoint', Mock())
-    monkeypatch.setattr(test_commands, '_main', lambda *a, **k: events.append('test') or 0)
+    monkeypatch.setattr(test_commands, '_main', lambda *a, **k: events.append('test') or run_status)
     # worker replaces stdout with its frame adapter; restore it after the call.
     monkeypatch.setattr(sys, 'stdout', sys.stdout)
-    assert vm_test_queue.worker(['--execute', selected().name, 'system']) == cleanup_status
+    assert vm_test_queue.worker(['--execute', selected().name, 'system']) == (cleanup_status or run_status)
     assert events == ['checkout', 'recovery', *(['test'] if not cleanup_status else []), 'checkin']

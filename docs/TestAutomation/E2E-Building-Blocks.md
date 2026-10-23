@@ -2462,8 +2462,7 @@ complete scenario is not a prerequisite of its own block. Ready primitives above
 refer to existing
 [public-UI regressions](../../tests/unit/test_accessible_e2e_ui.py),
 [real adapter checks](../../tests/ui/test_e2e_accessible_adapter.py),
-[actual pointer](../../tests/unit/test_e2e_pointer_helper.py) and
-[worker checks](../../tests/unit/test_parent_access_worker.py), with existing
+[actual pointer](../../tests/unit/test_e2e_pointer_helper.py), with existing
 case results in retained runner artifacts.
 They do not claim qualification for future kiosk, lock, terminal or game
 selectors. Add those with their first consuming block. A later extension of an
@@ -3819,9 +3818,8 @@ The shared controller regressions use a second synthetic plan to check reuse,
 the real durable recorder to check phase timing, and injected checkpoint/worker
 failures to prove no further input is acknowledged:
 [controller tests](../../tests/unit/test_installed_journey_cleanup_safety.py).
-[Pointer tests](../../tests/unit/test_e2e_pointer_helper.py) and
-[Parent worker tests](../../tests/unit/test_parent_about_worker.py) execute the
-real Perl modules. Synthetic fixtures never count as customer coverage.
+[Pointer tests](../../tests/unit/test_e2e_pointer_helper.py) exercise their shared
+input boundary. Synthetic fixtures never count as customer coverage.
 
 <a id="lessons-to-preserve"></a>
 

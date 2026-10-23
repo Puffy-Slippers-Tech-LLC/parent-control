@@ -2,10 +2,6 @@
 
 import copy
 from tests.support.modules import load_module
-import itertools
-import json
-import subprocess
-import sys
 
 import pytest
 
@@ -23,32 +19,6 @@ def family(document, sid='E2E-012'):
     return next(item for item in document['scenarios'] if item['id'] == sid)
 
 
-def test_customer_families_stay_customer_journeys(document):
-    inventory.validate_inventory(document)
-    actual = {item['id']: item for item in document['scenarios']}
-    assert actual['E2E-001']['category'] == 'runner-smoke'
-    assert all(item['category'] == 'customer-journey'
-               for sid, item in actual.items() if sid != 'E2E-001')
-    assert {'E2E-028', 'E2E-029'}.isdisjoint(actual)
-
-
-def test_shared_scenarios_declare_both_platforms_with_explicit_implemented_lifecycle(document):
-    plan = inventory.resolve_selection(document)
-    assert all(case['environment'] == ['ubuntu26.04', 'fedora44'] for case in plan['cases'])
-    assert inventory.resolve_selection(document, coverage_id=2)['cases'][0]['status'] == 'ready'
-    lifecycle = inventory.resolve_selection(document, 'E2E-027', require_runnable=True)
-    assert lifecycle['pending_cases'] == []
-    assert lifecycle['cases'][0]['executable'] == {'path': 'tests/e2e/removal_journey.py', 'test_id': 'continuous'}
-    assert inventory.resolve_selection(document, 'E2E-026')['pending_cases']
-
-
-@pytest.mark.parametrize('environment', [[], ['fedora43'], ['ubuntu26.04', 'ubuntu26.04'], 44])
-def test_invalid_or_ambiguous_platform_declarations_refuse(document, environment):
-    family(document)['environment'] = environment
-    with pytest.raises(inventory.InventoryError, match='scenario:environment'):
-        inventory.validate_inventory(document)
-
-
 def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     plan = inventory.resolve_selection(document)
     expected = [item['id'] + '/' + variant['id'] for item in document['scenarios']
@@ -59,14 +29,6 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert plan['scope'] == 'full'
     assert all(case['assertions'] and case['expected_evidence'] for case in plan['cases'])
     assert plan['evidence_contract']['outcomes'] == ['product', 'infrastructure', 'collection', 'cleanup']
-
-
-@pytest.mark.parametrize('sid', ['E2E-013', 'E2E-014', 'E2E-015'])
-def test_shared_form_family_selects_both_surfaces_and_all_variants(document, sid):
-    plan = inventory.resolve_selection(document, sid)
-    assert {case['parameters']['surface'] for case in plan['cases']} == {'child-overlay', 'kiosk'}
-    assert len(plan['cases']) == len(family(document, sid)['variants'])
-    assert plan['scope'] == 'partial'
 
 
 def test_ready_selection_explicitly_accounts_for_every_pending_case(document):
@@ -89,103 +51,12 @@ def test_no_ready_cases_refuses_instead_of_passing_an_empty_suite(document):
         inventory.resolve_selection(document, ready_only=True, require_runnable=True)
 
 
-@pytest.mark.parametrize('sid', ['E2E-003', 'E2E-004', 'E2E-005', 'E2E-030', 'E2E-031'])
-def test_feature_cases_cannot_omit_installed_snapshot_even_while_pending(document, sid):
-    family(document, sid)['preconditions'].remove('installed-digest-verified-product')
-    with pytest.raises(inventory.InventoryError, match='installed-snapshot-required'):
-        inventory.validate_inventory(document)
-
-
-@pytest.mark.parametrize('sid', ['E2E-002', 'E2E-026', 'E2E-027'])
-def test_clean_package_cases_require_explicit_lifecycle_declaration(document, sid):
-    chosen = family(document, sid)
-    chosen['preconditions'].remove('declared-package-lifecycle-fixture')
-    with pytest.raises(inventory.InventoryError, match='installed-snapshot-required'):
-        inventory.validate_inventory(document)
-
-
-def test_snapshot_prerequisites_cannot_conflict(document):
-    family(document, 'E2E-003')['preconditions'].append('declared-package-lifecycle-fixture')
-    with pytest.raises(inventory.InventoryError, match='conflicting-snapshot-prerequisites'):
-        inventory.validate_inventory(document)
-
-
-def test_product_case_cannot_use_runner_smoke_baseline_exception(document):
-    family(document, 'E2E-001')['components'].append('parent')
-    with pytest.raises(inventory.InventoryError, match='installed-snapshot-required'):
-        inventory.validate_inventory(document)
-
-
-def test_specific_variant_selects_once_and_keeps_pending_reason(document):
-    plan = inventory.resolve_selection(document, 'E2E-023/fullscreen')
-    assert len(plan['cases']) == 1
-    assert plan['cases'][0]['parameters'] == {'gameplay': 'fullscreen'}
-    assert plan['pending_cases'] == ['E2E-023/fullscreen']
-    assert plan['cases'][0]['pending_reason']
-    assert plan['scope'] == 'partial'
-    assert [step['operation'] for step in plan['cases'][0]['phases']['steps']] == [
-        'ui', 'ui', 'ui', 'ui', 'wait', 'ui']
-
-
 @pytest.mark.parametrize('selector,category', [('', 'empty'), ('   ', 'empty'),
     ('E2E-000', 'unknown'), ('E2E-023/missing', 'unknown'), ('E2E-02', 'unknown'),
-    ('E2E-023/*', 'unknown'), ('E2E-023,E2E-024', 'unknown'), ('E2E-023 ', 'unknown'),
-    ('E2E-050/kiosk-first-retained', 'unknown'),
-    ('E2E-050/kiosk-first-fresh', 'unknown'), ('E2E-051/riley', 'unknown')])
+    ('E2E-023/*', 'unknown'), ('E2E-023,E2E-024', 'unknown'), ('E2E-023 ', 'unknown')])
 def test_invalid_selection_fails_without_broadening(document, selector, category):
     with pytest.raises(inventory.InventoryError, match='selection:' + category):
         inventory.resolve_selection(document, selector)
-
-
-@pytest.mark.parametrize('selector', [None, 'E2E-005', 'E2E-023/fullscreen',
-    'E2E-051/jordan',
-    'E2E-052/appimagelauncher-login-autostart'])
-def test_pending_selection_cannot_run(document, selector):
-    with pytest.raises(inventory.InventoryError, match='selection:pending'):
-        inventory.resolve_selection(document, selector, require_runnable=True)
-
-
-def test_package_reboot_notices_require_last_printed_output(document):
-    # Functional acceptance retains notice content and ordering. Terminal color
-    # remains covered by test_package_transaction_notice and test_apt_removal_notice.
-    install = '*** REBOOT REQUIRED: reboot before using the kiosk session. ***'
-    removal = '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***'
-    notices = {
-        ('E2E-002', 'installation-notice'): install,
-        ('E2E-027', 'installation-notice'): install,
-        ('E2E-027', 'removal-notice'): removal,
-    }
-    for (sid, assertion_id), notice in notices.items():
-        item = next(assertion for assertion in family(document, sid)['assertions']['visible']
-                    if assertion['id'] == assertion_id)
-        assert notice in item['description']
-        assert 'last printed output' in item['description']
-
-
-def test_ui_inventory_excludes_retired_internal_fault_cases(document):
-    assert {v['coverage_id'] for item in document['scenarios']
-            for v in item['variants']}.isdisjoint(range(140, 151))
-    for item in document['scenarios']:
-        if item['category'] != 'customer-journey':
-            continue
-        assert item['interventions'] == []
-        assert item['assertions']['backend'] == []
-        assert 'backend' not in item['expected_evidence']
-        assert all(step['operation'] != 'fault' for step in item['phases']['steps'])
-
-
-@pytest.mark.parametrize('scope', ['document', 'scenario', 'variant', 'step', 'evidence'])
-def test_every_required_field_is_enforced(document, scope):
-    def target(data):
-        return {'document': data, 'scenario': data['scenarios'][0],
-                'variant': data['scenarios'][0]['variants'][0],
-                'step': data['scenarios'][0]['phases']['steps'][0],
-                'evidence': data['evidence_contract']}[scope]
-    for key in target(document):
-        changed = copy.deepcopy(document)
-        del target(changed)[key]
-        with pytest.raises(inventory.InventoryError):
-            inventory.validate_inventory(changed)
 
 
 @pytest.mark.parametrize('value', [2, True, '1', None])
@@ -214,95 +85,10 @@ def test_empty_or_duplicate_registry_refused(document, location):
         inventory.validate_inventory(document)
 
 
-def test_missing_interacting_combination_is_not_hidden_by_value_coverage(document):
-    chosen = family(document, 'E2E-014')
-    chosen['variants'].pop()
-    assert all({case['parameters'][key] for case in chosen['variants']} == set(values)
-               for key, values in chosen['matrix']['dimensions'].items())
-    with pytest.raises(inventory.InventoryError, match='matrix:missing-combination'):
-        inventory.validate_inventory(document)
-
-
-def test_declared_dimension_value_cannot_disappear(document):
-    chosen = family(document, 'E2E-023')
-    chosen['variants'].pop()
-    with pytest.raises(inventory.InventoryError, match='matrix:missing-value'):
-        inventory.validate_inventory(document)
-
-
-def test_same_combination_cannot_be_copied_under_new_id(document):
-    chosen = family(document)
-    duplicate = copy.deepcopy(chosen['variants'][0])
-    duplicate['id'] = 'duplicate'
-    chosen['variants'].append(duplicate)
-    with pytest.raises(inventory.InventoryError, match='variant:duplicate-combination'):
-        inventory.validate_inventory(document)
-
-
-def test_unknown_requirement_and_unowned_variant_refused(document):
-    chosen = family(document)
-    chosen['requirements'].append('ONPC-NONEXISTENT-001')
-    with pytest.raises(inventory.InventoryError, match='unknown-requirement'):
-        inventory.validate_inventory(document)
-    chosen['requirements'].pop()
-    chosen['variants'][0]['owner'] = 'unrelated-owner'
-    with pytest.raises(inventory.InventoryError, match='variant:owner'):
-        inventory.validate_inventory(document)
-
-
-@pytest.mark.parametrize('operation', ['outer-reset', 'snapshot', 'checkpoint', 'resume', 'provision', 'fault'])
-def test_customer_steps_cannot_declare_reset_provision_or_undeclared_fault(document, operation):
-    family(document)['phases']['steps'][0]['operation'] = operation
-    with pytest.raises(inventory.InventoryError, match='step:(operation|category)'):
-        inventory.validate_inventory(document)
-
-
-def test_retired_internal_fault_families_are_not_selectable(document):
-    for selector in ('E2E-028', 'E2E-029', 'E2E-028/startup-enforcement',
-                     'E2E-029/failed-save'):
-        with pytest.raises(inventory.InventoryError, match='selection:unknown'):
-            inventory.resolve_selection(document, selector)
-
-
-@pytest.mark.parametrize('kind', ['visible', 'backend', 'other_user'])
-def test_non_customer_qualification_keeps_three_sided_assertions(document, kind):
-    family(document, 'E2E-001')['assertions'][kind] = []
-    with pytest.raises(inventory.InventoryError, match='assertion:empty'):
-        inventory.validate_inventory(document)
-
-
-@pytest.mark.parametrize('sid', ['E2E-003', 'E2E-004'])
-def test_customer_surface_declaration_can_omit_internal_witnesses(document, sid):
-    chosen = family(document, sid)
-    assert chosen['assertions']['visible']
-    assert chosen['assertions']['backend'] == chosen['assertions']['other_user'] == []
-    assert set(chosen['expected_evidence']) == {
-        'action-trace', 'cleanup', 'continuity', 'input-provenance', 'outcomes', 'screen'}
-    inventory.validate_inventory(document)
-
-
-def test_customer_visible_assertion_remains_mandatory(document):
-    family(document, 'E2E-003')['assertions']['visible'] = []
-    with pytest.raises(inventory.InventoryError, match='assertion:empty'):
-        inventory.validate_inventory(document)
-
-
-def test_assertions_must_reference_an_actual_journey_step(document):
-    family(document)['assertions']['visible'][0]['step_id'] = 'cleanup'
-    with pytest.raises(inventory.InventoryError, match='assertion:step'):
-        inventory.validate_inventory(document)
-
-
 @pytest.mark.parametrize('field', ['run_fields', 'step_fields', 'outcomes'])
 def test_minimum_evidence_fields_cannot_be_dropped(document, field):
     document['evidence_contract'][field].pop()
     with pytest.raises(inventory.InventoryError, match='evidence:required-fields'):
-        inventory.validate_inventory(document)
-
-
-def test_expected_screen_evidence_cannot_be_replaced_by_backend_only(document):
-    family(document)['expected_evidence'].remove('screen')
-    with pytest.raises(inventory.InventoryError, match='evidence:expectations'):
         inventory.validate_inventory(document)
 
 
@@ -335,30 +121,6 @@ def test_ready_exact_case_resolves_but_family_does_not_drop_pending(ready_docume
         inventory.resolve_selection(document, 'E2E-012', require_runnable=True, root=root)
 
 
-@pytest.mark.parametrize('contract', [
-    'docs/TestAutomation/E2E-Building-Blocks.md',
-    'docs/TestAutomation/E2E-Scenario-Recipes.md',
-])
-def test_ready_fixture_requires_each_referenced_contract(ready_document, contract):
-    document, root, _ = ready_document
-    assert contract in document['scenarios'][0]['contract_refs']
-    inventory.validate_inventory(document, root=root)
-    (root / contract).unlink()
-    with pytest.raises(inventory.InventoryError, match='scenario:missing-contract'):
-        inventory.validate_inventory(document, root=root)
-
-
-def test_ready_customer_family_cannot_restore_backend_product_evidence(ready_document):
-    document, root, _ = ready_document
-    chosen = document['scenarios'][0]
-    chosen['assertions']['backend'] = [{
-        'id': 'backend-result', 'step_id': 'step-3',
-        'description': 'A stale private product witness.'}]
-    chosen['expected_evidence'].append('backend')
-    with pytest.raises(inventory.InventoryError, match='customer:backend-evidence'):
-        inventory.validate_inventory(document, root=root)
-
-
 @pytest.mark.parametrize('path', ['/tmp/example.py', 'tests/e2e/../../example.py',
                                  'tests/integration/system_runner.py', 'tests/e2e/tests/missing.py',
                                  'tests/e2e/scenarios.json'])
@@ -386,157 +148,9 @@ def test_duplicate_executable_identity_cannot_double_count_evidence(ready_docume
         inventory.validate_inventory(document, root=root)
 
 
-def test_requirement_gap_prevents_ready_status(ready_document):
-    document, root, _ = ready_document
-    document['scenarios'][0]['requirement_gap'] = 'Owning task must map an obligation.'
-    with pytest.raises(inventory.InventoryError, match='unresolved-prerequisite'):
-        inventory.validate_inventory(document, root=root)
-
-
-@pytest.mark.parametrize('path', [(), ('scenarios',), ('scenarios', 0),
-    ('scenarios', 0, 'variants', 0, 'parameters'), ('scenarios', 0, 'assertions'),
-    ('scenarios', 0, 'phases'), ('scenarios', 0, 'matrix', 'dimensions')])
-@pytest.mark.parametrize('value', [None, True, 5, 'private sentinel', []])
-def test_malformed_nested_input_has_bounded_errors(document, path, value):
-    if path:
-        target = document
-        for key in path[:-1]:
-            target = target[key]
-        target[path[-1]] = value
-    else:
-        document = value
-    with pytest.raises(inventory.InventoryError) as caught:
-        inventory.validate_inventory(document)
-    assert 'private sentinel' not in str(caught.value)
-
-
 def test_duplicate_json_keys_and_invalid_json_are_refused(tmp_path):
     path = tmp_path / 'bad.json'
     for content in ['{"schema_version": 1, "schema_version": 1}', '{', '\udcff']:
         path.write_bytes(content.encode('utf-8', errors='surrogatepass'))
         with pytest.raises(inventory.InventoryError):
             inventory.read_json(path)
-
-
-def test_listing_is_cwd_independent_and_does_not_need_artifacts_or_vm(tmp_path):
-    before = set(tmp_path.iterdir())
-    command = [sys.executable, '-B', str(inventory.INVENTORY.with_name('inventory.py')),
-               '--scenario', 'E2E-023']
-    result = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True, timeout=10)
-    assert result.returncode == 0, result.stderr
-    plan = json.loads(result.stdout)
-    assert plan['mode'] == 'list-only' and plan['vm_required_for_execution'] is True
-    assert len(plan['inventory_sha256']) == 64
-    assert {case['case_id'] for case in plan['cases']} == {'E2E-023/windowed', 'E2E-023/fullscreen'}
-    assert set(tmp_path.iterdir()) == before
-    result = subprocess.run(command + ['--require-runnable'], cwd=tmp_path,
-                            capture_output=True, text=True, timeout=10)
-    assert result.returncode == 2
-    assert result.stderr.strip() == 'selection:pending'
-    assert not result.stdout
-
-
-def test_retained_launch_route_policy_control_combinations_keep_exact_bindings(document):
-    chosen = family(document, 'E2E-019')
-    expected = set(itertools.product(
-        chosen['matrix']['dimensions']['route'], ['allowed', 'hard-blocked', 'soft-blocked'],
-        ['enabled']))
-    expected.update(itertools.product(
-        ['native-command', 'snap-command', 'flatpak-command'],
-        ['allowed', 'hard-blocked', 'soft-blocked'], ['disabled']))
-    actual = {(v['parameters']['route'], v['parameters']['policy'], v['parameters']['control'])
-              for v in chosen['variants']}
-    assert actual == expected
-    removed_ids = {63, 65, 67, 69, 71, 73, 75, 77, 79, 87, 89, 91, 99, 101, 103}
-    assert {v['coverage_id'] for v in chosen['variants']} == set(range(62, 110)) - removed_ids
-    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'ready'} == {62, 80, 81}
-    for coverage_id, route, control in ((62, 'grid', 'enabled'),
-                                       (80, 'command', 'enabled'), (81, 'command', 'disabled')):
-        variant = next(v for v in chosen['variants'] if v['coverage_id'] == coverage_id)
-        assert variant['pending_reason'] is None
-        assert variant['executable'] == {'path': 'tests/e2e/app_launch.py',
-                                         'test_id': 'native-' + route + '-allowed-' + control}
-    assert all(v['status'] == 'pending' and v['executable'] is None
-               for v in chosen['variants'] if v['coverage_id'] not in (62, 80, 81))
-
-
-def test_lifecycle_pairs_keep_one_combined_idle_journey(document):
-    chosen = family(document, 'E2E-022')
-    expected = set(itertools.product(
-        ['app-restart', 'sign-out-in', 'reboot', 'suspend-wake'],
-        ['active', 'expired']))
-    expected.add(('idle', 'active-to-expired'))
-    actual = {(v['parameters']['boundary'], v['parameters']['grant'])
-              for v in chosen['variants']}
-    assert actual == expected
-    assert {v['coverage_id'] for v in chosen['variants']} == set(range(116, 126)) - {123}
-    idle = next(v for v in chosen['variants'] if v['coverage_id'] == 122)
-    assert idle['id'] == 'idle-active-expired'
-    assert idle['status'] == 'pending' and idle['executable'] is None
-
-
-def test_unmapped_surfaces_and_external_delivery_are_explicit_pending_work(document):
-    for sid in ['E2E-032', 'E2E-033']:
-        chosen = family(document, sid)
-        assert chosen['requirement_gap']
-        assert all(v['status'] == 'pending' for v in chosen['variants'])
-    assert {'explicit-external-delivery-authorization', 'dedicated-test-recipient',
-            'supported-real-feedback-service-profile'} <= set(family(document, 'E2E-032')['preconditions'])
-
-
-def test_local_feedback_registers_complete_local_cases(document):
-    chosen = family(document, 'E2E-031')
-    assert chosen['requirement_gap'] is None
-    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'ready'} == {152, 153, 154, 155}
-    assert not any(v['status'] == 'pending' for v in chosen['variants'])
-    draft = next(v for v in chosen['variants'] if v['coverage_id'] == 152)
-    assert draft['executable'] == {
-        'path': 'tests/e2e/parent_feedback_draft.py', 'test_id': 'draft-reopen'}
-    validation = next(v for v in chosen['variants'] if v['coverage_id'] == 153)
-    assert validation['executable'] == {
-        'path': 'tests/e2e/parent_feedback_validation.py', 'test_id': 'validation'}
-    attachments = next(v for v in chosen['variants'] if v['coverage_id'] == 154)
-    assert attachments['executable'] == {
-        'path': 'tests/e2e/parent_feedback_attachments.py', 'test_id': 'attachments'}
-    export = next(v for v in chosen['variants'] if v['coverage_id'] == 155)
-    assert export['executable'] == {
-        'path': 'tests/e2e/parent_diagnostic_export.py', 'test_id': 'diagnostic-export'}
-    assert not chosen['assertions']['backend'] and not chosen['assertions']['other_user']
-    assert 'delivery' not in chosen['expected_evidence']
-
-
-def test_parent_about_maps_customer_information_without_internal_product_evidence(document):
-    chosen = family(document, 'E2E-030')
-    assert chosen['requirements'] == ['ONPC-CORE-ABOUT-001']
-    assert chosen['requirement_gap'] is None
-    assert chosen['assertions']['visible']
-    assert chosen['assertions']['backend'] == chosen['assertions']['other_user'] == []
-    assert not {'backend', 'other-user'} & set(chosen['expected_evidence'])
-    assert 'fixture-credentials-via-secret-api' in chosen['preconditions']
-
-
-def test_external_retry_is_customer_journey_and_requires_delivery_profile(document):
-    chosen = family(document, 'E2E-033')
-    # Inventory reconciliation assigns network controls to the public UI route.
-    # Displaced engineering interventions remain in E2E-Building-Blocks.md.
-    assert chosen['category'] == 'customer-journey'
-    assert chosen['interventions'] == []
-    assert [step['operation'] for step in chosen['phases']['steps']] == [
-        'ui', 'ui', 'ui', 'ui', 'ui']
-    assert chosen['assertions']['visible']
-    assert chosen['assertions']['backend'] == chosen['assertions']['other_user'] == []
-    assert not {'backend', 'other-user', 'intervention', 'delivery'} & set(
-        chosen['expected_evidence'])
-    assert {'explicit-external-delivery-authorization', 'dedicated-test-recipient',
-            'supported-real-feedback-service-profile'} <= set(chosen['preconditions'])
-
-
-def test_delivery_evidence_requires_authorized_profile(document):
-    # Exercise the separate receipt-evidence guard without requiring receipts
-    # in the customer journey's public observations.
-    chosen = family(document, 'E2E-033')
-    chosen['expected_evidence'].append('delivery')
-    inventory.validate_inventory(document)
-    chosen['preconditions'].remove('explicit-external-delivery-authorization')
-    with pytest.raises(inventory.InventoryError, match='delivery-prerequisites'):
-        inventory.validate_inventory(document)

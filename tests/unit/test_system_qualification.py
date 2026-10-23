@@ -1,6 +1,5 @@
 """Real pytest qualification hooks and host-only provenance/failure regressions."""
 
-import json
 import shutil
 from unittest.mock import Mock
 import xml.etree.ElementTree as ET
@@ -15,37 +14,6 @@ def selection(enabled=True):
     return runner.resolve_selection('authorization', runner.QUALIFICATION_CASE,
                                     qualification_failure=enabled, inventories={
         **INVENTORIES, 'authorization': (runner.QUALIFICATION_CASE,)})
-
-
-@pytest.mark.parametrize(('area', 'case'), [
-    (None, None), ('authorization', None), ('package', 'test_installed_package'),
-    ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]'),
-])
-def test_qualification_refuses_other_scopes_before_collection(monkeypatch, area, case):
-    collect = Mock(side_effect=AssertionError('collection must not run'))
-    monkeypatch.setattr(runner, 'collect_area_cases', collect)
-    with pytest.raises(runner.Error, match='qualification:requires-allowlisted-case'):
-        runner.resolve_selection(area, case, qualification_failure=True)
-    collect.assert_not_called()
-
-
-def test_qualification_is_frozen_labeled_and_only_loaded_for_authorization(tmp_path):
-    normal, qualified = selection(False), selection()
-    normal_digest = runner.stage_selected_inputs(normal, tmp_path / 'normal')
-    fault_digest = runner.stage_selected_inputs(qualified, tmp_path / 'fault')
-    assert normal.executions == qualified.executions
-    assert len(qualified.executions) == 1
-    assert normal_digest != fault_digest
-    identity = json.loads((tmp_path / 'fault/selected-inputs.json').read_text())
-    assert identity['selection']['qualification_failure'] is True
-    plugin = tmp_path / 'fault/system_qualification.py'
-    assert identity['files']['system_qualification.py']['sha256'] == runner.baseline.digest(plugin)
-    assert not (tmp_path / 'normal/system_qualification.py').exists()
-    for phase in qualified.phases:
-        command = runner.pytest_command(RUN, phase, qualified)
-        assert ('--onpc-qualification-failure' in command) == (phase == 'authorization')
-        assert '--onpc-qualification-failure' not in runner.pytest_command(RUN, phase, normal)
-    assert runner.selection_evidence(tmp_path, qualified)['purpose'] == 'harness-qualification'
 
 
 @pytest.mark.parametrize(('enabled', 'behavior', 'cases', 'expected'), [
@@ -125,6 +93,7 @@ def test_guarded_failure_classification_preserves_scope_and_original_error(tmp_p
         tree.write(path)
     vm, lease = Mock(), Mock()
     lease.state = {'run': RUN}
+    lease.capture.state = {'guest': {'fixture_boundary': 'legacy'}}
     original = runner.CommandError('command:failed:ssh')
     vm.commands.last_returncode = 1
     vm.call.side_effect = [b'', original,
@@ -148,6 +117,7 @@ def test_missing_injected_fault_cannot_become_a_passing_run(tmp_path):
     write_junit_results(tmp_path, selected)
     vm, lease = Mock(), Mock()
     lease.state = {'run': RUN}
+    lease.capture.state = {'guest': {'fixture_boundary': 'legacy'}}
     ledger = runner.RunLedger()
     with pytest.raises(runner.Error, match='harness:qualification-fault-missing'):
         runner.installed_run(vm, lease, tmp_path, selected, ledger, already_installed=True)

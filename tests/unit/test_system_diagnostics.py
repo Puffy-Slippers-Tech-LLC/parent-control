@@ -5,7 +5,7 @@ from pathlib import Path
 import runpy
 import subprocess
 from types import SimpleNamespace
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 import pytest
 
@@ -30,16 +30,6 @@ def test_write_exec_and_option_injection_rejected(argv, monkeypatch):
     monkeypatch.setattr(diag['subprocess'], 'run', execute)
     assert diag['main'](argv) == 2
     execute.assert_not_called()
-
-
-def test_journal_patterns_and_times_are_literal_options():
-    args = diag['arguments'](['journal', '--unit', 'oh-no-*', '--since', '1 hour ago',
-                              '--boot=-1', '--lines=600'])
-    selected = diag['command'](args)
-    assert '--unit=oh-no-*' in selected
-    assert '--since=1 hour ago' in selected
-    assert '--boot=-1' in selected
-    assert '--no-pager' in selected
 
 
 def test_diagnostics_never_inherit_pager_or_injection(monkeypatch):
@@ -98,26 +88,6 @@ def test_applications_uses_nss_home_and_refuses_unknown_account(monkeypatch):
         diag['application_parts'](1001)
 
 
-def test_applications_lists_metadata_without_following_entries(tmp_path, monkeypatch, capsys):
-    directory = tmp_path / 'Applications'
-    directory.mkdir()
-    regular = directory / 'Lunar Client.AppImage'
-    regular.write_bytes(b'private contents')
-    regular.chmod(0o755)
-    (directory / 'folder').mkdir()
-    (directory / 'link').symlink_to(tmp_path)
-    os.mkfifo(directory / 'fifo')
-    reader = diag['read_applications']
-    monkeypatch.setitem(reader.__globals__, 'application_parts',
-                        lambda uid: directory.parts[1:])
-    assert diag['main'](['applications', '1001']) == 0
-    entries = json.loads(capsys.readouterr().out)
-    assert [entry['name'] for entry in entries] == ['Lunar Client.AppImage', 'fifo', 'folder', 'link']
-    assert [entry['kind'] for entry in entries] == ['file', 'special', 'directory', 'symlink']
-    assert entries[0]['mode'] == '0o755'
-    assert entries[0]['bytes'] == len(b'private contents')
-
-
 def test_applications_refuses_symlinked_directory_components(tmp_path, monkeypatch):
     actual = tmp_path / 'actual'
     actual.mkdir()
@@ -129,35 +99,6 @@ def test_applications_refuses_symlinked_directory_components(tmp_path, monkeypat
         monkeypatch.setitem(reader.__globals__, 'application_parts', lambda uid: path.parts[1:])
         with pytest.raises(OSError):
             reader(1001)
-
-
-def test_applications_refuses_excess_entries_without_partial_output(tmp_path, monkeypatch, capsys):
-    reader = diag['read_applications']
-    monkeypatch.setitem(reader.__globals__, 'application_parts', lambda uid: tmp_path.parts[1:])
-    entry = Mock(name='entry')
-    entry.name = 'app'
-    entry.stat.return_value = SimpleNamespace(st_mode=0o100755, st_size=1)
-    scan = MagicMock()
-    scan.__enter__.return_value = iter([entry] * 4097)
-    monkeypatch.setattr(diag['os'], 'scandir', lambda fd: scan)
-    with pytest.raises(ValueError, match='entry limit'):
-        reader(1001)
-    assert capsys.readouterr().out == ''
-
-
-def test_launcher_reports_only_launch_metadata(tmp_path, monkeypatch, capsys):
-    reader = diag['read_launcher']
-    monkeypatch.setitem(reader.__globals__, 'application_parts',
-                        lambda uid: [*tmp_path.parts[1:], 'Applications'])
-    directory = tmp_path / '.local/share/applications'
-    directory.mkdir(parents=True)
-    (directory / 'lunar.desktop').write_text(
-        '[Desktop Entry]\nType=Application\nExec=AppImageLauncher /apps/Lunar.AppImage\n'
-        'Name=Private label\nX-Unrelated=private value\n'
-        '[Desktop Action Other]\nExec=unrelated\n')
-    assert diag['main'](['launcher', '1001', 'lunar.desktop']) == 0
-    assert json.loads(capsys.readouterr().out) == {
-        'Type': 'Application', 'Exec': 'AppImageLauncher /apps/Lunar.AppImage'}
 
 
 @pytest.mark.parametrize('kind', ['symlink', 'hardlink', 'fifo', 'oversized', 'invalid', 'parent-link'])

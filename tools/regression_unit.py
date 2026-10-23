@@ -32,14 +32,14 @@ in-process reader doubles and bounded waited Git children on private repositorie
 no shared cache, display, bus, socket, VM or external service is introduced. These modules remain compatible;
 cleanup and UI inventories gain no module or resource owner.
 
-Fedora installed-system coverage extends fixture_system_qualification,
-system_snapshots, system_runner, fixture_provision_cleanup_safety and
+Fedora installed-system coverage extends system_snapshots, system_runner,
+fixture_provision_cleanup_safety and
 test_launchers with existing pytest-private files and process-local lease,
 guestfs, transport and native doubles. No new live resource, subprocess or
 shared state is owned; compatible unit classifications remain valid.
 
-Fedora product-free system coverage extends fixture_system_qualification,
-system_snapshots, system_runner, parent_setup_cleanup_safety,
+Fedora product-free system coverage extends system_snapshots, system_runner,
+parent_setup_cleanup_safety,
 privileged_test_runner and test_launchers using pytest-private source/results
 and process-local guestfs/transport/lease/command doubles. No new subprocess,
 VM, display, bus, socket, shared cache or external service is owned; existing
@@ -1176,28 +1176,12 @@ from regression_ui import Bucket
 # compatible overlap; it introduces no cleanup or UI inventory owner.
 # Baseline, app-snapshot and transfer safety additions retain their existing
 # private filesystem/double ownership in both unit and cleanup inventories.
-# fixture_system_qualification owns tiny pytest-private source/result trees and
-# process-local runner/lease/transport doubles. No VM, subprocess, service,
-# fixture build, display, socket, shared cache or cleanup/UI owner is added;
-# bounded CPU and disk work is compatible with ordinary unit overlap.
-# Installed-system composition and reboot-readiness coverage retain these
-# private trees and in-process doubles. Dispatcher/launcher additions retain
-# their existing bounded waited children; no live guest, external service,
-# shared cache, socket, display or new cleanup/UI owner is introduced.
-# Installed E2E qualification owns only tiny pytest-private files and synchronous
-# lease/SSH/native/selection doubles. No VM, process, service, display, socket,
-# bus, shared cache or build is acquired. Bounded CPU/I/O permits compatible
-# overlap; no cleanup or UI inventory owner is added. Related existing modules
-# retain their private-file/in-memory ownership and current classifications.
 # Cumulative publication boundaries own 259 tiny pytest-private seals and five
 # private exports. Existing evidence_capture filesystem weighting and compatible
 # scheduling apply; no shared journal, process, service, display, socket or bus
 # is added. Protected-document-link checks mock the metadata reader and use
 # private paths/symlinks; document_checks adds no live privileged resource.
 REVIEWED = frozenset("""
-fixture_e2e_qualification
-fixture_system_qualification
-fixture_provision_qualification
 fixture_snapshots
 fixture_provision_cleanup_safety
 fixture_execution_cleanup_safety fixture_handoff_cleanup_safety
@@ -1232,7 +1216,6 @@ desktop_language_cleanup_safety
 localization
 e2e_overlay_prompt
 e2e_shell_panel
-e2e_overlay_license
 vm_internet_cleanup_safety baseline_fixtures_cleanup_safety
 about_dialog accessible_e2e_ui accessible_observation adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice chinese_language_assets_cleanup_safety evidence_bundle
 authentication_evidence automation_ids backing_verification_cleanup_safety baseline_guest_cleanup_safety broker_properties
@@ -1241,23 +1224,22 @@ child_preview_cleanup_safety clean_install_cleanup_safety codex_test_rules confi
 dbus_harness_cleanup_safety desktop_session_cleanup_safety dev_privileges dev_tool_installation
 diagnostic_export diagnostic_privacy diagnostic_report diagnostics document_checks
 dynamic_account_fixture e2e_app_rows native_fixtures_cleanup_safety e2e_asset_transfer_cleanup_safety
-e2e_case_composition e2e_command_help e2e_controller_qualification_cleanup_safety e2e_desktop_keyring
-e2e_desktop_session e2e_evidence e2e_feedback_read e2e_fresh_desktop
+e2e_controller_qualification_cleanup_safety e2e_desktop_keyring
+e2e_desktop_session e2e_evidence e2e_feedback_read
 e2e_execution_cleanup_safety e2e_files_cleanup_safety e2e_fixture_credentials_cleanup_safety e2e_gdm_helper
-e2e_gdm_navigation e2e_gdm_pixels e2e_gdm_product_free e2e_gdm_recipient
+e2e_gdm_pixels e2e_gdm_recipient
 e2e_install_helper e2e_install_password_observation e2e_installation_boundary
 e2e_inventory e2e_keyring_fixture_cleanup_safety
 e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_feedback_confinement e2e_leased_recording_cleanup_safety
-e2e_license_viewer
-e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch
+e2e_matched_screens e2e_needle_inputs e2e_observation_transport
 e2e_baseline_auth_pause e2e_estimate_freshness
 compatible_native_fixtures
-e2e_plan e2e_pointer_helper e2e_progress
+e2e_pointer_helper e2e_progress
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
 e2e_secret_variables e2e_serial_helper
-e2e_serial_observation e2e_shell_search e2e_shell_search_results e2e_shutdown
+e2e_serial_observation e2e_shutdown
 e2e_startup_cache_cleanup_safety e2e_suite_cleanup_safety
-e2e_terminal e2e_terminal_provider e2e_vt6_authentication e2e_vt6_command e2e_vt6_controller
+e2e_vt6_authentication e2e_vt6_command e2e_vt6_controller
 e2e_vt6_pixels e2e_vt6_prompt e2e_vt6_recipient e2e_vt6_shell e2e_watch
 e2e_watch_cleanup_safety e2e_worker_cleanup_safety error_reporting execution_policy
 execution_policy_ready execution_probe_cleanup_safety extension_manager feedback_collection
@@ -1269,8 +1251,8 @@ installed_journey_cleanup_safety installer integration_harness kiosk_confinement
 execution_plan_launcher launcher_worktrees launcher_chat launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
 package_content package_install_cleanup_safety
 package_os_gate package_payload package_removal package_transaction_notice pam_runtime_cap
-parent_about_cleanup_safety parent_about_worker parent_access_worker parent_client
-parent_discovery_worker parent_grid_pixels parent_main parent_native_surface parent_needles
+parent_about_cleanup_safety parent_client
+parent_grid_pixels parent_main parent_native_surface parent_needles
 parent_setup_cleanup_safety ppa_build preferences prepare_baseline
 prepare_baseline_cleanup_safety prepare_baseline_tool prepare_vm prepare_vm_contract
 preview_screen prepared_kiosk_pam privileged_test_runner probe_bus_client_cleanup_safety

@@ -1696,9 +1696,11 @@ def buckets(nodeids):
 # No live parent, service, VM, process, display, socket or shared cache is acquired;
 # evidence_capture is compatible unit work and adds no cleanup/UI inventory owner.
 # runner_evidence uses tiny pytest-private reports, finite JSON/ZIP payloads,
-# real shared retention locks and synchronous denial/registry doubles. No VM,
-# process, display, socket, bus, service, shared cache or new cleanup owner is
-# acquired; compatible unit overlap applies and cleanup/UI gain no module.
+# real retention locks, an explicitly forked/joined child with a private pipe,
+# and a joined private thread for publication contention. No VM, display,
+# socket, bus, service, shared cache or new cleanup owner is acquired;
+# bounded CPU/I/O permits compatible unit
+# overlap and cleanup/UI gain no module.
 # E06a qualification/system/collector producer histories add tiny private
 # journals, finite immutable proof and synchronous VM/command/identity doubles.
 # Existing qualification_storage, baseline_guest, system_runner, e2e_evidence,

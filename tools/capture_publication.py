@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import signal
 import tempfile
+import threading
 
 if __package__:
     from . import evidence_bundle as bundle, evidence_capture as capture, evidence_identity as logical, test_retention as retention
@@ -20,6 +21,7 @@ else:
     import test_retention as retention
 
 JOURNAL = 'capture-publication.json'
+_publishers = set()
 
 
 def checkpoint(stage):
@@ -116,9 +118,49 @@ def _save(store, fd, state, request, *, reserved=0):
 
 
 @contextmanager
-def _selection_owner(store):
+def _producer_owner(selection):
+    """Serialize planning through delivery without upgrading a reader lease.
+
+    Source seals are independently finished, and no source writer is held while
+    waiting here. The separate workflow mutex precedes destination reader/writer
+    leases; acknowledgement takes the source writer only after publication ends.
+    """
+    key = None
+    with ExitStack() as stack:
+        try:
+            with bundle.identity(selection.uid, selection.gid):
+                parent = selection.publication_parent(create=True)
+                store = retention.Store(parent)
+                key = (os.getpid(), threading.get_ident(), str(parent))
+                if key in _publishers:
+                    key = None
+                    raise ValueError('capture publication: nested workflow publication is not permitted')
+                _publishers.add(key)
+                fd = stack.enter_context(store.opened())
+                owner = stack.enter_context(store.locked(fd, 'producer.lock'))
+                directory_identity = capture._directory_identity(os.fstat(fd))
+                lock_identity = capture._fingerprint(os.fstat(owner))
+
+                def revalidate():
+                    with store.opened() as current:
+                        if (capture._directory_identity(os.fstat(current)) != directory_identity
+                                or capture._fingerprint(os.stat('producer.lock', dir_fd=current,
+                                                               follow_symlinks=False)) != lock_identity):
+                            raise ValueError('capture publication: workflow producer owner replaced')
+
+                revalidate()
+            yield
+            with bundle.identity(selection.uid, selection.gid):
+                revalidate()
+        finally:
+            if key is not None:
+                _publishers.remove(key)
+
+
+@contextmanager
+def _selection_owner(store, *, wait=False):
     """Inspect prior proof even while this workflow has a resumable stage."""
-    with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False, shared=True):
+    with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=wait, shared=True):
         with store.locked(fd, 'writer.lock', publication=True, shared=True):
             owner_identity = capture._directory_identity(os.fstat(fd))
             current = store.read(fd)
@@ -145,6 +187,9 @@ def prepare_selection(selection):
         if selection.plan_namespace != plan_namespace(request['record']['context']['workflow']):
             raise ValueError('capture publication: explicit plan does not match authenticated workflow')
     selection.capture_namespace = namespace
+    # Retain this mutex until Selection exits, including producer-side custody
+    # acknowledgement. A waiter plans against the newly committed generation.
+    selection.stack.enter_context(_producer_owner(selection))
     with bundle.identity(selection.uid, selection.gid):
         try:
             parent = selection.publication_parent()
@@ -330,7 +375,8 @@ def publish(selection, *, expected, defer_cleanup=False):
         store = retention.Store(parent / 'retention')
         verify = lambda record: bundle.inspect_record(record, selection.uid, checkout=selection.checkout)
         projected = 0 if getattr(selection, 'capture_reuse', None) is not None else selection.projected_bytes
-        with _independent_owner(), store.publication(projected_bytes=projected, verify=verify, resumable=True) as transaction:
+        with _independent_owner(), store.publication(projected_bytes=projected, verify=verify,
+                                                    resumable=True, wait=True) as transaction:
             state = _read(transaction.fd)
             if state is None:
                 state = dict(schema=1, namespace=selection.capture_namespace,
@@ -445,7 +491,9 @@ def delivery_scope(checkout, uid, gid, request, *, defer_verification=False):
             if (request['producer']['repository'] != repository
                     or request['producer']['caller'] != dict(uid=uid, gid=gid)):
                 raise ValueError('capture publication: foreign delivery')
-            fd, current, intent = stack.enter_context(_selection_owner(store))
+            # Custody is pinned before acknowledgement/retirement takes the
+            # source writer. Concurrent destination publication can finish first.
+            fd, current, intent = stack.enter_context(_selection_owner(store, wait=True))
             pins = []
             state = capture._pin_record(fd, JOURNAL, stack, pins)
             _validate(state, request)

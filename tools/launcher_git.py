@@ -51,8 +51,8 @@ pushes to the controller; no task completion credit has been granted.
     return f"""
 Git reconciliation takes priority before completing this same task:
 {state['git_reconciliation']['reason']}
-The retained task already passed acceptance before this pull. Inspect the
-upstream changes, reconcile them with the task and resolve merge conflicts.
+The retained task already passed acceptance before Git close-out. Inspect current
+edits and upstream changes, reconcile them with the task and resolve merge conflicts.
 Retained acceptance evidence and close-out scope:
 {json.dumps(evidence, indent=2)}
 Preserve unrelated staged, unstaged and untracked work; never discard changes,
@@ -83,10 +83,12 @@ def validate_pull_identity(root, state, *, git=None):
     identity = dict(branch=branch.stdout.strip(), upstream=upstream.stdout.strip())
     reconciliation = state.get('git_reconciliation', {})
     if any(key in reconciliation and reconciliation[key] != value for key, value in identity.items()):
-        raise ValueError('branch or upstream changed during Git reconciliation; inspect retained checkpoint')
+        raise GitReconciliationRequired('branch or upstream changed during Git reconciliation; '
+                                        'restore the retained identity without adopting another owner\'s work')
     intent = state.get('pull_intent')
     if intent is not None and any(intent[key] != value for key, value in identity.items()):
-        raise ValueError('branch or upstream changed during completion pull; inspect retained checkpoint')
+        raise GitReconciliationRequired('branch or upstream changed during completion pull; '
+                                        'restore the retained identity without adopting another owner\'s work')
     return identity, head.stdout.strip()
 
 
@@ -339,12 +341,8 @@ def finish_commit(root, run, state, paths, message, *, git=None):
                 mode, _kind, identity = metadata.split()
                 entries += f'{mode} {identity} 0\t{path}\0'
             matches = entries == intent['entries']
-            if commit == parent:
-                matches = matches and (not paths or (
-                    git(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
-                               '--', *paths).stdout == intent['entries']
-                    and not git(root, '--literal-pathspecs', 'status', '--porcelain',
-                                '--untracked-files=all', '--ignored', '-z', '--', *paths).stdout))
+            # The immutable commit proves this write. Later index/worktree
+            # edits belong to their owner and cannot invalidate that commit.
             if (subject != message or parents != (intent['parent'] or '')
                     or not set(filter(None, changed)).issubset(paths) or not matches):
                 raise ValueError('HEAD changed outside pending completion commit; inspect checkpoint')
@@ -364,7 +362,11 @@ def finish_commit(root, run, state, paths, message, *, git=None):
         if (entries != state['commit_intent']['entries']
                 or git(root, '--literal-pathspecs', 'diff', '--quiet', '--',
                               *paths, check=False).returncode != 0):
-            raise ValueError('owned files changed after staging; inspect pending commit')
+            # No commit was written. Reuse the ordinary reconciliation loop to
+            # inspect current edits and renew acceptance before staging again.
+            state.pop('commit_intent')
+            launcher.atomic(run / 'checkpoint.json', state)
+            raise GitReconciliationRequired('Owned files changed after staging; reconcile and revalidate the task.')
     # --only prevents unrelated pre-staged files from entering either commit.
     # An audit with no edits still records its completed checkpoint as an empty commit.
     arguments = ['--literal-pathspecs', 'commit', '--only', '--allow-empty', '-m', message]

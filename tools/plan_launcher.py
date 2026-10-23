@@ -51,6 +51,20 @@ class PlanWorkflow:
 
 
 CAPACITY_RETRY_DELAYS = (5, 10, 20, 40, 80)
+MAX_REPAIR_SESSIONS = 3
+
+
+def task_session_usage(state):
+    """Keep the existing turn identities while charging task work separately."""
+    repairs = state.get('repair_sessions', 0)
+    if type(repairs) is not int or not 0 <= repairs <= state['task_sessions']:
+        raise ValueError('invalid retained coordinator repair session count')
+    return state['task_sessions'] - repairs
+
+
+def coordinator_repair(state, *, references=False):
+    return references or any(state.get(key) for key in (
+        'git_reconciliation', 'evidence_renewal', 'result_recovery', 'evidence_capture_requires_brief'))
 
 
 def capacity_session_spec(spec, state):
@@ -62,6 +76,12 @@ def capacity_session_spec(spec, state):
     return spec
 
 
+def repairable_reference(error):
+    return bool(error.diagnostics) and all(item.get('condition') in
+        ('missing', 'fragment', 'stale', 'pending', 'busy', 'protected', 'identity', 'conflict')
+        for item in error.diagnostics)
+
+
 def task_record(task):
     return dict(task_id=task.id, title=task.title, brief=str(task.brief),
                 **task.acceptance_metadata())
@@ -70,7 +90,7 @@ def task_record(task):
 def validate_result_payload(state, result):
     """Use the same result shape and acceptance gates for close-out and recovery."""
     fields = {'status', 'task_id', 'summary', 'handoff', 'checks', 'cleanup_complete', 'stage_paths', 'blocker'}
-    if (not isinstance(result, dict) or set(result) != fields
+    if (not isinstance(result, dict) or not fields.issubset(result)
             or result['task_id'] != state['task_id']
             or result['status'] not in ('task_complete', 'continue', 'blocked', 'prerequisite_required')
             or any(not isinstance(result[key], str) or not result[key].strip() for key in ('summary', 'handoff'))
@@ -80,7 +100,7 @@ def validate_result_payload(state, result):
             or not isinstance(result['checks'], list)):
         raise ValueError('invalid plan session result; retain checkpoint for recovery')
     for check in result['checks']:
-        if (not isinstance(check, dict) or set(check) != {'kind', 'target', 'result', 'evidence'}
+        if (not isinstance(check, dict) or not {'kind', 'target', 'result', 'evidence'}.issubset(check)
                 or check['kind'] not in ('installed', 'review', 'host', 'reconciliation')
                 or check['result'] not in ('passed', 'failed', 'not_run')
                 or any(not isinstance(check[key], str) for key in ('target', 'evidence'))):
@@ -125,9 +145,6 @@ def validate_result(plan, state, result):
         if not result['cleanup_complete'] or plan.prerequisite_repair(state) is None:
             raise ValueError('prerequisite handoff needs a valid backward dependency insertion and owned cleanup')
         return
-    if complete:
-        if not {plan.path, plan.queue}.issubset(result['stage_paths']):
-            raise ValueError('completion must include master plan and queue close-out paths')
     plan.validate_transition(state['queue_before'], state['task_id'], complete=complete,
                              structure=state.get('queue_structure'))
 
@@ -154,6 +171,10 @@ Read AGENTS.md, docs/Execution-Plans.md, master {plan.path}, ordered queue
 Use these exact checkout-relative paths. Resolve other document links relative
 to their containing document; do not infer filenames from titles or launcher names.
 Your coordinator model for this session is {spec.model} {spec.effort}.
+This is a {state.get('session_kind', 'task')} session. Task implementation has used
+{task_session_usage(state)}/{state['session_limit']} sessions; coordinator repairs
+have used {state.get('repair_sessions', 0)}/{MAX_REPAIR_SESSIONS}. Driver repairs
+use only the separate repair allowance and preserve this same task's acceptance.
 Capacity fallback applies only to this session and preserves reasoning effort;
 the next session uses the workflow's configured model again. There is no
 automatic escalation for task difficulty. By default, use GPT-6.1 Sol subagents of appropriate effort as needed;
@@ -215,7 +236,7 @@ For a consolidated task, every original scope and per-target acceptance assertio
 above remains required. The current combined brief replaces only the former
 single-target scheduling and queue close-out instructions.
 {reconciliation_instructions(state)}
-{result_recovery_instructions(state.get('result_recovery'))}
+{result_recovery_instructions(state.get('result_recovery'), allowance='separate coordinator repair allowance')}
 {('Acceptance evidence expired before publication. Inspect the exact retained '
   'response, command record and captured task inputs at '
   + state['evidence_renewal']['evidence_source']['path'] + '. '
@@ -251,7 +272,8 @@ def validate_task_metadata(plan, state):
     brief = local_file(plan.root, str(brief.relative_to(plan.root)))
     current = task_record(Task(state['task_id'], False, state['title'], brief, ()))
     validate_consolidated_metadata(current, state.get('consolidation_obligations', {}))
-    if any(current[key] != state['task'][key] for key in ('acceptance', 'targets')):
+    if (current['acceptance'] != state['task']['acceptance']
+            or set(current['targets']) != set(state['task']['targets'])):
         raise ValueError('task acceptance or targets changed since its checkpoint; reconcile the retained handoff')
 
 
@@ -341,7 +363,7 @@ def initial_state(plan, spec, directory, *, reloading=False):
                                                      'evidence_renewal')):
                     validate_task_metadata(plan, saved)
                 if not reloading:
-                    saved['session_limit'] = saved.get('task_sessions', 0) + spec.max_sessions
+                    saved['session_limit'] = task_session_usage(saved) + spec.max_sessions
         if state.get('phase') != 'complete':
             if not any(state.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery',
                                                  'evidence_renewal')):
@@ -592,8 +614,10 @@ def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=No
             validate_task_metadata(plan, pending[key])
         for saved in (state, *pending.values()):
             if any(type(saved.get(field, 0)) is not int or saved.get(field, 0) < 0
-                   for field in ('total_sessions', 'task_sessions', 'session_limit')):
+                   for field in ('total_sessions', 'task_sessions', 'session_limit', 'repair_sessions')):
                 raise ValueError('retained session counts are malformed')
+            if saved.get('task'):
+                task_session_usage(saved)
         updated = dict(phase='complete', in_flight=False, task_id=None, task_sessions=0,
                        consolidation_obligations=obligations,
                        total_sessions=state.get('total_sessions', 0),
@@ -630,21 +654,47 @@ def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=No
 
 def closeout(plan, spec, run, state):
     with closeout_lock(plan.root, run, state):
-        return _closeout(plan, spec, run, state)
+        try:
+            return _closeout(plan, spec, run, state)
+        except SessionResultRejected as error:
+            state.update(phase='recover', in_flight=False, plan_queue=plan.queue)
+            retain_result_rejection(run, error, label=spec.name, checkpoint=state)
+            state.pop('pending_completion', None)
+            launcher.atomic(run / 'checkpoint.json', state)
+            return False
+        except GitReconciliationRequired as error:
+            result = state['pending_completion']
+            reconciliation = state.get('git_reconciliation', {})
+            identity = state.get('pull_intent') or reconciliation
+            state.update(phase='recover', in_flight=False, plan_queue=plan.queue,
+                         git_reconciliation={**reconciliation, 'reason': str(error), 'accepted_result': result,
+                                             **{key: identity[key] for key in ('branch', 'upstream')
+                                                if key in identity}},
+                         handoff=str(error) + '\n' + result['handoff'])
+            if isinstance(error, OwnershipReconciliationRequired):
+                state['git_reconciliation']['ownership_paths'] = error.paths
+            state.pop('pending_completion', None)
+            launcher.atomic(run / 'checkpoint.json', state)
+            return False
 
 
 def _closeout(plan, spec, run, state):
     result = state['pending_completion']
     if not state.get('pull_intent'):
-        validate_result(plan, state, result)
+        validate_session_result(result, lambda result: validate_result(plan, state, result))
     # Acceptance must outlive the disposable model session, including a later
     # interrupted Git transaction. Close nested owners before recording cleanup.
     launcher.finish_nested(plan.root, run)
     try:
         index = plan_evidence.preserve(plan, run, state, result)
-    except plan_evidence.EvidenceUnavailable as error:
+    except (plan_evidence.EvidenceUnavailable, plan_evidence.ReferenceRefused) as error:
+        if isinstance(error, plan_evidence.ReferenceRefused) and not repairable_reference(error):
+            raise
         if any(state.get(key) for key in ('commit_intent', 'pull_intent', 'git_reconciliation')):
-            raise  # Never renew acceptance across an unfinished Git transaction.
+            raise GitReconciliationRequired(
+                'Recover exact retained proof before Git close-out; preserve the original transaction '
+                'and accepted inputs. Do not renew acceptance across an unfinished Git transaction.\n'
+                + str(error)) from error
         plan_evidence._source(plan, run, state, result)
         state.update(phase='recover', in_flight=False, plan_queue=plan.queue,
                      evidence_renewal=dict(reason=str(error), result=result,
@@ -658,31 +708,17 @@ def _closeout(plan, spec, run, state):
         return False
     state.pop('evidence_renewal', None)  # Exact renewed proof is now durably verified.
     plan_evidence.rewrite_references(plan, state, index)
-    validate_result(plan, state, result)
+    validate_session_result(result, lambda result: validate_result(plan, state, result))
     if spec.commit_prefix:
         paths = state.get('commit_intent', {}).get('paths')
         state['plan_queue'] = plan.queue
-        try:
-            if paths is None:
-                paths = list(dict.fromkeys(result['stage_paths']))
-                validate_closeout_ownership(plan.root, paths, state)
-            pull_before_commit(plan.root, run, state, git=git_output)
-        except GitReconciliationRequired as error:
-            identity = state.get('pull_intent', {})
-            state.update(phase='recover', in_flight=False,
-                         git_reconciliation=dict(reason=str(error), accepted_result=result,
-                                                 **{key: identity[key] for key in ('branch', 'upstream')
-                                                    if key in identity}),
-                         handoff=str(error) + '\n' + result['handoff'])
-            if isinstance(error, OwnershipReconciliationRequired):
-                state['git_reconciliation']['ownership_paths'] = error.paths
-            state.pop('pending_completion', None)
-            state.pop('pull_intent', None)
-            launcher.atomic(run / 'checkpoint.json', state)
-            return False
+        if paths is None:
+            paths = list(dict.fromkeys([*result['stage_paths'], plan.path, plan.queue]))
+            validate_closeout_ownership(plan.root, paths, state)
+        pull_before_commit(plan.root, run, state, git=git_output)
         # A pull may have changed plan metadata. Reapply every guard before
         # staging, even when Git reports an already-up-to-date branch.
-        validate_result(plan, state, result)
+        validate_session_result(result, lambda result: validate_result(plan, state, result))
         if state.get('commit_intent') is None:
             paths = stage_task(plan.root, paths, required_paths=(plan.path, plan.queue))
         committed = finish_commit(plan.root, run, state, paths,
@@ -904,6 +940,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 else:
                     selected = dict(task_record(task), task=task_record(task), phase='implement',
                              task_sessions=0, total_sessions=state.get('total_sessions', 0),
+                             repair_sessions=0,
                              session_limit=spec.max_sessions,
                              stage_baseline=inherited_baseline if inherited_baseline is not None else worktree_snapshot(root),
                              protected_staged=inherited_staged if inherited_baseline is not None else
@@ -929,7 +966,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     break
                 state['answer'] = answer
                 state['phase'] = 'recover'
-                state['session_limit'] = max(state['session_limit'], state['task_sessions'] + 1)
+                state['session_limit'] = max(state['session_limit'], task_session_usage(state) + 1)
                 # Waiting can outlive a repair; retain the answer for the fresh
                 # controller instead of starting a turn under the old imports.
                 if response_validator_sources() != validator_sources:
@@ -938,21 +975,40 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 if evidence_recovery_pending(plan, state):
                     status, reason = 1, evidence_recovery_reason
                     break
-            # Required proof and publication capacity must refuse before a
-            # session is admitted or charged. Pending accepted completions use
-            # closeout's strict publication gate above instead.
-            plan_evidence.preflight(plan, run, state)
+            # Repairable references need a coordinator, not a dead controller.
+            # Actual publication still verifies proof before task completion.
+            reference_repair = False
+            try:
+                plan_evidence.preflight(plan, run, state)
+            except plan_evidence.ReferenceRefused as error:
+                # A coordinator can repair missing instructions and renew stale
+                # proof. Publication still verifies acceptance before close-out.
+                if not repairable_reference(error):
+                    raise
+                reference_repair = True
+                state['handoff'] = state.get('handoff', '') + '\nRepair before completing this task: ' + str(error)
+                print(f'{spec.name}: {error}; returning repairs to the coordinator.', flush=True)
             retrying_capacity = capacity_retry(state)
             if not retrying_capacity and not budget.admit():
                 if completed_state is not None:
                     state = completed_state
                 reason = 'task limit reached'
                 break
-            if not retrying_capacity and state['task_sessions'] >= state['session_limit']:
-                status, reason = 1, 'task session limit reached; resume with a fresh run'
-                break
+            if not retrying_capacity:
+                state['session_kind'] = 'repair' if coordinator_repair(state, references=reference_repair) else 'task'
+                used = task_session_usage(state)
+                if state['session_kind'] == 'repair':
+                    if state.get('repair_sessions', 0) >= MAX_REPAIR_SESSIONS:
+                        status, reason = 1, 'coordinator repair session limit reached; retain the task and repair handoff'
+                        break
+                elif used >= state['session_limit']:
+                    status, reason = 1, 'task session limit reached; resume with a fresh run'
+                    break
             if state.get('git_reconciliation'):
-                validate_pull_identity(root, state, git=git_output)
+                try:
+                    validate_pull_identity(root, state, git=git_output)
+                except GitReconciliationRequired as error:
+                    state['git_reconciliation']['reason'] = str(error)
             if spec.commit_prefix:
                 # Retained/replanned baselines can predate an external reviewed
                 # commit. Release clean paths before the agent dirties them,
@@ -963,6 +1019,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             if not retrying_capacity:
                 state.pop('capacity_recovery', None)
                 state['task_sessions'] += 1
+                if state['session_kind'] == 'repair':
+                    state['repair_sessions'] = state.get('repair_sessions', 0) + 1
                 state['total_sessions'] += 1
             plan_evidence.capture(plan, run, state)
             # Clear the preceding response before publishing a new in-flight turn,
@@ -1026,7 +1084,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             if result['status'] == 'task_complete' and state.get('git_reconciliation'):
                 # The coordinator has reconciled and renewed acceptance. The
                 # next close-out must pull again before making a fresh commit.
-                state.pop('pull_intent', None)
+                if not state.get('commit_intent'):
+                    state.pop('pull_intent', None)
             if result['status'] == 'task_complete':
                 state['pending_completion'] = result
                 launcher.atomic(run / 'checkpoint.json', state)
@@ -1059,7 +1118,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             state['reason'] = reason
             launcher.atomic(run / 'checkpoint.json', state)
             (run / 'handoff.txt').write_text(state.get('handoff', '') + '\n' + reason + '\n'
-                                           + result_recovery_instructions(state.get('result_recovery')))
+                                           + result_recovery_instructions(state.get('result_recovery'),
+                                               allowance='separate coordinator repair allowance'))
             print(f'{spec.name}: {reason}.', flush=True)
             if reload:
                 try:

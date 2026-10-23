@@ -95,11 +95,11 @@ def retain_result_rejection(run, error, *, label, checkpoint=None):
     return record
 
 
-def result_recovery_instructions(recovery):
+def result_recovery_instructions(recovery, *, allowance='existing task/case session allowance'):
     if not recovery:
         return ''
     return ('\nThe controller rejected the preceding response. Correct this handoff before '
-            'advancing; this session consumes the existing task/case session allowance.\n'
+            f'advancing; this session consumes the {allowance}.\n'
             + json.dumps(recovery, ensure_ascii=False) + '\n'
             'Inspect the retained response and current files. Preserve the original task, '
             'queue baseline, acceptance targets, unrelated work and valid evidence. '

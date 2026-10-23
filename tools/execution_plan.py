@@ -143,7 +143,9 @@ class Plan:
             brief = local_file(self.root, link[2], base=queue.parent) if link and not complete else None
             requires = tuple(item.strip() for item in dependencies.split(',')) if dependencies not in ('', '—', '-', 'Baseline') else ()
             tasks.append(Task(identity, complete, link[1] if link else title, brief, requires))
-        current, states = queue_state(self.root, self.path, self.queue)
+        # The queue is authoritative. A stale display pointer must not prevent
+        # selection or recovery of its first unfinished task.
+        current, states = queue_state(self.root, self.path, self.queue, validate_pointer=False)
         if [task.id for task in tasks] != list(states):
             raise ValueError('queue rows need Done, ID, Task, Requires and Scope columns')
         earlier = {}
@@ -153,8 +155,6 @@ class Plan:
             if task.id == current and any(not earlier[dependency] for dependency in task.requires):
                 raise ValueError(f'task {task.id} has unfinished prerequisites')
             earlier[task.id] = task.complete
-        if current is None and not re.search(r'^Next task: none\.?$', (self.root / self.path).read_text(), re.M):
-            raise ValueError('a finished plan must declare Next task: none.')
         return tasks
 
     def state(self):
@@ -171,17 +171,42 @@ class Plan:
         return closeout_structure(rows, selected, completed=completed)
 
     def validate_recovery(self, state):
-        """Allow selected close-out and completed evidence-reference repair only."""
+        """Protect sequential completion, not mutable queue descriptions."""
         _, after = queue_state(self.root, self.path, self.queue, validate_pointer=False)
         before = state['queue_before']
-        completed = {key for key, done in before.items() if done is True}
-        if (list(after) != list(before)
+        if (list(after)[:len(before)] != list(before)
                 or any(after[key] != done for key, done in before.items() if key != state['task_id'])
-                or (state.get('queue_structure') is not None and
-                    self.structure(selected=state['task_id'], completed=completed) !=
-                    closeout_structure(state['queue_structure'], state['task_id'], completed=completed))):
+                or any(done for key, done in after.items() if key not in before)):
             raise ValueError('interrupted plan changed outside its selected task; inspect retained handoff')
+        self.validate_scopes(state.get('queue_structure'), selected=state['task_id'],
+                             completed={key for key, done in before.items() if done})
         return after
+
+    def validate_scopes(self, before, *, selected=None, completed=()):
+        """Presentation drift cannot silently replace retained task obligations."""
+        if before is not None:
+            current = {row[2]: row for row in self.structure()}
+            if any(row[2] not in current or current[row[2]][5] != row[5] for row in before):
+                raise ValueError('task scope changed; retain the queue for review')
+            def dependencies(value):
+                return {item.strip() for item in value.split(',')} - {'', '—', '-', 'Baseline'}
+            earlier = set()
+            for identity, row in current.items():
+                if not dependencies(row[4]).issubset(earlier):
+                    raise ValueError(f'task {identity} requires an unknown or later task')
+                earlier.add(identity)
+            for row in before:
+                now = current[row[2]]
+                if not dependencies(row[4]).issubset(dependencies(now[4])):
+                    raise ValueError('task prerequisites changed; retain the queue for review')
+                if row[2] not in completed and row[2] != selected:
+                    old_link = re.fullmatch(r'\[[^\]]+\]\(([^)]+)\)', row[3])
+                    new_link = re.fullmatch(r'\[[^\]]+\]\(([^)]+)\)', now[3])
+                    if old_link is None or new_link is None or old_link[1] != new_link[1]:
+                        raise ValueError('unfinished task brief changed; retain its acceptance obligations')
+                if row[2] in completed and len(row) > 7:
+                    if len(now) != len(row) or evidence_references(now[6]) != evidence_references(row[6]):
+                        raise ValueError('completed task evidence claim changed; retain its accepted history')
 
     def prerequisite_repair(self, state):
         """Recognize only a new dependency block for the unfinished consumer.
@@ -216,21 +241,18 @@ class Plan:
         position = ids.index(consumer)
         if ids[max(0, position - len(added)):position] != added:
             return None
-        completed = {key for key, done in before.items() if done is True}
-        saved = closeout_structure(saved, consumer, completed=completed)
-        # Existing obligations remain fixed after bookkeeping normalization;
-        # only the consumer's Requires field may change for this insertion.
-        current = {row[2]: row for row in self.structure(selected=consumer, completed=completed)}
-        for original in saved:
-            row = current[original[2]].copy()
-            if original[2] == consumer:
-                dependencies = (tuple(item.strip() for item in original[4].split(','))
-                                if original[4] not in ('', '—', '-', 'Baseline') else ())
-                if not set(dependencies).issubset(by_id[consumer].requires):
-                    return None
-                row[4] = original[4]
-            if row != original:
-                return None
+        try:
+            self.validate_scopes(saved, selected=consumer,
+                                 completed={key for key, done in before.items() if done})
+        except ValueError:
+            return None
+        # Descriptions can evolve concurrently. Preserve the consumer's actual
+        # dependency chain rather than requiring every table cell to match.
+        original = next(row for row in saved if row[2] == consumer)
+        dependencies = (tuple(item.strip() for item in original[4].split(','))
+                        if original[4] not in ('', '—', '-', 'Baseline') else ())
+        if not set(dependencies).issubset(by_id[consumer].requires):
+            return None
         ancestry = set()
         pending = list(by_id[consumer].requires)
         while pending:
@@ -254,12 +276,12 @@ class Plan:
 
     def validate_transition(self, before, task_id, *, complete, structure=None):
         after = self.state()
-        completed = {key for key, done in before.items() if done is True}
         expected = dict(before)
         if complete:
             expected[task_id] = True
-        if list(after) != list(expected) or after != expected:
+        if (list(after)[:len(expected)] != list(expected)
+                or any(after[key] != done for key, done in expected.items())
+                or any(done for key, done in after.items() if key not in expected)):
             raise ValueError('only the selected task may change completion; preserve task order and scope')
-        if (structure is not None and self.structure(selected=task_id, completed=completed) !=
-                closeout_structure(structure, task_id, completed=completed)):
-            raise ValueError('task scope or prerequisites changed; retain the queue for review')
+        self.validate_scopes(structure, selected=task_id,
+                             completed={key for key, done in before.items() if done})

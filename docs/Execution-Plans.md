@@ -32,24 +32,27 @@ to an existing regular Markdown brief in the checkout. Keep scheduling exclusion
 separate. An optional `## Deferred future work` heading ends the active queue;
 rows below it never run automatically. Completed rows may link to retained
 evidence after their temporary briefs are removed.
-The selected row's Estimate cell is planning/close-out bookkeeping: it may be
-updated with timing or concise evidence without changing Scope or Requires.
-Shared transition and restart guards normalize that cell and the selected task
-link, including older checkpoints. They also permit destination-only repairs of
-simple inline Markdown evidence links in the Estimate cells of tasks already
-complete in the retained queue baseline. Link labels, surrounding evidence text,
-timing, link count and every other predecessor field remain protected; unfinished
-rows receive no such exception. Compare both the saved and current structures
-using the retained completion baseline, without rewriting checkpoints.
+The queue determines task selection; the master pointer is a readable summary.
+A stale or missing pointer does not prevent execution. Transition and restart
+checks protect task identities, order, scope and completion, while allowing titles,
+planning estimates and added backward dependencies to evolve. Existing dependencies
+and other unfinished tasks' brief destinations remain protected. Completed evidence
+claims retain their labels, wording and link count; verified destination repairs
+remain allowed. New unchecked tasks may
+be appended during a run. Only the selected task may become complete; removing,
+reordering or skipping existing tasks still requires explicit reconciliation.
+The selected brief, retained queue scope and passing scoped acceptance own completion,
+rather than an exact copy of the queue's presentation cells. Evidence publication independently
+checks changed claims and their actual proof.
 
 Before repairing an expired evidence link, verify that its replacement retains
 the same result, exact inputs/scope and cleanup record. Prefer a verified retained
 bundle or accepted result and its command log over a short-lived report link.
 A destination repair changes no acceptance or completion and needs no manual
-replan, metadata commit or `--reconcile` operation. Broader wording, task, scope,
-dependency or order changes still follow the explicit reconciliation contract.
-Do not recreate an expired report or suppress a link failure to avoid that
-contract. If a running controller predates this rule, preserve its queue baseline
+replan, metadata commit or `--reconcile` operation. Changed scopes, acceptance kinds,
+target sets and removing or reordering existing tasks still follow explicit
+reconciliation; reordering the same target set is harmless. Do not recreate an
+expired report or fabricate proof. If a running controller predates this rule, preserve its queue baseline
 and record the verified replacements in the current brief; return `continue`
 for a fresh controller at the session boundary under the restart rule below.
 
@@ -152,6 +155,14 @@ its reference, claim or contract restores strict validation.
 
 Before admitting a session, ordinary plans check current master/brief reading
 links, declared active proof and the existing publication capacity lower bound.
+Missing links, fragments, stale proof and pending/busy references are handed to
+the existing coordinator for repair within its separate repair allowance. These findings
+do not stop the controller before it can attempt that repair. Protected-owner,
+identity and conflicting-reference findings use the same bounded repair route;
+the coordinator must restore the authorized identity or select exact authorized
+proof, preserving every verification guard. Integrity, denial and capacity failures
+still refuse; publication independently verifies
+acceptance and complete proof before completion.
 Workflow-owned `reference_documents`, `reference_contracts`, JSON
 `reference_bindings` and `active_reference_consumers` carry explicit role policy
 in the checkpoint. Undeclared instruction links stay required. This preflight
@@ -184,11 +195,12 @@ When an original report has rotated, an exact original member in an explicitly
 selected, fully verified bundle can supply its proof. Live sources still undergo
 the normal ownership, identity and conflict checks. If referenced proof is absent,
 the controller preserves the exact rejected result and session records, then
-returns to the coordinator to renew affected acceptance within the existing
-session allowance. Task/queue baselines, targets, suspended work and Git ownership
+returns to the coordinator to renew affected acceptance within its separate
+repair allowance. Task/queue baselines, targets, suspended work and Git ownership
 remain protected. This recovery does not adopt unknown allocations, recreate
 expired reports or forgive integrity failures; unfinished Git transactions still
-refuse renewal.
+refuse renewal and return to Git reconciliation for exact-proof recovery, keeping
+the accepted result, original transaction and branch/upstream identity.
 
 New bundle captures also retain a complete nonempty selected directory's file
 closure. An expired folder reference requires that authenticated closure and the
@@ -284,9 +296,9 @@ session solely to change the response status. It preserves the consumer's exact
 handoff, acceptance, session counts and protected work; suspension earns no task
 completion or extra allowance. Invalid insertions return to the original
 coordinator under the existing response-recovery contract.
-Other structural edits or changed acceptance
-declarations refuse with the retained handoff for reconciliation; they are never
-silently adopted as a weaker task.
+Other task removals, reorderings or changed acceptance declarations require
+reconciliation; they are never silently adopted as a weaker task. Concurrent
+descriptive queue edits do not invalidate a valid prerequisite insertion.
 
 Drive subagents using **GPT-6.1 Sol with appropriate reasoning efforts** as needed
 to divide and conquer. Prefer lower-effort agents for routine monitoring and
@@ -366,9 +378,19 @@ the same owner and retained checkpoint; model defaults do not change an active
 run. Attachment and `--stop` use the master's stable checkout-relative path and
 remain available while its contents or queue are incomplete; `--check` and fresh
 execution still validate the plan. A fresh plan run automatically resumes unfinished work, including accepted
-Git close-out and interrupted validation. It allows five more coordinator
-sessions for that task; attaching never renews this allowance. An exhausted
-session allowance stops with a retained handoff rather than skipping the task.
+Git close-out and interrupted validation. It allows five more task implementation
+sessions for that task; attaching never renews this allowance. Ordinary-plan
+coordinator repairs use a separate allowance of **three sessions per task**.
+Git reconciliation, evidence renewal, repairable reference preflight and rejected
+response correction consume only that repair allowance. Normal task continuations
+consume only the implementation allowance. Both kinds retain unique turn identities
+and count toward total coordinator activity, but grant no task completion.
+The repair count survives reloads, fresh runs, prerequisite suspension and reviewed
+reconciliation; none resets or replenishes it. Capacity retries keep the original
+session's kind and charge neither allowance again. An exhausted allowance stops
+with the exact retained handoff rather than skipping the task.
+Older checkpoints retain their original charges; an absent repair counter starts
+at zero without guessing or refunding historical turn classifications.
 For an explicitly requested manual replan, first commit the reviewed master,
 queue and unfinished briefs, preserving unrelated work. Use
 `tools/execute-plan --plan 'docs/Example.md' --reconcile RUN --check` to inspect
@@ -412,10 +434,12 @@ Ordinary plans, `write-e2e` and `fix-tests` share response recovery in
 with missing/malformed JSON or a rejected handoff/acceptance/queue transition
 returns to its coordinator after owned cleanup. The latest rejected response and
 exact guard failure remain in the run allocation and corrective prompt. Recovery
-keeps the original task, queue and acceptance baseline and uses the existing
-session allowance; it grants no completion credit, promotion or extra sessions.
+keeps the original task, queue and acceptance baseline. Ordinary plans use the
+separate three-session coordinator repair allowance above; `write-e2e` and
+`fix-tests` retain their existing session allowance. Recovery grants no completion
+credit, promotion or allowance reset.
 Stop/cancellation remain effective between attempts. Repeated rejection ends at
-the normal session cap with a resumable checkpoint and diagnostic handoff.
+the applicable session cap with a resumable checkpoint and diagnostic handoff.
 If ordinary-plan controller or validation sources change during any session, the
 controller reloads automatically at the next session boundary with the result and handoff retained,
 before admitting another task, waiting for an answer or spending another session
@@ -660,7 +684,7 @@ semantics.
 `--check` validates a plan and every unfinished brief without model sessions, VM
 operations or Git changes. The shared ordinary-plan driver first pulls the current
 branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
-then stages the accepted task's explicit owned paths, commits them as
+then stages the accepted task's explicit owned paths plus its master and queue, commits them as
 `TA: Completed task ID`, runs `git push` using the checkout's existing
 remote and branch configuration, and completes
 [shared worktree propagation](#shared-worktree-propagation). Both `execute-plan` and `reliability-plan`
@@ -672,6 +696,13 @@ commit. Resolve conflicts, complete any upstream merge, preserve unrelated work
 and original staging, and re-run acceptance whose inputs changed. The coordinator
 may use bounded Git reconciliation commands for that handoff; it never creates
 the task completion commit or pushes. A subsequent close-out pulls again.
+The same repair loop handles owned files changing after staging and before a
+commit is written, preserving those edits and renewing affected acceptance.
+Late response/queue validation and changed branch/upstream ownership also return
+to repair, retaining any written commit and its original pull identity. Recovery
+must restore that identity; observing another owner grants no adoption authority.
+Harmless additional response/check metadata is ignored; required result fields,
+passing checks and cleanup remain mandatory.
 Existing staged or unrelated work is excluded; conflicting ownership stops
 close-out with a retained checkpoint. A retained dirty-file baseline no longer
 protects a path when its exact captured contents are now committed in HEAD;
@@ -736,9 +767,18 @@ and merges the source completion commit. The destination's active changes stay
 outside these merges and their commits. It restores that exact stash with its
 index state before pushing the destination. Restoration uses apply followed by
 identity-checked drop after a successful push, providing the effect of stash pop
-with recoverable write boundaries. Files unaffected by the merge must restore
-their exact contents, modes and index entries before stash retirement. Existing
-stashes remain untouched.
+with recoverable write boundaries. An exact restoration permits stash retirement.
+Restoration is rechecked after restart and before push or stash retirement, even
+at an unchanged HEAD. New checkpoints retain the verified restored content, index
+and modes, including resolved overlapping paths; older checkpoints retain their
+original unaffected-path verification.
+If unaffected content, index or modes differ, the controller reports the affected
+paths to the existing restoration resolver before push. A recovery stash alone
+does not establish restoration. Unresolved mismatches preserve current work and
+the original stash without granting completion. Descendant commits remain intact;
+paths changed by those commits require the resolver's preservation review rather
+than an obsolete snapshot comparison.
+Existing stashes remain untouched.
 
 Merge and stash-restoration conflicts start supervised, unattended GPT-6.1 Sol
 High resolution turns in the affected destination, using the shared agent and
@@ -760,12 +800,13 @@ Checkpoint each destination's stash, fetch, merges, restoration, push and stash
 retirement. Restart reuses the source task commit and completed destinations,
 including when the source HEAD has advanced to a descendant of that exact commit;
 an interrupted stash application is inspected by the automatic resolver before
-any replay. Changed checkout/branch/upstream or destination HEAD identities preserve pending
-work and refuse unsafe recovery. Conflict resolution checks branch, upstream and
-HEAD before and after each turn, including incomplete turns. A changed HEAD
-reports its expected and observed identities and stops before another turn or
-stash retirement; it does not establish who committed or authorize adopting the
-new HEAD. Reconcile the retained transaction and original active work first.
+any replay. Changed checkout/branch/upstream identities preserve pending work and
+refuse unsafe recovery. Conflict resolution checks branch, upstream and ancestry
+before and after each turn, including incomplete turns. A descendant destination
+HEAD retains the propagated commit and continues automatically, keeping the
+original stash when present, including during push recovery. Before restoration,
+such advancement goes to the existing resolver instead of blindly applying the
+stash over newer work. A rewritten or unrelated HEAD still refuses.
 After reviewing the newer commits and resolving the original active work, an
 inactive ordinary-plan run supports `--reconcile RUN --propagation-head FULL_HEAD`.
 Run it with `--check` first, then without `--check`. It requires one pending
@@ -776,7 +817,7 @@ the exact checkpoint before pinning the reviewed HEAD for controller-owned push.
 It leaves plan acceptance, task/session counts and Git content unchanged and keeps
 the original stash after push. This explicit acknowledgement follows review; mere
 ancestry does not prove preservation of active work. Ordinary restart retains its
-strict HEAD guard. The option cannot be combined with queue revisions.
+ancestry and restoration guards. The option cannot be combined with queue revisions.
 Existing running backends require a fresh run
 to load this policy.
 

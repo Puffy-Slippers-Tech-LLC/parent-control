@@ -1675,11 +1675,11 @@ def test_completion_refuses_overlapping_preexisting_staged_work(commit_checkout)
 
 
 @pytest.mark.parametrize('mutation', ['head', 'worktree', 'index'])
-def test_commit_recovery_refuses_external_changes(commit_checkout, mutation):
+def test_commit_recovery_keeps_verified_identity_and_later_active_work(commit_checkout, mutation):
     root = commit_checkout
     state = dict(workflow.fresh_state('001'), commit_required=True)
     paths = workflow.stage_completion(root, state, reply('task_complete', 'passed'))
-    workflow.finish_commit(root, root, state, paths)
+    commit = workflow.finish_commit(root, root, state, paths)
     if mutation == 'head':
         state['commit_intent'].pop('commit')  # Legacy intent with no recorded commit.
         subprocess.run(['git', 'commit', '--allow-empty', '-qm', 'External commit'], cwd=root, check=True)
@@ -1687,8 +1687,17 @@ def test_commit_recovery_refuses_external_changes(commit_checkout, mutation):
         (root / workflow.PLAN).write_text('External edit')
         if mutation == 'index':
             subprocess.run(['git', 'add', '--', workflow.PLAN], cwd=root, check=True)
-    with pytest.raises(ValueError, match='HEAD changed outside pending completion'):
-        workflow.finish_commit(root, root, state, paths)
+    if mutation == 'head':
+        with pytest.raises(ValueError, match='HEAD changed outside pending completion'):
+            workflow.finish_commit(root, root, state, paths)
+    else:
+        status = workflow.git_output(root, 'status', '--porcelain').stdout
+        index = workflow.git_output(root, 'diff', '--cached', '--binary').stdout
+        assert workflow.finish_commit(root, root, state, paths) == commit
+        assert workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip() == commit
+        assert (root / workflow.PLAN).read_text() == 'External edit'
+        assert workflow.git_output(root, 'status', '--porcelain').stdout == status
+        assert workflow.git_output(root, 'diff', '--cached', '--binary').stdout == index
 
 
 def test_optimization_rejects_unvalidated_completion_or_queue_changes(tmp_path):

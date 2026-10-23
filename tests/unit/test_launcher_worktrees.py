@@ -81,7 +81,8 @@ def test_symmetric_propagation_preserves_index_worktree_untracked_and_other_stas
     assert state['worktree_propagation']['targets'][0]['phase'] == 'done'
 
 
-def test_merge_conflicts_are_resolved_automatically_before_active_work_returns(trees):
+@pytest.mark.parametrize('concurrent_commit', [False, True])
+def test_merge_conflicts_are_resolved_automatically_before_active_work_returns(trees, concurrent_commit):
     f = trees
     f.change(f.other, 'shared', 'other committed work\n')
     (f.other / 'unstaged').write_text('keep destination active work\n')
@@ -93,12 +94,16 @@ def test_merge_conflicts_are_resolved_automatically_before_active_work_returns(t
         assert details['stash']
         (root / 'shared').write_text('main committed work\nother committed work\n')
         f.git(root, 'add', '--', 'shared')
+        if concurrent_commit:
+            # Another owner can finish the pending merge during resolution.
+            f.git(root, 'commit', '--no-edit')
     propagation.propagate(f.root, f.run, {}, commit, git=f.git, resolve=resolve)
     assert calls == ['merge']
     assert f.git(f.other, 'merge-base', '--is-ancestor', commit, 'HEAD').returncode == 0
     assert (f.other / 'unstaged').read_text() == 'keep destination active work\n'
     assert f.git(f.other, 'show', 'HEAD:unstaged').stdout == 'base\n'
     assert f.git(f.other, 'rev-parse', 'HEAD').stdout == f.git(f.other, 'rev-parse', '@{upstream}').stdout
+    assert bool(f.git(f.other, 'stash', 'list').stdout) == concurrent_commit
 
 
 def test_stash_conflict_uses_resolver_and_keeps_active_work_uncommitted(trees):
@@ -172,6 +177,33 @@ def test_propagation_starts_from_verified_completion_after_source_advances(trees
     assert state['worktree_propagation']['targets'][0]['phase'] == 'done'
 
 
+def test_rewritten_destination_before_merge_preserves_original_stash(trees, monkeypatch):
+    f = trees
+    (f.other / 'unstaged').write_text('saved destination work\n')
+    commit = f.change(f.root, 'shared', 'completed task\n')
+    atomic = propagation.launcher.atomic
+    def interrupt(path, state):
+        atomic(path, state)
+        if state['worktree_propagation']['targets'][0].get('phase') == 'fetch':
+            raise OSError('interrupted before fetch')
+    monkeypatch.setattr(propagation.launcher, 'atomic', interrupt)
+    with pytest.raises(OSError, match='before fetch'):
+        propagation.propagate(f.root, f.run, {}, commit, git=f.git)
+    monkeypatch.setattr(propagation.launcher, 'atomic', atomic)
+    saved = json.loads((f.run / 'checkpoint.json').read_text())
+    target, = saved['worktree_propagation']['targets']
+    tree = f.git(f.other, 'rev-parse', 'HEAD^{tree}').stdout.strip()
+    unrelated = f.git(f.other, 'commit-tree', tree, '-m', 'Unrelated replacement history').stdout.strip()
+    f.git(f.other, 'reset', '--soft', unrelated)
+    upstream = f.git(f.other, 'rev-parse', '@{upstream}').stdout
+    with pytest.raises(ValueError, match='destination HEAD changed during propagation merge'):
+        propagation.propagate(f.root, f.run, saved, commit, git=f.git,
+                              resolve=lambda *_: pytest.fail('unrelated history reached the resolver'))
+    assert f.git(f.other, 'rev-parse', '@{upstream}').stdout == upstream
+    assert f.git(f.other, 'rev-parse', 'stash@{0}').stdout.strip() == target['stash']
+    assert f.git(f.other, 'show', target['stash'] + ':unstaged').stdout == 'saved destination work\n'
+
+
 def test_all_configured_destinations_and_source_exclusion(trees):
     f = trees
     third = f.other.parent / 'third'
@@ -227,7 +259,7 @@ def test_incomplete_resolution_continues_unattended_without_questions(trees, mon
 
 
 @pytest.mark.parametrize('result,committed_path', [('continue', 'staged'), ('resolved', 'shared')])
-def test_head_change_stops_resolution_before_retry_push_or_stash_drop(trees, monkeypatch, result, committed_path):
+def test_descendant_head_continues_resolution_and_preserves_stash(trees, monkeypatch, result, committed_path):
     f = trees
     (f.other / 'shared').write_text('destination active work\n')
     commit = f.change(f.root, 'shared', 'source completion\n')
@@ -236,8 +268,10 @@ def test_head_change_stops_resolution_before_retry_push_or_stash_drop(trees, mon
     def turn(root, run, phase, details):
         calls.append(phase)
         assert phase == 'restore'
-        # The unrelated commit models another owner advancing the branch;
-        # committing active work models a resolver violating its contract.
+        if len(calls) > 1:
+            return dict(status='resolved', summary='Concurrent commit retained', cleanup_complete=True)
+        # Another owner can advance the branch, including restored active work.
+        # Observing a descendant does not identify its author.
         (root / 'shared').write_text('source completion\ndestination active work\n')
         f.git(root, 'add', '--', 'shared')
         f.git(root, 'restore', '--staged', '--', 'shared')
@@ -248,13 +282,13 @@ def test_head_change_stops_resolution_before_retry_push_or_stash_drop(trees, mon
     monkeypatch.setattr(propagation, '_resolve_once', turn)
     def resolve(root, phase, details):
         propagation.resolve_conflicts(root, f.run, phase, details, git=f.git)
-    with pytest.raises(ValueError, match='destination HEAD changed.*expected .*found .*stash is preserved'):
-        propagation.propagate(f.root, f.run, {}, commit, git=f.git, resolve=resolve)
-    assert calls == ['restore']
-    assert f.git(f.other, 'rev-parse', '@{upstream}').stdout == upstream
+    propagation.propagate(f.root, f.run, {}, commit, git=f.git, resolve=resolve)
+    assert calls == ['restore'] * (2 if result == 'continue' else 1)
+    assert f.git(f.other, 'rev-parse', '@{upstream}').stdout != upstream
     saved = json.loads((f.run / 'checkpoint.json').read_text())
     target, = saved['worktree_propagation']['targets']
-    assert target['phase'] == 'restoring' and target['merged_head'] == commit
+    assert target['phase'] == 'done' and target['merged_head'] == commit
+    assert target['preserve_stash'] is True
     assert f.git(f.other, 'rev-parse', 'stash@{0}').stdout.strip() == target['stash']
     assert f.git(f.other, 'show', target['stash'] + ':shared').stdout == 'destination active work\n'
 
@@ -342,21 +376,119 @@ def test_explicit_reviewed_propagation_recovery_preserves_stash_and_checkpoint(t
     assert f.git(f.other, 'stash', 'list').stdout == stashes
 
 
-def test_resolver_cannot_drop_stash_after_losing_unrelated_active_work(trees):
+@pytest.mark.parametrize('repair', [False, True])
+def test_missing_active_work_returns_to_resolver_before_push_or_stash_retirement(trees, repair):
     f = trees
     (f.other / 'shared').write_text('conflicting active work\n')
     (f.other / 'unstaged').write_text('unrelated active work\n')
     commit = f.change(f.root, 'shared', 'completed task\n')
+    calls = []
     def resolve(root, phase, details):
         assert phase == 'restore'
+        calls.append(details)
         (root / 'shared').write_text('completed task\nconflicting active work\n')
         f.git(root, 'add', '--', 'shared')
         f.git(root, 'restore', '--staged', '--', 'shared')
-        (root / 'unstaged').write_text('base\n')
-    with pytest.raises(ValueError, match='active work or staging was not restored'):
+        f.git(root, 'restore', '--staged', '--', 'unstaged')
+        (root / 'unstaged').write_text('unrelated active work\n' if repair and len(calls) == 2 else 'base\n')
+    if repair:
         propagation.propagate(f.root, f.run, {}, commit, git=f.git, resolve=resolve)
+        assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() == commit
+        assert (f.other / 'unstaged').read_text() == 'unrelated active work\n'
+    else:
+        with pytest.raises(propagation.RestorationRequired, match="'unstaged' \\(content\\)"):
+            propagation.propagate(f.root, f.run, {}, commit, git=f.git, resolve=resolve)
+        assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() != commit
+    assert len(calls) == 2 and 'previous_resolution' in calls[1]
     assert 'onpc-propagation-' in f.git(f.other, 'stash', 'list').stdout
-    assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() != commit
+
+
+@pytest.mark.parametrize('phase', ['push', 'drop'])
+@pytest.mark.parametrize('path', ['unstaged', 'shared'])
+def test_restart_rechecks_restoration_at_unchanged_head_before_retiring_stash(trees, monkeypatch, phase, path):
+    f = trees
+    (f.other / path).write_text('saved destination work\n')
+    commit = f.change(f.root, 'shared', 'completed task\n')
+    expected = ('completed task\n' if path == 'shared' else '') + 'saved destination work\n'
+    def restore(root, *_):
+        (root / path).write_text(expected)
+        f.git(root, 'add', '--', path)
+        f.git(root, 'restore', '--staged', '--', path)
+    atomic = propagation.launcher.atomic
+    def interrupt(path, state):
+        atomic(path, state)
+        if state['worktree_propagation']['targets'][0].get('phase') == phase:
+            raise OSError('interrupted before stash retirement')
+    monkeypatch.setattr(propagation.launcher, 'atomic', interrupt)
+    with pytest.raises(OSError, match='before stash retirement'):
+        propagation.propagate(f.root, f.run, {}, commit, git=f.git, resolve=restore)
+    monkeypatch.setattr(propagation.launcher, 'atomic', atomic)
+    saved = json.loads((f.run / 'checkpoint.json').read_text())
+    target, = saved['worktree_propagation']['targets']
+    (f.other / path).write_text('completed task\n' if path == 'shared' else 'base\n')
+    calls = []
+    def resolve(root, kind, details):
+        assert kind == 'restore' and details['stash'] == target['stash']
+        assert path in details['previous_resolution']
+        calls.append(kind)
+        restore(root)
+    propagation.propagate(f.root, f.run, saved, commit, git=f.git, resolve=resolve)
+    assert calls == ['restore'] and target['phase'] == 'done'
+    assert (f.other / path).read_text() == expected
+    assert f.git(f.other, 'rev-parse', 'stash@{0}').stdout.strip() == target['stash']
+
+
+@pytest.mark.parametrize('phase, damage', [
+    ('restore', None), ('push', None), ('drop', None), ('push', 'rewrite'), ('push', 'missing-stash'),
+    ('restore', 'operation'),
+])
+def test_descendant_restart_never_replays_or_retires_the_recovery_stash(trees, monkeypatch, phase, damage):
+    f = trees
+    (f.other / 'unstaged').write_text('saved destination work\n')
+    commit = f.change(f.root, 'shared', 'completed task\n')
+    atomic = propagation.launcher.atomic
+    def interrupt(path, state):
+        atomic(path, state)
+        if state['worktree_propagation']['targets'][0].get('phase') == phase:
+            raise OSError('interrupted at restoration boundary')
+    monkeypatch.setattr(propagation.launcher, 'atomic', interrupt)
+    with pytest.raises(OSError, match='restoration boundary'):
+        propagation.propagate(f.root, f.run, {}, commit, git=f.git)
+    monkeypatch.setattr(propagation.launcher, 'atomic', atomic)
+    saved = json.loads((f.run / 'checkpoint.json').read_text())
+    # A later owner has already included the saved work and extended it.
+    head = f.change(f.other, 'unstaged', 'saved destination work\nlater committed work\n')
+    (f.other / 'unstaged').write_text('new concurrent edits\n')
+    if damage:
+        target, = saved['worktree_propagation']['targets']
+        if damage == 'rewrite':
+            f.git(f.other, 'reset', '--soft', target['head'])
+        elif damage == 'missing-stash':
+            f.git(f.other, 'stash', 'drop', 'stash@{0}')
+        else:
+            Path(f.git(f.other, 'rev-parse', '--git-path', 'MERGE_HEAD').stdout.strip()).write_text(head + '\n')
+        upstream = f.git(f.other, 'rev-parse', '@{upstream}').stdout
+        with pytest.raises(ValueError, match='destination HEAD changed|original propagation stash is missing|existing Git operation'):
+            propagation.propagate(f.root, f.run, saved, commit, git=f.git,
+                                  resolve=lambda *_: pytest.fail('unsafe state reached the resolver'))
+        assert f.git(f.other, 'rev-parse', '@{upstream}').stdout == upstream
+        assert (f.other / 'unstaged').read_text() == 'new concurrent edits\n'
+        return
+    calls = []
+    def git(root, *args, **kwargs):
+        assert not (root == f.other and args[:2] == ('stash', 'apply'))
+        return f.git(root, *args, **kwargs)
+    def resolve(root, kind, details):
+        calls.append(kind)
+        checkpoint = json.loads((f.run / 'checkpoint.json').read_text())
+        assert checkpoint['worktree_propagation']['targets'][0]['phase'] == 'restoring'
+    propagation.propagate(f.root, f.run, saved, commit, git=git, resolve=resolve)
+    assert calls == ['restore']
+    target, = saved['worktree_propagation']['targets']
+    assert target['phase'] == 'done' and target['preserve_stash'] is True
+    assert (f.other / 'unstaged').read_text() == 'new concurrent edits\n'
+    assert f.git(f.other, 'rev-parse', 'HEAD').stdout.strip() == head
+    assert f.git(f.other, 'rev-parse', 'stash@{0}').stdout.strip() == target['stash']
 
 
 def test_real_supervisor_runs_destination_resolver_with_a_private_agent_double(trees, monkeypatch):

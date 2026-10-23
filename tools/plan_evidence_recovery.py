@@ -24,6 +24,7 @@ from launcher_runtime import capacity_session_recovery
 PROTECTED_FIELDS = (
     'task_id', 'title', 'brief', 'acceptance', 'targets', 'task', 'queue_before',
     'queue_structure', 'task_sessions', 'total_sessions', 'session_limit',
+    'repair_sessions', 'session_kind',
     'stage_baseline', 'protected_staged', 'suspended_tasks', 'replan_baseline',
     'consolidation_obligations', 'pending_completion', 'commit_intent',
     'pull_intent', 'git_reconciliation', 'result_recovery', 'evidence_inputs', 'evidence_attempt',

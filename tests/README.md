@@ -1468,11 +1468,11 @@ exactly; count-only matches cannot pass. New UI modules run exclusively until
 their isolation is reviewed in `tools/regression_ui.py`. Nested Shell stays in
 one bucket so its stable latest-evidence paths have one writer. The accessible
 adapter uses private compositors, buses, settings and attempt artifacts,
-including its Shell search. Recording and viewer tool tests are excluded under
+including its Shell search. Recording and viewer tool UI tests are excluded under
 the [test scope mandate](../docs/Mandates/Test-Scope-Mandate.md). Non-product
-unit coverage is limited to core execution/verdict integrity and concrete
-dangerous or disruptive actions at their shared owner; ordinary encoding,
-masking, publication or helper features do not earn their own test suites.
+unit coverage is not added by default unless specifically requested; maintain
+existing shared safety regressions and validate ordinary encoding, masking,
+publication or helper changes through their existing consumers.
 Host aggregates and focused UI runs retain the `live_e2e` exclusion during
 collection and execution so VM-dependent checks cannot enter the host category.
 The private compositor fixture is explicitly required by the nested-Shell module,
@@ -1646,10 +1646,11 @@ encoder and bounded frame handoff. No audio is recorded. Keyframe-aligned clips
 can include a short prelude, whose visible VMs also appear in the filename.
 Transient GTK paint gaps retain the last safe frame and are counted separately
 from encoder overload; a sustained rendering stall fails capture.
-Recording is an ordinary development aid and has no dedicated unit or UI
-suite under the [test scope mandate](../docs/Mandates/Test-Scope-Mandate.md).
-Do not relocate its deleted playback, masking, publication or benchmark matrix
-to another layer. Runtime safeguards remain part of the recording contract.
+Recording is an ordinary development aid: new unit tests require a specific
+request, and UI tests are excluded under the
+[test scope mandate](../docs/Mandates/Test-Scope-Mandate.md).
+Do not automatically relocate its deleted playback, masking, publication or
+benchmark matrix to another layer. Runtime safeguards remain part of the recording contract.
 
 ### Aggregate output retention
 
@@ -1925,8 +1926,8 @@ and planned cases. Both layers reuse shared GUI operations and public readers; s
 
 The [2026-09-14 customer scope](../docs/TestAutomation/E2E-Building-Blocks.md) changes
 unfinished E2E plans. Preserve product regressions and the shared safety checks
-allowed by the [test scope mandate](../docs/Mandates/Test-Scope-Mandate.md);
-remove excluded ordinary non-product units even when historically completed.
+under the [test scope mandate](../docs/Mandates/Test-Scope-Mandate.md).
+The default against new non-product unit tests does not require removing existing units.
 Customer E2E uses real
 actions and visible results; mechanical installation/upgrade/removal retains
 its internal checks. Pending legacy E2E declarations require scoped adaptation
@@ -1934,7 +1935,7 @@ with their first consumer, without weakening required product coverage.
 
 | Location | Purpose | Real dependencies and isolation |
 | --- | --- | --- |
-| `tests/unit/` | Product behavior, core execution/verdict integrity and concrete dangerous-action guards under the [test scope mandate](../docs/Mandates/Test-Scope-Mandate.md). Ordinary non-product helpers, fixtures and oracles have no units. | Host-safe; controlled doubles are allowed. Tests that launch fixtures still obey process ownership. |
+| `tests/unit/` | Product behavior and existing shared infrastructure regressions under the [test scope mandate](../docs/Mandates/Test-Scope-Mandate.md). By default, no new unit tests for non-product code, unless specifically asked for. | Host-safe; controlled doubles are allowed. Tests that launch fixtures still obey process ownership. |
 | `tests/support/` | Explicitly imported host fixtures, doubles, readers and process helpers. | No case collection or live VM operations at import time; guest execution uses `tests/integration` helpers. |
 | `tests/fixtures/` | Fixture builders and actual Flatpak runtime acceptance via `make check-test-fixtures`. | Owned processes, private Flatpak state and system bus; runtime tests require unprivileged kernel namespaces and are outside default package-build collection. |
 | `tests/component/` | Real broker D-Bus dispatch and serialization on private buses. | Real Gio/GLib transport; injected backend adapters. This is not real installed authorization. |
@@ -2283,7 +2284,7 @@ When changing a concrete dangerous cleanup operation, select the existing
 regression at its shared ownership boundary under the
 [test scope mandate](../docs/Mandates/Test-Scope-Mandate.md). A new controller
 or consumer does not require its own unit suite or repeated cleanup matrix.
-Ordinary recording, viewer, fixture and oracle code has no dedicated units.
+New unit tests for non-product recording, viewer, fixture and oracle code require a specific request.
 Unchanged cleanup implementations need no prerequisite regression run before
 ordinary product tests. The validated category launchers retain live ownership
 and recovery checks without launching additional test suites.

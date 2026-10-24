@@ -364,9 +364,20 @@ script uses `run-tests --resume --resume-case=CASE --resume-case-only` to retry 
 under its original selectors and on its failing VM, retaining required lifecycle
 prerequisites. A passing retry leaves the category incomplete. The launcher
 closes out the verified repair before resuming the remaining cases with
-`run-tests --resume`, without repeating completed passes. Failures without a
-case ID replay the original category selection without saved passes, including
-diagnostic execution and its subsequent repair verification. Each newly entered
+`run-tests --resume`, without repeating completed passes. Failures before a case
+event retain the exact case the launcher was attempting as context, including
+preparation failures; this does not claim that its test body ran or failed.
+For the case-based `system`, `e2e`, `unit`, `component`, `ui` and `fixture-runtime`
+categories, a failure without a reported case ID never triggers a whole-category
+verification. Other leaves retain their command-level verification.
+The repair agent can name one existing, relevant
+`verification_case` within the original category and selectors and explain how
+it exercises the failed operation and correction. Otherwise the launcher chooses
+a recent case, or just the first case in that selection. Missing case identity
+or uncertain relevance must not block selection or widen verification.
+The launcher reruns that case
+and its required prerequisites through the case-only runner, for diagnostic
+execution and corrective verification alike. Each newly entered
 category and each fresh verification pass starts without `--resume`.
 
 For a configured VM queue, host categories run once and each VM owns its
@@ -412,7 +423,10 @@ before advancing. This uses the current branch's configured upstream.
 This per-case close-out applies to every category, whether host or VM.
 Case verification requires the runner's teardown-complete pass for that exact
 case and VM under the original selectors; a different failure alone does not
-prove a pass. Non-case failures require a successful replay of their category.
+prove a pass. Non-case repairs in case-based suites require a fresh, teardown-complete pass of their
+explicit bounded verification case. A saved pass from before the repair cannot
+qualify it. The bounded pass closes only the repair; remaining category cases
+stay pending and resume under normal parallel scheduling after close-out.
 Diagnostic execution alone never triggers a commit. Agents report `stage_paths`
 and leave staging, commits and pushes to the launcher. Pre-existing dirty or
 staged work is protected; overlapping close-out refuses rather than including it.
@@ -1653,7 +1667,10 @@ This is development/test tooling only; package update activation is **none**.
 `tools/run-tests` automatically records system and E2E execution through the
 same GTK layout, read-only VM feeds and filtered SSH terminals as `tools/watch`.
 One private renderer/encoder belongs to the runner, including its concurrent VM
-queue. Capture includes only that queue's feeds from this checkout: another
+queue. For `fix-tests` VM queues, the parent repair launcher owns that controller
+through all worker retries and owned cleanup; nested runners inherit its verified
+endpoint rather than creating competing controllers. Its recording index belongs
+to the parent run. Capture includes only that queue's feeds from this checkout: another
 controller's secret seals cannot authorize recording its display. A visible watch
 window can be opened, closed or absent independently.
 The recording is human review material; test assertions and result reports

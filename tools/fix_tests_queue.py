@@ -306,13 +306,24 @@ def case_inventory(root, category, options):
         import re
         cases = [match[1] for line in result.stdout.splitlines()
                  if (match := re.fullmatch(r'    (\S+::\S+) \[selected\](?: \[system-\d+\])?', line))]
-    else:
+    elif category == 'e2e':
         import runpy
         runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
         plan = runner['preflight'](list(options), root=root, allow_missing_artifacts=True)
         if 'cases' not in plan:
             return None  # Qualification selectors remain one non-case operation.
         cases = [case['case_id'] for case in plan['cases']]
+    else:
+        from regression_events import PREFIX
+        command = [str(root / 'tools/run-tests'), category, *options, '--collect-only', '-q']
+        environment = launcher.environment()
+        environment['ONPC_REGRESSION_EVENTS'] = '1'
+        result = subprocess.run(command, cwd=root, env=environment,
+                                capture_output=True, text=True, check=True, timeout=120,
+                                pass_fds=(*launcher.scratch_descriptors(), *repair_descriptors()))
+        cases = [case for line in result.stdout.splitlines() if line.startswith(PREFIX)
+                 for event in [json.loads(line[len(PREFIX):])]
+                 if event.get('kind') == 'collection' for case in event['nodeids']]
     if not cases or len(cases) != len(set(cases)):
         raise ValueError('VM case inventory is empty or contains duplicate identities')
     return cases
@@ -395,9 +406,29 @@ def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopp
 
 
 def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
+    """Own one recording controller across all VM pipelines and their cleanup."""
+    from regression_process import Control
+    from vm_recording import recording
+    media = None
+    status = 1
+    try:
+        with Control().installed() as control, recording(root, enabled=True) as media:
+            status = _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds, resume, control)
+        return status
+    except KeyboardInterrupt:
+        status = 130
+        raise
+    except Exception:
+        status = 1
+        raise
+    finally:
+        if media is not None:
+            media.write_index(run, status)
+
+
+def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds, resume, control):
     """Run host work once, then refill VM slots after complete per-VM pipelines."""
     from fix_tests import category_inventory, requested_inventory
-    from regression_process import Control
     from vm_queue import dispatch
     from vm_selection import BATCH, VARIABLE, vm_config
     snapshot = json.loads(os.environ[BATCH])
@@ -467,130 +498,129 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
         launcher.atomic(run / 'frame.json', lines)
         launcher.atomic(state_path, states)
 
-    with Control().installed() as control:
-        failed = threading.Event()
-        def execute_owned(name, selection, *, recovery=False):
-            if control.stopped.is_set() or (run / 'cancel').exists():
-                return 130
-            child = child_run(name)
-            (child / 'result.json').unlink(missing_ok=True)
-            launcher.atomic(child / 'pipeline.json', dict(parent=str(run)))
-            launcher.atomic(child / 'vm.json', {'vm': None if name == 'host' else name})
-            if not (child / 'limits.json').exists():
-                TaskBudget(child).initialize(None)
-            # The runner checkpoint validates selectors and rounds even for a
-            # completed pipeline. Presentation state cannot grant a pass.
-            states[name]['status'] = 'running'
-            args = [value for kind, spec in selection.items() for value in (kind, *spec['args'])]
-            environment = launcher.environment()
-            environment.pop(BATCH, None)
-            if recovery:
-                environment[RECOVERY_ONLY] = '1'
-            if name == 'host':
-                environment.pop(VARIABLE, None)
-            else:
-                environment[VARIABLE] = name
-            command = ['/usr/bin/python3', '-IBu', str(WORKER),
-                       '--worker', str(root), str(child), str(owner), model, effort, app_model,
-                       json.dumps(args), rounds, 'true' if recovery else resume]
-            pending = b''
-            with (child / 'output').open('ab') as log:
-                def output(data):
-                    nonlocal pending
-                    log.write(data)
-                    log.flush()
-                    pending += data
-                    while b'\n' in pending:
-                        line, pending = pending.split(b'\n', 1)
-                        with output_lock:
-                            print(f'[{name}] ' + line.decode('utf-8', errors='replace'), flush=True)
-                def tick():
+    failed = threading.Event()
+    def execute_owned(name, selection, *, recovery=False):
+        if control.stopped.is_set() or (run / 'cancel').exists():
+            return 130
+        child = child_run(name)
+        (child / 'result.json').unlink(missing_ok=True)
+        launcher.atomic(child / 'pipeline.json', dict(parent=str(run)))
+        launcher.atomic(child / 'vm.json', {'vm': None if name == 'host' else name})
+        if not (child / 'limits.json').exists():
+            TaskBudget(child).initialize(None)
+        # The runner checkpoint validates selectors and rounds even for a
+        # completed pipeline. Presentation state cannot grant a pass.
+        states[name]['status'] = 'running'
+        args = [value for kind, spec in selection.items() for value in (kind, *spec['args'])]
+        environment = launcher.environment()
+        environment.pop(BATCH, None)
+        if recovery:
+            environment[RECOVERY_ONLY] = '1'
+        if name == 'host':
+            environment.pop(VARIABLE, None)
+        else:
+            environment[VARIABLE] = name
+        command = ['/usr/bin/python3', '-IBu', str(WORKER),
+                   '--worker', str(root), str(child), str(owner), model, effort, app_model,
+                   json.dumps(args), rounds, 'true' if recovery else resume]
+        pending = b''
+        with (child / 'output').open('ab') as log:
+            def output(data):
+                nonlocal pending
+                log.write(data)
+                log.flush()
+                pending += data
+                while b'\n' in pending:
+                    line, pending = pending.split(b'\n', 1)
                     with output_lock:
-                        if (run / 'cancel').exists():
-                            control.stop()
-                        publish()
-                from contextlib import ExitStack
-                with ExitStack() as startup:
-                    gate = RepairGate(child, stopped=control.stopped.is_set)
-                    # A retained writer enters its exclusive gate in the worker.
-                    # Everyone else inherits a reader across initial imports.
-                    if not recovery:
-                        source = startup.enter_context(gate.source())
-                        environment[STARTUP_SOURCE] = str(source)
-                    else:
-                        gate.acquire()
-                        source = gate.fd
-                        environment[STARTUP_REPAIR] = str(source)
-                        startup.callback(gate.detach)
-                    status = control.run(command, cwd=root, env=environment, output=output, tick=tick,
-                        cooperative=True, started=startup.close,
-                        pass_fds=(owner, *launcher.scratch_descriptors(),
-                                  *((source,) if source is not None else ())))
-                if pending:
-                    output(b'\n')
+                        print(f'[{name}] ' + line.decode('utf-8', errors='replace'), flush=True)
+            def tick():
+                with output_lock:
+                    if (run / 'cancel').exists():
+                        control.stop()
+                    publish()
+            from contextlib import ExitStack
+            with ExitStack() as startup:
+                gate = RepairGate(child, stopped=control.stopped.is_set)
+                # A retained writer enters its exclusive gate in the worker.
+                # Everyone else inherits a reader across initial imports.
+                if not recovery:
+                    source = startup.enter_context(gate.source())
+                    environment[STARTUP_SOURCE] = str(source)
+                else:
+                    gate.acquire()
+                    source = gate.fd
+                    environment[STARTUP_REPAIR] = str(source)
+                    startup.callback(gate.detach)
+                status = control.run(command, cwd=root, env=environment, output=output, tick=tick,
+                    cooperative=True, started=startup.close,
+                    pass_fds=(owner, *launcher.scratch_descriptors(),
+                              *((source,) if source is not None else ())))
+            if pending:
+                output(b'\n')
+        with output_lock:
+            # Failed/cancelled tickets stay in FIFO order for recovery.
+            path = child / 'checkpoint.json'
+            saved = json.loads(path.read_text()) if path.exists() else {}
+            unfinished = coordinator.recovery_state(saved) != 'complete'
+            if status == 0 and unfinished and not recovery:
+                raise ValueError('pipeline finished with unresolved retained repairs')
+            if status == 0 and not unfinished:
+                coordinator.discard(child.name)
+            states[name]['status'] = ('limited' if (child / 'limited').exists() else
+                'queued' if status == 0 and recovery else
+                'complete' if status == 0 else 'stopped' if status == 130 else 'blocked')
+            publish()
+        return status
+
+    def execute(name, selection, *, recovery=False):
+        try:
+            status = execute_owned(name, selection, recovery=recovery)
+        except launcher.Stopped:
             with output_lock:
-                # Failed/cancelled tickets stay in FIFO order for recovery.
-                path = child / 'checkpoint.json'
-                saved = json.loads(path.read_text()) if path.exists() else {}
-                unfinished = coordinator.recovery_state(saved) != 'complete'
-                if status == 0 and unfinished and not recovery:
-                    raise ValueError('pipeline finished with unresolved retained repairs')
-                if status == 0 and not unfinished:
-                    coordinator.discard(child.name)
-                states[name]['status'] = ('limited' if (child / 'limited').exists() else
-                    'queued' if status == 0 and recovery else
-                    'complete' if status == 0 else 'stopped' if status == 130 else 'blocked')
+                states[name]['status'] = 'stopped'
                 publish()
-            return status
+            status = 130
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            with output_lock:
+                print(f'[{name}] pipeline infrastructure failed: {error}', flush=True)
+                states[name]['status'] = 'blocked'
+            status = 2
+        if status:
+            if status != 130:
+                failed.set()
+            control.stop()  # No worker can wait behind a dead queue owner.
+            with output_lock:
+                publish()
+        return status
 
-        def execute(name, selection, *, recovery=False):
-            try:
-                status = execute_owned(name, selection, recovery=recovery)
-            except launcher.Stopped:
-                with output_lock:
-                    states[name]['status'] = 'stopped'
-                    publish()
-                status = 130
-            except (OSError, ValueError, subprocess.SubprocessError) as error:
-                with output_lock:
-                    print(f'[{name}] pipeline infrastructure failed: {error}', flush=True)
-                    states[name]['status'] = 'blocked'
-                status = 2
-            if status:
-                if status != 130:
-                    failed.set()
-                control.stop()  # No worker can wait behind a dead queue owner.
-                with output_lock:
-                    publish()
-            return status
-
-        status = coordinator.recover(pipelines, lambda name: execute(name, pipelines[name][1], recovery=True))
+    status = coordinator.recover(pipelines, lambda name: execute(name, pipelines[name][1], recovery=True))
+    if status:
+        return status
+    # Reset/validate the whole selection before admitting normal work. A VM
+    # left queued by a limit or cancellation must not inherit an older run's
+    # category passes on the next --resume.
+    from test_checkpoint import Checkpoint
+    from launcher_runtime import warn_remaining
+    remaining = 0
+    for name in states:
+        selection = host if name == 'host' else guests
+        saved = Checkpoint(root, [(kind, spec['args']) for kind, spec in selection.items()],
+            resume=resume == 'true', namespace='fix-tests', binding='' if name == 'host' else name)
+        number = saved.state.get('round', 1)
+        if number > int(rounds):
+            raise ValueError('resume round exceeds --rounds; retain the original round count')
+        remaining += sum(not saved.complete(kind) for kind in selection)
+        remaining += (int(rounds) - number) * len(selection)
+    parent_budget.update(lambda value: value.update(remaining=remaining))
+    warn_remaining(parent_budget.read()['tasks'], remaining, label='fix-tests')
+    if host:
+        status = execute('host', host)
         if status:
             return status
-        # Reset/validate the whole selection before admitting normal work. A VM
-        # left queued by a limit or cancellation must not inherit an older run's
-        # category passes on the next --resume.
-        from test_checkpoint import Checkpoint
-        from launcher_runtime import warn_remaining
-        remaining = 0
-        for name in states:
-            selection = host if name == 'host' else guests
-            saved = Checkpoint(root, [(kind, spec['args']) for kind, spec in selection.items()],
-                resume=resume == 'true', namespace='fix-tests', binding='' if name == 'host' else name)
-            number = saved.state.get('round', 1)
-            if number > int(rounds):
-                raise ValueError('resume round exceeds --rounds; retain the original round count')
-            remaining += sum(not saved.complete(kind) for kind in selection)
-            remaining += (int(rounds) - number) * len(selection)
-        parent_budget.update(lambda value: value.update(remaining=remaining))
-        warn_remaining(parent_budget.read()['tasks'], remaining, label='fix-tests')
-        if host:
-            status = execute('host', host)
-            if status:
-                return status
-        results = dispatch(vms, snapshot['concurrency'], lambda vm: execute(vm.name, guests), control.stopped)
-        statuses = {name: value['status'] if isinstance(value, dict) else value for name, value in results.items()}
-        launcher.atomic(run / 'vm-results.json', results)
-        if any(value['status'] == 'limited' for value in states.values()):
-            (run / 'limited').touch(mode=0o600)
-        return 1 if failed.is_set() else 130 if control.stopped.is_set() else 1 if any(statuses.values()) else 0
+    results = dispatch(vms, snapshot['concurrency'], lambda vm: execute(vm.name, guests), control.stopped)
+    statuses = {name: value['status'] if isinstance(value, dict) else value for name, value in results.items()}
+    launcher.atomic(run / 'vm-results.json', results)
+    if any(value['status'] == 'limited' for value in states.values()):
+        (run / 'limited').touch(mode=0o600)
+    return 1 if failed.is_set() else 130 if control.stopped.is_set() else 1 if any(statuses.values()) else 0

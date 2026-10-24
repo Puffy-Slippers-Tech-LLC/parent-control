@@ -22,6 +22,8 @@ def main():
         import vm_pool
         vm_pool.selected_reservation = lambda **kwargs: nullcontext()
         vm_pool.reservation = lambda *args, **kwargs: nullcontext()
+        import vm_recording
+        vm_recording.recording = lambda *args, **kwargs: nullcontext()
         root, run, owner, *options = args
         source_record = Path(root) / 'controller-root'
         if source_record.exists():
@@ -63,6 +65,12 @@ def main():
                           for name in ('unit', 'ui', 'system', 'e2e')}))
         return 0
     mode = (root / 'mode').read_text()
+    if kind == 'test' and '--collect-only' in args:
+        script = json.loads((root / 'script.json').read_text()) if mode == 'agent-script' else {}
+        cases = ['verification::case', *[case if isinstance(case, str) else case['case']
+                                        for case in script.get('tests', []) if case]]
+        print('ONPC-TEST-EVENT ' + json.dumps(dict(kind='collection', nodeids=list(dict.fromkeys(cases)))))
+        return 0
     if mode == 'vm-pipeline' and kind == 'test' and '--list' in args:
         print('    installed::case-a [selected]\n    installed::case-b [selected]')
         return 0
@@ -166,6 +174,8 @@ def main():
             if case is None:
                 passed = [*passed, *[item if isinstance(item, str) else item['case']
                                     for item in script['tests'][:index] if item is not None]]
+                passed += [arg.partition('=')[2] for arg in args
+                           if arg.startswith('--resume-case=')]
             for node in passed:
                 if node and node not in script.get('unexecuted', []):
                     checkpoint.event(category, dict(kind='finished', nodeid=node), set())
@@ -220,6 +230,11 @@ def main():
             print(f'Failure handoff: {handoff}', flush=True)
             return 1
         print('Overall - 100% (1/1) - 0.0m', flush=True)
+        if kind == 'test':
+            for arg in args:
+                if arg.startswith('--resume-case='):
+                    checkpoint.event(category, dict(kind='finished', nodeid=arg.partition('=')[2]), set())
+            checkpoint.save()
         return 0
 
     if mode == 'agent-wait':
@@ -279,6 +294,7 @@ def main():
     reply.write_text(json.dumps([] if mode == 'agent-invalid' else
                                {'status': status,
                                 'stage_paths': stage_paths,
+                                'verification_case': script.get('verification_case', 'verification::case'),
                                 'summary': f'fixture result {count + 1}' if mode == 'agent-script' else 'fixture result',
                                 'blocker': {
                                     'explanation': 'Expected the specified behavior; observed a mismatch.',

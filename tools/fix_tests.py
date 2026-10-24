@@ -42,6 +42,7 @@ REPAIR_TIERS = ((DEFAULT_MODEL, DEFAULT_EFFORT), (APP_MODEL, APP_EFFORT),
                 (DEFAULT_MODEL, 'xhigh'), (DEFAULT_MODEL, 'max'))
 UNIT_REPAIR_TIERS = tuple((DEFAULT_MODEL, effort) for effort in ('low', 'medium', 'high', 'xhigh'))
 MAX_REPAIR_SESSIONS = 5
+CASE_RETRY_CATEGORIES = {'system', 'e2e', 'unit', 'component', 'ui', 'fixture-runtime'}
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
@@ -239,6 +240,16 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'the explicit checkout-relative files owned by this repair, including diagnostic '
             'edits and deletions; use an empty list when no files changed. Never include '
             'unrelated work or output artifacts. '
+            'Set verification_case to null when the failure already identifies a case. '
+            'For a failure without a case ID, choose exactly one existing case that exercises '
+            'the failed operation and the correction, within the original category/selectors, '
+            'and return its runner case ID as verification_case. Explain that causal choice '
+            'in summary. The launcher reruns only that case and its required prerequisites; '
+            'it never expands a missing case ID into a full-category verification. Prefer '
+            'the most relevant case, otherwise a recent case, otherwise any one case from '
+            'the category. If relevance cannot be established, leave verification_case null '
+            'and the launcher chooses a recent or first selected case. Do not block on case '
+            'selection or invent a case. '
             'Include in summary the concrete new evidence supporting this correction or newly '
             'exposed failure. Rewording a diagnosis, editing code or rerunning a test is not '
             'diagnostic progress. Each failing case has at most five agent sessions in this run, '
@@ -251,7 +262,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
 
 def validate_result(result):
     if (not isinstance(result, dict)
-            or set(result) - {'status', 'summary', 'blocker', 'stage_paths'}
+            or set(result) - {'status', 'summary', 'blocker', 'stage_paths', 'verification_case'}
             or result.get('status') not in ('test_fixed', 'fixed', 'blocked', 'app_issue', 'uncertain', 'stalled', 'diagnostic_ready')
             or not isinstance(result.get('summary'), str) or not result['summary'].strip()):
         raise ValueError('repair agent did not return a valid result object')
@@ -266,6 +277,11 @@ def validate_result(result):
         validate_blocker(result.get('blocker'))
     elif result.get('blocker') is not None:
         raise ValueError('only a blocked result may ask a question')
+    case = result.get('verification_case')
+    if case is not None:
+        from regression_events import completed_cases
+        if not isinstance(case, str) or not case or completed_cases(json.dumps([case])) != {case}:
+            raise ValueError('verification_case must be one existing runner case ID')
 
 
 def read_tail(path):
@@ -320,6 +336,26 @@ def verification_outcome(failure, target):
     reported = {tuple(item[key] for key in ('category', 'case', 'vm'))
                 for item in failure.get('failures', [])}
     return False if target in reported or target == first else None
+
+
+def attempted_failure(failure, category, attempt):
+    """Keep the requested case when preparation fails before a case event."""
+    failure_target(failure, category)  # Validate before supplementing identities.
+    if (not attempt or attempt['category'] != category or category not in failure['categories']):
+        return failure
+    targets = failure.get('failures', [])
+    if any(item['category'] == category and item['case'] for item in targets):
+        return failure
+    target = dict(category=category, case=attempt.get('case', ''), vm=attempt['vm'])
+    if any(item['category'] == category and item['vm'] not in ('', target['vm']) for item in targets):
+        return failure
+    failure = dict(failure, failures=[dict(target, case=''),
+                                      *[item for item in targets if item['category'] != category]])
+    if not target['case']:
+        return failure
+    return dict(failure, attempted_case=target,
+                prompt=failure['prompt'] + '\nThe launcher was attempting this exact case; '
+                       'the failure may precede its test body: ' + json.dumps(target))
 
 
 def category_inventory(output):
@@ -392,9 +428,8 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
             else:
                 previous = handoffs[target]
             check_stop()
-            # A non-case failure has no identity to invalidate in the saved
-            # checkpoint. Replay its original category selection so diagnostics
-            # and repairs cannot be certified by already completed passes.
+            # The worker resolves unidentified failures to one explicit bounded
+            # verification case; a missing ID never authorizes a category replay.
             failure = (resume_test(category, retry_case=target[1], retry_vm=target[2], fresh=not target[1])
                        if resume_test else test(category))
             passed = outcome(failure, target)
@@ -714,10 +749,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         check_controller()
         if test_replay is not None:
             replay, test_replay = test_replay, None
+            from vm_selection import execution_binding
+            binding = execution_binding() if not host_only_selection([(category, [])]) else ''
             def selectors(values):
                 return [arg for arg in values if arg not in ('--resume', '--resume-case-only') and not arg.startswith('--resume-case=')]
             if (kind != replay['kind'] or category != replay['category']
-                    or selectors(options) != selectors(replay['options']) or vm != replay.get('vm')):
+                    or selectors(options) != selectors(replay['options'])
+                    or (vm or binding) != (replay.get('vm') or binding)):
                 raise ValueError('retained controller operation differs from the original selection')
             def retry_case(values):
                 return next((arg for arg in values if arg.startswith('--resume-case=')), None)
@@ -741,9 +779,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                               start_new_session=True) as child:
             status = child.wait()
         if kind == 'test':
+            from vm_selection import execution_binding
             latest_attempt = dict(category=category, selectors={
                 name: spec['args'] for name, spec in inventory.items()},
-                run=str(run), invocation=invocation, status=status)
+                run=str(run), invocation=invocation, status=status,
+                case=next((arg.partition('=')[2] for arg in options if arg.startswith('--resume-case=')), ''),
+                vm=vm or (execution_binding() if not host_only_selection([(category, [])]) else '') or '')
             commits.state['runner_attempt'] = latest_attempt
             commits.save()
         sys.stdout.flush()
@@ -790,10 +831,40 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         verifying_fix = False
         # Close each validated repair before executing the remaining selection.
         # Retained status also restores this boundary after controller restart.
+        from vm_selection import execution_binding
+        target_vm = retry_vm or (execution_binding() if not host_only_selection([(category, [])]) else '') or ''
         repaired = next((entry for entry in commits.state['repairs'].values()
-                         if entry['failure'] == [category, retry_case, retry_vm]
-                         and entry.get('status') in ('fixed', 'test_fixed')), None) if retry_case else None
-        focused = repaired is not None
+                         if entry['failure'][:2] == [category, retry_case]
+                         and entry['failure'][2] in (retry_vm, target_vm)
+                         and entry.get('status') in ('fixed', 'test_fixed', 'diagnostic_ready')), None)
+        if repaired is not None and repaired.get('pending_response') is not None:
+            return saved_failure()['failure']
+        if repaired is not None:
+            retry_vm = repaired['failure'][2]
+        unidentified = bool(repaired is not None and not retry_case and category in CASE_RETRY_CATEGORIES)
+        if unidentified:
+            from fix_tests_queue import case_inventory
+            cases = case_inventory(root, category, inventory[category]['args'])
+            if not cases:
+                raise ValueError('case inventory unavailable for bounded verification')
+            recent = latest_attempt or {}
+            candidates = [repaired.get('verification_case'),
+                          recent.get('case') if recent.get('category') == category else None]
+            position = run / 'case-progress.json'
+            if position.exists():
+                previous = json.loads(position.read_text())
+                if previous.get('category') == category:
+                    candidates.append(previous.get('case'))
+            retry_case = next((case for case in candidates if case in cases), cases[0])
+            if repaired.get('verification_case') != retry_case:
+                repaired['verification_case'] = retry_case
+                repaired['verification_after'] = recent.get('invocation')
+                repaired.pop('verified_case', None)
+                commits.save()
+            print(f'fix-tests: bounded verification case: {retry_case}', flush=True)
+            fresh, resume = False, True
+        focused = repaired is not None and (unidentified or
+                   bool(retry_case) and repaired.get('status') in ('fixed', 'test_fixed'))
         verification_vm = (retry_vm or None) if focused or probe else None
         checking_fix = checking_fix or focused
         resume = not fresh and (resume or (resuming and (category == pending or
@@ -835,8 +906,6 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             recovered = True
         while True:
             atomic(run / 'test-controller.json', [])
-            info = task_info(run, f'{round_number}:{category}')
-            checking_fix = checking_fix or info.get('status') == 'Testing fix, previous error point passed'
             checking_fix = checking_fix or recovery_only and any(
                 entry['failure'][0] == category and entry.get('status') in ('fixed', 'test_fixed')
                 for entry in commits.state['repairs'].values())
@@ -870,10 +939,29 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 if checking_fix:
                     panel({'status': 'Testing fix, previous error point passed'})
                 if focused and resume:
+                    if repaired.get('status') == 'diagnostic_ready':
+                        if outcome(None, (category, retry_case, retry_vm)) is not True:
+                            raise ValueError('diagnostic retry has no teardown-complete case pass')
+                        return None  # Interpretation precedes acceptance of diagnostic edits.
+                    if unidentified:
+                        if latest_attempt.get('invocation') == repaired.get('verification_after'):
+                            continue  # A replayed old case is not a fresh bounded verification.
+                        target = (category, retry_case, retry_vm)
+                        if outcome(None, target) is not True:
+                            raise ValueError('bounded verification has no teardown-complete case pass')
+                        repaired['verified_case'] = retry_case
+                        repaired['verification_attempt'] = latest_attempt
+                        commits.save()
                     close_verified(category=category)
                     if commits.key(tuple(repaired['failure'])) in commits.state['repairs']:
                         raise ValueError('repair case has no confirmed pass; remaining cases were not started')
-                    focused, verification_vm, checking_fix = False, None, False
+                    remaining = next((entry for entry in commits.state['repairs'].values()
+                                      if entry['failure'][0] == category
+                                      and entry.get('status') in ('fixed', 'test_fixed')), None)
+                    if remaining is not None:
+                        return test(category, resume=True, retry_case=remaining['failure'][1],
+                                    retry_vm=remaining['failure'][2])
+                    focused, verification_vm, checking_fix, unidentified = False, None, False, False
                     retry_case = ''
                     resume = True
                     print('fix-tests: repair close-out complete; resuming remaining cases.', flush=True)
@@ -920,6 +1008,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if status_line is not None:
                 print(status_line, flush=True)
             failure = handoff(run, root=root)
+            if not unidentified:
+                failure = attempted_failure(failure, category, latest_attempt)
             failure['_repair_generation'] = generation
             close_verified(category=category)
             failed(category)
@@ -1202,6 +1292,29 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise RecoveryComplete()
 
     def outcome(failure, target):
+        entry = commits.state['repairs'].get(commits.key(target))
+        from vm_selection import execution_binding
+        target_vm = target[2] or (execution_binding() if not host_only_selection([(target[0], [])]) else '') or ''
+        if not target[1] and entry is not None:
+            if target[0] not in CASE_RETRY_CATEGORIES:
+                return (verification_outcome(failure, target) if failure is not None else
+                        True if checkpoint.complete(target[0]) else None)
+            case = entry.get('verification_case')
+            if not case:
+                return None
+            if failure is not None and verification_outcome(failure, target) is False:
+                return False
+            if failure is None and entry.get('verified_case') == case:
+                return True
+            target = (target[0], case, target_vm)
+            if failure is None and (not latest_attempt or latest_attempt['status'] != 0
+                    or latest_attempt['category'] != target[0]
+                    or latest_attempt.get('case') != case
+                    or latest_attempt.get('vm') != target[2]
+                    or latest_attempt['selectors'].get(target[0]) != inventory[target[0]]['args']
+                    or latest_attempt.get('invocation') == entry.get('verification_after')):
+                return None
+        target = (target[0], target[1], target_vm)
         result = verification_outcome(failure, target)
         if result is False:
             return result
@@ -1227,8 +1340,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if entry.get('pending_response') is not None:
                 continue  # Current response validation precedes any acceptance.
             if entry.get('status') in ('fixed', 'test_fixed'):
-                passed = (outcome(None, target) if target[1] else
-                          checkpoint.complete(target[0]) and outcome(None, target))
+                passed = outcome(None, target)
                 if passed is True:
                     check_stop()
                     commits.verified(target, attempt=latest_attempt)

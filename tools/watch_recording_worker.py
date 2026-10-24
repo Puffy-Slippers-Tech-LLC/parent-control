@@ -508,7 +508,10 @@ def main(argv=None):
                           XDG_DATA_HOME=str(private / 'data'),
                           XDG_STATE_HOME=str(private / 'state'),
                           GDK_BACKEND='wayland', NO_AT_BRIDGE='1',
-                          GSETTINGS_BACKEND='memory', GTK_THEME='Adwaita',
+                          GSETTINGS_BACKEND='memory',
+                          # Match the host Mutter rather than editor/Snap schemas.
+                          GSETTINGS_SCHEMA_DIR='/usr/share/glib-2.0/schemas',
+                          GTK_THEME='Adwaita',
                           MUTTER_DEBUG_DISABLE_ANIMATIONS='1')
         os.environ.pop('DISPLAY', None)
         compositor = subprocess.Popen(['mutter', '--headless', '--wayland', '--no-x11',

@@ -420,19 +420,23 @@ def test_verified_push_retry_ignores_expired_proof_before_remaining_tests(checko
     assert json.loads((resumed / 'checkpoint.json').read_text()) == carried
 
 
-def test_noncase_repair_commits_after_its_category_pass_without_archives(checkout):
+def test_noncase_repair_commits_after_its_bounded_case_pass_without_archives(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-script')
     (root / 'script.json').write_text(json.dumps(dict(
-        agents=['test_fixed'], tests=['', None])))
+        agents=['test_fixed'], tests=['', None], verification_case=None)))
     run, _ = fix_tests.select(root, categories=('unit',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0, output.getvalue()
     state = json.loads((run / 'checkpoint.json').read_text())
     assert state['repairs'] == {} and state['runner_attempt']['status'] == 0
     assert 'pending' not in state
-    calls = [json.loads(line)['kind'] for line in (root / 'calls').read_text().splitlines()]
-    assert calls == ['test', 'agent', 'test']
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'test', 'test']
+    assert '--resume-case=verification::case' in calls[2]['args']
+    assert '--resume-case-only' in calls[2]['args']
+    assert '--resume' in calls[3]['args']
+    assert '--resume-case-only' not in calls[3]['args']
     assert subprocess.run(['git', 'log', '-1', '--format=%s'], cwd=root, capture_output=True,
                           text=True, check=True, timeout=10).stdout.strip() == 'TA: Fixed unit infrastructure'
 
@@ -961,7 +965,7 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
         assert (run / 'rejected-agent-result.json').read_text() == '[]'
         assert json.loads((run / 'repair-stop.json').read_text())['sessions'] == 5
     executed = [call['category'] for call in calls if call['kind'] == 'test']
-    assert executed == (['unit', 'unit', 'ui', 'system', 'e2e', 'all'] if expected == 0 else ['unit'])
+    assert executed == (['unit', 'unit', 'unit', 'ui', 'system', 'e2e', 'all'] if expected == 0 else ['unit'])
     assert 'Traceback' not in output.getvalue()
     assert 'PRIVATE REASONING FIXTURE' not in output.getvalue()
     rendered = Text.from_ansi(output.getvalue()).plain
@@ -1027,7 +1031,7 @@ def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkou
     assert len(set(answered)) == (2 if mode == 'agent-blocked-twice' else 1)
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     agents = [call for call in calls if call['kind'] == 'agent']
-    assert [call['kind'] for call in calls] == ['test'] + ['agent'] * len(agents) + ['test', 'test']
+    assert [call['kind'] for call in calls] == ['test'] + ['agent'] * len(agents) + ['test', 'test', 'test']
     assert len(agents) == (2 if mode == 'agent-blocked' else 3)
     assert len({agent['pid'] for agent in agents}) == len(agents)
     answer = 'Preserve the requirement; repair the product.' if custom else 'Restore the specified behavior.'
@@ -1150,6 +1154,7 @@ def test_recovery_failure_handoff_is_repaired_then_recovery_and_category_retry(c
         ('recovery', 'recovery'),
         ('test', 'unit'),
         ('test', 'unit'),
+        ('test', 'unit'),
     ]
     agent = next(call for call in calls if call['kind'] == 'agent')
     assert agent['prompt'].startswith('LATEST RECOVERY FAILURE ONLY\n')
@@ -1185,7 +1190,7 @@ def test_selected_categories_stay_scoped_through_worker_and_repair(checkout, cat
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['category'] for call in calls if call['kind'] == 'test'] == [
-        'unit', 'unit', 'unit', 'ui', 'unit', 'ui']
+        'unit', 'unit', 'unit', 'unit', 'ui', 'unit', 'ui']
     assert len([call for call in calls if call['kind'] == 'agent']) == 2
     assert 'all selected categories passed' in output.getvalue()
 
@@ -1204,10 +1209,11 @@ def test_category_arguments_survive_worker_repairs_and_verification(checkout, op
     assert fix_tests.follow(run, io.StringIO()) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     tests = [call for call in calls if call['kind'] == 'test']
-    assert len(tests) == 5  # Initial attempt, two repair retries, two verification rounds.
+    assert len(tests) == 6  # Initial, two bounded retries, remaining work, two rounds.
     assert [call['args'] for call in tests] == [
-        ['--stop-on-error', 'unit',
-         *options, '--vm', vm_name()] for index in range(5)]
+        [*(['--resume'] if index in (1, 2, 3) else []), '--stop-on-error', 'unit',
+         *options, *(['--resume-case=verification::case', '--resume-case-only']
+                    if index in (1, 2) else []), '--vm', vm_name()] for index in range(6)]
     assert len([call for call in calls if call['kind'] == 'agent']) == 2
 
 
@@ -1456,12 +1462,12 @@ def test_diagnostic_experiment_retains_evidence_and_selectors_without_repair_cla
     assert 'verification_failed:' not in agents[-1]['prompt']
     assert all('model_reasoning_effort="low"' in call['args'] for call in agents)
     tests = [call for call in calls if call['kind'] == 'test']
-    retries = ['A', '', 'A'] if len(observations) == 4 else ['A', 'A']
+    retries = ['A', 'verification::case', 'A', 'verification::case'] if len(observations) == 4 else ['A', 'A']
     assert [call['args'] for call in tests] == [
         ['--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()],
         *[[*(['--resume'] if case else []), '--stop-on-error', 'unit', '-k', 'selected', '-q',
            *(['--resume-case=' + case] if case else []),
-           *(['--resume-case-only'] if index == len(retries) - 1 else []), '--vm', vm_name()]
+           *(['--resume-case-only'] if index > 0 else []), '--vm', vm_name()]
           for index, case in enumerate(retries)],
         ['--resume', '--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()]]
     rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
@@ -1477,7 +1483,7 @@ def test_diagnostic_experiment_retains_evidence_and_selectors_without_repair_cla
 
 
 @pytest.mark.parametrize('resuming', [False, True])
-def test_category_diagnostics_and_repairs_replay_without_saved_passes(checkout, resuming):
+def test_category_diagnostics_and_repairs_use_one_bounded_case(checkout, resuming):
     root, _ = checkout
     (root / 'tests/ui').mkdir(parents=True)
     (root / 'tests/ui/test_selected.py').write_text('def test_selected(): pass\n')
@@ -1501,7 +1507,10 @@ def test_category_diagnostics_and_repairs_replay_without_saved_passes(checkout, 
     original = ['--stop-on-error', 'ui', '--timeout', '1800s', '-m', 'not live_e2e',
                 '--vm', vm_name()]
     assert [call['args'] for call in tests] == [
-        [*(['--resume'] if resuming else []), *original], original, original]
+        [*(['--resume'] if resuming else []), *original],
+        *[['--resume', *original[:-2], '--resume-case=verification::case',
+           '--resume-case-only', *original[-2:]] for _ in range(2)],
+        ['--resume', *original]]
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2
     assert 'Launcher-owned diagnostic execution outcome:' in agents[1]['prompt']

@@ -308,13 +308,7 @@ def owned_worker(root, argv, run, owner):
             status = 130
         if media is not None:
             try:
-                with (run / 'recordings.json').open('x', encoding='utf-8') as stream:
-                    os.fchmod(stream.fileno(), 0o600)
-                    json.dump(dict(run_id=run.name, complete=media.finalized, status=status,
-                        policy='Latest files can be superseded; compare SHA-256 with this run.',
-                        capture=media.summary, recordings=media.records), stream, indent=2)
-                    stream.flush()
-                    os.fsync(stream.fileno())
+                media.write_index(run, status)
             except OSError:
                 status = 1
                 print('Recording index could not be saved; owned capture cleanup finished.',

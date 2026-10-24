@@ -489,6 +489,15 @@ class Session:
                 os.close(self.pidfd)
             self.stack.close()
 
+    def write_index(self, run, status):
+        with (run / 'recordings.json').open('x', encoding='utf-8') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump(dict(run_id=run.name, complete=self.finalized, status=status,
+                policy='Latest files can be superseded; compare SHA-256 with this run.',
+                capture=self.summary, recordings=self.records), stream, indent=2)
+            stream.flush()
+            os.fsync(stream.fileno())
+
     def __enter__(self):
         return self.start()
 

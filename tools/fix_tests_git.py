@@ -58,6 +58,9 @@ class RepairCommits:
         entry = self.state['repairs'][self.key(target)]
         entry['stage_paths'] = list(dict.fromkeys([*entry['stage_paths'], *result.get('stage_paths', [])]))
         entry['status'] = result['status']
+        entry['verification_case'] = result.get('verification_case')
+        entry.pop('verified_case', None)
+        entry['verification_after'] = self.state.get('runner_attempt', {}).get('invocation')
         entry['fingerprints'] = {path: validated_fingerprint(self.root / path)
                                  for path in entry['stage_paths']}
         self.save()

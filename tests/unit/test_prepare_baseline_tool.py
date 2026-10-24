@@ -143,6 +143,14 @@ def test_help_reuses_warning_bullets_without_red_color(launcher, capsys):
 
 
 def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, capsys):
+    import test_activity
+    import vm_pool
+
+    # The declined result belongs to preparation, not reservation authorization.
+    # Keep real VM acquisition and launcher locks outside this dispatch check.
+    monkeypatch.setattr(vm_pool, 'reservation', lambda name: nullcontext())
+    monkeypatch.setattr(vm_pool, 'arguments', lambda: [])
+    monkeypatch.setattr(test_activity, 'activity', lambda *args, **kwargs: nullcontext())
     run = Mock(return_value=SimpleNamespace(returncode=3))
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
     assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0

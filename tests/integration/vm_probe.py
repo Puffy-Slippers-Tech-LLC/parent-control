@@ -5,6 +5,7 @@ credentials, transport flags, locks and observation remain fixed and guarded.
 """
 
 import re
+import hashlib
 import os
 import stat
 import sys
@@ -397,6 +398,33 @@ def reproduce_baseline_app_effects(lease):
     return reproduce_denial(lease, BaselineAppEffectsJourney, PLAN,
                             'allowed-use-command', 'baseline-app-effects', assets=assets,
                             boundary_operation='overlay-native-allowed-command-launch')
+
+
+def reproduce_baseline_restoration(lease, fixture_selection):
+    """Retain C04j's Parent restoration boundary after its complete real history."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from baseline_journey import BaselineJourney, PLAN
+    from e2e_fixture_preparation import validate_input
+    from system_fixture_preparation import guest_target
+    from tools.test_storage import named_input
+    system.require(lease.capture.state['guest'].get('fixture_boundary') == 'clean',
+                   'fixtures:e2e-installed-clean-baseline-required')
+    selection = validate_input(fixture_selection,
+                              target=guest_target(lease.capture.state['guest']))
+    name, xml, _record = attested_online_snapshot(lease)
+    # These flags describe this authenticated, already running memory restore.
+    # No pending restoration/bootstrap is manufactured to pass preparation.
+    lease.installed_name, lease.installed_xml = name, xml
+    lease.online_pending, lease.online_bootstrap = False, None
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    if not assets.is_dir():
+        print('baseline-restoration: prepare the required input with '
+              'tools/run-tests artifacts prepare --for-vm --vm NAME --output ' + str(assets),
+              file=sys.stderr, flush=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, BaselineJourney, PLAN,
+        'restore-saved', 'baseline-restoration', assets=assets,
+        boundary_operation='parent-save-disabled', fixture_selection=selection, timeout=1800)
 
 
 def probe_kiosk_prompt_latency(lease, samples=10, cold=False):
@@ -895,12 +923,22 @@ def probe_lock_curtain(lease):
 
 
 def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_operation=None,
-                     assets=None, actions=None, native_log=False, unlock_capture=False):
+                     assets=None, actions=None, native_log=False, unlock_capture=False,
+                     fixture_selection=None, timeout=900):
     """Shared maintenance envelope; fixed callers own the finite history/boundary."""
     from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
     import e2e_worker
     from qualification_storage import recovery_session, allocate
+    selected_setup = fixture_selection is not None
+    if selected_setup or surface == 'baseline-restoration' or timeout != 900:
+        from baseline_journey import BaselineJourney, PLAN
+        system.require(selected_setup and surface == 'baseline-restoration'
+            and journey_type is BaselineJourney and plan is PLAN
+            and boundary == 'restore-saved' and boundary_operation == 'parent-save-disabled'
+            and assets is not None and actions is None and not native_log and not unlock_capture
+            and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
+    system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
     system.require(type(native_log) is bool and (not native_log or (
         surface == 'kiosk-approval' and boundary == 'approval-qualified')),
         'kiosk-native-log:caller')
@@ -930,17 +968,36 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             from retained_unlock_capture import Capture
             capture = Capture(lease, transport, directory)
         credentials = FixtureCredentials()
-        credentials.provision_online(lease, transport)
+        if not selected_setup:
+            credentials.provision_online(lease, transport)
         context = SimpleNamespace(directory=directory, lease=lease)
+        if selected_setup:
+            from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
+            context.fixture_selection = fixture_selection
+            context.fixture_subsets, context.fixture_caller = ACTIVITY_SUBSETS, ACTIVITY_CALLER
+            context.installed_snapshot = lease.installed_name
         expected_inputs = {}
         if assets is not None:
             from provenance import VerifiedInputs, preflight_source
-            staged = directory / 'input'
-            system.stage_assets(system.artifact_source(assets), staged, lease.commands)
+            staged = directory / ('assets' if selected_setup else 'input')
+            system.stage_assets(system.artifact_source(assets), staged, lease.commands,
+                                **({'package_only': True} if selected_setup else {}))
             staged.chmod(0o700)
-            preflight_source(staged)
-            context.verified = VerifiedInputs(lease=lease, assets=staged)
+            preflight_source(staged, **({'package_only': True} if selected_setup else {}))
+            if selected_setup:
+                import installed_setup
+                helpers = installed_setup.inputs(system.ROOT)
+                selection = {helpers.sources[target]: hashlib.sha256(data).hexdigest()
+                             for target, data in helpers.files.items()}
+                installed_setup.stage(directory, staged, selection, bundle=helpers, package_only=True)
+                staged = directory / 'input'
+            context.verified = VerifiedInputs(lease=lease, assets=staged,
+                **({'package_only': True} if selected_setup else {}))
             expected_inputs = context.verified.source_files
+        if selected_setup:
+            from online_snapshot import rebind_maintenance
+            transport = rebind_maintenance(lease, directory, transport)
+            credentials.provision_online(lease, transport)
 
         class Reproduction(journey_type):
             def _step(self, guard):
@@ -956,9 +1013,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                     capture.require_active()
                 if stage != 'setup-detached':
                     return super()._step(guard)
-                # The maintenance snapshot already owns the installed package
-                # and transport. All actual journey observations still use the
-                # current shared source bundled by UiObservations.
+                # The maintenance snapshot owns the installed package and
+                # transport; selected fixtures still require normal preparation.
                 request = directory / 'setup-detached.request.json'
                 if not request.exists():
                     return
@@ -969,6 +1025,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 self.transport = transport
                 self.vm = ReadOnlyObservations(transport)
                 observed = {'stage': stage, 'outcome': 'diagnostic'}
+                if selected_setup:
+                    from installed_journey import prepare_installed_setup
+                    prepared = prepare_installed_setup(context, transport, guard)
+                    observed['setup'] = {'installed_snapshot': context.installed_snapshot,
+                                         'activity_fixture': prepared['activity_fixture']}
                 self.steps.append(observed)
                 self.progress(stage, observed)
                 pending = directory / 'setup-detached.reply.tmp'
@@ -1023,7 +1084,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             with kiosk_native_evidence(lease, transport, directory) if native_log else nullcontext():
                 result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
                     expected_inputs=expected_inputs, observe=lambda: None, validate=validate,
-                    guarded_observe=observe, credentials=credentials, maintenance=True, timeout=900)
+                    guarded_observe=observe, credentials=credentials, maintenance=True, timeout=timeout)
                 system.require(result['worker_stopped'] and result['callback_closed'],
                                'diagnosis:cleanup-incomplete')
                 lease.guard()
@@ -1070,14 +1131,11 @@ def prepare_maintenance_transport(lease):
         publish_maintenance(lease, directory, host_key)
 
 
-def connect(lease):
-    """Bind a probe to the current owned online snapshot, without restoring it."""
-    from online_snapshot import load, load_maintenance, connect_saved_transport, validate_saved_snapshot
+@system.observed('Attesting the current installed maintenance snapshot')
+def attested_online_snapshot(lease):
+    """Read only the current installed memory snapshot and its private proof."""
+    from online_snapshot import load, validate_saved_snapshot
     lease.guard()
-    record = load_maintenance(lease)
-    if record is not None:
-        hostname = system.address(lease.source)
-        return connect_saved_transport(lease, lease.commands.directory, record, hostname)
     snapshot = lease.source.domain.snapshotCurrent(0)
     name, xml = snapshot.getName(), snapshot.getXMLDesc(0)
     system.require(re.fullmatch(r'onpc-v[0-9]+(?:\.[0-9]+)*', name) is not None,
@@ -1090,6 +1148,17 @@ def connect(lease):
     record = load(lease.source, name, xml)
     system.require(record is not None, 'vm-probe:snapshot-credentials-missing')
     validate_saved_snapshot(lease, xml, record)
+    lease.guard()
+    return name, xml, record
+
+
+def connect(lease):
+    """Bind a probe to the current owned online snapshot, without restoring it."""
+    from online_snapshot import load_maintenance, connect_saved_transport
+    lease.guard()
+    record = load_maintenance(lease)
+    if record is None:
+        _name, _xml, record = attested_online_snapshot(lease)
     hostname = system.address(lease.source)
     return connect_saved_transport(lease, lease.commands.directory, record, hostname)
 

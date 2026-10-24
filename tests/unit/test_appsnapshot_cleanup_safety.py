@@ -608,6 +608,46 @@ def test_maintenance_credentials_are_private_and_bound_to_owned_run(tmp_path, mo
         assert record is None if fault == 'run' else record['private_key'] == 'private fixture key'
 
 
+def test_live_maintenance_rebind_cannot_publish_an_unverified_rotated_key(tmp_path, monkeypatch):
+    import online_snapshot
+    import vm_transport
+    lease = Mock(fd=7, installed_name='onpc-v9.8.7', installed_xml='<snapshot/>')
+    lease.source.uuid = UUID
+    lease.state = {'phase': 'running', 'run': 'b' * 32, 'domain_uuid': UUID,
+                   'domain_id': 71, 'baseline_sha256': 'c' * 64}
+    lease.view.domain_id = 71
+    lease.capture.state = {'guest': {'ubuntu_version': '26.04',
+                                    'preparation_record_sha256': 'd' * 64}}
+    snapshot = lease.source.domain.snapshotCurrent.return_value
+    snapshot.getName.return_value = lease.installed_name
+    snapshot.getXMLDesc.return_value = lease.installed_xml
+    record = {'run': 'a' * 32, 'host_key': 'ssh-ed25519 host',
+              'public_key': 'ssh-ed25519 old'}
+    monkeypatch.setattr(online_snapshot, 'load', lambda *a: record)
+    monkeypatch.setattr(online_snapshot, 'validate_saved_snapshot', Mock())
+    payload = tmp_path / 'input'
+    payload.mkdir()
+    (payload / 'selected-inputs.json').write_text('{}')
+    (payload / 'package.deb').write_bytes(b'package')
+    (tmp_path / 'ssh-key.pub').write_text('ssh-ed25519 fresh')
+    old = Mock(config={'directory': str(tmp_path / 'old'), 'hostname': 'fixture-host',
+                       'run': record['run'], 'domain_uuid': UUID, 'domain_id': 71})
+    fresh = Mock()
+    fresh.probe_ready.side_effect = RuntimeError('fresh-proof-failed')
+    monkeypatch.setattr(vm_transport, 'Transport', Mock(return_value=fresh))
+    verify = Mock()
+    publish = Mock()
+    monkeypatch.setattr(online_snapshot, 'verify_credentials', verify)
+    monkeypatch.setattr(online_snapshot, '_save_maintenance', publish)
+    with pytest.raises(RuntimeError, match='fresh-proof-failed'):
+        online_snapshot.rebind_maintenance(lease, tmp_path, old)
+    assert old.call.call_args.args[0] == ['/usr/bin/python3', '-c', online_snapshot.REBIND]
+    assert lease.maintenance_rebind_pending is True
+    verify.assert_not_called()
+    publish.assert_not_called()
+    lease.source.domain.revertToSnapshot.assert_not_called()
+
+
 def test_online_credentials_are_private_and_bound_to_exact_snapshot(tmp_path, monkeypatch):
     import online_snapshot
     monkeypatch.setattr(online_snapshot.test_storage, 'directory', lambda _: tmp_path)

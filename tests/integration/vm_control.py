@@ -418,6 +418,7 @@ def main(argv=None):
                                           'reproduce-kiosk-preferences',
                                           'reproduce-baseline-app-effects',
                                           'reproduce-baseline-auth-pause',
+                                          'reproduce-baseline-restoration',
                                           'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                           'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain',
@@ -454,7 +455,8 @@ def main(argv=None):
         runner.require((args.action == 'rename') == (args.new_name is not None), 'vm-control:arguments')
         runner.require(args.action != 'exec' or probe is not None, 'vm-control:arguments')
         runner.require(not args.fixture_maintenance or args.action == 'start', 'vm-control:arguments')
-        runner.require((args.action == 'sync-fixtures') == (args.fixture_selection is not None),
+        runner.require((args.action in ('sync-fixtures', 'reproduce-baseline-restoration'))
+                       == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
             runner.baseline.guest_contract.vm_config.validate_name(args.new_name)
@@ -503,6 +505,24 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
+        elif args.action == 'reproduce-baseline-restoration':
+            from vm_probe import reproduce_baseline_restoration
+            resume(lease)
+            try:
+                reproduce_baseline_restoration(lease, fixture_selection)
+            except BaseException:
+                if getattr(lease, 'maintenance_rebind_pending', False):
+                    # A rotated but unpublished key cannot support a later SSH
+                    # stop. Restore only this already owned instance; never
+                    # retry the uncertain rebind or replace its failure.
+                    try:
+                        lease.stop_by_restore()
+                        lease.finish()
+                    except BaseException as cleanup_error:
+                        print('vm-control: incomplete rebind cleanup failed (' +
+                              type(cleanup_error).__name__ + '); preserve controller state',
+                              file=sys.stderr, flush=True)
+                raise
         elif args.action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval',
                              'reproduce-kiosk-preferences',
                              'reproduce-baseline-app-effects',

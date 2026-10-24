@@ -1,5 +1,6 @@
 """Finite reusable guest assets. No product state or attempt credentials."""
 from pathlib import Path
+
 try:
     from baseline_environment import desktop_settings_files, automatic_update_files
 except ImportError:

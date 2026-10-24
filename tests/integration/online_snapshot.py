@@ -103,6 +103,11 @@ def load(source, name, xml):
 def publish_maintenance(lease, setup, host_key):
     """Retain only this baseline maintenance run's private SSH identity."""
     lease.guard(off=True)
+    _save_maintenance(lease, setup, host_key)
+
+
+def _save_maintenance(lease, setup, host_key):
+    """Publish only after the caller's offline or authenticated live boundary."""
     value = dict(schema_version=1, run=lease.state['run'],
         domain_uuid=lease.source.uuid, baseline_sha256=lease.state['baseline_sha256'],
         host_key=host_key, private_key=(setup / 'ssh-key').read_text(),
@@ -369,11 +374,18 @@ def saved_transport(lease, directory, record, hostname):
 
 @system.observed('Preparing fresh test inputs in the restored running VM')
 def start(lease):
-    from vm_transport import Transport
     started = time.monotonic()
     directory, record = lease.online_bootstrap
     hostname = restore(lease, record)
     transport = saved_transport(lease, directory, record, hostname)
+    _rebind(lease, directory, record, transport)
+    system.log(f'online-snapshot:attempt-ready seconds={time.monotonic() - started:.2f}')
+    lease.online_bootstrap = None
+
+
+def _rebind(lease, directory, record, transport):
+    """Replace the authenticated old marker/key, then prove the fresh binding."""
+    from vm_transport import Transport
     data = dict(run=lease.state['run'], baseline_sha256=lease.state['baseline_sha256'],
         preparation_sha256=lease.capture.state['guest']['preparation_record_sha256'],
         selected_inputs_sha256=system.baseline.digest(directory / 'input/selected-inputs.json'),
@@ -381,13 +393,39 @@ def start(lease):
             ('package.' + system.package_format(lease.capture.state['guest']))),
         public_key=(directory / 'ssh-key.pub').read_text(), old_public_key=record['public_key'])
     transport.call(['/usr/bin/python3', '-c', REBIND], input=system.baseline.encode(data))
-    (directory / 'known-hosts').write_text(f"{hostname} {record['host_key']}\n")
+    (directory / 'known-hosts').write_text(f"{transport.config['hostname']} {record['host_key']}\n")
     fresh = Transport(dict(transport.config, directory=str(directory), run=lease.state['run']),
                       lease.commands, guard=lambda _: lease.guard(), lease=lease)
     fresh.probe_ready()
     verify_credentials(fresh, lease)
-    system.log(f'online-snapshot:attempt-ready seconds={time.monotonic() - started:.2f}')
-    lease.online_bootstrap = None
+    return fresh
+
+
+@system.observed('Binding fresh inputs to the owned running maintenance VM')
+def rebind_maintenance(lease, directory, transport):
+    """Rebind one authenticated live snapshot; never restore it or set its clock."""
+    lease.guard()
+    snapshot = lease.source.domain.snapshotCurrent(0)
+    system.require(lease.fd is not None and lease.state['phase'] == 'running'
+        and lease.state['domain_id'] is not None
+        and snapshot.getName() == lease.installed_name
+        and snapshot.getXMLDesc(0) == lease.installed_xml,
+        'maintenance-ssh:online-snapshot-required')
+    record = load(lease.source, lease.installed_name, lease.installed_xml)
+    system.require(record is not None, 'online-snapshot:credentials-missing')
+    validate_saved_snapshot(lease, lease.installed_xml, record)
+    system.require(transport.config['run'] == record['run']
+        and transport.config['domain_uuid'] == lease.source.uuid == lease.state['domain_uuid']
+        and transport.config['domain_id'] == lease.state['domain_id'] == lease.view.domain_id,
+        'maintenance-ssh:old-transport-binding')
+    lease.commands.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '',
+                        '-C', 'onpc-system-test', '-f', str(directory / 'ssh-key')])
+    lease.maintenance_rebind_pending = True
+    fresh = _rebind(lease, directory, record, transport)
+    lease.guard()
+    _save_maintenance(lease, directory, record['host_key'])
+    lease.maintenance_rebind_pending = False
+    return fresh
 
 
 def verify_credentials(transport, lease):

@@ -6,12 +6,12 @@ import test_retention
 
 def before_run(root, argv, *, categories=None):
     # Help/collection and owned aggregate children must remain read-only here.
-    from test_commands import host_only_selection, is_inspection
+    from test_commands import host_only_request, is_inspection
     if not argv or is_inspection(argv):
         return 0
     if not test_activity.descriptors():
         raise ValueError('retention: checkout activity ownership required')
-    if host_only_selection([(kind, []) for kind in (categories or [argv[0]])]):
+    if host_only_request(argv):
         return cleanup_host(root)
     return cleanup(root)
 

@@ -263,7 +263,8 @@ test_test_checkpoint's validation-order checks use its existing private files
 only; its compatible unit classification is unchanged.
 
 Native fixture readback extends its existing private descriptor trees and
-ownership doubles. No VM, bus, display, shared cache or new lifecycle owner;
+ownership doubles, plus one bounded, waited isolated Python import check.
+No VM, bus, display, shared cache or new lifecycle owner;
 the existing compatible unit/cleanup classifications remain applicable.
 Qualification clock/secret checks use pytest-private collector files and a
 process-local clock double, retaining the graphical-smoke safety module's

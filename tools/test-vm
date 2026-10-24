@@ -13,6 +13,32 @@ from vm_selection import extract, vm_config
 MAX_INPUT_BYTES = 64 * 1024 * 1024
 
 
+def baseline_restoration(args, configured):
+    """Freeze the diagnostic's selected fixtures for its exact VM and lifetime."""
+    if not args or args[0] != 'reproduce-baseline-restoration':
+        return None
+    targets = vm_config.fixture_targets()
+    if args != ['reproduce-baseline-restoration'] or configured.name not in targets:
+        raise ValueError('baseline restoration requires a qualified target and a fixed action')
+    from dev_privileges import check
+    from vm_pool import arguments as checkout_arguments, reservation
+    from test_retention import Store
+    from test_storage import directory, scratch_descriptors
+    from fixture_execution import prepare
+    import json
+    check('/usr/local/libexec/onpc-test-runner')
+    with reservation(configured.name):
+        store = Store(directory('state') / ('retention-baseline-restoration-' + configured.name))
+        with store.session():
+            selection = prepare(target=targets[configured.name])
+            return subprocess.run(['/usr/bin/pkexec', '--keep-cwd',
+                '/usr/local/libexec/onpc-test-runner', *checkout_arguments(), 'vm',
+                '--vm', configured.name, *args, '--fixture-selection',
+                json.dumps(selection.record(), sort_keys=True)],
+                cwd=Path(__file__).resolve().parents[1],
+                pass_fds=scratch_descriptors(), check=False).returncode
+
+
 def fixture_maintenance(args, configured):
     """Keep caller-owned inputs in one retained run until owned stop/restart."""
     if args == ['--fixture-maintenance', 'start']:
@@ -98,7 +124,9 @@ if __name__ == '__main__':
             runpy.run_path(str(Path(__file__).with_name('onpc-test-runner')))['selection'](
                 Path(__file__).resolve().parents[1], ['vm', *args])
             sys.exit(0)
-        status = fixture_maintenance(args, configured)
+        status = baseline_restoration(args, configured)
+        if status is None:
+            status = fixture_maintenance(args, configured)
         if status is not None:
             sys.exit(status)
         # Keep the host selector before an exec command's -- boundary.

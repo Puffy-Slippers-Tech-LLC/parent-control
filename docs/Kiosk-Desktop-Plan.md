@@ -89,9 +89,9 @@ After every product-changing protection or recovery slice, the queue places a
 separate installed usability gate for Ubuntu and Fedora before the next product
 slice. Each gate requires the complete core-use history in this plan's acceptance
 contract, with its affected shared-overlay/feature/pause controls, on that exact
-candidate. Follow the baseline's complete-history reuse contract: reuse exact
-applicable proof and renew invalidated histories only. A no-product-change slice
-still verifies applicability; a checkbox or entry-only check is insufficient.
+candidate. Follow the baseline's complete-history reuse contract: trust recorded
+completed results for unchanged scope and rerun affected histories after a concrete
+change. A no-product-change slice needs no new proof or report-availability check.
 Do not postpone a normal-entry failure to the final campaign or add another
 restriction while either target is failing. A gate closes only with usable
 public results and owned restoration, never by relabeling rejection as safe.

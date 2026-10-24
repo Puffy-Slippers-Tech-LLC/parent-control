@@ -230,7 +230,7 @@ from pathlib import PurePosixPath
 # LIFE06 Parent composition adds process-local UI doubles and private recorder
 # replies to vm_internet; it opens no real display, bus, socket or guest.
 # Native fixture placement/readback and source-keyed input tests own only private
-# pytest files, process-local guest/SSH/GTK doubles and bounded waited Perl
+# pytest files, process-local guest/SSH/GTK doubles and bounded waited Python/Perl
 # children. No real ownership mutation, VM, bus, display, shared path or cache;
 # compatible overlap in cleanup and unit scheduling.
 # Chinese asset checks use private/in-memory files, locale/font bytes and mocked

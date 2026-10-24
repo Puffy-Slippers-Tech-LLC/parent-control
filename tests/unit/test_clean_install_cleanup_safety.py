@@ -284,10 +284,13 @@ def test_restart_instruction_oracle_is_immutable_and_validated():
 
 def journey(monkeypatch):
     transfer = Mock()
-    monkeypatch.setattr(package_journey, 'AssetTransfer', Mock(return_value=transfer))
+    transfer_factory = Mock(return_value=transfer)
+    monkeypatch.setattr(package_journey, 'AssetTransfer', transfer_factory)
     context = SimpleNamespace(installed_snapshot=None, verified=Mock(), lease=Mock(), guestfs=Mock())
     result = package_journey.PackageJourney(context, Mock(), case.PLAN, checks=case.CHECKS)
-    transfer.provision.assert_called_once_with(context.lease, context.guestfs)
+    # Delivery belongs to the shared post-connection setup, not construction.
+    transfer_factory.assert_called_once_with(context.verified)
+    assert context.asset_transfer is transfer
     assert context.product_free is True
     return result
 

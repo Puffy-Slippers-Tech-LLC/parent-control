@@ -19,6 +19,12 @@ restoration. These are future checks, not inherited passes. Trust completed
 usability gates; C11/C12 may reuse their checks for unchanged behavior. Identify
 affected complete histories only after concrete later changes.
 
+Apply [simple product and tests](../Kiosk-Session-Confinement-New-Plan.md#simple-product-and-tests)
+to this composition. Reuse existing bindings and representative inputs for each
+distinct outcome; avoid new wrappers or matrices solely for a task label. Keep
+shared guards at their owner and use the shortest reliable public journey while
+preserving each required result and complete fault/recovery history.
+
 Families are core journey/features; separate host-variation and optional-fallback
 bindings; required-service/
 healthy-child recovery with Parent diagnostic download; owned-state/update

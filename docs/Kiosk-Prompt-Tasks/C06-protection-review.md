@@ -23,10 +23,12 @@ remaining boundaries to C07t/C07b and C08a/C08. Full graphical desktop routes
 remain with the desktop plan's reviewed map. No new custom loader, global roster,
 private runtime image or continuous library audit. Essential-service faults and
 genuine parent/admin denial are separate from deliberate breaches.
-Apply the [simple implementation rule](../Kiosk-Desktop-Plan.md#simple-implementation):
-choose the smallest change at the existing owner and justify any new abstraction
-or persistent state against that direct approach. Keep this rationale in the
-existing design note, without a separate review artifact or checker.
+Apply [simple product and tests](../Kiosk-Session-Confinement-New-Plan.md#simple-product-and-tests):
+review both the proposed product fix and its test design against the direct
+approach at the existing owner. Reuse effective barriers, coverage and qualified
+operations; justify any necessary new abstraction, persistent state or test
+machinery against a concrete gap. Keep this rationale in the existing design
+note, without a separate review artifact or checker.
 
 Apply the master's [confinement priority](../Kiosk-Session-Confinement-New-Plan.md#confinement-priority):
 trust completed desktop tasks and return any newly demonstrated

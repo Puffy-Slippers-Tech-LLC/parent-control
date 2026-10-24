@@ -18,6 +18,10 @@ Reuse shared implementations and qualification under the
 [cross-plan map](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse);
 no duplicate feature campaign or silent cross-queue completion.
 
+Every row applies the master's [simple product and tests](Kiosk-Session-Confinement-New-Plan.md#simple-product-and-tests)
+rule, including repairs and new prerequisites. Reuse effective code and coverage;
+add only what a demonstrated behavioral gap requires.
+
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
 | [ ] | C06a | [Review remaining login routes](Kiosk-Prompt-Tasks/C06a-login-review.md) | Baseline | Verify accepted desktop/baseline gates and map standalone terminal/TTY and SSH defenses with permitted controls | 20–30 min |

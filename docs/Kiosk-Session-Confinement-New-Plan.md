@@ -39,6 +39,28 @@ The desktop master's [inherited baseline requirements](Kiosk-Desktop-Plan.md#inh
 also apply, including trusted installed loading, genuine parent/admin denial,
 usable service recovery and preservation of main's non-confinement features.
 
+## Simple product and tests
+
+Every task, including implementation, repair, qualification and acceptance,
+inherits the desktop master's [simple implementation](Kiosk-Desktop-Plan.md#simple-implementation)
+and [simple tests](Kiosk-Desktop-Plan.md#simple-tests) rules. Apply the repository
+principle to both product code and test code: prefer the simplest approach that
+meets the required behavior reliably.
+
+Start with the demonstrated gap and its existing owner. Reuse an effective
+barrier, supported platform mechanism or existing test before adding code.
+Choose a direct fix unless a concrete requirement makes it insufficient;
+justify necessary extra machinery briefly in the existing design or task result.
+Remove obsolete direct consumers with the fix. Keep this launcher a thin
+shared-driver wrapper; add no plan-specific framework or policy checker.
+
+For tests, follow the [test scope mandate](Mandates/Test-Scope-Mandate.md):
+cover distinct product outcomes and failure boundaries with representative inputs
+at the lowest effective layer. Reuse qualified operations and complete unchanged
+histories; avoid duplicate per-task suites, per-consumer matrices and tests of
+tests. Simplification preserves required security assertions, both-target
+usability gates, complete recovery histories and ownership/cleanup guards.
+
 ## Confinement priority
 
 Full kiosk desktop prevention is the first security priority and belongs only to
@@ -135,7 +157,8 @@ run expert-attack/whole-host matrices or turn every host UI value into E2E work.
 
 Start at [System design](System-Design.md) and apply
 [Approval tools](Approval-Tools.md), [Execution plans](Execution-Plans.md) and
-the [test map](TestAutomation/README.md). Read the selected brief and affected
+the [test map](TestAutomation/README.md). Every brief inherits
+[simple product and tests](#simple-product-and-tests). Read the selected brief and affected
 source/callers/contracts. VM/UI/storage mandates apply when triggered.
 Use maintained selectors with explicit timeouts and live qualification for new
 or changed reusable installed operations before their consumers.

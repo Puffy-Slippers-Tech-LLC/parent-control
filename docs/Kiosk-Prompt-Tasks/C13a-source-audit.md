@@ -18,7 +18,12 @@ fixtures, imports and package/registration consumers are absent or explicitly
 retained for a current behavioral obligation. Preserve historical proof.
 
 Audit incremental changes since cleanup, rather than repeat the whole original
-source reconstruction. No inactive duplicate or hidden legacy dependency may
+source reconstruction. Apply [simple product and tests](../Kiosk-Session-Confinement-New-Plan.md#simple-product-and-tests)
+to those changes: retain extra abstractions, state and test layers only for a
+concrete requirement that the direct approach cannot meet. Reuse existing
+coverage and preserve distinct product outcomes when removing duplication.
+Keep findings in the existing dispositions; add no separate audit framework.
+No inactive duplicate or hidden legacy dependency may
 remain unexplained. Missing independent cleanup or behavioral renewal becomes
 a bounded prerequisite before this selected consumer with its required acceptance;
 this reconciliation cannot substitute for product repair or installed proof.

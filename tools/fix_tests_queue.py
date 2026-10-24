@@ -95,9 +95,9 @@ class RepairGate:
                 time.sleep(.1)
             self._wait(fd, fcntl.LOCK_EX)
             self._check_pending(claiming=True)
+            launcher.atomic(self.parent / 'repair-pending.json', {'run': self.run.name})
             self.fd = fd
             _repair_descriptors.add(fd)
-            launcher.atomic(self.parent / 'repair-pending.json', {'run': self.run.name})
             return True
         except BaseException:
             os.close(fd)
@@ -295,6 +295,10 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
     # or a push already awaiting recovery. Keep its original record as provenance.
     legacy_path = run / 'checkpoint.json'
     legacy = json.loads(legacy_path.read_text()) if legacy_path.exists() else {}
+    for entry in legacy.get('repairs', {}).values():
+        name = entry['failure'][2] or 'host'
+        if name not in states and not (child_run(name) / 'checkpoint.json').exists():
+            raise ValueError('resume the original selection to finish its retained legacy repair')
     for name in states:
         child = child_run(name)
         if (child / 'checkpoint.json').exists():
@@ -312,10 +316,21 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
     pending_path = run / 'repair-pending.json'
     queue_path = run / 'repair-queue.json'
     waiting = json.loads(queue_path.read_text()) if queue_path.exists() else []
+    accepted = []
     for name in states:
         child = child_run(name)
         path = child / 'checkpoint.json'
         saved = json.loads(path.read_text()) if path.exists() else {}
+        selection = host if name == 'host' else guests
+        for entry in saved.get('repairs', {}).values():
+            category = entry['failure'][0]
+            if category not in selection or entry['args'] != selection[category]['args']:
+                raise ValueError('pending repair selectors changed; resume the original selection')
+        queued = saved.get('queued_failure')
+        if queued is not None and queued['category'] not in selection:
+            raise ValueError('queued failure category removed; resume the original selection')
+        if saved.get('pending') is not None:
+            accepted.append(child.name)
         if (saved.get('repairs') or saved.get('queued_failure')) and child.name not in waiting:
             waiting.append(child.name)
     children = {child_run(name).name for name in states}
@@ -326,11 +341,15 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
         if pending_owner not in children:
             raise ValueError('resume the original VM selection to finish its retained case repair')
         waiting = [pending_owner, *[name for name in waiting if name != pending_owner]]
+    if accepted:
+        if len(accepted) != 1:
+            raise ValueError('multiple retained Git transactions need their original owner')
+        # Legacy migration may split diagnostics before its accepted close-out.
+        # Finish that immutable Git transaction before any repair verification.
+        pending_owner, = accepted
+        launcher.atomic(pending_path, {'run': pending_owner})
+        waiting = [pending_owner, *[name for name in waiting if name != pending_owner]]
     launcher.atomic(queue_path, waiting)
-    # Retained queue heads must get a worker even when the cap is one. New host
-    # work also waits behind recovery; it cannot consume an unfinished VM edit.
-    rank = {name: index for index, name in enumerate(waiting)}
-    vms = tuple(sorted(vms, key=lambda vm: rank.get(child_run(vm.name).name, len(rank))))
 
     def publish():
         from launcher_progress import read_progress, repair_progress
@@ -426,7 +445,12 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
                     output(b'\n')
             with output_lock:
                 # Failed/cancelled tickets stay in FIFO order for recovery.
-                if status == 0:
+                path = child / 'checkpoint.json'
+                saved = json.loads(path.read_text()) if path.exists() else {}
+                unfinished = bool(saved.get('repairs') or saved.get('queued_failure'))
+                if status == 0 and unfinished and not recovery:
+                    raise ValueError('pipeline finished with unresolved retained repairs')
+                if status == 0 and not unfinished:
                     RepairGate(child).dequeue()
                 states[name]['status'] = ('limited' if (child / 'limited').exists() else
                     'queued' if status == 0 and recovery else
@@ -454,9 +478,18 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
         # FIFO order when a prior host failure is itself among those tickets.
         for ticket in waiting:
             name = next(name for name in states if child_run(name).name == ticket)
-            status = execute(name, host if name == 'host' else guests, recovery=True)
-            if status:
-                return status
+            path = child_run(name) / 'checkpoint.json'
+            saved = json.loads(path.read_text()) if path.exists() else {}
+            while True:
+                previous = saved.get('last_commit')
+                status = execute(name, host if name == 'host' else guests, recovery=True)
+                if status:
+                    return status
+                saved = json.loads(path.read_text()) if path.exists() else {}
+                if not (saved.get('repairs') or saved.get('queued_failure')):
+                    break
+                if saved.get('last_commit') == previous:
+                    raise ValueError('retained repair recovery made no accepted progress')
         # Reset/validate the whole selection before admitting normal work. A VM
         # left queued by a limit or cancellation must not inherit an older run's
         # category passes on the next --resume.

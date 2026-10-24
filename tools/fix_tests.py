@@ -718,7 +718,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if (kind != replay['kind'] or category != replay['category']
                     or selectors(options) != selectors(replay['options']) or vm != replay.get('vm')):
                 raise ValueError('retained controller operation differs from the original selection')
-            return replay['status']
+            def retry_case(values):
+                return next((arg for arg in values if arg.startswith('--resume-case=')), None)
+            if kind != 'test' or replay['status'] or retry_case(options) == retry_case(replay['options']):
+                return replay['status']
+            # A successful case is already in the runner checkpoint. Reload can
+            # advance to the next case; its execution must not reuse that status.
         invocation = dict(repair_run=str(run), attempt=uuid.uuid4().hex,
                           selection=[[category, [arg for arg in options if arg not in ('--resume', '--resume-case-only')
                                                  and not arg.startswith('--resume-case=')]]]) if kind == 'test' else None
@@ -750,6 +755,18 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             check_controller()
             test_replay = None
         return status
+
+    def saved_failure():
+        queued = commits.state.get('queued_failure')
+        if queued is not None:
+            return queued
+        if commits.state['repairs']:
+            entry = next(iter(commits.state['repairs'].values()))
+            category, case, vm = entry['failure']
+            failure = entry.get('pending_response', {}).get('failure') or dict(
+                prompt='Recover the retained unfinished repair using the current runner evidence.',
+                categories=[category], failures=[dict(category=category, case=case, vm=vm)])
+            return dict(category=category, failure=failure)
 
     def test(category, *, resume=False, retry_case='', retry_vm='', fresh=False, probe=False):
         nonlocal pending, verifying_fix, retained_failure
@@ -804,7 +821,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if parent is not None:
                 repair_gate.acquire()
             result = execute('recovery')
-            if result == 0 and not commits.state['repairs']:
+            if result == 0 and not recovery_only and not commits.state['repairs']:
                 repair_gate.release()  # Recovery changed no source; let queued repairs drain.
             return result
 
@@ -1165,13 +1182,21 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
     def release_repair(*, changed=True):
         nonlocal retained_failure
+        queued = commits.state.get('queued_failure')
+        if queued is not None and commits.key(failure_target(
+                queued['failure'], queued['category'])) not in commits.state['repairs']:
+            commits.state.pop('queued_failure')
+            retained_failure = None
+            commits.save()
         if not commits.state['repairs']:
             retained_failure = None
             commits.state.pop('queued_failure', None)
             commits.save()
             repair_gate.release(changed=changed)
-            if recovery_only:
-                raise RecoveryComplete()
+        if recovery_only:
+            # Return at each accepted transaction. Remaining retained repairs
+            # keep the writer fenced while this same ticket continues.
+            raise RecoveryComplete()
 
     def outcome(failure, target):
         result = verification_outcome(failure, target)
@@ -1233,14 +1258,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise ValueError('resume round exceeds --rounds; retain the original round count')
         rounds = int(rounds)
         commits = RepairCommits(root, run)
-        retained_failure = commits.state.get('queued_failure') if parent is not None else None
-        if parent is not None and retained_failure is None and commits.state['repairs']:
-            entry = next(iter(commits.state['repairs'].values()))
-            category, case, vm = entry['failure']
-            failure = entry.get('pending_response', {}).get('failure') or dict(
-                prompt='Recover the retained unfinished repair using the current runner evidence.',
-                categories=[category], failures=[dict(category=category, case=case, vm=vm)])
-            retained_failure = dict(category=category, failure=failure)
+        retained_failure = saved_failure() if parent is not None else None
         if reloading:
             retained_failure = None  # The live loop continuation already owns this operation.
         if retained_failure is not None and retained_failure['category'] in completed:
@@ -1304,13 +1322,31 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if resuming:
             print(f'fix-tests: resuming round {start_round}; retaining passed categories: '
                   + (', '.join(completed) or '(none)') + '.', flush=True)
-        run_loop(categories, test, repair, check_stop, selected=bool(requested), rounds=rounds,
-                 round_changed=round_changed,
-                 completed=completed, resume_test=lambda category, **options: test(category, resume=True, **options),
-                 start_round=start_round, verification_started=verification_started,
-                 task_started=task_started, task_completed=task_completed,
-                 verified=verified, outcome=outcome, continuation=loop_state,
-                 refresh_failure=refresh_failure)
+        if recovery_only:
+            saved = saved_failure()
+            if saved is None:
+                raise RecoveryComplete()
+            category = loop_state.get('category', saved['category'])
+            completed = [kind for kind in categories if kind != category]
+        while True:
+            try:
+                run_loop(categories, test, repair, check_stop, selected=bool(requested),
+                         rounds=start_round if recovery_only else rounds, round_changed=round_changed,
+                         completed=completed, resume_test=lambda category, **options: test(category, resume=True, **options),
+                         start_round=start_round, verification_started=verification_started,
+                         task_started=task_started, task_completed=task_completed,
+                         verified=verified, outcome=outcome, continuation=loop_state,
+                         refresh_failure=refresh_failure)
+                break
+            except RecoveryComplete:
+                retained_failure = saved_failure()
+                if retained_failure is None:
+                    raise
+                # Keep the same per-case session counts and effort tiers while
+                # draining this ticket; only a manual restart renews budgets.
+                loop_state.clear()
+                completed = [kind for kind in categories if kind != retained_failure['category']]
+                start_round = round_number
         commits.require_complete()
         print('\nfix-tests: ' + ('all selected categories passed.' if requested else
               'all categories passed.' if rounds == 1 else
@@ -1335,7 +1371,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         print(f'\nfix-tests: {error}', file=sys.stderr, flush=True)
     finally:
         if not reload:
-            unfinished = commits is not None and bool(commits.state['repairs'])
+            unfinished = commits is not None and bool(commits.state['repairs'] or commits.state.get('queued_failure'))
             repair_gate.release(unfinished=unfinished)
         previous = repair_progress(run, read_progress(run))
         if previous and not reload:

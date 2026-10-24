@@ -142,6 +142,12 @@ class RepairCommits:
         message = f'TA: Fixed {category} {case or "infrastructure"}' + (f' on {vm}' if vm else '')
         commit = commit_push_propagate(self.root, self.run, self.state, paths, message, git=git_output)
         print(f'fix-tests: committed and pushed verified repair: {commit}', flush=True)
+        self.state['last_commit'] = commit
+        queued = self.state.get('queued_failure')
+        if queued is not None:
+            from fix_tests import failure_target
+            if failure_target(queued['failure'], queued['category']) == tuple(entry['failure']):
+                self.state.pop('queued_failure')
         del self.state['repairs'][key]
         for field in ('pending', 'commit_intent', 'pull_intent', 'worktree_propagation'):
             self.state.pop(field, None)

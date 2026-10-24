@@ -390,7 +390,8 @@ resuming retains each VM's completed work. Task limits count host categories onc
 and VM categories per VM, across their independently advancing rounds.
 Worker startup and reload imports also hold a source lease, and propagation
 resolvers retain both workflow ownership and that transaction's lease through
-cleanup. Restart drains retained FIFO transactions before host or normal VM work;
+cleanup. Restart drains every retained transaction for each FIFO ticket before
+host or normal VM work, retaining the source fence through ownership recovery;
 completed pipeline labels never bypass checkpoint selector/round validation.
 Lifecycle prerequisite rows are replayed by their dependent case's runner rather
 than dispatched again as separate normal cases.

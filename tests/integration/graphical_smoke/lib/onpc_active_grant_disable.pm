@@ -12,13 +12,11 @@ use onpc_desktop_session ();
 use onpc_text ();
 
 sub run {
+    onpc_progress::operation('Qualifying active-grant disable transitions');
     my ($exchange, $declared, $challenges, $binding) = @_;
     die 'active-grant-disable:arguments' unless @_ == 4 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && defined($binding) && ($binding eq 'engineering' || $binding eq 'public');
-    onpc_progress::operation($binding eq 'engineering'
-        ? 'Qualifying engineering-only native disable and rollback transitions'
-        : 'Qualifying public active-grant disable and retained usable child work');
     my $journey = onpc_journey->new(exchange => $exchange,
         prefix => 'active-grant-disable-' . $binding, review => 0);
     $journey->declare_invocations($declared);

@@ -66,12 +66,24 @@ def read_document(path=None):
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError('vm-config:unreadable; check config/test-vm.json') from error
     if (not isinstance(document, dict) or not {'vms'} <= set(document) or
-            not set(document) <= {'vms', 'concurrency', 'backup_root'} or
+            not set(document) <= {'vms', 'concurrency', 'backup_root', 'fixture_targets'} or
             not isinstance(document['vms'], list) or not document['vms']):
         raise ValueError('vm-config:fields')
     if 'backup_root' in document:
         absolute_path(document['backup_root'], 'backup_root')
+    targets = document.get('fixture_targets', {})
+    if not isinstance(targets, dict):
+        raise ValueError('vm-config:fixture_targets must be a qualified VM name-to-platform map')
+    for name, target in targets.items():
+        validate_name(name)
+        if target not in ('ubuntu', 'fedora'):
+            raise ValueError('vm-config:fixture_targets platform must be ubuntu or fedora')
     return document
+
+
+def fixture_targets(path=None):
+    """Explicitly qualified fixture targets; registration alone grants no route."""
+    return read_document(path).get('fixture_targets', {})
 
 
 def absolute_path(value, field):

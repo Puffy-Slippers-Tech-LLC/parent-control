@@ -1,5 +1,7 @@
 """Public controller, real recorder/collector/lease exit; VM operations substituted."""
 
+from tests.support.vm_registry import vm_name
+
 import copy
 from contextlib import ExitStack, contextmanager
 import hashlib
@@ -180,7 +182,7 @@ def documents(harness):
 
 @pytest.mark.parametrize('entrypoint', ['attempt', 'main'])
 @pytest.mark.parametrize('vm,target', [
-    ('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora'),
+    (vm_name(0), 'ubuntu'), (vm_name(1), 'fedora'),
     ('unqualified-target', None),
 ])
 def test_recorded_serial_target_and_input_guards_precede_vm_acquisition(

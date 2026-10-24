@@ -73,7 +73,7 @@ def fixture_selection(checkout):
 
 
 @pytest.mark.parametrize('phase', ['retain-a', 'replace-b'])
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_live_refresh_dispatch_requires_exact_phase_inputs_and_target(checkout, fixture_selection, phase, vm, target):
     (checkout / 'tests/integration/check_fixture_live_refresh.py').touch()
     fixture_selection['target'] = target
@@ -92,17 +92,17 @@ def test_live_refresh_dispatch_requires_exact_phase_inputs_and_target(checkout, 
     assert command[command.index('--fixture-refresh-phase') + 1] == phase
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['selection'](checkout, ['integration', 'check_fixture_live_refresh',
-            '--vm', 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
+            '--vm', vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
     with pytest.raises(ValueError, match='incomplete-fixture-refresh'):
         runner['selection'](checkout, args)
     with pytest.raises(ValueError, match='unexpected-fixture-refresh'):
         runner['selection'](checkout, ['integration', 'check_future_feature',
-            '--vm', 'onpc-Ubuntu26.04', '--fixture-refresh-phase', phase])
+            '--vm', vm_name(0), '--fixture-refresh-phase', phase])
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('selector', FIXTURE_WRAPPERS)
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selection, suffix, selector, vm, target):
     (checkout / 'tests/integration' / (selector + '.py')).touch()
     fixture_selection['target'] = target
@@ -116,7 +116,7 @@ def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selec
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_installed_system_dispatch_is_bound_to_qualified_target(checkout, fixture_selection, suffix, vm, target):
     name = 'check_fixture_system_installed'
     (checkout / 'tests/integration' / (name + '.py')).touch()
@@ -127,7 +127,7 @@ def test_installed_system_dispatch_is_bound_to_qualified_target(checkout, fixtur
     assert command == ['/usr/bin/python3', '-B',
         str(checkout / 'tests/integration' / (name + '.py')),
         '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
-    other = 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04'
+    other = vm_name(1) if target == 'ubuntu' else vm_name(0)
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['selection'](checkout, ['integration', name + suffix,
             '--vm', other, '--fixture-selection', json.dumps(fixture_selection)])
@@ -135,7 +135,7 @@ def test_installed_system_dispatch_is_bound_to_qualified_target(checkout, fixtur
 
 @pytest.mark.parametrize('name', ['check_fixture_e2e_installed', 'check_e2e_approval_flow',
                                   'check_e2e_native_fixtures'])
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_installed_e2e_dispatch_is_bound_to_qualified_target(checkout, fixture_selection, name, vm, target):
     (checkout / 'tests/integration' / (name + '.py')).touch()
     fixture_selection['target'] = target
@@ -145,12 +145,12 @@ def test_installed_e2e_dispatch_is_bound_to_qualified_target(checkout, fixture_s
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['selection'](checkout, [*arguments, '--vm',
-            'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04'])
+            vm_name(1) if target == 'ubuntu' else vm_name(0)])
 
 
 @pytest.mark.parametrize('name', ['check_fixture_e2e_product_free',
                                   'check_e2e_product_free_entry', 'check_e2e_package_upgrade'])
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_product_free_e2e_dispatch_is_bound_to_qualified_target(checkout, fixture_selection, name, vm, target):
     (checkout / 'tests/integration' / (name + '.py')).touch()
     fixture_selection['target'] = target
@@ -160,7 +160,7 @@ def test_product_free_e2e_dispatch_is_bound_to_qualified_target(checkout, fixtur
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['selection'](checkout, [*arguments, '--vm',
-            'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04'])
+            vm_name(1) if target == 'ubuntu' else vm_name(0)])
 
 
 @pytest.mark.parametrize('options', [
@@ -169,13 +169,13 @@ def test_product_free_e2e_dispatch_is_bound_to_qualified_target(checkout, fixtur
 def test_e2e_fixture_selection_does_not_enable_other_envelopes(fixture_selection, options):
     root = Path(__file__).resolve().parents[2]
     with pytest.raises(ValueError, match='unexpected-fixture-selection'):
-        runner['selection'](root, ['e2e', *options, '--vm', 'onpc-Ubuntu26.04',
+        runner['selection'](root, ['e2e', *options, '--vm', vm_name(0),
             '--fixture-selection', json.dumps(fixture_selection)])
 
 
 @pytest.mark.parametrize('selector', ['check_graphical_serial', 'check_fixture_serial'])
 @pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_serial_dispatch_preserves_selection_and_target(checkout, fixture_selection, selector, suffix, vm, target):
     (checkout / 'tests/integration' / (selector + '.py')).touch()
     fixture_selection['target'] = target
@@ -186,11 +186,11 @@ def test_serial_dispatch_preserves_selection_and_target(checkout, fixture_select
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['selection'](checkout, ['integration', selector + suffix,
-            '--vm', 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
+            '--vm', vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_recorded_serial_dispatch_preserves_selection_and_target(checkout, fixture_selection, suffix, vm, target):
     name = 'check_fixture_recorded_serial'
     (checkout / 'tests/integration' / (name + '.py')).touch()
@@ -204,11 +204,11 @@ def test_recorded_serial_dispatch_preserves_selection_and_target(checkout, fixtu
         '--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['selection'](checkout, ['integration', name + suffix,
-            '--vm', 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
+            '--vm', vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
 
 
 @pytest.mark.parametrize('option', ['--qualify-install', '--qualify-install-refusal'])
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_authenticated_serial_dispatch_preserves_selection_and_target(checkout, fixture_selection, option, vm, target):
     e2e = checkout / 'tests/e2e'
     e2e.mkdir()
@@ -220,10 +220,10 @@ def test_authenticated_serial_dispatch_preserves_selection_and_target(checkout, 
     assert command[-2:] == ['--fixture-selection', json.dumps(fixture_selection, sort_keys=True)]
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['selection'](checkout, ['e2e', option, '--vm',
-            'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
+            vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
 
 
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_transfer_dispatch_preserves_frozen_record_and_target(checkout, fixture_selection, vm, target):
     (checkout / 'tests/integration/check_fixture_transfer.py').touch()
     fixture_selection['target'] = target
@@ -235,10 +235,10 @@ def test_transfer_dispatch_preserves_frozen_record_and_target(checkout, fixture_
     for suffix in ('', '.py'):
         with pytest.raises(ValueError, match='fixture-target-not-qualified'):
             runner['selection'](checkout, ['integration', 'check_fixture_transfer' + suffix,
-                '--vm', 'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
+                '--vm', vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
 
 
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_transfer_e2e_dispatch_preserves_selection_without_enabling_install(
         checkout, fixture_selection, vm, target):
     root = checkout
@@ -256,14 +256,14 @@ def test_transfer_e2e_dispatch_preserves_selection_without_enabling_install(
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['selection'](root, ['e2e', '--qualify-transfer',
             '--artifacts', str(artifacts), '--vm',
-            'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
+            vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
 
 
 @pytest.mark.parametrize('payload', ['{', 'null', '[]', '{}', 'x' * 8193])
 def test_fixture_selection_rejects_malformed_json_or_record(checkout, fixture_selection, payload):
     with pytest.raises(ValueError):
         runner['selection'](checkout, ['integration', 'check_fixture_provisioning',
-            '--vm', 'onpc-Ubuntu26.04', '--fixture-selection', payload])
+            '--vm', vm_name(0), '--fixture-selection', payload])
 
 
 @pytest.mark.parametrize(('field', 'value'), [
@@ -277,13 +277,13 @@ def test_fixture_selection_rejects_foreign_identity(checkout, fixture_selection,
     fixture_selection[field] = value
     with pytest.raises(ValueError):
         runner['selection'](checkout, ['integration', 'check_fixture_provisioning',
-            '--vm', 'onpc-Ubuntu26.04', '--fixture-selection', json.dumps(fixture_selection)])
+            '--vm', vm_name(0), '--fixture-selection', json.dumps(fixture_selection)])
 
 
 @pytest.mark.parametrize('args', [
     ['check_future_feature'], ['--list'], ['check_fixture_provisioning', '--list'],
 ])
-@pytest.mark.parametrize('vm', ['onpc-Ubuntu26.04', 'onpc-Fedora44'])
+@pytest.mark.parametrize('vm', [vm_name(0), vm_name(1)])
 def test_fixture_selection_refuses_other_selector_or_listing(checkout, fixture_selection, args, vm):
     with pytest.raises(ValueError, match='unexpected-fixture-selection'):
         runner['selection'](checkout, ['integration', *args, '--vm', vm,
@@ -291,7 +291,7 @@ def test_fixture_selection_refuses_other_selector_or_listing(checkout, fixture_s
 
 
 @pytest.mark.parametrize(('target', 'vm'), [
-    ('fedora', 'onpc-Ubuntu26.04'), ('ubuntu', vm_name(1)),
+    ('fedora', vm_name(0)), ('ubuntu', vm_name(1)),
 ])
 @pytest.mark.parametrize('selector', FIXTURE_WRAPPERS)
 def test_fixture_selection_refuses_unqualified_target(checkout, fixture_selection, target, vm, selector):
@@ -312,7 +312,7 @@ def test_fixture_selection_refuses_unknown_vm(checkout, fixture_selection, categ
             '--fixture-selection', json.dumps(fixture_selection)])
 
 
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_system_fixture_selection_preserves_exact_record(checkout, fixture_selection, vm, target):
     fixture_selection['target'] = target
     fixture_selection['allocation'] = fixture_selection['allocation'].replace('ubuntu', target)
@@ -535,7 +535,7 @@ def test_selected_producer_dispatch_keeps_command_without_parent_owner(
     control.installed = Mock(return_value=nullcontext(control))
     monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: {'Control': lambda: control})
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
-    selected = [*arguments, *(['--vm', 'onpc-Ubuntu26.04']
+    selected = [*arguments, *(['--vm', vm_name(0)]
         if arguments[-1] == 'check_fixture_recorded_serial' else VM_ARGS)]
     expected = runner['selection'](checkout, selected)
     assert runner['run'](checkout, (['--unattended'] if unattended else []) + selected, caller) == 7

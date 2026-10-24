@@ -205,7 +205,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
         if args.fixture_maintenance or args.action == 'sync-fixtures':
-            targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+            targets = vm_config.fixture_targets(root / 'config/test-vm.json')
             if configured.name not in targets:
                 raise ValueError('test-runner:fixture-target-not-qualified')
             if args.fixture_selection is not None:
@@ -248,7 +248,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         serial = name in ('check_graphical_serial', 'check_fixture_serial')
         recorded_serial = name == 'check_fixture_recorded_serial'
         live_refresh = name == 'check_fixture_live_refresh'
-        if live_refresh and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+        if live_refresh and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if (args.fixture_refresh_phase is not None or args.fixture_replacement_selection is not None) and not live_refresh:
             raise ValueError('test-runner:unexpected-fixture-refresh-selection')
@@ -263,19 +263,19 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             sys.path.pop(0)
         installed_e2e = name in INSTALLED_E2E_FIXTURE_SELECTORS
         product_free_e2e = name in PRODUCT_FREE_E2E_FIXTURE_SELECTORS
-        if recorded_serial and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+        if recorded_serial and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if serial and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+        if serial and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if transfer and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+        if transfer and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if (product_free_e2e or name == 'check_e2e_gdm_product_free') and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+        if (product_free_e2e or name == 'check_e2e_gdm_product_free') and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if installed_e2e and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+        if installed_e2e and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if installed and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+        if installed and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
-        if bootstrap and not args.list and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+        if bootstrap and not args.list and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         if args.fixture_source_selection is not None and (
                 args.list or name not in ('check_fixture_system_product_free',
@@ -294,7 +294,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             finally:
                 sys.path.pop(0)
             selected = Selection.from_record(json.loads(args.fixture_selection))
-            targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+            targets = vm_config.fixture_targets(root / 'config/test-vm.json')
             if targets.get(configured.name) != selected.target:
                 raise ValueError('test-runner:fixture-target-not-qualified')
             fixture_options = ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
@@ -326,7 +326,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         target = confined_file(root, f'tests/integration/{name}.py')
         return ['/usr/bin/python3', '-B', str(target), *fixture_options]
     if args.category == 'e2e':
-        if (args.qualify_install or args.qualify_install_refusal) and configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+        if (args.qualify_install or args.qualify_install_refusal) and configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
             raise ValueError('test-runner:fixture-target-not-qualified')
         target = confined_file(root, 'tests/e2e/runner.py')
         options = [*vm_args, *(['--list'] if args.list else [])]
@@ -347,7 +347,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         if args.artifacts is not None:
             options.append('--artifacts=' + str(args.artifacts))
         if args.fixture_selection is not None:
-            if args.list or configured.name not in ('onpc-Ubuntu26.04', 'onpc-Fedora44'):
+            if args.list or configured.name not in vm_config.fixture_targets(root / 'config/test-vm.json'):
                 raise ValueError('test-runner:unexpected-fixture-selection')
             if len(args.fixture_selection) > 8192:
                 raise ValueError('test-runner:invalid-fixture-selection')
@@ -357,7 +357,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             finally:
                 sys.path.pop(0)
             selected = Selection.from_record(json.loads(args.fixture_selection))
-            targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+            targets = vm_config.fixture_targets(root / 'config/test-vm.json')
             if selected.target != targets.get(configured.name):
                 raise ValueError('test-runner:fixture-target-not-qualified')
             options += ['--fixture-selection', json.dumps(selected.record(), sort_keys=True)]
@@ -382,7 +382,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             sys.path.pop(0)
     command = ['/usr/bin/python3', '-B', str(target), *vm_args]
     if args.fixture_selection is not None:
-        targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+        targets = vm_config.fixture_targets(root / 'config/test-vm.json')
         if args.list or configured.name not in targets:
             raise ValueError('test-runner:fixture-target-not-qualified')
         if len(args.fixture_selection) > 8192:

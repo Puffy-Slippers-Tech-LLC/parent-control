@@ -602,8 +602,8 @@ def fixture_execution_target(category, args):
         '--qualify-transfer', '--qualify-install', '--qualify-install-refusal') for argument in args))
     if not provisioning and not bootstrap and not installed and not installed_e2e and not product_free_e2e and not transfer and not serial and not recorded_serial and not scenarios and category != 'system':
         return None
-    from vm_selection import selected
-    targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+    from vm_selection import selected, vm_config
+    targets = vm_config.fixture_targets()
     target = targets.get(selected().name)
     if recorded_serial:
         if target is None:
@@ -712,10 +712,10 @@ def live_refresh_selection(category, args):
 def run_live_refresh(root, command, *, control, environment):
     """Keep A's host owner alive while a fixed maintenance history builds B."""
     from fixture_execution import Selection, validate_source_selection
-    from vm_selection import selected
+    from vm_selection import selected, vm_config
     from vm_pool import arguments as checkout_arguments
     from dev_privileges import check
-    targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+    targets = vm_config.fixture_targets()
     if selected().name not in targets:
         raise ValueError('fixture live refresh target is unavailable')
     check('/usr/local/libexec/onpc-test-runner')

@@ -71,7 +71,7 @@ def runtime_absence():
                    baseline_fixtures.TRUST_FILE})
 
 
-TARGETS = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+TARGETS = prepare_vm.vm_config.fixture_targets()
 
 
 def preparation_checkout_files(os_id='ubuntu'):

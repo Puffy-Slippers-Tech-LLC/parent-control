@@ -32,7 +32,7 @@ class PreparationComplete(BaseException):
 
 def selected_target():
     name = transfer.selected_target()
-    system.require(name in ('onpc-Ubuntu26.04', 'onpc-Fedora44'),
+    system.require(name in transfer.proof.TARGETS,
                    'fixture-recorded-serial:target-not-qualified')
     return name
 

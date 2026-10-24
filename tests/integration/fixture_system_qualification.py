@@ -24,8 +24,8 @@ import fixture_provision_qualification as proof
 from tools import fixture_bundle, fixture_execution, fixture_manifest, fixture_provision
 from tools.test_storage import authenticated_input
 
-TARGETS = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
-INSTALLED_TARGETS = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+TARGETS = proof.prepare_vm.vm_config.fixture_targets()
+INSTALLED_TARGETS = proof.prepare_vm.vm_config.fixture_targets()
 
 
 def selected_target(*, installed=False):

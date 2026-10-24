@@ -93,7 +93,7 @@ def test_full_listing_keeps_pending_cases_and_exact_digest():
     ('--qualify-install', 'authenticated-installation-qualification'),
     ('--qualify-install-refusal', 'deliberate-installation-refusal-qualification'),
 ])
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode, vm, target):
     assets = tmp_path / 'onpc-assets'
     assets.mkdir()
@@ -120,7 +120,7 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode,
         runner['preflight'](options)
 
 
-@pytest.mark.parametrize(('vm', 'target'), [('onpc-Ubuntu26.04', 'ubuntu'), ('onpc-Fedora44', 'fedora')])
+@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_transfer_requires_immutable_selection_and_matching_target(monkeypatch, tmp_path, vm, target):
     with pytest.raises(ValueError, match='execution-selection-required'):
         runner['preflight'](['--vm', vm, '--qualify-transfer', '--artifacts=' + str(tmp_path)])
@@ -137,11 +137,11 @@ def test_transfer_requires_immutable_selection_and_matching_target(monkeypatch, 
         'fixture_selection': selection}
     with pytest.raises(ValueError, match='fixture-target-not-qualified'):
         runner['preflight'](['--vm',
-            'onpc-Fedora44' if target == 'ubuntu' else 'onpc-Ubuntu26.04', *options])
+            vm_name(1) if target == 'ubuntu' else vm_name(0), *options])
 
 
 @pytest.mark.parametrize('option', ['--qualify-install', '--qualify-install-refusal'])
-@pytest.mark.parametrize('vm', ['onpc-Ubuntu26.04', 'onpc-Fedora44'])
+@pytest.mark.parametrize('vm', [vm_name(0), vm_name(1)])
 def test_authenticated_serial_requires_selection_before_artifact_or_password_reads(
         monkeypatch, tmp_path, option, vm):
     password = Mock(side_effect=AssertionError('password read before input refusal'))
@@ -165,7 +165,7 @@ def test_authenticated_serial_main_forwards_frozen_selection(monkeypatch, mode, 
     monkeypatch.setitem(sys.modules, 'qualification_storage', SimpleNamespace(session=session))
     monkeypatch.setitem(sys.modules, 'check_graphical_smoke', SimpleNamespace(main=execute))
     monkeypatch.delenv('ONPC_QUALIFICATION_RETENTION_RUN', raising=False)
-    assert runner['main'](['--vm', 'onpc-Ubuntu26.04']) == 7
+    assert runner['main'](['--vm', vm_name(0)]) == 7
     session.assert_called_once_with(run=None, require_owner=True)
     execute.assert_called_once_with(assets=Path('/tmp/onpc-assets'), provision_credentials=True,
                                     serial=True, fixture_selection=selection, **{flag: True})

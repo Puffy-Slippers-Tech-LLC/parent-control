@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dev_privileges import launch
-from vm_selection import extract
+from vm_selection import extract, vm_config
 
 MAX_INPUT_BYTES = 64 * 1024 * 1024
 
@@ -19,7 +19,7 @@ def fixture_maintenance(args, configured):
         args = ['start', '--fixture-maintenance']
     if not args or not (args[0] == 'sync-fixtures' or '--fixture-maintenance' in args):
         return None
-    targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+    targets = vm_config.fixture_targets()
     if configured.name not in targets or args not in (
             ['start', '--fixture-maintenance'], ['sync-fixtures']):
         raise ValueError('fixture maintenance requires a qualified target and a fixed action')

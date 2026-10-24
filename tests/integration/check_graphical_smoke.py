@@ -1524,19 +1524,19 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'fixtures:transfer-branch-not-qualified')
     if transfer_entry:
         from smoke_fixture_preparation import validate_input
-        from vm_config import selected
-        targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+        from vm_config import selected, fixture_targets
+        targets = fixture_targets()
         require(selected().name in targets, 'fixtures:transfer-target-not-qualified')
         fixture_selection = validate_input(fixture_selection, target=targets[selected().name])
     if serial:
         from smoke_fixture_preparation import validate_input
-        from vm_config import selected
-        targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+        from vm_config import selected, fixture_targets
+        targets = fixture_targets()
         require(selected().name in targets, 'fixtures:serial-target-not-qualified')
         fixture_selection = validate_input(fixture_selection, target=targets[selected().name])
     if product_free_entry or gdm_product_free:
-        from vm_config import selected
-        require(selected().name in ('onpc-Ubuntu26.04', 'onpc-Fedora44'),
+        from vm_config import selected, fixture_targets
+        require(selected().name in fixture_targets(),
                 'fixtures:e2e-product-free-target-not-qualified')
     if product_free_entry:
         from e2e_fixture_preparation import validate_input

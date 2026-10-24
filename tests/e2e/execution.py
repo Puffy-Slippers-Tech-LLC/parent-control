@@ -215,7 +215,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             from serial_harness import recorded_serial_case, validate_fixture_input
             recorded_serial_consumer = recorded_serial_case(case)
             if recorded_serial_consumer:
-                targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+                targets = vm_config.fixture_targets()
                 target = targets.get(vm_config.selected().name)
                 require(target is not None,
                         'fixtures:recorded-serial-target-not-qualified')
@@ -404,7 +404,7 @@ def main(plan):
     from serial_harness import recorded_serial_case, validate_fixture_input
     if any(recorded_serial_case(case) for case in plan['cases']):
         import vm_config
-        targets = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+        targets = vm_config.fixture_targets()
         target = targets.get(vm_config.selected().name)
         require(target is not None,
                 'fixtures:recorded-serial-target-not-qualified')

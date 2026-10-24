@@ -33,7 +33,7 @@ from tools.test_storage import authenticated_input
 from tests.fixtures import baseline_assets, native_assets
 from fixture_snapshot_qualification import policy_rules
 
-TARGETS = {'onpc-Ubuntu26.04': 'ubuntu', 'onpc-Fedora44': 'fedora'}
+TARGETS = prepare_vm.vm_config.fixture_targets()
 TRUST = '/etc/fapolicyd/trust.d/onpc-fixture-runtime.trust'
 COMPILED = '/etc/fapolicyd/compiled.rules'
 COMBINED = ['native', 'activity', 'trusted-hard', 'trusted-soft', 'mechanical']

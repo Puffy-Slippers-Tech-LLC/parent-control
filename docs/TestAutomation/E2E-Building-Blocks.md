@@ -1164,58 +1164,97 @@ C05 acceptance and general feature coverage retain their existing owners.
 `baseline_journey.PLAN` / `BaselineJourney` and
 `onpc_baseline_journey::run` compose the
 [finite core history](E2E-Scenario-Recipes.md#commands-bounds-and-restoration).
-Fedora retains a historical complete pass for its earlier input envelope;
-the selected-input applicability decision above requires renewal in C04j.
-Ubuntu remains pending after the final Parent saved-state read refused a native
-timer crash notification. The resumed diagnostic identified disabled limits
-published before the current grant was cleared. A clear-first trial also exposed
-a native-lock risk in independent Astra review and was withdrawn.
-[C04j3](#c04j3-active-grant-disable) completed the bounded
-disable/rollback repair and both-target native/public qualification. C04j now
-resumes both complete histories on the repaired candidate. A partial history and
-outer restoration do not replace missing public restoration or collection.
-Diagnose the actual prompt boundary without bypassing refusal, extending the
-1800-second history limit or removing final assertions. Renew any history
-invalidated by a shared repair; unchanged complete evidence needs exact
-applicability review before reuse.
+Both complete installed histories passed on 2026-10-24 UTC, after
+[C04j3's native transition repair](#c04j3-active-grant-disable). Each passed all
+246 observations, including 244 public screen stages and two setup stages.
+Ubuntu's worker took 1361.391 seconds and its qualification envelope 1381.843;
+Fedora's worker took 1433.262 seconds and its envelope 1463.140. Both retained
+the original 1800-second worker deadline. The actual commands were
+`tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_baseline_journey'`
+and `tools/run-tests --vm 'onpc-Fedora44' integration 'check_e2e_baseline_journey'`.
+Worker collection, stopped workers, closed callbacks, verified shutdown, owned
+baseline restoration and serial cleanup passed. Both pinned guests were
+independently observed off. These histories qualify this composition and are
+available for C05's separate applicability review; no C05 or E2E case closes here.
 
-The current bounded maintenance route is
-`tools/test-vm --vm NAME reproduce-baseline-restoration`: the same complete
-`BaselineJourney` and 1800-second worker bound, stopping at unanswered
-`restore-saved` for one guarded public read and subsequent live `exec` probes.
-It stages the shared installed helper closure, uses C04j1's selected activity
-preparation, and rebinds the saved snapshot connection to the authenticated
-current maintenance run before provisioning. Independent Sol High review found
-and resolved the original transport-run mismatch; fresh-key verification precedes
-maintenance credential publication and failed unpublished rotation restores only
-the owned instance. Shared guard checks passed. An earlier live setup passed, but the
-missing Riley catalogue inputs above stopped progression at `hard-access-save`;
-the final alert was not reproduced in that earlier attempt.
+The dispatcher now uses its existing installed-qualification registry to give
+each qualification its own live evidence owner; the strict storage guard is
+unchanged. Its 163 existing focused host checks passed, followed by the maintained
+test-helper refresh. The baseline alone opts into compact request preparation:
+12 redundant checkpoints are omitted while actual inputs, initial eligible-account
+checks, fresh complete request reads and all comparison endpoints remain.
+Another 203 existing worker-order, request and target/authentication checks
+passed. No excluded composition/history unit suite was recreated. Product code,
+package inputs and shared default preparation are unchanged by these repairs.
 
-After C04j2, the refreshed Ubuntu replay passed that complete prefix through
-`restore-disabled` and retained the refused `restore-saved` observer. The alert
-was `malcontent-timerd`'s crash notification; its assertion was
-`time_limit_enabled || !extension_active`. Native direct-write experiments avoided
-the crash but did not qualify absence of transient locks. The initial reorder
-and provisional product regression were withdrawn after the Astra finding.
-No new complete history or customer acceptance was established. Baseline refresh,
-exact named-input preparation and 97 existing runner routing/activity checks
-passed; the maintained recovery classifier now retains the VM scope of the full
-input-build request. C04j's brief retains the current diagnostic pointer and
-cleanup handoff. Separate accepted feature/pause work remains complete.
+Original failed attempts retain no acceptance credit. Earlier import, selected
+activity and selected-child catalogue gaps were resolved by the recorded repairs
+and C04j1/j2. The original Ubuntu final-save alert was a native timer crash;
+the clear-first trial was withdrawn after its lock risk was identified, and
+C04j3 qualified the safe transition. In this session, parallel fixture production
+refused its occupied producer, inherited dispatcher ownership refused startup,
+and a separate recording controller refused overlap. The first full Ubuntu
+attempt then reached its 1800-second deadline during app restoration. The
+dispatcher repair and serial runs resolved startup; compact preparation removed
+repeated identical setup. Both later complete passes include the final save,
+settings and zero-balance results without bypassing any refusal or enlarging bounds.
 
-The rejected parity scope reduction was reversed; C04j retains the entire
-history on both targets. A later diagnostic stopped at a standalone fixture
-import before reaching Ubuntu's final-save alert. The mechanical import repair
-and its recorded 58/400-check results remain; review also reported an
-unqualified selected-input activity profile. C04j1 resolved that finite
-installed native/activity preparation gap through the actual online/offline
-boundary and activity verifier, as recorded above. C04j resumes the alert
-diagnosis and affected complete histories without new customer acceptance.
-Neither partial diagnostic nor response repair
-supplies the missing Ubuntu pass. Fedora's recorded pass remains historical;
-the concrete input-envelope change above, rather than rotated diagnostics,
-requires renewal. Completed prerequisite tasks remain completed.
+The common worker distribution is
+`bbb2c11f3e6a3db2e7304b4b7b03eef5d5380b2524a88525313663c50309fc85`;
+inventory SHA-256 is `756bf5176c3b9d8ff96ee382d6ee1b6327bd072960dcddc8dbedfadc3700855b`.
+Both used online `onpc-v1.4` snapshots with installation recipe
+`59584a5c20d6c6dc9af94f5ff7ad21fa4f3ece60864f4aef7a81a81860c1cae2`
+and the verified `native`, `activity`, `baseline-child` union.
+
+| Exact accepted identity | onpc-Ubuntu26.04 | onpc-Fedora44 |
+| --- | --- | --- |
+| Source SHA-256 | `92b8d002733ee01ef791c359c9b3ec11a1ce020921f9de09ca23998e527f8511` | `171687b0a694749cf22ddd258c2f164ee9e7cf8138825c10fae278b1da1f9cab` |
+| Package archive SHA-256 | `4704251b0ee8878bbeabecf40d4d6098334d84aeb4977c5f266ec2bed0bfd3ca` | `7b98a3f839e4a324df1b159f8ea0340e968a7ab1aa70a2f2c5f74e0485298552` |
+| Installed package content SHA-256 | `93e0806ccde2aaf6f54900c438ee78fbdcda3efab0527603b2a3bd75dfda96be` | `7b98a3f839e4a324df1b159f8ea0340e968a7ab1aa70a2f2c5f74e0485298552` |
+| Assets SHA-256 | `48cbdd976508f4323c601e6a23fa69cc10b89c02849893281bd9d34b5c3064ea` | `6b1d1f65a1c63cdb93ab78cd0602e27c33c58134fc8196bc6ddcf000fa82d753` |
+| Baseline SHA-256 | `0258e5e1c68ee767ca97159c6972d718033d52b32d6fbccaf23d5826ec1f85fd` | `0be92111b8feb8a6c6c8ace8b70634ec25762396b91633e8a30b72dfe3fbfd09` |
+| Fixture build identity | `1dd1ea17fd1efe4d8629d7d2571c710bab1f558c070021af5045973e03915eba` | `c80ed55f1cec62b65e59b8888d704aa3a903545322b85d4a6086ee96e502c1d7` |
+| Fixture selection key | `0638d9f1fe6d2f9cf002b181de41e1b179f17c73e51d3359adbe2a72c4e6169d` | `c0e2dcdc1bdc336a749d05fcfd6c752750d9a6aa9ce02c076a5520f20c3bf8b9` |
+| Environment | `ubuntu26-04-1f9a3275a5d51c4f684cb65883582a3b77be4be0d109ea4f3717797245dab629` | `fedora44-3656c93bfe21977071afb21ebd5caedc080cb75affcf6a3a1f6432ca7f45a134` |
+| GDM / Shell / MATE agent | `50.1-0ubuntu0.1` / `50.1-0ubuntu1.4` / `1.26.1-6` | `1:50.3-1.fc44` / `0:50.6-1.fc44` / `0:1.28.1-8.fc44` |
+
+Ubuntu's online snapshot archive is
+`9bed7416c862216ec7c794d8b6bc2e7cff39f9c35b50a5d13bbb6d58b4a4a2b1`;
+its installed-content identity matches the selected rebuilt DEB above. Fedora's
+snapshot and selected RPM archive identities are identical. Providers used
+US XKB input, Shell/GDM `en_US.UTF-8` and MATE `en_US.utf8`.
+
+| Complete caller source | SHA-256 on both targets |
+| --- | --- |
+| `tests/e2e/baseline_journey.py` | `fe9145cbb340347a014e7e5313a3ca61d82274c97e1808cc6834122b9b3e554f` |
+| `tests/e2e/request_flow.py` | `f02cb7e90a930e23227eb02a2fac6986f27238c4e7f624895c9562a56c6f90cd` |
+| `tests/integration/graphical_smoke/lib/onpc_baseline_journey.pm` | `e60cef084f6a20a6416f8d781c12be1ac932f78f43b074a6364505a1d974c9d0` |
+| `tests/integration/graphical_smoke/lib/onpc_request_flow.pm` | `6f99aaa00096af713a98e2ce80630d68b2964f5f7b2d945cca6861070113a683` |
+
+The following maps the baseline and consuming C05 core assertions to their
+accepted ordered endpoints. Every row passed independently on both targets.
+
+| Required public result | Accepted endpoints |
+| --- | --- |
+| Zero daily/grant/total and saved A/H/S policy | `allowance-configured`, `saved-settings`, `saved-policy` |
+| Explicit kiosk rejection, preserved choices, no grant or policy change | `kiosk-rejection-flow-preserved`, `rejection-policy` |
+| Fresh password-free Cancel, remembered choices, no grant or policy change | `kiosk-cancel-open-estimate`, `kiosk-cancel-flow-preserved`, `cancel-policy` |
+| Child entry denied at zero time | `zero-child-denied` |
+| Genuine 600-second approval, countdown, real A/S use and H denial | `kiosk-first-approval-success`, `first-countdown`, `allowed-use-submitted`, `soft-use-submitted`, `hard-denied`, `remaining-countdown` |
+| Overlay rejection and Cancel add no time and preserve original activity | Both `overlay-*-flow-preserved` comparisons, `rejection-activity`, `cancel-activity` |
+| Genuine 75-second overlay approval, usable same activity, soft use and hard denial | `overlay-approval-approval-success`, `approved-activity-submitted`, `overlay-countdown`, `overlay-soft-use-submitted`, `overlay-hard-denied`, `overlay-policy` |
+| Public revoke clears grant and restores time/soft restrictions without changing rules | `revoked-policy`, `time-denied`, `soft-denied` |
+| Remembered reentry, distinct fresh approval, usable retained child/S and H denial | `kiosk-final-new-form`, `kiosk-final-approval-success`, `final-countdown`, `final-soft-use-submitted`, `final-hard-denied`, `final-policy` |
+| Both apps Allowed with unchanged exact rules, controls disabled/saved and zero balances | Both `restore-*-access` / `restore-*-final-match` reads, `restore-saved`, `restore-settings`, `restore-balance` |
+| Collection and owned restoration | Worker exit zero, callback closed, verified shutdown, restored baseline and independent off-state |
+
+Separate C04l/s/r/i feature histories and C04l/w's 90/45-second human-pause
+histories remain accepted for their unchanged bindings. Compact preparation is
+opt-in to this baseline; those default callers and feature assertions did not
+change. No ordinary-use mismatch remained in these accepted histories. Alternate
+graphical-session and other deliberate-route gaps remain for D01/C06a review;
+no new breach test or escape claim was added. FLOW19/FLOW20 and broader cases
+34/36/44–49 retain their existing pending scope.
 
 The caller owns order, values, immutable per-approval captures and comparison
 endpoints. Shared operations own public inputs, guarded authentication, native

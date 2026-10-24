@@ -517,13 +517,13 @@ def test_recovery_dispatch_preserves_unfinished_vm_journal(checkout, monkeypatch
 @pytest.mark.parametrize('unattended', [False, True])
 @pytest.mark.parametrize('arguments', [
     ['system', '--artifacts', '/tmp/onpc-selected', '--area', 'session'],
-    ['integration', 'check_graphical_smoke'], ['integration', 'check_e2e_watch.py'],
+    ['integration', 'check_e2e_baseline_journey'], ['integration', 'check_e2e_watch.py'],
     ['integration', 'check_fixture_recorded_serial'],
 ])
 def test_selected_producer_dispatch_keeps_command_without_parent_owner(
         checkout, monkeypatch, unattended, arguments):
     import test_retention
-    for name in ('check_graphical_smoke.py', 'check_e2e_watch.py', 'check_fixture_recorded_serial.py'):
+    for name in ('check_e2e_baseline_journey.py', 'check_e2e_watch.py', 'check_fixture_recorded_serial.py'):
         (checkout / 'tests/integration' / name).touch()
     owner = Mock(side_effect=AssertionError('dispatcher opened a producer owner'))
     monkeypatch.setattr(test_retention.Store, 'session', owner)
@@ -536,7 +536,7 @@ def test_selected_producer_dispatch_keeps_command_without_parent_owner(
     monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: {'Control': lambda: control})
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
     selected = [*arguments, *(['--vm', vm_name(0)]
-        if arguments[-1] == 'check_fixture_recorded_serial' else VM_ARGS)]
+        if arguments[-1] in ('check_e2e_baseline_journey', 'check_fixture_recorded_serial') else VM_ARGS)]
     expected = runner['selection'](checkout, selected)
     assert runner['run'](checkout, (['--unattended'] if unattended else []) + selected, caller) == 7
     invocation = (control.run if unattended else execute).call_args

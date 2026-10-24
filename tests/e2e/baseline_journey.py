@@ -50,7 +50,7 @@ SCREENS = {
     'setup-switch-ready': 'ui:desktop', 'setup-switch': 'system:parent-switch-user',
     'setup-greeter': 'ui:gdm-returned',
     **prefixed_stages('kiosk-rejection', {
-        **prepared_request(prefix='open', entry='new', initial='default', **CHOICES),
+        **prepared_request(prefix='open', entry='new', initial='default', compact=True, **CHOICES),
         **rejected_request(outcome='rejection', **CHOICES),
         'form-cancel': 'ui:kiosk-request-cancel', 'form-returned': 'ui:gdm-station-returned'}),
     **ENTRIES['rejection-parent'],
@@ -58,7 +58,7 @@ SCREENS = {
     'rejection-policy': 'ui:revoke-saved-balances',
     'rejection-switch': 'system:parent-switch-user', 'rejection-greeter': 'ui:gdm-returned',
     **prefixed_stages('kiosk-cancel', {
-        **prepared_request(prefix='open', entry='new', initial='selected', **CHOICES),
+        **prepared_request(prefix='open', entry='new', initial='selected', compact=True, **CHOICES),
         **rejected_request(outcome='cancel', **CHOICES),
         'form-escape': 'ui:kiosk-request-escape-ready', 'form-returned': 'ui:gdm-station-returned'}),
     **ENTRIES['cancel-parent'],

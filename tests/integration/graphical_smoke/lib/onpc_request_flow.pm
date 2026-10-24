@@ -419,7 +419,8 @@ sub qualify_cross_surface {
 sub prepare {
     onpc_progress::operation('Preparing the declared kiosk request without submitting');
     my ($journey, $prefix, $entry, $initial, $child, $approver, $seconds, $soft, $invalid) = @_;
-    die 'request-flow:binding' unless (@_ == 8 || @_ == 9 && ($invalid eq 'invalid' || $invalid eq 'overlay'))
+    die 'request-flow:binding' unless (@_ == 8 || @_ == 9
+        && ($invalid eq 'invalid' || $invalid eq 'overlay' || $invalid eq 'compact'))
         && ref($journey) eq 'onpc_journey'
         && ($prefix eq 'open' || $prefix eq 'new')
         && ($entry eq 'open' || $entry eq 'new')
@@ -427,6 +428,7 @@ sub prepare {
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
         && ($seconds eq '75' || $seconds eq '600' && $initial eq 'default' && !defined($invalid))
         && $soft eq '1';
+    my $compact = defined($invalid) && $invalid eq 'compact';
     if ($invalid && $invalid eq 'overlay') {
         overlay_entry($journey, "$prefix-entry", 'command') if $entry eq 'new';
         for my $suffix ('form', 'approver', 'selections', 'duration') {
@@ -441,7 +443,13 @@ sub prepare {
         return;
     }
     onpc_gdm::enter_station($journey, 'cancel-') if $entry eq 'new';
+    if ($compact && $initial eq 'selected') {
+        # Fresh reentry's complete public request is the result. Do not rewrite
+        # unchanged persisted choices before independently comparing them.
+        return $journey->consume_observation("$prefix-estimate", $journey->seen("$prefix-estimate"));
+    }
     for my $suffix ('form', 'child', 'approver', 'selections') {
+        next if $compact && $suffix eq 'selections';
         my $stage = "$prefix-$suffix";
         $journey->consume_observation($stage, $journey->seen($stage));
     }
@@ -452,7 +460,7 @@ sub prepare {
         }
         return;
     }
-    if ($invalid) {
+    if ($invalid && !$compact) {
         $journey->consume_observation('invalid-custom-open', $journey->seen('invalid-custom-open'));
         onpc_text::replace_text($journey, 'kiosk-invalid-letters');
         for my $action ('ready', 'submit', 'read') {
@@ -463,6 +471,7 @@ sub prepare {
     $journey->consume_observation("$prefix-duration", $journey->seen("$prefix-duration"));
     onpc_text::replace_text($journey, 'kiosk-fraction', "$prefix-text");
     for my $suffix ('duration-read', 'apps', 'estimate') {
+        next if $compact && $suffix eq 'duration-read';
         my $stage = "$prefix-$suffix";
         $journey->consume_observation($stage, $journey->seen($stage));
     }

@@ -96,6 +96,14 @@ remembered-choice comparison. The shared `desktop_observation=False` binding
 may omit duplicate same-user desktop observations only while fresh input
 preflights and independent public results remain intact; defaults are unchanged.
 
+The baseline opts into `prepared_request(compact=True)` for the first kiosk
+request and its Cancel reentry. The first request retains its actual inputs and
+initial eligible-account checks; its final complete read supplies the selected
+choices and duration without two duplicate intermediate reads. Cancel reentry
+freshly reads the remembered complete request and estimate without rewriting
+unchanged choices. Its comparison endpoint and every fresh authentication proof
+remain unchanged. Other callers retain the full preparation by default.
+
 Each independent core history has an 1800-second worker bound. Observations
 retain 90-second kiosk / 45-second other deadlines; recipient proofs remain
 fresh for less than 30 seconds. The separate 90/45-second human waits keep

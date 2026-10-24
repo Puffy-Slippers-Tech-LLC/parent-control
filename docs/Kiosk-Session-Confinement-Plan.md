@@ -1,7 +1,7 @@
 # Kiosk confinement baseline validation for v1.4
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04j — [Register and qualify the baseline composition](Kiosk-Prompt-Tasks/C04j-baseline-composition.md)**.
+Next task: **C04 — [Reconcile proof consumers and baseline readiness](Kiosk-Prompt-Tasks/C04-installed-ta.md)**.
 
 ## Outcome
 
@@ -80,8 +80,8 @@ launchers but none of Riley's required catalogue launchers. C04j2 qualified that
 finite input gap on both targets. C04j's resumed diagnosis identified a native
 timer crash when Parent disables controls with a live grant. C04j3 qualified the
 bounded crash-safe transition, rollback and native-lock continuity repair on both targets;
-C04j then completes both affected histories under the recorded applicability
-decision. C04 audits readiness, and C05u/f accept
+C04j passed both complete histories and owned cleanup under the recorded
+applicability decision. C04 audits readiness, and C05u/f accept
 matching retained complete evidence or execute missing/invalidated histories.
 
 New general feature bindings belong to the E2E queue, including the already

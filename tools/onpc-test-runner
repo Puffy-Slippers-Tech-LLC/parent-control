@@ -439,11 +439,15 @@ def selection(root, argv, *, allow_missing_artifacts=False):
 
 def child_retention_owner(argv):
     """Finite producers hold their owner in the process that seals evidence."""
-    return (argv[0] in ('system', 'e2e') or
-            argv[0] == 'integration' and len(argv) > 1 and
-            argv[1].removesuffix('.py') in ('check_graphical_smoke', 'check_e2e_watch',
-                                          'check_e2e_active_grant_disable',
-                                          'check_fixture_recorded_serial', 'check_fixture_live_refresh'))
+    if argv[0] in ('system', 'e2e'):
+        return True
+    if argv[0] != 'integration' or len(argv) <= 1:
+        return False
+    from test_commands import INSTALLED_E2E_FIXTURE_SELECTORS
+    selector = argv[1].removesuffix('.py')
+    return (selector in INSTALLED_E2E_FIXTURE_SELECTORS or
+            selector in ('check_graphical_smoke', 'check_e2e_watch',
+                         'check_fixture_recorded_serial', 'check_fixture_live_refresh'))
 
 
 def run(root, argv, caller):

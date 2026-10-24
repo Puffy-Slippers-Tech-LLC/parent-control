@@ -58,8 +58,8 @@ def overlay_to_kiosk(prefix, *, child, choices='qualification'):
 
 
 def prepared_request(*, prefix, entry, initial, child, approver, duration_seconds, allow_soft,
-                     surface='kiosk'):
-    """Declare the qualified custom-duration binding with explicit entry state."""
+                     surface='kiosk', compact=False):
+    """Declare custom input, optionally reusing independently read saved choices."""
     require(prefix in ('open', 'new'), 'request-flow:prefix')
     require(entry in ('open', 'new') and initial in ('default', 'selected'),
             'request-flow:entry')
@@ -67,6 +67,11 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
             and type(duration_seconds) is int and duration_seconds in (75, 600)
             and allow_soft is True, 'request-flow:choices')
     require(surface in ('kiosk', 'overlay'), 'request-flow:surface')
+    require(type(compact) is bool and (not compact or
+            surface == 'kiosk' and duration_seconds == 75), 'request-flow:compact-binding')
+    if compact and initial == 'selected':
+        return {**(station_entry('cancel-') if entry == 'new' else {}),
+                prefix + '-estimate': 'ui:kiosk-valid-fraction-soft-read'}
     if duration_seconds == 600:
         require(surface == 'kiosk', 'request-flow:long-surface')
         require(initial == 'default', 'request-flow:long-initial')
@@ -110,6 +115,11 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
         prefix + '-apps': 'ui:kiosk-valid-fraction-soft-select',
         prefix + '-estimate': 'ui:kiosk-valid-fraction-soft-read',
     })
+    if compact:
+        # The final full request independently reads both selections, the exact
+        # duration and soft inclusion. Keep all inputs and their fresh guards.
+        del stages[prefix + '-selections']
+        del stages[prefix + '-duration-read']
     return stages
 
 

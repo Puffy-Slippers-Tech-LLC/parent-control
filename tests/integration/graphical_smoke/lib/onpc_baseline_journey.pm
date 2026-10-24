@@ -30,7 +30,8 @@ sub run {
     for my $outcome ('rejection', 'cancel') {
         my $request = $journey->scope('kiosk-' . $outcome);
         onpc_request_flow::prepare($request, 'open', 'new',
-            $outcome eq 'rejection' ? 'default' : 'selected', 'fixture-child', 'fixture-parent', 75, 1);
+            $outcome eq 'rejection' ? 'default' : 'selected', 'fixture-child', 'fixture-parent', 75, 1,
+            'compact');
         onpc_request_flow::reject($request, $outcome, 'fixture-child', 'fixture-parent', 75, 1);
         $request->seen($outcome eq 'rejection' ? 'form-cancel' : 'form-escape');
         $request->seen('form-returned');

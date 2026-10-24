@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 
 import detached_launcher as launcher
@@ -427,7 +428,7 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
 
 
 def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds, resume, control):
-    """Run host work once, then refill VM slots after complete per-VM pipelines."""
+    """Run host work once alongside the independently capped VM pipelines."""
     from fix_tests import category_inventory, requested_inventory
     from vm_queue import dispatch
     from vm_selection import BATCH, VARIABLE, vm_config
@@ -456,6 +457,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
     pipelines = {name: (child_run(name), host if name == 'host' else guests) for name in states}
 
     def publish():
+        from launcher_chat import read_state, send_input, take_input
         from launcher_progress import read_progress, repair_progress
         from launcher_question import pending
         lines = [f'VM pipelines | concurrency {snapshot["concurrency"]}']
@@ -468,6 +470,13 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             repair_owner = None
         blocker = next((name for name, (child, _) in pipelines.items()
                         if child.name == (repair_owner or next(iter(waiting), None))), None)
+        if repair_owner is not None:
+            child = next(child for child, _ in pipelines.values() if child.name == repair_owner)
+            launcher.atomic(run / 'chat-state.json', read_state(child))
+            for entry in take_input(run):
+                state = read_state(child)
+                if entry['kind'] == 'message' or entry['session'] in (None, state['session']):
+                    send_input(child, entry['kind'], entry['text'])
         stopping = control.stopped.is_set() or (run / 'cancel').exists()
         if waiting:
             lines.append(f'Repair queue: {len(waiting)} | new cases waiting')
@@ -614,11 +623,15 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
         remaining += (int(rounds) - number) * len(selection)
     parent_budget.update(lambda value: value.update(remaining=remaining))
     warn_remaining(parent_budget.read()['tasks'], remaining, label='fix-tests')
-    if host:
-        status = execute('host', host)
-        if status:
-            return status
-    results = dispatch(vms, snapshot['concurrency'], lambda vm: execute(vm.name, guests), control.stopped)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        host_task = pool.submit(execute, 'host', host) if host else None
+        try:
+            results = dispatch(vms, snapshot['concurrency'], lambda vm: execute(vm.name, guests), control.stopped)
+            if host_task is not None:
+                host_task.result()
+        except BaseException:
+            control.stop()
+            raise
     statuses = {name: value['status'] if isinstance(value, dict) else value for name, value in results.items()}
     launcher.atomic(run / 'vm-results.json', results)
     if any(value['status'] == 'limited' for value in states.values()):

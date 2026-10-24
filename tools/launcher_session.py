@@ -117,7 +117,7 @@ class SessionPanel(LauncherDisplay):
             return
         size = self.terminal_size()
         width, height = max(1, size.columns - 1), max(1, size.lines)
-        logs = [*self.transcript, *([self.pending] if self.pending else [])]
+        logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
         rows = self.layout(width, height, logs, input_mode=self.input_mode,
                            question=self.question, working=self.working())
         if not self.screen or size != self.size:

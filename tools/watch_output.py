@@ -225,6 +225,7 @@ class SessionOutput:
     def discover(self):
         owner, _label = self.output.discover()
         owners = [owner] if owner is not None else []
+        interactive_owners = {owner} if owner is not None and _label == 'fix-tests' else set()
         # Plan-based tools have independent namespaces and need no test runner.
         for kind in ('fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew', 'plans'):
             try:
@@ -235,6 +236,8 @@ class SessionOutput:
                         run = active_run(item, workflow=True, reader=self.reader)
                         if run is not None:
                             owners.append(run)
+                            if kind != 'sync-whatsnew':
+                                interactive_owners.add(run)
                     except (OSError, ValueError, KeyError, TypeError):
                         continue
             except (OSError, ValueError):
@@ -264,7 +267,7 @@ class SessionOutput:
             try:
                 with open_private(owner / 'output'):
                     return owner, owner, dict(session='workflow-' + owner.name,
-                        interactive=False, status='running'), 'output'
+                        interactive=owner in interactive_owners, status='running'), 'output'
             except (OSError, ValueError):
                 continue
         return None, None, {}, None
@@ -283,7 +286,7 @@ class SessionOutput:
             options = question['options']
             choice = int(text.strip()) - 1 if text.strip() in ('1', '2', '3') else len(options)
             submit(self.run, question['id'], min(choice, len(options)), text)
-        elif self.panel.input_mode == 'chat' and self.panel.chat_state.get('status') != 'finished':
+        elif self.panel.input_mode == 'chat':
             send_input(self.run, 'message', text,
                        expected_session=self.panel.chat_state.get('session'))
         else:
@@ -331,8 +334,11 @@ class SessionOutput:
             chat = self.reader.read(run / 'chat-state.json')
             if state['interactive'] and isinstance(chat, dict):
                 panel.chat_state = chat
+            elif state['interactive']:
+                panel.chat_state = dict(session=None, status='starting')
         except (OSError, ValueError):
-            pass
+            if state['interactive']:
+                panel.chat_state = dict(session=None, status='starting')
         try:
             question = self.reader.read(run / 'question.json')
             if question.get('answer') is not None:
@@ -343,6 +349,9 @@ class SessionOutput:
         if (question['id'] if question else None) != previous:
             panel.question = QuestionInput(question, lambda identity, choice, text:
                 submit(run, identity, choice, text) if self.current() else False) if question else None
+        panel.details = ([question['question'],
+            *[f'{index + 1}. {option}' for index, option in enumerate(question['options'])],
+            'Type a number or your own instructions below.'] if question else [])
         try:
             with open_private(run / source) as stream:
                 size = os.fstat(stream.fileno()).st_size

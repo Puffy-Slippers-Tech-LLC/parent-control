@@ -552,8 +552,12 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
             reported = True
             record_usage(run, metadata, usage)
 
+        task = read_state(run).get('task_id')
         status = detached_launcher.supervise(root, run, owner, kind, command, on_usage=on_usage,
-                                              task=read_state(run).get('task_id'),
+                                              interactive=True, task=task,
+                                              session_state=dict(task_id=task,
+                                                  total_sessions=metadata['session_id'],
+                                                  task_sessions=metadata['repair_session']),
                                               on_model=lambda active: metadata.update(model=active))
         if not reported:
             record_usage(run, metadata, event='missing_usage')
@@ -716,7 +720,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         key = read_progress(run)[-1]['key']
         active_task = f'{round_number}:{category}'
         update_task_info(run, active_task, {})
-        atomic(run / 'chat-state.json', {'task_id': active_task, 'progress_key': key})
+        atomic(run / 'chat-state.json', {'task_id': active_task, 'progress_key': key,
+                                        'session': None, 'status': 'waiting'})
 
     def panel(value):
         if active_task is not None:

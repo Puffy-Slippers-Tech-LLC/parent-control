@@ -1067,10 +1067,11 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
     monkeypatch.setattr(output, 'isatty', lambda: tty)
     assert fix_tests.follow(run, output) == 0
     text = output.getvalue()
-    assert 'category started' in text and 'final summary' in text
-    assert 'Overall - 0%' in text and 'Overall - 50%' in text
     from rich.text import Text
-    assert 'Round 1: Category: unit (1/4) | Overall - 50%' in Text.from_ansi(text).plain
+    plain = Text.from_ansi(text).plain
+    assert 'category started' in text and 'final summary' in text
+    assert 'Overall - 0%' in plain and 'Overall - 50%' in plain
+    assert 'Round 1: Category: unit (1/4) | Overall - 50%' in plain
     assert 'Status: Running tests' in text
     if tty:
         assert text.count('\033[?1049h') == text.count('\033[?1049l') == 1

@@ -360,8 +360,10 @@ can embed it in their own location without the plan overview or status columns.
 The shared supervisor publishes session identity, model/effort and lifecycle in
 `session-view.json`, and a bounded current-session `session-output.log`, inside
 the existing owned run. These display artifacts carry no execution or acceptance
-authority and retire with that run. Interactive sessions retain their existing
-conversation input; batch repair sessions accept pending developer decisions.
+authority and retire with that run. Plan and repair sessions use the shared
+conversation input throughout work, including steering the active agent and
+answering pending developer decisions. Prompts entered between repair sessions
+queue for the next agent in the displayed workflow.
 The top-left overview is at most five terminal rows high, including wrapped
 lines, and shrinks further in short terminals. All overview content scrolls
 together with the mouse wheel; click it to direct Page Up/Page Down there.

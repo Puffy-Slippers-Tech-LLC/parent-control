@@ -174,9 +174,11 @@ def app_command(command):
 
 
 class AppSession:
-    def __init__(self, root, run, command, renderer, *, on_interrupted=None):
+    def __init__(self, root, run, command, renderer, *, on_interrupted=None,
+                 session_state=None):
         self.root, self.run, self.renderer = root, run, renderer
-        state = json.loads((run / 'checkpoint.json').read_text())
+        state = (session_state if session_state is not None else
+                 json.loads((run / 'checkpoint.json').read_text()))
         self.session = state.get('total_sessions', state['task_sessions'])
         self.task_session = state['task_sessions']
         self.task = state['task_id']

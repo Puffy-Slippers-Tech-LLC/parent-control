@@ -382,7 +382,8 @@ category and each fresh verification pass starts without `--resume`.
 
 For a configured VM queue, host categories run once and each VM owns its
 system/E2E pipeline, checkpoint and reports through all requested rounds. The
-registry concurrency cap limits these pipelines. Normal cases execute in
+host pipeline runs alongside the VM pipelines without consuming a VM slot;
+the registry concurrency cap limits only the VM pipelines. Normal cases execute in
 parallel through fresh case-only runner invocations with the original selectors
 and required lifecycle prerequisites. Package preparation reuses content-qualified
 inputs, rebuilding when source changes; each next case loads the current inputs
@@ -1199,8 +1200,9 @@ The repair wait names the transaction owner through verification and Git
 close-out; cases already executing retain their active status until they wait.
 The lower frame divides execution details and optional session input on the left
 from current task summary and status/issues on the right. `run-tests` has no
-session composer; `fix-tests` offers input for developer decisions. E2E and
-ordinary plan workflows offer the conversation composer described below.
+session composer; `fix-tests`, E2E and ordinary plan workflows offer the
+conversation composer described below. Repair prompts steer the active agent;
+messages sent during testing queue for the next repair session in that workflow.
 The upper and lower frames share an initial width ratio of 75:25; dragging either
 vertical divider resizes both frames together and keeps their dividers aligned.
 The shared ratio survives terminal resizing. Both dividers turn blue while dragging
@@ -1268,7 +1270,7 @@ appended under the shared [exit recap contract](../docs/Execution-Plans.md#commo
 including summaries outside the visible pane; pipes receive the same plain-text
 recap. `run-tests` preserves its detailed dashboards when observed
 through a workflow launcher, below that workflow's controller summary.
-For `run-tests` and `fix-tests`, mouse capture starts enabled, as in the chat displays.
+For `run-tests`, mouse capture starts enabled, as in the chat displays.
 The divider shows `F2/m: select text`; press `F2` (or `m` outside a pending question)
 to release mouse controls for ordinary native selection and context menus.
 The divider changes to `F2/m: scroll/resize`.
@@ -2430,8 +2432,9 @@ Run Status keeps the live pipeline dashboard and test output. Session embeds the
 shared [session panel](../tools/launcher_session.py), following the active agent
 in that checkout, including VM repair pipelines and plan launchers. Its transcript,
 scroll position and draft are independent of Run Status. Interactive sessions
-support the existing prompt, interruption and continuation controls; batch repair
-sessions retain their developer-decision input. Before an agent starts, or when
+support the existing prompt, interruption and continuation controls, including
+`fix-tests` repairs. Pending developer decisions accept a suggested number or
+free-text instructions through the same textbox. Before an agent starts, or when
 an older supervisor has no dedicated session artifacts, the tab follows the live
 workflow's normal transcript through the same panel. Without a live workflow,
 the tab shows an empty-state message. Input is checked against the displayed

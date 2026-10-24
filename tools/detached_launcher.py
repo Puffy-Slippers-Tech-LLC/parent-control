@@ -254,7 +254,7 @@ def descriptive_output(run):
 
 def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
               on_usage=None, interactive=False, task=None, on_model=None, capacity_recovery=True,
-              subagents_follow_model=False):
+              subagents_follow_model=False, session_state=None):
     """Apply capacity recovery once per logical session, for every agent transport.
 
     Ordinary plans retain their checkpointed controller loop and opt out here.
@@ -263,7 +263,7 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
     if kind != 'agent' or not capacity_recovery:
         return _supervise_once(root, run, owner, kind, command, nested=nested,
             hide_task_completion=hide_task_completion, on_usage=on_usage,
-            interactive=interactive, task=task)
+            interactive=interactive, task=task, session_state=session_state)
     from launcher_runtime import AgentCapacityUnavailable, capacity_failure
     command = list(command)
     model_index = command.index('--model') + 1
@@ -278,7 +278,7 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
             try:
                 return _supervise_once(root, run, os.dup(owner), kind, command, nested=nested,
                     hide_task_completion=hide_task_completion, on_usage=on_usage,
-                    interactive=interactive, task=task)
+                    interactive=interactive, task=task, session_state=session_state)
             except AgentCapacityUnavailable as error:
                 failures += 1
                 delay, fallback, exhausted = capacity_failure(configured_model, failures)
@@ -333,7 +333,7 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
 
 
 def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
-                    on_usage=None, interactive=False, task=None):
+                    on_usage=None, interactive=False, task=None, session_state=None):
     """Own one child until it is reaped; EOF means the loop worker died.
 
     Tests get the runner's Ctrl+C path with unlimited time for guarded cleanup.
@@ -390,7 +390,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                     atomic(run / 'nested.json', [])
                     (run / 'nested-closed').unlink(missing_ok=True)
 
-        conversation = AppSession(root, run, command, renderer, on_interrupted=interrupted_cleanup)
+        conversation = AppSession(root, run, command, renderer, on_interrupted=interrupted_cleanup,
+                                  session_state=session_state)
         command = app_command(command)
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' and not interactive else None
     log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
@@ -519,7 +520,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                 raise AgentCapacityUnavailable(message)
         if nested_active:
             status = status or 1
-        if conversation and not requested and not conversation.done:
+        if conversation and not requested and not conversation.done and status == 0:
             raise ValueError('Codex conversation ended without a workflow result; see retained output')
         return 130 if requested else status if status >= 0 else 128 - status
     finally:

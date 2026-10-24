@@ -1165,7 +1165,7 @@ def test_recovery_failure_handoff_is_repaired_then_recovery_and_category_retry(c
     assert 'def repaired():' in transcript and '```' not in transcript
     assert 'agent stderr diagnostic' in transcript
     assert '\033[' in (run / 'output').read_text()
-    assert '--json' in agent['args']
+    assert 'app-server' in agent['args']
 
 
 def test_cancellation_during_recovery_waits_for_cleanup(checkout):

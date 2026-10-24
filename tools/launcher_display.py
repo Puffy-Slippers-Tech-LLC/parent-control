@@ -78,12 +78,13 @@ class PanelSelection:
 
 
 class TaskDisplay(LauncherDisplay):
-    def __init__(self, stream, *, run, input_mode='chat', totals=None, **kwargs):
+    def __init__(self, stream, *, run, input_mode='chat', totals=None, overview_current=False, **kwargs):
         super().__init__(stream, **kwargs)
         self.observed_monotonic = time.monotonic()
         self.owner_clock = owner_clock(run)
         self.run = run
         self.input_mode = input_mode
+        self.overview_current = overview_current
         self.ratio = .75
         self.dragging = None
         self.totals = totals
@@ -249,7 +250,7 @@ class TaskDisplay(LauncherDisplay):
         history = [line for s in self.steps if not s.get('pinned') and
                    (s.get('replaces') or (s is not current and len(s['lines']) == 1))
                    for line in self.overview_lines(s)]
-        if self.input_mode != 'chat':
+        if self.input_mode != 'chat' or self.overview_current:
             history = [self.overview_lines(s)[0] for s in self.steps
                        if not s.get('pinned') and s['lines']]
         return pinned, history

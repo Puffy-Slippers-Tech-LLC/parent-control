@@ -91,6 +91,8 @@ only its private bare remote and checkpoint.
 The VM pipeline variant runs two such private process doubles against one local
 bare remote and a FIFO source lease. Reservations remain stubbed; finite waited
 children own no real VM, external service, display, socket or shared cache.
+The repair app-server double runs in that same owned process, with a small
+result file beneath the pytest-private checkout; its resource scope is unchanged.
 No external network, shared Git state, VM,
 display, bus or additional asynchronous cleanup owner is acquired; both modules
 retain compatible unit scheduling and the existing cleanup classification.

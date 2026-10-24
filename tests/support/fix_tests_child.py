@@ -2,7 +2,9 @@
 
 import json
 import hashlib
+import io
 import os
+from contextlib import redirect_stdout
 from pathlib import Path
 import signal
 import subprocess
@@ -10,9 +12,70 @@ import sys
 import time
 
 
-def main():
+def app_server(args):
+    """Expose the existing repair double through the shared conversation protocol."""
+    def emit(value):
+        print(json.dumps(value), flush=True)
+
+    model = None
+    for line in sys.stdin:
+        packet = json.loads(line)
+        method, params = packet['method'], packet.get('params', {})
+        if method == 'initialized':
+            continue
+        result = {}
+        if method == 'thread/start':
+            model = params['model']
+            result = {'thread': {'id': 'fixture-thread'}}
+        elif method == 'turn/start':
+            emit({'id': packet['id'], 'result': {'turn': {'id': 'fixture-turn'}}})
+            reply = Path.cwd() / 'fixture-agent-result.json'
+            old_argv = sys.argv
+            output = io.StringIO()
+            try:
+                sys.argv = [old_argv[0], 'agent', *args, '--model', model,
+                            '--output-last-message', str(reply)]
+                with redirect_stdout(output):
+                    status = main(conversation_prompt=params['input'][0]['text'])
+            finally:
+                sys.argv = old_argv
+            if status:
+                return status
+            for entry in output.getvalue().splitlines():
+                try:
+                    event = json.loads(entry)
+                except ValueError:
+                    continue
+                if event['type'] == 'turn.completed':
+                    usage = event['usage']
+                    emit({'method': 'thread/tokenUsage/updated', 'params': {
+                        'threadId': 'fixture-thread', 'tokenUsage': {'last': {
+                            'inputTokens': usage['input_tokens'],
+                            'cachedInputTokens': usage['cached_input_tokens'],
+                            'outputTokens': usage['output_tokens']}}}})
+                elif event['type'] == 'item.completed':
+                    item = event['item']
+                    if item['type'] == 'agent_message':
+                        item['type'] = 'agentMessage'
+                    elif item['type'] == 'command_execution':
+                        item = dict(item, type='commandExecution',
+                            aggregatedOutput=item['aggregated_output'], exitCode=item['exit_code'])
+                    emit({'method': 'item/completed', 'params': {
+                        'threadId': 'fixture-thread', 'item': item}})
+            emit({'method': 'item/completed', 'params': {'threadId': 'fixture-thread',
+                'item': {'id': 'result', 'type': 'agentMessage', 'text': reply.read_text()}}})
+            emit({'method': 'turn/completed', 'params': {'threadId': 'fixture-thread',
+                'turn': {'id': 'fixture-turn', 'status': 'completed'}}})
+            continue
+        emit({'id': packet['id'], 'result': result})
+    return 0
+
+
+def main(*, conversation_prompt=None):
     root = Path.cwd()
     kind, *args = sys.argv[1:]
+    if kind == 'agent' and args[:1] == ['app-server'] and conversation_prompt is None:
+        return app_server(args)
     if kind in ('--worker', '--reload-worker'):
         from contextlib import nullcontext
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
@@ -79,7 +142,7 @@ def main():
     record = {'kind': kind, 'category': category, 'pid': os.getpid(), 'args': args}
     record['frame_directory'] = os.environ.get('ONPC_TEST_FRAME_DIRECTORY')
     if kind == 'agent':
-        record['prompt'] = sys.stdin.read()
+        record['prompt'] = sys.stdin.read() if conversation_prompt is None else conversation_prompt
         record['thread'] = os.environ.get('CODEX_THREAD_ID')
     record['vm'] = os.environ.get('ONPC_TEST_VM')
     script = json.loads((root / 'script.json').read_text()) if mode == 'agent-script' else {}
@@ -275,7 +338,10 @@ def main():
                 (checkpoint.store.path / checkpoint.name).write_text('{}')
     reply = Path(args[args.index('--output-last-message') + 1])
     if mode == 'vm-pipeline':
-        parent = Path(json.loads((reply.parent / 'pipeline.json').read_text())['parent'])
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+        from test_storage import directory
+        base = directory('fix-tests', root=root)
+        parent = base / json.loads((base / 'current.json').read_text())['run']
         deadline = time.monotonic() + 10
         while len(json.loads((parent / 'repair-queue.json').read_text())) < 2:
             assert time.monotonic() < deadline, 'second VM did not queue its failure independently'

@@ -25,6 +25,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Task completion no longer archives/carries turns; expiry regressions use only
 # private checkpoints and missing paths. Existing owned cleanup children and
 # compatible unit/cleanup classifications remain; no UI or shared resource added.
+# Repair conversation doubles reuse pytest-private result files and the existing
+# waited owner process; they add no shared socket, service or subprocess owner.
 # write_e2e_cleanup_safety's app-server double retains the existing private
 # pipes, recorded child/nested-test owners and waited cleanup. No live model,
 # VM, shared cache or new lifetime is introduced; compatible in both inventories.

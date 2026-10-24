@@ -51,6 +51,10 @@ it alone does not establish retention. Qualification helpers reuse an active
 session rather than open a second run.
 Keep the recorded allocation root private and stable through cleanup; use child
 directories for fixtures that intentionally change permissions or replace paths.
+New process scratch receipts also pin the filesystem ID so device renumbering
+after reboot does not invalidate the allocation. Legacy receipts still require
+their recorded device and inode; a mismatch must be preserved for explicit
+operator recovery, never adopted using the current filesystem identity.
 When creating host storage, the unprivileged allocator may tighten its exact
 caller-owned `output/` ancestor from ordinary group-writable 0775 to 0755.
 It verifies the caller's group, pinned entry identity and mount boundary first;

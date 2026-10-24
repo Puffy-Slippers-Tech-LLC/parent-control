@@ -489,6 +489,12 @@ def initialize_scratch(parent, fd, retention):
         if retention.mount_id(child) != retention.mount_id(fd) or os.listdir(child):
             raise ValueError('scratch staging has unrecorded contents or a mount')
         record = dict(path=str(staging), device=info.st_dev, inode=info.st_ino, mode=0o700)
+        # Block-device numbers can change after reboot. Record the filesystem
+        # identity while this new allocation is pinned; never infer it later
+        # from a legacy receipt whose device no longer matches.
+        filesystem = os.fstatvfs(child).f_fsid
+        if filesystem:
+            record['filesystem'] = filesystem
         retention.Store(parent).save(fd, record, name='initializing.json')
         path = parent / ('run-' + uuid.uuid4().hex)
         owner = os.open('owner', os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=child)

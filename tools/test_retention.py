@@ -1095,8 +1095,18 @@ def remove(record, *, validate_only=False):
         try:
             info = os.fstat(target)
             allocation_identity(info, record.get('mode', 0o700))
-            if (info.st_dev, info.st_ino) != (record['device'], record['inode']):
-                raise ValueError('retention: recorded allocation was replaced')
+            if 'filesystem' in record:
+                filesystem = record['filesystem']
+                matches = (type(filesystem) is int and filesystem > 0
+                           and os.fstatvfs(target).f_fsid == filesystem
+                           and info.st_ino == record['inode'])
+            else:
+                matches = (info.st_dev, info.st_ino) == (record['device'], record['inode'])
+            if not matches:
+                raise ValueError(
+                    f'retention: recorded allocation was replaced: {str(path)!r} '
+                    f'(recorded device/inode {record["device"]}/{record["inode"]}, '
+                    f'current {info.st_dev}/{info.st_ino}); preserve the allocation and receipt')
             if mount_id(target) != mount_id(parent):
                 raise ValueError('retention: mounted storage is not disposable')
             if os.geteuid() != 0 and sbuild_scratch(record):

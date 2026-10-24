@@ -42,7 +42,8 @@ def progress_text(meta, *, now_ns=None):
         minutes, seconds = divmod(max(0, (now - started) // 1_000_000_000), 60)
         elapsed = f'{minutes}m {seconds}s' if minutes else f'{seconds}s'
         operation += f' - ({elapsed})'
-    return (f"[{progress['current']}/{progress['total']}] [{progress['case_id']}]: {progress['title']}" + suffix,
+    completed = progress['current'] - 1
+    return (f"[{completed}/{progress['total']}] [{progress['case_id']}]: {progress['title']}" + suffix,
             progress['step'], operation)
 
 
@@ -524,6 +525,13 @@ def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
                 meta['progress'] = progress
             title, step, operation = progress_text(meta)
             self.heading.set_label(title)
+            attributes = Pango.AttrList()
+            if meta.get('progress'):
+                completed = Pango.attr_foreground_new(0, 0x8000, 0)
+                completed.start_index = 1
+                completed.end_index = title.index('/')
+                attributes.insert(completed)
+            self.heading.set_attributes(attributes)
             self.step.set_label(step)
             self.status.set_label(activity_text(activity, meta.get('progress')) or operation or
                 ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else

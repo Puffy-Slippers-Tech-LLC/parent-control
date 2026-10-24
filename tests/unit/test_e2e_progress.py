@@ -34,13 +34,13 @@ def cases():
     return inventory.resolve_selection(document, None, root=ROOT)['cases']
 
 
-def test_count_includes_current_case_and_uses_selected_total():
+def test_count_excludes_current_case_and_uses_selected_total():
     selected = cases()[:5]
     progress = Progress(selected)
     for index, case in enumerate(selected, 1):
         progress.case(case['case_id'])
         title, step, operation = progress_text({'progress': progress.snapshot()})
-        assert title == f"[{index}/5] [{case['coverage_id']}]: {case['title']} - (0m/0m)"
+        assert title == f"[{index - 1}/5] [{case['coverage_id']}]: {case['title']} - (0m/0m)"
         assert step == ''
         assert operation.startswith('Preparing VM: ')
 
@@ -354,7 +354,7 @@ def test_controller_progress_crosses_actual_socket_and_read_only_frame_copy():
             _, meta, _, _ = read_frame(frames.memory)
             assert meta['state'] == 'waiting'  # Works even without display pixels.
             assert meta['progress'] == progress.snapshot()
-            assert progress_text(meta)[0].startswith('[3/5] ')
+            assert progress_text(meta)[0].startswith('[2/5] ')
     finally:
         frames.close()
 

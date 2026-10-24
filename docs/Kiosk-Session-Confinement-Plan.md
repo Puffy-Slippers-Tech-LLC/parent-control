@@ -1,7 +1,7 @@
 # Kiosk confinement baseline validation for v1.4
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C05f — [Prove baseline usability on Fedora](Kiosk-Prompt-Tasks/C05f-baseline-fedora.md)**.
+Next task: none.
 
 ## Outcome
 
@@ -17,6 +17,13 @@ and `tools/kiosk-desktop`, followed by the
 Planning reconciliation grants no task completion or installed acceptance.
 The existing master path, launcher and surviving brief paths remain stable for
 retained baseline work. Completed C01–C04o rows keep their original evidence.
+
+C05u/C05f accepted the unchanged complete Ubuntu/Fedora histories and separate
+feature/pause results under the
+[both-target baseline handoff](TestAutomation/E2E-Building-Blocks.md#c05f-fedora-baseline-acceptance).
+All baseline rows are complete, with public restoration and owned cleanup passed.
+The desktop and remaining-confinement plans retain their unqualified route
+reviews and separate post-change acceptance; no final defense claim follows.
 
 ## Highest priority: product usability
 

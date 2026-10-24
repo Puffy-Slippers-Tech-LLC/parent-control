@@ -1330,6 +1330,47 @@ remain for C06a/C06 review. These are unqualified routes, not observed baseline
 failures or a final confinement claim. Only C05u closes; Fedora remains C05f's
 installed acceptance gate.
 
+<a id="c05f-fedora-baseline-acceptance"></a>
+
+#### Fedora baseline acceptance and both-target handoff
+
+C05f independently applied the
+[complete baseline reuse contract](E2E-Execution-Contracts.md#complete-baseline-evidence-reuse)
+and accepts C04j's complete `onpc-Fedora44` history as installed acceptance.
+The selected candidate is the recorded rebuilt RPM, archive/installed-content
+SHA-256 `7b98a3f839e4a324df1b159f8ea0340e968a7ab1aa70a2f2c5f74e0485298552`,
+with the source, assets, online snapshot, native/activity/baseline-child fixtures,
+GDM/Shell/MATE providers and finite inputs in the
+[exact identity and public-result tables](#complete-baseline-composition).
+All 246 observations passed in 1433.262 seconds within the original 1800-second
+worker bound, including negative requests, genuine approval, usable A/S with H
+denied, preserved overlay activity, revocation, fresh remembered reentry and
+public policy/time restoration. Collection, worker/callback shutdown, owned
+baseline restoration and the independent guest-off observation also passed.
+
+The applicability review found all four complete-caller hashes unchanged and no
+product/package, native fixture payload, provider, input or assertion change
+since the accepted composition. The existing fixture blank line, maintenance-only
+restoration diagnostic, equivalent snapshot rebind extraction and host
+test-recovery/classification changes do not invalidate either target's public
+results. No new package or fixture build is claimed. The separate C04l/s/r/i
+feature and C04l/w 90/45-second human-pause results retain their unchanged
+bindings. Independent Sol High source review agreed that neither a complete
+history nor a separate feature/pause slice needs renewal. Ubuntu's
+[C05u acceptance](#c05u-ubuntu-baseline-acceptance) remains applicable to its
+recorded DEB and identities; Fedora's result does not substitute for it.
+
+Baseline product, automation and current documentation match this finite scope
+on both targets. C05f started no VM, worker or helper requiring cleanup and
+recovered no historical reports. Only this baseline queue closes. Local alternate
+graphical-session selection and request-session actions yielding a full desktop
+remain unqualified for D01/D02; the named remote-desktop provider belongs to
+D01r/D02. Standalone terminal/TTY and SSH remain for C06a/C06, with other exposed
+actions and child-controlled consumed inputs for C06x/C06i. These are concrete
+coverage gaps for their route reviews, not observed baseline defects or accepted
+escape defenses. No E2E row, Fedora release qualification or final post-protection
+acceptance is granted.
+
 The caller owns order, values, immutable per-approval captures and comparison
 endpoints. Shared operations own public inputs, guarded authentication, native
 activity, desktop entry, observation and revocation. The exact remembered

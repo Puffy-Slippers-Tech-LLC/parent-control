@@ -64,6 +64,14 @@ affected checks within the current task.
 A new namespace is no authorization to bypass an active baseline owner, pending
 Git transaction, live VM lease or uncommitted overlapping source work.
 
+The [C05f baseline handoff](TestAutomation/E2E-Building-Blocks.md#c05f-fedora-baseline-acceptance)
+accepts both targets' unchanged complete core histories and separate feature/pause
+results. Standalone terminal/TTY and SSH remain unqualified for C06a/C06; other
+exposed actions and child-controlled consumed inputs remain for C06x/C06i.
+The desktop owner retains all full-desktop routes, including its named remote
+provider, and its D04 gate remains required. These coverage gaps are not observed
+baseline failures. This handoff closes no remaining-plan row or final defense gate.
+
 C06a reviews remaining SSH/terminal/TTY routes. C06x maps exposed actions and
 C06i separately maps child-controlled consumed inputs; C06 independently reviews
 the combined finite design. C07t/C07b and C08a/C08 add only missing justified barriers,

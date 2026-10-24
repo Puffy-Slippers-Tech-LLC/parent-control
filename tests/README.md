@@ -385,6 +385,13 @@ owned cleanup. Other VMs cannot load its unverified edits. A queued failure is
 rechecked after preceding repairs land, before spending another agent session,
 so a shared fix can resolve multiple VM failures without duplicate edits. A stopped
 repair with unresolved edits keeps the source fenced for its retained recovery.
+`RepairCoordinator` owns admission, FIFO ownership and release under the existing
+shared gate; workers retain their execution and descriptor leases. Admission
+checks the queue, unfinished source owner and kernel lease in one transition.
+Restart derives `closeout`, `repair` or `complete` from the existing checkpoints:
+accepted Git work runs first, then each FIFO ticket drains in one recovery worker
+before normal work starts. The parent does not restart an incomplete recovery
+worker to retry it with fresh case budgets.
 Cancellation stops admission and waits for every active pipeline's owned cleanup;
 resuming retains each VM's completed work. Task limits count host categories once
 and VM categories per VM, across their independently advancing rounds.

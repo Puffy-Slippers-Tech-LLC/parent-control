@@ -47,11 +47,160 @@ def finish_startup(run):
         os.close(fd)
 
 
+class RepairCoordinator:
+    """The shared gate serializes every admission and repair-state transition.
+
+    Processes may call this coordinator independently; none keeps a private
+    scheduling decision. Kernel source leases still outlive their controllers.
+    The existing files remain the restart journal, with no additional protocol.
+    """
+    def __init__(self, run):
+        self.run = run
+
+    @staticmethod
+    def recovery_state(saved):
+        if saved.get('pending') is not None:
+            return 'closeout'
+        if saved.get('repairs') or saved.get('queued_failure'):
+            return 'repair'
+        return 'complete'
+
+    @contextmanager
+    def state(self):
+        with launcher.lock(self.run / 'repair-queue-gate') as gate:
+            fcntl.flock(gate, fcntl.LOCK_EX)
+            path = self.run / 'repair-queue.json'
+            waiting = json.loads(path.read_text()) if path.exists() else []
+            pending = self.run / 'repair-pending.json'
+            owner = json.loads(pending.read_text())['run'] if pending.exists() else None
+            yield waiting, owner
+
+    def generation(self):
+        path = self.run / 'repair-generation.json'
+        return json.loads(path.read_text()) if path.exists() else 0
+
+    def enqueue(self, ticket):
+        with self.state() as (waiting, _):
+            if ticket not in waiting:
+                launcher.atomic(self.run / 'repair-queue.json', [*waiting, ticket])
+
+    def admit(self, ticket, descriptor, *, writer):
+        """Check FIFO, source fencing and the kernel lease in one transition."""
+        with self.state() as (waiting, owner):
+            eligible = waiting[:1] == [ticket] if writer else not waiting
+            if owner is not None and owner != ticket:
+                if (self.run / owner / 'result.json').exists() or writer and eligible:
+                    raise ValueError('an unfinished case repair retains unverified edits; resume that repair first')
+            if not eligible:
+                return False
+            if owner is not None and not writer:
+                raise ValueError('an unfinished case repair retains unverified edits; resume that repair first')
+            try:
+                fcntl.flock(descriptor, (fcntl.LOCK_EX if writer else fcntl.LOCK_SH) | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return False  # Active cases or their supervisors still own cleanup.
+            if writer:
+                launcher.atomic(self.run / 'repair-pending.json', {'run': ticket})
+            return True
+
+    def finish(self, ticket, *, changed=False, unfinished=False):
+        with self.state() as (waiting, owner):
+            if owner is not None and owner != ticket:
+                raise ValueError('case repair ownership changed before release')
+            if changed:
+                launcher.atomic(self.run / 'repair-generation.json', self.generation() + 1)
+            if not unfinished:
+                # Clear the fence before removing its ticket. An interruption
+                # between writes still blocks admission until restart drains it.
+                (self.run / 'repair-pending.json').unlink(missing_ok=True)
+                if ticket in waiting:
+                    launcher.atomic(self.run / 'repair-queue.json', [name for name in waiting if name != ticket])
+
+    def discard(self, ticket):
+        with self.state() as (waiting, owner):
+            if owner == ticket:
+                raise ValueError('a retained repair must release its source fence before completion')
+            if ticket in waiting:
+                launcher.atomic(self.run / 'repair-queue.json', [name for name in waiting if name != ticket])
+
+    def recover(self, pipelines, execute):
+        """Restore journal -> drain FIFO transactions -> admit normal work.
+
+        A recovery worker drains its entire ticket with one session budget.
+        The coordinator never respawns it to retry an incomplete transaction.
+        """
+        def saved(child):
+            path = child / 'checkpoint.json'
+            return json.loads(path.read_text()) if path.exists() else {}
+
+        # Retain legacy ownership records as provenance while splitting them
+        # into the selected pipelines. An accepted Git close-out comes first.
+        legacy = saved(self.run)
+        by_ticket = {child.name: name for name, (child, _) in pipelines.items()}
+        for entry in legacy.get('repairs', {}).values():
+            name = entry['failure'][2] or 'host'
+            child = self.run / ('pipeline-' + hashlib.sha256(name.encode()).hexdigest()[:24])
+            if name not in pipelines and not (child / 'checkpoint.json').exists():
+                raise ValueError('resume the original selection to finish its retained legacy repair')
+        with self.state() as (waiting, owner):
+            accepted = []
+            for name, (child, selection) in pipelines.items():
+                if not (child / 'checkpoint.json').exists():
+                    repairs = {key: value for key, value in legacy.get('repairs', {}).items()
+                               if value['failure'][2] == ('' if name == 'host' else name)}
+                    if repairs:
+                        state = dict(repairs=repairs)
+                        if legacy.get('pending') in repairs:
+                            state.update({key: value for key, value in legacy.items()
+                                if key in ('pending', 'commit_intent', 'pull_intent', 'worktree_propagation')})
+                        launcher.atomic(child / 'checkpoint.json', state)
+                        owner = owner or child.name
+                state = saved(child)
+                for entry in state.get('repairs', {}).values():
+                    category = entry['failure'][0]
+                    if category not in selection or entry['args'] != selection[category]['args']:
+                        raise ValueError('pending repair selectors changed; resume the original selection')
+                queued = state.get('queued_failure')
+                if queued is not None and queued['category'] not in selection:
+                    raise ValueError('queued failure category removed; resume the original selection')
+                phase = self.recovery_state(state)
+                if phase == 'closeout':
+                    accepted.append(child.name)
+                if phase != 'complete' and child.name not in waiting:
+                    waiting.append(child.name)
+            if set(waiting) - by_ticket.keys():
+                raise ValueError('resume the original VM selection to finish its queued failures')
+            if owner is not None and owner not in by_ticket:
+                raise ValueError('resume the original VM selection to finish its retained case repair')
+            if accepted:
+                if len(accepted) != 1:
+                    raise ValueError('multiple retained Git transactions need their original owner')
+                owner, = accepted
+            if owner is not None:
+                waiting = [owner, *[ticket for ticket in waiting if ticket != owner]]
+                launcher.atomic(self.run / 'repair-pending.json', {'run': owner})
+            launcher.atomic(self.run / 'repair-queue.json', waiting)
+
+        for ticket in waiting:
+            name = by_ticket[ticket]
+            status = execute(name)
+            if status:
+                return status
+            child, _ = pipelines[name]
+            if self.recovery_state(saved(child)) != 'complete':
+                raise ValueError('retained repair recovery did not finish its FIFO transaction')
+        with self.state() as (waiting, owner):
+            if waiting or owner is not None:
+                raise ValueError('retained repair recovery left the source fenced')
+        return 0
+
+
 class RepairGate:
-    """Parallel case readers, FIFO exclusive repairs, no unverified handoff."""
+    """Worker-owned descriptors; scheduling belongs to RepairCoordinator."""
     def __init__(self, run, *, stopped=lambda: False):
         self.run = run
         self.parent = parent_run(run)
+        self.coordinator = RepairCoordinator(self.parent) if self.parent is not None else None
         self.fd = None
         self.stopped = stopped
         self.last_generation = None
@@ -76,8 +225,7 @@ class RepairGate:
             self.fd = None
 
     def generation(self):
-        path = (self.parent or self.run) / 'repair-generation.json'
-        return json.loads(path.read_text()) if path.exists() else 0
+        return self.coordinator.generation() if self.coordinator is not None else 0
 
     def acquire(self):
         if self.parent is None or self.fd is not None:
@@ -85,17 +233,7 @@ class RepairGate:
         self.enqueue()
         fd = os.open(self.parent / 'repair-owner', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
-            while True:
-                with self.queue() as waiting:
-                    self._check_pending()
-                    first = bool(waiting) and waiting[0] == self.run.name
-                if first:
-                    break
-                self._check_stop()
-                time.sleep(.1)
-            self._wait(fd, fcntl.LOCK_EX)
-            self._check_pending(claiming=True)
-            launcher.atomic(self.parent / 'repair-pending.json', {'run': self.run.name})
+            self._admit(fd, writer=True)
             self.fd = fd
             _repair_descriptors.add(fd)
             return True
@@ -105,50 +243,23 @@ class RepairGate:
             raise
 
     def enqueue(self):
-        with self.queue() as waiting:
-            if self.run.name not in waiting:
-                waiting.append(self.run.name)
+        self.coordinator.enqueue(self.run.name)
 
-    @contextmanager
-    def queue(self):
-        with launcher.lock(self.parent / 'repair-queue-gate') as gate:
-            fcntl.flock(gate, fcntl.LOCK_EX)
-            path = self.parent / 'repair-queue.json'
-            waiting = json.loads(path.read_text()) if path.exists() else []
-            before = list(waiting)
-            yield waiting
-            if waiting != before:
-                launcher.atomic(path, waiting)
-
-    def dequeue(self):
-        with self.queue() as waiting:
-            if self.run.name in waiting:
-                waiting.remove(self.run.name)
+    def case_result(self, status):
+        """Report failure before giving up this case's source lease."""
+        if status and self.coordinator is not None:
+            self.coordinator.enqueue(self.run.name)
 
     def _check_stop(self):
         if self.stopped() or (self.run / 'cancel').exists() or (self.parent / 'cancel').exists():
             raise launcher.Stopped()
 
-    def _wait(self, fd, mode):
+    def _admit(self, fd, *, writer):
         while True:
             self._check_stop()
-            try:
-                fcntl.flock(fd, mode | fcntl.LOCK_NB)
+            if self.coordinator.admit(self.run.name, fd, writer=writer):
                 return
-            except BlockingIOError:
-                time.sleep(.1)
-
-    def _check_pending(self, *, reading=False, claiming=False):
-        path = self.parent / 'repair-pending.json'
-        if path.exists():
-            previous = json.loads(path.read_text())['run']
-            result = self.parent / previous / 'result.json'
-            # A live writer is ordinary queued work. A stopped writer's edits
-            # remain fenced until that exact retained repair resumes.
-            if previous != self.run.name and (claiming or result.exists()):
-                raise ValueError('an unfinished case repair retains unverified edits; resume that repair first')
-        if reading and path.exists():
-            raise ValueError('an unfinished case repair retains unverified edits; resume that repair first')
+            time.sleep(.1)
 
     @contextmanager
     def source(self):
@@ -157,21 +268,7 @@ class RepairGate:
             yield None
             return
         with launcher.lock(self.parent / 'repair-owner') as source:
-            while True:
-                self._check_stop()
-                with self.queue() as waiting:
-                    if not waiting:
-                        self._check_pending(reading=True)
-                        # Admission and the read lease are atomic with respect
-                        # to registration of every queued repair, not just its head.
-                        try:
-                            fcntl.flock(source, fcntl.LOCK_SH | fcntl.LOCK_NB)
-                        except BlockingIOError:
-                            pass  # A supervisor may still be finishing owned cleanup.
-                        else:
-                            break
-                    self._check_pending()
-                time.sleep(.1)
+            self._admit(source, writer=False)
             _source_descriptors.add(source)
             try:
                 yield source
@@ -180,16 +277,11 @@ class RepairGate:
 
     def release(self, *, changed=False, unfinished=False):
         if self.fd is not None:
-            if changed:
-                launcher.atomic(self.parent / 'repair-generation.json', self.generation() + 1)
-            if not unfinished:
-                (self.parent / 'repair-pending.json').unlink(missing_ok=True)
+            self.coordinator.finish(self.run.name, changed=changed, unfinished=unfinished)
             _repair_descriptors.discard(self.fd)
             (self.run / 'repair-lease.json').unlink(missing_ok=True)
             os.close(self.fd)
             self.fd = None
-            if not unfinished:
-                self.dequeue()
 
 
 def case_inventory(root, category, options):
@@ -236,8 +328,7 @@ def run_cases(root, category, options, execute, gate):
             if cases is None:
                 gate.last_generation = generation
                 status = execute(original)
-                if status:
-                    gate.enqueue()
+                gate.case_result(status)
                 return status
             passed = checkpoint.passed(category)
             case = next((case for case in cases if case not in passed), None)
@@ -248,8 +339,7 @@ def run_cases(root, category, options, execute, gate):
                 completed=len(set(cases) & passed), total=len(cases)))
             gate.last_generation = generation
             status = execute([*original, '--resume', '--resume-case=' + case, '--resume-case-only'])
-            if status:
-                gate.enqueue()  # Close admission before releasing this case's read lease.
+            gate.case_result(status)
         checkpoint = Checkpoint(root, [(category, original)], resume=True, binding=selected().name)
         if status:
             return status
@@ -291,65 +381,8 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
     def child_run(name):
         return launcher.private_directory(run / ('pipeline-' + hashlib.sha256(name.encode()).hexdigest()[:24]))
 
-    # Upgrade the old batch-wide repair checkpoint without losing edit ownership
-    # or a push already awaiting recovery. Keep its original record as provenance.
-    legacy_path = run / 'checkpoint.json'
-    legacy = json.loads(legacy_path.read_text()) if legacy_path.exists() else {}
-    for entry in legacy.get('repairs', {}).values():
-        name = entry['failure'][2] or 'host'
-        if name not in states and not (child_run(name) / 'checkpoint.json').exists():
-            raise ValueError('resume the original selection to finish its retained legacy repair')
-    for name in states:
-        child = child_run(name)
-        if (child / 'checkpoint.json').exists():
-            continue
-        repairs = {key: value for key, value in legacy.get('repairs', {}).items()
-                   if value['failure'][2] == ('' if name == 'host' else name)}
-        if repairs:
-            state = dict(repairs=repairs)
-            if legacy.get('pending') in repairs:
-                state.update({key: value for key, value in legacy.items()
-                              if key in ('pending', 'commit_intent', 'pull_intent', 'worktree_propagation')})
-            launcher.atomic(child / 'checkpoint.json', state)
-            if not (run / 'repair-pending.json').exists():
-                launcher.atomic(run / 'repair-pending.json', {'run': child.name})
-    pending_path = run / 'repair-pending.json'
-    queue_path = run / 'repair-queue.json'
-    waiting = json.loads(queue_path.read_text()) if queue_path.exists() else []
-    accepted = []
-    for name in states:
-        child = child_run(name)
-        path = child / 'checkpoint.json'
-        saved = json.loads(path.read_text()) if path.exists() else {}
-        selection = host if name == 'host' else guests
-        for entry in saved.get('repairs', {}).values():
-            category = entry['failure'][0]
-            if category not in selection or entry['args'] != selection[category]['args']:
-                raise ValueError('pending repair selectors changed; resume the original selection')
-        queued = saved.get('queued_failure')
-        if queued is not None and queued['category'] not in selection:
-            raise ValueError('queued failure category removed; resume the original selection')
-        if saved.get('pending') is not None:
-            accepted.append(child.name)
-        if (saved.get('repairs') or saved.get('queued_failure')) and child.name not in waiting:
-            waiting.append(child.name)
-    children = {child_run(name).name for name in states}
-    if set(waiting) - children:
-        raise ValueError('resume the original VM selection to finish its queued failures')
-    if pending_path.exists():
-        pending_owner = json.loads(pending_path.read_text())['run']
-        if pending_owner not in children:
-            raise ValueError('resume the original VM selection to finish its retained case repair')
-        waiting = [pending_owner, *[name for name in waiting if name != pending_owner]]
-    if accepted:
-        if len(accepted) != 1:
-            raise ValueError('multiple retained Git transactions need their original owner')
-        # Legacy migration may split diagnostics before its accepted close-out.
-        # Finish that immutable Git transaction before any repair verification.
-        pending_owner, = accepted
-        launcher.atomic(pending_path, {'run': pending_owner})
-        waiting = [pending_owner, *[name for name in waiting if name != pending_owner]]
-    launcher.atomic(queue_path, waiting)
+    coordinator = RepairCoordinator(run)
+    pipelines = {name: (child_run(name), host if name == 'host' else guests) for name in states}
 
     def publish():
         from launcher_progress import read_progress, repair_progress
@@ -447,11 +480,11 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
                 # Failed/cancelled tickets stay in FIFO order for recovery.
                 path = child / 'checkpoint.json'
                 saved = json.loads(path.read_text()) if path.exists() else {}
-                unfinished = bool(saved.get('repairs') or saved.get('queued_failure'))
+                unfinished = coordinator.recovery_state(saved) != 'complete'
                 if status == 0 and unfinished and not recovery:
                     raise ValueError('pipeline finished with unresolved retained repairs')
                 if status == 0 and not unfinished:
-                    RepairGate(child).dequeue()
+                    coordinator.discard(child.name)
                 states[name]['status'] = ('limited' if (child / 'limited').exists() else
                     'queued' if status == 0 and recovery else
                     'complete' if status == 0 else 'stopped' if status == 130 else 'blocked')
@@ -474,22 +507,9 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
                 control.stop()  # No worker can wait behind a dead queue owner.
             return status
 
-        # Drain retained VM recovery before starting any host category. Keep
-        # FIFO order when a prior host failure is itself among those tickets.
-        for ticket in waiting:
-            name = next(name for name in states if child_run(name).name == ticket)
-            path = child_run(name) / 'checkpoint.json'
-            saved = json.loads(path.read_text()) if path.exists() else {}
-            while True:
-                previous = saved.get('last_commit')
-                status = execute(name, host if name == 'host' else guests, recovery=True)
-                if status:
-                    return status
-                saved = json.loads(path.read_text()) if path.exists() else {}
-                if not (saved.get('repairs') or saved.get('queued_failure')):
-                    break
-                if saved.get('last_commit') == previous:
-                    raise ValueError('retained repair recovery made no accepted progress')
+        status = coordinator.recover(pipelines, lambda name: execute(name, pipelines[name][1], recovery=True))
+        if status:
+            return status
         # Reset/validate the whole selection before admitting normal work. A VM
         # left queued by a limit or cancellation must not inherit an older run's
         # category passes on the next --resume.

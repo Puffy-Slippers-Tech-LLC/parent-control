@@ -531,7 +531,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     from vm_pool import selected_reservation
     from test_commands import host_only_request
     selected = json.loads(requested)
-    from fix_tests_queue import parent_run, RepairGate, finish_startup, RECOVERY_ONLY, retain_owner
+    from fix_tests_queue import parent_run, RepairCoordinator, RepairGate, finish_startup, RECOVERY_ONLY, retain_owner
     parent = parent_run(run)
     repair_gate = RepairGate(run)
     finish_startup(run)
@@ -557,7 +557,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 # admission. An empty ticket can precede begin() after a crash.
                 path = run / 'checkpoint.json'
                 retained = json.loads(path.read_text()) if path.exists() else {}
-                if parent is not None and (retained.get('repairs') or retained.get('queued_failure')):
+                if parent is not None and RepairCoordinator.recovery_state(retained) != 'complete':
                     repair_gate.acquire()
                 elif repair_gate.fd is not None:
                     repair_gate.release()
@@ -613,7 +613,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     pending = None
     verifying_fix = False
     active_task = None
-    from fix_tests_queue import RepairGate, parent_run, repair_descriptors, RECOVERY_ONLY
+    from fix_tests_queue import RepairCoordinator, RepairGate, parent_run, repair_descriptors, RECOVERY_ONLY
     parent = parent_run(run)
     budget = TaskBudget(parent or run)
     repair_gate = repair_gate or RepairGate(run)
@@ -856,8 +856,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 with repair_gate.source():
                     generation = repair_gate.generation()
                     status = run_requested(category, options, description, vm=verification_vm)
-                    if status and parent is not None:
-                        repair_gate.enqueue()
+                    repair_gate.case_result(status)
             previous = repair_progress(run, read_progress(run))
             publish_progress(run, previous[-1]['key'], previous[-1]['lines'])
             if status == 0:
@@ -1290,9 +1289,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         commits.state['controller_sources'] = sources
         commits.save()
         check_stop()
-        pending_closeout = commits.state.get('pending') is not None
-        commits.finish_pending()  # Retry accepted Git work before tests or another agent.
-        if pending_closeout:
+        # Accepted Git work precedes repair verification and normal admission.
+        if RepairCoordinator.recovery_state(commits.state) == 'closeout':
+            commits.finish_pending()
             release_repair()
         # Only an explicit resume may recover a pass left before the verification
         # callback. A fresh run must execute its categories first: another run
@@ -1372,7 +1371,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         print(f'\nfix-tests: {error}', file=sys.stderr, flush=True)
     finally:
         if not reload:
-            unfinished = commits is not None and bool(commits.state['repairs'] or commits.state.get('queued_failure'))
+            unfinished = commits is not None and RepairCoordinator.recovery_state(commits.state) != 'complete'
             repair_gate.release(unfinished=unfinished)
         previous = repair_progress(run, read_progress(run))
         if previous and not reload:

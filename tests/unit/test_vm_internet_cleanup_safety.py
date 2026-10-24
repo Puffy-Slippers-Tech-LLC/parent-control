@@ -617,8 +617,13 @@ def test_reconstructed_outer_recovery_removes_canonical_owned_resources(
         source.domain.ID.return_value = -1
         connection.bindings.clear()  # libvirt retires bindings with the guest.
     else:
-        source.domain.XMLDesc.return_value = DOMAIN_XML.replace('</devices>',
-            '<graphics type="vnc"><listen type="none"/></graphics></devices>')
+        # Ordinary running recovery retains the attempt's ownership marker.
+        # A missing marker selects interrupted online-snapshot recovery instead.
+        live = ET.fromstring(DOMAIN_XML)
+        ET.SubElement(live, 'description').text = runner.TAG + original.state['run']
+        graphics = ET.SubElement(live.find('devices'), 'graphics', type='vnc')
+        ET.SubElement(graphics, 'listen', type='none')
+        source.domain.XMLDesc.return_value = ET.tostring(live, encoding='unicode')
     recovered = runner.Lease(source, Mock(), Mock(), directory=journal.parent,
                              graphics_type='vnc')
     baseline_state = {'phase': 'finalized', 'source': {
@@ -636,8 +641,10 @@ def test_reconstructed_outer_recovery_removes_canonical_owned_resources(
     recovered.save = Mock(side_effect=lambda phase: journal.write_text(json.dumps(
         {**recovered.state, 'phase': phase})))
     recovered.finish = Mock()
-    with patch.object(runner.os, 'open', return_value=42), patch.object(runner.os, 'close'), \
-            patch.object(runner.fcntl, 'flock'), patch.object(runner.baseline, 'identity'), \
+    with patch.object(runner.baseline, 'open_controller_lock', return_value=42), \
+            patch.object(runner.baseline, 'close_controller_lock'), \
+            patch.object(runner.baseline, 'compatibility_lock', return_value=None), \
+            patch.object(runner.baseline, 'identity'), \
             patch.object(runner.baseline, 'domain_layout', return_value=baseline_state['source']['layout']), \
             patch.object(runner, 'isolated_xml'):
         recovered.recover_graphical_cleanup()

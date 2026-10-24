@@ -61,7 +61,7 @@ def fixture_metadata(path):
 
 
 def verify_fixture_files(declaration, identities, *, root=Path('/')):
-    """Read-only baseline check; tests never repair reusable assets."""
+    """Read-only prepared-input check; tests never repair reusable assets."""
     source = guest.PAYLOAD / 'fixtures/mechanical/onpc-test-application'
     guest.require(source.is_file() and not source.is_symlink(), 'enforcement:fixture-missing')
     for filename, (content, mode, role) in declaration.items():
@@ -181,7 +181,7 @@ def native_paths(variant):
 
 
 def provision_native(variant='command'):
-    """Verify fixed native witnesses; installation belongs to prepare-vm."""
+    """Verify fixed native witnesses installed by the fixture preparation owner."""
     guest.guard()
     target, desktop, _ = native_paths(variant)
     guest.require(variant in ('command', 'whitespace', 'pattern', 'retention', *TRUSTED_VARIANTS),
@@ -199,7 +199,7 @@ def provision_native(variant='command'):
     verify_fixture_files(declaration, {})
     if variant in TRUSTED_VARIANTS:
         from system_trusted_fixtures import verify_trust
-        verify_trust()
+        verify_trust(variant=variant)
     accounts = {role: pwd.getpwnam(name).pw_uid for role, name in (
         ('child', 'onpc-child-riley'), ('other', 'onpc-child-jordan'),
         ('parent', 'onpc-parent-jamie'))}

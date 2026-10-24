@@ -1324,7 +1324,7 @@ def artifact_source(path):
     return source
 
 
-def scenario_fixture_files(selection):
+def scenario_fixture_files(selection, *, target=None):
     """Finite comparison inputs still owned by installed engineering scenarios.
 
     PAM/enforcement/removal compare prepared mechanical bytes. Trusted histories
@@ -1340,6 +1340,9 @@ def scenario_fixture_files(selection):
         from tests.fixtures.native_assets import activity_sources
         files.extend(('fixtures/mechanical/identity-trusted-hard',
                       'fixtures/mechanical/identity-trusted-soft', *activity_sources()))
+    elif target == 'fedora' and any(item.case_id == 'test_remove_reboot_reinstall'
+                                    for item in selection.executions):
+        files.append('fixtures/mechanical/identity-trusted-hard')
     return tuple(files)
 
 
@@ -2103,6 +2106,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         fixture_selection = (installed_selection(fixture_selection) if already_installed else
                              selection_record(fixture_selection))
         subsets = SUBSETS
+        if (not already_installed and fixture_selection['target'] == 'fedora'
+                and any(item.case_id == 'test_remove_reboot_reinstall'
+                        for item in selection.executions)):
+            subsets += ('trusted-hard-launcher',)
         if (not already_installed and any(
                 item.phase in PAM_PHASES or
                 (fixture_selection['target'] == 'ubuntu' and item.area == 'removal'
@@ -2547,13 +2554,21 @@ def main(argv=None):
         commands.directory = private
         with ledger.measure('preparation'):
             minimal = args.fixture_selection is not None
-            options = ({'package_only': True, 'fixture_files': scenario_fixture_files(selection)}
+            fixture_input = json.loads(args.fixture_selection) if minimal else None
+            options = ({'package_only': True, 'fixture_files': scenario_fixture_files(
+                           selection, target=fixture_input['target'])}
                        if minimal else {})
             manifest = stage_assets(assets, directory / 'input', commands, **options)
             if minimal and 'fixtures/mechanical/onpc-test-application' in options['fixture_files']:
                 from system_fixture_preparation import stage_mechanical_comparison
-                stage_mechanical_comparison(json.loads(args.fixture_selection),
+                stage_mechanical_comparison(fixture_input,
                     directory / 'input/fixtures/mechanical/onpc-test-application')
+                if (fixture_input['target'] == 'fedora'
+                        and any(item.case_id == 'test_remove_reboot_reinstall'
+                                for item in selection.executions)):
+                    stage_mechanical_comparison(fixture_input,
+                        directory / 'input/fixtures/mechanical/identity-trusted-hard',
+                        identity='trusted-hard')
             if previous_assets is not None:
                 genuine = any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
                               for item in selection.executions)

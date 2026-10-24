@@ -16,8 +16,10 @@ session path rather than assuming SSH/GDM PAM behavior. Keep ordinary-account
 remote use working while refusing kiosk desktop access through that provider.
 Do not claim protection for providers outside the reviewed scope.
 
-Update exact host tests and installed provider/ordinary-account positive and
-kiosk-negative bindings. Missing reusable provider automation requires a bounded
+Reuse or adapt existing host tests and installed provider/ordinary-account
+positive and kiosk-negative bindings under [simple tests](../Kiosk-Desktop-Plan.md#simple-tests).
+Cover distinct provider behavior without duplicating shared guard matrices.
+Missing reusable provider automation requires a bounded
 installed qualification prerequisite, not a host-only qualification claim or
 service-disable shortcut. Check cumulative local/remote desktop coverage, then run
 affected tests, independent review and final build. Preserve known limitations.

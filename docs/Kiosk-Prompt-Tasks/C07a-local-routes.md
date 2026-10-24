@@ -23,8 +23,10 @@ Keep this slice limited to the reviewed local desktop boundary and its direct
 consumers. A shell denial or saved session preference alone is not desktop proof.
 Independent missing work becomes a bounded prerequisite at this consumer.
 
-Pair each defense with its normal-use and deliberate-child controls in targeted
-host tests and existing installed-case bindings. If the baseline already
-satisfies a route, verify and document that instead of adding restrictions.
+Cover each defense's normal-use and deliberate-child outcomes through existing
+host tests and installed-case bindings. Follow [simple tests](../Kiosk-Desktop-Plan.md#simple-tests):
+add a case only for a distinct gap; reuse shared setup and safety checks.
+If the baseline already satisfies a route, reuse its applicable checks and
+document that instead of adding restrictions or duplicate tests.
 Keep expected results and finite route parameters in their existing owners.
 Run affected tests, independent product/backend review and final build.

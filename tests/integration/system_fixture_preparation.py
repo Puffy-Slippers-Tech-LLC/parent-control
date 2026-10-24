@@ -71,12 +71,15 @@ def validate_input(value, target=None):
     return record
 
 
-def stage_mechanical_comparison(selection, destination):
+def stage_mechanical_comparison(selection, destination, *, identity='mechanical'):
     """Use the provisioned build as the independent guest comparison input."""
+    if identity not in ('mechanical', 'trusted-hard'):
+        raise ValueError('fixtures:comparison-identity')
     loaded = fixture_provision.authenticated_bundle(selection_record(selection))
     # Every mechanical alias has identical verified bytes within this bundle.
     # The package/fixture artifact build is independent and may differ.
-    key = next(key for key, item in fixture_manifest.select(('command',)).items()
+    key = next(key for key, item in fixture_manifest.select(
+                   ('command' if identity == 'mechanical' else identity,)).items()
                if item['mode'] == 0o755)
     destination.write_bytes(loaded['payloads'][key])
 

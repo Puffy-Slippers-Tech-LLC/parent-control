@@ -22,6 +22,10 @@ the complete usable request/core-effects controls in the
 Reuse completed baseline/feature/shared-overlay checks for unchanged behavior.
 Remote bindings require an enabled named provider,
 ordinary-account remote desktop, kiosk desktop denial and usable kiosk entry.
+Apply [simple tests](../Kiosk-Desktop-Plan.md#simple-tests) to the compositions:
+keep only steps needed for these outcomes, navigation and safe input. Reuse
+shared qualification and applicable complete histories; task labels create no
+additional runs. Record bindings in their existing owners without a new registry.
 
 Audit composition/readiness only. Missing independent implementation or live
 qualification becomes a bounded prerequisite before this selected consumer,

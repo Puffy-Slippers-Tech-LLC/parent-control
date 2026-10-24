@@ -15,6 +15,10 @@ Trace obsolete v1.4 fixtures, imports, registrations and package-test consumers
 to their existing C03/C04 dispositions. Remove stale mechanism requirements;
 retain customer outcomes, ordinary-account positives, stable case identities,
 sanitized diagnostics, ownership/restoration and historical evidence.
+Apply [simple tests](../Kiosk-Desktop-Plan.md#simple-tests): remove redundant
+mechanism checks and incidental setup with their obsolete consumers. Preserve
+unique product assertions in existing tests; add no replacement suite for each
+removed fixture or helper.
 
 Use the existing inventories/catalogue for pending qualification. A source/test
 port is not an installed pass. Do not delete reports, checkpoints or VM baselines,

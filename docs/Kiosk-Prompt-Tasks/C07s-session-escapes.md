@@ -14,10 +14,11 @@ action/launch callers and add only missing barriers to actions yielding a full
 kiosk desktop. C07a owns graphical-session admission; standalone terminal/TTY,
 SSH and other exposed-action results retain their remaining-plan owners.
 
-Pair each justified barrier with permitted form/genuine approval controls and
-ordinary-account/shared-overlay behavior. Already effective routes need evidence,
-not duplicate restrictions. Update directly affected host regressions and the
-local installed bindings consumed by D03 and C11d/C12d; keep stable case IDs.
+Cover each justified barrier with permitted form/genuine approval controls and
+ordinary-account/shared-overlay behavior. Reuse applicable checks for effective
+routes. Follow [simple tests](../Kiosk-Desktop-Plan.md#simple-tests): update
+directly affected host regressions and local installed bindings consumed by D03
+and C11d/C12d; add cases only for uncovered outcomes and keep stable case IDs.
 
 Run scoped checks, required independent backend review where triggered and the
 final packaged-input build. New independent provider automation needs a bounded

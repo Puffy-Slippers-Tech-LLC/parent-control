@@ -5,6 +5,10 @@ limits and both-target acceptance. Audit and close residual cleanup first;
 require accepted baseline use at D01, then finish this plan before
 `tools/kiosk-prompt-new`. Planning completes no task.
 
+Every row applies the master's [simple implementation](Kiosk-Desktop-Plan.md#simple-implementation)
+and [simple tests](Kiosk-Desktop-Plan.md#simple-tests): reuse existing mechanisms
+and coverage, add only missing product checks and avoid duplicate runs for task labels.
+
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
 | [ ] | D00 | [Audit the confinement replacement and cleanup boundary](Kiosk-Prompt-Tasks/D00-cleanup-audit.md) | Baseline | Verify the pinned v1.3 confinement lineage and map residual conflicting source and automation to their cleanup owners | 20–30 min |

@@ -51,18 +51,32 @@ Apply the repository mandate to every task: **Simple, lean, robust, do not
 overenginering. If a problem can be solved by simplier approaches, do not use
 more complex ones.**
 
-Start with the demonstrated failure and the smallest change at its existing
-owner. Reuse maintained session, PAM, service and test mechanisms. An effective
-existing barrier or an absent defect needs no new implementation. Add a helper,
-abstraction, persistent state or recovery mechanism only when a concrete required
-behavior cannot be handled clearly by the existing path; explain that need in
-the normal task result. Remove obsolete code and direct consumers together.
+Start with a demonstrated failure. Prefer removing an obsolete restriction or
+using an existing supported session/PAM/service mechanism before adding custom
+code. An effective existing barrier or an absent defect needs no implementation.
+Keep each fix at its current owner and remove obsolete direct consumers with it.
 
-Keep design notes in the existing owner and results in the queue/checkpoint.
-Follow the [test scope mandate](Mandates/Test-Scope-Mandate.md): validate affected
-product behavior and shared safety guarantees at the lowest effective layer.
-Do not create a framework, registry, evidence archive or dedicated test suite to
-police this plan. Preserve the usability gates and required customer outcomes.
+Add a helper, abstraction, persistent state, configuration probe or recovery
+mechanism only when the direct approach cannot meet a concrete required behavior.
+Keep any necessary rationale in the existing design note or short task result.
+Keep the launcher as a thin shared-driver wrapper; use the shared lifecycle.
+
+### Simple tests
+
+Apply the same principle to test code, fixtures, qualification and acceptance
+under the [test scope mandate](Mandates/Test-Scope-Mandate.md). Reuse existing
+coverage and qualified operations. Add cases only for distinct uncovered product
+outcomes or failure boundaries, using small representative inputs and the lowest
+effective layer. Keep shared safety checks at their owner. No new non-product
+unit tests without a specific request, tests of tests or per-consumer matrices.
+
+Use the [shortest reliable public journey](Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope);
+remove redundant navigation, readbacks and incidental prerequisites while
+preserving meaningful outcomes and safety guards. Run affected checks only;
+reuse passed complete histories for unchanged scope under the usability gate.
+A new task label or expired report needs no rerun. Keep both-target usability
+and desktop outcomes. Normal diagnostics and a short queue/checkpoint result
+suffice; add no framework, registry, proof archive or checker for this plan.
 
 ### Route allocation
 
@@ -233,8 +247,10 @@ controls without executing the remaining plan's entire campaign.
 
 Start at [System design](System-Design.md) and apply
 [Approval tools](Approval-Tools.md), [Execution plans](Execution-Plans.md) and
-the [test map](TestAutomation/README.md). Read the selected brief and affected
-source/callers/contracts. VM/UI/storage mandates apply when triggered. Reuse
+the [test map](TestAutomation/README.md). Every brief inherits
+[simple implementation](#simple-implementation) and [simple tests](#simple-tests).
+Read the selected brief and affected source/callers/contracts.
+VM/UI/storage mandates apply when triggered. Reuse
 qualified mechanics under the
 [cross-plan reuse map](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
 New general feature automation remains in the E2E queue.

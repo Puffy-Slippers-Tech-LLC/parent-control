@@ -28,7 +28,7 @@ def test_provision_consumes_exact_baseline_declaration_and_native_verification(m
     target, desktop, _ = enforcement.native_paths(variant)
     declaration = baseline_assets.native_files(accounts)
     files.assert_called_once_with({str(path): declaration[str(path)] for path in (target, desktop)}, {})
-    verify.assert_called_once_with()
+    verify.assert_called_once_with(variant=variant)
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'duplicate', 'source', 'size', 'digest',

@@ -71,11 +71,75 @@ def validate_database(raw, files, untrusted):
                   'trusted-fixtures:untrusted-input-changed')
 
 
-def verify_trust():
+def verify_runtime_trust(variant, preparation):
+    """Audit Fedora removal's attempt-owned hard witness, not retired captures.
+
+    The shared provisioner owns placement/readiness. Keep an independent
+    comparison with its frozen build, exact native admission and backend/tool
+    verification here before the case changes product policy.
+    """
+    guest.require(variant == 'trusted-hard' and guest.package_path().suffix == '.rpm'
+                  and preparation['guest'].get('os_id') == 'fedora'
+                  and preparation['guest'].get('version') == '44',
+                  'trusted-fixtures:runtime-selection')
+    target, _, _ = native_paths(variant)
+    data = root_file(target, 0o755, limit=16777216)
+    source = guest.PAYLOAD / 'fixtures/mechanical/identity-trusted-hard'
+    guest.require(source.is_file() and not source.is_symlink()
+                  and hashlib.sha256(data).hexdigest() == guest.sha(source),
+                  'trusted-fixtures:payload-changed')
+    files = {str(target): {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}}
+    service_gid = grp.getgrnam('fapolicyd').gr_gid
+    trust = root_file('/etc/fapolicyd/trust.d/onpc-fixture-runtime.trust',
+                      0o600, gid=service_gid)
+    guest.require(trust_entries(trust) == files, 'trusted-fixtures:trust-fragment')
+    guest.require(not os.path.lexists(BACKEND_PENDING)
+                  and not os.path.lexists(TRUST_PENDING), 'trusted-fixtures:unfinished-backend')
+    try:
+        from native_trust import validate_backend_record, file_backend_config
+    except ImportError:
+        from tests.fixtures.native_trust import validate_backend_record, file_backend_config
+    backend = validate_backend_record(json.loads(root_file(BACKEND_RECORD, 0o600, limit=300000)))
+    metadata = backend['metadata']
+    config = root_file(BACKEND_CONFIG, metadata['mode'], gid=metadata['gid'], limit=65536)
+    guest.require(backend['complete'] and backend['os_id'] == 'fedora'
+                  and bytes.fromhex(backend['after_hex']) == config
+                  and file_backend_config(config, 'fedora') == config,
+                  'trusted-fixtures:native-backend')
+    checksums = guest.commands.run(['rpm', '-q', '--queryformat',
+        '%{FILEDIGESTALGO}\n[%{FILENAMES}\t%{FILEDIGESTS}\n]', 'fapolicyd'],
+        timeout=120, merge_stderr=False).decode().splitlines()
+    guest.require(bool(checksums) and checksums[0] == '8', 'trusted-fixtures:native-tool-changed')
+    rows = [line.split('\t') for line in checksums[1:]]
+    guest.require(all(len(row) == 2 for row in rows), 'trusted-fixtures:native-tool-changed')
+    for executable in native_tool_paths('fedora').values():
+        guest.require((Path('/usr/sbin') / Path(executable).name).resolve() == Path(executable),
+                      'trusted-fixtures:native-tool-alias')
+        tool = root_file(executable, 0o755, limit=16777216)
+        guest.require(guest.run(['rpm', '-qf', '--queryformat', '%{NAME}', executable]) == 'fapolicyd'
+                      and [row[1] for row in rows if row[0] == executable]
+                          == [hashlib.sha256(tool).hexdigest()], 'trusted-fixtures:native-tool-changed')
+    guest.run([native_tool_paths('fedora')['cli'], '--check-config'])
+    guest.require(guest.run(['systemctl', 'is-active', 'fapolicyd.service']) == 'active',
+                  'trusted-fixtures:native-service')
+    # Clean captures contain no legacy mechanical admissions. Preserve the
+    # negative controls instead of requiring their retired payload records.
+    untrusted = [str(native_paths(name)[0]) for name in ('command', 'whitespace')]
+    database = guest.run([native_tool_paths('fedora')['cli'], '--dump-db'])
+    validate_database(database, files, untrusted)
+    return {'files': files, 'backend': backend}
+
+
+def verify_trust(*, variant=None):
     """Verify exact prepared provenance and current native trust; never repair."""
     marker = guest.guard()
     guest.enable_diagnostics()
     preparation = json.loads(root_file(guest.BASELINE, 0o600))
+    if variant is not None and preparation.get('schema_version') == 4:
+        return {'baseline_sha256': marker['baseline_sha256'],
+                'preparation_sha256': marker['preparation_sha256'],
+                'selected_inputs_sha256': marker['selected_inputs_sha256'],
+                'provenance': verify_runtime_trust(variant, preparation)}
     transaction = json.loads(root_file(TRUST_RECORD, 0o600))
     guest.require(isinstance(transaction, dict) and set(transaction) == {
         'purpose', 'complete', 'pending'} and transaction['purpose'] == TRUST_PURPOSE

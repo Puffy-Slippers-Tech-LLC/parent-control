@@ -16,9 +16,11 @@ Each barrier needs a
 deliberate-child negative and working request-only/ordinary-account controls.
 Existing working barriers need verification, not new infrastructure.
 Apply the master's [simple implementation rule](../Kiosk-Desktop-Plan.md#simple-implementation):
-choose the smallest change at the existing owner and justify any new abstraction
-or persistent state against that direct approach. Keep this rationale in the
-existing design note, without a separate review artifact or checker.
+prefer removal or existing supported configuration, then a direct fix at its
+owner. Review the [test scope](../Kiosk-Desktop-Plan.md#simple-tests) too: reuse
+coverage, select representative cases for distinct gaps and remove incidental
+journey steps. Justify extra machinery only where the direct approach cannot
+meet the required outcome. Keep the rationale in the existing design note.
 
 Obtain independent Astra xHigh design review with explicit Usability priority
 and Threat scope passed/failed findings. Resolve actionable findings before

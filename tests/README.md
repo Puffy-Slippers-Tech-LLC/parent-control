@@ -1174,6 +1174,12 @@ All launchers use the same output-following loop and
 [presentation strategies](../tools/launcher_view.py). The upper pane pins the controller journey: `run-tests` shows the selected
 category and position with overall progress; `fix-tests` adds the current round number and
 the running-tests/fixing-errors status.
+Each `fix-tests` VM heading includes a bold, colored status: gray for
+`Queued on VM slot` or `Queued on <VM> repair`, blue for `Running`, orange for
+`Repairing`, `Verifying` or `Save fix`, green for `Complete`, and red for
+`Waiting for input`, `Task limit reached`, `Stopping`, `Stopped` or `Blocked`.
+The repair wait names the transaction owner through verification and Git
+close-out; cases already executing retain their active status until they wait.
 The lower frame divides execution details and optional session input on the left
 from current task summary and status/issues on the right. `run-tests` has no
 session composer; `fix-tests` offers input for developer decisions. E2E and

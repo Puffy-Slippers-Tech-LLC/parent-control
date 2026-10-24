@@ -51,7 +51,7 @@ def publish_repair_status(run, round_number, category, categories, status, *, mo
 
 def repair_progress(run, steps, *, child_steps=None):
     """Overlay a child's test summary without changing the repair controller."""
-    if not steps or steps[-1]['lines'][-1] != 'Status: Running tests':
+    if not steps or steps[-1]['lines'][-1] not in ('Status: Running tests', 'Status: Verifying'):
         return steps
     if child_steps is None:
         child = run / 'test-controller.json'

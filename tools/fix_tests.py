@@ -835,9 +835,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             recovered = True
         while True:
             atomic(run / 'test-controller.json', [])
-            progress(category, 'Running tests')
-            info = task_info(run, active_task)
+            info = task_info(run, f'{round_number}:{category}')
             checking_fix = checking_fix or info.get('status') == 'Testing fix, previous error point passed'
+            checking_fix = checking_fix or recovery_only and any(
+                entry['failure'][0] == category and entry.get('status') in ('fixed', 'test_fixed')
+                for entry in commits.state['repairs'].values())
+            progress(category, 'Verifying' if checking_fix else 'Running tests')
             if checking_fix:
                 panel({'status': 'Testing fix, previous error point not reached yet'})
             status_line = category_status(category, categories)

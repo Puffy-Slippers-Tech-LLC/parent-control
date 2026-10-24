@@ -255,11 +255,22 @@ class RepairGate:
             raise launcher.Stopped()
 
     def _admit(self, fd, *, writer):
-        while True:
-            self._check_stop()
-            if self.coordinator.admit(self.run.name, fd, writer=writer):
-                return
-            time.sleep(.1)
+        from launcher_progress import read_progress, publish_progress
+        previous = None
+        try:
+            while True:
+                self._check_stop()
+                if self.coordinator.admit(self.run.name, fd, writer=writer):
+                    return
+                if previous is None:
+                    previous = read_progress(self.run)
+                    step = previous[-1] if previous else dict(key='admission', lines=['Waiting for repair'])
+                    publish_progress(self.run, step['key'],
+                                     [step['lines'][0], 'Status: Queued on repair'])
+                time.sleep(.1)
+        finally:
+            if previous is not None:
+                launcher.atomic(self.run / 'controller.json', previous)
 
     @contextmanager
     def source(self):
@@ -354,6 +365,35 @@ def run_cases(root, category, options, execute, gate):
     return 0
 
 
+def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopping=False):
+    """Summarize scheduling and repair phases without granting execution credit."""
+    terminal = {'complete': 'Complete', 'limited': 'Task limit reached',
+                'stopped': 'Stopped', 'blocked': 'Blocked'}
+    phase = steps[-1]['lines'][-1] if steps else ''
+    status = terminal.get(state)
+    if status is None:
+        if stopping:
+            status = 'Stopping' if state == 'running' else 'Stopped'
+        elif state == 'queued' or phase == 'Status: Queued on repair':
+            status = (f'Queued on {blocker} repair' if blocker and blocker != name else
+                      'Repairing' if blocker == name and state == 'running' else 'Queued on VM slot')
+        elif question:
+            status = 'Waiting for input'
+        elif saved.get('pending') is not None:
+            status = 'Save fix'
+        elif phase == 'Status: Verifying':
+            status = 'Verifying'
+        elif phase.startswith(('Status: fixing errors', 'Status: validating retained response')):
+            status = 'Repairing'
+        else:
+            status = 'Running'
+    color = ('90' if status.startswith('Queued on ') else
+             '38;2;0;152;255' if status == 'Running' else
+             '38;2;255;165;0' if status in ('Repairing', 'Verifying', 'Save fix') else
+             '32' if status == 'Complete' else '31')
+    return f'VM: {name} (\033[1;{color}m{status}\033[0m)'
+
+
 def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
     """Run host work once, then refill VM slots after complete per-VM pipelines."""
     from fix_tests import category_inventory, requested_inventory
@@ -390,12 +430,25 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
         lines = [f'VM pipelines | concurrency {snapshot["concurrency"]}']
         queue_path = run / 'repair-queue.json'
         waiting = json.loads(queue_path.read_text()) if queue_path.exists() else []
+        pending_path = run / 'repair-pending.json'
+        try:
+            repair_owner = json.loads(pending_path.read_text())['run']
+        except FileNotFoundError:
+            repair_owner = None
+        blocker = next((name for name, (child, _) in pipelines.items()
+                        if child.name == (repair_owner or next(iter(waiting), None))), None)
+        stopping = control.stopped.is_set() or (run / 'cancel').exists()
         if waiting:
             lines.append(f'Repair queue: {len(waiting)} | new cases waiting')
         for name in states:
             child = child_run(name)
             steps = repair_progress(child, read_progress(child))
-            lines.extend([f'VM: {name}', *[line for step in steps[-1:] for line in step['lines']]])
+            question = pending(child)
+            checkpoint_path = child / 'checkpoint.json'
+            saved = json.loads(checkpoint_path.read_text()) if checkpoint_path.exists() else {}
+            lines.extend(['', pipeline_heading(name, states[name]['status'], steps, question, saved,
+                                               blocker=blocker, stopping=stopping)])
+            lines.extend(step['lines'][0] for step in steps[-1:] if step['key'] != 'admission')
             progress = child / 'case-progress.json'
             if progress.exists():
                 current = json.loads(progress.read_text())
@@ -403,7 +456,6 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
             frame = child / 'frame.json'
             if frame.exists():
                 lines.extend(json.loads(frame.read_text()))
-            question = pending(child)
             parent_question = run / 'question.json'
             displayed = json.loads(parent_question.read_text()) if parent_question.exists() else None
             if question and (displayed is None or displayed.get('id') == question['id']
@@ -495,6 +547,9 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
             try:
                 status = execute_owned(name, selection, recovery=recovery)
             except launcher.Stopped:
+                with output_lock:
+                    states[name]['status'] = 'stopped'
+                    publish()
                 status = 130
             except (OSError, ValueError, subprocess.SubprocessError) as error:
                 with output_lock:
@@ -505,6 +560,8 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
                 if status != 130:
                     failed.set()
                 control.stop()  # No worker can wait behind a dead queue owner.
+                with output_lock:
+                    publish()
             return status
 
         status = coordinator.recover(pipelines, lambda name: execute(name, pipelines[name][1], recovery=True))

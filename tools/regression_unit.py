@@ -1,5 +1,9 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+The baseline busy check uses its existing private managed lock instead of a raw
+self-held flock. Snapshot enumeration uses its existing in-memory domain double.
+No shared resource or new owner is added; compatible overlap is unchanged.
+
 Shared host journal pacing adds only process-local timing state and bounded
 sleep between real syncs. Checkpoint batching uses private JSON and a local
 clock double, retaining failure/finalization persistence and sync-error tests.

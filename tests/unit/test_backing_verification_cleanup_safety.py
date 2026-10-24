@@ -398,11 +398,14 @@ def test_dead_running_owner_recovery_requires_its_vm_identity_and_lease(lease_ri
     lease.source.domain.reset_mock()
     lease.source.connection.reset_mock()
     if fault == 'busy':
-        import fcntl
-        with lease.capture.lock_path.open('rb') as lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # An unscoped nested controller must refuse; independent controllers
+        # queue. Use the real owner so this cannot wait on our own raw flock.
+        lock = baseline.open_controller_lock(lease.capture.lock_path, vm_uuid=lease.source.uuid)
+        try:
             with pytest.raises(runner.Error, match='busy-controller'):
                 recover()
+        finally:
+            baseline.close_controller_lock(lock)
     elif fault:
         with pytest.raises((runner.Error, baseline.CaptureError)):
             recover()

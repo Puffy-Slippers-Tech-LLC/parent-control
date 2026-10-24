@@ -93,8 +93,8 @@ class Control:
 
     Privileged dispatchers receive STOP/EOF on inherited stdin. Their parent
     waits until the child finishes its guarded cleanup, including VM restore.
-    Worker timeouts additionally retire the child's private process group, keeping
-    its leader unreaped until output draining and bounded cleanup finish.
+    Owned host workers additionally retire their private process group, keeping
+    their leader unreaped until output draining and bounded cleanup finish.
     """
 
     def __init__(self):
@@ -130,7 +130,7 @@ class Control:
 
     def run(self, command, *, cwd, env, output=None, cooperative=False, tick=None,
             timeout=None, kill_after=30.0, cancel_signal=signal.SIGINT,
-            stderr_output=None, **kwargs):
+            stderr_output=None, owned_group=False, **kwargs):
         # The installed dispatcher loads this file before adding the validated
         # checkout tools directory for its deferred imports.
         import test_activity
@@ -142,8 +142,9 @@ class Control:
                     if index + 1 == len(command) or not command[index + 1].startswith('--vm-checkout='):
                         command[index + 1:index + 1] = arguments()
                     break
-        bounded_group = timeout is not None
-        if bounded_group and (cooperative or not math.isfinite(timeout) or timeout <= 0
+        bounded_group = owned_group or timeout is not None
+        if bounded_group and (cooperative or
+                              (timeout is not None and (not math.isfinite(timeout) or timeout <= 0))
                               or not math.isfinite(kill_after) or kill_after <= 0):
             raise ValueError('invalid owned worker timeout')
         if cancel_signal not in (signal.SIGINT, signal.SIGTERM):
@@ -204,7 +205,7 @@ class Control:
             raise
         sent = False
         output_error = None
-        deadline = time.monotonic() + timeout if bounded_group else None
+        deadline = time.monotonic() + timeout if timeout is not None else None
         retirement = None
         timed_out = forced = child_exited = False
         reaped = False
@@ -258,7 +259,7 @@ class Control:
                                     signal.pidfd_send_signal(descriptor, cancel_signal)
                                 except ProcessLookupError:
                                     pass
-                    if bounded_group and not sent and now >= deadline:
+                    if deadline is not None and not sent and now >= deadline:
                         sent = timed_out = True
                         retirement = now + kill_after
                         emit(b'Test worker deadline reached; terminating its owned process group.\n')
@@ -386,9 +387,10 @@ def host_run(root, category, argv, *, pipe=True):
             import test_retention
             env.update(test_retention.environment())
         timeout = host.pytest_timeout(argv, category)
-        bounded = (dict(timeout=timeout, kill_after=host.UI_KILL_AFTER)
-                   if timeout is not None else {})
-        return control.run(command, cwd=root, env=env, **bounded)
+        # Unit/component workers have no default execution deadline, but their
+        # cancellation and leaked output pipes must still settle in bounded time.
+        return control.run(command, cwd=root, env=env, timeout=timeout,
+                           kill_after=host.UI_KILL_AFTER, owned_group=True)
 
 
 def category_run(root, category, argv, *, pipe=True):

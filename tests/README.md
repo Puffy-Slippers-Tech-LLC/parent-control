@@ -221,6 +221,9 @@ finite, with optional `s`, `m`, `h` or `d` suffixes. The runner applies the limi
 separately to collection and each scheduled worker, preserving it through
 parallel dispatch and serial failure-limit execution; it never forwards it to
 a pytest timeout plugin. Unit and component have no deadline by default.
+Their scheduled workers still allow 30 seconds for cancellation cleanup before
+retiring the owned process group; an output pipe cannot hold shutdown open
+indefinitely. Privileged cooperative cleanup keeps its guarded wait.
 Direct UI keeps its 60-second default; scheduled UI keeps the bucket default
 described above. Explicit limits use the shared owned-process controller and
 bounded cleanup described above for UI.

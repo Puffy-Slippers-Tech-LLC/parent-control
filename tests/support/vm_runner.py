@@ -145,6 +145,7 @@ def lease_rig(rig):
     source.domain.ID.side_effect = lambda: current['id']
     source.domain.UUIDString.return_value = UUID
     source.domain.autostart.return_value = False
+    source.domain.listAllSnapshots.return_value = []
     source.connection.lookupByName.return_value = source.domain
     source.connection.lookupByUUIDString.side_effect = lambda identity: (
         source.domain if identity == UUID else None)

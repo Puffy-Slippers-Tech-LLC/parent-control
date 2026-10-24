@@ -1,5 +1,9 @@
 """Balance cleanup work across the existing branches without splitting fixtures.
 
+The baseline busy check uses its existing private managed lock instead of a raw
+self-held flock. Snapshot enumeration uses its existing in-memory domain double.
+No shared resource or new owner is added; compatible overlap is unchanged.
+
 Shared host journal pacing retains each real sync and its error before the
 next transaction step. It adds only process-local timing state, no new path,
 process, service or cleanup owner; storage/recording modules remain compatible.

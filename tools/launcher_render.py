@@ -425,6 +425,11 @@ class LauncherDisplay:
         log_rows = []
         log_lines = (self.question.explanation(self.console, width) if self.question else
                      [*self.transcript, *([self.pending] if self.pending else [])])
+        if (self.question is None and self.details
+                and clean(self.details[0]).startswith('VM pipelines | concurrency ')):
+            # The watch terminal uses this renderer directly. A pipeline frame
+            # replaces command output in both the viewport and pane scrollback.
+            log_lines = []
         for line in reversed(log_lines):
             if len(log_rows) >= room:
                 break

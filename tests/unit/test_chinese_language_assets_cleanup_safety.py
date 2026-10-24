@@ -552,7 +552,7 @@ def test_online_readiness_failure_blocks_snapshot_return_before_product_actions(
 def test_missing_language_stops_real_bootstrap_before_any_guest_write(tmp_path, monkeypatch, os_id):
     from contextlib import contextmanager
     import system_runner
-    from tests.support.vm_runner import bootstrap_guest
+    from tests.support.vm_runner import bootstrap_guest, legacy_lease
     g, files = bootstrap_guest(os_id)
     if os_id == 'fedora':
         import guest_test_dependencies
@@ -568,7 +568,7 @@ def test_missing_language_stops_real_bootstrap_before_any_guest_write(tmp_path, 
     def mounted(*args, **kwargs):
         yield g, '/dev/sda2'
     monkeypatch.setattr(system_runner, 'mounted_guest', mounted)
-    lease = Mock()
+    lease = legacy_lease()
     commands = Mock()
     with pytest.raises(ValueError, match='chinese-missing-file.*prepare-vm'):
         system_runner.bootstrap(commands, lease, tmp_path, Mock(), observation_only=True)

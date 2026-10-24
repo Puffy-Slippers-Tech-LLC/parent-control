@@ -22,6 +22,7 @@ OWNERSHIP_VARIANTS = (
 )
 COMMENT = b'\n# onpc removal ownership conflict\n'
 STATE = Path('/var/lib/oh-no-parent-control')
+FALLBACK_RULE = Path('/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules')
 
 
 def ownership_targets(distribution):
@@ -33,7 +34,7 @@ def ownership_targets(distribution):
         'systemd-user-edit': selection,
         'gdm-password-link': selection,
         'systemd-user-link': STATE / 'installed-child-extension-trust',
-        'gdm-hook-link': Path('/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules'),
+        'gdm-hook-link': FALLBACK_RULE,
         **{variant: STATE / 'kiosk-configuration-account.json'
            for variant in OWNERSHIP_VARIANTS if variant.startswith('confinement-record-')},
     }
@@ -231,6 +232,14 @@ def ownership_conflict(variant, target: Path, foreign_uid: int, record):
         target.parent == STATE and stat.S_IMODE(info.st_mode) == 0o600 and
         info.st_gid == grp.getgrnam(
             'wheel' if guest.package_path().suffix == '.rpm' else 'sudo').gr_gid)
+    # Native tmpfiles recursively assigns /etc/fapolicyd to its fixed service
+    # group at boot, even for rules installed root:root. This public rule keeps
+    # mode 0644; resolve the native group rather than adopting an observed gid.
+    if not group_matches and target == FALLBACK_RULE and stat.S_IMODE(info.st_mode) == 0o644:
+        try:
+            group_matches = info.st_gid == grp.getgrnam('fapolicyd').gr_gid
+        except KeyError:
+            pass  # An absent native group cannot authorize the observed group.
     try:
         require(stat.S_ISREG(info.st_mode) and info.st_uid == OWNER_UID and group_matches and
                 info.st_nlink == 1 and not info.st_mode & 0o022, 'unsafe-original')
@@ -238,10 +247,28 @@ def ownership_conflict(variant, target: Path, foreign_uid: int, record):
         # Retain the exact failed observation before any fixture mutation.
         # Distinguish a group-only mismatch from unsafe permissions or links
         # without disclosing account/group IDs, paths or file contents.
+        try:
+            admin_gid = grp.getgrnam(
+                'wheel' if guest.package_path().suffix == '.rpm' else 'sudo').gr_gid
+            group_is_administrator = info.st_gid == admin_gid
+        except KeyError:
+            group_is_administrator = None
+        # Distinguish inherited directory groups from the writer's group.
+        # Failure to observe the parent must not replace the original refusal.
+        try:
+            parent_info = target.parent.lstat()
+            group_matches_parent = info.st_gid == parent_info.st_gid
+            parent_inherits_group = bool(parent_info.st_mode & stat.S_ISGID)
+        except OSError:
+            group_matches_parent = parent_inherits_group = None
         error.add_note('original-safety=' + json.dumps({
             'regular': stat.S_ISREG(info.st_mode),
             'owner_matches': info.st_uid == OWNER_UID,
             'group_matches': group_matches,
+            'group_is_administrator': group_is_administrator,
+            'group_matches_fixture_process': info.st_gid == os.getegid(),
+            'group_matches_parent': group_matches_parent,
+            'parent_inherits_group': parent_inherits_group,
             'links': info.st_nlink,
             'mode': oct(stat.S_IMODE(info.st_mode)),
         }, sort_keys=True))

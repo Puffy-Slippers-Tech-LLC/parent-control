@@ -252,7 +252,87 @@ def descriptive_output(run):
 
 
 def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
-              on_usage=None, interactive=False, task=None):
+              on_usage=None, interactive=False, task=None, on_model=None, capacity_recovery=True,
+              subagents_follow_model=False):
+    """Apply capacity recovery once per logical session, for every agent transport.
+
+    Ordinary plans retain their checkpointed controller loop and opt out here.
+    The owner stays pinned across attempts; each child receives its own duplicate.
+    """
+    if kind != 'agent' or not capacity_recovery:
+        return _supervise_once(root, run, owner, kind, command, nested=nested,
+            hide_task_completion=hide_task_completion, on_usage=on_usage,
+            interactive=interactive, task=task)
+    from launcher_runtime import AgentCapacityUnavailable, capacity_failure
+    command = list(command)
+    model_index = command.index('--model') + 1
+    configured_model = command[model_index]
+    failures = 0
+    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    try:
+        while True:
+            (run / 'agent-error.json').unlink(missing_ok=True)
+            if on_model is not None:
+                on_model(command[model_index])
+            try:
+                return _supervise_once(root, run, os.dup(owner), kind, command, nested=nested,
+                    hide_task_completion=hide_task_completion, on_usage=on_usage,
+                    interactive=interactive, task=task)
+            except AgentCapacityUnavailable as error:
+                failures += 1
+                delay, fallback, exhausted = capacity_failure(configured_model, failures)
+                if exhausted:
+                    raise AgentCapacityUnavailable('model capacity recovery exhausted: ' + str(error)) from error
+                requested = False
+
+                def stop(*_):
+                    nonlocal requested
+                    requested = True
+                    (run / 'cancel').touch(mode=0o600)
+
+                for sig in previous:
+                    signal.signal(sig, stop)
+                if fallback:
+                    command[model_index] = 'gpt-6-astra'
+                    if subagents_follow_model:
+                        command[-1:-1] = ['-c', 'agents.default_subagent_model="gpt-6-astra"']
+                    print('Model still at capacity; using gpt-6-astra for this session only '
+                          'with the same reasoning effort.', flush=True)
+                else:
+                    print(f'Model at capacity; retrying this session after {delay} seconds.', flush=True)
+                deadline = time.monotonic() + delay
+                # The parent's pipe remains a liveness lease during backoff.
+                with selectors.DefaultSelector() as parent:
+                    parent.register(sys.stdin, selectors.EVENT_READ)
+                    while True:
+                        if requested or (run / 'cancel').exists() or parent.select(0):
+                            return 130
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            break
+                        parent.select(min(.1, remaining))
+                prompt = getattr(error, 'prompt', (run / 'prompt.txt').read_text())
+                prompt += ('\n\nThe preceding attempt failed with an explicit model capacity error. '
+                           'Inspect and reconcile partial work before continuing the same task. '
+                           'Preserve unrelated work, acceptance requirements and all permission, '
+                           'delegation and cleanup boundaries. No preceding result is accepted. '
+                           f'The coordinator model for this attempt is {command[model_index]}; '
+                           'this overrides earlier coordinator model labels only. Reasoning effort '
+                           'is unchanged. Any capacity fallback applies only to this logical session; '
+                           'the next session returns to the configured model.\n')
+                (run / 'prompt.txt').write_text(prompt)
+                (run / 'agent-result.json').unlink(missing_ok=True)
+                if nested:
+                    atomic(run / 'nested.json', [])
+                    (run / 'nested-closed').unlink(missing_ok=True)
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+        os.close(owner)
+
+
+def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
+                    on_usage=None, interactive=False, task=None):
     """Own one child until it is reaped; EOF means the loop worker died.
 
     Tests get the runner's Ctrl+C path with unlimited time for guarded cleanup.
@@ -265,6 +345,9 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
     def stop(*_):
         nonlocal requested
         requested = True
+        # A capacity failure may already be unwinding through child cleanup.
+        # Keep cancellation visible to the retry loop after this frame exits.
+        (run / 'cancel').touch(mode=0o600)
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, stop)
@@ -413,7 +496,16 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
             status = 0  # The result was accepted before bounded server shutdown.
         if renderer and (run / 'agent-commands.log').exists():
             compact_log(run / 'agent-commands.log')
-        if nested and finish_nested(root, run):
+        nested_active = nested and finish_nested(root, run)
+        if renderer and not conversation and status and not requested:
+            from launcher_runtime import AgentCapacityUnavailable, capacity_error
+            error = renderer.failure
+            if capacity_error(error, batch=True):
+                message = str(error.get('message', 'Model at capacity'))
+                atomic(run / 'agent-error.json', dict(message=message, context='turn failed',
+                                                     codex_error_info='serverOverloaded'))
+                raise AgentCapacityUnavailable(message)
+        if nested_active:
             status = status or 1
         if conversation and not requested and not conversation.done:
             raise ValueError('Codex conversation ended without a workflow result; see retained output')
@@ -440,7 +532,7 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
             atomic(run / 'frame.json', [])
         try:
             if nested:
-                finish_nested(root, run)
+                finish_nested(root, run)  # Exceptions, rather than active owners, mean cleanup failed.
         finally:
             os.close(owner)
 

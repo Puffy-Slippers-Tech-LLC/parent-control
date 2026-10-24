@@ -281,7 +281,8 @@ def main(argv=None):
             guarded_internal(root, run, owner)
             if mode == '--supervise':
                 return launcher.supervise(root, run, owner, 'agent',
-                                          agent_command(root, run, model, effort, int(helpers)))
+                                          agent_command(root, run, model, effort, int(helpers)),
+                                          subagents_follow_model=True)
             return worker(root, run, owner, model, effort, int(helpers), int(extra[0]))
         parser = argparse.ArgumentParser(description=__doc__)
         actions = parser.add_mutually_exclusive_group()

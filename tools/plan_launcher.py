@@ -30,7 +30,8 @@ from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequ
                           validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_progress
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
-from launcher_runtime import (AgentCapacityUnavailable, SessionResultRejected, TaskBudget, add_options, capacity_retry,
+from launcher_runtime import (AgentCapacityUnavailable, CAPACITY_RETRY_DELAYS, SessionResultRejected, TaskBudget,
+                              add_options, capacity_failure, capacity_retry,
                               capacity_session_recovery, read_session_result,
                               retain_result_rejection, result_recovery_instructions, result_rejection, task_limit,
                               validate_session_result, warn_remaining)
@@ -47,7 +48,6 @@ class PlanWorkflow:
     max_sessions: int = 5
 
 
-CAPACITY_RETRY_DELAYS = (5, 10, 20, 40, 80)
 MAX_REPAIR_SESSIONS = 3
 
 
@@ -931,9 +931,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             except AgentCapacityUnavailable as error:
                 launcher.finish_nested(root, run)
                 failures = state.get('capacity_recovery', {}).get('failures', 0) + 1
-                fallback = failures == len(CAPACITY_RETRY_DELAYS) + 1 and spec.model == 'gpt-6.1-sol'
-                exhausted = failures > len(CAPACITY_RETRY_DELAYS) and not fallback
-                delay = CAPACITY_RETRY_DELAYS[failures - 1] if failures <= len(CAPACITY_RETRY_DELAYS) else 0
+                delay, fallback, exhausted = capacity_failure(spec.model, failures, delays=CAPACITY_RETRY_DELAYS)
                 state.update(phase='recover', in_flight=False, capacity_recovery={
                     'message': str(error), 'retry_after': time.time() + delay,
                     'session': state['total_sessions'], 'failures': failures, 'exhausted': exhausted})
@@ -1185,7 +1183,8 @@ if __name__ == '__main__':
     if mode == '--supervise':
         try:
             status = launcher.supervise(root, run, owner, 'agent', session_command(root, spec, run),
-                                       nested=True, interactive=True, hide_task_completion=True)
+                                       nested=True, interactive=True, hide_task_completion=True,
+                                       capacity_recovery=False)  # The resumable controller owns these retries.
         except AgentCapacityUnavailable:
             status = 75  # Only after supervisor process and nested cleanup succeeded.
         sys.exit(status)

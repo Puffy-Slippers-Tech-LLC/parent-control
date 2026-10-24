@@ -192,6 +192,7 @@ class AppSession:
         self.counter = 0
         self.outgoing = bytearray()
         self.messages = []
+        self.capacity_inputs = []
         self.final = None
         self.final_text = ''
         self.done = False
@@ -253,6 +254,7 @@ class AppSession:
                     continue
             if entry['kind'] == 'message':
                 self.messages.append(entry['text'])
+                self.capacity_inputs.append(entry['text'])
             elif not self.interrupting:
                 self.interrupt_requested = True
         if self.interrupt_requested and self.turn and not self.interrupting:
@@ -330,7 +332,11 @@ class AppSession:
             if code == 'cyberPolicy' else clean(message)})
         self.publish('finished')
         if context == 'turn failed' and code == 'serverOverloaded':
-            raise AgentCapacityUnavailable(message)
+            failure = AgentCapacityUnavailable(message)
+            failure.prompt = self.prompt
+            if self.capacity_inputs:
+                failure.prompt += '\n\nDeveloper messages received during this session:\n' + json.dumps(self.capacity_inputs)
+            raise failure
         raise ValueError(message)
 
     def event(self, packet):

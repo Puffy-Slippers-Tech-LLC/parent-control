@@ -518,7 +518,8 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
             record_usage(run, metadata, usage)
 
         status = detached_launcher.supervise(root, run, owner, kind, command, on_usage=on_usage,
-                                              task=read_state(run).get('task_id'))
+                                              task=read_state(run).get('task_id'),
+                                              on_model=lambda active: metadata.update(model=active))
         if not reported:
             record_usage(run, metadata, event='missing_usage')
         record_usage(run, dict(metadata, exit_status=status), event='session_end')

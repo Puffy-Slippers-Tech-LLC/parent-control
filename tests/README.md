@@ -1267,6 +1267,10 @@ shared components and retained execution engines.
 Their model workflows use the shared
 [response recovery contract](../docs/Execution-Plans.md#common-launcher-interface)
 for rejected agent handoffs, preserving acceptance guards and existing session caps.
+All launcher-owned model sessions also use that contract's capacity recovery:
+5, 10, 20, 40 and 80 second retries, then one session-only GPT-6.1 Sol to
+GPT-6 Astra fallback at unchanged effort. Capacity attempts do not advance the
+repair/E2E model ladders or consume additional logical session slots.
 Cancellation or worker death cancels only those recorded test runs, validates
 their directory identities and waits for guarded cleanup before releasing the
 workflow lock. Already-running tests that the agent merely attaches to remain

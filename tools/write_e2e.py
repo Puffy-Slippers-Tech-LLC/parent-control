@@ -1533,5 +1533,6 @@ if __name__ == '__main__':
         sys.exit(launcher.supervise(root, run, int(owner), 'agent', command, nested=True,
                                     hide_task_completion=True,
                                     interactive=True,
+                                    on_model=lambda active: metadata.update(model=active),
                                     on_usage=lambda usage: record_usage(run, metadata, usage)))
     raise SystemExit('private write-e2e worker entry point')

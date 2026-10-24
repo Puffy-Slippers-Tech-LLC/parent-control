@@ -19,6 +19,28 @@ class AgentCapacityUnavailable(ValueError):
     """The provider explicitly failed a turn because its model is at capacity."""
 
 
+CAPACITY_RETRY_DELAYS = (5, 10, 20, 40, 80)
+
+
+def capacity_error(error, *, batch=False):
+    if not isinstance(error, dict):
+        return False
+    code = error.get('codexErrorInfo', error.get('codex_error_info'))
+    if code is not None:
+        return code == 'serverOverloaded'
+    # codex exec's terminal ThreadErrorEvent exposes only message, unlike the
+    # app-server protocol. Match the provider's entire ServerOverloaded display.
+    return batch and error.get('message') == 'Selected model is at capacity. Please try a different model.'
+
+
+def capacity_failure(model, failures, *, delays=CAPACITY_RETRY_DELAYS):
+    """One bounded policy for every launcher's logical model session."""
+    fallback = failures == len(delays) + 1 and model == 'gpt-6.1-sol'
+    exhausted = failures > len(delays) and not fallback
+    delay = delays[failures - 1] if failures <= len(delays) else 0
+    return delay, fallback, exhausted
+
+
 def capacity_session_recovery(state):
     """Recognize a capacity-failed session that may have partial close-out edits."""
     recovery = state.get('capacity_recovery')

@@ -651,6 +651,7 @@ class AgentRenderer:
         self.on_usage = on_usage
         self.on_description = on_description
         self.on_message = on_message
+        self.failure = None
 
     def message(self, text, title='Agent', style='default'):
         self.block(title, SessionMarkdown(clean(text)), style)
@@ -857,6 +858,8 @@ class AgentRenderer:
             self.heading('Turn complete', 'dim')
             return
         if kind in ('error', 'turn.failed'):
+            if kind == 'turn.failed':
+                self.failure = event.get('error', event)
             self.heading('Agent error', 'bold red')
             self.code(event.get('message', event.get('error', event)))
             return

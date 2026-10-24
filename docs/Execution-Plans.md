@@ -287,27 +287,42 @@ capacity retry state and live task limits; it allocates no new retention slot an
 grants no extra work. Stop and cancellation still take precedence. A failed reload
 retains a resumable failure. Manual restarts also consume the current queue and
 briefs without comparing their definitions with old snapshots.
-An explicit `serverOverloaded` failed turn in an ordinary plan returns to the
-same task and logical coordinator session after supervisor and nested cleanup.
+Capacity recovery applies to every launcher-owned model session: ordinary plans,
+`fix-tests`, `write-e2e` (including optimization), `sync-whatsnew`, and worktree
+conflict resolution. The shared runtime owns the retry policy. Ordinary plans
+retain their checkpointed controller recovery; other workflows use the shared
+supervisor without spending another task, repair, optimization or batch slot.
+An explicit capacity-failed turn returns to the same task and logical session
+after supervisor and nested cleanup.
 Retry the configured model after delays of 5, 10, 20, 40 and 80 seconds. If all
 five retries fail with that same capacity code, a GPT-6.1 Sol session gets one
 final attempt on `gpt-6-astra` at the **exact same reasoning effort**. The model
 override applies only to that session; the next session, including a continuation,
 answered blocker or rejected response, starts with the workflow's configured
-model again. No fallback is inferred for other configured models. Exhausting
+model again. Translation helpers follow their coordinator's temporary model;
+other workflows retain their explicitly configured adviser/worker roles.
+No fallback is inferred for other configured models. Exhausting
 the retry sequence or the single Astra attempt stops with a retained handoff.
 Capacity attempts share one task-session slot and have their own finite counter;
 they do not exhaust or renew the task's normal session allowance. Each attempt
 reconciles partial work and retained results against current task definitions
 and protected work, and grants no completion.
-The checkpoint retains failure details for recovery of partial task edits.
+Ordinary-plan checkpoints retain failure details for recovery of partial task edits;
+other supervisors retain the provider error and current prompt in their existing run.
 Every manually resumed launcher starts a new session on the configured default model
 and effort, with a fresh capacity retry sequence; it never resumes an old
 fallback model or waits for the previous controller's retry deadline. Automatic
-controller reload preserves the current logical session and capacity retry sequence.
-Stop, cancellation and controller-source changes remain effective during the
-delay. The exact structured provider code and successful supervisor cleanup
-are required; message text or an unexplained process exit cannot trigger retry.
+ordinary-plan controller reload preserves the current logical session and capacity retry sequence.
+Cancellation remains effective during every delay. Ordinary plans additionally
+honor boundary stop and controller-source changes during backoff; other supervisors
+finish the bounded logical session before their worker honors a boundary stop.
+Interactive sessions require the exact structured
+`serverOverloaded` provider code. Batch `codex exec` omits that code from its
+terminal error, so only a failed process with a terminal `turn.failed` carrying
+the exact provider message `Selected model is at capacity. Please try a different model.`
+may substitute for the code. A different explicit code overrides that message.
+Arbitrary output, partial message matches and unexplained process exits cannot
+trigger retry. Successful owned cleanup is required before every retry.
 Provider refusals, other failed agent processes, missing grants, ownership/cleanup
 failures and Git close-out failures retain their explicit stop/recovery policies;
 they are never converted into automatic response retries.

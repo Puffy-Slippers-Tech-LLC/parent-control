@@ -435,13 +435,17 @@ def test_older_restore_journals_reconcile_exact_archived_networks(network_rig, m
     rig = network_rig
     save(rig)
     original = recovery.publish_file if phase == 'files' else rig.connection.defineXML
+    class RestoreInterrupted(KeyboardInterrupt):
+        """Distinguish the injected interruption from runner cancellation."""
+
     def interrupted(*args, **kwargs):
-        raise KeyboardInterrupt
+        raise RestoreInterrupted
     monkeypatch.setattr(recovery if phase == 'files' else rig.connection,
                         'publish_file' if phase == 'files' else 'defineXML', interrupted)
-    with pytest.raises(KeyboardInterrupt):
+    with pytest.raises(RestoreInterrupted):
         restore(rig)
     journal = recovery.read_json(rig.directory / recovery.JOURNAL)
+    assert journal['phase'] == phase
     del journal['networks']
     recovery.atomic(rig.directory / recovery.JOURNAL, journal)
     monkeypatch.setattr(recovery if phase == 'files' else rig.connection,

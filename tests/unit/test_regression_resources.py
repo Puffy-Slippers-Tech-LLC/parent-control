@@ -167,6 +167,18 @@ def test_two_ui_buckets_keep_growth_headroom_and_unreviewed_modules_stay_exclusi
 def test_reviewed_ui_modules_keep_resource_and_pairing_limits(kind):
     state, admission = gate()
     warm(state, admission, active=('ui-layout', 'ui-feedback'))
+    if kind == 'ui-watch':
+        # Test-tool UI coverage is excluded by the test-scope mandate. Keep
+        # this retained selector checking the retired kind's serial fallback,
+        # rather than restoring an obsolete reviewed UI bucket.
+        assert kind not in PARALLEL
+        assert not admission.allows(kind, ['ui-layout', 'ui-feedback'])
+        for other in ('ui-layout', 'ui-feedback', 'ui-shell', 'ui-accessible',
+                      'ui-identity', 'artifacts', 'publish', 'system', 'e2e',
+                      'ui-exclusive'):
+            assert not compatible(kind, other) and not compatible(other, kind)
+        assert admission.allows(kind, [])
+        return
     assert admission.allows(kind, ['ui-layout', 'ui-feedback'])
     for other in ('ui-shell', 'ui-accessible', 'ui-identity', 'artifacts'):
         assert compatible(kind, other) and compatible(other, kind)

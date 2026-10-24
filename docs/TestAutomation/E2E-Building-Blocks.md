@@ -1090,12 +1090,13 @@ shared attempt-readiness cases; wrapper/helper matrices were removed under the
 input closures now include the required `baseline_environment` alias. No product
 backend or package input changed.
 
-This is preparation acceptance only. The baseline caller now selects a different
-input/preparation envelope, with selected activity and current runtime readback.
-Fedora's earlier complete customer pass remains historical; it does not cover
-this new envelope. C04j must renew that affected complete history and diagnose
-Ubuntu's final Parent save before its missing complete history. Separate
-feature/pause results remain reusable; C04, C05 and the E2E queue stay open.
+This is preparation acceptance only. At C04j1 close-out, the changed
+input/preparation envelope made Fedora's earlier complete customer pass
+historical and left Ubuntu's final Parent save to diagnose. C04j2/j3 resolved
+the subsequent input and native transition defects, and
+[C04j passed both complete histories](#c04j-complete-baseline-composition) with
+the resulting envelope. Separate feature/pause results remain reusable;
+preparation acceptance itself closes no customer history or other queue task.
 
 C04j's subsequent live maintenance replay passed this selected preparation but
 stopped before its first H access input: Riley's public catalogue had no A/H/S/N
@@ -1248,13 +1249,55 @@ accepted ordered endpoints. Every row passed independently on both targets.
 | Both apps Allowed with unchanged exact rules, controls disabled/saved and zero balances | Both `restore-*-access` / `restore-*-final-match` reads, `restore-saved`, `restore-settings`, `restore-balance` |
 | Collection and owned restoration | Worker exit zero, callback closed, verified shutdown, restored baseline and independent off-state |
 
+<a id="c04-readiness-audit"></a>
+
+C04's host audit matched every row above to the current
+[Python caller](../../tests/e2e/baseline_journey.py),
+[installed entry](../../tests/integration/check_e2e_baseline_journey.py),
+`BaselineJourneyQualification` and
+[worker](../../tests/integration/graphical_smoke/lib/onpc_baseline_journey.pm).
+The four complete-caller hashes above still match. The installed entry remains
+registered as `check_e2e_baseline_journey`; it selects source-bound package and
+fixture inputs, the `native`/`activity`/`baseline-child` preparation and the
+same versioned installed snapshot. The ordered endpoints cover every core
+assertion for both C05u (Ubuntu) and C05f (Fedora), with the exact per-target
+candidate, fixture, provider, finite values, bounds and restoration recorded
+above and in the [recipe](E2E-Scenario-Recipes.md#commands-bounds-and-restoration).
+
+No product/package source, native fixture payload, core caller, provider binding
+or assertion changed in this audit. The pre-existing maintenance-only
+restoration diagnostic and equivalent normal snapshot rebind extraction do not
+change the qualified history. The pre-existing blank line in
+`tests/fixtures/baseline_assets.py` changes source bytes but no fixture behavior;
+future preparation must still honor its ordinary source fingerprints, without
+relabeling old inputs as a new build. These differences supply no concrete
+invalidation of either recorded complete result. No core history is missing for
+C05 to execute at this boundary; each C05 task must independently check its
+selected candidate against these identities and renew only concretely affected
+scope. Recorded identities describe the original results; old reports are not
+prerequisites, and checked tasks stay complete. This host finding grants no
+installed acceptance.
+
 Separate C04l/s/r/i feature histories and C04l/w's 90/45-second human-pause
 histories remain accepted for their unchanged bindings. Compact preparation is
 opt-in to this baseline; those default callers and feature assertions did not
-change. No ordinary-use mismatch remained in these accepted histories. Alternate
+change. C04 found no changed feature/pause caller, provider or assertion and no
+affected renewal slice for either C05 consumer. The finite language, choice,
+reminder, About and pause outcomes remain those in the
+[separate qualification boundary](#feature-and-human-pause-boundaries), rather
+than additional steps inferred from the core pass. No ordinary-use mismatch
+remained in these accepted histories. Alternate
 graphical-session and other deliberate-route gaps remain for D01/C06a review;
 no new breach test or escape claim was added. FLOW19/FLOW20 and broader cases
 34/36/44–49 retain their existing pending scope.
+
+Independent Sol High source review found no live registration for retired
+mechanisms or gap in the C04a/C04c dispositions; stale prospective B1–B4 wording
+in the proof consumer was corrected while its historical ledger remained intact.
+C04's 35 focused inventory checks, runner listing, plan metadata and scoped
+links passed. No executable inventory or coverage source changed, so no coverage
+regeneration or package build was needed. This audit ran no installed checks,
+reopened no completed task and left no owned resources.
 
 The caller owns order, values, immutable per-approval captures and comparison
 endpoints. Shared operations own public inputs, guarded authentication, native

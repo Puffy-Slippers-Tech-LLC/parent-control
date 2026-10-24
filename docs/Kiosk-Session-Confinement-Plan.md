@@ -1,7 +1,7 @@
 # Kiosk confinement baseline validation for v1.4
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C04 — [Reconcile proof consumers and baseline readiness](Kiosk-Prompt-Tasks/C04-installed-ta.md)**.
+Next task: **C05u — [Prove baseline usability on Ubuntu](Kiosk-Prompt-Tasks/C05u-baseline-ubuntu.md)**.
 
 ## Outcome
 
@@ -167,7 +167,7 @@ gaps for both improvement plans, without implementing them.
 C01–C03's source, cleanup and host evidence remain in the
 [confinement design](SystemDesign/Kiosk-Confinement.md#c01-selective-replacement-boundary).
 The rebuilt code, rather than active old-plan work, is the candidate for
-validation. Current readiness and the remaining complete-history gap belong in the
+validation. Current readiness and the accepted complete histories belong in the
 [operation applicability map](TestAutomation/E2E-Building-Blocks.md#c04b-baseline-operation-applicability).
 C04o closed its fixed overlay operation. C04p verified the finite both-target
 grant/use/revocation qualification in the

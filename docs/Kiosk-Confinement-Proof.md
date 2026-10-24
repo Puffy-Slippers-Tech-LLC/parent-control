@@ -40,7 +40,7 @@ recording, exact inputs or renewed result.
 | Historical scenarios | Current consumer and remaining proof |
 | --- | --- |
 | 1–4, 23, 31 | Account/routing checks survive in 268; ordinary integration in 271. They do not prove authentication, complete SSH/remote-desktop login or graphical session callbacks. Private namespace case 270 is retired. C04f qualifies the bounded public entry/approval operation below; deliberate-route results remain C06–C10 work. |
-| 5–12, 22–23 | Required public form, cancellation, approval, About, Preferences and unsent-feedback outcomes survive. C04f qualifies only its fixed entry/approval operation; other feature/journey compositions remain B1–B4. The current `census()` observes logind and compositor/app identity only and explicitly reports `confinement_qualified: false`. It cannot prove the old strict role/process census. |
+| 5–12, 22–23 | Required public form, cancellation, approval, About, Preferences and unsent-feedback outcomes survive. The [current applicability map](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse) separates qualified baseline operations/features from remaining general feature work; [C04j](TestAutomation/E2E-Building-Blocks.md#c04j-complete-baseline-composition) passed both complete core histories. The current `census()` observes logind and compositor/app identity only and explicitly reports `confinement_qualified: false`. It cannot prove the old strict role/process census. |
 | 13–22, 24–26, 28–30, 32 | Native exec, loader, private graph/view, attestation and generation matrices are retired. Reachable deliberate routes and consumed inputs require C06–C08 protection review with usable positive controls. Whole-host/native-loader auditing is outside the master's threat scope. Updates, ambient variation and recovery remain C09/C10 obligations; old refusals confer no availability credit. |
 | 27, 33–34 | Current installation/removal/PAM histories retain quarantine, owned restoration, foreign/live-state preservation and usable recovery. Their C04a1–C04a3 source ports and host passes grant no installed qualification for changed histories. |
 
@@ -52,10 +52,13 @@ entries, recipient refusals, password-free prompt Cancel with preserved choices,
 Riley/Jamie/custom 75 seconds/soft included, one genuine password submission,
 success/automatic GDM return and independent Parent grant comparison against
 the 975-second estimate with daily 900. Evidence and exact provider/input
-identities remain in that owner. This is bounded operation qualification;
-[B1–B4](TestAutomation/E2E-Building-Blocks.md#baseline-qualification-gaps-and-first-consumers),
-C04 readiness, complete C05 journeys, other locales/providers and Fedora release
-qualification remain pending.
+identities remain in that owner. This is bounded operation qualification.
+The former B1–B4 gaps are historical: subsequent baseline tasks delivered the
+finite core, feature and human-pause bindings recorded in the
+[current catalogue](TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse).
+C05u/f independently accept applicable complete histories after C04's host
+audit; neither the historical ledger nor that audit closes those installed gates.
+Other locales/providers and Fedora release qualification remain outside these results.
 
 No row requires restoring a native receipt, private view, graph or material
 protocol. Historical case IDs remain reserved. Only exact candidate/input/target

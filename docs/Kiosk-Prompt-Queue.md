@@ -14,8 +14,8 @@ Saved-preset editing, Hours and What's New (314/315) are not baseline gates.
 C04j1 delivered selected native/activity input preparation. C04j2 supplies the
 selected child's missing native catalogue launchers. C04j3 repairs the native
 active-grant disable transition exposed by C04j's Ubuntu restoration alert.
-C04j retains both complete-history obligations, including renewal of Fedora's
-changed input envelope. C04 then audits readiness, and C05u/f accept retained matching
+C04j passed both complete histories, including renewal of Fedora's
+changed input envelope. C04 audits readiness, and C05u/f accept retained matching
 evidence or renew only missing/invalidated scope under the reuse contract.
 
 | Done | ID | Task | Requires | Scope | Estimate |
@@ -57,7 +57,7 @@ evidence or renew only missing/invalidated scope under the reuse contract.
 | [x] | C04j2 | Qualify the baseline child's native catalogue inputs | C04j1 | Supply and qualify Riley's finite native catalogue launchers through the baseline's selected installed preparation boundary on both targets; preserve Jordan, clean captures and input guards | Both installed online/offline pairs, public catalogue/save/restoration checks and fresh Fedora runner finalization passed; serial owned cleanup complete and both guests off; no customer-history credit |
 | [x] | C04j3 | Disable controls safely with an active grant | C04j2 | Repair and qualify native time-state transitions for disabling controls with a live grant and restoring failed transactions; prevent crashes and unintended locks while preserving policy and rollback | [Both-target native continuity and public disable](TestAutomation/E2E-Building-Blocks.md#c04j3-active-grant-disable); separate engineering/public attempts, 184 product checks, both package builds and resolved independent Astra review passed; serial owned cleanup complete and both guests off; no complete-history or C05 credit |
 | [x] | C04j | Register and qualify the baseline composition | C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j1, C04j2, C04j3 | Compose shared core operations for negative effects, grant/use/revocation and repeated requests on both targets; reuse separate existing feature checks | [Both complete histories](TestAutomation/E2E-Building-Blocks.md#c04j-complete-baseline-composition) passed 246 observations each; workers 1361.391s/1433.262s within 1800s; final public restoration, collection and serial owned cleanup passed; 366 focused host checks passed; both guests off; C04/C05 remain open |
-| [ ] | C04 | [Reconcile proof consumers and baseline readiness](Kiosk-Prompt-Tasks/C04-installed-ta.md) | C04c, C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j | Verify cumulative installed/E2E mapping and baseline operation readiness | 20–30 min; suspended until C04j's both-target complete qualification passes; no C04 acceptance credit |
+| [x] | C04 | Reconcile proof consumers and baseline readiness | C04c, C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j | Verify cumulative installed/E2E mapping and baseline operation readiness | [Readiness and C05 handoff](TestAutomation/E2E-Building-Blocks.md#c04-readiness-audit); 35 inventory checks, listing, plan metadata and scoped links passed; independent source review resolved; completed predecessors trusted; no installed execution; owned cleanup complete |
 | [ ] | C05u | [Prove baseline usability on Ubuntu](Kiosk-Prompt-Tasks/C05u-baseline-ubuntu.md) | C04 | Run the complete Ubuntu baseline passwordless and core time/app journey | 15–30 min with valid retained evidence; 30–60 min if renewal is needed; session exception: complete baseline customer journey |
 | [ ] | C05f | [Prove baseline usability on Fedora](Kiosk-Prompt-Tasks/C05f-baseline-fedora.md) | C05u | Run the Fedora baseline journey and establish both-target baseline applicability | 15–30 min with valid retained evidence; 30–60 min if renewal is needed; session exception: complete baseline customer journey |
 

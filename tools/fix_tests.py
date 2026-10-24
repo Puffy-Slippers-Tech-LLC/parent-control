@@ -920,7 +920,11 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             checking_fix = checking_fix or recovery_only and any(
                 entry['failure'][0] == category and entry.get('status') in ('fixed', 'test_fixed')
                 for entry in commits.state['repairs'].values())
-            progress(category, 'Verifying' if checking_fix else 'Running tests')
+            # Diagnostic runs and queued-failure rechecks still belong to the
+            # repair transaction, even before a correction has been claimed.
+            repair_testing = (checking_fix or probe or commits.state['repairs']
+                              or commits.state.get('queued_failure'))
+            progress(category, 'Verifying' if repair_testing else 'Running tests')
             if checking_fix:
                 panel({'status': 'Testing fix, previous error point not reached yet'})
             status_line = category_status(category, categories)

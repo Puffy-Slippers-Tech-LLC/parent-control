@@ -827,6 +827,12 @@ only the broker's `sudo` group changing to `root`, with identical contents,
 root ownership and mode `0600`. First broker startup can assign its group to
 the state tree; `postinst` republishes these private copies as `root:root` on
 configuration retry. This preserves their root-only access and ownership proof.
+For Fedora's private authselect record, the comparison after native reinstall
+also permits `root` changing to `wheel` when configuration starts the broker
+with its declared state-directory group. This exception applies only after
+reinstall; refusal checks retain their existing comparison. Record presence,
+contents, root ownership and mode `0600` must still match, and all other record
+groups remain exact.
 The `onpc.removal.active-kiosk-recovery-record-changes` JUnit property identifies
 changed record paths and metadata/content fields without exposing their contents
 or account values. It uses the already captured states and preserves the full

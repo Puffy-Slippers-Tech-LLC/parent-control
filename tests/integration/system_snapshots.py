@@ -85,7 +85,10 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
         if (inputs / 'package-input.json').is_file():
             # Broad runs stage a small union once; each restored attempt keeps
             # only its own scenario's comparison bytes, never another history's.
-            required = set(system.scenario_fixture_files(selected))
+            # Match initial staging's target so Fedora's trusted comparison
+            # survives the per-history filter as well.
+            required = set(system.scenario_fixture_files(selected,
+                target=fixture_selection['target'] if fixture_selection is not None else None))
             def excluded(parent, names):
                 from pathlib import Path
                 return [name for name in names

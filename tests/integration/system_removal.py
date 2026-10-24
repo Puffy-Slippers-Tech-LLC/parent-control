@@ -641,7 +641,7 @@ def observe_aborted_transaction(uid, expected, denial, record):
     return result['output'], transaction.last_returncode
 
 
-def rollback_record_matches(name, before, after):
+def rollback_record_matches(name, before, after, *, broker_started=False):
     if before == after:
         return True
     if name == '/var/lib/oh-no-parent-control/fedora-authselect.json':
@@ -652,14 +652,20 @@ def rollback_record_matches(name, before, after):
         admin_group = 'sudo'
     else:
         return False
-    # First broker startup can chgrp its StateDirectory tree to sudo/wheel.
-    # postinst install_integration and fedora_pam.save republish these private
-    # copies as root:root. At 0600 neither group has access; require the exact
-    # one-way transition, unchanged contents, root owner and private mode.
-    return (before is not None and after is not None and
-            before[:2] == after[:2] == (0o600, 0) and
-            before[2] == grp.getgrnam(admin_group).gr_gid and after[2] == 0 and
-            before[3] == after[3])
+    # Broker startup can chgrp its StateDirectory tree to sudo/wheel;
+    # postinst install_integration and fedora_pam.save republish private copies
+    # as root:root. Fedora reinstall starts the broker again, so that recovery
+    # comparison can observe root -> wheel too. Refusal comparisons stay
+    # one-way. Neither group has access at 0600; bytes and root owner stay exact.
+    if (before is None or after is None or
+            before[:2] != (0o600, 0) or after[:2] != (0o600, 0) or
+            before[3] != after[3]):
+        return False
+    admin_gid = grp.getgrnam(admin_group).gr_gid
+    groups = (before[2], after[2])
+    return groups == (admin_gid, 0) or (
+        broker_started and name == '/var/lib/oh-no-parent-control/fedora-authselect.json' and
+        groups == (0, admin_gid))
 
 
 def aborted_cleanup_rollback_retry(record):
@@ -1906,7 +1912,8 @@ def verify_inflight_admission_refusal(record, accounts, *, variant='command'):
             os.close(pidfd)
     check_remove_preflight()
     record('onpc.removal.inflight-admission-drained', 'normal-pam-end; removal-preflight-passed')
-    if guest.package_path().suffix == '.deb':
+    fedora = guest.package_path().suffix == '.rpm'
+    if not fedora:
         status = guest.run(['dpkg-query', '-W', '-f=${Status}', PRODUCT])
         guest.require(status == 'install ok half-configured',
                       'removal:inflight-unexpected-recovery-package-status')
@@ -1915,8 +1922,28 @@ def verify_inflight_admission_refusal(record, accounts, *, variant='command'):
         guest.install_package()
     guest.verify_package_files()
     current = admission_removal_state()
+    # Keep the exact comparison below; expose only changed fields and safe
+    # metadata so recovery-record drift can be diagnosed without record bytes.
+    changes = {}
+    for name in sorted(current.keys() | before.keys()):
+        if name not in before or name not in current:
+            changes[name] = {'fields': ['path-added' if name in current else 'path-removed']}
+            continue
+        old, new = before[name], current[name]
+        if rollback_record_matches(name, old, new, broker_started=fedora):
+            continue
+        change = {'fields': ['presence'] if old is None or new is None else
+                  [field for field, left, right in zip(
+                      ('mode', 'owner', 'group', 'content'), old, new) if left != right]}
+        for label, value in (('before', old), ('after', new)):
+            change[label] = None if value is None else {
+                'mode': f'{value[0]:04o}', 'root_owner': value[1] == 0,
+                'root_group': value[2] == 0}
+        changes[name] = change
+    record('onpc.removal.inflight-recovery-record-changes', json.dumps(changes, sort_keys=True))
     guest.require(current.keys() == before.keys() and all(
-        rollback_record_matches(name, value, current[name]) for name, value in before.items()) and
+        rollback_record_matches(name, value, current[name], broker_started=fedora)
+        for name, value in before.items()) and
                   current_expiry() == expiry_before and
                   not os.path.lexists('/run/systemd/system/oh-no-parent-control-broker.service') and
                   all(account_digest(accounts[role]) == digest for role, digest in policies.items()),

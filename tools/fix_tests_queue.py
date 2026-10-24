@@ -397,6 +397,8 @@ def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopp
             status = 'Verifying'
         elif phase.startswith(('Status: fixing errors', 'Status: validating retained response')):
             status = 'Repairing'
+        elif blocker == name or saved.get('repairs') or saved.get('queued_failure'):
+            status = 'Verifying'
         else:
             status = 'Running'
     color = ('90' if status.startswith('Queued on ') else

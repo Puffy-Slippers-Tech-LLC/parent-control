@@ -126,6 +126,7 @@ def wrapper_source(original, witness, arguments, *, hold_seconds=0):
                         for index, value in enumerate(arguments, 1)) + '; then\n' +
             '    (set -C; umask 077; '
             f'printf %s {quote(WITNESS.decode())} > {quote(str(witness))})\n'
+            f'    printf %s {quote(WITNESS.decode())} >&2\n'
             + (f'    sleep {hold_seconds}\n' if hold_seconds else '') +
             '    exit 79\nfi\n'
             f'exec {quote(str(original))} "$@"\n')

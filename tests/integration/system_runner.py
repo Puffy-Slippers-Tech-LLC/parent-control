@@ -2106,10 +2106,11 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         if (not already_installed and any(
                 item.phase in PAM_PHASES or
                 (fixture_selection['target'] == 'ubuntu' and item.area == 'removal'
-                 and item.case_id == 'test_remove_reboot_reinstall')
+                 and item.case_id in ('test_remove_reboot_reinstall',
+                                      'test_aborted_cleanup_rollback_retry'))
                 for item in selection.executions)):
             # PAM histories seed policy with this command on both targets;
-            # Ubuntu removal also observes denial and later allowance with it.
+            # Ubuntu removal and rollback also observe native enforcement with it.
             subsets += ('command',)
         with ledger.measure('bootstrap'):
             vm.probe_ready()

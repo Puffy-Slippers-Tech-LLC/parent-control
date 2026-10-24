@@ -545,9 +545,14 @@ def removal_recovery_state():
                   'removal:nonfresh-lifecycle-records')
     marker = private_recovery_record(Path('/var/lib/oh-no-parent-control/package-created-kiosk-uid'))
     guest.require(marker.contents == (str(uid) + '\n').encode(), 'removal:changed-kiosk-identity')
-    return {'uid': uid, 'expires': current_expiry(),
-            'pam': {name: fault_file_identity(Path('/etc/pam.d') / name)[2:]
-                    for name in ('gdm-password', 'systemd-user')}}
+    pam = {}
+    for name, service in guest.pam_service_state().items():
+        # A missing local override selects the vendor service. Retain its
+        # actual path so the later exact-byte check reads the same authority.
+        directory = '/etc/pam.d' if service['source'] == 'local' else '/usr/lib/pam.d'
+        path = Path(directory) / name
+        pam[str(path)] = fault_file_identity(path)[2:]
+    return {'uid': uid, 'expires': current_expiry(), 'pam': pam}
 
 
 def verify_quarantine(saved, *, marker_uid=None):
@@ -731,7 +736,6 @@ def aborted_cleanup_rollback_retry(record):
                           'rollback:deb-callbacks-not-observed')
             guest.require(guest.run(['dpkg-query', '-W', '-f=${Status}', PRODUCT]) ==
                           'install ok half-configured', 'rollback:unexpected-package-status')
-        guest.verify_package_payload()
         guest.require(account_digest(child) == policy and extension_lists(child) == extensions and
                       all((Path(name).read_bytes() if os.path.lexists(name) else None) == value
                           for name, value in generated.items()), 'rollback:enforcement-not-restored')
@@ -775,6 +779,10 @@ def aborted_cleanup_rollback_retry(record):
         probe('gdm-password', 'kiosk', expiry_status('gdm-password'), 'rollback.kiosk-guarded', record)
         record('onpc.rollback.restored-before-release',
                'exact-enforcement-restored; native-child-denied; ordinary-users-allowed; native-expiry-quarantine-and-mask-retained')
+    # The fault overlays a packaged helper. Verify the complete payload only
+    # after its owned unmount restores that helper, before reconfiguration or
+    # reinstall can repair any damage from the aborted removal.
+    guest.verify_package_payload()
     if fedora:
         guest.install_package()
     else:
@@ -955,8 +963,9 @@ def verify_durable_interval(state, recovery, saved, record, *, conflict=None):
     verify_pam_removed()
     guest.require(guest.pam_service_state() == state['pam_services'],
                   'finalization:original-pam-not-restored')
-    for service, expected in saved['pam'].items():
-        target = Path('/etc/pam.d') / service
+    for name, expected in saved['pam'].items():
+        target = Path(name)
+        service = target.name
         guest.require(fault_file_identity(target)[2:] == expected,
                       'finalization:vendor-service-changed')
         record('onpc.finalization.durable.' + service, hashlib.sha256(expected[-1]).hexdigest())

@@ -143,9 +143,13 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             self.output_active = False
             self.dynamic_vms = asynchronous
             self.configured_vms = configured
-            self.output_status = Gtk.Label(label='Terminal Outputs — Waiting for tests',
-                xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+            self.branch = None
+            self.output_status = Gtk.Label(label='Terminal Outputs -- Waiting for tests',
+                xalign=0, ellipsize=Pango.EllipsizeMode.END,
                 margin_start=8, margin_end=8, margin_top=8, margin_bottom=8)
+            weight = Pango.AttrList()
+            weight.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
+            self.output_status.set_attributes(weight)
             set_automation_id(self.output_status, prefix + 'watch-output-status')
             self.terminal, self.output_scroll = terminal(prefix + 'watch-output', 'Test runner terminal output')
             self.writer = TerminalWriter(self.terminal)
@@ -303,8 +307,10 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                     run, _label = self.output.discover()
                     self.output_active = run is not None
                     label, active = self.output.label, self.output_active
-                text = ('Terminal Outputs — ' + label + ('' if active else ' (finished)')
-                        if label else 'Terminal Outputs — Waiting for tests')
+                text = ('Terminal Outputs -- ' + label + ('' if active else ' (finished)')
+                        if label else 'Terminal Outputs -- Waiting for tests')
+                if self.branch is not None:
+                    text = f'[{self.branch}] {text}'
                 if self.output_status.get_label() != text:
                     self.output_status.set_label(text)
             self.active = self.output_active or self.ui.active or any(view.active for view in self.vms.values())
@@ -478,7 +484,8 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             name = str(root)
             if name in self.checkouts:
                 self.checkout_buttons[name].set_label(label)
-                self.checkouts[name].heading.set_label(label)
+                self.checkouts[name].branch = label
+                self.checkouts[name].next_output = 0
                 return
             key = identity(root)
             prefix = 'watch-checkout-' + key + '-' if prefix is None else prefix
@@ -486,11 +493,11 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 view = panel(root, prefix=prefix, **(options or {}))
             except (OSError, ValueError):
                 return
-            view.heading = Gtk.Button(label=label)
+            view.branch = label
+            view.heading = Gtk.Button()
             view.heading.add_css_class('flat')
-            weight = Pango.AttrList()
-            weight.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
-            view.heading.get_child().set_attributes(weight)
+            view.remove(view.output_status)
+            view.heading.set_child(view.output_status)
             view.heading.connect('clicked', lambda *_: self.checkout_buttons[name].set_active(True))
             set_automation_id(view.heading, 'watch-checkout-heading-' + key)
             view.prepend(view.heading)

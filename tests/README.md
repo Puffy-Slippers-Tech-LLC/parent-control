@@ -2386,7 +2386,8 @@ desktop user session, including launches from other checkouts. Bottom tabs show
 **All** and each checkout's current Git branch name, in fixed discovery order.
 The bottom **All** tab divides the left terminal panel into equal vertical
 sections for branches with active runner output, in bottom-tab order. Each
-section has a bold branch heading. Sections appear and disappear as runners
+section has one bold title combining the branch and terminal status, such as
+**[main] Terminal Outputs -- fix-tests**. Sections appear and disappear as runners
 start and finish; when every runner is idle, the last finished terminal remains.
 Click a terminal heading to open its branch tab. An individual branch tab shows
 only its own terminal. Finished tabs retain their output and remain selectable.

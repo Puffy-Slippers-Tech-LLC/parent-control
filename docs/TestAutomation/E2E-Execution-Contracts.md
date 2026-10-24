@@ -423,7 +423,7 @@ a capability or a different baseline composition cannot relabel them as passed.
 
 ### Complete baseline evidence reuse
 
-For the ordinary [kiosk confinement plan](../Kiosk-Session-Confinement-Plan.md),
+For the completed [kiosk baseline](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits),
 C04j's first passing complete baseline history on each target may supply both
 composition qualification and that target's C05 baseline acceptance. C05u/C05f
 remain separate installed acceptance gates, closed only when selected after C04.

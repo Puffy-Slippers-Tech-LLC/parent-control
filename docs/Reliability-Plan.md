@@ -77,8 +77,10 @@ for their motivating state. Inventory work uses three functional entry/exit
 cycles; repeated retained recovery uses two cycles without synthetic load.
 Task 012 reconciles only active conditions and affected reruns.
 
-The [kiosk baseline plan](Kiosk-Session-Confinement-Plan.md#scope-reconciliation)
-owns the v1.3 session-confinement rebuild and validation. The
+The [kiosk design](SystemDesign/Kiosk-Confinement.md#selected-source-boundary)
+records the v1.3 session-confinement rebuild; the
+[baseline handoff](TestAutomation/E2E-Building-Blocks.md#c05f-fedora-baseline-acceptance)
+records its completed validation. The
 [new confinement plan](Kiosk-Session-Confinement-New-Plan.md#task-boundaries)
 owns C06–C13 improvements. Reliability 006a/006b cannot execute
 until baseline C03/C04 map legacy tests and new-plan C06 approves the relevant deliberate-child

@@ -43,7 +43,7 @@ future acceptance obligations.
 
 ## Current scope
 
-The [kiosk baseline](../Kiosk-Session-Confinement-Plan.md) reuses existing
+The completed [kiosk baseline](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) retains existing
 coverage through C05f. The [desktop plan](../Kiosk-Desktop-Plan.md) owns prevention
 of unrestricted graphical desktop access as the kiosk account; the
 [remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md) owns the

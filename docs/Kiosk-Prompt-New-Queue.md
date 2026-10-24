@@ -2,7 +2,7 @@
 
 The [master](Kiosk-Session-Confinement-New-Plan.md) owns usability, reasonable-child
 threat scope, finite improvements and final acceptance. The
-[baseline queue](Kiosk-Prompt-Queue.md) ends at C05f and is independent of these
+[accepted baseline](SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) completed through C05f independently of these
 improvements. C06a first requires completed desktop D04 and baseline C05u/f;
 an unfinished prerequisite keeps it unchecked. Desktop-only rows move to the
 [desktop queue](Kiosk-Desktop-Queue.md). Remaining IDs and assertions are retained.

@@ -9,10 +9,9 @@ Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contra
 
 ## Session boundary and deliverable
 
-Before route work, require C05u/C05f complete in the
-[baseline queue](../Kiosk-Prompt-Queue.md). Trust completed rows; no historical
-report inspection is required. An unfinished prerequisite keeps D01 unchecked
-until the baseline owner completes it.
+Before route work, use the completed C05u/C05f
+[baseline handoff](../TestAutomation/E2E-Building-Blocks.md#c05f-fedora-baseline-acceptance).
+Trust completed prerequisites; no historical report inspection is required.
 Finish prior owner/Git/resource transactions; do not execute baseline tasks here.
 
 Inspect the rebuilt source and actual GDM/PAM/account/session callers. Map finite

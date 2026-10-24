@@ -8,7 +8,7 @@ Baseline task: D04.
 ## Outcome
 
 Improve confinement after the
-[v1.4 baseline validation](Kiosk-Session-Confinement-Plan.md) and
+[accepted baseline](SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) and
 [full desktop prevention](Kiosk-Desktop-Plan.md) complete.
 Keep passwordless kiosk use, genuine parent approval and time/app enforcement
 working while closing justified routes available to a smart technical child.
@@ -133,7 +133,7 @@ run expert-attack/whole-host matrices or turn every host UI value into E2E work.
 
 ## Task execution contract
 
-Apply the [baseline task contract](Kiosk-Session-Confinement-Plan.md#task-execution-contract),
+Start at [System design](System-Design.md) and apply
 [Approval tools](Approval-Tools.md), [Execution plans](Execution-Plans.md) and
 the [test map](TestAutomation/README.md). Read the selected brief and affected
 source/callers/contracts. VM/UI/storage mandates apply when triggered.
@@ -159,7 +159,7 @@ consumers within changed confinement scope; retain accepted evidence ownership.
 
 `tools/kiosk-prompt-new` is a thin ordinary-plan adapter with an independent
 namespace keyed by this master path. It shares budgets, attachment/stop, guarded
-recovery and per-task commit/push with `tools/kiosk-prompt`.
+recovery and per-task commit/push through the shared ordinary-plan driver.
 
 ```sh
 tools/kiosk-prompt-new --check

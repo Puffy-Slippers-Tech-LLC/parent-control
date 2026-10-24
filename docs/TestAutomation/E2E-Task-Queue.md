@@ -30,8 +30,8 @@ qualification matrix. Missing bindings and unavailable public routes retain
 their explicit blockers; documentation review supplies no completion or live
 qualification.
 
-The [kiosk v1.3 baseline for v1.4](../Kiosk-Session-Confinement-Plan.md)
-ends at C05f. The [desktop plan](../Kiosk-Desktop-Plan.md) owns prevention of
+The [kiosk v1.3 baseline for v1.4](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits)
+completed through C05f. The [desktop plan](../Kiosk-Desktop-Plan.md) owns prevention of
 unrestricted graphical desktop access as the kiosk account; the
 [remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md) owns the
 other C06–C13 improvements. Both own their targeted tests and add no release

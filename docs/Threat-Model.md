@@ -87,7 +87,7 @@ after admission would otherwise start a desktop. Its GDM executor and systemd
 user manager share the kernel execution boundary described in
 [Lifecycle](SystemDesign/Lifecycle.md). Qualification must distinguish a denied
 exec from a broken session and prove allowed workflows on both supported
-distributions. The [kiosk session-confinement plan](Kiosk-Session-Confinement-Plan.md#mandatory-threat-scope-reasonable-child-effort)
+distributions. The [kiosk confinement design](SystemDesign/Kiosk-Confinement.md#usability-priority-and-reasonable-child-effort)
 scopes its rebuild to deliberate ordinary routes available to a smart technical
 child, excludes professional/world-class low-level attacks, and gives usability
 highest priority. Historical loader/FD, manager-reexecution and policy-loss

@@ -12,10 +12,11 @@ design/test owners and source routes below.
 ## Session boundary and deliverable
 
 Before route work, require D04 complete in the
-[desktop queue](../Kiosk-Desktop-Queue.md) and C05u/C05f complete in the
-[baseline queue](../Kiosk-Prompt-Queue.md). Trust completed rows without inspecting
-old reports. An unfinished prerequisite keeps C06a unchecked until its owning
-launcher completes it. Never execute or close desktop/baseline rows here.
+[desktop queue](../Kiosk-Desktop-Queue.md) and use the completed C05u/C05f
+[baseline handoff](../TestAutomation/E2E-Building-Blocks.md#c05f-fedora-baseline-acceptance).
+Trust completed prerequisites without inspecting old reports. An unfinished desktop
+prerequisite keeps C06a unchecked until its owning launcher completes it.
+Never execute or close desktop rows here.
 Finish any prior owner/Git/resource transaction before starting new work.
 This review supplies no new-plan acceptance by inheritance.
 

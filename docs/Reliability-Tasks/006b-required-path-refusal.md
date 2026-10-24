@@ -13,7 +13,7 @@ owns the compatibility redesign's input protection and recovery qualification.
 Before execution, require C03/C04's [current test mapping](../SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions) from legacy refusal assertions
 to the [compatibility boundary](../SystemDesign/Kiosk-Confinement.md#compatibility-and-recovery-boundary);
 if absent, keep this row unchecked. Review its
-[historical baseline](../Kiosk-Session-Confinement-Plan.md#implementation-baseline);
+[historical baseline](../SystemDesign/Kiosk-Confinement.md#selected-source-boundary);
 reuse only exact matching scope/candidate/target evidence. Neither plan closes
 the other's row, and overlapping work must not run concurrently.
 Session exception: positive/negative input controls, exact restoration and usable entry

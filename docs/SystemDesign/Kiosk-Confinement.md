@@ -25,6 +25,28 @@ not create avoidable admission vetoes. Rejecting a supported use remains a block
 Unsafe fixtures must separately prove that isolation failure never grants
 unrestricted access. Explicit administrator denials remain authoritative.
 
+### Usability priority and reasonable child effort
+
+Product usability is the highest priority. Unexpected machine configurations must
+not break passwordless sign-in, the request form or core end-to-end use. Every
+protection-caused failure needs a concrete intentional breach effort: the child's
+actual access, deliberate action, prohibited result and a matching working
+normal-use control. Unfamiliar files, services, package versions or configuration
+alone supply no justification; an unjustified protective failure is a product bug.
+Genuine parent denial and explicit administrator policy remain authoritative.
+
+Review ordinary session selection, shortcuts, TTY/terminal, SSH, remote desktop,
+exposed links/choosers/handlers and child-writable consumed inputs. Do not assume
+arbitrary kiosk-UID execution, compromised trusted packages/root, expert native
+loader chains or kernel/boot/firmware exploitation. Supported installed code,
+normal lazy loading and ordinary package/account administration need no private
+product protocol, custom runtime, private GI/graphics image, continuous library
+audit or per-import authority protocol. Engineering injections remain separate
+from customer acceptance. Optional presentation/service failures cannot veto core
+use; essential outages require safe retry/exit without unauthorized access.
+Human time choosing language, reading, deciding or authenticating is not startup
+time.
+
 ## Admission and account integrity
 
 [Provisioning](../../tools/provision.py) creates the non-administrative reserved
@@ -209,6 +231,28 @@ request/approval/cancellation APIs are preserved; no controller/visit-token API
 is selected.
 
 ## Verification scope and evidence limits
+
+The completed v1.3-derived baseline validation accepted Ubuntu and Fedora core
+histories and separate feature/pause results through C05u/C05f, including public
+restoration and owned cleanup. The retained
+[both-target baseline handoff](../TestAutomation/E2E-Building-Blocks.md#c05f-fedora-baseline-acceptance)
+owns that acceptance; the [operation applicability map](../TestAutomation/E2E-Building-Blocks.md#c04b-baseline-operation-applicability)
+owns exact delivered scope. Completed prerequisites stay complete without old
+report inspection. Concrete later changes receive affected checks in their
+current task. This baseline supplies no final defense claim for unqualified
+desktop, terminal/SSH, exposed-input, recovery or update routes.
+
+The core public journey is Parent configuration of a child's time/app limits,
+passwordless kiosk entry, child/approver selection, genuine authentication,
+requested time and selected soft-app use while hard blocks remain, then public
+revocation restoring restrictions. Denial/Cancel must grant nothing. Normal
+exit/reentry, session switching, fresh requests, human language/authentication
+pauses and retained features remain required controls. Shared overlay behavior
+needs affected checks when changed code serves both surfaces. The
+[finite baseline recipe](../TestAutomation/E2E-Scenario-Recipes.md#c04b-baseline-public-use-slice)
+and [cross-plan reuse map](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse)
+own exact coverage and remaining general feature work. Fedora baseline acceptance
+does not broaden release support.
 
 The public GNOME/session/PAM composition replaces the former private runtime.
 Legacy fragment aliases preserve navigation, not delivery receipts, current passes

@@ -162,9 +162,9 @@ inventory or exhaustive machine matrix is required.
 ### Inherited baseline requirements
 
 Inherit the baseline's
-[usability priority](Kiosk-Session-Confinement-Plan.md#highest-priority-product-usability),
-[reasonable-child threat scope](Kiosk-Session-Confinement-Plan.md#mandatory-threat-scope-reasonable-child-effort)
-and [selected source boundary](Kiosk-Session-Confinement-Plan.md#target-design).
+[usability priority](SystemDesign/Kiosk-Confinement.md#usability-priority-and-reasonable-child-effort),
+[reasonable-child threat scope](SystemDesign/Kiosk-Confinement.md#security-boundary-and-assumptions)
+and [selected source boundary](SystemDesign/Kiosk-Confinement.md#selected-source-boundary).
 Every refusal needs actual child access, a deliberate action, the prohibited
 desktop result and a working normal-use positive. Trust installed Python/GTK/GI,
 native code and normal lazy loading. No private runtime, loader, global inventory
@@ -231,7 +231,7 @@ controls without executing the remaining plan's entire campaign.
 
 ## Task execution contract
 
-Apply the [baseline task contract](Kiosk-Session-Confinement-Plan.md#task-execution-contract),
+Start at [System design](System-Design.md) and apply
 [Approval tools](Approval-Tools.md), [Execution plans](Execution-Plans.md) and
 the [test map](TestAutomation/README.md). Read the selected brief and affected
 source/callers/contracts. VM/UI/storage mandates apply when triggered. Reuse

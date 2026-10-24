@@ -33,10 +33,9 @@ from plan_launcher import reload_controller as replace_controller_process
 
 @pytest.fixture(params=[
     ('reliability-plan', 'docs/Reliability-Plan.md', True),
-    ('kiosk-prompt', 'docs/Kiosk-Session-Confinement-Plan.md', True),
     ('kiosk-desktop', 'docs/Kiosk-Desktop-Plan.md', True),
     ('kiosk-prompt-new', 'docs/Kiosk-Session-Confinement-New-Plan.md', True),
-], ids=['reliability-plan', 'kiosk-prompt', 'kiosk-desktop', 'kiosk-prompt-new'])
+], ids=['reliability-plan', 'kiosk-desktop', 'kiosk-prompt-new'])
 def plan_adapter(monkeypatch, request):
     name, plan, vm = request.param
     entry = Path(workflow.__file__).with_name(name)

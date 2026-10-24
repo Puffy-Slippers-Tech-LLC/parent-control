@@ -751,6 +751,10 @@ class TaskDisplay(LauncherDisplay):
             chrome_height = 0
         self.output_height = max(0, available - len(editor_rows) - chrome_height)
         logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
+        if self.details and clean(self.details[0]).startswith('VM pipelines | concurrency '):
+            # The live pipeline frame replaces earlier command output. Keep
+            # the transcript for saved logs and replay after the frame closes.
+            logs = self.details
         left = self.scroll_rows('bottom', logs, self.output_width(), self.output_height)
         left += [Text('')] * (self.output_height - len(left))
         remaining = max(0, available - summary_height - len(separator))

@@ -83,7 +83,29 @@ def deferred_pam_source(original, witness):
             f'exec {shlex.quote(str(original))} "$@"\n')
 
 
+def install_alias_identity():
+    """Accept only Ubuntu's observed distribution-owned install alias."""
+    path = Path('/usr/bin/install')
+    parents(path)
+    info = path.lstat()
+    require(stat.S_ISLNK(info.st_mode) and info.st_uid == info.st_gid == 0 and
+            info.st_nlink == 1, 'unsafe-install-alias')
+    target = os.readlink(path)
+    require(target == '../lib/cargo/bin/coreutils/install', 'unexpected-install-alias')
+    return (info.st_dev, info.st_ino, info.st_uid, info.st_gid,
+            info.st_mode, info.st_nlink, target)
+
+
 class ConfigureFault(Fault):
+    def __init__(self, *args, install_alias=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.install_alias = install_alias
+
+    def verify_artifacts(self):
+        super().verify_artifacts()
+        if self.install_alias is not None:
+            require(install_alias_identity() == self.install_alias, 'install-alias-changed')
+
     def verify_triggered(self):
         self.verify_artifacts()
         require(identity(self.path) == self.wrapper, 'native-wrapper-changed')
@@ -123,7 +145,17 @@ def fault_command(stage):
 def configure_fault(stage, record):
     guest.guard()
     tool, aliases, arguments, after = fault_command(stage)
-    expected = identity(tool)
+    install_alias = None
+    links = 1
+    if stage == 'visibility' and guest.package_path().suffix == '.deb' and tool.is_symlink():
+        install_alias = install_alias_identity()
+        # Bind only this directory entry, never the shared inode's other
+        # hardlinks. Keep the alias and exact original inode/bytes/link count
+        # pinned through the existing mount ownership and cleanup checks.
+        tool = Path('/usr/lib/cargo/bin/coreutils/install')
+        parents(tool)
+        links = tool.lstat().st_nlink
+    expected = identity(tool, links=links)
     private = guest.PAYLOAD / 'private'
     info = private.lstat()
     require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and
@@ -131,9 +163,11 @@ def configure_fault(stage, record):
     parents(private)
     # Child of the controller's retained allocation; no independent scratch root.
     fixture = Path(tempfile.mkdtemp(prefix='first-configure-' + stage + '-', dir=private))
-    original, wrapper, witness = (fixture / name for name in ('original', 'wrapper', 'triggered.txt'))
+    # Multicall coreutils selects its command using argv[0]. Preserve install's
+    # basename when delegating nonmatching invocations to the untouched copy.
+    original, wrapper, witness = (fixture / name for name in (tool.name, 'wrapper', 'triggered.txt'))
     shutil.copy2(tool, original, follow_symlinks=False)
-    require(identity(tool) == expected and original.read_bytes() == expected[-1],
+    require(identity(tool, links=links) == expected and original.read_bytes() == expected[-1],
             'native-tool-changed-during-copy')
     wrapper.write_text(deferred_pam_source(original, witness) if stage == 'early-pam' else
                        wrapper_source(original, witness, arguments))
@@ -143,7 +177,9 @@ def configure_fault(stage, record):
                 'native-tool-xattr-not-preserved')
     wrapper_identity = identity(wrapper)
     fault = ConfigureFault(stage, tool, expected, witness=witness, wrapper=wrapper_identity,
-        artifacts=((original, identity(original)), (wrapper, wrapper_identity)), aliases=aliases)
+        artifacts=((original, identity(original)), (wrapper, wrapper_identity)), aliases=aliases,
+        install_alias=install_alias)
+    fault.verify_artifacts()
     record('onpc.first-configure.fault.' + stage, json.dumps({
         'tool': str(tool), 'arguments': arguments, 'after_native_success': after,
         'original_sha256': hashlib.sha256(original.read_bytes()).hexdigest(),

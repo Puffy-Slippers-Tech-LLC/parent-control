@@ -71,12 +71,14 @@ def native_tool(name):
     return tool, ()
 
 
-def identity(path, *, directory=False, owner=None):
+def identity(path, *, directory=False, owner=None, links=1):
+    # Writable fixture files still require one link. A native read-only mount
+    # target may explicitly pin its observed count; never mutate that inode.
     parents(path)
     info = path.lstat()
     require((stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)) and
             info.st_uid == (OWNER_UID if owner is None else owner) and
-            not info.st_mode & 0o022 and (directory or info.st_nlink == 1),
+            not info.st_mode & 0o022 and (directory or info.st_nlink == links),
             'unsafe-target')
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
                  (os.O_DIRECTORY if directory else 0))
@@ -224,7 +226,8 @@ def mounted_fault(fault, source, record, *, readonly=False):
                 current, rows = mount_inventory()
                 require(current == namespace and
                         not any(row[0][4] == str(fault.path) for row in rows.values()) and
-                        identity(fault.path, directory=fault.directory, owner=fault.owner) == fault.expected,
+                        identity(fault.path, directory=fault.directory, owner=fault.owner,
+                                 links=fault.expected[5]) == fault.expected,
                         'cleanup-not-verified')
     finally:
         os.close(fd)

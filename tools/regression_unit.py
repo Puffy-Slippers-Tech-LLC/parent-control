@@ -446,6 +446,9 @@ Repair lifecycle children stub VM reservations before entering the real worker;
 they retain only their existing private Git trees and waited process owners.
 The shared pytest fixture redirects coordinator state into each test's private
 tree. Existing VM/launcher cleanup classifications remain valid; UI gains none.
+vm_config's controller conflicts use managed private lock owners. Its legacy
+exclusion check joins one worker after releasing the private lock; it adds no
+live VM, service, shared state or cleanup inventory and remains compatible.
 Restore-bootstrap refusal checks use those same private disks, metadata and
 journals; they add no live service, subprocess or shared mutable resource.
 Interrupted-backup ownership checks retain those same private journal fixtures.

@@ -372,12 +372,15 @@ def test_named_vms_have_separate_leases_and_same_vm_refuses_concurrent_capture(r
                          anchor=rig.anchor, directory=other_directory)
     assert capture.lock_path != other.lock_path
     assert capture.lock_path == capture.directory / '.lock'
-    with capture.lock_path.open('rb') as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    # A same-thread conflict must use the managed owner; raw flock contenders queue.
+    lock = host.open_controller_lock(capture.lock_path, vm_uuid=UUID)
+    try:
         with pytest.raises(host.CaptureError, match='busy-controller'):
             capture.run()
         with other.lock_path.open('wb') as other_lock:
             fcntl.flock(other_lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        host.close_controller_lock(lock)
     assert len(rig.source.creations) == 1
     assert not (other_directory / 'phase.json').exists()
 
@@ -387,10 +390,12 @@ def test_shared_lock_is_used_by_runner_and_backing_ownership_checks(lease_rig, m
     local_lock = lease.capture.lock_path
     monkeypatch.setattr(vm_config, 'STATE_ROOT', lease.directory.parent)
     local_lock.rename(lease.capture.lock_path)
-    with lease.capture.lock_path.open('rb') as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    lock = host.open_controller_lock(lease.capture.lock_path, vm_uuid=lease.source.uuid)
+    try:
         with pytest.raises(runner.Error, match='busy-controller'):
             lease.__enter__()
+    finally:
+        host.close_controller_lock(lock)
     with lease:
         lease.prepare()
         lease.start()
@@ -750,14 +755,26 @@ def test_queue_cancellation_binding_survives_disabled_configuration(tmp_path):
 
 
 def test_legacy_controller_lease_excludes_all_named_leases(rig, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
+    import threading
+
     root = rig.directory.parent
     monkeypatch.setattr(vm_config, 'STATE_ROOT', root)
     legacy = root / '.lock'
     legacy.touch(mode=0o600)
-    with legacy.open('rb') as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with pytest.raises(BlockingIOError):
-            host.compatibility_lock(rig.directory)
+    started = threading.Event()
+    def acquire():
+        started.set()
+        descriptor = host.compatibility_lock(rig.directory)
+        os.close(descriptor)
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        with legacy.open('rb') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = worker.submit(acquire)
+            assert started.wait(5)
+            with pytest.raises(TimeoutError):
+                result.result(timeout=0.1)
+        result.result(timeout=5)
     descriptors = [host.compatibility_lock(root / name) for name in ('first', 'second')]
     try:
         with legacy.open('rb') as lock:

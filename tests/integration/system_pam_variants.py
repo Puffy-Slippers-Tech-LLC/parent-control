@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import stat
 
 import system_guest as guest
 from system_assertions import accepted, call
@@ -235,6 +236,20 @@ def seed_policy(state):
                  preferences=removal.preference_digest(child))
 
 
+def restoration_fingerprint(path):
+    # Both distro owners require root ownership and private permissions, not
+    # group zero. Preserve the actual group rather than imposing another one.
+    info = path.lstat()
+    require(stat.S_IMODE(info.st_mode) == 0o600 and info.st_size <= 1024 * 1024,
+            'unsafe-restoration-record')
+    value = identity(path)
+    require(stat.S_IMODE(value[4]) == 0o600 and len(value[-1]) <= 1024 * 1024,
+            'unsafe-restoration-record')
+    # identity pins the no-follow read, root owner, single link and xattrs.
+    # Atomic replacement may change the inode; all other fields must survive.
+    return value[2:]
+
+
 def pending_retry(state, record):
     """A pending vendor proposal is opaque input, not an admission failure."""
     target = PAM / ('gdm-password.rpmnew' if fedora() else 'gdm-password.dpkg-dist')
@@ -249,7 +264,7 @@ def pending_retry(state, record):
     require(any(protected[path] is not None for path in
                 (PAM / 'systemd-user', VENDOR / 'systemd-user')), 'missing-systemd-user-service')
     restoration = STATE / ('fedora-authselect.json' if fedora() else 'malcontent-pam-before-install')
-    baseline = fingerprint(restoration)
+    baseline = restoration_fingerprint(restoration)
     owned = create_owned(target, contents)
     inode = identity(target)[:2]
     try:
@@ -262,7 +277,8 @@ def pending_retry(state, record):
         require(all((identity(path) if os.path.lexists(path) else None) == expected
                     for path, expected in protected.items()),
                 'pending-vendor-changed-owned-pam')
-        require(fingerprint(restoration) == baseline, 'pending-vendor-changed-restoration-record')
+        require(restoration_fingerprint(restoration) == baseline,
+                'pending-vendor-changed-restoration-record')
         for name in ('migration-in-progress', 'package-activation-pending',
                      'kiosk-configuration-account.json'):
             require(not os.path.lexists(STATE / name), 'pending-vendor-retained-barrier')

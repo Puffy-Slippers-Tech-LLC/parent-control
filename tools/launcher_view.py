@@ -60,17 +60,20 @@ class WorkflowView:
     progress: object = unchanged
     totals: object = None
     overview_current: bool = False
+    cancel_on_ctrl_c: bool = False
 
     def display(self, stream, run):
         from launcher_display import TaskDisplay
         return TaskDisplay(stream, run=run, input_mode=self.input_mode,
                            totals=self.totals, overview_current=self.overview_current,
+                           cancel_on_ctrl_c=self.cancel_on_ctrl_c,
                            log_path=run / 'output')
 
 
 VIEWS = {
     'write-e2e': WorkflowView('chat', True, e2e_progress, e2e_totals),
-    'fix-tests': WorkflowView('chat', True, repair_progress, overview_current=True),
+    'fix-tests': WorkflowView('chat', True, repair_progress, overview_current=True,
+                              cancel_on_ctrl_c=True),
     'run-tests': WorkflowView(),
     'sync-whatsnew': WorkflowView(totals=whatsnew_totals),
 }

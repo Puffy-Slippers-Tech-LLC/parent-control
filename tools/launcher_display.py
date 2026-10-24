@@ -78,13 +78,15 @@ class PanelSelection:
 
 
 class TaskDisplay(LauncherDisplay):
-    def __init__(self, stream, *, run, input_mode='chat', totals=None, overview_current=False, **kwargs):
+    def __init__(self, stream, *, run, input_mode='chat', totals=None, overview_current=False,
+                 cancel_on_ctrl_c=False, **kwargs):
         super().__init__(stream, **kwargs)
         self.observed_monotonic = time.monotonic()
         self.owner_clock = owner_clock(run)
         self.run = run
         self.input_mode = input_mode
         self.overview_current = overview_current
+        self.cancel_on_ctrl_c = cancel_on_ctrl_c
         self.ratio = .75
         self.dragging = None
         self.totals = totals
@@ -408,12 +410,21 @@ class TaskDisplay(LauncherDisplay):
                 break
             navigation = (b'\x1b[5~', b'\x1b[6~')
             mouse_keys = (b'\x1bOQ', b'\x1b[12~')  # F2: xterm and VT forms.
-            keys = navigation + mouse_keys
+            interrupt_keys = (b'\x03', b'\x1b[99;5u', b'\x1b[27;5;99~')
+            keys = navigation + mouse_keys + interrupt_keys
             key = next((key for key in keys if self.input_pending.startswith(key)), None)
             if key:
                 self.selection = None
                 self.input_pending = self.input_pending[len(key):]
-                if key in mouse_keys:
+                if key in interrupt_keys:
+                    self.focus = 'chat'
+                    if self.cancel_on_ctrl_c:
+                        # Repair cancellation belongs to the workflow owner,
+                        # including while its agent lives in a child pipeline.
+                        (self.run / 'cancel').touch(mode=0o600)
+                    else:
+                        send_input(self.run, 'interrupt')
+                elif key in mouse_keys:
                     self.mouse_capture = not self.mouse_capture
                     self.set_mouse_mode()
                 else:
@@ -428,13 +439,9 @@ class TaskDisplay(LauncherDisplay):
             byte = self.input_pending[:1]
             self.input_pending = self.input_pending[1:]
             self.selection = None
-            if byte == b'\x03' and not self.editor.paste:
-                self.focus = 'chat'
-                send_input(self.run, 'interrupt')
-            else:
-                # All typing goes to the composer even while output is focused.
-                self.focus = 'chat'
-                self.editor.feed(byte)
+            # All typing goes to the composer even while output is focused.
+            self.focus = 'chat'
+            self.editor.feed(byte)
         if self.input_pending == b'\x1b' and not self.editor.paste:
             if self.escape_since is None:
                 self.escape_since = time.monotonic()

@@ -1,5 +1,6 @@
 """Standalone baseline replacement cannot skip password, privilege or tools refresh."""
 from tests.support.vm_registry import vm_name
+from contextlib import nullcontext
 import json
 import runpy
 from types import SimpleNamespace
@@ -67,6 +68,15 @@ def test_denied_authorization_never_starts_pkexec(authorized, monkeypatch, capsy
 
 
 def test_failed_baseline_does_not_refresh_test_tools(authorized, monkeypatch, capsys):
+    import test_activity
+    import vm_pool
+
+    # Exercise dispatch failure without acquiring a real VM or launcher lock.
+    # The subprocess mock below represents the preparation command, not the
+    # reservation's separate authorization check.
+    monkeypatch.setattr(vm_pool, 'reservation', lambda name: nullcontext())
+    monkeypatch.setattr(vm_pool, 'arguments', lambda: [])
+    monkeypatch.setattr(test_activity, 'activity', lambda *args, **kwargs: nullcontext())
     run = Mock(return_value=SimpleNamespace(returncode=1))
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
     assert authorized['main'](['--mode', 'manual', *VM_ARGS]) == 1

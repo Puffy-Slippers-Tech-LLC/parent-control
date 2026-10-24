@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 import ctypes
 from dataclasses import dataclass
+import grp
 import json
 import os
 from pathlib import Path
@@ -223,8 +224,28 @@ def ownership_conflict(variant, target: Path, foreign_uid: int, record):
     parents(target)
     original = witness(target)
     info = target.lstat()
-    require(stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == OWNER_UID and
-            info.st_nlink == 1 and not info.st_mode & 0o022, 'unsafe-original')
+    # systemd applies the broker's Group to its StateDirectory tree. A private
+    # root-owned record remains root-only with that group; preserve its exact
+    # observed metadata through conflict injection and restoration below.
+    group_matches = info.st_gid == OWNER_UID or (
+        target.parent == STATE and stat.S_IMODE(info.st_mode) == 0o600 and
+        info.st_gid == grp.getgrnam(
+            'wheel' if guest.package_path().suffix == '.rpm' else 'sudo').gr_gid)
+    try:
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == OWNER_UID and group_matches and
+                info.st_nlink == 1 and not info.st_mode & 0o022, 'unsafe-original')
+    except guest.GuestError as error:
+        # Retain the exact failed observation before any fixture mutation.
+        # Distinguish a group-only mismatch from unsafe permissions or links
+        # without disclosing account/group IDs, paths or file contents.
+        error.add_note('original-safety=' + json.dumps({
+            'regular': stat.S_ISREG(info.st_mode),
+            'owner_matches': info.st_uid == OWNER_UID,
+            'group_matches': group_matches,
+            'links': info.st_nlink,
+            'mode': oct(stat.S_IMODE(info.st_mode)),
+        }, sort_keys=True))
+        raise
     if variant.startswith('confinement-record-'):
         require(stat.S_IMODE(info.st_mode) == 0o600, 'unsafe-record-mode')
         document = json.loads(original.contents)

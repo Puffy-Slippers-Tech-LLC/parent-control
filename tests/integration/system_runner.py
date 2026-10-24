@@ -2109,11 +2109,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                  and item.case_id in ('test_remove_reboot_reinstall',
                                       'test_aborted_cleanup_rollback_retry',
                                       'test_interrupted_finalization_retry[denial-publication]',
-                                      'test_interrupted_finalization_retry[account-finalization]'))
+                                      'test_interrupted_finalization_retry[account-finalization]',
+                                      'test_ownership_refusal_retry[systemd-user-edit]'))
                 for item in selection.executions)):
             # PAM histories seed policy with this command on both targets;
-            # Ubuntu removal, rollback and interrupted finalization recovery also
-            # observe native enforcement with it.
+            # The selected Ubuntu removal/recovery histories also observe
+            # native enforcement with it, including the ownership-refusal retry.
             subsets += ('command',)
         with ledger.measure('bootstrap'):
             vm.probe_ready()

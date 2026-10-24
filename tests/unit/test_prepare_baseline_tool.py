@@ -212,6 +212,14 @@ def test_baseline_queue_shares_scheduler_and_refreshes_once(authorized, monkeypa
 
 
 def test_baseline_worker_defers_shared_refresh(authorized, monkeypatch):
+    import test_activity
+    import vm_pool
+
+    # Count preparation dispatches, excluding reservation authorization and
+    # real VM/launcher locks, as in the other dispatch-and-refresh checks.
+    monkeypatch.setattr(vm_pool, 'reservation', lambda name: nullcontext())
+    monkeypatch.setattr(vm_pool, 'arguments', lambda: [])
+    monkeypatch.setattr(test_activity, 'activity', lambda *args, **kwargs: nullcontext())
     run = Mock(return_value=SimpleNamespace(returncode=0))
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
     assert authorized['main'](['--mode', 'auto', '--y', *VM_ARGS], refresh=False) == 0

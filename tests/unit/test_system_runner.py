@@ -1449,7 +1449,9 @@ def test_selected_scenario_bytes_cannot_switch_with_mutated_source_digest_map(
 @pytest.mark.parametrize('area,test,expected', [
     ('package', 'test_first_install_requests_reboot', ()),
     ('package', runner.FIRST_CONFIGURE_CASE, ()),
-    ('package', runner.PAM_HISTORIES[0].case_id, ()),
+    # PAM histories verify native policy after reboot against these exact bytes.
+    ('package', runner.PAM_HISTORIES[0].case_id,
+     ('fixtures/mechanical/onpc-test-application',)),
     ('enforcement', 'test_native_command_policy_is_uid_scoped',
      ('fixtures/mechanical/onpc-test-application',)),
     ('removal', 'test_remove_reboot_reinstall', ('fixtures/mechanical/onpc-test-application',)),

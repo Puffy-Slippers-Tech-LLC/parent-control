@@ -666,7 +666,7 @@ def test_copr_make_entrypoint_exports_srpm_without_host_setup(tmp_path, prerequi
     # COPR checks out the repository, including the source-preparation tools;
     # these development helpers must remain absent from the product tarball.
     for name in ('build_rpm.py', 'rpm_builder.py', 'package_inputs.py',
-                 'test_storage.py', 'test_retention.py'):
+                 'test_storage.py', 'test_retention.py', 'test_io.py'):
         shutil.copy2(ROOT / 'tools' / name, checkout / 'tools' / name)
     (checkout / '.copr').mkdir()
     shutil.copy2(ROOT / '.copr/Makefile', checkout / '.copr/Makefile')

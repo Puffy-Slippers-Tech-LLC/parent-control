@@ -5,9 +5,11 @@ import signal
 import os
 import sys
 import io
+import json
 import re
 import select
 import threading
+import time
 from contextlib import redirect_stdout
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -19,7 +21,7 @@ from tests.support import preview
 @pytest.mark.parametrize('cause', ['cancel', 'deadline', 'leader-exits', 'pidfd-refused'])
 @pytest.mark.parametrize('stream', ['stdout', 'stderr'])
 def test_ui_pipe_retirement_does_not_depend_on_another_session_exiting(
-        tmp_path, monkeypatch, cause, stream):
+        tmp_path, monkeypatch, capfd, cause, stream):
     from regression_process import Control
     code = '''import os,signal,subprocess,sys,time
 signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -34,9 +36,13 @@ END
     done, rescued = threading.Event(), threading.Event()
     pins, rescuers, children = [], [], []
     pin, popen = os.pidfd_open, subprocess.Popen
+    started = time.monotonic()
+    timings = {}
+    status = None
 
     def record(*args, **kwargs):
         child = popen(*args, **kwargs)
+        timings['spawn_returned'] = time.monotonic() - started
         children.append(child)
         return child
     monkeypatch.setattr(subprocess, 'Popen', record)
@@ -45,6 +51,7 @@ END
         observed.extend(data)
         match = re.search(rb'holder=(\d+)\n', observed)
         if match and not pins:
+            timings['holder_received'] = time.monotonic() - started
             pins.append(pin(int(match[1])))
             def rescue():
                 if not done.wait(2):
@@ -53,6 +60,7 @@ END
             rescuers.append(threading.Thread(target=rescue))
             rescuers[0].start()
             if cause == 'cancel':
+                timings['cancel_requested'] = time.monotonic() - started
                 control.stop()
 
     if cause == 'pidfd-refused':
@@ -73,7 +81,15 @@ END
         else:
             status = control.run([sys.executable, '-c', code], cwd=tmp_path,
                                  env=os.environ.copy(), **options)
-            assert status == {'cancel': 130, 'deadline': 137, 'leader-exits': 125}[cause]
+            timings['run_returned'] = time.monotonic() - started
+            # Keep the fixture's readiness and cancellation evidence when a
+            # timeout wins; the status alone cannot explain that ordering.
+            assert status == {'cancel': 130, 'deadline': 137, 'leader-exits': 125}[cause], {
+                'elapsed': time.monotonic() - started, 'timings': timings,
+                'stopped': control.stopped.is_set(), 'holder_pinned': bool(pins),
+                'rescued': rescued.is_set(),
+                'output_tail': bytes(observed[-4096:]).decode('utf-8', errors='replace'),
+            }
             assert b'closing its reader' in observed
         assert pins and not rescued.is_set(), 'controller required rescue to finish pipe draining'
         assert children[0].returncode is not None
@@ -90,6 +106,17 @@ END
             except ProcessLookupError:
                 pass
             os.close(descriptor)
+        if (stream, cause) == ('stdout', 'cancel'):
+            # A saved bucket pass cannot show whether this body ran. Retain a
+            # finite record on success too, after owned fixture cleanup, without
+            # changing the result or exposing process identities or raw output.
+            with capfd.disabled():
+                print('ONPC-PIPE-RETIREMENT-DIAGNOSTIC ' + json.dumps({
+                    'case': 'stdout-cancel', 'status': status,
+                    'elapsed': time.monotonic() - started, 'timings': timings,
+                    'stopped': control.stopped.is_set(), 'holder_pinned': bool(pins),
+                    'rescued': rescued.is_set(), 'output_bytes': len(observed),
+                }), file=sys.stderr, flush=True)
 
 
 def test_ui_selector_failure_still_retires_and_reaps_its_leader(tmp_path, monkeypatch):

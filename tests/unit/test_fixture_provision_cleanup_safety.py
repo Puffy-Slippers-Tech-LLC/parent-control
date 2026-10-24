@@ -1377,7 +1377,20 @@ def test_ssh_wire_embedded_modules_execute_only_over_private_guest(real_guest, t
         for name, source in wire['modules']:
             module = ModuleType(name)
             monkeypatch.setitem(sys.modules, name, module)
-            exec(compile(source, '<shipped-' + name + '>', 'exec'), module.__dict__)
+            try:
+                code = compile(source, '<shipped-' + name + '>', 'exec')
+            except SyntaxError as error:
+                # Retain only reviewed helper source, never request or payload data.
+                # This distinguishes malformed extraction from a guest import error.
+                lines = source.splitlines()
+                at = (error.lineno or 1) - 1
+                start, end = max(0, at - 12), min(len(lines), at + 13)
+                context = '\n'.join(f'{index + 1}: {lines[index]}'
+                                    for index in range(start, end))
+                error.add_note(f'Transferred {name} source ({len(lines)} lines):\n'
+                               + context[:8192])
+                raise
+            exec(code, module.__dict__)
             shipped[name] = module
     assert shipped['fixture_manifest'].declarations() == fixture_manifest.declarations()
     assert callable(shipped['fixture_process'].launch_native)

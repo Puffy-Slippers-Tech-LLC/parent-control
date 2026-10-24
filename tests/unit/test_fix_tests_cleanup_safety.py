@@ -322,27 +322,28 @@ def test_verified_case_is_pushed_before_repairing_the_next_failure(checkout):
 
 
 def test_case_closeout_finishes_before_remaining_tests_start(checkout):
+    from vm_selection import execution_selection
     root, _ = checkout
-    (root / 'mode').write_text('agent-script')
-    (root / 'script.json').write_text(json.dumps(dict(
-        agents=['test_fixed'], tests=['A', None, None], structured=True,
-        record_git=True, wait_test=2)))
-    run, _ = fix_tests.select(root, categories=('unit',))
-    wait_for(root / 'test-ready')
-    try:
-        calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-        tests = [call for call in calls if call['kind'] == 'test']
-        assert '--resume-case=A' in tests[1]['args']
-        assert '--resume-case-only' in tests[1]['args']
-        assert not any(arg.startswith('--resume-case=') for arg in tests[2]['args'])
-        assert tests[2]['pushed_subject'] == 'TA: Fixed unit A'
-        state = json.loads((run / 'checkpoint.json').read_text())
-        assert state['repairs'] == {}
-        assert not (run / 'result.json').exists()
-    finally:
-        (root / 'release').touch()
+    _, vms = execution_selection()
+    assert len(vms) == 2
+    (root / 'mode').write_text('vm-pipeline')
+    (root / 'inventory.json').write_text(json.dumps({'system': {'scope': 'vm', 'args': []}}))
+    run, _ = fix_tests.select(root, categories=('system',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0, output.getvalue()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    agents = [call for call in calls if call['kind'] == 'agent']
+    assert len(agents) == 1  # Both failed cases use the first verified shared fix.
+    tests = [call for call in calls if call['kind'] == 'test']
+    for vm in vms:
+        selected = [call for call in tests if call['vm'] == vm.name]
+        assert len(selected) == 3
+        assert all('--resume-case-only' in call['args'] for call in selected)
+        assert '--resume-case=installed::case-b' in selected[-1]['args']
+    states = json.loads((run / 'pipelines.json').read_text())
+    assert all(state['status'] == 'complete' for state in states.values())
+    assert json.loads((run / 'repair-queue.json').read_text()) == []
+    assert not (run / 'repair-pending.json').exists()
 
 
 def test_failed_push_resumes_before_remaining_tests_without_duplicate_commit(checkout):

@@ -288,8 +288,9 @@ Host work runs once; VM workers keep individual reports and journals, with a
 retained queue summary linking their logs and failure handoffs. Required package
 inputs are prepared through the maintained builders. Repair agents remain serial
 within each host or VM workflow; implementation agents remain serial.
-`fix-tests` and `write-e2e` share the VM queue through
-`run-tests`.
+`write-e2e` shares the VM execution queue through `run-tests`. `fix-tests`
+owns independent per-VM case pipelines under the
+[repair loop](#scripted-repair-loop).
 
 VM ownership is coordinated by the host-wide
 [VM pool](../docs/Mandates/VM-Mandate.MD#central-vm-checkout), keyed by domain UUID.
@@ -367,6 +368,27 @@ closes out the verified repair before resuming the remaining cases with
 case ID replay the original category selection without saved passes, including
 diagnostic execution and its subsequent repair verification. Each newly entered
 category and each fresh verification pass starts without `--resume`.
+
+For a configured VM queue, host categories run once and each VM owns its
+system/E2E pipeline, checkpoint and reports through all requested rounds. The
+registry concurrency cap limits these pipelines. Normal cases execute in
+parallel through fresh case-only runner invocations with the original selectors
+and required lifecycle prerequisites. Package preparation reuses content-qualified
+inputs, rebuilding when source changes; each next case loads the current inputs
+instead of retaining a whole category's frozen inputs.
+
+Every failed case joins one launcher-wide FIFO repair queue. Active cases finish;
+new normal cases wait until the entire queue is empty. Exactly one repair,
+exact-case verification and commit/push/propagation transaction runs at a time.
+Its source lease survives worker reload and remains held by its supervisor during
+owned cleanup. Other VMs cannot load its unverified edits. A queued failure is
+rechecked after preceding repairs land, before spending another agent session,
+so a shared fix can resolve multiple VM failures without duplicate edits. A stopped
+repair with unresolved edits keeps the source fenced for its retained recovery.
+Cancellation stops admission and waits for every active pipeline's owned cleanup;
+resuming retains each VM's completed work. Task limits count host categories once
+and VM categories per VM, across their independently advancing rounds.
+
 After confirming that the specific repaired case passed, the launcher stages
 the repair's explicit owned files, commits them as `TA: Fixed CATEGORY CASE`
 (with the VM name when applicable), and runs `git push` before any remaining

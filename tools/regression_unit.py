@@ -81,8 +81,11 @@ the existing compatible unit classification remains appropriate.
 Repair Git close-out extends fix_tests and fix_tests_cleanup_safety with tiny
 pytest-private checkouts and bare remotes, finite waited Git children and
 process-local failure doubles, including diagnostic overlap/restart checks.
-Per-case close-out checks pause the same bounded, recorded runner double after
-the repaired case and inspect only its private bare remote and checkpoint.
+Per-case close-out checks reuse the bounded, recorded runner double and inspect
+only its private bare remote and checkpoint.
+The VM pipeline variant runs two such private process doubles against one local
+bare remote and a FIFO source lease. Reservations remain stubbed; finite waited
+children own no real VM, external service, display, socket or shared cache.
 No external network, shared Git state, VM,
 display, bus or additional asynchronous cleanup owner is acquired; both modules
 retain compatible unit scheduling and the existing cleanup classification.

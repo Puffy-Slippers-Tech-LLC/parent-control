@@ -157,11 +157,12 @@ class TaskBudget:
             raise ValueError('active launcher predates adjustable limits; attach without --tasks')
         return self.update(change)
 
-    def admit(self, *, exempt=False):
+    def admit(self, *, exempt=False, concurrent=False):
         def begin(value):
             if value.get('closed'):
                 return False
-            if not exempt and value['tasks'] is not None and value['completed'] >= value['tasks']:
+            used = value['started'] if concurrent else value['completed']
+            if not exempt and value['tasks'] is not None and used >= value['tasks']:
                 value['closed'] = True
                 return False
             value['started'] += 1

@@ -17,6 +17,8 @@ def main():
         from contextlib import nullcontext
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
         import fix_tests
+        import fix_tests_queue
+        fix_tests_queue.WORKER = Path(__file__).resolve()
         import vm_pool
         vm_pool.selected_reservation = lambda **kwargs: nullcontext()
         vm_pool.reservation = lambda *args, **kwargs: nullcontext()
@@ -61,6 +63,9 @@ def main():
                           for name in ('unit', 'ui', 'system', 'e2e')}))
         return 0
     mode = (root / 'mode').read_text()
+    if mode == 'vm-pipeline' and kind == 'test' and '--list' in args:
+        print('    installed::case-a [selected]\n    installed::case-b [selected]')
+        return 0
     test_args = [arg for arg in args if arg not in ('--resume', '--resume-case-only') and not arg.startswith('--resume-case=')]
     category = test_args[1] if kind == 'test' else kind
     record = {'kind': kind, 'category': category, 'pid': os.getpid(), 'args': args}
@@ -68,6 +73,7 @@ def main():
     if kind == 'agent':
         record['prompt'] = sys.stdin.read()
         record['thread'] = os.environ.get('CODEX_THREAD_ID')
+    record['vm'] = os.environ.get('ONPC_TEST_VM')
     script = json.loads((root / 'script.json').read_text()) if mode == 'agent-script' else {}
     if script.get('record_git'):
         record['pushed_subject'] = subprocess.run(
@@ -75,6 +81,31 @@ def main():
             capture_output=True, text=True, check=True, timeout=10).stdout.strip()
     with (root / 'calls').open('a') as stream:
         stream.write(json.dumps(record) + '\n')
+    if mode == 'vm-pipeline' and kind == 'test':
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+        from test_checkpoint import Checkpoint
+        from vm_selection import selected
+        vm = selected().name
+        case = next(arg.partition('=')[2] for arg in args if arg.startswith('--resume-case='))
+        print('Started run-tests session: harmless', flush=True)
+        checkpoint = Checkpoint(root, [('system', [])], resume=True, binding=vm)
+        if not (root / 'repair-shared.py').exists():
+            (root / ('ready-' + vm)).touch()
+            deadline = time.monotonic() + 10
+            while len(list(root.glob('ready-*'))) < 2 and time.monotonic() < deadline:
+                time.sleep(.02)
+            handoff = root / ('failure-' + vm + '.json')
+            handoff.write_text(json.dumps(dict(prompt='LATEST FAILURE ONLY: shared mechanical defect',
+                categories=['system'], failures=[dict(category='system', case=case, vm=vm)])))
+            print(f'Failure handoff: {handoff}', flush=True)
+            return 1
+        if case == 'installed::case-b':
+            pushed = subprocess.run(['git', 'log', '-1', '--format=%s', '@{upstream}'],
+                capture_output=True, text=True, check=True).stdout
+            assert 'TA: Fixed system installed::case-a' in pushed
+        checkpoint.event('system', dict(kind='finished', nodeid=case), set())
+        checkpoint.save()
+        return 0
     if kind == 'recovery' and (root / 'change-recovery-source').exists():
         source_root = Path((root / 'controller-root').read_text())
         changed = source_root / 'tools/repair_evidence.py'
@@ -228,11 +259,19 @@ def main():
             if script.get('invalid_checkpoint'):
                 (checkpoint.store.path / checkpoint.name).write_text('{}')
     reply = Path(args[args.index('--output-last-message') + 1])
+    if mode == 'vm-pipeline':
+        parent = Path(json.loads((reply.parent / 'pipeline.json').read_text())['parent'])
+        deadline = time.monotonic() + 10
+        while len(json.loads((parent / 'repair-queue.json').read_text())) < 2:
+            assert time.monotonic() < deadline, 'second VM did not queue its failure independently'
+            time.sleep(.02)
     stage_paths = []
     if status in ('fixed', 'test_fixed', 'diagnostic_ready'):
-        failures = json.loads((root / 'failure.json').read_text()).get('failures', [])
+        failures = ([] if mode == 'vm-pipeline' else
+                    json.loads((root / 'failure.json').read_text()).get('failures', []))
         identity = json.dumps(failures[0] if failures else {}, sort_keys=True)
-        path = script.get('repair_path', 'repair-' + hashlib.sha256(identity.encode()).hexdigest()[:12] + '.py')
+        path = ('repair-shared.py' if mode == 'vm-pipeline' else
+                script.get('repair_path', 'repair-' + hashlib.sha256(identity.encode()).hexdigest()[:12] + '.py'))
         (root / path).write_text(f'fixture repair {count + 1}\n')
         stage_paths = [path]
         if script.get('omit_paths_once') and count == 0:

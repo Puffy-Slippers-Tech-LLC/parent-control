@@ -361,6 +361,8 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online, 
     lease.source.domain.snapshotLookupByName.return_value = snap
     lease.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE = 4
     lease.state = {'run': 'a' * 32}
+    # Offline reuse compares the saved domain with the lease's validated XML.
+    lease.original_xml = domain
     lease.test_xml = '<domain/>'
     lease.snapshot_status.return_value = nullcontext()
     qualification.attach_installed_snapshot(lease)

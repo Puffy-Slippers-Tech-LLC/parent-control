@@ -639,13 +639,21 @@ def observe_aborted_transaction(uid, expected, denial, record):
 def rollback_record_matches(name, before, after):
     if before == after:
         return True
-    # fedora_pam.save atomically republishes this package-owned private record
-    # as root. Its group can change from the broker's wheel group to root;
-    # neither group has access at 0600. Preserve every authoritative field.
-    return (name == '/var/lib/oh-no-parent-control/fedora-authselect.json' and
-            before is not None and after is not None and
+    if name == '/var/lib/oh-no-parent-control/fedora-authselect.json':
+        admin_group = 'wheel'
+    elif (name in ('/var/lib/oh-no-parent-control/installed-fapolicyd-fallback',
+                  '/var/lib/oh-no-parent-control/installed-child-extension-trust') and
+          guest.package_path().suffix == '.deb'):
+        admin_group = 'sudo'
+    else:
+        return False
+    # First broker startup can chgrp its StateDirectory tree to sudo/wheel.
+    # postinst install_integration and fedora_pam.save republish these private
+    # copies as root:root. At 0600 neither group has access; require the exact
+    # one-way transition, unchanged contents, root owner and private mode.
+    return (before is not None and after is not None and
             before[:2] == after[:2] == (0o600, 0) and
-            before[2] == grp.getgrnam('wheel').gr_gid and after[2] == 0 and
+            before[2] == grp.getgrnam(admin_group).gr_gid and after[2] == 0 and
             before[3] == after[3])
 
 
@@ -1907,6 +1915,7 @@ def verify_active_kiosk_refusal(record, accounts):
     wait_kiosk_inactive(account)
     record('onpc.removal.kiosk-inactive-before-owned-start', True)
     originals = admission_removal_state()
+    expiry_before = current_expiry()
     policies = {role: account_digest(accounts[role]) for role in ('child', 'other')}
     marker = Path('/var/lib/oh-no-parent-control/kiosk-configuration-account.json')
     guest.require(not os.path.lexists(marker), 'removal:unexpected-removal-marker')
@@ -1928,7 +1937,10 @@ def verify_active_kiosk_refusal(record, accounts):
         guest.require(guest.commands.last_returncode != 0 and not package_absent() and
                       b'log out of the kiosk session before removal' in output,
                       'removal:active-kiosk-not-refused')
-        guest.verify_package_files()
+        # The live manager also holds native PAM's admission lease, so Debian
+        # abort-remove cannot finish its exclusive rollback yet. Verify every
+        # retained payload digest now; require full configuration after drain.
+        guest.verify_package_payload()
         current = admission_removal_state()
         guest.require(current.keys() == originals.keys() and all(
             rollback_record_matches(name, value, current[name]) for name, value in originals.items()) and
@@ -1951,6 +1963,39 @@ def verify_active_kiosk_refusal(record, accounts):
             os.close(pidfd)
     check_remove_preflight()
     record('onpc.removal.active-kiosk-drained', True)
+    if guest.package_path().suffix == '.deb':
+        status = guest.run(['dpkg-query', '-W', '-f=${Status}', PRODUCT])
+        guest.require(status in ('install ok installed', 'install ok half-configured'),
+                      'removal:active-unexpected-recovery-package-status')
+        record('onpc.removal.active-kiosk-status-before-recovery', status)
+        if status == 'install ok half-configured':
+            # Finish the already-unpacked package after releasing only this
+            # fixture's manager. Do not reinstall over live PAM mappings.
+            guest.run(['dpkg', '--configure', PRODUCT], timeout=1800)
+    guest.verify_package_files()
+    current = admission_removal_state()
+    # Retain which record/field changed without exposing its contents or
+    # account values. The combined assertion otherwise reports no difference.
+    changes = {}
+    for name in sorted(current.keys() | originals.keys()):
+        if name not in originals or name not in current:
+            changes[name] = ['path-added' if name in current else 'path-removed']
+            continue
+        before, after = originals[name], current[name]
+        if rollback_record_matches(name, before, after):
+            continue
+        changes[name] = (['presence'] if before is None or after is None else
+                         [field for field, old, new in zip(
+                             ('mode', 'owner', 'group', 'content'), before, after) if old != new])
+    record('onpc.removal.active-kiosk-recovery-record-changes', json.dumps(changes, sort_keys=True))
+    guest.require(current.keys() == originals.keys() and all(
+        rollback_record_matches(name, value, current[name]) for name, value in originals.items()) and
+                  current_expiry() == expiry_before and
+                  all(account_digest(accounts[role]) == digest for role, digest in policies.items()),
+                  'removal:active-recovery-changed-state')
+    verify_loaded_confinement()
+    record('onpc.removal.active-kiosk-restored',
+           'native-configuration-complete; exact-PAM-ownership-and-policy-preserved; original-expiry-restored')
 
 
 def original_authselect():

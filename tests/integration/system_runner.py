@@ -2093,7 +2093,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
     clean = isinstance(guest, dict) and guest.get('fixture_boundary') == 'clean'
     fixture_context = None
     if clean or preparation_only:
-        from system_fixture_preparation import (prepare, selection_record, qualified_guest,
+        from system_fixture_preparation import (SUBSETS, prepare, selection_record, qualified_guest,
                                                 require_installed_restore, installed_selection)
         require(qualified_guest(guest, installed=already_installed),
                 'fixtures:system-' + ('installed' if already_installed else 'product-free')
@@ -2102,6 +2102,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             require_installed_restore(lease)
         fixture_selection = (installed_selection(fixture_selection) if already_installed else
                              selection_record(fixture_selection))
+        subsets = SUBSETS
+        if (not already_installed and fixture_selection['target'] == 'ubuntu' and any(
+                item.area == 'removal' and item.case_id == 'test_remove_reboot_reinstall'
+                for item in selection.executions)):
+            # This history uses the untrusted command and its desktop launcher
+            # to observe product denial before removal and allowance afterward.
+            subsets += ('command',)
         with ledger.measure('bootstrap'):
             vm.probe_ready()
             if already_installed:
@@ -2110,6 +2117,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             if preparation_observer is not None:
                 preparation_observer('before', context)
             context = prepare(vm, lease, directory, fixture_selection,
+                              subsets=subsets,
                               **({'installed': True} if already_installed else {}))
             if preparation_observer is not None:
                 observed = preparation_observer('ready', context)
@@ -2532,6 +2540,10 @@ def main(argv=None):
             options = ({'package_only': True, 'fixture_files': scenario_fixture_files(selection)}
                        if minimal else {})
             manifest = stage_assets(assets, directory / 'input', commands, **options)
+            if minimal and 'fixtures/mechanical/onpc-test-application' in options['fixture_files']:
+                from system_fixture_preparation import stage_mechanical_comparison
+                stage_mechanical_comparison(json.loads(args.fixture_selection),
+                    directory / 'input/fixtures/mechanical/onpc-test-application')
             if previous_assets is not None:
                 genuine = any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
                               for item in selection.executions)

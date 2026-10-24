@@ -110,7 +110,11 @@ and `system_runner.installed_run(already_installed=False)` use the
 [shared fixture provisioner](../support/README.md#attempt-owned-fixture-provisioning)
 after guarded SSH readiness, before uploading installation inputs or running a
 system phase. The launcher selects the execution-owned immutable input before
-VM acquisition. Only `trusted-hard` is provisioned; readiness binds the selected
+VM acquisition. The default provisions only `trusted-hard`. Ubuntu's
+`test_remove_reboot_reinstall` history also provisions `command`, including its
+desktop launcher, before installation so the removal assertions can observe
+native execution before and after package removal. Other selections retain the
+default subset. Readiness binds the selected
 manifest, VM UUID, actual boot and unique attempt. Missing or incompatible
 selections release no input. Other unmigrated
 envelopes retain their refusal.
@@ -125,6 +129,10 @@ their finite scenario comparison inputs: the mechanical file, or six files for
 trusted histories. Each attempt drops comparison files needed only by other
 histories. Exact package, prior-release, source, version and architecture checks,
 first-configuration/PAM dispatch and `fresh_install` grouping remain enforced.
+The mechanical comparison file comes from the authenticated execution-owned
+runtime bundle, matching the bytes provisioned into the guest. It is frozen
+before VM acquisition and included in the transfer digest inventory. The
+independent package/fixture artifact build is not its byte-identity authority.
 
 ```sh
 tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_system_product_free
@@ -805,6 +813,21 @@ After the activation prerequisite's public GDM exit, the removal fixture waits
 for the identity-checked kiosk manager to become inactive before starting its
 own manager for the native refusal check. This bounded read-only wait never
 stops or adopts the preceding manager; a persistent or unknown state refuses.
+The live manager's native PAM lease can also block Debian's abort-remove
+rollback. The fixture verifies retained version, payload digests, PAM records,
+policy and the unchanged live manager before releasing only its owned manager.
+It then finishes any pending already-unpacked configuration with native
+`dpkg --configure` and requires a fully configured package, unchanged PAM/policy
+and the original account expiry before continuing.
+For Ubuntu's two generated integration ownership copies, comparison permits
+only the broker's `sudo` group changing to `root`, with identical contents,
+root ownership and mode `0600`. First broker startup can assign its group to
+the state tree; `postinst` republishes these private copies as `root:root` on
+configuration retry. This preserves their root-only access and ownership proof.
+The `onpc.removal.active-kiosk-recovery-record-changes` JUnit property identifies
+changed record paths and metadata/content fields without exposing their contents
+or account values. It uses the already captured states and preserves the full
+recovery assertion and its observation order.
 Foreign-edit refusals verify the retained package version, payload digests and
 policy before resolving the edit. If Debian's refused abort-remove leaves
 configuration pending, the fixture restores only its unchanged owned edit and

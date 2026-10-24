@@ -11,7 +11,7 @@ import os
 import re
 import sys
 
-from tools import fixture_execution, fixture_provision
+from tools import fixture_execution, fixture_manifest, fixture_provision
 
 
 SUBSETS = ('trusted-hard',)
@@ -71,6 +71,16 @@ def validate_input(value, target=None):
     return record
 
 
+def stage_mechanical_comparison(selection, destination):
+    """Use the provisioned build as the independent guest comparison input."""
+    loaded = fixture_provision.authenticated_bundle(selection_record(selection))
+    # Every mechanical alias has identical verified bytes within this bundle.
+    # The package/fixture artifact build is independent and may differ.
+    key = next(key for key, item in fixture_manifest.select(('command',)).items()
+               if item['mode'] == 0o755)
+    destination.write_bytes(loaded['payloads'][key])
+
+
 def installed_selection(value, target=None):
     record = selection_record(value)
     if target is not None and record['target'] != target:
@@ -92,7 +102,7 @@ def register_staging(directory, lease, attempt_id, path):
         os.fsync(stream.fileno())
 
 
-def prepare(vm, lease, directory, selection, *, installed=False):
+def prepare(vm, lease, directory, selection, *, installed=False, subsets=SUBSETS):
     if not qualified_guest(lease.capture.state['guest'], installed=installed):
         raise ValueError('fixtures:system-' + ('installed' if installed else 'product-free')
                          + '-target-not-qualified')
@@ -103,7 +113,7 @@ def prepare(vm, lease, directory, selection, *, installed=False):
     identity = attempt_id(directory)
     controller = fixture_provision.Provisioner(lease, vm,
         register_staging=lambda path: register_staging(directory, lease, identity, path))
-    receipt = controller.provision(selection, SUBSETS, attempt_id=identity)
+    receipt = controller.provision(selection, subsets, attempt_id=identity)
     controller.require_ready(receipt)
     return {'vm': vm, 'lease': lease, 'directory': directory,
             'controller': controller, 'receipt': receipt}

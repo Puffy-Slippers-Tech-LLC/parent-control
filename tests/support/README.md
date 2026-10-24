@@ -58,6 +58,9 @@ fresh interpreter loading only the frozen declarations. Original and frozen
 sources are rechecked before atomic publication of the completed child directory.
 Producer registration, inherited compiler/container leases and exact cleanup
 remain with the [storage owner](../../docs/Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes).
+Concurrent native builds use `Store.queued_producer()` to wait on a shared build
+gate through producer cleanup. The separate nonblocking descendant lease and
+exact recovery requirements remain in force; waiting never adopts unfinished work.
 An isolated [container helper](../../tools/fixture_container.py) compacts only
 the inherited leases and uses Podman's standard `--preserve-fds` route. Build
 admission uses the artifact category's two CPU slots, 4 GiB and I/O limits.

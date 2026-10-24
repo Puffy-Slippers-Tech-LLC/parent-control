@@ -229,8 +229,9 @@ def _build(output, output_fd, original, *, target, root, publication, publish_gu
     transaction = uuid.uuid4().hex
     print('fixture-bundle: transaction=' + transaction, flush=True)
     store = fixture_producer.Store()
-    with store.producer(transaction_id=transaction, compatibility_key='native-runtime-' + target,
-                        build_key='frozen-native-runtime-v1') as producer:
+    with store.queued_producer(transaction_id=transaction,
+                               compatibility_key='native-runtime-' + target,
+                               build_key='frozen-native-runtime-v1') as producer:
         source = producer.allocate('sources')
         records, environment_record = freeze(root, source, target)
         workspace = producer.allocate('build')

@@ -259,6 +259,22 @@ class Store:
                 return self._read(fd)
 
     @contextmanager
+    def queued_producer(self, *, transaction_id, compatibility_key, build_key):
+        """Wait for another build, including its cleanup, before reserving.
+
+        Keep admission separate from the descendant lease: cleanup must acquire
+        that lease again after closing the producer's reference. Pending or
+        orphaned transactions still require exact recovery, never adoption.
+        """
+        with self._store.opened() as fd:
+            self._root(fd)
+            with self._store.locked(fd, 'build.lock'):
+                with self.producer(transaction_id=transaction_id,
+                                   compatibility_key=compatibility_key,
+                                   build_key=build_key) as producer:
+                    yield producer
+
+    @contextmanager
     def producer(self, *, transaction_id, compatibility_key, build_key):
         _require(_token(transaction_id), 'transaction ID must be UUID32')
         _require(_key(compatibility_key) and _key(build_key), 'invalid build keys')

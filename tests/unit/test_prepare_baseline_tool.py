@@ -92,6 +92,14 @@ def test_failed_baseline_does_not_refresh_test_tools(authorized, monkeypatch, ca
 @pytest.mark.parametrize('mode', ['auto', 'manual'])
 @pytest.mark.parametrize('assume_yes', [False, True])
 def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode, assume_yes, capsys):
+    import test_activity
+    import vm_pool
+
+    # Keep reservation authorization and real VM/launcher locks outside this
+    # dispatch-and-refresh check; its two results belong to those commands only.
+    monkeypatch.setattr(vm_pool, 'reservation', lambda name: nullcontext())
+    monkeypatch.setattr(vm_pool, 'arguments', lambda: [])
+    monkeypatch.setattr(test_activity, 'activity', lambda *args, **kwargs: nullcontext())
     confirmation_args = ['--y'] if assume_yes else []
     run = Mock(side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)])
     monkeypatch.setattr(authorized['subprocess'], 'run', run)

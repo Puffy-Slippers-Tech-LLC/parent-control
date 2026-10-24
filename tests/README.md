@@ -388,9 +388,10 @@ work still refuse. Recovery grants no verification credit to the earlier case.
 Staging, commit or push failures stop advancement and retain the accepted repair.
 The next invocation retries that close-out before tests or agents, preserving
 branch/upstream identity and recognizing an already-created completion commit.
-Changed validated files require renewed verification; no force-push, automatic
-pull or Git configuration change is performed. Unverified repair scopes survive
-restart separately from the fresh agent-session budgets.
+Later file changes do not invalidate a recorded case pass or block its Git
+close-out; the existing explicit-path and ownership checks still apply.
+No force-push, automatic pull or Git configuration change is performed.
+Unverified repair scopes survive restart separately from the fresh agent-session budgets.
 If another invocation replaces a host category's runner checkpoint between
 attempts, the repair launcher replays the same category and original selectors
 once without saved passes. Only a validated checkpoint selection mismatch

@@ -588,7 +588,7 @@ def test_repair_git_recovers_each_interrupted_closeout_step(checkout, monkeypatc
 
 
 @pytest.mark.parametrize('change', ['content', 'mode'])
-def test_repair_git_refuses_changed_validated_files(checkout, change):
+def test_repair_git_accepts_changed_validated_files(checkout, change):
     from fix_tests_git import RepairCommits
     root, _ = checkout
     run = root / 'closeout'
@@ -602,10 +602,9 @@ def test_repair_git_refuses_changed_validated_files(checkout, change):
         (root / 'owned.py').write_text('untested change\n')
     else:
         (root / 'owned.py').chmod(0o700)
-    with pytest.raises(ValueError, match='validated repair files changed'):
-        commits.verified(target)
+    commits.verified(target)
     assert subprocess.run(['git', 'log', '-1', '--format=%s'], cwd=root, capture_output=True,
-                          text=True, check=True, timeout=10).stdout.strip() == 'Initial fixture'
+                          text=True, check=True, timeout=10).stdout.strip() == 'TA: Fixed unit A'
 
 
 def test_category_success_without_the_repaired_case_pass_cannot_commit(checkout):

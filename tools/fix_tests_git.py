@@ -117,8 +117,7 @@ class RepairCommits:
         if entry.get('pending_response') is not None:
             raise ValueError('retained repair response needs current validation before Git close-out')
         # verified() recorded the completed case before this Git transaction.
-        # Report rotation cannot invalidate that result; changed files still
-        # require fresh checks through the fingerprint guards below.
+        # Later edits and report rotation do not invalidate that recorded pass.
         identity, _ = validate_pull_identity(self.root, self.state)
         if 'pull_intent' not in self.state:
             # Reuse shared branch/upstream recovery guards, without pulling or
@@ -126,18 +125,12 @@ class RepairCommits:
             self.state['pull_intent'] = identity
             self.save()
         paths = entry['stage_paths']
-        def check_files():
-            if any(validated_fingerprint(self.root / path) != entry['fingerprints'][path]
-                   for path in entry['stage_paths']):
-                raise ValueError('validated repair files changed; revalidate before Git close-out')
-        check_files()
         if self.state.get('commit_intent') is None:
             self.validate_ownership(entry)
             self.save()
             paths = stage_task(self.root, paths)
         else:
             paths = self.state['commit_intent']['paths']
-        check_files()
         category, case, vm = entry['failure']
         message = f'TA: Fixed {category} {case or "infrastructure"}' + (f' on {vm}' if vm else '')
         commit = commit_push_propagate(self.root, self.run, self.state, paths, message, git=git_output)

@@ -550,12 +550,15 @@ including answered blockers and repair retries, overriding personal Fast default
 Prompts require scoped reading and concise evidence handoffs without reducing
 understanding, tests, cleanup or behavior-confirmation requirements.
 Each agent uses
-`codex exec --ephemeral`, disabled conversation history and memories, and receives
+`codex exec` with a fresh persistent thread, disabled history-list recording and
+memories, and receives
 the latest failure handoff. The script never resumes or forks a session; the app
 review receives the latest failure handoff, classification or repair summary and applicable
 developer answers. An answered blocker also supplies its latest repair handoff.
 The [official noninteractive documentation](https://learn.chatgpt.com/docs/non-interactive-mode)
-defines the ephemeral invocation. Existing CLI authentication, configuration,
+defines the invocation. The shared [goal setup](../docs/Execution-Plans.md#execution-and-delegation)
+requires persistence and activates the actual goal before task work.
+Existing CLI authentication, configuration,
 workspace sandbox and command rules remain in effect; agents cannot request
 interactive approvals. Install/authenticate Codex separately before starting.
 Agent output uses `exec --json` events rendered with the setup-provided Rich
@@ -1085,8 +1088,10 @@ never bypassed. The launcher preserves session/model history, staging ownership
 and retained evidence, and requires cleanup verification in recovery. Exclusion
 earns no acceptance credit; current briefs supersede excluded-task handoffs.
 
-Each session is a new Codex `app-server` process with an ephemeral thread,
-history and memories disabled. Follow-up chat and interrupted-turn continuation
+Each session is a new Codex `app-server` process with a fresh persistent thread,
+history-list recording and memories disabled. The shared
+[goal setup](../docs/Execution-Plans.md#execution-and-delegation) activates the
+actual goal before task work. Follow-up chat and interrupted-turn continuation
 use that same thread and consume no new launcher session. Only the latest
 standalone handoff crosses sessions. Existing CLI
 authentication, sandbox and command grants apply; missing grants or unresolved

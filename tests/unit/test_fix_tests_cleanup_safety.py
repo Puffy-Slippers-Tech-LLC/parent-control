@@ -951,7 +951,7 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
     assert json.loads((run / 'frame.json').read_text()) == []
     assert agents[0]['prompt'].startswith('LATEST FAILURE ONLY\n')
     assert 'PREVIOUS AGENT TRANSCRIPT' not in agents[0]['prompt']
-    assert '--ephemeral' in agents[0]['args']
+    assert '--ephemeral' not in agents[0]['args']
     usage = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
     if mode == 'agent-invalid':
         assert usage[0]['event'] == 'missing_usage' and usage[0]['usage'] is None
@@ -1239,7 +1239,7 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
         assert agent['prompt'].count('LATEST FAILURE ONLY') == 1
         assert 'PREVIOUS AGENT TRANSCRIPT' not in agent['prompt']
         assert agent['thread'] is None
-        assert '--ephemeral' in agent['args']
+        assert '--ephemeral' not in agent['args']
         assert not {'resume', 'fork', '--last'} & set(agent['args'])
 
 
@@ -1602,7 +1602,7 @@ def test_unit_app_or_uncertain_classification_starts_fresh_sol_medium_agent(chec
     assert agents[1]['prompt'].startswith('LATEST FAILURE ONLY\n')
     assert f'{classification}: fixture result' in agents[1]['prompt']
     assert 'PREVIOUS AGENT TRANSCRIPT' not in agents[1]['prompt']
-    assert '--ephemeral' in agents[1]['args']
+    assert '--ephemeral' not in agents[1]['args']
     assert not {'resume', 'fork', '--last'} & set(agents[1]['args'])
 
 

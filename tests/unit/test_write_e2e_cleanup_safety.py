@@ -892,7 +892,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(
     assert len({call['pid'] for call in invocations}) == 2
     for index, call in enumerate(invocations):
         assert call['thread'] is None
-        assert 'app-server' in call['args'] and call['thread_start']['ephemeral'] is True
+        assert 'app-server' in call['args'] and call['thread_start']['ephemeral'] is False
         assert not {'resume', 'fork', '--last'} & set(call['args'])
         assert call['thread_start']['model'] == 'gpt-6.1-sol'
         assert 'model_reasoning_effort="high"' in call['args']

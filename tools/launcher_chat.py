@@ -353,7 +353,7 @@ class AppSession:
                 self.encode({'method': 'initialized', 'params': {}})
                 self.request('thread/start', {'model': self.model, 'cwd': str(self.root),
                              'approvalPolicy': 'never', 'sandbox': 'workspace-write',
-                             'ephemeral': True})
+                             'ephemeral': False})
             elif method == 'thread/start':
                 self.thread = result['thread']['id']
                 self.start_turn(self.prompt)

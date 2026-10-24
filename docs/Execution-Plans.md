@@ -92,6 +92,17 @@ goal API when running noninteractively; inserting the command as literal prompt
 text does not satisfy this requirement. Apply it to every fresh session,
 including continuations, repairs and retries, while preserving the selected
 task's scope, acceptance and existing session limits.
+Goal state requires a persistent thread: shared CLI sessions omit `--ephemeral`,
+and interactive sessions use `thread/start` with `ephemeral: false`. Both
+transports instruct the agent to inspect `get_goal` and activate the objective
+with `create_goal` before task work; delegated assignments carry
+the same setup requirement. Activation failure stops the session through its
+existing blocker/error route instead of falling back to advisory prompt text.
+Activation happens inside the assigned turn: setting an active goal on an idle
+thread can start an automatic turn before the launcher supplies its task.
+History-list recording and memories remain disabled; sessions still start with
+fresh context and do not resume previous conversations. Complete the goal when
+the bounded assignment has been verified, before its final handoff.
 
 Read repository instructions, the master, the selected brief and only applicable
 owning contracts/source. The shared coordinator prompt supplies the validated
@@ -133,9 +144,9 @@ Generated coverage-summary maintenance uses `tools/generate_test_coverage.sh`;
 its collection follows the [runner inspection contract](../tests/README.md#aggregate-execution-and-reconnection),
 which remains available while tests are running.
 
-Launcher coordinators are ephemeral and have no stored conversation rollout to
-fork. On every `spawn_agent` call, explicitly set `fork_turns="none"`; omitting it
-or using `"all"` can fail with `no rollout found`. Supply a self-contained helper
+Launcher coordinators use persistent threads for goal state, while every helper
+starts with fresh context. On every `spawn_agent` call, explicitly set
+`fork_turns="none"`; never omit it or use `"all"`. Supply a self-contained helper
 assignment with the exact scope, paths, relevant instructions, current evidence
 and write ownership. The shared launcher injects this requirement for workers,
 monitors, advisers and backend reviewers in both CLI and interactive sessions.

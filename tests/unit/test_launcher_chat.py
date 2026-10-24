@@ -47,7 +47,7 @@ def ready(session):
     respond(session, request, {})
     initialized, request = packets(session)
     assert initialized['method'] == 'initialized'
-    assert request['params']['ephemeral'] is True
+    assert request['params']['ephemeral'] is False
     assert request['params']['approvalPolicy'] == 'never'
     assert request['params']['sandbox'] == 'workspace-write'
     respond(session, request, {'thread': {'id': 'thread'}})
@@ -244,7 +244,7 @@ def test_adviser_completion_cannot_finish_coordinator(conversation):
 
 
 def test_app_transport_preserves_policy_and_model_config():
-    command = ['/opt/codex', '--ask-for-approval', 'never', 'exec', '--ephemeral',
+    command = ['/opt/codex', '--ask-for-approval', 'never', 'exec',
                '-c', 'agents.max_depth=1', '-c', 'service_tier="default"',
                '--output-schema', '/schema', '-']
     actual = app_command(command)

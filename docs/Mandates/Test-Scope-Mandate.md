@@ -24,13 +24,23 @@ implementing a core guarantee belongs to core infrastructure; an ordinary case
 helper, test data builder or assertion wrapper does not become core merely
 because other tests use it.
 
-**Do not add or retain unit tests for non-product code except core execution/
-verdict integrity and concrete dangerous or disruptive actions.** Change and run
-ordinary test code through its existing consumers; if it breaks, fix it in use.
+**Do not add or retain unit tests for non-product code except direct protection
+of critical execution/verdict integrity, credential boundaries, or concrete
+dangerous or unauthorized actions.** Change and run ordinary test code through
+its existing consumers; if it breaks, fix it in use.
 Add a direct infrastructure regression only for an uncovered guarantee within
 those exceptions. A launcher, plan, qualification script or reusable helper is
 not automatically core infrastructure. Apply this rule to existing coverage,
 new implementation, automated repair and every task brief or launcher.
+
+Classify the specific behavior being tested, not the importance of the tool
+containing it. A failure that makes ordinary development work unavailable,
+incorrect, inconvenient or slower does not by itself meet an exception. Shared
+use, dependency status and guards that stop work do not establish criticality.
+An exception requires a direct failure path to a false execution/verdict claim,
+credential exposure, or a concrete dangerous or unauthorized action;
+hypothetical downstream effects and general reliability claims are insufficient.
+
 Here, false-pass protection means execution integrity: selected work actually
 runs, failures/skips/missing results cannot become a pass, and evidence belongs
 to that attempt. It does not mean separately unit-testing every scenario's
@@ -45,6 +55,13 @@ Use them in their normal workflow. Complexity, reuse or a bug in such a tool
 does not by itself warrant another test layer. Shared credential and destructive
 operation guards remain tested once at their existing owner, rather than through
 every tool that calls them.
+
+Do not add assertions, parameters, fixtures or cases for excluded behavior to an
+existing suite as a substitute for creating a new suite. An existing test owner
+does not grant broader coverage scope. Adapt existing tests only as necessary
+to preserve an admitted guarantee when its implementation or interface changes;
+validate ordinary feature behavior through its normal consumers or a bounded
+smoke run instead.
 
 ## Limits
 
@@ -97,6 +114,9 @@ For non-product coverage, name the shared guarantee's existing test owner before
 adding another case or module. Review the fully expanded parameter count, not
 just the number of test functions. Prefer extending or replacing the owner's
 representative check over copying it into a new consumer-specific module.
+State the concrete critical consequence and how the proposed check directly
+protects it. If that cannot be established, do not add or expand unit coverage,
+even for a bug fix or an explicit request to test the change.
 Automated implementation and repair must apply this admission rule too; a
 request to add regression coverage does not override these scope limits. Do not
 build another checker, registry or test suite to enforce this mandate.

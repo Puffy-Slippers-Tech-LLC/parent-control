@@ -104,7 +104,7 @@ def prompt(release, work, subagents, *, context=None):
     helper = (f'Use exactly {len(lanes) - 1} read-only whatsnew_translator subagents for the helper '
               'assignments below; delegation is required when helper assignments exist. '
               'On every spawn_agent call, explicitly set fork_turns="none". The coordinator '
-              'is ephemeral and has no stored rollout to fork. Give each helper a self-contained '
+              'starts with fresh context. Give each helper a self-contained '
               'assignment with these read-only/scope/data instructions, its exact languages and '
               'records, current English, previous text when relevant, and supplied locale context. '
               'Start all helpers before translating the coordinator assignment. Each helper '

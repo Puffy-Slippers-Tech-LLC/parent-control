@@ -302,7 +302,7 @@ def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
     command = sync.agent_command(ROOT, tmp_path, 'gpt-6.1-sol', 'high', 2)
     assert command.count('--sandbox') == 1
     assert command[command.index('--sandbox') + 1] == 'read-only'
-    assert '--ephemeral' in command and '--json' in command
+    assert '--ephemeral' not in command and '--json' in command
     assert command[command.index('--ask-for-approval') + 1] == 'never'
     assert 'agents.max_depth=1' in command
     assert 'agents.max_concurrent_threads_per_session=2' in command
@@ -312,7 +312,7 @@ def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
     assert 'enabled = false' in config
 
 
-def test_ephemeral_helpers_receive_self_contained_translation_and_review_tasks(repository):
+def test_helpers_receive_self_contained_translation_and_review_tasks(repository):
     release = catalogs.prepare(repository)
     work = catalogs.pending(repository, release)
     instructions, manifest = sync.prompt(release, work, 2).split('\n\n', 1)
@@ -475,7 +475,8 @@ def test_real_launcher_transport_with_private_codex_double(repository, parallel)
         'tools/sync-whatsnew', 'tools/sync_whatsnew.py', 'tools/whats_new_catalogs.py',
         'tools/sync_whatsnew_response.schema.json', 'tools/sync_whatsnew_translator.toml',
         'tools/detached_launcher.py', 'tools/test_storage.py', 'tools/test_retention.py',
-        'tools/test_input_transfer.py',
+        'tools/test_input_transfer.py', 'tools/test_io.py', 'tools/vm_pool.py',
+        'tools/evidence_capture.py', 'tools/evidence_identity.py',
         'tools/launcher_view.py', 'tools/launcher_runtime.py',
         'tools/launcher_display.py', 'tools/launcher_chat.py',
         'tools/launcher_render.py', 'tools/launcher_progress.py', 'tools/watch_output.py',

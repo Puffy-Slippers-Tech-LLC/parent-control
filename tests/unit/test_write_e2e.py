@@ -156,7 +156,7 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     assert role['features']['memories'] is False
     assert role['history']['persistence'] == 'none'
     assert 'Do not edit files, run tests/builds, control the VM' in role['developer_instructions']
-    assert command[-1] == '-' and '--ephemeral' in command
+    assert command[-1] == '-' and '--ephemeral' not in command
 
 
 @pytest.mark.parametrize('phase,attempts,tier,model,effort', [
@@ -184,7 +184,7 @@ def test_command_prompt_and_display_use_selected_tier(tmp_path, monkeypatch,
     assert ('e2e_adviser' in config['agents']) is (effort == 'high')
     assert ('plan_worker' in config['agents']) is (effort == 'high')
     assert config['service_tier'] == 'default' and config['features']['fast_mode'] is False
-    assert '--output-schema' in command and '--ephemeral' in command
+    assert '--output-schema' in command and '--ephemeral' not in command
     prompt = workflow.session_prompt(state)
     label = 'GPT-6.1-Sol ' + {'high': 'High', 'xhigh': 'Extra High', 'max': 'Max'}[effort]
     assert f'You are the {label} coordinator' in prompt
@@ -1395,9 +1395,7 @@ def test_restart_recovers_incomplete_response_without_advancing_or_staging(tmp_p
     assert selected['live_attempts'] == 2
     prompt = workflow.session_prompt(selected)
     assert 'Reconcile interrupted close-out for task 001' in prompt
-    assert str(previous / 'handoff.txt') in prompt
     assert 'Last safe failure evidence.' in prompt
-    assert 'Reuse sufficient retained' in prompt
     assert 'restore this task\'s unchecked row' in prompt
     assert not staged
     assert workflow.queue_state(tmp_path)[0] == '002'

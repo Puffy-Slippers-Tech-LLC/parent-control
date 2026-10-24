@@ -140,10 +140,27 @@ Include this discovery requirement in every delegated assignment.
 """
 
 
-SUBAGENT_CONTEXT_INSTRUCTIONS = """This launcher coordinator is ephemeral and has no
-stored rollout to fork. On every spawn_agent call, explicitly set fork_turns="none".
-Never omit fork_turns or use "all": copying the coordinator's stored conversation
-can fail with "no rollout found". Give every helper a self-contained assignment
+SESSION_GOAL = ('Simple, lean, robust, do not overenginering. If a problem can be solved '
+                'by simplier approaches, do not use more complex ones')
+
+GOAL_INSTRUCTIONS = f"""Before task work, use get_goal to inspect this session's actual
+Codex goal state. If absent, call create_goal with objective:
+{SESSION_GOAL}
+Verify that this exact goal is active. Literal /goal prompt text or following the
+objective as advice is insufficient. If goal activation fails, stop and report
+the failure through the workflow's existing blocker/error route; do not silently
+continue without it. Do not add a token budget or change task scope, acceptance,
+session limits or delegation policy. Complete the goal after verifying your
+bounded assignment, before the final handoff. Include these goal setup instructions
+and the exact objective in every fresh helper assignment, including workers,
+monitors, advisers and reviewers.
+
+"""
+
+
+SUBAGENT_CONTEXT_INSTRUCTIONS = """Every launcher session starts with fresh context.
+On every spawn_agent call, explicitly set fork_turns="none".
+Never omit fork_turns or use "all". Give every helper a self-contained assignment
 with its exact scope, paths, relevant instructions, current evidence and disjoint
 write ownership. This applies to workers, monitors, advisers and backend reviewers;
 it does not authorize delegation beyond the launcher's existing policy.
@@ -173,7 +190,7 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
     codex = shutil.which('codex')
     if codex is None:
         raise ValueError('Codex CLI is missing; install and authenticate it before running this launcher')
-    command = [codex, '--ask-for-approval', 'never', 'exec', '--ephemeral',
+    command = [codex, '--ask-for-approval', 'never', 'exec',
             '--sandbox', 'workspace-write', '--model', model,
             '-c', f'model_reasoning_effort="{effort}"',
             '-c', 'history.persistence="none"', '-c', 'features.memories=false',
@@ -181,7 +198,7 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
             '-c', 'features.multi_agent_v2=false',
             '-c', 'agents.enabled=true',
             '-c', 'developer_instructions=' + json.dumps(
-                SOURCE_DISCOVERY_INSTRUCTIONS + SUBAGENT_CONTEXT_INSTRUCTIONS
+                GOAL_INSTRUCTIONS + SOURCE_DISCOVERY_INSTRUCTIONS + SUBAGENT_CONTEXT_INSTRUCTIONS
                 + BACKEND_REVIEW_INSTRUCTIONS),
             '-c', 'agents.backend_reviewer.description="Mandatory independent review of core backend changes only; no implementation"',
             '-c', 'agents.backend_reviewer.config_file=' + json.dumps(str(Path(__file__).with_name('backend_reviewer.toml'))),

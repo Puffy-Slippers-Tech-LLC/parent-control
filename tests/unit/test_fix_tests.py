@@ -443,13 +443,13 @@ def test_unmapped_aggregate_failure_is_not_a_fabricated_category_pass():
     repair.assert_not_called()
 
 
-def test_agent_is_ephemeral_sol_medium_standard_without_parent_context(monkeypatch):
+def test_agent_is_persistent_sol_medium_standard_without_parent_context(monkeypatch):
     monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
     for key in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
                 'ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', fix_tests.FRAME_DIRECTORY):
         monkeypatch.setenv(key, 'previous-context')
     command = fix_tests.repair_command(ROOT, fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT)
-    assert command[:5] == ['/opt/codex', '--ask-for-approval', 'never', 'exec', '--ephemeral']
+    assert command[:4] == ['/opt/codex', '--ask-for-approval', 'never', 'exec']
     assert command[command.index('--model') + 1] == 'gpt-6.1-sol'
     assert 'model_reasoning_effort="medium"' in command
     assert 'service_tier="default"' in command and 'features.fast_mode=false' in command
@@ -484,7 +484,7 @@ def test_shared_agent_instructions_preserve_any_launcher_model(tmp_path, monkeyp
     # A future launcher can select a different coordinator without opting into review.
     command = detached_launcher.agent_command(tmp_path, 'future-coordinator-model', 'high', **options)
     assert command[command.index('--model') + 1] == 'future-coordinator-model'
-    assert '--ephemeral' in command
+    assert '--ephemeral' not in command
     if transport == 'app-server':
         from launcher_chat import app_command
         command = app_command(command)

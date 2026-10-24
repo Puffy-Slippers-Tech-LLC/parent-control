@@ -1,4 +1,4 @@
-"""Scripted test orchestration. Each repair is a fresh, ephemeral Codex process.
+"""Scripted test orchestration. Each repair is a fresh Codex process and thread.
 
 Only the worker owns loop state. Observers may disappear at any time. A small
 subprocess supervisor retains the owner lock and watches its parent's pipe, so

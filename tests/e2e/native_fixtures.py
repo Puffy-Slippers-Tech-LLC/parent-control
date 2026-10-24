@@ -40,7 +40,8 @@ def guest_source():
 
 class NativeFixtures:
     def __init__(self, transport, verified, *, profile='native'):
-        require(profile in ('native', 'chinese', 'riley-grid', 'activity'), 'native:profile')
+        require(profile in ('native', 'chinese', 'riley-grid', 'activity', 'baseline-child'),
+                'native:profile')
         self.profile = profile
         self.transport, self.verified = transport, verified
         self.attempt = dict(transport.config)
@@ -55,7 +56,10 @@ class NativeFixtures:
         names = (activity_sources() if self.profile == 'activity' else
                  riley_grid_sources() if self.profile == 'riley-grid' else sources())
         selection = getattr(self.verified, 'fixture_selection', None)
+        require(self.profile != 'baseline-child' or selection is not None,
+                'fixtures:e2e-profile-not-qualified')
         selected_activity = False
+        selected_child = False
         if selection is not None:
             from e2e_fixture_preparation import (ACTIVITY_CALLER, ACTIVITY_SUBSETS,
                                                  SUBSETS, asset_hashes, qualified_subsets)
@@ -65,13 +69,16 @@ class NativeFixtures:
                 caller=prepared.get('caller'), product_free=prepared.get('product_free', False))
             selected_activity = (self.profile == 'activity' and subsets == ACTIVITY_SUBSETS
                                  and prepared.get('caller') == ACTIVITY_CALLER)
-            require(self.profile in ('native', 'chinese') or selected_activity,
+            selected_child = (self.profile == 'baseline-child' and subsets == ACTIVITY_SUBSETS
+                              and prepared.get('caller') == ACTIVITY_CALLER)
+            require(self.profile in ('native', 'chinese') or selected_activity or selected_child,
                     'fixtures:e2e-profile-not-qualified')
             require({'controller', 'receipt'} <= set(prepared)
                     and prepared['controller'] is not None and prepared['receipt'] is not None,
                     'fixtures:readiness-required')
             prepared['controller'].require_ready(prepared['receipt'])
-            files = asset_hashes(selection, **({'subsets': subsets, 'caller': prepared['caller']}
+            files = asset_hashes(selection, **({'subsets': subsets, 'caller': prepared['caller'],
+                                                'child': selected_child}
                                                if subsets != SUBSETS else {}))
         else:
             files = self.verified.asset_files
@@ -80,7 +87,8 @@ class NativeFixtures:
         if self.profile not in ('chinese', 'activity'):
             require(len({expected[name] for name in executable_sources()}) == 4, 'native:identical-roles')
         raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
-                                   ('activity-selected' if selected_activity else
+                                   ('baseline-child-selected' if selected_child else
+                                    'activity-selected' if selected_activity else
                                     'native-selected' if selection is not None and self.profile == 'native'
                                     else self.profile),
                                    json.dumps(expected, sort_keys=True)],
@@ -133,13 +141,18 @@ class NativeFixtures:
                 return {**value, 'independent_readback': True}
             names = riley_grid_sources() if self.profile == 'riley-grid' else sources()
             launchers = [desktop_id('A')] if self.profile == 'riley-grid' else [desktop_id(asset[0]) for asset in ASSETS]
-            require(set(value) == {'files', 'launchers'} and set(value['files']) == set(names)
+            require(set(value) == {'files', 'launchers'} |
+                        ({'child_role'} if self.profile == 'baseline-child' else set())
+                    and (self.profile != 'baseline-child' or value['child_role'] == 'child')
+                    and set(value['files']) == set(names)
                     and value['launchers'] == launchers,
                     'native:receipt')
             require(self.command('read') == value, 'native:independent-readback')
             self.receipt = value
         self.failed = False
-        return {'verified': len(launchers), 'verified_files': len(value['files']), 'independent_readback': True}
+        return {'verified': len(launchers), 'verified_files': len(value['files']),
+                **({'child_role': 'child'} if self.profile == 'baseline-child' else {}),
+                'independent_readback': True}
 
 
 def fixture_actions(*, include_refusal=True, profile='native'):

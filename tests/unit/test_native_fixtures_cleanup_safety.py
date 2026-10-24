@@ -357,7 +357,7 @@ def test_selected_activity_checks_current_readiness_before_and_after_each_read(m
         if fault == 'stale' or fault == 'stale-after-read' and readiness.require_ready.call_count == 2:
             raise ValueError('fixtures:stale-readiness')
     readiness.require_ready.side_effect = ready
-    prepared = {'controller': readiness, 'receipt': 'current', 'subsets': ('native', 'activity'),
+    prepared = {'controller': readiness, 'receipt': 'current', 'subsets': preparation.ACTIVITY_SUBSETS,
                 'caller': 'check_e2e_baseline_journey'}
     if fault == 'missing': prepared = None
     value = {'files': {name: {} for name in activity_sources()}, 'native_trust': True}
@@ -576,5 +576,5 @@ def test_riley_requires_the_same_fedora_policy_guard_before_any_file_read(payloa
     monkeypatch.setattr(guest, 'read_regular', reader)
     with pytest.raises(ValueError, match='native-policy-unproven'):
         guest.riley_readback(shared, expected)
-    policy.assert_called_once_with(expected)
+    policy.assert_called_once_with(expected, selected=False)
     reader.assert_not_called()

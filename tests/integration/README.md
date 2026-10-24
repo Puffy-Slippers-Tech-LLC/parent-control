@@ -193,7 +193,9 @@ reboot preserves the selected bytes and scenario mutations.
 Clean Ubuntu 26.04 and Fedora 44 installed E2E attempts select their immutable runtime
 input before VM acquisition. Unrelated callers retain the `native` closure;
 `BaselineJourneyQualification` binds only `check_e2e_baseline_journey` to the
-finite `native` plus `activity` union. After app-snapshot restoration, guarded
+finite `native`, `activity` and `baseline-child` union. The last subset supplies
+only Riley's four native catalogue launchers; Jordan retains the shared runtime
+and existing native launchers. After app-snapshot restoration, guarded
 SSH readiness and fresh credential binding, `InstalledSetup.provision` uses the
 [shared provisioner](../support/README.md#attempt-owned-fixture-provisioning)
 before scenario asset transfer and input. `InstalledJourney` and the
@@ -209,27 +211,31 @@ tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
 tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_installed
 ```
 
-This preparation-only check selects that baseline union and stops before worker
-or product assertions. It calls the same installed setup and actual
-`NativeFixtures(profile='activity').verify()` before scenario transfer, using
-selected manifest hashes and current attempt readiness. It independently checks
+This check selects that baseline union through the same installed setup and
+actual `NativeFixtures` activity and baseline-child profiles before product
+input, using selected manifest hashes and current attempt readiness. It independently checks
 selected manifest bytes and harmless native and activity use as Riley,
 missing/incompatible refusal, fresh attempt readiness, no-write repeats and
 unchanged selection after actual producer-source edits. The actual activity
 consumer also refuses absent, incompatible and prior-generation readiness.
-Results retain package
+One online and one offline attachment also use the normal Parent worker to
+observe Riley's A/H/S/N catalogue defaults, save H permanent and S conditional,
+and read those saved choices after fresh child reselection. Jordan's defaults
+remain unchanged. Public controls restore Riley's H/S Allowed and controls off,
+with settings and zero balances independently observed. Results retain package
 metadata and frozen helpers rather than the complete fixture collection.
 Scenario asset mutations remain separate. Watched baseline restoration and
 owned credential, staging, input and transport cleanup are required.
 Standalone transfer and serial retain their separately qualified preparation
-boundaries; unqualified fixture profiles remain gated. This supplies no customer or E2E acceptance.
+boundaries; unqualified fixture profiles remain gated. This supplies finite
+catalogue/preparation acceptance, not a complete customer or E2E history.
 
 ### Fedora installed E2E preparation
 
-Fedora 44 uses the same installed boundary and preparation-only selector above.
-Its immutable input must match the selected VM and restored guest. Two online
-resume/rebind attempts and two explicit offline Kiosk attachments independently
-verify the selected native/activity runtime, enforcing SELinux, exact finite
+Fedora 44 uses the same installed boundary and selector above.
+Its immutable input must match the selected VM and restored guest. Online
+resume/rebind and explicit offline Kiosk attachment independently
+verify the selected runtime and Riley launchers, enforcing SELinux, exact finite
 admissions and labels.
 Fresh attempt readiness, prior-generation refusal, unchanged selection after
 producer-source edits and watched restoration remain required on both branches.

@@ -346,7 +346,7 @@ class BaselineAppEffectsQualification(KioskEntryQualification):
 
 class BaselineJourneyQualification(KioskEntryQualification):
     # This fixed caller selects its finite closure before VM acquisition.
-    fixture_subsets = ('native', 'activity')
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
     fixture_caller = 'check_e2e_baseline_journey'
 
     @staticmethod

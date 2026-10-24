@@ -1067,12 +1067,12 @@ Replacement or other refusal stops immediately, without another input.
 
 #### C04j1 selected activity input preparation
 
-`check_fixture_e2e_installed` qualifies the fixed baseline caller's immutable
-`native` plus `activity` union through `prepare_installed_setup`, including the
-actual `NativeFixtures(profile='activity').verify()` before asset or worker
-input. Other callers retain native-only defaults. Activity hashes come from the
-selected manifest; verification uses current attempt readiness and independent
-runtime trust readback rather than the legacy embedded-fixture receipt.
+C04j1 qualified the fixed baseline caller's immutable `native` plus `activity`
+union through `prepare_installed_setup`, including the actual
+`NativeFixtures(profile='activity').verify()` before product input. Other callers
+retain native-only defaults. Activity hashes come from the selected manifest;
+verification uses current attempt readiness and independent runtime trust
+readback rather than the legacy embedded-fixture receipt.
 
 The actual command was
 `tools/run-tests integration --vm 'onpc-Ubuntu26.04,onpc-Fedora44' check_fixture_e2e_installed`:
@@ -1097,6 +1097,40 @@ this new envelope. C04j must renew that affected complete history and diagnose
 Ubuntu's final Parent save before its missing complete history. Separate
 feature/pause results remain reusable; C04, C05 and the E2E queue stay open.
 
+C04j's subsequent live maintenance replay passed this selected preparation but
+stopped before its first H access input: Riley's public catalogue had no A/H/S/N
+rows. The `native` subset supplies Jordan's four user-local launchers and none of
+Riley's; `riley-grid` supplies only Riley's A and is insufficient. Adding only
+identical launchers to Riley in the disposable live guest, then refreshing the
+public catalogue, exposed all four rows; H permanent persisted across reselection
+with its match unchanged. The successful bounded reload read followed an initial
+premature read during loading. This is engineering diagnosis, not preparation or
+customer acceptance. C04j2 adds only Riley's four native launchers as the finite
+`baseline-child` subset. The existing fixed baseline caller selects
+`('native', 'activity', 'baseline-child')`; native and Riley-grid defaults remain
+unchanged. `NativeFixtures(profile='baseline-child')` independently reads Riley's
+four launchers and the Jordan-owned shared runtime before product input, with
+selected hashes and the existing owner, mode, no-link and readiness guards.
+
+The same `check_fixture_e2e_installed` consumer now runs one online and one
+offline attachment with the normal Parent worker. It observes Riley's exact
+A/H/S/N rows and default matches, saves H permanent and S conditional, then
+requires those saved values after child reselection and unchanged Jordan
+defaults. It publicly restores H/S Allowed and controls off, verifies settings
+and zero balances, collects the worker and restores the clean baseline.
+Ubuntu passed both attachments in 18.4 minutes and Fedora in 16.9 minutes.
+Both consumers completed worker collection and baseline restoration. Serial
+owned cleanup passed and both pinned guests were independently observed off.
+Fedora's enclosing runner initially failed its recording-finished notification
+with `vm-config:fields` after the registry changed during its lifetime; its
+recording itself closed successfully. The current parser accepts that registry.
+A fresh `tools/run-tests --vm 'onpc-Fedora44' integration 'check_test_recovery'`
+passed the same notification and recording closure with exit status zero.
+No source change or repeat of the valid installed histories was needed. Serial
+owned cleanup passed again and both pinned guests were independently observed
+off. C04j2 is complete. C04j1's completed guard qualifications remain valid; no
+complete customer history or other queue task receives acceptance credit.
+
 <a id="c04j-complete-baseline-composition"></a>
 
 #### Complete baseline composition
@@ -1113,6 +1147,19 @@ Diagnose the actual prompt boundary without bypassing refusal, extending the
 1800-second history limit or removing final assertions. Renew any history
 invalidated by a shared repair; unchanged complete evidence needs exact
 applicability review before reuse.
+
+The current bounded maintenance route is
+`tools/test-vm --vm NAME reproduce-baseline-restoration`: the same complete
+`BaselineJourney` and 1800-second worker bound, stopping at unanswered
+`restore-saved` for one guarded public read and subsequent live `exec` probes.
+It stages the shared installed helper closure, uses C04j1's selected activity
+preparation, and rebinds the saved snapshot connection to the authenticated
+current maintenance run before provisioning. Independent Sol High review found
+and resolved the original transport-run mismatch; fresh-key verification precedes
+maintenance credential publication and failed unpublished rotation restores only
+the owned instance. Shared guard checks passed. Its live setup passed, but the
+missing Riley catalogue inputs above stopped progression at `hard-access-save`;
+the final alert was not reproduced and no formal complete history ran.
 
 The rejected parity scope reduction was reversed; C04j retains the entire
 history on both targets. A later diagnostic stopped at a standalone fixture

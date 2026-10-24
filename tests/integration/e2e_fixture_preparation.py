@@ -4,12 +4,12 @@ from system_fixture_preparation import attempt_id, guest_target, register_stagin
 import xml.etree.ElementTree as ET
 
 SUBSETS = ('native',)
-ACTIVITY_SUBSETS = ('native', 'activity')
+ACTIVITY_SUBSETS = ('native', 'activity', 'baseline-child')
 ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 
 
 def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
-    """Only the baseline's installed caller may select the activity closure."""
+    """Only the fixed installed baseline caller selects both children's catalogues and activity."""
     if (type(subsets) is not tuple or
             (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
              and caller == ACTIVITY_CALLER and not product_free))):
@@ -75,19 +75,21 @@ def prepare(vm, lease, directory, selection, *, product_free=False,
             **({'product_free': True} if product_free else {})}
 
 
-def asset_hashes(selection, *, subsets=SUBSETS, caller=None):
+def asset_hashes(selection, *, subsets=SUBSETS, caller=None, child=False):
     """Bind legacy public observation keys to the selected runtime bytes."""
     subsets = qualified_subsets(subsets, caller=caller)
+    if type(child) is not bool or (child and subsets != ACTIVITY_SUBSETS):
+        raise ValueError('fixtures:e2e-profile-not-qualified')
     manifest = fixture_execution.verify(selection_record(selection))
-    declarations = fixture_manifest.declarations()
     from tests.fixtures import native_assets
-    destinations = native_assets.source_destinations('@other@')
+    destinations = native_assets.source_destinations('@child@' if child else '@other@')
     if subsets == ACTIVITY_SUBSETS:
         destinations.update(zip(native_assets.activity_sources(), (
             (native_assets.ACTIVITY_EXECUTABLE, 0o755),
             *((native_assets.ACTIVITY_PREFIX + '/' + name, 0o644)
               for name in native_assets.GUI_FILES))))
+    selected = fixture_manifest.select(subsets)
     return {source: next(manifest['members'][key]['sha256']
-                        for key, item in declarations.items()
+                        for key, item in selected.items()
                         if item['destination'] == destination)
             for source, (destination, _mode) in destinations.items()}

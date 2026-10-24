@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify baseline native/activity preparation before installed worker input."""
+"""Qualify baseline child catalogue preparation, public saves and restoration."""
 import argparse
 import json
 import sys

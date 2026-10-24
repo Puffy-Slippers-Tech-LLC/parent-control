@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Required tasks: C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j1.
+Required tasks: C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j1, C04j2.
 Estimate: 30–60 min; session exception: complete ordered baseline qualification history.
 
 Apply the [master contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract),
@@ -65,6 +65,43 @@ if their sources change. Close only C04j; C05 rows stay unchecked until their ow
 applicability review and installed-evidence acceptance pass.
 
 ## Remaining qualification
+
+### Current suspension: selected-child catalogue inputs
+
+The maintained `tools/test-vm --vm 'onpc-Ubuntu26.04' reproduce-baseline-restoration`
+now replays this unchanged composition in owned online maintenance, stopping at
+the unanswered `restore-saved` request. It uses the actual selected native/activity
+setup, authenticated fresh transport and the same 1800-second worker bound.
+Independent Sol High review's transport-run finding was resolved through the
+shared authenticated rebind; normal installed start remains unchanged. Scoped
+dispatch/ownership and credential checks passed, including the real rebind owner.
+
+The live replay passed selected activity readiness, Parent entry, enabled zero
+allowance and App Limits entry, then refused `hard-access-save` before input:
+`ui:match-target`, missing `parent-app-6ab03cfdb8a90ba8` (H). Current diagnostic
+allocation: `onpc-baseline-restoration-diagnosis-xmxqc1ms`, private
+`command-0416-stderr.txt`. The live public inventory contained none of A/H/S/N
+for Riley; the selected `native` subset supplied all four launchers only to
+Jordan. No product defect or original alert owner was established.
+
+In the disposable live guest, adding only identical A/H/S/N launcher files to
+Riley and refreshing the public catalogue made all four rows available. H's
+permanent choice then persisted across child reselection with the match rule
+unchanged. An initial diagnostic read raced preference loading; the bounded
+read-only reload check subsequently passed. These engineering experiments are
+not maintained preparation or installed acceptance. C04j2 subsequently qualified
+the finite selected-child input closure on both targets, including online/offline
+preparation, public catalogue/save/restoration checks and runner close-out.
+Resume this task with that fixed selection. Preserve the existing native/activity guards and all C04j
+assertions; the original final-save alert is still unresolved.
+
+Both app-snapshot preparations succeeded; Fedora's first concurrent preparation
+refused an occupied storage owner and its later serial attempt succeeded.
+No formal baseline history ran in this suspension session. Owned worker/callback
+shutdown, both maintenance stops and serial VM/host cleanup completed; both
+guests were independently confirmed off. Scoped host runs passed 62, 144, 14
+and 46 checks; nine-document links and the read-only plan check passed.
+C04j remains unchecked and resumes after C04j2.
 
 The compact 256-stage composition passed 1,604 focused host checks, 190 safety
 checks and independent Sol High review. It omits only nine duplicate desktop

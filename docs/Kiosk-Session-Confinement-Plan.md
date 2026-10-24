@@ -75,7 +75,9 @@ applicability; C04l/s/r/i delivered language, request-choice, reminder and About
 coverage, and C04l/w delivered the finite human-pause/session-lifetime checks.
 Renew only missing or invalidated evidence. C04j's core orchestration is
 implemented; C04j1 qualified its selected native/activity input preparation on
-both targets. C04j now diagnoses the Ubuntu final Parent restoration alert and
+both targets. C04j's live diagnosis found that this selection supplies Jordan's
+launchers but none of Riley's required catalogue launchers. C04j2 qualified that
+finite input gap on both targets; C04j now resumes the Ubuntu final Parent restoration alert and
 completes the affected histories under the recorded input-envelope applicability
 decision. C04 audits readiness, and C05u/f accept
 matching retained complete evidence or execute missing/invalidated histories.
@@ -97,6 +99,18 @@ Estimates include reading, validation, review, cleanup and close-out; longer
 indivisible installed histories retain their explicit exceptions.
 
 ## Acceptance
+
+### Parity boundary for remaining tasks
+
+C04j2, C04j, C04 and C05u/f cover the rebuilt v1.3 kiosk-confinement parity
+slice only: its required fixture inputs, ordinary entry/request/approval,
+time/app effects, reentry and restoration. C04 remains a host readiness audit;
+C05 accepts this same finite history on each target. Reuse the completed separate
+feature and human-pause checks, renewing only concretely affected scope.
+Full-product acceptance, new feature or matching-rule matrices, broader platform
+qualification and new confinement defenses stay with their existing owners
+outside this baseline queue. Every original assertion in the finite parity
+recipe remains required.
 
 ### Core product journey gate
 

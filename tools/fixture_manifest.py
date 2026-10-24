@@ -21,7 +21,7 @@ SCHEMA = 1
 MAX_MEMBER = 8 * 1024 * 1024
 MAX_TOTAL = 128 * 1024 * 1024
 MAX_MANIFEST = 1024 * 1024
-SUBSETS = ('native', 'riley-grid', 'activity', 'mechanical', 'trusted-hard',
+SUBSETS = ('native', 'riley-grid', 'baseline-child', 'activity', 'mechanical', 'trusted-hard',
            'trusted-soft', 'trusted-hard-launcher', 'trusted-soft-launcher',
            'command', 'whitespace', 'pattern', 'retention',
            'catalogue', 'controls', 'compatibility', 'legacy')
@@ -57,6 +57,9 @@ def declarations():
             native_assets.source_destinations('@child@').values()
             if destination.startswith(native_assets.PREFIX + '/')}
     grid.add('@child@/.local/share/applications/' + native_assets.desktop_id('A'))
+    baseline_child = {destination for destination, _ in
+                      native_assets.source_destinations('@child@').values()
+                      if destination.startswith('@child@/.local/share/applications/')}
     trusted = native_assets.trusted_file_modes()
     result = {}
     for destination, (source, mode, owner) in (native | catalogue).items():
@@ -65,6 +68,8 @@ def declarations():
             subsets.add('native')
         if destination in grid:
             subsets.add('riley-grid')
+        if destination in baseline_child:
+            subsets.add('baseline-child')
         if destination.startswith(native_assets.ACTIVITY_PREFIX + '/'):
             subsets.add('activity')
         if destination == baseline_assets.MECHANICAL:

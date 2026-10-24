@@ -1,9 +1,10 @@
-"""Preparation-only proof at the installed journey's real shared boundary."""
+"""Installed fixture proof and finite baseline child catalogue qualification."""
 from copy import deepcopy
 import os
 from pathlib import Path
 import sys
 import tempfile
+import time
 import traceback
 from types import SimpleNamespace
 
@@ -28,6 +29,114 @@ import system_runner as system
 from tools import fixture_execution, fixture_provision
 from tools.test_storage import authenticated_input
 from tests.fixtures import native_assets
+
+
+def catalogue_journey(context, progress, result, previous):
+    """Finite catalogue/save checks within the existing qualified Parent envelope."""
+    from accessible_ui import MATCH_APPS, MATCH_OTHER_APP, MATCH_RULES
+    from parent_toggle import ParentToggleJourney
+    from ui_observations import SettingsObservation, compare_settings
+
+    apps = {**MATCH_APPS, 'N': MATCH_OTHER_APP}
+
+    class CatalogueJourney(ParentToggleJourney):
+        def step(self, guard):
+            self.current_guard = guard
+            return super().step(guard)
+
+        def observe_public(self, operation, *, child=None):
+            self.current_guard()
+            value = self.ui.observe(operation, **({'child': child} if child else {}))
+            self.current_guard()
+            return value
+
+        def select(self, child, enabled):
+            existing = child == 'existing'
+            self.observe_public('existing-child-picker-opened' if existing else 'child-picker-opened')
+            self.observe_public('existing-child-choice-highlighted' if existing else 'child-choice-highlighted')
+            self.observe_public('access-screen', child=child)
+            value = self.observe_public('existing-returned' if existing else 'parent-selected')
+            compare_settings(SettingsObservation.from_settings(value['settings']),
+                SettingsObservation('existing-fixture-child' if existing else 'fixture-child',
+                                    enabled, ('0 minutes',)))
+            self.observe_public('existing-apps' if existing else 'parent-apps-page')
+
+        def rows(self, child, *, hard='allowed', soft='allowed'):
+            expected = {apps[role]: (hard if role == 'H' else soft if role == 'S'
+                        else 'allowed', match) for role, _, _, _, match in native_assets.ASSETS}
+            deadline = time.monotonic() + 30
+            while True:
+                value = self.observe_public('existing-parent-app-rows' if child == 'existing'
+                                            else 'parent-app-rows')['apps']['rows']
+                actual = {row[0]: tuple(row[1:]) for row in value if row[0] in apps.values()}
+                if actual == expected:
+                    break
+                system.require(time.monotonic() < deadline, 'fixture-e2e:catalogue-saved-rows')
+                time.sleep(0.25)
+            for role, operation, rule in (('A', 'match-row', MATCH_RULES[0]),
+                    ('H', 'match-hard-row', MATCH_RULES[3]),
+                    ('S', 'match-soft-row', MATCH_RULES[4])):
+                system.require(self.observe_public(operation, child=child)['match'] ==
+                    {'app': apps[role], 'rule': rule}, 'fixture-e2e:catalogue-default-rule')
+            return sorted((identity, *values) for identity, values in actual.items())
+
+        def check_settings(self, stage, observed):
+            super().check_settings(stage, observed)
+            if stage == 'setup-detached':
+                setup = observed['setup']
+                system.require(setup['child_fixture'] == {'verified': 4,
+                    'verified_files': len(native_assets.sources()), 'child_role': 'child',
+                    'independent_readback': True}, 'fixture-e2e:child-consumer-not-verified')
+                system.require(setup['activity_fixture'] == {
+                    'verified_files': len(native_assets.activity_sources()),
+                    'native_trust': True, 'independent_readback': True},
+                    'fixture-e2e:activity-consumer-not-verified')
+                result['child_fixture'] = setup['child_fixture']
+                result['activity_fixture'] = setup['activity_fixture']
+                result['consumer_refusals'] = activity_readiness_refusals(
+                    self.transport, context.verified, previous)
+                final = proof.audit(self.transport, fixture_execution.verify(
+                    fixture_execution.Selection.from_record(context.fixture_selection)),
+                    preparation.ACTIVITY_SUBSETS)
+                proof.verify_repeat(result['readback'], final)
+                result['assets'] = context.asset_transfer.observe(self.vm)
+                result['worker_input_released'] = True
+            elif stage == 'parent-selected':
+                compare_settings(SettingsObservation.from_settings(observed['ui']['settings']),
+                                 SettingsObservation('fixture-child', False, ('0 minutes',)))
+                result['product_assertions_started'] = True
+            elif stage == 'save-reopened':
+                self.select('existing', False)
+                jordan = self.rows('existing')
+                self.select('child', True)
+                initial = self.rows('child')
+                self.observe_public('access-hard-permanent', child='child')
+                self.observe_public('access-soft-conditional', child='child')
+                self.select('existing', False)
+                system.require(self.rows('existing') == jordan, 'fixture-e2e:jordan-policy-changed')
+                self.select('child', True)
+                saved = self.rows('child', hard='permanent', soft='conditional')
+                self.observe_public('access-hard-allowed', child='child')
+                self.observe_public('access-soft-allowed', child='child')
+                self.select('existing', False)
+                system.require(self.rows('existing') == jordan, 'fixture-e2e:jordan-policy-changed')
+                self.select('child', True)
+                system.require(self.rows('child') == initial, 'fixture-e2e:riley-policy-not-restored')
+                self.observe_public('parent-screen-page')
+                result['catalogue'] = {'riley_defaults': initial, 'riley_saved': saved,
+                    'jordan_defaults': jordan, 'fresh_child_reselection': True,
+                    'access_restored': True, 'default_matches_preserved': True}
+                observed['catalogue'] = result['catalogue']
+            elif stage == 'disabled-settings':
+                compare_settings(SettingsObservation.from_settings(observed['ui']['settings']),
+                                 SettingsObservation('fixture-child', False, ('0 minutes',)))
+                balances = self.observe_public('time-explanation-reach-read')['time_explanation']
+                system.require(all(balances[key]['seconds'] == 0
+                    for key in ('daily', 'one_time', 'total')), 'fixture-e2e:restored-balances')
+                result['catalogue']['controls_off'] = True
+                result['catalogue']['restored_balances'] = balances
+
+    return CatalogueJourney(context, progress)
 
 
 def activity_readiness_refusals(vm, verified, previous):
@@ -168,6 +277,34 @@ def run_history(suite, directory, assets, selection, observe, mode, *, baseline_
         lease.save('isolated')
         verified = VerifiedInputs(lease=lease, assets=assets, root=ROOT, package_only=True)
         suite.verified = verified
+        if baseline_activity:
+            from app_snapshot import snapshot_name
+            from fixture_credentials import FixtureCredentials
+            import e2e_worker
+            credentials = FixtureCredentials()
+            result['fixture_credentials'] = credentials.provision(
+                lease, verified, directory, suite.guestfs, suite.commands)
+            context = SimpleNamespace(directory=directory, verified=verified, lease=lease,
+                commands=suite.commands, host_key=host_key,
+                fixture_selection=selection.record(), fixture_subsets=preparation.ACTIVITY_SUBSETS,
+                fixture_caller=preparation.ACTIVITY_CALLER, fixture_observer=observe,
+                asset_transfer=AssetTransfer(verified),
+                installed_snapshot=snapshot_name(system.package_version(suite.commands,
+                    assets / ('package.' + system.package_format(lease.capture.state['guest'])))))
+            def progress(_stage, _observed):
+                (directory / 'fixture-preparation-result.json').write_bytes(
+                    system.baseline.encode(result))
+            journey = catalogue_journey(context, progress, result, previous)
+            def failed(_category, _code):
+                journey.collect_failure()
+            result['worker_evidence'] = e2e_worker.run_distribution(
+                directory, lease, lease.ledger, expected_inputs=verified.source_files,
+                observe=lambda: None, guarded_observe=journey.step, validate=journey.validate,
+                on_failure=failed, timeout=1800, credentials=credentials)
+            result['matched_screens'] = journey.validate()
+            system.require(result['worker_evidence']['shutdown_verified'] is True,
+                           'fixture-e2e:worker-shutdown-unverified')
+            return result['assets']
         lease.start()
         hostname = system.address(suite.source)
         (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
@@ -178,22 +315,7 @@ def run_history(suite, directory, assets, selection, observe, mode, *, baseline_
         context = SimpleNamespace(directory=directory, verified=verified, lease=lease,
                                   fixture_selection=selection.record(),
                                   asset_transfer=AssetTransfer(verified))
-        if baseline_activity:
-            context.fixture_subsets = ('native', 'activity')
-            context.fixture_caller = 'check_e2e_baseline_journey'
         prepared = prepare_installed_setup(context, vm, lease.guard, observer=observe)
-        if baseline_activity:
-            # Exercise the actual consumer before any worker starts. Include
-            # its independent reads in the no-write audit, not just provision().
-            system.require(prepared['activity_fixture'] == {
-                'verified_files': len(native_assets.activity_sources()),
-                'native_trust': True, 'independent_readback': True},
-                'fixture-e2e:activity-consumer-not-verified')
-            result['consumer_refusals'] = activity_readiness_refusals(vm, verified, previous)
-            manifest = fixture_execution.verify(selection)
-            final = proof.audit(vm, manifest, context.fixture_subsets)
-            proof.verify_repeat(result['readback'], final)
-            result['activity_fixture'] = prepared['activity_fixture']
         assets_receipt = context.asset_transfer.observe(ReadOnlyObservations(vm))
         verified.fixture_prepared['controller'].require_ready(verified.fixture_prepared['receipt'])
         return assets_receipt
@@ -201,7 +323,7 @@ def run_history(suite, directory, assets, selection, observe, mode, *, baseline_
 
 def qualify_pinned(directory, assets, selection, manifest, source, *, baseline_activity=False):
     suite = Suite(open_source)
-    subsets = ('native', 'activity') if baseline_activity else preparation.SUBSETS
+    subsets = preparation.ACTIVITY_SUBSETS if baseline_activity else preparation.SUBSETS
     result = {'target': selected_target(), 'selection': selection.record(),
               'subsets': list(subsets),
               'caller': preparation.ACTIVITY_CALLER if baseline_activity else None,
@@ -216,7 +338,8 @@ def qualify_pinned(directory, assets, selection, manifest, source, *, baseline_a
         ledger = system.RunLedger()
         suite.acquire(ledger)
         previous = {}
-        for index, mode in enumerate(('online', 'online', 'offline', 'offline')):
+        modes = ('online', 'offline') if baseline_activity else ('online', 'online', 'offline', 'offline')
+        for index, mode in enumerate(modes):
             history = directory / ('history-' + str(index + 1) + '-' + mode)
             history.mkdir(mode=0o700)
             system.stage_assets(source_assets, history / 'assets', suite.commands, package_only=True)

@@ -332,6 +332,9 @@ def prepare_installed_setup(context, transport, guard, *, observer=None):
     if clean and subsets != SUBSETS:
         from native_fixtures import NativeFixtures
         guard()
+        prepared['child_fixture'] = NativeFixtures(
+            transport, context.verified, profile='baseline-child').verify()
+        guard()
         prepared['activity_fixture'] = NativeFixtures(
             transport, context.verified, profile='activity').verify()
         guard()
@@ -675,10 +678,12 @@ class InstalledJourney:
                 if install_current:
                     observed['setup'] = setup.run(guard, verify=False)
                 else:
-                    prepared = prepare_installed_setup(context, transport, guard)
+                    prepared = prepare_installed_setup(context, transport, guard,
+                        observer=getattr(context, 'fixture_observer', None))
                     observed['setup'] = {'installed_snapshot': context.installed_snapshot}
                     if prepared is not None and 'activity_fixture' in prepared:
                         observed['setup']['activity_fixture'] = prepared['activity_fixture']
+                        observed['setup']['child_fixture'] = prepared['child_fixture']
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
             if ('activity_fixture' not in observed['setup'] and

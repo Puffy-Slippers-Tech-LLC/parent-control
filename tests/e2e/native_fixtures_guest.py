@@ -111,32 +111,36 @@ def readback(child, expected, *, selected=False):
     return {'files': result, 'launchers': [desktop_id(asset[0]) for asset in ASSETS]}
 
 
-def riley_readback(shared_owner, expected):
+def riley_readback(shared_owner, expected, *, catalogue=False):
     """Read only; executable ownership stays Jordan's, launcher ownership Riley's."""
-    require(type(expected) is dict and set(expected) == set(riley_grid_sources())
+    names = sources() if catalogue else riley_grid_sources()
+    require(type(expected) is dict and set(expected) == set(names)
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
             and len({expected[source] for source in executable_sources()}) == 4)
-    verify_native_policy(expected)
+    verify_native_policy(expected, selected=catalogue)
     riley = pwd.getpwnam(session_control.ACCOUNTS['child'])
     require(riley.pw_uid >= 1000 and riley.pw_uid != shared_owner.pw_uid)
     targets = {source: (path, mode, shared_owner)
                for source, (path, mode) in destinations(shared_owner).items()
                if source in runtime_sources()}
-    launcher = riley_grid_sources()[-1]
-    targets[launcher] = (Path(riley.pw_dir) / '.local/share/applications' / desktop_id('A'),
-                         0o644, riley)
+    targets.update({source: (Path(path), mode, riley)
+                    for source, (path, mode) in source_destinations(riley.pw_dir).items()
+                    if source in names and source not in runtime_sources()})
     result = {}
     with versioned_directory(shared_owner):
         for source, (target, mode, owner) in targets.items():
             with directory(target.parent, owner) as (fd, guard):
                 data, info = read_regular(fd, target.name, owner=owner.pw_uid, mode=mode, limit=LIMIT)
                 require(info.st_gid == owner.pw_gid and hashlib.sha256(data).hexdigest() == expected[source])
-                if source == launcher:
-                    require(data == desktop_entry(ASSETS[0]).encode())
+                if source not in runtime_sources():
+                    asset, = (asset for asset in ASSETS if desktop_id(asset[0]) == target.name)
+                    require(data == desktop_entry(asset).encode())
                 guard()
             result[source] = {'identity': identity(info), 'sha256': expected[source], 'mode': mode}
-    return {'files': result, 'launchers': [desktop_id('A')]}
+    return {'files': result,
+            'launchers': [desktop_id(asset[0]) for asset in ASSETS] if catalogue else [desktop_id('A')],
+            **({'child_role': 'child'} if catalogue else {})}
 
 
 def activity_root_file(path, mode=0o600, gid=0, limit=LIMIT):
@@ -385,10 +389,18 @@ def product_tree(g, path, parent):
 
 def execute(action, expected, profile='native'):
     require(action in ('read', 'refuse'))
-    require(profile in ('native', 'native-selected', 'chinese', 'riley-grid', 'activity', 'activity-selected'))
+    require(profile in ('native', 'native-selected', 'chinese', 'riley-grid',
+                        'baseline-child-selected', 'activity', 'activity-selected'))
     if profile == 'activity-selected':
         require(action == 'read')
         return selected_activity_readback(expected)
+    if profile == 'baseline-child-selected':
+        # Installed preparation precedes any graphical account entry. This
+        # profile reads only fixed selected files under controller readiness.
+        require(action == 'read' and os.geteuid() == 0)
+        shared_owner = pwd.getpwnam(session_control.ACCOUNTS['standard'])
+        require(shared_owner.pw_uid >= 1000)
+        return riley_readback(shared_owner, expected, catalogue=True)
     if profile == 'activity':
         require(action == 'read')
         return activity_readback(expected)

@@ -1092,8 +1092,12 @@ def interrupted_finalization_retry(record, variant):
                           'finalization:account-callback-not-interrupted')
             verify_durable_interval(state, recovery, saved, record)
         else:
-            guest.require(not package_absent() and
-                          b'onpc-removal-fault:' in output,
+            # The lifecycle helper captures usermod's stderr. The exact fault
+            # invocation is verified above through its owned witness; the
+            # package transaction reports the helper's CalledProcessError.
+            failure = (b"kiosk-lifecycle: Command '['usermod', '--expiredate', '1', "
+                       b"'oh-no-parent-control']' returned non-zero exit status 79.")
+            guest.require(status != 0 and not package_absent() and failure in output,
                           'finalization:preerase-callback-not-interrupted')
             guest.verify_package_payload()
             verify_surviving_identity(state, recovery, record)

@@ -118,7 +118,8 @@ def environment():
     for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
                  'ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', 'ONPC_REGRESSION_EVENTS',
                  'ONPC_REGRESSION_INVENTORY', 'ONPC_TEST_RETRY_CASE', 'ONPC_TEST_COMPLETED_CASES',
-                 FRAME_DIRECTORY, WORKFLOW_DIRECTORY):
+                 FRAME_DIRECTORY, WORKFLOW_DIRECTORY, 'ONPC_REPAIR_STARTUP_FD',
+                 'ONPC_REPAIR_WRITER_FD', 'ONPC_REPAIR_RECOVERY_ONLY'):
         result.pop(name, None)
     result['PYTHONUNBUFFERED'] = '1'
     return result
@@ -735,6 +736,21 @@ def _register_nested(parent, child_run):
     atomic(record, entries)
 
 
+def propagation_source_run(root, source):
+    """Resolve a VM pipeline's live workflow without moving its Git checkpoint."""
+    from test_storage import directory
+    if source.parent.parent == directory('fix-tests', root=root):
+        private_directory(source)
+        binding = _start_record(source / 'vm.json')['vm']
+        name = 'host' if binding is None else binding
+        expected = 'pipeline-' + hashlib.sha256(name.encode()).hexdigest()[:24]
+        if (source.name != expected or
+                _start_record(source / 'pipeline.json')['parent'] != str(source.parent)):
+            raise ValueError('invalid propagation pipeline identity')
+        return source.parent
+    return source
+
+
 @contextmanager
 def worktree_resolution_owner(root, session):
     """Authenticate a destination resolver against its live source launcher.
@@ -746,12 +762,13 @@ def worktree_resolution_owner(root, session):
     private_directory(session)
     record = _start_record(session / 'propagation-owner.json')
     source, source_root = Path(record['run']), Path(record['root'])
+    workflow = propagation_source_run(source_root, source)
     if session != source / 'worktree-resolution' or str(root.resolve()) != record['destination']:
         raise ValueError('worktree resolution checkout identity changed')
-    plan_owner = (source.parent.parent == directory('plans', root=source_root)
-                  and len(source.parent.name) == 64
-                  and all(c in '0123456789abcdef' for c in source.parent.name))
-    if (not plan_owner and source.parent not in tuple(directory(kind, root=source_root)
+    plan_owner = (workflow.parent.parent == directory('plans', root=source_root)
+                  and len(workflow.parent.name) == 64
+                  and all(c in '0123456789abcdef' for c in workflow.parent.name))
+    if (not plan_owner and workflow.parent not in tuple(directory(kind, root=source_root)
             for kind in ('write-e2e', 'fix-tests', 'fix-tests-host'))):
         raise ValueError('invalid propagation source launcher')
     private_directory(source)
@@ -760,11 +777,12 @@ def worktree_resolution_owner(root, session):
         raise ValueError('propagation source directory identity changed')
     with lock(session / 'nested-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
-        with lock(source.parent / 'owner') as source_owner, lock(session / 'owner') as owner:
+        with lock(workflow.parent / 'owner') as source_owner, lock(session / 'owner') as owner:
             info = os.fstat(source_owner)
             if ([info.st_dev, info.st_ino] != record['owner_identity'] or not busy(source_owner)
-                    or not busy(owner) or current_run(source.parent) != source
-                    or (source / 'cancel').exists() or (session / 'cancel').exists()
+                    or not busy(owner) or current_run(workflow.parent) != workflow
+                    or (source / 'cancel').exists() or (workflow / 'cancel').exists()
+                    or (session / 'cancel').exists()
                     or (session / 'nested-closed').exists()):
                 raise ValueError('propagation source no longer accepts test operations')
             checkpoint = json.loads((source / 'checkpoint.json').read_text())

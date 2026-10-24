@@ -130,7 +130,7 @@ class Control:
 
     def run(self, command, *, cwd, env, output=None, cooperative=False, tick=None,
             timeout=None, kill_after=30.0, cancel_signal=signal.SIGINT,
-            stderr_output=None, owned_group=False, **kwargs):
+            stderr_output=None, owned_group=False, started=None, **kwargs):
         # The installed dispatcher loads this file before adding the validated
         # checkout tools directory for its deferred imports.
         import test_activity
@@ -235,6 +235,8 @@ class Control:
                     poller.register(child.stderr, selectors.EVENT_READ)
                 if bounded_group:
                     poller.register(descriptor, selectors.EVENT_READ)
+                if started is not None:
+                    started()  # The child has inherited any caller-owned startup leases.
                 while poller.get_map() or (not bounded_group and child.poll() is None):
                     now = time.monotonic()
                     if self.stopped.is_set() and not sent:

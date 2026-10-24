@@ -49,23 +49,34 @@ class ControllerReload(Exception):
     """The child-free worker must replace its imported decision code."""
 
 
-def reload_controller(root, run, owner, *options):
+class RecoveryComplete(Exception):
+    """A retained FIFO transaction finished; normal admission belongs to the parent."""
+
+
+def reload_controller(root, run, owner, *options, gate=None):
     """Keep the run and its owner/scratch leases across a fresh interpreter."""
-    from fix_tests_queue import repair_descriptors
-    descriptors = (owner, *detached_launcher.scratch_descriptors(), *repair_descriptors())
-    if repair_descriptors():
-        atomic(run / 'repair-lease.json', dict(pid=os.getpid(), fds=repair_descriptors()))
-    inherited = {fd: os.get_inheritable(fd) for fd in descriptors}
-    try:
-        for fd in descriptors:
-            os.set_inheritable(fd, True)
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                 '--reload-worker', str(root), str(run), str(owner), *options])
-    finally:
-        for fd, value in inherited.items():
-            os.set_inheritable(fd, value)
+    from contextlib import ExitStack
+    from fix_tests_queue import repair_descriptors, STARTUP_SOURCE
+    with ExitStack() as startup:
+        source = startup.enter_context(gate.source()) if gate is not None else None
+        if source is not None:
+            os.environ[STARTUP_SOURCE] = str(source)
+        writers = (gate.fd,) if gate is not None and gate.fd is not None else ()
+        descriptors = (owner, *detached_launcher.scratch_descriptors(), *repair_descriptors())
+        if writers:
+            atomic(run / 'repair-lease.json', dict(pid=os.getpid(), fds=writers))
+        inherited = {fd: os.get_inheritable(fd) for fd in descriptors}
+        try:
+            for fd in descriptors:
+                os.set_inheritable(fd, True)
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                     '--reload-worker', str(root), str(run), str(owner), *options])
+        finally:
+            os.environ.pop(STARTUP_SOURCE, None)
+            for fd, value in inherited.items():
+                os.set_inheritable(fd, value)
 
 
 def reattach_label(run):
@@ -519,8 +530,11 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     from vm_pool import selected_reservation
     from test_commands import host_only_request
     selected = json.loads(requested)
-    from fix_tests_queue import parent_run
+    from fix_tests_queue import parent_run, RepairGate, finish_startup, RECOVERY_ONLY, retain_owner
     parent = parent_run(run)
+    repair_gate = RepairGate(run)
+    finish_startup(run)
+    retain_owner(owner)
     if parent is not None:
         import threading
         def parent_stopped():
@@ -537,19 +551,36 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 from fix_tests_queue import run as run_queue
                 status = run_queue(root, run, owner, model, effort, app_model, requested, rounds, resume)
             else:
-                status = reserved_worker(root, run, owner, model, effort, app_model, requested, rounds, resume,
-                                         reloading=reloading)
+                from contextlib import ExitStack
+                # Recover retained writers before any source imports or normal
+                # admission. An empty ticket can precede begin() after a crash.
+                path = run / 'checkpoint.json'
+                retained = json.loads(path.read_text()) if path.exists() else {}
+                if parent is not None and (retained.get('repairs') or retained.get('queued_failure')):
+                    repair_gate.acquire()
+                elif repair_gate.fd is not None:
+                    repair_gate.release()
+                    if os.environ.get(RECOVERY_ONLY):
+                        status = 0
+                        return 0
+                with ExitStack() as startup:
+                    startup.enter_context(repair_gate.source())
+                    status = reserved_worker(root, run, owner, model, effort, app_model, requested, rounds, resume,
+                        reloading=reloading, repair_gate=repair_gate, startup=startup)
     except ControllerReload:
         reload = True
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, Stopped):
         status = 130
     except (OSError, ValueError) as error:
         print(f'fix-tests: {error}', file=sys.stderr, flush=True)
     finally:
         if reload and not (run / 'cancel').exists():
             try:
-                reload_controller(root, run, owner, model, effort, app_model, requested, rounds, 'true')
-            except OSError as error:
+                reload_controller(root, run, owner, model, effort, app_model, requested, rounds, 'true',
+                                  gate=repair_gate)
+            except Stopped:
+                status = 130
+            except (OSError, ValueError) as error:
                 print(f'fix-tests: controller reload failed: {error}; resume the retained run.',
                       file=sys.stderr, flush=True)
         elif reload:
@@ -560,13 +591,15 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             if (run / 'pipelines.json').exists():
                 from launcher_progress import publish_progress
                 publish_progress(run, 'pipelines', ['VM test pipelines', 'Status: ' +
-                    {0: 'Complete', 130: 'Stopped'}.get(status, 'Blocked')])
+                    ('Task limit reached' if status == 0 and (run / 'limited').exists() else
+                     {0: 'Complete', 130: 'Stopped'}.get(status, 'Blocked'))])
         atomic(run / 'result.json', {'status': status, 'tasks': budget.read()['completed']})
         os.close(owner)
     return status
 
 
-def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false', *, reloading=False):
+def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false', *,
+                    reloading=False, repair_gate=None, startup=None):
     from launcher_progress import publish_progress, publish_repair_status, read_progress, repair_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     round_number = 1
@@ -579,10 +612,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     pending = None
     verifying_fix = False
     active_task = None
-    from fix_tests_queue import RepairGate, parent_run, repair_descriptors
+    from fix_tests_queue import RepairGate, parent_run, repair_descriptors, RECOVERY_ONLY
     parent = parent_run(run)
     budget = TaskBudget(parent or run)
-    repair_gate = RepairGate(run)
+    repair_gate = repair_gate or RepairGate(run)
+    recovery_only = bool(os.environ.get(RECOVERY_ONLY))
+    retained_failure = None
     from fix_tests_git import RepairCommits
     from repair_evidence import controller_sources
     commits = None
@@ -617,6 +652,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
     def task_started():
         nonlocal task_inflight
+        if recovery_only:
+            return  # Finishing a previously admitted transaction spends no new category slot.
         if not task_inflight and not budget.admit(concurrent=parent is not None):
             raise TaskLimitReached()
         task_inflight = True
@@ -715,7 +752,16 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         return status
 
     def test(category, *, resume=False, retry_case='', retry_vm='', fresh=False, probe=False):
-        nonlocal pending, verifying_fix
+        nonlocal pending, verifying_fix, retained_failure
+        if retained_failure is not None and retained_failure['category'] == category:
+            saved, retained_failure = retained_failure, None
+            target = failure_target(saved['failure'], category)
+            entry = commits.state['repairs'].get(commits.key(target))
+            if (entry is not None and entry.get('status') in ('fixed', 'test_fixed')
+                    and entry.get('pending_response') is None):
+                return test(category, resume=True, retry_case=target[1], retry_vm=target[2],
+                            fresh=not target[1])
+            return dict(saved['failure'], _recheck=True)
         # A stopped source guard owns an unvalidated response, not permission
         # to skip its repair handoff because a later test happens to pass.
         for entry in commits.state['repairs'].values():
@@ -754,8 +800,16 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                       flush=True)
 
         recovered = False
+        def recover():
+            if parent is not None:
+                repair_gate.acquire()
+            result = execute('recovery')
+            if result == 0 and not commits.state['repairs']:
+                repair_gate.release()  # Recovery changed no source; let queued repairs drain.
+            return result
+
         if test_replay is not None and test_replay['kind'] == 'recovery':
-            recovery_status = execute('recovery')
+            recovery_status = recover()
             if recovery_status:
                 failure = handoff(run, root=root)
                 failed(category)
@@ -779,12 +833,19 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 from fix_tests_queue import run_cases
                 status = run_cases(root, category, options, lambda case_options:
                     run_requested(category, case_options, description, vm=verification_vm), repair_gate)
+                generation = repair_gate.last_generation
             else:
-                status = run_requested(category, options, description, vm=verification_vm)
+                with repair_gate.source():
+                    generation = repair_gate.generation()
+                    status = run_requested(category, options, description, vm=verification_vm)
+                    if status and parent is not None:
+                        repair_gate.enqueue()
             previous = repair_progress(run, read_progress(run))
             publish_progress(run, previous[-1]['key'], previous[-1]['lines'])
             if status == 0:
                 if probe:
+                    if outcome(None, (category, retry_case, retry_vm)) is not True:
+                        raise ValueError('queued case recheck has no teardown-complete case evidence')
                     return None  # The exact case passed; the category still needs its remaining cases.
                 if checking_fix:
                     panel({'status': 'Testing fix, previous error point passed'})
@@ -827,7 +888,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 scope = 'both retention scopes' if execution_binding() is not None else 'host retention'
                 print(f'fix-tests: interrupted test ownership found; recovering {scope}.',
                       flush=True)
-                recovery_status = execute('recovery')
+                recovery_status = recover()
                 if recovery_status:
                     if status_line is not None:
                         print(status_line, flush=True)
@@ -845,19 +906,28 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             return failure
 
     def refresh_failure(category, failure):
-        while repair_gate.acquire() and failure.get('_repair_generation', -1) < repair_gate.generation():
+        if parent is None:
+            return failure
+        while True:
+            commits.state['queued_failure'] = dict(category=category, failure=failure)
+            commits.save()
+            acquired = repair_gate.acquire()
+            recheck = failure.get('_recheck') or failure.get('_repair_generation', -1) < repair_gate.generation()
+            if commits.state['repairs'] or not (acquired or failure.get('_recheck')) or not recheck:
+                return failure
             target = failure_target(failure, category)
             print('fix-tests: another case repair landed; rechecking this failure before editing.', flush=True)
             current = test(category, resume=True, retry_case=target[1], retry_vm=target[2],
                            fresh=not target[1], probe=bool(target[1]))
             if current is None:
-                repair_gate.release()
+                release_repair(changed=False)
                 failure = test(category, resume=True)
                 if failure is None:
                     return None
                 continue
+            commits.state['queued_failure'] = dict(category=category, failure=current)
+            commits.save()
             return current
-        return failure
 
     def repair(prompt, *, failure_key, previous=None):
         from contextlib import nullcontext
@@ -1093,9 +1163,15 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                              attempt=latest_attempt)
             release_repair()
 
-    def release_repair():
+    def release_repair(*, changed=True):
+        nonlocal retained_failure
         if not commits.state['repairs']:
-            repair_gate.release(changed=True)
+            retained_failure = None
+            commits.state.pop('queued_failure', None)
+            commits.save()
+            repair_gate.release(changed=changed)
+            if recovery_only:
+                raise RecoveryComplete()
 
     def outcome(failure, target):
         result = verification_outcome(failure, target)
@@ -1157,6 +1233,20 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise ValueError('resume round exceeds --rounds; retain the original round count')
         rounds = int(rounds)
         commits = RepairCommits(root, run)
+        retained_failure = commits.state.get('queued_failure') if parent is not None else None
+        if parent is not None and retained_failure is None and commits.state['repairs']:
+            entry = next(iter(commits.state['repairs'].values()))
+            category, case, vm = entry['failure']
+            failure = entry.get('pending_response', {}).get('failure') or dict(
+                prompt='Recover the retained unfinished repair using the current runner evidence.',
+                categories=[category], failures=[dict(category=category, case=case, vm=vm)])
+            retained_failure = dict(category=category, failure=failure)
+        if reloading:
+            retained_failure = None  # The live loop continuation already owns this operation.
+        if retained_failure is not None and retained_failure['category'] in completed:
+            completed.remove(retained_failure['category'])
+        if startup is not None:
+            startup.close()
         if commits.state['repairs']:
             repair_gate.acquire()
         if reloading:
@@ -1226,6 +1316,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
               'all categories passed.' if rounds == 1 else
               'all categories and the complete regression passed.'), flush=True)
         status = 0
+    except RecoveryComplete:
+        status = 0
     except TaskLimitReached:
         print('\nfix-tests: task limit reached; remaining work is saved for --resume.', flush=True)
         limited = True
@@ -1262,6 +1354,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     retained_pipelines = {}
     retained_queue = {}
     retained_pending = None
+    retained_waiting = []
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
         with lock(legacy / 'owner') as owner:
@@ -1274,7 +1367,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                     (run / 'cancel').touch(mode=0o600)
                 return run, False
     def command(run, owner):
-        nonlocal retained_git, retained_pipelines, retained_queue, retained_pending
+        nonlocal retained_git, retained_pipelines, retained_queue, retained_pending, retained_waiting
         # Read before shared retention can retire the previous run allocation.
         previous = current_run(run.parent)
         if previous is not None and (previous / 'pipelines.json').exists():
@@ -1287,6 +1380,9 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
             pending = previous / 'repair-pending.json'
             if pending.exists():
                 retained_pending = json.loads(pending.read_text())
+            waiting = previous / 'repair-queue.json'
+            if waiting.exists():
+                retained_waiting = json.loads(waiting.read_text())
         if previous is not None and (previous / 'checkpoint.json').exists():
             retained_git = json.loads((previous / 'checkpoint.json').read_text())
             if not retained_git['repairs'] and retained_git.get('pending') is None:
@@ -1326,6 +1422,8 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
             atomic(child / 'checkpoint.json', state)
         if retained_pending is not None:
             atomic(run / 'repair-pending.json', retained_pending)
+        if retained_waiting:
+            atomic(run / 'repair-queue.json', retained_waiting)
         TaskBudget(run).initialize(tasks)
         save_binding(run, name)
         from test_checkpoint import request_record

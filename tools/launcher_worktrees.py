@@ -425,7 +425,8 @@ def _resolve_once(root, run, phase, details):
         recorded = launcher._start_record(previous)
         launcher.finish_nested(Path(recorded['destination']), session)
     source_info = run.stat()
-    owner_info = (run.parent / 'owner').stat()
+    workflow = launcher.propagation_source_run(Path(details['source_root']), run)
+    owner_info = (workflow.parent / 'owner').stat()
     launcher._publish_start(previous, dict(root=details['source_root'], run=str(run),
         destination=str(root.resolve()), identity=[source_info.st_dev, source_info.st_ino],
         owner_identity=[owner_info.st_dev, owner_info.st_ino]))
@@ -468,8 +469,10 @@ return continue with exact remaining work. No other task or launcher execution.
         fcntl.flock(owner, fcntl.LOCK_EX)
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--resolve', str(root), str(session), str(owner)]
+        from fix_tests_queue import repair_descriptors
         with subprocess.Popen(command, cwd=root, env=launcher.environment(), stdin=subprocess.PIPE,
-                pass_fds=(owner, *launcher.scratch_descriptors()), start_new_session=True) as child:
+                pass_fds=(owner, *launcher.scratch_descriptors(), *repair_descriptors()),
+                start_new_session=True) as child:
             signalled = False
             while True:
                 try:

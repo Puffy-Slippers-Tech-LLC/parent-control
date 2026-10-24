@@ -83,10 +83,17 @@ class RepairCommits:
         # to a clean start; a reported path alone is not ownership evidence.
         scope = dict(entry, stage_baseline=dict(entry['stage_baseline']))
         recovered = []
+        provenance = list(self.state['repairs'].values())
+        from fix_tests_queue import parent_run
+        parent = parent_run(self.run)
+        if parent is not None and (parent / 'checkpoint.json').exists():
+            # Legacy batch repairs can share diagnostic edits across VMs. The
+            # migration retains their original ownership records in the parent.
+            provenance.extend(json.loads((parent / 'checkpoint.json').read_text()).get('repairs', {}).values())
         for path in entry['stage_paths']:
             if path not in scope['stage_baseline']:
                 continue
-            owners = [other for other in self.state['repairs'].values()
+            owners = [other for other in provenance
                       if other.get('status') in ('diagnostic_ready', 'fixed', 'test_fixed')
                       and path in other['stage_paths'] and path in other['stage_candidates']
                       and path not in other['protected_staged'] and path in other.get('fingerprints', {})]

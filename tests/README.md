@@ -388,6 +388,12 @@ repair with unresolved edits keeps the source fenced for its retained recovery.
 Cancellation stops admission and waits for every active pipeline's owned cleanup;
 resuming retains each VM's completed work. Task limits count host categories once
 and VM categories per VM, across their independently advancing rounds.
+Worker startup and reload imports also hold a source lease, and propagation
+resolvers retain both workflow ownership and that transaction's lease through
+cleanup. Restart drains retained FIFO transactions before host or normal VM work;
+completed pipeline labels never bypass checkpoint selector/round validation.
+Lifecycle prerequisite rows are replayed by their dependent case's runner rather
+than dispatched again as separate normal cases.
 
 After confirming that the specific repaired case passed, the launcher stages
 the repair's explicit owned files, commits them as `TA: Fixed CATEGORY CASE`

@@ -113,8 +113,10 @@ system phase. The launcher selects the execution-owned immutable input before
 VM acquisition. The default provisions only `trusted-hard`. Ubuntu's
 `test_remove_reboot_reinstall` history also provisions `command`, including its
 desktop launcher, before installation so the removal assertions can observe
-native execution before and after package removal. Other selections retain the
-default subset. Readiness binds the selected
+native execution before and after package removal. PAM installation histories
+on both targets also provision `command` and retain its mechanical comparison
+file for their post-reboot policy and enforcement checks. Other selections
+retain the default subset. Readiness binds the selected
 manifest, VM UUID, actual boot and unique attempt. Missing or incompatible
 selections release no input. Other unmigrated
 envelopes retain their refusal.

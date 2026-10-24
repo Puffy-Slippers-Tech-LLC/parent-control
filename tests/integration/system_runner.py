@@ -1327,13 +1327,13 @@ def artifact_source(path):
 def scenario_fixture_files(selection):
     """Finite comparison inputs still owned by installed engineering scenarios.
 
-    Enforcement/removal compare prepared mechanical bytes. Trusted histories
+    PAM/enforcement/removal compare prepared mechanical bytes. Trusted histories
     additionally audit hard/soft and activity provenance, including its modules.
     These are scenario oracles, not the reusable fixture collection.
     """
     trusted = any(item.case_id in (TRUSTED_FIXTURES_CASE, PREVIOUS_POLICY_CASE)
                   for item in selection.executions)
-    mechanical = trusted or any(item.area in ('enforcement', 'removal')
+    mechanical = trusted or any(item.phase in PAM_PHASES or item.area in ('enforcement', 'removal')
                                 for item in selection.executions)
     files = ['fixtures/mechanical/onpc-test-application'] if mechanical else []
     if trusted:
@@ -2103,11 +2103,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         fixture_selection = (installed_selection(fixture_selection) if already_installed else
                              selection_record(fixture_selection))
         subsets = SUBSETS
-        if (not already_installed and fixture_selection['target'] == 'ubuntu' and any(
-                item.area == 'removal' and item.case_id == 'test_remove_reboot_reinstall'
+        if (not already_installed and any(
+                item.phase in PAM_PHASES or
+                (fixture_selection['target'] == 'ubuntu' and item.area == 'removal'
+                 and item.case_id == 'test_remove_reboot_reinstall')
                 for item in selection.executions)):
-            # This history uses the untrusted command and its desktop launcher
-            # to observe product denial before removal and allowance afterward.
+            # PAM histories seed policy with this command on both targets;
+            # Ubuntu removal also observes denial and later allowance with it.
             subsets += ('command',)
         with ledger.measure('bootstrap'):
             vm.probe_ready()

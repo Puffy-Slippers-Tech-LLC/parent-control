@@ -1,6 +1,9 @@
 """Finite reusable guest assets. No product state or attempt credentials."""
 from pathlib import Path
-from tests.fixtures.baseline_environment import desktop_settings_files, automatic_update_files
+try:
+    from baseline_environment import desktop_settings_files, automatic_update_files
+except ImportError:
+    from tests.fixtures.baseline_environment import desktop_settings_files, automatic_update_files
 
 try:
     from native_assets import (ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,

@@ -168,7 +168,7 @@ def test_reviewed_ui_modules_keep_resource_and_pairing_limits(kind):
     state, admission = gate()
     warm(state, admission, active=('ui-layout', 'ui-feedback'))
     assert admission.allows(kind, ['ui-layout', 'ui-feedback'])
-    for other in ('ui-shell', 'ui-accessible', 'ui-watch', 'artifacts'):
+    for other in ('ui-shell', 'ui-accessible', 'ui-identity', 'artifacts'):
         assert compatible(kind, other) and compatible(other, kind)
     for other in ('publish', 'system', 'e2e', 'ui-exclusive'):
         assert not compatible(kind, other) and not compatible(other, kind)

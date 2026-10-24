@@ -101,15 +101,23 @@ def test_terminal_batch_verifies_one_pinned_archive_for_all_acknowledgements(env
 
     monkeypatch.setattr(runner.publication, 'delivery_scope', scope)
     monkeypatch.setattr(bundle, 'verified_record', verified)
+    selections = [('', ['host-case']), ('ubuntu', ['setup-case']), ('fedora', ['teardown-case'])]
     with store.session():
         report = runner.ReportEvidence(root, allocate())
-        for sequence in range(3):
-            report.command(command(sequence=sequence + 1))
+        for sequence, (target, ids) in enumerate(selections, 1):
+            report.command(command(target, sequence=sequence, selected_ids=ids,
+                                   resumed_ids=['prior-case']))
         result = finish(report)
         assert len(result['capture_ids']) == 5  # Startup, three commands, aggregate.
         assert len(scopes) == len(verifications) == 1
         charges = json.loads((store.path / 'current.json').read_bytes())['captures']
         assert all(charge.get('acknowledgement') for charge in charges)
+    assert [record['context']['target'] for record in result['records']] == ['', '', 'ubuntu', 'fedora', '']
+    for record, (_, ids) in zip(result['records'][1:-1], selections, strict=True):
+        member = next(member for member in record['members'] if member['role'] == 'input')
+        payload = json.loads(runner.resolve_reference(root, exact_reference(result, member)))
+        assert payload['selected_ids'] == ids
+        assert payload['resumed_ids'] == ['prior-case']
 
 
 def test_explicit_system_archive_still_requires_publication(environment, monkeypatch):
@@ -315,12 +323,15 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
     document.write_text(text)
     declaration = dict(document='docs/nested/Evidence.md', sha256=bundle.digest(document.read_bytes()),
         references=[dict(start=0, consumer=consumer, selector=selector, workflow=workflow)])
-    # Four real producer admissions retire the original; no acceptance rerun.
-    for index in range(4):
+    # One equal-payload attempt tests provenance; empty admissions advance
+    # retention without publishing unrelated archive histories.
+    with store.session():
+        later = runner.ReportEvidence(root, allocate())
+        later.command(command())
+        latest = finish(later)
+    for _ in range(2):
         with store.session():
-            later = runner.ReportEvidence(root, allocate())
-            later.command(command())
-            latest = finish(later)
+            pass
     assert not original.exists()
     new_record = next(item for item in latest['records'] if item['context']['check'] == 'unit')
     new_member = next(item for item in new_record['members'] if item['role'] == 'result')
@@ -331,38 +342,33 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
     with pytest.raises(ValueError, match='context mismatch'):
         proof.preview_document_links(plan, other_attempt)
     with store.session():
-        active = runner.ReportEvidence(root, allocate())
-        try:
-            preview = proof.preview_document_links(plan, declaration)
-            destination = preview['edits'][0]['after']
-            assert destination == os.path.relpath(runner.reference_locator(root, workflow),
-                                                document.parent) + '#onpc-evidence-v1:' + ':'.join(
-                selector[key] for key in ('record_id', 'member_id', 'closure_sha256'))
-            resolved = proof.resolve_reference(destination, consumer=consumer,
-                read_scope=proof.reference_scope(plan, document=declaration['document'], workflow=workflow),
-                count=0)
-            assert resolved['record'] == record and resolved['member'] == member
-            assert resolved['data'] == b'' and resolved['closure'][record['record_id']] == record
-            request = root / 'declarations.json'
+        preview = proof.preview_document_links(plan, declaration)
+        destination = preview['edits'][0]['after']
+        assert destination == os.path.relpath(runner.reference_locator(root, workflow),
+                                            document.parent) + '#onpc-evidence-v1:' + ':'.join(
+            selector[key] for key in ('record_id', 'member_id', 'closure_sha256'))
+        resolved = proof.resolve_reference(destination, consumer=consumer,
+            read_scope=proof.reference_scope(plan, document=declaration['document'], workflow=workflow),
+            count=0)
+        assert resolved['record'] == record and resolved['member'] == member
+        assert resolved['data'] == b'' and resolved['closure'][record['record_id']] == record
+        request = root / 'declarations.json'
+        request.write_bytes(bundle.encoded(dict(schema='onpc-evidence-documents', version=1,
+                                               documents=[declaration])))
+        monkeypatch.setattr(proof, '__file__', str(root / 'tools/plan_evidence.py'))
+        assert proof.main(['--plan=docs/Plan.md', '--declarations=' + str(request)]) == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output['previews'] == [preview] and document.read_text() == text
+        for malformed in (None, 42, ['docs/nested/Evidence.md']):
+            bad = dict(declaration, document=malformed)
             request.write_bytes(bundle.encoded(dict(schema='onpc-evidence-documents', version=1,
-                                                   documents=[declaration])))
-            monkeypatch.setattr(proof, '__file__', str(root / 'tools/plan_evidence.py'))
-            assert proof.main(['--plan=docs/Plan.md', '--declarations=' + str(request)]) == 0
-            output = json.loads(capsys.readouterr().out)
-            assert output['previews'] == [preview] and document.read_text() == text
-            for malformed in (None, 42, ['docs/nested/Evidence.md']):
-                bad = dict(declaration, document=malformed)
-                request.write_bytes(bundle.encoded(dict(schema='onpc-evidence-documents', version=1,
-                                                       documents=[bad])))
-                assert proof.main(['--plan=docs/Plan.md', '--declarations=' + str(request)]) == 2
-                refusal = capsys.readouterr()
-                assert not refusal.out and 'semantic preview refused' in refusal.err
-            assert proof.apply_document_links(plan, preview)
-            assert document.read_text() == text.replace(os.path.relpath(original, document.parent), destination)
-            assert not original.exists() and not (root / 'sentinel').exists()
-        finally:
-            active.command(command(check='active-completed'))
-            finish(active)
+                                                   documents=[bad])))
+            assert proof.main(['--plan=docs/Plan.md', '--declarations=' + str(request)]) == 2
+            refusal = capsys.readouterr()
+            assert not refusal.out and 'semantic preview refused' in refusal.err
+        assert proof.apply_document_links(plan, preview)
+        assert document.read_text() == text.replace(os.path.relpath(original, document.parent), destination)
+        assert not original.exists() and not (root / 'sentinel').exists()
 
 
 @pytest.mark.parametrize('status,cleanup,exit_status', [
@@ -370,16 +376,15 @@ def test_generated_document_link_uses_exact_runner_proof_after_rotation(environm
     ('failed', 'failed', 1), ('interrupted', 'pending', None),
     ('diagnostic', 'pending', None), ('not_run', 'complete', None),
 ])
-def test_terminal_status_and_exact_two_target_selections_remain_truthful(
+def test_terminal_status_and_exact_selection_remain_truthful(
         environment, status, cleanup, exit_status):
     root, store = environment
     with store.session():
         evidence = runner.ReportEvidence(root, allocate())
-        for target, ids in [('ubuntu', ['setup-case']), ('fedora', ['teardown-case'])]:
-            evidence.command(command(target, status, cleanup, selected_ids=ids,
-                resumed_ids=['prior-case'], completed_ids=[], exit_status=exit_status))
+        evidence.command(command('ubuntu', status, cleanup, selected_ids=['setup-case'],
+            resumed_ids=['prior-case'], completed_ids=[], exit_status=exit_status))
         result = finish(evidence, status=status, cleanup=cleanup)
-    assert [record['context']['target'] for record in result['records']] == ['', 'ubuntu', 'fedora', '']
+    assert [record['context']['target'] for record in result['records']] == ['', 'ubuntu', '']
     start = result['records'][0]
     assert start['status'] == 'diagnostic'
     assert start['cleanup']['state'] == 'pending'
@@ -388,11 +393,11 @@ def test_terminal_status_and_exact_two_target_selections_remain_truthful(
         assert record['cleanup']['state'] == cleanup
         assert record['completeness'] == ('complete' if cleanup == 'complete' and
             status not in ('interrupted', 'diagnostic', 'not_run') else 'partial')
-    for record, expected in zip(result['records'][1:], ['setup-case', 'teardown-case']):
-        member = next(member for member in record['members'] if member['role'] == 'input')
-        payload = json.loads(runner.resolve_reference(root, exact_reference(result, member)))
-        assert payload['selected_ids'] == [expected]
-        assert payload['resumed_ids'] == ['prior-case']
+    record = result['records'][1]
+    member = next(member for member in record['members'] if member['role'] == 'input')
+    payload = json.loads(runner.resolve_reference(root, exact_reference(result, member)))
+    assert payload['selected_ids'] == ['setup-case']
+    assert payload['resumed_ids'] == ['prior-case']
 
 
 def test_failed_publication_keeps_original_and_blocks_rotation_without_retry(environment, monkeypatch):

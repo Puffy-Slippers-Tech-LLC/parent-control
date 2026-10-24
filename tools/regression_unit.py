@@ -26,6 +26,11 @@ the existing tiny private journals and restart allocations; compatible unit
 scheduling remains appropriate, with no cleanup/UI owner or new shared state.
 Terminal-batch verification likewise uses the existing runner_evidence private
 journals and process-local reader counters, without a new resource owner.
+Runner link rotation advances retention with empty private sessions after one
+equal-payload replacement. Two-target selection is checked once in the existing
+batch publication; status variants retain real publication with one command.
+Real syncs and host journal pacing remain unchanged. These reductions preserve
+compatible unit scheduling and add no cleanup or UI inventory resource.
 The over-1-GiB bundle regression hashes and verifies pytest-private sparse zero
 files with fixed-size streaming buffers; it allocates no bulk payload blocks,
 publishes no large archive and preserves compatible overlap.

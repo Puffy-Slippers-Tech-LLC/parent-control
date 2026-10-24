@@ -67,6 +67,7 @@ class Accounts:
         self.extension = (1, 2)
         self.limit_type = 2
         self.daily_limit = 3600
+        self.daily_schedule = (0, 86400)
         self.events = []
         self.fail_extension = False
         self.fail_rollback = False
@@ -125,6 +126,14 @@ class Accounts:
     def set_daily_limit(self, uid, value):
         self.events.append(("set_daily_limit", uid, value))
         self.daily_limit = value
+
+    def get_daily_schedule(self, uid):
+        self.events.append(("get_daily_schedule", uid))
+        return self.daily_schedule
+
+    def set_daily_schedule(self, uid, value):
+        self.events.append(("set_daily_schedule", uid, value))
+        self.daily_schedule = value
 
     def clear_session_runtime_max(self, uid):
         self.events.append(("clear-runtime-max", uid))

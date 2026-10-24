@@ -56,6 +56,7 @@ class ModelAccounts:
         self.extensions = {uid: (0, 0) for uid in CHILDREN}
         self.limit_types = {uid: 0 for uid in CHILDREN}
         self.daily_limits = {uid: 0 for uid in CHILDREN}
+        self.daily_schedules = {uid: (0, 86400) for uid in CHILDREN}
         self.fail_once = None
 
     def _fail(self, boundary):
@@ -101,6 +102,12 @@ class ModelAccounts:
     def set_daily_limit(self, uid, value):
         self._fail("set_daily_limit")
         self.daily_limits[uid] = value
+
+    def get_daily_schedule(self, uid):
+        return self.daily_schedules[uid]
+
+    def set_daily_schedule(self, uid, value):
+        self.daily_schedules[uid] = value
 
 
 class ModelPreferences:
@@ -201,6 +208,7 @@ class BrokerTransactionMachine(RuleBasedStateMachine):
             "extensions": deepcopy(self.accounts.extensions),
             "limit_types": deepcopy(self.accounts.limit_types),
             "daily_limits": deepcopy(self.accounts.daily_limits),
+            "daily_schedules": deepcopy(self.accounts.daily_schedules),
             "preferences": deepcopy(self.preferences.values),
             "extension_enabled": deepcopy(self.extensions.enabled),
         }
@@ -213,6 +221,13 @@ class BrokerTransactionMachine(RuleBasedStateMachine):
           minutes=st.integers(min_value=0, max_value=24 * 60))
     def enable_disable_or_change_daily_limit(self, child, enabled, minutes):
         if self.accounts.users[child].is_admin:
+            return
+        if (not enabled and not self.preferences.load(child)["parent_control_enabled"] and
+                self.accounts.extensions[child][1]):
+            before = self.snapshot()
+            with pytest.raises(BackendFailure):
+                self.broker.set_parent_control(1003, child, enabled, minutes)
+            assert self.snapshot() == before
             return
         self.broker.set_parent_control(1003, child, enabled, minutes)
         self.enforced.add(child)

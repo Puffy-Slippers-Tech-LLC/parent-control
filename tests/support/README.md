@@ -178,7 +178,8 @@ checks the same selected bytes and native state without resetting scenario
 mutations. Ubuntu's [installed E2E preparation](../integration/README.md#ubuntu-installed-e2e-preparation)
 and the same [Fedora boundary](../integration/README.md#fedora-installed-e2e-preparation)
 use the immutable native selection by default, and the finite native/activity/
-baseline-child union only for the fixed baseline caller, after online resume/credential rebind or
+baseline-child union only for the fixed baseline composition and active-grant
+disable qualification callers, after online resume/credential rebind or
 explicit offline restoration, before setup releases scenario input. Its
 preparation-only selector retains separate proof of both restore branches.
 Ubuntu's [product-free E2E preparation](../integration/README.md#ubuntu-product-free-e2e-preparation)

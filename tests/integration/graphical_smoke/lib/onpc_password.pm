@@ -124,7 +124,9 @@ sub enter_kiosk_mate_password {
             . 'kiosk-mate-' . ($chinese || $long_request ? $wrong : $binding);
         die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request)
             && ref($journey) eq 'onpc_journey'
-            && ($baseline || ($long_request ? ($journey->{prefix} // '') eq 'baseline-app-effects' :
+            && ($baseline || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
+                || ($journey->{prefix} // '') eq 'active-grant-disable-engineering'
+                || ($journey->{prefix} // '') eq 'active-grant-disable-public') :
                 ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
                 || ($journey->{prefix} // '') eq 'kiosk-approval-flow'
                 || (!$reject && ($journey->{prefix} // '') eq 'baseline-auth-pause')

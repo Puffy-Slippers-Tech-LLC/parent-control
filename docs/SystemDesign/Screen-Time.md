@@ -156,10 +156,27 @@ GNOME Shell reports the extension both enabled and active; deactivation is
 accepted only when it reports neither. Offline activation is verified against
 the durable settings that Shell will consume at next login.
 
+Native time transitions use the public `DailySchedule=(0,86400)` and schedule-only
+`LimitType=1` as a verified temporary bridge. This keeps usable time while a
+grant is cleared or restored, without publishing disabled limits with a current
+grant. Unlike a fixed 24-hour daily allowance, the full-day local schedule also
+covers a 25-hour day. Transactions snapshot the original schedule along with
+the type, daily allowance and grant; rollback restores all four and verifies
+safety-critical writes before dependent effects. A failed rollback remains an
+error.
+
+The kiosk-only API can create a native grant while the saved toggle is off,
+as described in [grant transactions](Broker.md#authorization-and-grant-transactions).
+A same-disabled save with a current native grant refuses before effects: it
+cannot both retain that grant and safely publish disabled native limits.
+Ordinary already-disabled saves and same-enabled grant retention are unchanged.
+
 This operation reapplies the filter without terminating running applications.
-It does not take the shared app-policy/grant/session-preparation transaction
-lock. The Parent App serializes its own saves; request approvals separately
-revalidate the saved preference snapshot around their asynchronous work.
+It shares the app-policy/grant/session-preparation transaction lock through
+native snapshots, writes and rollback. An approval cannot capture a temporary
+bridge or publish a grant after a concurrent disable. The Parent App serializes
+its own saves; request approvals also revalidate the saved preference snapshot
+around their asynchronous work.
 
 Shell availability checks ownership of `org.gnome.Shell`. The separate
 `org.gnome.Shell.Extensions` proxy service starts on demand; its absence must

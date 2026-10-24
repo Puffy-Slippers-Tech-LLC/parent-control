@@ -67,7 +67,7 @@ INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
 # The composition regression independently resolves inheritance and overrides.
 INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     'check_e2e_' + suffix for suffix in '''
-    access_choices accessibility_input_trace allowance allowance_boundaries allowance_presets
+    access_choices accessibility_input_trace active_grant_disable allowance allowance_boundaries allowance_presets
     app_activity app_restart app_row_observations approval_flow attachment_items attachment_preview
     attachments auth_prompt auth_result baseline_app_effects baseline_auth_pause baseline_journey
     catalogue catalogue_search challenges chinese_native_auth choices_overlay_to_kiosk

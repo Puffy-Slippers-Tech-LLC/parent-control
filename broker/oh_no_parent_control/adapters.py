@@ -382,6 +382,13 @@ class AccountsService:
     def set_daily_limit(self, uid: int, value: int) -> None:
         self._set(uid, SESSION_LIMITS_INTERFACE, "DailyLimit", GLib.Variant("u", value))
 
+    def get_daily_schedule(self, uid: int) -> tuple[int, int]:
+        start, end = self._get(uid, SESSION_LIMITS_INTERFACE, "DailySchedule")
+        return start, end
+
+    def set_daily_schedule(self, uid: int, value: tuple[int, int]) -> None:
+        self._set(uid, SESSION_LIMITS_INTERFACE, "DailySchedule", GLib.Variant("(uu)", value))
+
 
 class TimerUsage:
     def __init__(self, connection):

@@ -52,6 +52,7 @@ use onpc_zero_total ();
 use onpc_app_rows ();
 use onpc_app_launch ();
 use onpc_baseline_app_effects ();
+use onpc_active_grant_disable ();
 use onpc_baseline_journey ();
 use onpc_feedback_read ();
 use onpc_feedback_privacy ();
@@ -789,6 +790,18 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_flow::auth_pause(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{active_grant_disable}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_active_grant_disable::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'public');
+        return;
+    }
+    if ($ready->{active_grant_disable_engineering}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_active_grant_disable::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'engineering');
         return;
     }
     if ($ready->{baseline_app_effects}) {

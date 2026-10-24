@@ -174,10 +174,10 @@ preference reload, including failed-save recovery, and can be overwritten by a
 later app-policy save. See the
 [frontend limitation](SystemDesign/Frontends.md#parent-controls-and-shared-information).
 
-The broker's nonblocking shared transaction lock covers app-policy saves,
-approvals, revocations and session preparation; `SetParentControl` and
-request-choice persistence do not take that
-lock. Approval revalidates its preference snapshot around authentication and
+The broker's nonblocking shared transaction lock covers screen-time controls,
+app-policy saves, approvals, revocations and session preparation; request-choice
+persistence does not take that lock. Approval revalidates its preference snapshot
+around authentication and
 usage queries. The installed request forms disable requests for a child whose
 control is off; the broker enforces that condition for `RequestOwnAccess`, but
 its kiosk-only `RequestAccess` can initialize live time limits without changing

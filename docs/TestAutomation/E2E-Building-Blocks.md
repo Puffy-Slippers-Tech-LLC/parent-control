@@ -1131,6 +1131,32 @@ owned cleanup passed again and both pinned guests were independently observed
 off. C04j2 is complete. C04j1's completed guard qualifications remain valid; no
 complete customer history or other queue task receives acceptance credit.
 
+<a id="c04j3-active-grant-disable"></a>
+
+#### Active-grant disable and native continuity
+
+The finite `check_e2e_active_grant_disable` selector uses
+[`ActiveGrantDisableJourney`](../../tests/e2e/active_grant_disable.py) and the
+existing baseline `native`, `activity`, `baseline-child` preparation. Run each
+declared target separately. Its engineering attempt observes native estimates,
+lock events and timer identity through disable, live-grant/unrestricted rollback
+and a failed preparation readback. A separately restored public attempt obtains
+a genuine 600-second approval with zero daily time, disables controls through
+Parent, independently reloads saved settings/app rules and resumes retained
+child activity. Fault injection contributes only engineering evidence.
+
+The repair uses a verified full-day native schedule as the transition bridge
+and restores the original schedule last. Independent Astra review identified
+an approval/disable race; sharing the existing transaction lock through snapshots,
+commit and rollback resolved it. Fresh independent review found no remaining
+issues. All 184 focused product checks and both package builds passed.
+
+Ubuntu and Fedora each passed both fresh attempts, collection and baseline
+restoration. Serial owned cleanup passed and both pinned guests were independently
+observed off. This binding covers only the restoration
+transition exposed by the v1.3-derived baseline; complete baseline histories,
+C05 acceptance and general feature coverage retain their existing owners.
+
 <a id="c04j-complete-baseline-composition"></a>
 
 #### Complete baseline composition
@@ -1140,8 +1166,13 @@ complete customer history or other queue task receives acceptance credit.
 [finite core history](E2E-Scenario-Recipes.md#commands-bounds-and-restoration).
 Fedora retains a historical complete pass for its earlier input envelope;
 the selected-input applicability decision above requires renewal in C04j.
-Ubuntu remains pending after an unknown
-modal alert refused the final Parent restoration input. A partial history and
+Ubuntu remains pending after the final Parent saved-state read refused a native
+timer crash notification. The resumed diagnostic identified disabled limits
+published before the current grant was cleared. A clear-first trial also exposed
+a native-lock risk in independent Astra review and was withdrawn.
+[C04j3](#c04j3-active-grant-disable) completed the bounded
+disable/rollback repair and both-target native/public qualification. C04j now
+resumes both complete histories on the repaired candidate. A partial history and
 outer restoration do not replace missing public restoration or collection.
 Diagnose the actual prompt boundary without bypassing refusal, extending the
 1800-second history limit or removing final assertions. Renew any history
@@ -1157,9 +1188,21 @@ preparation, and rebinds the saved snapshot connection to the authenticated
 current maintenance run before provisioning. Independent Sol High review found
 and resolved the original transport-run mismatch; fresh-key verification precedes
 maintenance credential publication and failed unpublished rotation restores only
-the owned instance. Shared guard checks passed. Its live setup passed, but the
+the owned instance. Shared guard checks passed. An earlier live setup passed, but the
 missing Riley catalogue inputs above stopped progression at `hard-access-save`;
-the final alert was not reproduced and no formal complete history ran.
+the final alert was not reproduced in that earlier attempt.
+
+After C04j2, the refreshed Ubuntu replay passed that complete prefix through
+`restore-disabled` and retained the refused `restore-saved` observer. The alert
+was `malcontent-timerd`'s crash notification; its assertion was
+`time_limit_enabled || !extension_active`. Native direct-write experiments avoided
+the crash but did not qualify absence of transient locks. The initial reorder
+and provisional product regression were withdrawn after the Astra finding.
+No new complete history or customer acceptance was established. Baseline refresh,
+exact named-input preparation and 97 existing runner routing/activity checks
+passed; the maintained recovery classifier now retains the VM scope of the full
+input-build request. C04j's brief retains the current diagnostic pointer and
+cleanup handoff. Separate accepted feature/pause work remains complete.
 
 The rejected parity scope reduction was reversed; C04j retains the entire
 history on both targets. A later diagnostic stopped at a standalone fixture

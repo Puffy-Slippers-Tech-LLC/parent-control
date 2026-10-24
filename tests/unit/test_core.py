@@ -1601,6 +1601,308 @@ def submit_request(broker, surface, duration=300, allow_soft=False):
     return broker.request_access(991, ":1.20", 1001, 1003, duration, allow_soft)
 
 
+def record_time_states(monkeypatch, accounts):
+    states = []
+    for name in ("set_limit_type", "set_daily_limit", "set_daily_schedule", "set_extension"):
+        original = getattr(accounts, name)
+
+        def record(uid, value, original=original):
+            original(uid, value)
+            states.append((accounts.limit_type, accounts.daily_limit,
+                           accounts.daily_schedule, accounts.extension))
+
+        monkeypatch.setattr(accounts, name, record)
+    return states
+
+
+def assert_time_states_usable(states, now, used):
+    # Native 0.14's schedule uses local wall-clock time, independently of daily
+    # active usage. Check every published state, including a 25-hour day's late
+    # use, where even a 86400-second daily allowance would be exhausted.
+    wall_time = (now.hour * 60 + now.minute) * 60 + now.second
+    for limit_type, daily, schedule, (issued, duration) in states:
+        current_grant = issued <= int(now.timestamp()) < issued + duration
+        assert limit_type or not current_grant, "disabled limits with a current grant"
+        if limit_type and not current_grant:
+            assert not limit_type & 1 or schedule[0] <= wall_time < schedule[1]
+            assert not limit_type & 2 or used < daily, "exhausted intermediate estimate"
+
+
+@pytest.fixture
+def active_grant_transition(monkeypatch):
+    accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
+    now = datetime(2026, 11, 1, 23, 30, tzinfo=ZoneInfo("America/Los_Angeles"))
+    accounts.daily_limit = 0
+    accounts.daily_schedule = (36000, 36001)  # Stored but inactive under type2.
+    accounts.extension = (int(now.timestamp()) - 60, 3600)
+    preferences.values[1001]["parent_control_enabled"] = True
+    broker = make_broker(accounts=accounts, preferences=preferences, extensions=extensions)
+    broker._now = lambda: now
+    states = record_time_states(monkeypatch, accounts)
+    return broker, accounts, preferences, extensions, states, now
+
+
+def test_disable_current_grant_never_publishes_disabled_grant_or_zero_time(active_grant_transition):
+    broker, accounts, preferences, extensions, states, now = active_grant_transition
+    broker.set_parent_control(1003, 1001, False, 90)
+    assert_time_states_usable(states, now, used=24 * 3600 + 1800)
+    assert (accounts.limit_type, accounts.daily_limit, accounts.extension) == (0, 0, (0, 0))
+    assert accounts.daily_schedule == (36000, 36001)
+    assert accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+    assert not preferences.load(1001)["parent_control_enabled"]
+    assert extensions.calls == [(1001, False)]
+
+
+@pytest.mark.parametrize("failure", ("filter", "saved-preferences"))
+def test_failed_disable_restores_live_grant_and_exact_saved_state(
+        monkeypatch, active_grant_transition, failure):
+    broker, accounts, preferences, extensions, states, now = active_grant_transition
+    old_limit_type = accounts.limit_type = 3 if failure == "filter" else 2
+    before = (accounts.extension, accounts.daily_schedule, accounts.filter, preferences.load(1001))
+    owner, method = (accounts, "set_filter") if failure == "filter" else (preferences, "save")
+    original = getattr(owner, method)
+    failed = False
+
+    def write_then_fail(uid, value):
+        nonlocal failed
+        result = original(uid, value)
+        if not failed:
+            failed = True
+            raise RuntimeError("one-shot failure after write")
+        return result
+
+    monkeypatch.setattr(owner, method, write_then_fail)
+    with pytest.raises(BackendFailure):
+        broker.set_parent_control(1003, 1001, False, 90)
+    assert_time_states_usable(states, now, used=24 * 3600 + 1800)
+    assert (accounts.limit_type, accounts.daily_limit) == (old_limit_type, 0)
+    assert (accounts.extension, accounts.daily_schedule, accounts.filter, preferences.load(1001)) == before
+    assert extensions.calls == [(1001, False), (1001, True)]
+
+
+@pytest.mark.parametrize("terminated", (0, 1))
+def test_grant_failure_restores_unrestricted_time_without_intermediate_lock(
+        monkeypatch, terminated):
+    accounts, preferences = Accounts(), Preferences()
+    accounts.limit_type, accounts.daily_limit = 0, 12345
+    accounts.extension, accounts.daily_schedule = (0, 0), (36000, 36001)
+    states = record_time_states(monkeypatch, accounts)
+    broker = make_broker(accounts=accounts, preferences=preferences,
+                         running_apps=RunningApps(terminated=terminated))
+    original = accounts.set_extension
+    failed = False
+
+    def write_then_fail(uid, value):
+        nonlocal failed
+        original(uid, value)
+        if not failed:
+            failed = True
+            raise RuntimeError("one-shot grant failure after write")
+
+    monkeypatch.setattr(accounts, "set_extension", write_then_fail)
+    with pytest.raises(BackendFailure):
+        broker.request_access(991, ":1.2", 1001, 1003, 900, False)
+    assert_time_states_usable(states, broker._now(), used=90000)
+    assert (accounts.limit_type, accounts.daily_limit, accounts.daily_schedule,
+            accounts.extension) == (0, 12345, (36000, 36001), (0, 0))
+    assert accounts.filter == ((False, ("/usr/bin/game", "org.example.Game")) if terminated
+                               else (False, ("old.App",)))
+
+
+def test_unverified_bridge_refuses_dependent_commit_and_recovers(
+        monkeypatch, active_grant_transition):
+    broker, accounts, preferences, extensions, states, now = active_grant_transition
+    original = accounts.get_daily_schedule
+    reads = 0
+
+    def mismatched_bridge(uid):
+        nonlocal reads
+        reads += 1
+        value = original(uid)
+        return (1, 2) if reads == 2 else value
+
+    monkeypatch.setattr(accounts, "get_daily_schedule", mismatched_bridge)
+    with pytest.raises(BackendFailure):
+        broker.set_parent_control(1003, 1001, False, 90)
+    assert_time_states_usable(states, now, used=90000)
+    assert ("set_extension", 1001, (0, 0)) not in accounts.events
+    assert ("set_filter", 1001, (False, ("/usr/bin/game", "org.example.Game"))) not in accounts.events
+    assert accounts.daily_schedule == (36000, 36001)
+    assert preferences.load(1001)["parent_control_enabled"]
+    assert extensions.calls == [(1001, False), (1001, True)]
+
+
+def test_unverified_approval_preparation_does_not_change_filter_or_terminate(monkeypatch):
+    accounts, running_apps = Accounts(), RunningApps(terminated=1)
+    accounts.limit_type, accounts.extension = 0, (0, 0)
+    original = accounts.get_daily_schedule
+    reads = 0
+
+    def mismatched_bridge(uid):
+        nonlocal reads
+        reads += 1
+        value = original(uid)
+        return (1, 2) if reads == 2 else value
+
+    monkeypatch.setattr(accounts, "get_daily_schedule", mismatched_bridge)
+    with pytest.raises(BackendFailure):
+        make_broker(accounts=accounts, running_apps=running_apps).request_access(
+            991, ":1.2", 1001, 1003, 900, False,
+        )
+    assert not any(call[0] == "terminate" for call in running_apps.calls)
+    assert accounts.filter == (False, ("old.App",))
+    assert not any(event[0] == "set_filter" and event[2] != accounts.filter
+                   for event in accounts.events)
+    assert (accounts.limit_type, accounts.daily_limit, accounts.extension) == (0, 3600, (0, 0))
+
+
+def test_unverified_rollback_bridge_stays_an_error_and_refuses_later_time_writes(
+        monkeypatch, active_grant_transition):
+    broker, accounts, _preferences, _extensions, _states, _now = active_grant_transition
+    original = accounts.set_filter
+    rollback_reads = []
+
+    def fail_commit(uid, value):
+        original(uid, value)
+        monkeypatch.setattr(accounts, "get_daily_schedule", lambda _uid: (1, 2))
+        rollback_reads.append(len(accounts.events))
+        raise RuntimeError("filter failed; rollback schedule cannot be verified")
+
+    monkeypatch.setattr(accounts, "set_filter", fail_commit)
+    with pytest.raises(RollbackFailure):
+        broker.set_parent_control(1003, 1001, False, 90)
+    recovery_writes = [event[0] for event in accounts.events[rollback_reads[0]:]
+                       if event[0].startswith("set_")]
+    assert recovery_writes == ["set_daily_schedule"]
+
+
+def test_same_disabled_save_refuses_current_kiosk_grant_before_effects(active_grant_transition):
+    broker, accounts, preferences, extensions, states, _now = active_grant_transition
+    preferences.values[1001]["parent_control_enabled"] = False
+    before = preferences.load(1001)
+    with pytest.raises(BackendFailure):
+        broker.set_parent_control(1003, 1001, False, 90)
+    assert states == []
+    assert extensions.calls == []
+    assert preferences.load(1001) == before
+    assert accounts.limit_type == 2
+
+
+def test_ordinary_already_disabled_save_retains_expired_grant_without_bridge(monkeypatch):
+    accounts = Accounts()
+    accounts.limit_type = 0
+    states = record_time_states(monkeypatch, accounts)
+    broker = make_broker(accounts=accounts, extensions=Extensions())
+    broker.set_parent_control(1003, 1001, False, 90)
+    assert accounts.extension == (1, 2)
+    assert accounts.daily_limit == 0
+    assert all(state[0] == 0 for state in states)
+
+
+def test_parent_disable_cannot_interleave_with_admitted_approval(
+        monkeypatch, active_grant_transition):
+    broker, accounts, preferences, extensions, states, now = active_grant_transition
+    entered, release = threading.Event(), threading.Event()
+    original = accounts.set_filter
+    outcomes = []
+
+    def hold_approved_filter(uid, value):
+        original(uid, value)
+        entered.set()
+        assert release.wait(5), "approval worker was not released"
+
+    def approve():
+        try:
+            outcomes.append(broker.request_access(991, ":1.2", 1001, 1003, 300, False))
+        except Exception as error:
+            outcomes.append(error)
+
+    monkeypatch.setattr(accounts, "set_filter", hold_approved_filter)
+    thread = threading.Thread(target=approve)
+    thread.start()
+    try:
+        assert entered.wait(3)
+        assert broker._authorizer.pending.admitted
+        before = list(accounts.events)
+        with pytest.raises(Busy):
+            broker.set_parent_control(1003, 1001, False, 90)
+        assert accounts.events == before
+        assert extensions.calls == []
+        assert preferences.load(1001)["parent_control_enabled"]
+    finally:
+        release.set()
+        thread.join(5)
+    assert not thread.is_alive()
+    assert len(outcomes) == 1 and not isinstance(outcomes[0], Exception)
+    assert outcomes[0][1] == "approved"
+    # A fresh save after the approval owns the slot can safely clear its grant.
+    broker.set_parent_control(1003, 1001, False, 90)
+    assert (accounts.limit_type, accounts.extension) == (0, (0, 0))
+    assert_time_states_usable(states, now, used=90000)
+
+
+@pytest.mark.parametrize("rollback", (False, True))
+def test_approval_cannot_snapshot_parent_disable_bridge_or_rollback(
+        monkeypatch, active_grant_transition, rollback):
+    broker, accounts, preferences, _extensions, states, now = active_grant_transition
+    entered, release = threading.Event(), threading.Event()
+    original_type, original_filter = accounts.set_limit_type, accounts.set_filter
+    bridge_writes = 0
+    failed = False
+    outcomes = []
+
+    def hold_bridge(uid, value):
+        nonlocal bridge_writes
+        original_type(uid, value)
+        if value == 1:
+            bridge_writes += 1
+            if bridge_writes == (2 if rollback else 1):
+                entered.set()
+                assert release.wait(5), "disable worker was not released"
+
+    def fail_commit(uid, value):
+        nonlocal failed
+        original_filter(uid, value)
+        if rollback and not failed:
+            failed = True
+            raise RuntimeError("one-shot disable failure")
+
+    def disable():
+        try:
+            outcomes.append(broker.set_parent_control(1003, 1001, False, 90))
+        except Exception as error:
+            outcomes.append(error)
+
+    monkeypatch.setattr(accounts, "set_limit_type", hold_bridge)
+    monkeypatch.setattr(accounts, "set_filter", fail_commit)
+    thread = threading.Thread(target=disable)
+    thread.start()
+    try:
+        assert entered.wait(3)
+        assert accounts.limit_type == 1
+        before = list(accounts.events)
+        with pytest.raises(Busy):
+            broker.request_access(991, ":1.2", 1001, 1003, 300, False)
+        assert accounts.events == before
+        assert broker._authorizer.calls == []
+    finally:
+        release.set()
+        thread.join(5)
+    assert not thread.is_alive()
+    assert len(outcomes) == 1
+    if rollback:
+        assert isinstance(outcomes[0], BackendFailure)
+        assert preferences.load(1001)["parent_control_enabled"]
+        assert accounts.limit_type == 2
+    else:
+        assert not isinstance(outcomes[0], Exception)
+        assert not preferences.load(1001)["parent_control_enabled"]
+        assert (accounts.limit_type, accounts.extension) == (0, (0, 0))
+    assert broker.request_access(991, ":1.3", 1001, 1003, 300, False)[1] == "approved"
+    assert accounts.limit_type == 2
+    assert_time_states_usable(states, now, used=90000)
+
+
 @pytest.mark.parametrize("surface", ("child", "kiosk"))
 @pytest.mark.parametrize("duration, stage", [
     (300, "usage"),

@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Required tasks: C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j1, C04j2.
+Required tasks: C04o, C04p, C04l, C04s, C04r, C04i, C04w, C04j1, C04j2, C04j3.
 Estimate: 30–60 min; session exception: complete ordered baseline qualification history.
 
 Apply the [master contract](../Kiosk-Session-Confinement-Plan.md#task-execution-contract),
@@ -66,7 +66,48 @@ applicability review and installed-evidence acceptance pass.
 
 ## Remaining qualification
 
-### Current suspension: selected-child catalogue inputs
+### Ready to resume after native active-grant disable repair
+
+The [C04j3 repair](../TestAutomation/E2E-Building-Blocks.md#c04j3-active-grant-disable)
+passed separate engineering and public attempts on both targets, including native
+continuity, exact rollback, saved disable and retained child activity. Its owned
+cleanup completed and both guests are off. Both complete baseline histories
+remain required on its repaired candidate, with the original 1800-second bounds
+and separate reusable feature/pause results. C04j3 supplies no complete-history
+or C05 acceptance credit. These instructions supersede the earlier suspensions below.
+
+The refreshed Ubuntu maintenance replay passed the selected input preparation,
+all negative/approval/use/revocation/reentry outcomes, and final H/S Allowed
+restoration with unchanged matches. At unanswered `restore-saved`, the normal
+`parent-save-disabled` observer again refused the unknown visible modal. The
+retained desktop identified a system crash notification for `malcontent-timerd`;
+its journal at the disable write asserted `time_limit_enabled || !extension_active`
+and recorded a crash/restart. The source disables `LimitType` before clearing
+the current grant. Useful current diagnostics are
+`onpc-baseline-restoration-diagnosis-8tge9nyn/boundary-observation.json` and
+`private/command-2320-stderr.txt` in that allocation.
+
+A direct native experiment confirmed that clearing the grant before disable,
+and enabling limits before grant restoration, kept the same timer process alive
+through five estimate queries. Independent Astra review found that this simple
+reorder can instead expose an exhausted native estimate and spuriously lock the
+child; the experiment did not observe native locks. The trial backend patch and
+its provisional regression were withdrawn. C04j3 subsequently repaired and
+qualified both invariants, including rollback, through a verified full-day native
+schedule bridge and the existing shared approval transaction lock.
+
+Both outdated baselines were refreshed successfully through automatic
+preparation, including current package snapshots and restoration. The diagnostic's
+missing named package input was built through the maintained builder after a
+mechanical runner fix: startup recovery now classifies the complete request,
+preserving VM ownership for `artifacts prepare --for-vm`. That exact command
+passed; 97 existing scoped routing/activity checks passed. The diagnostic now
+prints its exact missing-input preparation path. No formal complete history ran
+on either target in this session. Owned maintenance restoration, serial recovery
+for both targets and host cleanup completed; both pinned guests were independently
+observed off. All helpers finished. No staging, commit or push occurred.
+
+### Earlier suspension: selected-child catalogue inputs
 
 The maintained `tools/test-vm --vm 'onpc-Ubuntu26.04' reproduce-baseline-restoration`
 now replays this unchanged composition in owned online maintenance, stopping at
@@ -128,7 +169,8 @@ another formal attempt. Preserve the unknown-prompt refusal and all final save,
 settings and balance assertions. Renew Ubuntu's COMPLETE history after repair;
 reuse Fedora's pass only if its exact candidate/caller/provider scope remains
 valid. Shared changes require both-target applicability review and renewal of
-invalidated histories. C04j1 has passed; C04j remains unchecked and is next.
+invalidated histories. At that checkpoint C04j1 had passed and C04j was next;
+the current native-transition prerequisite above now owns the return condition.
 
 Acceptance requires both complete target histories, applicable separate feature
 and pause evidence, and verified collection/restoration. A bounded maintenance

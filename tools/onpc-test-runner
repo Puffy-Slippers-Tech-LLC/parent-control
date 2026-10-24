@@ -149,6 +149,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                                       'reproduce-kiosk-preferences',
                                       'reproduce-baseline-app-effects', 'reproduce-baseline-auth-pause',
+                                      'reproduce-baseline-restoration',
                                       'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                       'reproduce-lock-denial',
                                       'reproduce-retained-entry', 'probe-lock-curtain',
@@ -201,10 +202,10 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:rename-requires-new-name')
         if args.fixture_maintenance and args.action != 'start':
             raise ValueError('test-runner:fixture-maintenance-requires-start')
-        if (args.action == 'sync-fixtures') != (args.fixture_selection is not None):
+        if (args.action in ('sync-fixtures', 'reproduce-baseline-restoration')) != (args.fixture_selection is not None):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
-        if args.fixture_maintenance or args.action == 'sync-fixtures':
+        if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration'):
             targets = vm_config.fixture_targets(root / 'config/test-vm.json')
             if configured.name not in targets:
                 raise ValueError('test-runner:fixture-target-not-qualified')
@@ -441,6 +442,7 @@ def child_retention_owner(argv):
     return (argv[0] in ('system', 'e2e') or
             argv[0] == 'integration' and len(argv) > 1 and
             argv[1].removesuffix('.py') in ('check_graphical_smoke', 'check_e2e_watch',
+                                          'check_e2e_active_grant_disable',
                                           'check_fixture_recorded_serial', 'check_fixture_live_refresh'))
 
 

@@ -13,6 +13,19 @@ from tests.support.broker import make_broker
 
 
 class PolkitAdapterTests(unittest.TestCase):
+    def test_daily_schedule_uses_the_public_session_limits_property(self):
+        accounts = AccountsService(object())
+        with mock.patch.object(accounts, "_get", return_value=(123, 456)) as read, \
+                mock.patch.object(accounts, "_set") as write:
+            self.assertEqual(accounts.get_daily_schedule(1001), (123, 456))
+            accounts.set_daily_schedule(1001, (0, 86400))
+        interface = "com.endlessm.ParentalControls.SessionLimits"
+        read.assert_called_once_with(1001, interface, "DailySchedule")
+        uid, actual_interface, prop, value = write.call_args.args
+        self.assertEqual((uid, actual_interface, prop), (1001, interface, "DailySchedule"))
+        self.assertEqual(value.get_type_string(), "(uu)")
+        self.assertEqual(value.unpack(), (0, 86400))
+
     @staticmethod
     def _helper_result(stdout, returncode=0):
         def run(*_args, **kwargs):

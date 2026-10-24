@@ -34,7 +34,9 @@ MAX_LOCAL_MIDNIGHT_SECONDS = 26 * 60 * 60
 MIN_REQUEST_SECONDS = MIN_TIME_GRANT_SECONDS
 MAX_REQUEST_SECONDS = MAX_TIME_GRANT_SECONDS
 MIN_MANAGED_UID = 1000
+DAILY_SCHEDULE_FLAG = 1 << 0
 DAILY_LIMIT_FLAG = 1 << 1
+FULL_DAY_SCHEDULE = (0, 86400)
 APPROVER_USERNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*[$]?$")
 
 
@@ -113,6 +115,8 @@ class Accounts(Protocol):
     def set_limit_type(self, target_uid: int, value: int) -> None: ...
     def get_daily_limit(self, target_uid: int) -> int: ...
     def set_daily_limit(self, target_uid: int, value: int) -> None: ...
+    def get_daily_schedule(self, target_uid: int) -> tuple[int, int]: ...
+    def set_daily_schedule(self, target_uid: int, value: tuple[int, int]) -> None: ...
 
 
 class Preferences(Protocol):
@@ -234,6 +238,37 @@ class Broker:
             self._observe_grant(uid, *value)
         except Exception:
             get_logger("grant").warning("grant.invalid")
+
+    def _prepare_time_state(self, uid, limit_type, daily_limit):
+        # Malcontent 0.14 checks extensions even when LimitType is zero, then
+        # asserts that a current extension has enabled limits. Clearing a grant
+        # under an exhausted daily limit instead emits a lockable zero estimate.
+        # A full-day, schedule-only bridge avoids both intermediate states. Its
+        # local wall-clock range stays usable on 25-hour days too; a maximum
+        # daily allowance does not. Keep the original schedule until finalization.
+        if self._accounts.get_limit_type(uid) != 0 or limit_type != 0:
+            self._accounts.set_daily_schedule(uid, FULL_DAY_SCHEDULE)
+            if self._accounts.get_daily_schedule(uid) != FULL_DAY_SCHEDULE:
+                raise BackendFailure("daily-schedule verification failed")
+            self._accounts.set_limit_type(uid, DAILY_SCHEDULE_FLAG)
+            if self._accounts.get_limit_type(uid) != DAILY_SCHEDULE_FLAG:
+                raise BackendFailure("limit-type verification failed")
+        self._accounts.set_daily_limit(uid, daily_limit)
+        if self._accounts.get_daily_limit(uid) != daily_limit:
+            raise BackendFailure("daily-limit verification failed")
+
+    def _finish_time_state(self, uid, limit_type, daily_schedule, extension):
+        self._write_extension(uid, extension)
+        self._accounts.set_limit_type(uid, limit_type)
+        if self._accounts.get_limit_type(uid) != limit_type:
+            raise BackendFailure("limit-type verification failed")
+        self._accounts.set_daily_schedule(uid, daily_schedule)
+        if self._accounts.get_daily_schedule(uid) != daily_schedule:
+            raise BackendFailure("daily-schedule verification failed")
+
+    def _write_time_state(self, uid, limit_type, daily_limit, daily_schedule, extension):
+        self._prepare_time_state(uid, limit_type, daily_limit)
+        self._finish_time_state(uid, limit_type, daily_schedule, extension)
 
     def _observe_grant(self, uid, issued, duration, *, is_current=None):
         try:
@@ -1137,6 +1172,17 @@ class Broker:
 
     def set_parent_control(self, caller_uid: int, target_uid: int, enabled: bool,
                            daily_limit_minutes: int) -> dict:
+        if not self._acquire_request_lock():
+            raise Busy("another request is already in progress")
+        try:
+            return self._set_parent_control_locked(
+                caller_uid, target_uid, enabled, daily_limit_minutes,
+            )
+        finally:
+            self._request_lock.release()
+
+    def _set_parent_control_locked(self, caller_uid: int, target_uid: int, enabled: bool,
+                                   daily_limit_minutes: int) -> dict:
         config = self._load_config()
         if not self._is_admin(caller_uid):
             raise AccessDenied("administrator access is required")
@@ -1161,11 +1207,20 @@ class Broker:
             self._accounts.validate_filter(target.uid, desired_filter)
             old_limit_type = self._accounts.get_limit_type(target.uid)
             old_daily_limit = self._accounts.get_daily_limit(target.uid)
+            old_daily_schedule = self._accounts.get_daily_schedule(target.uid)
             old_filter = self._accounts.get_filter(target.uid)
             old_extension = self._accounts.get_extension(target.uid)
             extension_changed = enabled != previous
+            if not enabled and not extension_changed:
+                issued, duration = old_extension
+                if issued <= int(self._now().timestamp()) < issued + duration:
+                    # Kiosk approval can enable native limits while the saved
+                    # toggle stays off. Preserve its retained-grant policy,
+                    # rather than clearing it or disabling limits underneath it.
+                    raise BackendFailure("cannot disable native limits while retaining a current grant")
             if extension_changed:
                 self._extensions.set_enabled(target.uid, enabled)
+            preferences_save_started = False
             try:
                 desired_limit_type = DAILY_LIMIT_FLAG if enabled else 0
                 desired_daily_limit = daily_limit_minutes * 60 if enabled else 0
@@ -1173,16 +1228,24 @@ class Broker:
                 # saved blocklist so a toggle cannot retain a temporary
                 # soft-block exception (or another stale live filter).
                 if not enabled:
+                    self._write_time_state(
+                        target.uid, desired_limit_type, desired_daily_limit,
+                        old_daily_schedule, (0, 0) if extension_changed else old_extension,
+                    )
+                else:
+                    self._accounts.set_daily_limit(target.uid, desired_daily_limit)
+                    if self._accounts.get_daily_limit(target.uid) != desired_daily_limit:
+                        raise BackendFailure("daily-limit verification failed")
+                    if extension_changed:
+                        self._write_extension(target.uid, (0, 0))
                     self._accounts.set_limit_type(target.uid, desired_limit_type)
-                self._accounts.set_daily_limit(target.uid, desired_daily_limit)
-                if extension_changed:
-                    self._write_extension(target.uid, (0, 0))
-                if enabled:
-                    self._accounts.set_limit_type(target.uid, desired_limit_type)
+                    if self._accounts.get_limit_type(target.uid) != desired_limit_type:
+                        raise BackendFailure("limit-type verification failed")
                 self._accounts.set_filter(target.uid, desired_filter)
 
                 if (self._accounts.get_limit_type(target.uid) != desired_limit_type or
-                        self._accounts.get_daily_limit(target.uid) != desired_daily_limit):
+                        self._accounts.get_daily_limit(target.uid) != desired_daily_limit or
+                        self._accounts.get_daily_schedule(target.uid) != old_daily_schedule):
                     raise BackendFailure("parent-control account verification failed")
                 if self._accounts.get_filter(target.uid) != desired_filter:
                     raise BackendFailure("app-filter verification failed")
@@ -1190,9 +1253,10 @@ class Broker:
                         self._accounts.get_extension(target.uid) != (0, 0)):
                     raise BackendFailure("parent-control account verification failed")
 
-                current["parent_control_enabled"] = enabled
-                current["daily_time_limit_minutes"] = daily_limit_minutes
-                saved = self._preferences.save(target.uid, current)
+                requested = {**current, "parent_control_enabled": enabled,
+                             "daily_time_limit_minutes": daily_limit_minutes}
+                preferences_save_started = True
+                saved = self._preferences.save(target.uid, requested)
                 LOG.info("core.017", enabled=enabled)
                 return saved
             except Exception as error:
@@ -1202,11 +1266,19 @@ class Broker:
                 try:
                     self._restore(
                         target.uid, old_limit_type, old_daily_limit, old_filter,
-                        old_extension, None,
+                        old_extension, old_daily_schedule, None,
                     )
                 except Exception as caught:
                     record_exception(caught)
                     rollback_error = caught
+                try:
+                    if preferences_save_started:
+                        self._preferences.save(target.uid, current)
+                        if self._preferences.load(target.uid) != current:
+                            raise RuntimeError("preference rollback read-back mismatch")
+                except Exception as caught:
+                    record_exception(caught)
+                    rollback_error = rollback_error or caught
                 try:
                     if extension_changed:
                         self._extensions.set_enabled(target.uid, previous)
@@ -1547,7 +1619,7 @@ class Broker:
                extension: tuple[int, int], correlation_id: str,
                termination_patterns: tuple[str, ...] | None = None,
                *, admit: Callable[[], bool]) -> bool:
-        old_limit_type = old_daily_limit = old_filter = old_extension = None
+        old_limit_type = old_daily_limit = old_daily_schedule = old_filter = old_extension = None
         snapshot_complete = False
         termination_may_have_changed_processes = False
         try:
@@ -1556,6 +1628,7 @@ class Broker:
             # translation but must not attempt a partial rollback.
             old_limit_type = self._accounts.get_limit_type(target_uid)
             old_daily_limit = self._accounts.get_daily_limit(target_uid)
+            old_daily_schedule = self._accounts.get_daily_schedule(target_uid)
             old_filter = self._accounts.get_filter(target_uid)
             old_extension = self._accounts.get_extension(target_uid)
             desired_daily_limit = preferences["daily_time_limit_minutes"] * 60
@@ -1564,16 +1637,12 @@ class Broker:
             if not admit():
                 return False
             snapshot_complete = True
-            if old_limit_type == 0 or old_daily_limit != desired_daily_limit:
+            initialize_time = old_limit_type == 0 or old_daily_limit != desired_daily_limit
+            if initialize_time:
                 LOG.info("core.034", request=correlation_id)
-                if old_daily_limit != desired_daily_limit:
-                    self._accounts.set_daily_limit(target_uid, desired_daily_limit)
-                    if self._accounts.get_daily_limit(target_uid) != desired_daily_limit:
-                        raise BackendFailure("daily-limit verification failed")
-                if old_limit_type == 0:
-                    self._accounts.set_limit_type(target_uid, DAILY_LIMIT_FLAG)
-                    if self._accounts.get_limit_type(target_uid) != DAILY_LIMIT_FLAG:
-                        raise BackendFailure("limit-type verification failed")
+                self._prepare_time_state(
+                    target_uid, old_limit_type or DAILY_LIMIT_FLAG, desired_daily_limit,
+                )
             LOG.info("core.035", request=correlation_id)
             self._accounts.set_filter(target_uid, desired_filter)
             if self._accounts.get_filter(target_uid) != desired_filter:
@@ -1589,7 +1658,12 @@ class Broker:
                 termination_may_have_changed_processes = terminated > 0
                 LOG.info("core.037", request=correlation_id, count=terminated)
             LOG.info("core.038", request=correlation_id)
-            self._write_extension(target_uid, extension)
+            if initialize_time:
+                self._finish_time_state(
+                    target_uid, old_limit_type or DAILY_LIMIT_FLAG, old_daily_schedule, extension,
+                )
+            else:
+                self._write_extension(target_uid, extension)
             if self._accounts.get_extension(target_uid) != extension:
                 raise BackendFailure("extension verification failed")
             self._observe_grant(target_uid, *extension)
@@ -1606,12 +1680,12 @@ class Broker:
                 # account value and never publish the requested time grant.
                 self._restore_after_termination(
                     target_uid, old_limit_type, old_daily_limit, desired_filter,
-                    old_extension, correlation_id,
+                    old_extension, old_daily_schedule, correlation_id,
                 )
             else:
                 self._restore(
                     target_uid, old_limit_type, old_daily_limit, old_filter,
-                    old_extension, correlation_id,
+                    old_extension, old_daily_schedule, correlation_id,
                 )
             if isinstance(error, BrokerError):
                 raise
@@ -1619,17 +1693,18 @@ class Broker:
 
     def _restore_after_termination(
             self, target_uid: int, old_limit_type: int, old_daily_limit: int,
-            desired_filter, old_extension, correlation_id: str) -> None:
+            desired_filter, old_extension, old_daily_schedule, correlation_id: str) -> None:
         try:
             LOG.warning("core.040", request=correlation_id)
-            self._write_extension(target_uid, old_extension)
-            self._accounts.set_limit_type(target_uid, old_limit_type)
-            self._accounts.set_daily_limit(target_uid, old_daily_limit)
+            self._write_time_state(
+                target_uid, old_limit_type, old_daily_limit, old_daily_schedule, old_extension,
+            )
             self._accounts.set_filter(target_uid, desired_filter)
             if (self._accounts.get_extension(target_uid) != old_extension or
                     self._accounts.get_filter(target_uid) != desired_filter or
                     self._accounts.get_limit_type(target_uid) != old_limit_type or
-                    self._accounts.get_daily_limit(target_uid) != old_daily_limit):
+                    self._accounts.get_daily_limit(target_uid) != old_daily_limit or
+                    self._accounts.get_daily_schedule(target_uid) != old_daily_schedule):
                 raise RuntimeError("post-termination rollback read-back mismatch")
         except Exception as error:
             LOG.critical("core.041", request=correlation_id)
@@ -1638,20 +1713,22 @@ class Broker:
             ) from error
 
     def _restore(self, target_uid: int, old_limit_type: int, old_daily_limit: int,
-                 old_filter, old_extension, correlation_id: str | None) -> None:
+                 old_filter, old_extension, old_daily_schedule,
+                 correlation_id: str | None) -> None:
         try:
             if correlation_id is None:
                 LOG.warning("core.parent-control-rollback")
             else:
                 LOG.warning("core.042", request=correlation_id)
-            self._write_extension(target_uid, old_extension)
+            self._write_time_state(
+                target_uid, old_limit_type, old_daily_limit, old_daily_schedule, old_extension,
+            )
             self._accounts.set_filter(target_uid, old_filter)
-            self._accounts.set_limit_type(target_uid, old_limit_type)
-            self._accounts.set_daily_limit(target_uid, old_daily_limit)
             if (self._accounts.get_extension(target_uid) != old_extension or
                     self._accounts.get_filter(target_uid) != old_filter or
                     self._accounts.get_limit_type(target_uid) != old_limit_type or
-                    self._accounts.get_daily_limit(target_uid) != old_daily_limit):
+                    self._accounts.get_daily_limit(target_uid) != old_daily_limit or
+                    self._accounts.get_daily_schedule(target_uid) != old_daily_schedule):
                 raise RuntimeError("rollback read-back mismatch")
         except Exception as error:
             if correlation_id is None:

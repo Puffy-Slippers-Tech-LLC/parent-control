@@ -295,10 +295,12 @@ The [effect-admission boundary](#request-lifetime-and-effect-admission) keeps
 lifecycle monitoring active through preflight and snapshots, then admits one
 original transaction immediately before its first possible write.
 
-`SetParentControl`, both request-preference methods and `SetRequestMuted` do not take
-that shared lock. The parent serializes its own saves, and approval checks for
-stale preferences, but the lock is not a blanket serialization guarantee for
-every settings write or independent client.
+`SetParentControl` takes the same nonblocking lock through its native snapshots,
+commit and rollback, preventing an approval from capturing the temporary time
+bridge or writing a grant after disable. Both request-preference methods and
+`SetRequestMuted` do not take that lock. The parent serializes its own saves,
+and approval checks for stale preferences; other settings writes retain their
+existing boundaries.
 
 For a request that keeps soft blocks enabled, the broker writes and verifies the
 complete hard-and-soft filter, terminates matching apps owned by the selected
@@ -322,6 +324,9 @@ restores the complete old account state. Once termination may have changed a
 process, that side effect cannot be rolled back; failure instead restores the
 old time values, keeps the strict filter active, and reports the failure. A
 rollback read-back failure is reported distinctly.
+Time-state commit and rollback share the verified
+[native transition bridge](Screen-Time.md#screen-time-model), preserving the
+original daily schedule as well as limit type, daily allowance and grant.
 
 `HasRunningSoftBlockedApps` is an administrator-only read for an eligible child.
 It resolves saved soft-block targets and patterns through the same native,

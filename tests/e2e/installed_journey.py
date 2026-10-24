@@ -398,9 +398,9 @@ class InstalledJourney:
         self.review = review
         self.actions = actions or {}
         if getattr(context, 'fixture_selection', None) is not None:
-            from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS, SUBSETS
+            from e2e_fixture_preparation import ACTIVITY_CALLERS, ACTIVITY_SUBSETS, SUBSETS
             activity = (getattr(context, 'fixture_subsets', SUBSETS) == ACTIVITY_SUBSETS
-                and getattr(context, 'fixture_caller', None) == ACTIVITY_CALLER
+                and getattr(context, 'fixture_caller', None) in ACTIVITY_CALLERS
                 and not getattr(context, 'product_free', False))
             require(getattr(context, 'fixture_subsets', SUBSETS) == SUBSETS or activity,
                     'fixtures:e2e-profile-not-qualified')

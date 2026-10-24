@@ -77,8 +77,10 @@ Renew only missing or invalidated evidence. C04j's core orchestration is
 implemented; C04j1 qualified its selected native/activity input preparation on
 both targets. C04j's live diagnosis found that this selection supplies Jordan's
 launchers but none of Riley's required catalogue launchers. C04j2 qualified that
-finite input gap on both targets; C04j now resumes the Ubuntu final Parent restoration alert and
-completes the affected histories under the recorded input-envelope applicability
+finite input gap on both targets. C04j's resumed diagnosis identified a native
+timer crash when Parent disables controls with a live grant. C04j3 qualified the
+bounded crash-safe transition, rollback and native-lock continuity repair on both targets;
+C04j then completes both affected histories under the recorded applicability
 decision. C04 audits readiness, and C05u/f accept
 matching retained complete evidence or execute missing/invalidated histories.
 
@@ -102,7 +104,7 @@ indivisible installed histories retain their explicit exceptions.
 
 ### Parity boundary for remaining tasks
 
-C04j2, C04j, C04 and C05u/f cover the rebuilt v1.3 kiosk-confinement parity
+C04j2, C04j3, C04j, C04 and C05u/f cover the rebuilt v1.3 kiosk-confinement parity
 slice only: its required fixture inputs, ordinary entry/request/approval,
 time/app effects, reentry and restoration. C04 remains a host readiness audit;
 C05 accepts this same finite history on each target. Reuse the completed separate

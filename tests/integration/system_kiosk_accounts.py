@@ -29,6 +29,8 @@ CACHE = Path('/var/lib/AccountsService/users') / NAME
 ICON = Path('/var/lib/AccountsService/icons/oh-no-parent-control-phase2')
 MASK = Path('/run/systemd/system') / DAEMON
 PROVISION = Path('/usr/libexec/oh-no-parent-control-provision')
+LIFECYCLE = Path('/usr/libexec/oh-no-parent-control-kiosk-lifecycle')
+MIGRATION = Path('/usr/lib/oh-no-parent-control/lifecycle/lifecycle_migration.py')
 BOOT = Path('/proc/sys/kernel/random/boot_id')
 SLOT = '.onpc-kiosk-visibility-v1'
 TRANSACTION = 'user.oh-no-parent-control.visibility-v1'
@@ -151,8 +153,15 @@ def visibility(account, *, visible=True, saved=True):
 
 
 def production_provision(account):
+    # Follow package configuration: retained visibility belongs to the daemon's
+    # start-pre migration, while fresh caching and routing belong to provision.
+    distribution = 'fedora' if guest.package_path().suffix == '.rpm' else 'ubuntu'
+    needed = guest.run([str(LIFECYCLE), '--distribution', distribution, 'visibility-needed'])
+    guest.require(needed in ('yes', 'no'), 'kiosk-accounts:visibility-needed-result')
+    if needed == 'yes':
+        guest.run(['systemctl', 'restart', DAEMON], timeout=45)
     provision = runpy.run_path(str(PROVISION))
-    provision['accounts_service_provision_kiosk'](account)
+    provision['provision_accounts_service'](account)
 
 
 def routing(account):
@@ -219,9 +228,9 @@ def interrupt_repair(stage):
                   os.readlink(MASK) == '/dev/null' and
                   unit_property('ActiveState') == 'inactive' and unit_property('MainPID') == '0',
                   'kiosk-accounts:interruption-not-quiescent')
-    provision = runpy.run_path(str(PROVISION))
-    native_run = provision['subprocess'].run
-    native_replace = provision['os'].replace
+    migration = runpy.run_path(str(MIGRATION))
+    native_run = migration['subprocess'].run
+    native_replace = migration['os'].replace
     query = ['systemctl', 'show', '--property=ActiveState,SubState,MainPID', DAEMON]
 
     def start_pre(command, **options):
@@ -244,17 +253,17 @@ def interrupt_repair(stage):
         native_replace(source, destination, **options)
         os._exit(73)
 
-    provision['subprocess'].run = start_pre
-    provision['os'].replace = replace
+    migration['subprocess'].run = start_pre
+    migration['os'].replace = replace
     try:
-        provision['repair_kiosk_visibility']()
+        migration['visibility']()
     except OSError as error:
         if stage == 'failure' and error.errno == errno.EIO and error.strerror == 'onpc-engineering-precommit':
             return 74
         raise
     finally:
-        provision['subprocess'].run = native_run
-        provision['os'].replace = native_replace
+        migration['subprocess'].run = native_run
+        migration['os'].replace = native_replace
     raise guest.GuestError('kiosk-accounts:interruption-not-reached')
 
 
@@ -433,15 +442,21 @@ def exercise(record, *, atomic=True):
             guest.commands.run([sys.executable, '-B', str(guest.PAYLOAD / 'system_kiosk_accounts.py'),
                                 'interrupt-repair', stage], check=False, timeout=60,
                                merge_stderr=False)
+            # Observe the transaction boundary before asserting recovery state,
+            # without exposing cache/xattr data.
+            record('onpc.kiosk.accounts.atomic-observation.' + stage, {
+                'stage': stage, 'status': guest.commands.last_returncode,
+                'cache_unchanged': fingerprint(CACHE) == before,
+                'pending_slot': os.path.lexists(CACHE.parent / SLOT),
+                'committed_marker': TRANSACTION in os.listxattr(CACHE),
+            })
             guest.require(guest.commands.last_returncode == status,
                           'kiosk-accounts:interruption-result')
             if stage in ('failure', 'before'):
                 verify_preserved(before, icon)
-                if stage == 'before':
-                    verify_pending(CACHE.parent / SLOT, retained, before, account, before_identity)
-                else:
-                    guest.require(not os.path.lexists(CACHE.parent / SLOT),
-                                  'kiosk-accounts:failed-transaction-residue')
+                # Both a caught save failure and a process interruption retain
+                # the owned record for the next daemon start to recover.
+                verify_pending(CACHE.parent / SLOT, retained, before, account, before_identity)
             else:
                 verify_pending(CACHE, retained, before, account, before_identity)
                 guest.require(not os.path.lexists(CACHE.parent / SLOT),

@@ -241,6 +241,9 @@ being signalled. Locks/private legacy generations remain until reboot, never swe
 3. Recover only the fixed visibility slot/committed xattr at verified AccountsService
    start-pre, using UID/inode/content/metadata identity. Change only the retained
    SystemAccount boolean; preserve unrelated cache bytes, metadata and accounts.
+   A save failure before replacement preserves the original cache and the published
+   recovery slot, including when the error is caught. The next daemon start verifies
+   that slot, retries the change and removes the recovery state after success.
 4. Restore original PAM under quarantine, install replacement integration and invoke
    the real side-effect-free readiness verifier. Recheck state before retiring old
    records and releasing expiry through its retryable phase. A boolean is not a

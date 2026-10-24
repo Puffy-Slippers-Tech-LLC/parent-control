@@ -752,7 +752,7 @@ def _audit_denials(raw):
         permissions = re.search(r'denied\s+\{([a-zA-Z0-9_\s]+)\}', line)
         if permissions:
             row['permissions'] = permissions[1].split()
-        for field in ('pid', 'uid', 'scontext', 'tcontext', 'tclass', 'permissive'):
+        for field in ('pid', 'uid', 'ino', 'dev', 'scontext', 'tcontext', 'tclass', 'permissive'):
             match = re.search(r'\b' + field + r'=([a-zA-Z0-9_:.,-]+)', line)
             if match:
                 row[field] = match[1]
@@ -760,15 +760,8 @@ def _audit_denials(raw):
     return rows
 
 
-def collect_seed_access(output, redacted):
-    """Read the missing denial sources only for a failed graphical seed."""
-    guard()
-    result = Commands().run([
-        'journalctl', '--no-pager', '--utc', '-b', '--lines=300',
-        '_PID=1', '+', '_SYSTEMD_UNIT=dbus-broker.service', '+',
-        '_SYSTEMD_UNIT=dbus.service'], timeout=30, check=False, merge_stderr=False)
-    (output / 'graphical-expiry-access-journal.txt').write_text(
-        redacted(result.decode(errors='replace')))
+def access_audit():
+    """Read bounded denial coordinates without exporting audit command lines."""
     # Fedora's audit daemon can own AVC evidence not present in the journal.
     # This optional reader neither installs tools nor changes security policy.
     reader = shutil.which('ausearch')
@@ -786,8 +779,54 @@ def collect_seed_access(output, redacted):
         audit = {'returncode': commands.last_returncode, 'denials': rows[-100:],
                  'truncated': len(rows) > 100,
                  'stderr': b''.join(errors)[:4096].decode(errors='replace')}
+    return audit
+
+
+def collect_seed_access(output, redacted):
+    """Read the missing denial sources only for a failed graphical seed."""
+    guard()
+    result = Commands().run([
+        'journalctl', '--no-pager', '--utc', '-b', '--lines=300',
+        '_PID=1', '+', '_SYSTEMD_UNIT=dbus-broker.service', '+',
+        '_SYSTEMD_UNIT=dbus.service'], timeout=30, check=False, merge_stderr=False)
+    (output / 'graphical-expiry-access-journal.txt').write_text(
+        redacted(result.decode(errors='replace')))
     (output / 'graphical-expiry-access-audit.json').write_text(
-        redacted(json.dumps(audit, sort_keys=True)))
+        redacted(json.dumps(access_audit(), sort_keys=True)))
+
+
+def collect_kiosk_admission_access(output, redacted):
+    """Observe an admission denial without repairing the lock or MAC policy."""
+    guard()
+    observations = {}
+    for name, path in (
+            ('runtime', Path('/run')),
+            ('lock', Path('/run/oh-no-parent-control-kiosk-admission.lock'))):
+        row = {}
+        try:
+            info = path.lstat()
+            row.update(mode=stat.S_IMODE(info.st_mode), regular=stat.S_ISREG(info.st_mode),
+                       uid=info.st_uid, gid=info.st_gid, nlink=info.st_nlink,
+                       device=info.st_dev, inode=info.st_ino)
+        except OSError as error:
+            row['stat_errno'] = error.errno
+        try:
+            label = os.getxattr(path, 'security.selinux', follow_symlinks=False)
+            # Only the security context, never a path or arbitrary xattr value.
+            label = label.rstrip(b'\0').decode('ascii')
+            row['selinux'] = label if re.fullmatch(r'[a-zA-Z0-9_:.,-]{1,256}', label) else 'invalid'
+        except OSError as error:
+            row['selinux_errno'] = error.errno
+        except UnicodeError:
+            row['selinux'] = 'invalid'
+        observations[name] = row
+    try:
+        observations['audit'] = access_audit()
+    except Exception as error:
+        # Optional instrumentation must not lose the original failure logs.
+        observations['audit'] = {'status': 'reader-failed', 'error': type(error).__name__}
+    (output / 'kiosk-admission-access.json').write_text(
+        redacted(json.dumps(observations, sort_keys=True)))
 
 
 def collect(marker, outcome):
@@ -827,7 +866,10 @@ def collect(marker, outcome):
                              '_SYSTEMD_UNIT=gdm.service', '+',
                              '_SYSTEMD_UNIT=systemd-logind.service', '+',
                              '_COMM=gnome-shell'], timeout=60, check=False, merge_stderr=False)
-    (output / 'session-journal.txt').write_text(redacted(result.decode(errors='replace')))
+    session_journal = result.decode(errors='replace')
+    (output / 'session-journal.txt').write_text(redacted(session_journal))
+    if outcome == 'failed' and 'onpc.pam kiosk admission outcome=denied' in session_journal:
+        collect_kiosk_admission_access(output, redacted)
     for name in ('prepared', 'prerequisites', 'broker-ready', 'seed-attempt', 'seeded'):
         source = EXPIRY_DIAGNOSTICS / (name + '.json')
         if source.exists():

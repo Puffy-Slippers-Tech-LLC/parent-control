@@ -48,15 +48,33 @@
 #define RUNTIME_MAX_DATA "systemd.runtime_max_sec"
 
 static int
-lock_current(int fd)
+admission_check_failed(pam_handle_t *pamh, const char *check, int error)
+{
+    /* Fixed check names and numeric errors only; never account/path metadata.
+     * Keep the original denial marker separately for existing consumers. */
+    pam_syslog(pamh, LOG_WARNING,
+               "onpc.pam kiosk admission check=%s errno=%d", check, error);
+    return 0;
+}
+
+static int
+lock_current(pam_handle_t *pamh, int fd)
 {
     struct stat opened, named, barrier;
-    return fstat(fd, &opened) == 0 && lstat(KIOSK_ADMISSION_LOCK, &named) == 0 &&
-        S_ISREG(opened.st_mode) && S_ISREG(named.st_mode) &&
-        opened.st_uid == KIOSK_ADMISSION_LOCK_OWNER &&
-        (opened.st_mode & 07777) == 0600 && opened.st_nlink == 1 &&
-        opened.st_dev == named.st_dev && opened.st_ino == named.st_ino &&
-        lstat(KIOSK_ADMISSION_DISABLED, &barrier) != 0 && errno == ENOENT;
+    if (fstat(fd, &opened) != 0)
+        return admission_check_failed(pamh, "lock-fstat", errno);
+    if (lstat(KIOSK_ADMISSION_LOCK, &named) != 0)
+        return admission_check_failed(pamh, "lock-lstat", errno);
+    if (!S_ISREG(opened.st_mode) || !S_ISREG(named.st_mode) ||
+        opened.st_uid != KIOSK_ADMISSION_LOCK_OWNER ||
+        (opened.st_mode & 07777) != 0600 || opened.st_nlink != 1 ||
+        opened.st_dev != named.st_dev || opened.st_ino != named.st_ino)
+        return admission_check_failed(pamh, "lock-identity", 0);
+    if (lstat(KIOSK_ADMISSION_DISABLED, &barrier) == 0)
+        return admission_check_failed(pamh, "removal-barrier-present", 0);
+    if (errno != ENOENT)
+        return admission_check_failed(pamh, "removal-barrier-lstat", errno);
+    return 1;
 }
 
 static void
@@ -76,7 +94,7 @@ admission(pam_handle_t *pamh)
     int *fd, result, created = 0;
     result = pam_get_data(pamh, ADMISSION_DATA, &existing);
     if (result == PAM_SUCCESS && existing != NULL)
-        return lock_current(*(const int *) existing) ? PAM_SUCCESS : PAM_PERM_DENIED;
+        return lock_current(pamh, *(const int *) existing) ? PAM_SUCCESS : PAM_PERM_DENIED;
     if (result != PAM_SUCCESS && result != PAM_NO_MODULE_DATA)
         return result;
     if (geteuid() != KIOSK_ADMISSION_LOCK_OWNER ||
@@ -89,28 +107,56 @@ admission(pam_handle_t *pamh)
                O_CLOEXEC | O_NONBLOCK, 0600);
     if (*fd >= 0)
         created = 1;
-    else if (errno == EEXIST)
+    else if (errno == EEXIST) {
         *fd = open(KIOSK_ADMISSION_LOCK, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK);
+        if (*fd < 0)
+            admission_check_failed(pamh, "existing-lock-open", errno);
+    } else {
+        admission_check_failed(pamh, "new-lock-open", errno);
+    }
     /* Initialize only a proven new owned inode. Never change umask, repair an
      * existing lock or unlink it; the lifecycle uses the same named inode.
      * A shared flock needs no write access: GDM and the user-manager executor
      * can have different SELinux write authority over this shared inode. */
-    if (*fd < 0 || (created &&
-        (fstat(*fd, &opened) != 0 || lstat(KIOSK_ADMISSION_LOCK, &named) != 0 ||
-         !S_ISREG(opened.st_mode) || opened.st_uid != KIOSK_ADMISSION_LOCK_OWNER ||
-         opened.st_nlink != 1 || opened.st_dev != named.st_dev ||
-         opened.st_ino != named.st_ino || fchmod(*fd, 0600) != 0)) ||
-        flock(*fd, LOCK_SH | LOCK_NB) != 0 || !lock_current(*fd)) {
-        if (*fd >= 0)
-            close(*fd);
-        free(fd);
-        pam_syslog(pamh, LOG_WARNING, "onpc.pam kiosk admission outcome=denied stage=removal-barrier");
-        return PAM_PERM_DENIED;
+    if (*fd < 0)
+        goto denied;
+    if (created) {
+        if (fstat(*fd, &opened) != 0) {
+            admission_check_failed(pamh, "new-lock-fstat", errno);
+            goto denied;
+        }
+        if (lstat(KIOSK_ADMISSION_LOCK, &named) != 0) {
+            admission_check_failed(pamh, "new-lock-lstat", errno);
+            goto denied;
+        }
+        if (!S_ISREG(opened.st_mode) || opened.st_uid != KIOSK_ADMISSION_LOCK_OWNER ||
+            opened.st_nlink != 1 || opened.st_dev != named.st_dev ||
+            opened.st_ino != named.st_ino) {
+            admission_check_failed(pamh, "new-lock-identity", 0);
+            goto denied;
+        }
+        if (fchmod(*fd, 0600) != 0) {
+            admission_check_failed(pamh, "new-lock-chmod", errno);
+            goto denied;
+        }
     }
+    if (flock(*fd, LOCK_SH | LOCK_NB) != 0) {
+        admission_check_failed(pamh, "shared-lock", errno);
+        goto denied;
+    }
+    if (!lock_current(pamh, *fd))
+        goto denied;
     result = pam_set_data(pamh, ADMISSION_DATA, fd, release_admission);
     if (result != PAM_SUCCESS)
         release_admission(pamh, fd, result);
     return result;
+
+denied:
+    if (*fd >= 0)
+        close(*fd);
+    free(fd);
+    pam_syslog(pamh, LOG_WARNING, "onpc.pam kiosk admission outcome=denied stage=removal-barrier");
+    return PAM_PERM_DENIED;
 }
 
 static int

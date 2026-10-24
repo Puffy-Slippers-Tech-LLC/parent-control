@@ -352,6 +352,15 @@ def barriers():
                     current = path.stat(follow_symlinks=False)
                     if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
                         raise ValueError('replaced-legacy-lock')
+                elif path == LOCKS[0] and saved is None and (ROOT / 'sys/fs/selinux/enforce').exists():
+                    # The package can create this lease before GDM does. Its
+                    # generic var_run_t label denies xdm_t even read access.
+                    # Use the stock label GDM creates here, also readable by
+                    # systemd-user. Relabel only our validated, exclusively
+                    # locked inode; retain legacy policy labels until commit.
+                    label = b'system_u:object_r:xdm_var_run_t:s0'
+                    if os.getxattr(descriptor, 'security.selinux').rstrip(b'\0') != label:
+                        os.setxattr(descriptor, 'security.selinux', label)
             yield
     finally:
         for descriptor in reversed(descriptors):

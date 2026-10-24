@@ -1299,6 +1299,37 @@ links passed. No executable inventory or coverage source changed, so no coverage
 regeneration or package build was needed. This audit ran no installed checks,
 reopened no completed task and left no owned resources.
 
+<a id="c05u-ubuntu-baseline-acceptance"></a>
+
+#### Ubuntu baseline acceptance
+
+C05u independently applied the
+[complete baseline reuse contract](E2E-Execution-Contracts.md#complete-baseline-evidence-reuse)
+and accepts C04j's complete `onpc-Ubuntu26.04` history above as installed
+acceptance. The selected candidate is the recorded rebuilt DEB, installed-content
+SHA-256 `93e0806ccde2aaf6f54900c438ee78fbdcda3efab0527603b2a3bd75dfda96be`,
+with its recorded snapshot, source, fixture and provider identities. All 246
+observations passed in 1361.391 seconds within the unchanged 1800-second worker
+bound, including the mapped negative, approval, activity, revocation, fresh-request
+and public restoration results.
+
+Comparison from C04j through C04 and the current checkout found no changed
+product/package source, native fixture payload, provider binding or assertion.
+All four recorded complete-caller hashes still match. The existing fixture
+blank line, maintenance-only diagnostic, equivalent snapshot rebind extraction
+and host test-recovery/classification edits do not invalidate those public
+results. No new candidate or fixture input is claimed. The separate C04l/s/r/i
+feature and C04l/w human-pause results also remain applicable to their unchanged
+bindings. No renewal is required.
+
+The accepted history completed collection, worker/callback shutdown and owned
+baseline restoration, with the guest independently observed off. C05u started
+no VM, worker or helper requiring cleanup. Alternate graphical-session access
+remains for D01/D02; TTY, SSH, remote-desktop and exposed child-accessible routes
+remain for C06a/C06 review. These are unqualified routes, not observed baseline
+failures or a final confinement claim. Only C05u closes; Fedora remains C05f's
+installed acceptance gate.
+
 The caller owns order, values, immutable per-approval captures and comparison
 endpoints. Shared operations own public inputs, guarded authentication, native
 activity, desktop entry, observation and revocation. The exact remembered

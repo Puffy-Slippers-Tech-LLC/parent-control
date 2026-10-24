@@ -1,7 +1,7 @@
 # Kiosk confinement baseline validation for v1.4
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C05u — [Prove baseline usability on Ubuntu](Kiosk-Prompt-Tasks/C05u-baseline-ubuntu.md)**.
+Next task: **C05f — [Prove baseline usability on Fedora](Kiosk-Prompt-Tasks/C05f-baseline-fedora.md)**.
 
 ## Outcome
 

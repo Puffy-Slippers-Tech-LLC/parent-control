@@ -715,13 +715,19 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
     def progress(category, status, *, model=None, effort=None):
         nonlocal active_task
+        from launcher_chat import read_state
+        previous = read_state(run)
         publish_repair_status(run, round_number, category, categories, status,
                               model=model, effort=effort)
         key = read_progress(run)[-1]['key']
         active_task = f'{round_number}:{category}'
         update_task_info(run, active_task, {})
+        selection = {name: previous[name] for name in ('model', 'effort')
+                     if previous.get('task_id') == active_task and name in previous}
+        selection.update({name: value for name, value in (('model', model), ('effort', effort))
+                          if value is not None})
         atomic(run / 'chat-state.json', {'task_id': active_task, 'progress_key': key,
-                                        'session': None, 'status': 'waiting'})
+                                        'session': None, 'status': 'waiting', **selection})
 
     def panel(value):
         if active_task is not None:

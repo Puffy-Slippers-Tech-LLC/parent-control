@@ -223,9 +223,8 @@ class SessionOutput:
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
 
     def discover(self):
-        owner, _label = self.output.discover()
+        owner, _ = self.output.discover()
         owners = [owner] if owner is not None else []
-        interactive_owners = {owner} if owner is not None and _label == 'fix-tests' else set()
         # Plan-based tools have independent namespaces and need no test runner.
         for kind in ('fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew', 'plans'):
             try:
@@ -236,8 +235,6 @@ class SessionOutput:
                         run = active_run(item, workflow=True, reader=self.reader)
                         if run is not None:
                             owners.append(run)
-                            if kind != 'sync-whatsnew':
-                                interactive_owners.add(run)
                     except (OSError, ValueError, KeyError, TypeError):
                         continue
             except (OSError, ValueError):
@@ -252,24 +249,14 @@ class SessionOutput:
                     if (not isinstance(value, dict) or not isinstance(value.get('session'), str)
                             or not isinstance(value.get('started_at'), (int, float))
                             or type(value.get('interactive')) is not bool
-                            or value.get('status') not in ('running', 'finished')):
+                            or value.get('status') != 'running'):
                         continue
-                    sessions.append((value['status'] == 'running', value['started_at'], owner, run, value))
+                    sessions.append((value['started_at'], owner, run, value))
                 except (OSError, ValueError, TypeError):
                     continue
         if sessions:
-            _active, _started, owner, run, value = max(sessions, key=lambda item: item[:2])
+            _started, owner, run, value = max(sessions, key=lambda item: item[0])
             return owner, run, value, 'session-output.log'
-        # A workflow is observable before its first agent starts, and older
-        # supervisors publish only their normal output. Keep that live
-        # transcript in the shared panel until a dedicated session is available.
-        for owner in dict.fromkeys(owners):
-            try:
-                with open_private(owner / 'output'):
-                    return owner, owner, dict(session='workflow-' + owner.name,
-                        interactive=owner in interactive_owners, status='running'), 'output'
-            except (OSError, ValueError):
-                continue
         return None, None, {}, None
 
     def current(self):
@@ -319,7 +306,9 @@ class SessionOutput:
         from launcher_question import QuestionInput, submit
         owner, run, state, source = self.discover()
         if run is None:
-            self.identity = None
+            self.owner = self.run = self.identity = self.panel = None
+            self.offset = 0
+            self.decoder.reset()
             return False, False, b''
         reset = (run, state['session']) != (self.run, self.identity)
         if reset:
@@ -339,6 +328,11 @@ class SessionOutput:
         except (OSError, ValueError):
             if state['interactive']:
                 panel.chat_state = dict(session=None, status='starting')
+        # Workflow transitions can publish only mailbox/lifecycle fields.
+        # Keep the supervisor's display metadata without reusing its input identity.
+        for name in ('model', 'effort'):
+            if name not in panel.chat_state and name in state:
+                panel.chat_state[name] = state[name]
         try:
             question = self.reader.read(run / 'question.json')
             if question.get('answer') is not None:

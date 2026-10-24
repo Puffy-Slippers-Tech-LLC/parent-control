@@ -2433,13 +2433,12 @@ shared [session panel](../tools/launcher_session.py), following the active agent
 in that checkout, including VM repair pipelines and plan launchers. Its transcript,
 scroll position and draft are independent of Run Status. Interactive sessions
 support the existing prompt, interruption and continuation controls, including
-`fix-tests` repairs. Pending developer decisions accept a suggested number or
-free-text instructions through the same textbox. Before an agent starts, or when
-an older supervisor has no dedicated session artifacts, the tab follows the live
-workflow's normal transcript through the same panel. Without a live workflow,
-the tab shows an empty-state message. Input is checked against the displayed
-owner and session before delivery. Newly started supervisors publish dedicated
-agent-session artifacts, which take precedence over the workflow transcript.
+`fix-tests` repairs. Pending developer decisions remain available in the launcher.
+The tab shows only an active agent session's dedicated transcript.
+Before an agent starts, after it finishes,
+or when a supervisor has no dedicated session artifacts, the tab shows an
+empty-state message and disables input. Launcher output stays in Run Status.
+Input is checked against the displayed owner and session before delivery.
 The initial
 horizontal split is 25%/75%, adjustable by dragging. The right viewer has one
 flat tab row: **All**, **[branch] UI - category** for each active UI worker

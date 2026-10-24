@@ -350,10 +350,18 @@ surface in use before resuming; follow the
 Resume through the same launcher after resolution, preserving the saved task and
 finishing any interrupted work and owned cleanup.
 
-All launchers use the same terminal layout: tasks overview at top left, plan
+Plan-driven launchers use the same terminal layout: tasks overview at top left, plan
 totals at top right, execution details and optional input at bottom left, current
 task summary and status/issues at bottom right. Task entries in the
 overview and task summary use bold task labels, such as `Task 4-5c:`.
+The bottom-left transcript and prompt use the shared
+[`SessionPanel`](../tools/launcher_session.py) component. Other launcher surfaces
+can embed it in their own location without the plan overview or status columns.
+The shared supervisor publishes session identity, model/effort and lifecycle in
+`session-view.json`, and a bounded current-session `session-output.log`, inside
+the existing owned run. These display artifacts carry no execution or acceptance
+authority and retire with that run. Interactive sessions retain their existing
+conversation input; batch repair sessions accept pending developer decisions.
 The top-left overview is at most five terminal rows high, including wrapped
 lines, and shrinks further in short terminals. All overview content scrolls
 together with the mouse wheel; click it to direct Page Up/Page Down there.
@@ -734,6 +742,7 @@ single state machine containing every task type's acceptance branches.
 | [`launcher_runtime.py`](../tools/launcher_runtime.py) | Common options, locked task budget and live limit changes | Worker defines an accepted task boundary and default budget |
 | [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, following | Worker command, validated namespace, lifecycle callbacks |
 | [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) | Synchronized overview/totals and execution/status column widths and input routing | `WorkflowView`: progress and plan-total projections, question support and optional composer |
+| [`launcher_session.py`](../tools/launcher_session.py) | Shared session transcript/composer layout, editor and caret geometry | Host supplies viewport, transcript, session state and authorized input callback; usable in a plan pane or a dedicated watch terminal |
 | [`launcher_git.py`](../tools/launcher_git.py) / [`launcher_worktrees.py`](../tools/launcher_worktrees.py) | Upstream reconciliation, literal paths and mandatory commit/push/propagation close-out with recovery | Workflow owns source-pull policy and commit scope; shared Git owns commit, push, destination discovery, stash/merge/restore, automatic conflict resolution and recovery |
 
 The current adapters use these components according to their workflow:

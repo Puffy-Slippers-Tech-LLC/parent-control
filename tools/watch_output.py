@@ -210,6 +210,153 @@ class Output:
         return label, active, reset, data
 
 
+class SessionOutput:
+    """Follow the displayed workflow's session, with owner-checked input routing."""
+
+    def __init__(self, output, terminal_size):
+        self.output = output
+        self.terminal_size = terminal_size
+        self.run = self.owner = self.identity = None
+        self.offset = 0
+        self.panel = None
+        self.reader = JsonReader()
+        self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
+
+    def discover(self):
+        owner, _label = self.output.discover()
+        owners = [owner] if owner is not None else []
+        # Plan-based tools have independent namespaces and need no test runner.
+        for kind in ('fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew', 'plans'):
+            try:
+                base = directory(kind, root=self.output.root, create=False)
+                bases = sorted(base.iterdir()) if kind == 'plans' else [base]
+                for item in bases:
+                    try:
+                        run = active_run(item, workflow=True, reader=self.reader)
+                        if run is not None:
+                            owners.append(run)
+                    except (OSError, ValueError, KeyError, TypeError):
+                        continue
+            except (OSError, ValueError):
+                continue
+        sessions = []
+        for owner in dict.fromkeys(owners):
+            # Repair admission permits one writer; select its newest session.
+            candidates = [owner, *sorted(owner.glob('pipeline-*'))]
+            for run in candidates:
+                try:
+                    value = self.reader.read(run / 'session-view.json')
+                    if (not isinstance(value, dict) or not isinstance(value.get('session'), str)
+                            or not isinstance(value.get('started_at'), (int, float))
+                            or type(value.get('interactive')) is not bool
+                            or value.get('status') not in ('running', 'finished')):
+                        continue
+                    sessions.append((value['status'] == 'running', value['started_at'], owner, run, value))
+                except (OSError, ValueError, TypeError):
+                    continue
+        if sessions:
+            _active, _started, owner, run, value = max(sessions, key=lambda item: item[:2])
+            return owner, run, value
+        return None, None, {}
+
+    def current(self):
+        owner, run, state = self.discover()
+        return owner == self.owner and run == self.run and state.get('session') == self.identity
+
+    def send(self, text):
+        from launcher_chat import send_input
+        from launcher_question import submit
+        if not self.current():
+            raise ValueError('Session changed; review the current session before sending.')
+        if self.panel.question:
+            question = self.panel.question.question
+            options = question['options']
+            choice = int(text.strip()) - 1 if text.strip() in ('1', '2', '3') else len(options)
+            submit(self.run, question['id'], min(choice, len(options)), text)
+        elif self.panel.input_mode == 'chat' and self.panel.chat_state.get('status') != 'finished':
+            send_input(self.run, 'message', text,
+                       expected_session=self.panel.chat_state.get('session'))
+        else:
+            raise ValueError('This session accepts input when a developer decision is pending.')
+
+    def feed(self, data):
+        from launcher_chat import send_input
+        if self.panel is None or not self.current():
+            return
+        if data in (b'\x03', b'\x1b') and not self.panel.editor.paste:
+            if self.panel.input_mode == 'chat':
+                try:
+                    send_input(self.run, 'interrupt', cancel_waiting=data == b'\x03',
+                               expected_session=self.panel.chat_state.get('session'))
+                except (OSError, ValueError) as error:
+                    self.panel.editor.error = str(error)
+        elif data in (b'\x1b[5~', b'\x1b[6~'):
+            self.scroll(self.panel.output_height * (1 if data == b'\x1b[5~' else -1))
+        elif self.panel.input_mode == 'chat':
+            self.panel.editor.feed(data)
+        elif self.panel.question:
+            self.panel.question.feed(data)
+
+    def scroll(self, rows):
+        if self.panel:
+            self.panel.offsets['bottom'] = max(0, self.panel.offsets['bottom'] + rows)
+
+    def poll(self):
+        from launcher_session import SessionPanel
+        from launcher_question import QuestionInput, submit
+        owner, run, state = self.discover()
+        if run is None:
+            self.identity = None
+            return False, False, b''
+        reset = (run, state['session']) != (self.run, self.identity)
+        if reset:
+            self.owner, self.run, self.identity = owner, run, state['session']
+            self.panel = SessionPanel(io.StringIO(), send=self.send, terminal_size=self.terminal_size)
+            self.offset = 0
+            self.decoder.reset()
+        panel = self.panel
+        panel.input_mode = 'chat' if state['interactive'] else 'question'
+        panel.chat_state = state
+        try:
+            chat = self.reader.read(run / 'chat-state.json')
+            if state['interactive'] and isinstance(chat, dict):
+                panel.chat_state = chat
+        except (OSError, ValueError):
+            pass
+        try:
+            question = self.reader.read(run / 'question.json')
+            if question.get('answer') is not None:
+                question = None
+        except (OSError, ValueError):
+            question = None
+        previous = panel.question.question['id'] if panel.question else None
+        if (question['id'] if question else None) != previous:
+            panel.question = QuestionInput(question, lambda identity, choice, text:
+                submit(run, identity, choice, text) if self.current() else False) if question else None
+        try:
+            with open_private(run / 'session-output.log') as stream:
+                size = os.fstat(stream.fileno()).st_size
+                if size < self.offset:
+                    self.offset = 0
+                    panel.transcript.clear()
+                    panel.pending = ''
+                    self.decoder.reset()
+                start = max(self.offset, size - TAIL_BYTES)
+                stream.seek(start)
+                if start > self.offset:
+                    stream.readline(TAIL_BYTES)
+                data = stream.read(min(TAIL_BYTES, max(0, size - stream.tell())))
+                self.offset = stream.tell()
+            panel.write(self.decoder.decode(data))
+        except (OSError, ValueError):
+            pass
+        panel.draw()
+        data = panel.stream.getvalue().encode('utf-8')
+        panel.stream.seek(0)
+        panel.stream.truncate()
+        return True, reset, data
+
+
 def terminal(identity, description):
     """VS Code Light+ palette, responsive terminal reflow, vertical scroll only."""
     import gi

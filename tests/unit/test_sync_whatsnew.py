@@ -478,7 +478,7 @@ def test_real_launcher_transport_with_private_codex_double(repository, parallel)
         'tools/test_input_transfer.py', 'tools/test_io.py', 'tools/vm_pool.py',
         'tools/evidence_capture.py', 'tools/evidence_identity.py',
         'tools/launcher_view.py', 'tools/launcher_runtime.py',
-        'tools/launcher_display.py', 'tools/launcher_chat.py',
+        'tools/launcher_display.py', 'tools/launcher_session.py', 'tools/launcher_chat.py',
         'tools/launcher_render.py', 'tools/launcher_progress.py', 'tools/watch_output.py',
         'tools/e2e_watch_protocol.py', 'tools/launcher_question.py',
         'common/oh_no_parent_control_ui/languages.py',

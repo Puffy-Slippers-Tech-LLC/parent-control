@@ -3739,7 +3739,7 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     names = [
         'execute-plan', 'plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'detached_launcher.py',
         'launcher_git.py', 'launcher_runtime.py', 'launcher_progress.py',
-        'launcher_question.py', 'launcher_view.py', 'launcher_display.py',
+        'launcher_question.py', 'launcher_view.py', 'launcher_display.py', 'launcher_session.py',
         'launcher_chat.py', 'launcher_render.py', 'watch_output.py', 'vm_selection.py', 'vm_pool.py',
         'test_storage.py', 'test_retention.py', 'test_io.py', 'test_input_transfer.py',
         'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py',

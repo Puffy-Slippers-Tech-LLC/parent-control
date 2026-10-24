@@ -2404,7 +2404,18 @@ calculation (the greater of read and write time over the sample interval),
 showing the busiest physical disk and excluding partitions and virtual mappings.
 Unavailable measurements show a dash until a valid sample is available.
 The left terminal follows active VM `fix-tests`, then host `fix-tests` output before `run-tests`,
-using VS Code Light+ colors, wrapping and vertical scrollback. The initial
+using VS Code Light+ colors, wrapping and vertical scrollback. The left panel
+has **Run Status** and **Session** tabs below its heading separator.
+Run Status keeps the live pipeline dashboard and test output. Session embeds the
+shared [session panel](../tools/launcher_session.py), following the active agent
+in that checkout, including VM repair pipelines and plan launchers. Its transcript,
+scroll position and draft are independent of Run Status. Interactive sessions
+support the existing prompt, interruption and continuation controls; batch repair
+sessions retain their developer-decision input. Without a live workflow session,
+the tab shows an empty-state message. Input is checked against the displayed
+owner and session before delivery. Newly started supervisors publish these session
+artifacts; already-running supervisors keep their existing output until restarted.
+The initial
 horizontal split is 25%/75%, adjustable by dragging. The right viewer has one
 flat tab row: **All**, **[branch] UI - category** for each active UI worker
 category, and **[branch] VM name** for each registered VM, for example

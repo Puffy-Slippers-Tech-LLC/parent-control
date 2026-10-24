@@ -124,7 +124,7 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
     )
     from ui_watch_viewer import panel as ui_panel
     from e2e_watch_viewer import panel as vm_panel
-    from watch_output import Output, terminal, TerminalWriter
+    from watch_output import Output, SessionOutput, terminal, TerminalWriter
 
     for name in ('GIO_LAUNCHED_DESKTOP_FILE', 'GIO_LAUNCHED_DESKTOP_FILE_PID',
                  'DESKTOP_STARTUP_ID', 'XDG_ACTIVATION_TOKEN'):
@@ -192,10 +192,35 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                 menu_items.append(button)
             self.menu.set_child(menu_items)
             self.append(self.output_status)
+            self.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+            self.output_tabs = Gtk.Notebook(hexpand=True, vexpand=True)
+            set_automation_id(self.output_tabs, prefix + 'watch-output-tabs')
             output_row = Gtk.Box(hexpand=True, vexpand=True)
             output_row.append(self.output_scroll)
             output_row.append(self.output_scrollbar)
-            self.append(output_row)
+            self.output_tabs.append_page(output_row, Gtk.Label(label='Run Status'))
+            self.session_terminal, session_scroll = terminal(
+                prefix + 'watch-session', 'Active launcher session')
+            self.session_terminal.set_cursor_shape(Vte.CursorShape.UNDERLINE)
+            self.session_terminal.set_cursor_blink_mode(Vte.CursorBlinkMode.ON)
+            self.session_writer = TerminalWriter(self.session_terminal)
+            self.session_output = SessionOutput(self.output, lambda: os.terminal_size((
+                max(1, self.session_terminal.get_column_count()),
+                max(1, self.session_terminal.get_row_count()))))
+            self.session_available = None
+            self.session_terminal.connect('commit', lambda _terminal, text, _length:
+                self.session_output.feed(text.encode('utf-8')))
+            session_keys = Gtk.EventControllerKey()
+            session_keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            session_keys.connect('key-pressed', self.session_key)
+            self.session_terminal.add_controller(session_keys)
+            session_scrolling = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
+            session_scrolling.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            session_scrolling.connect('scroll', lambda _controller, _dx, dy:
+                (self.session_output.scroll(-round(dy * 3)), True)[1])
+            self.session_terminal.add_controller(session_scrolling)
+            self.output_tabs.append_page(session_scroll, Gtk.Label(label='Session'))
+            self.append(self.output_tabs)
             self.vm_keys = {name: 'vm-' + name.encode('ascii').hex() for name in vm_feeds}
             self.vm_ids = {self.vm_keys[name]: vm.id for name, vm in configured.items()}
             from ui_watch_transport import Feeds
@@ -270,6 +295,26 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                 return True
             return False
 
+        def session_key(self, _controller, keyval, _keycode, state):
+            control = bool(state & Gdk.ModifierType.CONTROL_MASK)
+            shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
+            if control and shift and keyval in (Gdk.KEY_c, Gdk.KEY_C):
+                self.session_terminal.copy_clipboard_format(Vte.Format.TEXT)
+                return True
+            if control and shift and keyval in (Gdk.KEY_v, Gdk.KEY_V):
+                self.session_terminal.paste_clipboard()
+                return True
+            data = {Gdk.KEY_Escape: b'\x1b', Gdk.KEY_Page_Up: b'\x1b[5~',
+                    Gdk.KEY_Page_Down: b'\x1b[6~'}.get(keyval)
+            if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+                data = b'\n' if shift else b'\r'
+            if control and keyval in (Gdk.KEY_c, Gdk.KEY_C):
+                data = b'\x03'
+            if data is not None:
+                self.session_output.feed(data)
+                return True
+            return False
+
         def terminal_context(self, gesture, _presses, x, y):
             gesture.set_state(Gtk.EventSequenceState.CLAIMED)
             rectangle = Gdk.Rectangle()
@@ -313,6 +358,17 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                     text = f'[{self.branch}] {text}'
                 if self.output_status.get_label() != text:
                     self.output_status.set_label(text)
+                if not self.session_terminal.get_has_selection():
+                    available, session_reset, session_data = self.session_output.poll()
+                    if available:
+                        self.session_writer.feed(session_data, reset=session_reset)
+                        if session_reset:
+                            self.session_terminal.feed(b'\033[?2004h')
+                    elif self.session_available is not False:
+                        self.session_writer.feed(b'No active launcher session.\n', reset=True)
+                    self.session_available = available
+                    self.session_terminal.set_input_enabled(available)
+                self.output_active = self.output_active or bool(self.session_available)
             self.active = self.output_active or self.ui.active or any(view.active for view in self.vms.values())
             return True
 

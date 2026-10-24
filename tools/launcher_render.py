@@ -11,6 +11,7 @@ import shlex
 import shutil
 import signal
 import select
+import stat
 import sys
 import termios
 from collections import deque
@@ -630,6 +631,39 @@ class TranscriptWriter:
             leader = text[:indent] if index == 0 else Text(' ' * indent)
             self.console.print(leader + row, width=width,
                                end=end if index == len(rows) - 1 else '\n')
+
+
+class SessionTranscript:
+    """Mirror rendered agent output into the current session's bounded log."""
+
+    def __init__(self, stream, run):
+        self.stream = stream
+        self.path = run / 'session-output.log'
+        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_NONBLOCK | os.O_NOFOLLOW, 0o600)
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+            os.close(fd)
+            raise ValueError('unsafe session transcript')
+        os.ftruncate(fd, 0)
+        self.log = os.fdopen(fd, 'wb')
+
+    def isatty(self):
+        return False
+
+    def write(self, value):
+        from detached_launcher import compact_log, MAX_LOG_BYTES
+        self.stream.write(value)
+        self.log.write(value.encode('utf-8'))
+        self.log.flush()
+        if self.log.tell() > MAX_LOG_BYTES:
+            compact_log(self.path, writer_fd=self.log.fileno())
+
+    def flush(self):
+        self.stream.flush()
+        self.log.flush()
+
+    def close(self):
+        self.log.close()
 
 
 class AgentRenderer:

@@ -18,6 +18,7 @@ import stat
 import subprocess
 import sys
 import time
+import tomllib
 import uuid
 from test_storage import scratch_descriptors
 
@@ -360,10 +361,19 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         os.close(owner)
         return 130
     renderer = None
+    session_view = None
+    session_transcript = None
     if kind == 'agent':
-        from launcher_render import AgentRenderer
+        from launcher_render import AgentRenderer, SessionTranscript
         from launcher_chat import task_message
-        renderer = AgentRenderer(sys.stdout, command_log=run / 'agent-commands.log',
+        session_view = dict(session=uuid.uuid4().hex, status='running',
+            started_at=time.time(), interactive=interactive,
+            model=command[command.index('--model') + 1], effort='')
+        for index, value in enumerate(command):
+            if index and command[index - 1] == '-c' and value.partition('=')[0].strip() == 'model_reasoning_effort':
+                session_view['effort'] = tomllib.loads(value)['model_reasoning_effort']
+        session_transcript = SessionTranscript(sys.stdout, run)
+        renderer = AgentRenderer(session_transcript, command_log=run / 'agent-commands.log',
                                  hide_task_completion=hide_task_completion, on_usage=on_usage,
                                  on_description=descriptive_output(run),
                                  on_message=(lambda text: task_message(run, task, text))
@@ -399,6 +409,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         source.close()
     descriptor = None
     try:
+        if session_view is not None:
+            atomic(run / 'session-view.json', session_view)
         descriptor = os.pidfd_open(child.pid)
         sent = None
         finished_at = None
@@ -534,7 +546,12 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
             if nested:
                 finish_nested(root, run)  # Exceptions, rather than active owners, mean cleanup failed.
         finally:
-            os.close(owner)
+            try:
+                if session_view is not None:
+                    session_transcript.close()
+                    atomic(run / 'session-view.json', dict(session_view, status='finished'))
+            finally:
+                os.close(owner)
 
 
 def _start_record(path):

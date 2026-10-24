@@ -12,19 +12,9 @@ import time
 from rich.cells import get_character_cell_size
 from rich.text import Text
 
-from launcher_chat import ChatEditor, TASK_STATUSES, read_state, send_input, task_info as read_task_info
+from launcher_chat import TASK_STATUSES, read_state, send_input, task_info as read_task_info
 from launcher_render import LauncherDisplay, clean, retained_tail, style_task_counts
-
-
-def clock_duration(seconds):
-    """Elapsed whole minutes, shared by launcher clocks and task-field ages."""
-    hours, minutes = divmod(max(0, int(seconds // 60)), 60)
-    return f'{hours}h {minutes}m' if hours else f'{minutes}m'
-
-
-def working_duration(seconds):
-    minutes, seconds = divmod(max(0, int(seconds)), 60)
-    return f'{clock_duration(minutes * 60)} {seconds}s' if minutes else f'{seconds}s'
+from launcher_session import SessionPanel, clock_duration, working_duration
 
 
 def owner_clock(run):
@@ -116,7 +106,8 @@ class TaskDisplay(LauncherDisplay):
         self.chat_state = {}
         self.task_info = {}
         self.status_clock = None
-        self.editor = ChatEditor(self.submit)
+        self.session_panel = SessionPanel(stream, send=self.submit)
+        self.editor = self.session_panel.editor
         self.divider_column = 0
         self.top_divider_column = 0
         self.chat_top = 0
@@ -691,12 +682,7 @@ class TaskDisplay(LauncherDisplay):
                 top[index] += total_rows[index]
         self.top_height = len(top)
         available = max(0, height - len(top) - 1)
-        boxed = left_width >= 5
         separator = [Text('─' * right_width, style='dim')] if available >= 5 else []
-        show_hint = available >= 4
-        # Reserve the bottom composer independently of session-output scrolling.
-        # Very short terminals give up the hint first.
-        chrome_height = 1 + int(boxed) + int(show_hint)
         summary = self.wrapped(summary_lines, right_width, task_labels=True)
         summary_height = min(len(summary), max(0, available // 2),
                              max(0, available - len(separator) - 1))
@@ -737,26 +723,16 @@ class TaskDisplay(LauncherDisplay):
                                'Type a number or your own instructions below.']
             info_lines[2:2] = notices
 
-        editor_width = max(1, left_width - 4) if boxed else left_width
-        editor_rows, caret_row, caret_column = self.editor_rows(editor_width)
-        # Grow and shrink with content; a long draft scrolls around its caret
-        # rather than escaping the terminal; leave room for output when possible.
-        editor_capacity = max(0, available - chrome_height)
-        editor_room = min(len(editor_rows), max(1, editor_capacity - 1) if editor_capacity else 0)
-        editor_start = max(0, caret_row - editor_room + 1)
-        editor_rows = editor_rows[editor_start:editor_start + editor_room]
-        if self.input_mode != 'chat':
-            editor_rows = self.wrapped(self.question.lines(left_width), left_width) if self.question else []
-            editor_rows = editor_rows[-max(1, available // 2):]
-            chrome_height = 0
-        self.output_height = max(0, available - len(editor_rows) - chrome_height)
         logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
         if self.details and clean(self.details[0]).startswith('VM pipelines | concurrency '):
             # The live pipeline frame replaces earlier command output. Keep
             # the transcript for saved logs and replay after the frame closes.
             logs = self.details
-        left = self.scroll_rows('bottom', logs, self.output_width(), self.output_height)
-        left += [Text('')] * (self.output_height - len(left))
+        self.session_panel.chat_state = self.chat_state
+        left = self.session_panel.layout(left_width, available, logs, scroll=self.scroll_rows,
+            output_width=self.output_width(), input_mode=self.input_mode,
+            question=self.question, working=working)
+        self.output_height = self.session_panel.output_height
         remaining = max(0, available - summary_height - len(separator))
         description_lines = (self.description.get('lines', [])
                              if not current or self.description.get('progress_key') in (None, current['key']) else [])
@@ -785,39 +761,14 @@ class TaskDisplay(LauncherDisplay):
                 row.pad_right(max(0, description_width - row.cell_len))
                 description_rows[index] = row + Text('█' if start <= index < start + thumb else '░', style='dim')
         info += description_rows
-        hint = Text(' '.join(filter(None, (self.chat_state.get('model'),
-                                          self.chat_state.get('effort')))), style='dim')
-        hint.truncate(left_width, overflow='crop')
-        if self.editor.error:
-            hint = Text(self.editor.error, style='red')
-            hint.truncate(left_width, overflow='crop')
-        label = ' Chat ' + (f'· {working} ' if working else '')
-        border = Text('╭' + label[:max(0, left_width - 2)].ljust(max(0, left_width - 2), '─') + '╮', style='dim')
-        border.truncate(left_width, overflow='crop')
-        bottom = []
-        if boxed and self.input_mode == 'chat':
-            bordered = []
-            for row in editor_rows:
-                row = row.copy()
-                row.pad_right(max(0, editor_width - row.cell_len))
-                bordered.append(Text('│ ', style='dim') + row + Text(' │', style='dim'))
-            editor_rows = bordered
-            bottom = [Text('╰' + '─' * (left_width - 2) + '╯', style='dim')]
-        if self.input_mode == 'chat':
-            # Shade the full composer, including padding, without carrying its
-            # background into the adjacent status pane or the model/effort line.
-            for row in [border, *editor_rows, *bottom]:
-                row.stylize('#333333 on #f4f4f4')
-        left += ([border] + editor_rows + bottom + ([hint] if show_hint else [])
-                 if self.input_mode == 'chat' else editor_rows)
-        left = left[:available]
         right = summary + separator + info
         right = right[:available]
         right += [Text('')] * (available - len(right))
         self.chat_top = len(top) + 1 + self.output_height + 1
-        self.chat_bounds = ((3 if boxed else 1, left_width - 2 if boxed else left_width,
-                             self.chat_top + 1, min(height, self.chat_top + len(editor_rows)))
-                            if self.input_mode == 'chat' and editor_rows and width >= 3 else None)
+        self.chat_bounds = self.session_panel.chat_bounds
+        if self.chat_bounds:
+            left_edge, right_edge, first, last = self.chat_bounds
+            self.chat_bounds = (left_edge, right_edge, first + len(top) + 1, last + len(top) + 1)
         self.scrollbar, self.bottom_button = self.scrollbar_controls(
             'bottom', left_width, self.output_height, len(top) + 2)
         divider = Text('─' * width, style='dim')
@@ -854,12 +805,12 @@ class TaskDisplay(LauncherDisplay):
         ] if width >= 3 else []
         if self.chat_bounds:
             self.selection_panels.append(self.chat_bounds)
-        elif self.input_mode != 'chat' and editor_rows and width >= 3:
+        elif self.input_mode != 'chat' and self.session_panel.editor_height and width >= 3:
             self.selection_panels.append((1, left_width, self.chat_top, height))
         self.paint(rows, size)
-        if self.input_mode == 'chat' and editor_rows and width >= 3:
-            cursor_row = min(height, self.chat_top + 1 + caret_row - editor_start)
-            cursor_column = min(left_width, 1 + (2 if boxed else 0) + caret_column)
+        if self.session_panel.cursor and width >= 3:
+            cursor_row, cursor_column = self.session_panel.cursor
+            cursor_row = min(height, cursor_row + len(top) + 1)
             # Typing always edits chat, even while another pane is focused.
             # DECSCUSR: use the standard blinking underline cursor.
             self.stream.write(f'\033[{cursor_row};{cursor_column}H\033[3 q\033[?25h')
@@ -867,24 +818,6 @@ class TaskDisplay(LauncherDisplay):
             self.stream.write('\033[?25l')
         self.stream.flush()
         self.draw_state = state
-
-    def editor_rows(self, width):
-        rows = []
-        caret_row = caret_column = 0
-        row = Text('', style='default not dim')
-        for index, char in enumerate(self.editor.text + '\0'):
-            cells = get_character_cell_size(char)
-            if row.cell_len + cells > width or (index == self.editor.cursor and row.cell_len == width):
-                rows.append(row)
-                row = Text('', style='default not dim')
-            if index == self.editor.cursor:
-                caret_row, caret_column = len(rows), row.cell_len
-            if char in ('\n', '\0'):
-                rows.append(row)
-                row = Text('', style='default not dim')
-            else:
-                row.append(char)
-        return rows, caret_row, caret_column
 
     def from_top(self, pane, lines, width, height):
         rows = self.wrapped(lines, width, task_labels=pane == 'summary')

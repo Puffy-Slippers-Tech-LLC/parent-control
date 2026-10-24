@@ -131,12 +131,14 @@ def read_state(run):
         return {'session': None, 'status': 'starting'}
 
 
-def send_input(run, kind, text='', *, cancel_waiting=True):
+def send_input(run, kind, text='', *, cancel_waiting=True, expected_session=None):
     if kind not in ('message', 'interrupt') or len(text.encode('utf-8')) > MAX_INPUT:
         raise ValueError('chat message is too large or invalid')
     with launcher.lock(run / 'chat-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         state = read_state(run)
+        if expected_session is not None and state.get('session') != expected_session:
+            raise ValueError('Session changed; review the current session before sending.')
         if kind == 'interrupt' and state['status'] in ('interrupting', 'cleaning'):
             # Repeated Escape/Ctrl+C during the same interruption must not
             # become a fresh interrupt after cleanup has reopened the session.

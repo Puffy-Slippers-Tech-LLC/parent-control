@@ -256,11 +256,21 @@ class SessionOutput:
                     continue
         if sessions:
             _active, _started, owner, run, value = max(sessions, key=lambda item: item[:2])
-            return owner, run, value
-        return None, None, {}
+            return owner, run, value, 'session-output.log'
+        # A workflow is observable before its first agent starts, and older
+        # supervisors publish only their normal output. Keep that live
+        # transcript in the shared panel until a dedicated session is available.
+        for owner in dict.fromkeys(owners):
+            try:
+                with open_private(owner / 'output'):
+                    return owner, owner, dict(session='workflow-' + owner.name,
+                        interactive=False, status='running'), 'output'
+            except (OSError, ValueError):
+                continue
+        return None, None, {}, None
 
     def current(self):
-        owner, run, state = self.discover()
+        owner, run, state, _source = self.discover()
         return owner == self.owner and run == self.run and state.get('session') == self.identity
 
     def send(self, text):
@@ -304,7 +314,7 @@ class SessionOutput:
     def poll(self):
         from launcher_session import SessionPanel
         from launcher_question import QuestionInput, submit
-        owner, run, state = self.discover()
+        owner, run, state, source = self.discover()
         if run is None:
             self.identity = None
             return False, False, b''
@@ -334,7 +344,7 @@ class SessionOutput:
             panel.question = QuestionInput(question, lambda identity, choice, text:
                 submit(run, identity, choice, text) if self.current() else False) if question else None
         try:
-            with open_private(run / 'session-output.log') as stream:
+            with open_private(run / source) as stream:
                 size = os.fstat(stream.fileno()).st_size
                 if size < self.offset:
                     self.offset = 0

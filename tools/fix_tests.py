@@ -1297,9 +1297,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             commits.finish_pending()
             release_repair()
         # Only an explicit resume may recover a pass left before the verification
-        # callback. A fresh run must execute its categories first: another run
-        # may have replaced the shared runner checkpoint since this repair stopped.
-        # Retained repairs still close out against their new category results.
+        # callback. Fresh allocations inherit no repair state; controller reload
+        # continues its existing operation instead of accepting it here.
         if resuming and not reloading:
             close_verified()
         for entry in commits.state['repairs'].values():
@@ -1407,8 +1406,9 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                 return run, False
     def command(run, owner):
         nonlocal retained_git, retained_pipelines, retained_queue, retained_pending, retained_waiting
+        # Only explicit resume carries workflow state into a new allocation.
         # Read before shared retention can retire the previous run allocation.
-        previous = current_run(run.parent)
+        previous = current_run(run.parent) if resume else None
         if previous is not None and (previous / 'pipelines.json').exists():
             retained_queue = json.loads((previous / 'pipelines.json').read_text())
             for child in previous.iterdir():
@@ -1454,8 +1454,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
         if retained_git is not None:
             atomic(run / 'checkpoint.json', retained_git)
         if retained_queue:
-            atomic(run / 'pipelines.json', retained_queue if resume else {
-                name: dict(status='queued') for name in retained_queue})
+            atomic(run / 'pipelines.json', retained_queue)
         for pipeline_name, state in retained_pipelines.items():
             child = private_directory(run / pipeline_name)
             atomic(child / 'checkpoint.json', state)
@@ -1517,7 +1516,8 @@ def main(argv=None):
     parser.add_argument('--vm', help=SELECTOR_HELP)
     add_options(parser, stop_help='stop active runs in this checkout; categories or --vm narrow the scope')
     parser.add_argument('--resume', action='store_true',
-                        help='resume passed categories and the failed/interrupted test checkpoint')
+                        help='preserve saved progress, repairs, queues and pending close-out; '
+                             'without it, an idle launcher starts fresh')
     parser.add_argument('--model', help='repair model (only gpt-6.1-sol is supported)')
     parser.add_argument('--rounds', type=int, metavar='X',
                         help='run round 1 once, then round 2 X-1 times (default: 1)')

@@ -388,7 +388,7 @@ repair with unresolved edits keeps the source fenced for its retained recovery.
 `RepairCoordinator` owns admission, FIFO ownership and release under the existing
 shared gate; workers retain their execution and descriptor leases. Admission
 checks the queue, unfinished source owner and kernel lease in one transition.
-Restart derives `closeout`, `repair` or `complete` from the existing checkpoints:
+Explicit `--resume` derives `closeout`, `repair` or `complete` from the existing checkpoints:
 accepted Git work runs first, then each FIFO ticket drains in one recovery worker
 before normal work starts. The parent does not restart an incomplete recovery
 worker to retry it with fresh case budgets.
@@ -397,7 +397,7 @@ resuming retains each VM's completed work. Task limits count host categories onc
 and VM categories per VM, across their independently advancing rounds.
 Worker startup and reload imports also hold a source lease, and propagation
 resolvers retain both workflow ownership and that transaction's lease through
-cleanup. Restart drains every retained transaction for each FIFO ticket before
+cleanup. Explicit resume drains every retained transaction for each FIFO ticket before
 host or normal VM work, retaining the source fence through ownership recovery;
 completed pipeline labels never bypass checkpoint selector/round validation.
 Lifecycle prerequisite rows are replayed by their dependent case's runner rather
@@ -422,12 +422,12 @@ overlapping baseline back to a clean start. The original ownership checkpoints
 remain intact; unrelated edits, mismatched fingerprints and pre-existing staged
 work still refuse. Recovery grants no verification credit to the earlier case.
 Staging, commit or push failures stop advancement and retain the accepted repair.
-The next invocation retries that close-out before tests or agents, preserving
+The next invocation with `--resume` retries that close-out before tests or agents, preserving
 branch/upstream identity and recognizing an already-created completion commit.
 Later file changes do not invalidate a recorded case pass or block its Git
 close-out; the existing explicit-path and ownership checks still apply.
 No force-push, automatic pull or Git configuration change is performed.
-Unverified repair scopes survive restart separately from the fresh agent-session budgets.
+With `--resume`, unverified repair scopes survive restart separately from the fresh agent-session budgets.
 If another invocation replaces a host category's runner checkpoint between
 attempts, the repair launcher replays the same category and original selectors
 once without saved passes. Only a validated checkpoint selection mismatch
@@ -553,15 +553,18 @@ by themselves. These are session limits, not token budgets.
 Detaching preserves the live loop. After a stopped/dead owner, `fix-tests --resume`
 restores the latest selection, completed categories, current round and pending
 runner checkpoint. Explicit categories retain their original selectors. Without
-`--resume`, a new run starts from its first category. Both paths use fresh case
+`--resume`, a new run starts from its first category with empty repair, queue,
+pending close-out and pipeline status state. Both paths use fresh case
 budgets without loading old repair conversations; new verification rounds still
 execute the complete requested selection. After a repair within verification,
 the next clean pass clears previous category completions before queuing work;
 an interruption can resume only that pass's completions.
-Fresh startup preserves unfinished repairs and Git ownership but defers their
-verification until the requested categories run again, so a replaced runner
-checkpoint cannot block startup. Already accepted Git close-out still finishes
-before tests.
+Fresh startup preserves source edits as existing checkout work, but does not
+inherit unfinished repairs or their Git ownership bookkeeping. Only `--resume`
+recovers pending repairs and accepted Git close-out before tests. An active run
+still reattaches regardless of `--resume`; a fresh allocation starts only after
+its owner and owned cleanup release their locks. Lock files remain in place;
+kernel locks, rather than file existence, determine ownership.
 
 Use `tools/fix-tests --resume` without repeating the original arguments to
 restore the saved selection and VM queue. Its startup line lists retained passed

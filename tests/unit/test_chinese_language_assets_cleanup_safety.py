@@ -326,7 +326,7 @@ def test_actual_guest_read_uses_regular_distribution_identity_and_preserves_stat
 
 def test_uncertain_profile_read_cannot_replay_or_release_reply(tmp_path, monkeypatch):
     context = SimpleNamespace(directory=tmp_path, product_free=True, asset_transfer=Mock(),
-                              verified=SimpleNamespace(recheck=Mock()))
+                              verified=SimpleNamespace(recheck=Mock(), asset_files={}))
     journey = qualification.journey(context, Mock())
     stage = 'wrong-entry'
     journey.steps = [{'stage': name} for name in journey.plan.stages[:2]]

@@ -111,7 +111,7 @@ def test_precommit_injection_has_one_identity_pinned_target(tmp_path, monkeypatc
         product['os'].replace(accounts.SLOT, destination,
                               src_dir_fd=descriptor, dst_dir_fd=descriptor)
 
-    product['repair_kiosk_visibility'] = repair
+    product['visibility'] = repair
     monkeypatch.setattr(accounts.runpy, 'run_path', lambda _: product)
     try:
         if expected == 'injected':

@@ -35,7 +35,7 @@ def test_host_work_fills_four_branches_despite_background_io(io_pressure, catego
             'appsnapshot_cleanup_safety', 'baseline_guest_cleanup_safety',
             'e2e_suite_cleanup_safety',
             'fix_tests', 'fix_tests_cleanup_safety',
-            'qualification_storage_cleanup_safety', 'ui_watch',
+            'qualification_storage_cleanup_safety',
             'ui_watch_cleanup_safety', 'vm_watch_session_cleanup_safety')]
         plan = unit_buckets(nodes)
         assert len(plan) == 4

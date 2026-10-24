@@ -227,6 +227,14 @@ def test_baseline_worker_defers_shared_refresh(authorized, monkeypatch):
 
 
 def test_explicit_vm_never_prompts(authorized, monkeypatch):
+    import test_activity
+    import vm_pool
+
+    # The cancelled result belongs to preparation, not reservation authorization.
+    # Keep real VM acquisition and launcher locks outside this selection check.
+    monkeypatch.setattr(vm_pool, 'reservation', lambda name: nullcontext())
+    monkeypatch.setattr(vm_pool, 'arguments', lambda: [])
+    monkeypatch.setattr(test_activity, 'activity', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr(vm_selection, 'choose_vm', Mock(side_effect=AssertionError('unexpected prompt')))
     monkeypatch.setattr(authorized['subprocess'], 'run', Mock(return_value=SimpleNamespace(returncode=3)))
     assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0

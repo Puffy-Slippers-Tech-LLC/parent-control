@@ -252,7 +252,7 @@ def test_repair_worker_retains_reservation_and_finishes_queued_cancellation(
         finally:
             active.pop()
     monkeypatch.setattr(vm_pool, 'selected_reservation', reserve)
-    def execute(*args, reloading=False):
+    def execute(*args, reloading=False, repair_gate=None, startup=None):
         assert reloading is False
         assert active == [True]
         assert not (tmp_path / 'result.json').exists()

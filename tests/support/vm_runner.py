@@ -98,8 +98,8 @@ INVENTORIES = {
     'session': ('test_kiosk_expiry_graphical_runtime',),
 }
 
-# Include the real activation prerequisite to cover the six package executions
-# in each removal history without changing older finite controller fixtures.
+# Include the comprehensive activation case so selection checks distinguish
+# explicitly selected package coverage from lightweight removal prerequisites.
 RECOVERY_INVENTORIES = {
     **INVENTORIES,
     'package': (*INVENTORIES['package'], runner.KIOSK_ACTIVATION_CASE),

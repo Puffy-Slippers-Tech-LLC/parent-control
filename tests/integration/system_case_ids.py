@@ -612,11 +612,40 @@ CASES = (
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})
 
-# Reserved identities whose former implementation depended on the removed
-# private runtime. These are neither executable bindings nor accepted results.
-# The C04a disposition map in docs/SystemDesign/Kiosk-Confinement.md owns the
-# surviving behavior and its receiving task. Never reuse these numeric IDs.
+# Reserved identities are neither executable bindings nor accepted results.
+# Equivalent authorization inputs retain their original IDs while representative
+# cases cover their permission classes. Never reuse these numeric IDs.
 UNBOUND_CASES = MappingProxyType({
+    **dict.fromkeys((
+        27, 29, 31, 34, 36, 38, 39, 41, 43, 45, 46, 48, 50, 52, 53, 55, 57, 59, 60, 62, 64,
+        66, 67, 69, 71, 73, 74, 76, 78, 80, 81, 83, 85, 87, 88, 90, 92, 94, 95, 97, 99, 101,
+        102, 104, 106, 108, 109, 111, 113, 115, 116, 118, 120, 122, 125, 127, 129, 130, 132,
+        134, 136, 137, 139, 141, 143, 144, 146, 148, 150,
+    ), ('retired', 'equivalent caller identities; child/parent/kiosk and locked management retained')),
+    **dict.fromkeys((
+        154, 156, 157, 159, 160, 163, 165, 166, 168, 169,
+    ), ('retired', 'scoped endpoints and reverse-direction read/write isolation retained')),
+    **dict.fromkeys((
+        171, 173, 175, 176,
+    ), ('retired', 'representative child/parent/kiosk filesystem and log boundaries retained')),
+    **dict.fromkeys((
+        186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202,
+        203, 204, 205, 206, 207, 208, 209,
+    ), ('retired', 'ineligible caller classes sampled across distinct permission boundaries')),
+    **dict.fromkeys((
+        219, 220, 221, 222, 223, 227, 229,
+    ), ('retired', 'invalid target classes sampled across read, management and station entry')),
+    **dict.fromkeys((
+        232,
+    ), ('retired', 'equivalent enabled child; child1 authentication boundary retained')),
+    **dict.fromkeys((
+        235,
+    ), ('retired', 'equivalent administrator icon; child and parent representatives retained')),
+    **dict.fromkeys((
+        238, 239, 240, 241, 247, 248,
+    ), ('retired', 'approver classes sampled across child and kiosk request surfaces')),
+    # The C04a disposition map in docs/SystemDesign/Kiosk-Confinement.md owns
+    # surviving behavior and receiving tasks for the removed private runtime.
     10: ('retired', 'private MAC unload witness; quarantine/finalization recovery remains in 9/11'),
     269: ('pending', 'C08: reachable startup/audio inputs and ordinary-use controls'),
     270: ('retired', 'private namespace callback witness; PAM behavior remains in 268/271'),

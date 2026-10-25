@@ -131,6 +131,10 @@ COMMON_SELECTED_INPUTS = (
     ('tools/regression_events.py', 'system_progress.py'),
 )
 KIOSK_ACTIVATION_CASE = 'test_kiosk_account_classification_survives_reboot'
+PACKAGE_READINESS_CASES = (
+    'test_installed_package', 'test_first_install_requests_reboot',
+    'test_reboot_applies_installation',
+)
 # Host entry/transport and the public observer's embedded source closure. Keep
 # these identities separate from guest imports; no host module runs in the VM.
 KIOSK_ACTIVATION_HOST_INPUTS = (
@@ -520,9 +524,9 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
                         executions.append(CaseExecution(phase, name, case, False))
         if phase not in terminal_phases:
             for case in inventories['package']:
-                # Earlier-release policy preservation is an explicitly selected
-                # history, never a current-package installation prerequisite.
-                if case == PREVIOUS_POLICY_CASE:
+                # Prerequisites establish package/reboot readiness. Full kiosk
+                # migration and graphical entry belong to their selected history.
+                if case not in PACKAGE_READINESS_CASES:
                     continue
                 if PHASE_SEMANTICS.get(phase, phase) in case_phases('package', case):
                     executions.append(CaseExecution(phase, 'package', case, True))

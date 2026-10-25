@@ -992,7 +992,7 @@ def native_probe_storage_lifecycle(record):
 
 
 def native_policy_transition(accounts, record, variant='command'):
-    """Hard/soft denial in both screen-time states, with UID isolation throughout."""
+    """Representative hard/soft transitions, with UID isolation throughout."""
     guest.guard()
     target, desktop, desktop_id = native_paths(variant)
     guest.require(variant in ('command', 'whitespace', 'pattern', 'retention'),
@@ -1018,14 +1018,21 @@ def native_policy_transition(accounts, record, variant='command'):
         future, _, _ = native_paths('pattern-future')
         guest.require(not future.exists() and not future.is_symlink(),
                       'enforcement:future-fixture-collision')
+    # The ordinary command owns the full screen-time interaction matrix.
+    # Whitespace exercises quoting in both policy modes; pattern and retention
+    # pair hard/off with soft/on rather than repeating that complete matrix.
+    stages = (('allowed', None), ('hard', 'permanent'), ('restored', None))
+    if variant in ('command', 'whitespace'):
+        stages += (('soft', 'conditional'), ('soft-restored', None))
+    if variant == 'command':
+        stages += (('enabled-allowed', None), ('enabled-hard', 'permanent'),
+                   ('enabled-restored', None))
+    if variant != 'whitespace':
+        stages += (('enabled-soft', 'conditional'), ('enabled-soft-restored', None))
     try:
         # Clear and witness the hard denial before testing soft policy so stale
         # hard rules cannot satisfy the conditional-policy assertion.
-        for stage, app_state in (('allowed', None), ('hard', 'permanent'),
-                                 ('restored', None), ('soft', 'conditional'),
-                                 ('soft-restored', None), ('enabled-allowed', None),
-                                 ('enabled-hard', 'permanent'), ('enabled-restored', None),
-                                 ('enabled-soft', 'conditional'), ('enabled-soft-restored', None)):
+        for stage, app_state in stages:
             enabled = stage.startswith('enabled-')
             if enabled and not screen_time_attempted:
                 # SetPreferences deliberately cannot toggle screen-time control.

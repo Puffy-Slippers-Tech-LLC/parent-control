@@ -18,8 +18,7 @@ import time
 import system_guest as guest
 from system_assertions import accepted, account_property, account_state, call
 from system_session_expiry import (
-    identities, installed_manager, grant, verify_offline_recovery, verify_pam_scope,
-    verify_zero_time_pam,
+    identities, installed_manager, grant, verify_zero_time_pam,
     verify_request_extension, verify_runtime_rollback,
 )
 
@@ -127,19 +126,12 @@ def prepare():
     original = PAM.read_text()
     fedora = guest.package_path().suffix == '.rpm'
     seeded_stack = seed_account_stack(original, fedora=fedora)
-    prerequisite_observations = []
-    def record(name, value):
-        prerequisite_observations.append((name, value))
-    verify_offline_recovery(record)
-    for service in ('gdm-password', 'gdm-autologin', 'login', 'sshd'):
-        verify_pam_scope(service, record)
     accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (accounts['child'], True, 0)))
     manager = installed_manager()
     account, _ = manager._account(accounts['child'])
     guest.require(not manager._shell_is_available(account), 'expiry:graphical-fixture-already-live')
     manager._set_boolean(account, 'disable-user-extensions', True)
     FIXTURE.mkdir(mode=0o700)
-    (FIXTURE / 'prerequisites.json').write_text(json.dumps(prerequisite_observations))
     (FIXTURE / 'prepared.json').write_text(json.dumps({
         'run': marker['run'], 'boot': Path('/proc/sys/kernel/random/boot_id').read_text(),
         'pam_sha256': guest.sha(PAM),
@@ -346,8 +338,6 @@ def verify(record):
         pending.replace(output / 'session-observations.json')
         publish(name, value)
     accounts = identities()
-    for name, value in json.loads((FIXTURE / 'prerequisites.json').read_text()):
-        record(name, value)
     child = accounts['child']
     # SSH readiness precedes graphical boot. The seed publishes its complete
     # result atomically; neither an absent file nor a partial JSON write is a

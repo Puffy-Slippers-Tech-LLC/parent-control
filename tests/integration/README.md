@@ -512,6 +512,16 @@ selector forms refuses. IDs cover parameter variants and remain the same across
 lifecycle phases. VM watch recordings use these IDs under the
 [shared recording contract](../README.md#vm-watch-recordings).
 
+Authorization uses explicit equivalence-class inputs rather than a complete
+method/identity matrix. Every currently covered method retains child, parent
+and kiosk calls; targeted checks retain locked-administrator management,
+ineligible callers/targets/approvers, both directions of child isolation and
+component impersonation. Real authentication, live role changes, deleted and
+remote accounts, disconnects and mid-prompt changes remain separate histories.
+Removed combinations keep their numeric IDs reserved as retired; surviving
+selectors and IDs do not change. Shared request and account-state helpers keep
+observations fresh within each independently selectable case.
+
 `package` → `test_pam_environment_installation_variants` selects four independent
 baseline histories (IDs 283–286): plain, distro profile, administrator override
 and pending vendor replacement. Each keeps initial installation, reboot, saved
@@ -711,6 +721,10 @@ verification, reinstall, package-delivered purge and a fresh reinstall in one
 guarded attempt on either distribution.
 The same case executes across five explicit lifecycle phases; a failed phase
 stops later transitions. Package checks are its installation prerequisites.
+Prerequisite-only installation phases check package readiness before and after
+reboot, the initial reboot request and the changed boot with its cleared request.
+Comprehensive kiosk classification, metadata and graphical-entry assertions run
+when their package case is selected, rather than in every removal history.
 
 `removal::test_aborted_cleanup_rollback_retry` is the focused aborted-cleanup
 rollback and owned-retry history. List it with
@@ -718,7 +732,7 @@ rollback and owned-retry history. List it with
 then execute that same selection with `--vm NAME` and without `--list`.
 It starts from the accepted product-free baseline, installs and reboots in one
 guarded attempt, and preserves the independently measured original PAM oracle
-in `before.json`. It has six package prerequisite executions and two recovery
+in `before.json`. It has four package prerequisite executions and two recovery
 executions. The logical phases `rollback-installed`, `rollback-rebooted`,
 `rollback` and `rollback-rearmed-rebooted` keep progress, JUnit and result
 identities distinct; package assertions
@@ -740,7 +754,7 @@ does not start from an app snapshot.
 
 `removal::test_interrupted_finalization_retry[denial-publication]` and
 `[account-finalization]` are separate continuous focused
-histories with the same baseline and six package prerequisites. Each uses its
+histories with the same baseline and four package prerequisites. Each uses its
 variant name for the first recovery phase and `<variant>-retry-rebooted` for
 the second; package phases are `<variant>-installed` and `<variant>-rebooted`.
 Selection, frozen inputs, JUnit identities, failure stopping and complete replay
@@ -786,7 +800,7 @@ The finite `system_removal.py exercise-live-finalization VARIANT` diagnostic
 dispatch calls the same first recovery function in owned maintenance. It supplies
 no acceptance; finish maintenance cleanup before a fresh installed history.
 
-`removal::test_rpm_posterase_recovery` is Fedora-only. Its six fresh package
+`removal::test_rpm_posterase_recovery` is Fedora-only. Its four fresh package
 prerequisites and two phases, `rpm-posterase` and
 `rpm-posterase-reinstalled-rebooted`, form one continuous baseline attempt.
 The packaged purge action must fail in real RPM post-erase cleanup with the
@@ -815,9 +829,9 @@ Before the first installation, the guest independently measures the exact
 `gdm-password` and `systemd-user` bytes, modes and local-versus-vendor selection.
 Every removed/purged endpoint, before and after reboot, must match that witness;
 the matching hashes and disposition are retained in each phase's JUnit.
-After the activation prerequisite's public GDM exit, the removal fixture waits
-for the identity-checked kiosk manager to become inactive before starting its
-own manager for the native refusal check. This bounded read-only wait never
+When the selected installation case includes public GDM entry and exit, the
+removal fixture waits for the identity-checked kiosk manager to become inactive
+before starting its own manager for the native refusal check. This bounded read-only wait never
 stops or adopts the preceding manager; a persistent or unknown state refuses.
 The live manager's native PAM lease can also block Debian's abort-remove
 rollback. The fixture verifies retained version, payload digests, PAM records,
@@ -877,8 +891,12 @@ The other account's native policy must still match its independent original
 witness after purge and fresh reinstall; its erased preference record must not
 be replayed. Saved-data deletion and policy preservation are separate assertions.
 
-The `session` area runs installed PAM expiry checks, then a one-shot GDM
-autologin fixture across a second reboot. It observes real scope creation,
+The `session` area prepares a one-shot GDM autologin fixture across a second
+reboot. Offline recovery and the service-by-service PAM expiry checks belong to
+the installed-expiry case in `enforcement` and are not repeated during graphical
+preparation. The session case establishes its own guarded zero-time policy,
+extension and autologin setup without requiring a preceding area to pass.
+It observes real scope creation,
 expiry locking, extension recovery, PAM admission and authenticated broker
 requests. The fixture is a runtime diagnostic; API requests do not establish
 GUI interaction coverage. A separate fixed local-VT fixture checks another
@@ -968,8 +986,17 @@ The selector is explicit and isolated; ordinary current-package or upgrade
 selections do not add it. Its passing result qualifies inputs, without granting
 candidate-upgrade or customer GUI acceptance.
 
-`test_native_whitespace_policy_is_uid_scoped` runs the same transitions and
-other-child assertions using a fixed executable filename containing a space.
+Native policy cases use finite sequences: the command baseline keeps the full
+hard/soft matrix with screen-time control off and on; whitespace keeps
+allow/hard/restore/soft/restore with control off; future-pattern and
+missing-launcher cases keep allow/hard/restore followed by enabled-soft/restore.
+Each observed stage retains other-child controls and each case restores its
+policy independently. Historical installed results below describe the earlier
+complete sequences; the reduced sequences require their own installed validation.
+
+`test_native_whitespace_policy_is_uid_scoped` checks its representative
+transitions and other-child assertions using a fixed executable filename
+containing a space.
 Its quoted desktop entry must resolve to that exact target. Each deny stage
 requires the executable's current SHA-256 identity in both source and compiled
 rules; intervening allow stages require that denial to be absent. The launch
@@ -981,8 +1008,8 @@ Inspect its retained-app-snapshot prerequisite with
 Host regressions cover the scenario and failure witnesses; the full installed
 run linked above also passed this case.
 
-`test_native_future_pattern_is_uid_scoped` extends these transitions with a
-saved same-directory `Versioned-*.AppImage` pattern. A second matching version
+`test_native_future_pattern_is_uid_scoped` checks its representative transitions
+with a saved same-directory `Versioned-*.AppImage` pattern. A second matching version
 is created only after the first hard policy's source/compiled rules are captured.
 Its selected-child denial and other-child allowance must occur with those rules
 unchanged, without an exact denial for the future path. An existing unrelated
@@ -1005,8 +1032,8 @@ are refused. The executable remains present. The broker catalog must omit the
 launcher while preferences retain its policy, including after a public
 `SetPreferences` save reconciles the missing catalog entry. Both rule files must
 still deny the selected child, and command launches must witness child denial
-and other-child allowance. The shared transitions continue through soft policy,
-screen-time enablement and policy restoration with the launcher absent. The
+and other-child allowance. The transitions continue through screen-time
+enablement, soft policy and policy restoration with the launcher absent. The
 outer baseline cleanup owns remaining fixture files. Inspect its prerequisite
 closure with
 `tools/run-tests system --vm NAME --list --area enforcement --test test_native_missing_launcher_retains_policy`.

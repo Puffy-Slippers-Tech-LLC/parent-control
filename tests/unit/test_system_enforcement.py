@@ -190,7 +190,7 @@ def test_missing_launcher_retains_rules_through_public_save_and_isolation(
                     (fault == 'lost-after-save' and len(missing_saves) == 1)):
                 return [original]
         if method == 'SetPreferences':
-            if fault == 'restore-failed' and len(launches) == 20:
+            if fault == 'restore-failed' and len(launches) == 10:
                 raise enforcement.guest.GuestError('restore-failed')
             # Real broker save resolves the real temporary desktop catalog.
             requested = json.loads(args[1])
@@ -228,7 +228,7 @@ def test_missing_launcher_retains_rules_through_public_save_and_isolation(
             enforcement.native_policy_transition(tree.accounts, lambda *item: records.append(item), 'retention')
     else:
         enforcement.native_policy_transition(tree.accounts, lambda *item: records.append(item), 'retention')
-        assert len(launches) == 20
+        assert len(launches) == 10
         assert ('onpc.native.retention.missing.catalog', 'absent') in records
         assert ('onpc.native.retention.missing.saved-policy', 'retained') in records
         assert missing_saves[0][enforcement.RETENTION_DESKTOP_ID]['targets'] == [str(tree.target)]
@@ -323,7 +323,7 @@ def test_pattern_scenario_future_after_activation_and_isolation(
                 {1001: tuple(entry['patterns'])} if entry else {})
             for path in files:
                 path.write_text(rendered)
-            if fault == 'restore-failed' and len(launches) == 60:
+            if fault == 'restore-failed' and len(launches) == 30:
                 raise enforcement.guest.GuestError('restore-failed')
         if method == 'GetPreferences' and args == (1002,) and activated and fault == 'other-preferences':
             return ['changed']
@@ -366,7 +366,7 @@ def test_pattern_scenario_future_after_activation_and_isolation(
             enforcement.native_policy_transition(pattern_tree.accounts, lambda *item: records.append(item), 'pattern')
     else:
         enforcement.native_policy_transition(pattern_tree.accounts, lambda *item: records.append(item), 'pattern')
-        assert len(launches) == 60
+        assert len(launches) == 30
         trusted_future.assert_called_once_with()
         assert ('onpc.native.pattern.future.trusted-child-denied', 'passed') in records
         assert ('onpc.native.pattern.future.unchanged-rules', 'passed') in records

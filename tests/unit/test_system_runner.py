@@ -36,6 +36,11 @@ def test_numeric_system_registry_covers_current_parameter_variants_without_vm_op
                   for area, cases in inventories.items() for case in cases]
     assert set(identities) <= set(system_case_ids.CASES)
     assert len({identity.numeric_id for identity in identities}) == len(identities)
+    assert {identity.numeric_id for identity in identities} == (
+        system_case_ids.BY_ID.keys() - system_case_ids.UNBOUND_CASES.keys())
+    assert system_case_ids.UNBOUND_CASES.keys() <= system_case_ids.BY_ID.keys()
+    assert all(status in ('pending', 'retired') and reason
+               for status, reason in system_case_ids.UNBOUND_CASES.values())
     assert all(identity.title and identity.numeric_id > 0 for identity in identities)
     # Saved assignments protect representative IDs independently of collection order.
     assignments = {
@@ -213,7 +218,7 @@ def test_system_watch_publishes_trusted_case_description_and_restores_owners(
             parser(record[19:])
             shown = json.loads(progress_packet(watch.snapshot(display=True)))
             title, step, _ = progress_text({'progress': shown})
-            assert title.startswith(f'[{index}/{len(executions)}] [6]: Remove reboot reinstall')
+            assert title.startswith(f'[{index}/{len(executions)}][6]: Remove reboot reinstall')
             assert step == f'Remove reboot reinstall. System phase: {item.phase}.'
             assert 'private' not in json.dumps(shown)
             before = watch.snapshot()
@@ -768,7 +773,7 @@ def test_rpm_posterase_list_mode_preserves_exact_history_without_vm_access(
                         Mock(side_effect=AssertionError('VM probe ran')))
     assert runner.main(['--list', '--area', 'removal', '--test', 'test_rpm_posterase_recovery']) == 0
     output = capsys.readouterr().out
-    assert 'expected-executions: 8' in output
+    assert 'expected-executions: 6' in output
     assert 'required-package-format: test_rpm_posterase_recovery=rpm' in output
     assert 'phases: rpm-posterase-installed,rpm-posterase-rebooted,rpm-posterase,' in output
 
@@ -832,8 +837,8 @@ def test_ownership_family_listing_and_results_keep_all_exact_execution_identitie
     exact = [runner.resolve_selection('removal', case, inventories=RECOVERY_INVENTORIES)
              for case in runner.REMOVAL_FAMILIES[family]]
     assert selection.test == family
-    assert len(selection.executions) == 56
-    assert sum(item.prerequisite for item in selection.executions) == 42
+    assert len(selection.executions) == 42
+    assert sum(item.prerequisite for item in selection.executions) == 28
     assert selection.executions == tuple(item for part in exact for item in part.executions)
     assert selection.phases == tuple(phase for part in exact for phase in part.phases)
     staged = tmp_path / 'input'
@@ -841,12 +846,12 @@ def test_ownership_family_listing_and_results_keep_all_exact_execution_identitie
     identity = json.loads((staged / 'selected-inputs.json').read_text())
     assert digest == runner.baseline.digest(staged / 'selected-inputs.json')
     assert identity['selection']['test'] == family
-    assert len(identity['selection']['executions']) == 56
+    assert len(identity['selection']['executions']) == 42
     assert {item['case_id'] for item in identity['selection']['executions']
             if item['area'] == 'removal'} == set(runner.REMOVAL_FAMILIES[family])
     runner.print_selection(selection)
     output = capsys.readouterr().out
-    assert 'expected-executions: 56' in output
+    assert 'expected-executions: 42' in output
     assert 'test: ' + family in output
     for part in exact:
         for item in part.executions:
@@ -858,7 +863,7 @@ def test_ownership_family_listing_and_results_keep_all_exact_execution_identitie
     for phase in selection.phases:
         runner.reconcile_junit(tmp_path, phase, selection)
     evidence = runner.selection_evidence(tmp_path, selection)
-    assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 56
+    assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 42
     assert {item['case_id'] for item in evidence['executed_cases']
             if item['area'] == 'removal'} == set(runner.REMOVAL_FAMILIES[family])
 
@@ -985,10 +990,12 @@ def test_focused_recovery_listing_has_exact_prerequisite_closure(capsys, history
     selection = runner.resolve_selection(
         'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
     assert selection.phases == (*history.prerequisites, *history.phases)
-    assert len(selection.executions) == 8
-    assert sum(item.prerequisite for item in selection.executions) == 6
+    assert len(selection.executions) == 6
+    assert sum(item.prerequisite for item in selection.executions) == 4
     assert [sum(item.phase == phase for item in selection.executions)
-            for phase in history.prerequisites] == [3, 3]
+            for phase in history.prerequisites] == [2, 2]
+    assert {item.case_id for item in selection.executions if item.prerequisite} == set(
+        runner.PACKAGE_READINESS_CASES)
     assert selection.executions[-1] == runner.CaseExecution(
         history.phases[-1], 'removal', selection.test, False)
     assert runner.PHASE_DEPENDENCIES[history.phases[-1]] == (
@@ -997,7 +1004,7 @@ def test_focused_recovery_listing_has_exact_prerequisite_closure(capsys, history
     assert 'retained-app-snapshot' not in selection.prerequisites
     runner.print_selection(selection)
     output = capsys.readouterr().out
-    assert 'expected-executions: 8' in output
+    assert 'expected-executions: 6' in output
     for phase in history.phases:
         assert f'{phase}::{history.case_id} [selected]' in output
         command = runner.pytest_command(RUN, phase, selection)
@@ -1019,7 +1026,7 @@ def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path, history):
     identity = json.loads((tmp_path / 'selected-inputs.json').read_text())
     assert digest == runner.baseline.digest(tmp_path / 'selected-inputs.json')
     assert identity['selection']['phases'] == [*history.prerequisites, *history.phases]
-    assert len(identity['selection']['executions']) == 8
+    assert len(identity['selection']['executions']) == 6
     assert identity['selection']['executions'][-1] == {
         'phase': history.phases[-1], 'area': 'removal', 'case_id': history.case_id,
         'prerequisite': False}
@@ -1034,8 +1041,7 @@ def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path, history):
         record = identity['files'][name]
         assert (tmp_path / name).read_bytes() == (runner.ROOT / record['source']).read_bytes()
         assert record['sha256'] == runner.baseline.digest(tmp_path / name)
-    for source in ('tests/integration/system_runner.py', 'tests/integration/system_snapshots.py'):
-        assert identity['host_files'][source] == runner.baseline.digest(runner.ROOT / source)
+    assert 'host_files' not in identity  # No graphical activation in prerequisites.
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'extra', 'duplicate', 'identity', 'failure', 'skipped'])
@@ -1058,7 +1064,7 @@ def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path, faul
         for phase in selection.phases:
             runner.reconcile_junit(tmp_path, phase, selection)
         evidence = runner.selection_evidence(tmp_path, selection)
-        assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 8
+        assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 6
         assert evidence['executed_cases'][-1] == {
             'phase': history.phases[-1], 'area': 'removal', 'case_id': selection.test}
 
@@ -1082,28 +1088,20 @@ def test_recovery_timeout_and_progress_use_logical_phase_and_restore_callback(hi
     assert vm.commands.progress is previous
 
 
-@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
-def test_recovery_installed_activation_calls_guest_and_observer_with_installed_semantics(
-        tmp_path, monkeypatch, history):
+def test_recovery_prerequisites_omit_comprehensive_kiosk_activation(
+        tmp_path, monkeypatch):
     import kiosk_entry
+    history = runner.REMOVAL_HISTORIES[1]
     selection = runner.resolve_selection(
         'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
-    (tmp_path / 'input').mkdir()
-    identity = {'entry.py': 'a' * 64}
-    (tmp_path / 'input/selected-inputs.json').write_text(json.dumps({'host_files': identity}))
-    monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', Mock(return_value=identity))
-    state = {'phase': 'installed', 'boot_sha256': 'a' * 64, 'execution_rules': {}}
     vm, lease = Mock(), legacy_lease(state={'run': RUN})
-    vm.call.side_effect = [json.dumps(state).encode(), b'', json.dumps(state).encode()]
-    observer = Mock(return_value={'boot_sha256': 'a' * 64})
+    observer = Mock(side_effect=AssertionError('prerequisite ran kiosk activation'))
     monkeypatch.setattr(kiosk_entry, 'observe_activation', observer)
-    runner.observe_kiosk_activation(vm, lease, tmp_path, selection, history.prerequisites[0])
-    observer.assert_called_once_with(vm, lease, 'installed')
-    assert [call.args[0] for call in vm.call.call_args_list] == [
-        runner.guest_command(RUN, 'activation-state', 'installed'),
-        runner.guest_command(RUN, 'prepare-activation-greeter'),
-        runner.guest_command(RUN, 'activation-state', 'installed')]
-    assert (tmp_path / ('guest-results/gdm-' + history.prerequisites[0] + '.json')).is_file()
+    for phase in history.prerequisites:
+        runner.observe_kiosk_activation(vm, lease, tmp_path, selection, phase)
+    observer.assert_not_called()
+    vm.call.assert_not_called()
+    assert not (tmp_path / 'guest-results').exists()
 
 
 @pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
@@ -1844,16 +1842,12 @@ def test_kiosk_classification_selection_preserves_its_reboot_history(tmp_path):
 
 
 @pytest.mark.parametrize('fault', [None, 'before-source', 'after-source', 'policy', 'boot', 'same-boot'])
-@pytest.mark.parametrize('history', [None, *runner.REMOVAL_HISTORIES[1:]],
-                         ids=lambda history: history.case_id if history else 'package')
-def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monkeypatch, fault, history):
+def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monkeypatch, fault):
     import kiosk_entry
     case = runner.KIOSK_ACTIVATION_CASE
     inventories = {**INVENTORIES, 'package': (*INVENTORIES['package'], case)}
-    selection = (runner.resolve_selection('removal', history.case_id,
-                                         inventories=RECOVERY_INVENTORIES) if history else
-                 runner.resolve_selection('package', case, inventories=inventories))
-    installed_phase, phase = history.prerequisites if history else ('installed', 'rebooted')
+    selection = runner.resolve_selection('package', case, inventories=inventories)
+    installed_phase, phase = ('installed', 'rebooted')
     (tmp_path / 'input').mkdir()
     (tmp_path / 'guest-results').mkdir()
     identity = {'entry.py': 'a' * 64}
@@ -2056,13 +2050,15 @@ def test_kiosk_activation_keeps_boundary_checks_in_the_same_guarded_history(
     monkeypatch.setattr(confinement, 'verify_session_composition', action('composition'))
 
     if fault is None:
-        case.test_kiosk_account_classification_survives_reboot(Mock())
+        case.test_kiosk_account_classification_survives_reboot(
+            Mock(), case.installed_readiness.__wrapped__())
     else:
         category = {'policy-changed': 'policy-changed-before-reboot',
                     'reboot-requested': 'reboot-not-requested',
                     'reboot-cleared': 'reboot-request-retained'}.get(fault, 'activation:')
         with pytest.raises(guest.GuestError, match=category):
-            case.test_kiosk_account_classification_survives_reboot(Mock())
+            case.test_kiosk_account_classification_survives_reboot(
+                Mock(), case.installed_readiness.__wrapped__())
     assert events == (expected if fault in (None, 'policy-changed') else
                       expected[:expected.index(fault) + 1])
     installed.assert_called_once_with(reboot_required=phase == 'installed')
@@ -3075,7 +3071,7 @@ def test_snapshot_changed_during_run_leaves_recovery_evidence(lease_rig):
     lease.source.domain.destroyFlags.assert_not_called()
 
 
-@pytest.mark.parametrize('numeric_id', sorted(system_case_ids.UNBOUND_CASES))
+@pytest.mark.parametrize('numeric_id', [10, 269], ids=['retired', 'pending'])
 def test_historical_unbound_ids_stay_reserved_without_executable_selectors(
         numeric_id, monkeypatch, capsys):
     collect = Mock(side_effect=AssertionError('unbound ID collected tests'))

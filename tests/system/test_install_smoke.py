@@ -2,6 +2,7 @@
 
 import json
 import os
+from functools import cache
 from pathlib import Path
 
 import pytest
@@ -17,10 +18,17 @@ def require_isolated_guest():
     guest.enable_diagnostics()
 
 
-def test_installed_package():
+@pytest.fixture(scope='module')
+def installed_readiness():
+    # Each pytest invocation handles one phase. Guarded test bodies share only
+    # the unchanged readiness observation, not the kiosk's mutations or results.
+    return cache(guest.installed)
+
+
+def test_installed_package(installed_readiness):
     phase = os.environ['ONPC_SYSTEM_PHASE']
     assert phase in ('installed', 'rebooted')
-    guest.installed(reboot_required=phase == 'installed')
+    installed_readiness(reboot_required=phase == 'installed')
 
 
 def test_first_install_requests_reboot():
@@ -71,7 +79,7 @@ def test_pam_environment_installation_variants(variant, record_testsuite_propert
         verify_removed_reboot(record_testsuite_property, variant)
 
 
-def test_kiosk_account_classification_survives_reboot(record_testsuite_property):
+def test_kiosk_account_classification_survives_reboot(record_testsuite_property, installed_readiness):
     from system_kiosk_accounts import exercise, verify_reboot
     from system_kiosk_admission import verify as verify_admission, verify_gates
     from system_kiosk_confinement import verify_session_composition
@@ -80,7 +88,7 @@ def test_kiosk_account_classification_survives_reboot(record_testsuite_property)
     guest.require(phase in ('installed', 'rebooted'), 'kiosk-accounts:test-phase')
     pending = phase == 'installed'
     rules_before = guest.execution_rule_state() if pending else None
-    guest.installed(reboot_required=pending)
+    installed_readiness(reboot_required=pending)
     if pending:
         guest.require(guest.reboot_requested(), 'kiosk-accounts:reboot-not-requested')
         # Routing mutations precede the retained-metadata witness. Subsequent

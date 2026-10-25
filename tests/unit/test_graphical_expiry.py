@@ -169,15 +169,31 @@ def test_verify_retains_observations_before_later_failure(tmp_path, monkeypatch,
     monkeypatch.setattr(expiry.guest, 'guard', Mock())
     monkeypatch.setattr(expiry, 'FIXTURE', tmp_path)
     monkeypatch.setattr(expiry, 'identities', lambda: {'child': 1001})
-    observations = [['prerequisite', 'verified']]
-    (tmp_path / 'prerequisites.json').write_text(json.dumps(observations))
-    monkeypatch.setattr(expiry, 'wait_for', Mock(side_effect=RuntimeError('later failure')))
+    boot = Path('/proc/sys/kernel/random/boot_id').read_text()
+    (tmp_path / 'seeded.json').write_text(json.dumps({
+        'boot': boot, 'remaining_seconds': 0.9, 'worker': 42, 'broker_invocation': 'broker',
+    }))
+    monkeypatch.setattr(expiry, 'wait_for', Mock(side_effect=[
+        None, ('4', {'Scope': 'session-4.scope', 'Type': 'wayland', 'Service': 'gdm-autologin'}),
+        RuntimeError('later failure'),
+    ]))
+    monkeypatch.setattr(expiry.guest, 'run', Mock(side_effect=[
+        'infinity', 'broker', 'session runtime cap outcome=cleared stage=before-session status=0',
+    ]))
+    manager = Mock()
+    manager._account.return_value = (Mock(), None)
+    monkeypatch.setattr(expiry, 'installed_manager', lambda: manager)
+    observation = ('onpc.expiry.graphical-login', json.dumps({
+        'grant_remaining_seconds': 0.9, 'scope_runtime_max': 'infinity',
+        'pam_before_session_witness': True, 'broker_unchanged_since_before_login': True,
+        'type': 'wayland', 'service': 'gdm-autologin',
+    }, sort_keys=True))
     publish = Mock()
     with pytest.raises(RuntimeError, match='later failure'):
         expiry.verify(publish)
-    assert json.loads((output / 'session-observations.json').read_text()) == observations
+    assert json.loads((output / 'session-observations.json').read_text()) == [list(observation)]
     assert not (output / 'session-observations.pending').exists()
-    publish.assert_called_once_with('prerequisite', 'verified')
+    publish.assert_called_once_with(*observation)
 
 
 @pytest.fixture

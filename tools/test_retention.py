@@ -21,6 +21,9 @@ import tempfile
 if __package__:
     from . import test_io
 else:
+    # The namespace worker uses -I, which omits the script directory from
+    # Python's import path. Resolve this sibling from the worker's own location.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     import test_io
 
 VARIABLE = 'ONPC_TEST_RETENTION'

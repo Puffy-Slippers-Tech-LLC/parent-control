@@ -2091,6 +2091,9 @@ def run_pytest(vm, run, phase, selection):
 def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False,
                   fixture_selection=None, preparation_only=False, preparation_observer=None):
     ledger = ledger or RunLedger()
+    # Report product steps without replacing the lease's running lifecycle
+    # state. Fixture readiness and interrupted-run recovery require that state;
+    # only actual VM lifecycle transitions may change it through lease.save().
     # This engineering seam executes the real bootstrap boundary and returns
     # before payload upload, package input, phase execution or guest collection.
     # Its observer runs under the caller's live lease for independent audits.
@@ -2220,12 +2223,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 not reboot_phases and selection.phases == pam_history.phases[:len(selection.phases)]),
                 'selection:pam-variants-require-isolated-baseline')
         if already_installed:
-            lease.save('snapshot-readiness')
+            log('stage:snapshot-readiness')
             with ledger.measure('bootstrap'):
                 require_fixture_ready()
                 vm.call(guest_command(run, 'verify-installed'), timeout=660)
         elif has_previous:
-            lease.save('package-install')
+            log('stage:package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'install-previous'), timeout=2400)
             if trusted_fixtures:
@@ -2235,11 +2238,11 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 with ledger.measure('collection'):
                     vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
                     vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
-            lease.save('previous-package-reboot')
+            log('stage:previous-package-reboot')
             with ledger.measure('reboot'):
                 vm.reboot()
             if previous_policy:
-                lease.save('pytest-previous-policy')
+                log('stage:pytest-previous-policy')
                 with ledger.measure('test'):
                     try:
                         run_pytest(vm, run, 'previous-policy', selection)
@@ -2254,7 +2257,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
         if (not already_installed and not first_configure and pam_history is None and not trusted_fixtures
                 and (not previous_policy or install_phases)):
-            lease.save('package-install')
+            log('stage:package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
         if install_phases:
@@ -2263,7 +2266,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             # changes establish their retained reboot oracle.
             with ledger.measure('test'):
                 run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
-            lease.save('pytest-' + phase)
+            log('stage:pytest-' + phase)
             with ledger.measure('test'):
                 try:
                     run_pytest(vm, run, phase, selection)
@@ -2280,10 +2283,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             ledger.pass_outcome('collection')
         if reboot_phases:
             phase = reboot_phases[0]
-            lease.save('reboot-requested')
+            log('stage:reboot-requested')
             with ledger.measure('reboot'):
                 vm.reboot()
-            lease.save('pytest-' + phase)
+            log('stage:pytest-' + phase)
             with ledger.measure('test'):
                 try:
                     run_pytest(vm, run, phase, selection)
@@ -2317,21 +2320,21 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         retained = directory / 'phase-results' / prior
                         retained.mkdir(parents=True, mode=0o700)
                         vm.copy(True, PAYLOAD + '/results/', str(retained) + '/')
-                lease.save('reboot-' + phase)
+                log('stage:reboot-' + phase)
                 with ledger.measure('reboot'):
                     vm.reboot()
             if phase == 'session':
                 if already_installed:
                     require_fixture_ready()
-                lease.save('graphical-expiry-fixture')
+                log('stage:graphical-expiry-fixture')
                 with ledger.measure('test'):
                     vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
                              '/usr/bin/python3', '-B', PAYLOAD + '/system_graphical_expiry.py',
                              'prepare'], timeout=300)
-                lease.save('graphical-expiry-reboot')
+                log('stage:graphical-expiry-reboot')
                 with ledger.measure('reboot'):
                     reboot()
-            lease.save('pytest-' + phase)
+            log('stage:pytest-' + phase)
             with ledger.measure('test'):
                 try:
                     if already_installed:

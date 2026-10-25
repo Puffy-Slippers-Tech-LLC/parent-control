@@ -204,7 +204,11 @@ its immutable projection, which is rebuilt at the next observation and invalidat
 before input. External-provider complete observations and input guards are unchanged.
 
 `tools/run-tests unit` collects only the selected unit inventory and balances
-reviewed modules across up to four branches. The [unit buckets](../tools/regression_unit.py)
+reviewed modules into queued batches targeting 90 estimated seconds, running
+across up to four branches. Free branches take the next batch; the number and
+contents of batches follow the selection rather than a fixed distribution.
+An individual module can exceed the target, and estimates are ordering hints,
+not execution deadlines. The [unit buckets](../tools/regression_unit.py)
 are shared with `host`; each module and its fixtures stay in one worker. Workers
 use private pytest temporary trees, disabled shared caches and process-local
 doubles. Package/native fixtures build into private staging directories.

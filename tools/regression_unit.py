@@ -1550,6 +1550,8 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 
 # Ordering hints only; default weight balances selected case counts. Keep whole
 # module fixtures together; work_units owns the function-private exception.
+TARGET_BATCH_SECONDS = 90
+
 ESTIMATES = {
     **CLEANUP_ESTIMATES,
     # Measured 913 dispatch cases with synthetic source identities.
@@ -1604,6 +1606,13 @@ def buckets(nodeids):
     estimates = [0.0] * len(groups)
     for module in sorted(modules, key=lambda item: (-item.estimate, item.name)):
         index = min(range(len(groups)), key=lambda index: estimates[index])
+        # Queue short batches rather than pinning the entire inventory to four
+        # workers. A free worker can then take the next batch when estimates
+        # differ from actual runtimes. An oversized module keeps its fixtures.
+        if groups[index] and estimates[index] + module.estimate > TARGET_BATCH_SECONDS:
+            index = len(groups)
+            groups.append([])
+            estimates.append(0.0)
         groups[index].append(module)
         estimates[index] += module.estimate
     result = [Bucket(f'Unit — Bucket {index + 1}',

@@ -743,7 +743,9 @@ def test_later_attempt_accepts_new_per_attempt_identity(harness, field):
     expected = copy.deepcopy(harness.inputs)
     expected[field] = 'b' * 64
     result = run(harness, expected_inputs=expected)
-    assert result['outcome'] == 'passed'
+    assert result['outcome'] == 'passed', {
+        key: result.get(key) for key in (
+            'first_failure', 'outcomes', 'failure_location', 'evidence_directory')}
 
 
 @pytest.mark.parametrize('field', execution.SUITE_INPUT_FIELDS)

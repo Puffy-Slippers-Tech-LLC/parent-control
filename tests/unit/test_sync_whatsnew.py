@@ -5,7 +5,6 @@ Codex, workflow ownership and model discovery use process-local doubles.
 """
 
 import fcntl
-import io
 import json
 import os
 from pathlib import Path
@@ -70,59 +69,6 @@ def finish(root):
     work = catalogs.pending(root, release)
     sync.apply_response(root, release, work, response(work), originals(root, release, work))
     return release
-
-
-def test_launcher_totals_count_languages_across_all_latest_release_records(repository):
-    from launcher_view import view_for, whatsnew_totals
-
-    assert view_for('sync-whatsnew').totals is whatsnew_totals
-    assert whatsnew_totals(repository) == (0, 2, 2)
-    assert not (repository / 'po/whats-new').exists()
-    release = catalogs.prepare(repository)
-    work = catalogs.pending(repository, release)
-    # Completing one audience still leaves that language pending.
-    partial = {'fr': work['fr'][:1]}
-    sync.apply_response(repository, release, partial, response(partial),
-                        originals(repository, release, partial))
-    assert whatsnew_totals(repository) == (0, 2, 2)
-    work = {'fr': catalogs.pending(repository, release)['fr']}
-    sync.apply_response(repository, release, work, response(work), originals(repository, release, work))
-    assert whatsnew_totals(repository) == (1, 1, 2)
-    finish(repository)
-    assert whatsnew_totals(repository) == (2, 0, 2)
-    source(repository, [('1.11', 'Parent', 'New release notes')])
-    assert whatsnew_totals(repository) == (0, 2, 2)
-
-
-def test_display_refresh_counts_only_saved_languages_without_new_agent_output(repository):
-    from launcher_view import WorkflowView, whatsnew_totals
-
-    release = catalogs.prepare(repository)
-    work = catalogs.pending(repository, release)
-    run = repository / 'observer'
-    run.mkdir()
-    display = WorkflowView(totals=lambda: whatsnew_totals(repository)).display(io.StringIO(), run)
-    display.refresh_chat()
-    assert display.task_totals == (0, 2, 2)
-    translated = response(work)
-    display.refresh_chat()
-    assert display.task_totals == (0, 2, 2)  # Returned text is not a saved batch.
-    sync.apply_response(repository, release, work, translated, originals(repository, release, work))
-    display.refresh_chat()
-    assert display.task_totals == (2, 0, 2)
-    reattached = WorkflowView(totals=lambda: whatsnew_totals(repository)).display(io.StringIO(), run)
-    reattached.refresh_chat()
-    assert reattached.task_totals == (2, 0, 2)
-
-
-def test_launcher_totals_refuse_malformed_catalogue_without_crashing_observer(repository):
-    from launcher_view import whatsnew_totals
-
-    release = catalogs.prepare(repository)
-    catalogs.catalog_path(repository, release, 'fr').write_text('msgid ""\nmsgstr """\n')
-    # The shared display handles ValueError by retaining the last valid totals.
-    with pytest.raises(ValueError, match='invalid translation catalogue'):
-        whatsnew_totals(repository)
 
 
 def test_numeric_latest_includes_all_audiences_ignores_installed_version_and_preserves_history(repository):

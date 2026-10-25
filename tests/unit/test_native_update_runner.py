@@ -7,10 +7,17 @@ from unittest.mock import Mock
 
 import pytest
 
-@pytest.mark.parametrize('fault', [None, 'mode', 'link', 'size', 'owner'])
-@pytest.mark.parametrize('name', ['native-update-old.json', 'retained-ambient-observed-initial.json',
-                                  'required-history-native-complete.json',
-                                  'retained-manager-' + 'a' * 32 + '-intent.json'])
+@pytest.mark.parametrize('name,fault', [
+    ('native-update-old.json', None),
+    ('retained-ambient-observed-initial.json', None),
+    ('required-history-native-complete.json', None),
+    ('retained-manager-' + 'a' * 32 + '-intent.json', None),
+    # Every filename family shares the same file-safety validation loop.
+    ('native-update-old.json', 'mode'),
+    ('native-update-old.json', 'link'),
+    ('native-update-old.json', 'size'),
+    ('native-update-old.json', 'owner'),
+])
 def test_native_collection_is_finite_private_bounded_and_redacted(tmp_path, monkeypatch, fault, name):
     import system_guest as guest
     monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)

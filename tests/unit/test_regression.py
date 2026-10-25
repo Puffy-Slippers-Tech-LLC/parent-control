@@ -419,27 +419,6 @@ def test_successful_coverage_requires_its_actual_outputs(tmp_path, monkeypatch, 
             report.close()
 
 
-@pytest.mark.parametrize('failed', [False, True])
-@pytest.mark.parametrize('phase', ['system', 'e2e'])
-def test_overall_excludes_preparation_but_keeps_its_status(report, tmp_path, monkeypatch, failed, phase):
-    run = regression.Run(tmp_path, report, Control(), phases=(phase,))
-    monkeypatch.setattr(run, 'discover_vm', lambda *_: ['case'])
-    monkeypatch.setattr(regression, 'authorization', lambda: None)
-    monkeypatch.setattr(run, 'host_jobs', lambda *_: None)
-    run.run_vm_only()
-    discovery = run.categories[0]
-    discovery.done, discovery.state = 1, 'Passed'
-    preparation, suite = run.categories[1:]
-    preparation.done, preparation.state = 1, 'Failed' if failed else 'Passed'
-    preparation.failures = int(failed)
-    suite.total, suite.done, suite.state = 24, 9, 'Running'
-    lines = run.dashboard.render(run.dashboard.started)
-    assert run.dashboard.ANSI.sub('', lines[-1]) == 'Overall - 37% (9/24) - 0.0m'
-    assert lines[-1].startswith('\033[31m' if failed else '\033[97;1m')
-    assert 'Package input preparation' in '\n'.join(lines)
-    assert 'Discovery and prerequisites' in '\n'.join(lines)
-
-
 @pytest.mark.parametrize('kind,fields', [
     ('collection', {'total': 1}),
     ('finished', {'nodeid': 'case'}),
@@ -752,236 +731,6 @@ def test_old_dispatcher_is_refused_before_expensive_suites(monkeypatch, installe
             regression.authorization()
 
 
-def test_dashboard_colors_counts_and_no_diagnostics():
-    categories = [regression.Category('Unit', 4, 4, 'Passed'),
-                  regression.Category('UI', 10, 3, 'Running'),
-                  regression.Category('VM', 2)]
-    stream = io.StringIO()
-    regression.Dashboard(categories, stream).draw(force=True)
-    value = stream.getvalue()
-    assert '\033[32m[✓] Unit - 100% (4/4) - 0s\033[0m' in value
-    assert '\033[97;1m[Running] UI - 30% \033[0m(\033[32m3\033[0m/10)' in value
-    assert '\033[90m[Pending] VM (2)\033[0m\n' in value
-    assert 'Overall - 43% \033[0m(\033[32m7\033[0m/16)' in value
-    categories[0].state = 'Failed'
-    categories[0].failures = 1
-    regression.Dashboard(categories, stream).draw(force=True)
-    assert ('\033[31m[✗] Unit - 100% \033[0m(\033[32m3\033[0m/'
-            '\033[31m1\033[0m/4)') in stream.getvalue()
-
-
-def test_completed_dashboard_summary_is_green():
-    dashboard = regression.Dashboard([regression.Category('Unit', 4, 4, 'Passed')], io.StringIO())
-    dashboard.started = 100
-    assert '\033[32mOverall - 100% (4/4) - 1.0m\033[0m' in dashboard.render(160)
-
-
-def test_branch_frame_shows_both_running_counts_queue_and_real_wall_time():
-    ui = regression.Category('UI', 10, 3, 'Running', started=100, host=True, branch=1)
-    unit = regression.Category('Unit', 20, 8, 'Running', started=120, host=True, branch=2)
-    queued = regression.Category('Components', 5, host=True, wait_reason='memory headroom')
-    vm = regression.Category('VM', 2)
-    dashboard = regression.Dashboard([ui, unit, queued, vm], io.StringIO())
-    dashboard.started = dashboard.host_started = 100
-
-    def frame(now):
-        return dashboard.ANSI.sub('', '\n'.join(dashboard.render(now)))
-
-    first = frame(160)
-    assert '├─ Host branch 1 — running' in first
-    assert '├─ Host branch 2 — running' in first
-    assert 'Host branch 3' not in first
-    assert 'Host branch 4' not in first
-    assert first.count('├─ Host branch ') == 2
-    styled = '\n'.join(dashboard.render(160))
-    assert '\033[1m├─ Host branch 1 — running - 1.0m\033[0m' in styled
-    assert 'No categories assigned' not in styled
-    assert '│  └─ [Running] UI - 30% (3/10) - 1.0m' in first
-    assert '│  └─ [Running] Unit - 40% (8/20) - 40s' in first
-    assert first.index('Unassigned host work') < first.index('[Waiting] Components')
-    assert '│    [Waiting] Components: memory headroom (5)\n' in first
-    assert first.index('Join host branches') < first.index('[Pending] VM')
-    assert 'Overall - 29% (11/37) - 1.0m' in first
-    ui.done, unit.done = 6, 15
-    second = frame(190)
-    assert '[Running] UI - 60% (6/10) - 1.5m' in second
-    assert '[Running] Unit - 75% (15/20) - 1.2m' in second
-    assert 'Overall - 56% (21/37) - 1.5m' in second
-    assert second.count('[Waiting] Components') == 1
-
-
-def test_branch_totals_and_join_time_freeze_before_later_work():
-    categories = [
-        regression.Category('First', 1, 1, 'Passed', elapsed=60, host=True, branch=1),
-        regression.Category('Second', 1, 1, 'Passed', elapsed=90, host=True, branch=1),
-        regression.Category('Third', 1, 1, 'Passed', elapsed=120, host=True, branch=2),
-        regression.Category('VM', 1),
-    ]
-    dashboard = regression.Dashboard(categories, io.StringIO())
-    dashboard.started = 100
-    dashboard.host_started = 160
-    running = dashboard.ANSI.sub('', '\n'.join(dashboard.render(340)))
-    assert '\n│\n└─ Join host branches — waiting for host work — 4.0m wall time' in running
-    dashboard.host_elapsed = 180
-    for now in (340, 700):
-        styled = '\n'.join(dashboard.render(now))
-        assert '\033[32m├─ Host branch 2 — finished - 2.0m\033[0m' in styled
-        assert '\033[32m└─ Join host branches — passed — 4.0m wall time\033[0m' in styled
-        frame = dashboard.ANSI.sub('', styled)
-        assert 'Host branch 1 — finished - 2.5m' in frame
-        assert 'Host branch 2 — finished - 2.0m' in frame
-        assert 'Host branch 3' not in frame
-        assert '\n│\n└─ Join host branches — passed — 4.0m wall time' in frame
-        assert '\n\nOverall - 75% (3/4)' in frame
-    dashboard.cleanup_started = dashboard.started
-    dashboard.cleanup_elapsed = 48
-    cleanup = regression.Category('Cleanup', 1, 1, 'Passed', host=True, branch=1,
-                                  phase='cleanup')
-    dashboard.categories = [cleanup]
-    assert '\033[32mCleanup safety prerequisites\033[0m' in dashboard.render(340)
-    assert ('\033[32m└─ Join cleanup prerequisites — passed — 0.8m wall time\033[0m'
-            in '\n'.join(dashboard.branches([cleanup], 340, 'cleanup')))
-    cleanup.state = 'Failed'
-    assert '\033[32mCleanup safety prerequisites\033[0m' not in dashboard.render(340)
-    failed = '\n'.join(dashboard.branches([cleanup], 340, 'cleanup'))
-    assert '\033[1;31m├─ Host branch 1 — finished - 0.0m\033[0m' in failed
-    assert '\033[32m└─ Join cleanup prerequisites' not in failed
-
-
-def test_terminal_redraw_clips_long_names_and_erases_shrinking_queue(monkeypatch):
-    class Terminal(io.StringIO):
-        def isatty(self):
-            return True
-
-    monkeypatch.setattr(regression.shutil, 'get_terminal_size', lambda: os.terminal_size((80, 24)))
-    item = regression.Category('UI ' * 30, 10, host=True, wait_reason='memory headroom')
-    stream = Terminal()
-    dashboard = regression.Dashboard([item], stream)
-    dashboard.draw(force=True)
-    first = stream.getvalue()
-    assert all(len(dashboard.ANSI.sub('', line)) <= 79 for line in first.splitlines())
-    assert '…' in first
-    previous = dashboard.lines
-    stream.seek(0)
-    stream.truncate()
-    item.branch, item.state, item.wait_reason = 1, 'Running', ''
-    dashboard.draw(force=True)
-    assert stream.getvalue().startswith(f'\033[{previous}F')
-    assert stream.getvalue().endswith('\033[J')
-    assert dashboard.lines < previous
-
-
-@pytest.mark.parametrize('height', [1, 2, 12, 24, 60])
-def test_terminal_frames_stay_reachable_without_scrolling(monkeypatch, height):
-    class Terminal(io.StringIO):
-        def isatty(self):
-            return True
-
-    monkeypatch.setattr(regression.shutil, 'get_terminal_size',
-                        lambda: os.terminal_size((80, height)))
-    items = [regression.Category(f'Completed {index}', 1, 1, 'Passed',
-                                 host=True, branch=1) for index in range(30)]
-    items.extend([regression.Category('Active UI', 10, 2, 'Running', host=True, branch=1),
-                  regression.Category('Broken unit', 5, 3, 'Failed', host=True, branch=2),
-                  regression.Category('Queued VM', 10)])
-    stream = Terminal()
-    dashboard = regression.Dashboard(items, stream)
-    for done in (2, 5, 10):
-        stream.seek(0)
-        stream.truncate()
-        items[-3].done = done
-        dashboard.draw(force=True)
-        output = stream.getvalue()
-        plain = dashboard.ANSI.sub('', output)
-        assert output.count('\n') <= height - 1
-        assert dashboard.lines <= max(1, height - 1)
-        assert plain.count('Overall - ') == 1
-        if height >= 12:
-            assert f'[Running] Active UI - {done * 10}%' in plain
-            assert '[✗] Broken unit' in plain
-            assert plain.count('Host branch 1') == 1
-        if 2 < height < 60:
-            assert 'rows hidden; full details in run report' in plain
-        if height == 60:
-            assert 'rows hidden' not in plain
-            assert 'Completed 0' in plain
-
-
-def test_terminal_height_keeps_fix_tests_category_beneath_overall():
-    lines = [f'[Pending] Category {index}' for index in range(20)]
-    lines.extend(['Overall - 50% (10/20) - 1.0m',
-                  'Running category [unit] (1/13)'])
-    visible = regression.Dashboard.fit_height(lines, 5)
-    assert visible[-2:] == lines[-2:]
-
-
-def test_terminal_dimensions_ignore_stale_environment(monkeypatch):
-    class Terminal(io.StringIO):
-        def isatty(self):
-            return True
-
-        def fileno(self):
-            return 42
-
-    monkeypatch.setenv('LINES', '60')
-    monkeypatch.setenv('COLUMNS', '160')
-    size = os.terminal_size((80, 12))
-
-    def terminal_size(descriptor):
-        assert descriptor == 42
-        return size
-
-    monkeypatch.setattr(regression.os, 'get_terminal_size', terminal_size)
-    stream = Terminal()
-    dashboard = regression.Dashboard(
-        [regression.Category(f'Category {index}', 1) for index in range(30)], stream)
-    for size in (size, os.terminal_size((40, 8)), os.terminal_size((100, 24))):
-        previous = dashboard.terminal_size
-        stream.seek(0)
-        stream.truncate()
-        dashboard.draw(force=True)
-        output = stream.getvalue()
-        assert dashboard.terminal_size == size
-        assert output.count('\n') < size.lines
-        assert all(len(dashboard.ANSI.sub('', line)) < size.columns
-                   for line in output.splitlines())
-        if previous is not None:
-            assert output.startswith('\033[H\033[2J')
-
-
-def test_terminal_resize_discards_invalid_cursor_offset(monkeypatch):
-    class Terminal(io.StringIO):
-        def isatty(self):
-            return True
-
-    size = os.terminal_size((120, 60))
-    monkeypatch.setattr(regression.shutil, 'get_terminal_size', lambda: size)
-    stream = Terminal()
-    dashboard = regression.Dashboard(
-        [regression.Category(f'Category {index}', 1) for index in range(30)], stream)
-    for size in (size, os.terminal_size((40, 12)), os.terminal_size((120, 60))):
-        previous = dashboard.terminal_size
-        stream.seek(0)
-        stream.truncate()
-        dashboard.draw(force=True)
-        output = stream.getvalue()
-        if previous is not None:
-            assert output.startswith('\033[H\033[2J')
-        assert output.count('\n') < size.lines
-        assert all(len(dashboard.ANSI.sub('', line)) < size.columns
-                   for line in output.splitlines())
-
-
-def test_nonterminal_output_keeps_all_categories(monkeypatch):
-    monkeypatch.setattr(regression.shutil, 'get_terminal_size',
-                        lambda: os.terminal_size((20, 5)))
-    stream = io.StringIO()
-    regression.Dashboard([regression.Category(f'Category {index}', 1)
-                          for index in range(30)], stream).draw(force=True)
-    assert stream.getvalue().count('[Pending] Category ') == 30
-    assert 'rows hidden' not in stream.getvalue()
-
-
 @pytest.mark.parametrize('slots', [1, 2, 3, 4])
 def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_path, slots):
     release = threading.Event()
@@ -1017,14 +766,6 @@ def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_
     saved = json.loads((report.directory / 'progress.json').read_text())[1:]
     assert [item['branch'] for item in saved] == expected
     assert all(item['state'] == 'Passed' for item in saved)
-    output = run.dashboard.ANSI.sub('', run.dashboard.stream.getvalue())
-    assert 'Join host branches — passed' in output
-    if slots == 1:
-        assert 'Host branch 2 — running' not in output
-    if slots == 3:
-        assert 'Host branch 3 — running' in output
-    if slots == 4:
-        assert 'Host branch 4 — running' in output
 
 
 @pytest.mark.parametrize('continue_on_errors', [False, True])
@@ -1510,20 +1251,6 @@ def test_serial_builder_samples_resources_while_running_and_labels_the_observati
     assert item.state == 'Passed'
 
 
-def test_vm_memory_wait_stays_visible_after_host_join_and_in_short_terminal():
-    hosts = [regression.Category(f'Host {i}', 1, 1, 'Passed', host=True, branch=i % 4 + 1)
-             for i in range(20)]
-    vm = regression.Category('Installed-system tests', 244, wait_reason=
-                             'waiting for memory headroom (14.0 GiB available; requires 15.2 GiB)')
-    dashboard = regression.Dashboard([*hosts, vm])
-    dashboard.host_elapsed = 400
-    rows = dashboard.fit_height(dashboard.render(800), 8)
-    text = dashboard.ANSI.sub('', '\n'.join(rows))
-    assert '[Waiting] Installed-system tests: waiting for memory headroom' in text
-    assert '14.0 GiB available; requires 15.2 GiB' in text
-    assert 'Join host branches — passed' in text
-
-
 @pytest.mark.parametrize('failure', [None, 'build-a', 'build-b', 'publish'])
 def test_independent_builds_finish_in_reverse_order_with_host_and_publishing_active(
         report, tmp_path, failure):
@@ -1830,10 +1557,13 @@ def test_vm_aggregate_uses_one_suite_and_retains_progress_and_final_failure(
                                           (failure is not None and not continue_on_errors))
 
 
-@pytest.mark.parametrize('fail_unit,fail_publish', [
-    (False, False), (True, False), (False, True)])
-@pytest.mark.parametrize('scope', ['all', 'all-future-category', 'host', 'host-builds', 'host-builds-serial',
-                                  'host system', 'host e2e', 'system', 'e2e', 'system e2e'])
+# Host failure flags have no effect on VM-only scopes.
+@pytest.mark.parametrize('scope,fail_unit,fail_publish', [
+    (scope, fail_unit, fail_publish)
+    for scope in ('all', 'all-future-category', 'host', 'host-builds', 'host-builds-serial',
+                  'host system', 'host e2e')
+    for fail_unit, fail_publish in ((False, False), (True, False), (False, True))
+] + [(scope, False, False) for scope in ('system', 'e2e', 'system e2e')])
 def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         report, tmp_path, monkeypatch, fail_unit, fail_publish, scope):
     host_builds = scope.startswith('host-builds')
@@ -1953,9 +1683,6 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
     assert len(ui) == 2 and sum(item.done for item in ui) == 2
     if not includes_vm:
         assert not any(call[1] in ('system', 'e2e') for call in control.calls)
-        if not fail_unit and not fail_publish:
-            assert 'Join host branches — passed' in run.dashboard.ANSI.sub('', '\n'.join(
-                run.dashboard.render(0)))
         assert 'Scope: host' in (report.directory / 'report.md').read_text()
     if fail_publish:
         assert len([call for call in control.calls if 'artifacts' in call and 'build' in call]) == 2

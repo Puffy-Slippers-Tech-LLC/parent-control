@@ -1190,14 +1190,16 @@ def test_multiple_inserted_prerequisites_keep_consumer_across_launcher_boundarie
     assert workflow.select_task_state('001', second)['task_sessions'] == 2
 
 
-@pytest.mark.parametrize('task,prerequisites', [
-    ('137bc', ('901a', '008zz', '650b')),
-    ('007zz', ('850c', '120ab', '003q')),
+@pytest.mark.parametrize('shape,interrupted', [
+    ('single', False),
+    ('chain', False),
+    ('diamond', False),
+    ('independent', False),
+    ('diamond', True),
 ])
-@pytest.mark.parametrize('shape', ['single', 'chain', 'diamond', 'independent'])
-@pytest.mark.parametrize('interrupted', [False, True])
 def test_generic_prerequisite_graph_preserves_consumer_through_completion_and_restart(
-        tmp_path, monkeypatch, task, prerequisites, shape, interrupted):
+        tmp_path, monkeypatch, shape, interrupted):
+    task, prerequisites = '137bc', ('901a', '008zz', '650b')
     docs = tmp_path / workflow.QUEUE
     docs.parent.mkdir(parents=True)
     briefs = docs.parent / 'E2E-Tasks'

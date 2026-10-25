@@ -1335,7 +1335,8 @@ def scenario_fixture_files(selection, *, target=None):
         files.extend(('fixtures/mechanical/identity-trusted-hard',
                       'fixtures/mechanical/identity-trusted-soft', *activity_sources()))
     elif target == 'fedora' and any(item.phase in PAM_PHASES or
-                                    item.case_id == 'test_remove_reboot_reinstall'
+                                    item.case_id in ('test_remove_reboot_reinstall',
+                                                     'test_aborted_cleanup_rollback_retry')
                                     for item in selection.executions):
         files.append('fixtures/mechanical/identity-trusted-hard')
     return tuple(files)
@@ -2103,7 +2104,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         subsets = SUBSETS
         if (not already_installed and fixture_selection['target'] == 'fedora'
                 and any(item.phase in PAM_PHASES or
-                        item.case_id == 'test_remove_reboot_reinstall'
+                        item.case_id in ('test_remove_reboot_reinstall',
+                                         'test_aborted_cleanup_rollback_retry')
                         for item in selection.executions)):
             subsets += ('trusted-hard-launcher',)
         if (not already_installed and any(
@@ -2562,7 +2564,8 @@ def main(argv=None):
                     directory / 'input/fixtures/mechanical/onpc-test-application')
                 if (fixture_input['target'] == 'fedora'
                         and any(item.phase in PAM_PHASES or
-                                item.case_id == 'test_remove_reboot_reinstall'
+                                item.case_id in ('test_remove_reboot_reinstall',
+                                                 'test_aborted_cleanup_rollback_retry')
                                 for item in selection.executions)):
                     stage_mechanical_comparison(fixture_input,
                         directory / 'input/fixtures/mechanical/identity-trusted-hard',

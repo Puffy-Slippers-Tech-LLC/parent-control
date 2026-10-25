@@ -1337,7 +1337,8 @@ def scenario_fixture_files(selection, *, target=None):
     elif target == 'fedora' and any(item.phase in PAM_PHASES or
                                     item.case_id in ('test_remove_reboot_reinstall',
                                                      'test_aborted_cleanup_rollback_retry',
-                                                     'test_interrupted_finalization_retry[denial-publication]')
+                                                     'test_interrupted_finalization_retry[denial-publication]',
+                                                     'test_interrupted_finalization_retry[account-finalization]')
                                     for item in selection.executions):
         files.append('fixtures/mechanical/identity-trusted-hard')
     return tuple(files)
@@ -2107,7 +2108,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 and any(item.phase in PAM_PHASES or
                         item.case_id in ('test_remove_reboot_reinstall',
                                          'test_aborted_cleanup_rollback_retry',
-                                         'test_interrupted_finalization_retry[denial-publication]')
+                                         'test_interrupted_finalization_retry[denial-publication]',
+                                         'test_interrupted_finalization_retry[account-finalization]')
                         for item in selection.executions)):
             subsets += ('trusted-hard-launcher',)
         if (not already_installed and any(
@@ -2568,7 +2570,8 @@ def main(argv=None):
                         and any(item.phase in PAM_PHASES or
                                 item.case_id in ('test_remove_reboot_reinstall',
                                                  'test_aborted_cleanup_rollback_retry',
-                                                 'test_interrupted_finalization_retry[denial-publication]')
+                                                 'test_interrupted_finalization_retry[denial-publication]',
+                                                 'test_interrupted_finalization_retry[account-finalization]')
                                 for item in selection.executions)):
                     stage_mechanical_comparison(fixture_input,
                         directory / 'input/fixtures/mechanical/identity-trusted-hard',

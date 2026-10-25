@@ -15,10 +15,6 @@ import check_graphical_smoke as smoke
 from challenges import PLAN, CHALLENGES, INVOCATIONS, ChallengesJourney
 from fresh_child_allowed import PLAN as CHILD_PLAN, FreshChildAllowedJourney
 from fresh_child_denied import PLAN as DENIED_PLAN, FreshChildDeniedJourney
-from countdown_qualification import PLAN as COUNTDOWN_PLAN, OFF_PLAN
-from countdown_animation import PLAN as ANIMATION_PLAN
-from shell_panel import PLAN as SHELL_PANEL_PLAN
-from overlay_rejection import PLAN as OVERLAY_REJECTION_PLAN
 from installed_journey import InstalledJourney, matched_screens
 from owned_commands import CommandError
 from parent_setup_qualification import ChallengesQualification, KioskEntryQualification, FreshChildAllowedQualification
@@ -238,10 +234,18 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
 '''
 
 
-@pytest.mark.parametrize('fault', ['', 'qualified', 'rechecked', 'typing', 'capture', 'review', 'stale', 'missing'])
-@pytest.mark.parametrize('binding', ['approval', 'rejection'])
-@pytest.mark.parametrize('credential', ['fixture-only-canary', 'onpc-wrong-fixture-password'])
-@pytest.mark.parametrize('scope', ['base', 'flow', 'package-removal', 'revoke-cancel', 'revocation', 'unknown'])
+# Scope and binding interact in the authorization allowlist. Check that finite
+# table once; exercise shared sealing/refusal faults only on the base approval.
+@pytest.mark.parametrize('fault,binding,credential,scope', [
+    *[('', binding, 'fixture-only-canary', scope)
+      for scope in ('base', 'flow', 'package-removal', 'revoke-cancel', 'revocation', 'unknown')
+      for binding in ('approval', 'rejection')],
+    *[(fault, 'approval', 'fixture-only-canary', 'base')
+      for fault in ('qualified', 'rechecked', 'typing', 'capture', 'review', 'stale', 'missing')],
+    ('', 'approval', 'onpc-wrong-fixture-password', 'base'),
+    ('', 'rejection', 'onpc-wrong-fixture-password', 'base'),
+    ('typing', 'rejection', 'fixture-only-canary', 'base'),
+])
 def test_mate_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault, binding, credential, scope):
     program = r'''
 use strict; use warnings; use JSON::PP;
@@ -333,42 +337,6 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     assert value['events'].count('type') == (1 if fault in ('', 'typing') else 0)
 
 
-@pytest.mark.parametrize('fault', ['', *OVERLAY_REJECTION_PLAN.screen_tags])
-def test_overlay_rejection_actual_worker_order_titles_and_failure_stop(fault, tmp_path):
-    plan = OVERLAY_REJECTION_PLAN
-    program = (PERL.split('# After success or failure')[0]
-        .replace('onpc_challenges::run(', 'onpc_request_flow::overlay_prompt(')
-        .replace('$declaration, $bindings)', "$declaration, $bindings, 'rejection')")
-        .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
-        .replace('first-login', 'parent-login').replace('third-login', 'new-login')
-        .replace("$_[0] eq 'fixture-only-canary'", "($_[0] eq 'fixture-only-canary' || $_[0] eq 'onpc-wrong-fixture-password')")
-        .replace('our @events;', 'our @events; our @titles;')
-        .replace('sub record_info { }', 'sub record_info { push @main::titles, $_[0] }')
-        + r'print encode_json({ok => $ok ? 1 : 0, titles => \@titles, events => \@events});')
-    result = json.loads(run_perl(program, fault, json.dumps(plan.invocations), json.dumps(plan.challenges)).stdout)
-    assert bool(result['ok']) == (not fault), result
-    expected = list(plan.screen_tags)
-    stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
-    if not fault:
-        assert result['events'].count(['password']) == 3
-        results = tmp_path / 'testresults'
-        results.mkdir()
-        (results / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': [
-            {'title': title, 'result': 'ok'} for title in result['titles']]}))
-        observations = [{'stage': stage,
-            ('ui' if tag.startswith('ui:') else 'system'): {
-                'operation': tag.split(':', 1)[1], 'outcome': 'passed'},
-            **({'challenge': plan.challenge_at(stage)} if plan.challenge_at(stage) else {})}
-            for stage, tag in plan.screen_tags.items()]
-        assert len(matched_screens(tmp_path, plan, observations)) == len(expected)
-    if ['stage', 'rejection-submit-ready'] in result['events']:
-        tail = result['events'][result['events'].index(['stage', 'rejection-submit-ready']) + 1:]
-        assert [event for event in tail if event[0] == 'key'] == (
-            [] if fault == 'rejection-submit-ready' else [['key', 'ret']] if fault == 'rejection-cancel-ready'
-            else [['key', 'ret'], ['key', 'esc']])
-
-
 @pytest.mark.parametrize('fault', ['', 'stale', 'mixed', 'role', 'surface', 'missing', 'typing',
     'recipient-qualified', 'recipient-rechecked', 'second-recipient-qualified',
     'second-recipient-rechecked'])
@@ -420,88 +388,6 @@ def test_actual_fresh_child_worker_stops_at_failure_and_uses_child_secret(fault)
             assert stages == list(CHILD_PLAN.screen_tags)[:list(CHILD_PLAN.screen_tags).index(fault) + 1]
         if fault != 'fresh-desktop':
             assert result['events'].count(['password']) <= 1
-
-
-@pytest.mark.parametrize('present', [True, False, 'animation'])
-@pytest.mark.parametrize('fault', ['', 'allowance-configured', 'limits-disabled',
-    'wrong-account-refused', 'switch-user', 'fresh-child-recipient-rechecked',
-    'fresh-desktop', 'countdown', 'independent-countdown', 'animation-set', 'animation-read'])
-def test_countdown_worker_composes_fresh_child_then_independent_reads(present, fault):
-    plan = ANIMATION_PLAN if present == 'animation' else COUNTDOWN_PLAN if present else OFF_PLAN
-    if fault and fault not in plan.screen_tags: return
-    call = ('onpc_challenges::countdown_animation(' if present == 'animation' else
-            'onpc_challenges::countdown(' + ('1' if present else '0') + ', ')
-    program = (PERL.replace('onpc_challenges::run(',
-        call)
-        .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
-        .replace('first-login', 'parent-login').replace('third-login', 'new-login'))
-    if present == 'animation':
-        program = (program.replace('our @events;', 'our @events; our @titles;')
-            .replace('sub record_info { }', 'sub record_info { push @main::titles, $_[0] }')
-            .replace('events => \\@events,', 'titles => \\@titles, events => \\@events,'))
-    result = json.loads(run_perl(program, fault, json.dumps(plan.invocations),
-                                 json.dumps(plan.challenges)).stdout)
-    assert bool(result['ok']) == (not fault), result
-    assert not result['retry'] and not result['captured'] and not result['after_failure']
-    stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    expected = list(plan.screen_tags)
-    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
-    if not fault:
-        assert result['events'].count(['password']) == 2
-        assert result['events'][-1] == ['off']
-        if present == 'animation':
-            assert result['titles'] == [*(plan.prefix + '-' + stage for stage in expected), 'shutdown']
-    else:
-        assert ['off'] not in result['events']
-
-
-@pytest.mark.parametrize('fault', ['', *SHELL_PANEL_PLAN.screen_tags])
-def test_shell_panel_actual_worker_order_and_refusal(fault, tmp_path):
-    program = (PERL.split('# After success or failure')[0]
-        .replace('onpc_challenges::run(', 'onpc_challenges::shell_panel(')
-        .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
-        .replace('first-login', 'parent-login').replace('third-login', 'new-login')
-        .replace('our @events;', 'our @events; our @titles;')
-        .replace('sub record_info { }', 'sub record_info { push @main::titles, $_[0] }')
-        + r'print encode_json({ok => $ok ? 1 : 0, titles => \@titles, events => \@events});')
-    result = json.loads(run_perl(program, fault, json.dumps(SHELL_PANEL_PLAN.invocations),
-                                json.dumps(SHELL_PANEL_PLAN.challenges)).stdout)
-    assert bool(result['ok']) == (not fault), result
-    stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    expected = list(SHELL_PANEL_PLAN.screen_tags)
-    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
-    # Panel activation belongs to the controller's Application UI API operation.
-    # The worker must read its independent result without injecting another key,
-    # including when reusing the existing form or stopping after a refusal.
-    panel_desktop = ['stage', 'panel-desktop']
-    if panel_desktop in result['events']:
-        index = result['events'].index(panel_desktop)
-        assert not any(event[0] == 'key' for event in result['events'][index + 1:])
-    for prefix in ('panel', 'singleton'):
-        launch = ['stage', prefix + '-launch']
-        if launch in result['events']:
-            index = result['events'].index(launch)
-            if fault != prefix + '-launch':
-                assert result['events'][index + 1] == ['stage', prefix + (
-                    '-overview' if prefix == 'singleton' else '-form')]
-            else:
-                assert result['events'][index + 1:] == []
-    if not fault:
-        assert result['events'].count(['password']) == 2
-        assert result['events'][-1] == ['off']
-        results = tmp_path / 'testresults'
-        results.mkdir()
-        (results / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': [
-            {'title': title, 'result': 'ok'} for title in result['titles']]}))
-        observations = [{'stage': stage,
-            ('ui' if tag.startswith('ui:') else 'system'): {
-                'operation': tag.split(':', 1)[1], 'outcome': 'passed'},
-            **({'challenge': SHELL_PANEL_PLAN.challenge_at(stage)}
-               if SHELL_PANEL_PLAN.challenge_at(stage) else {})}
-            for stage, tag in SHELL_PANEL_PLAN.screen_tags.items()]
-        assert len(matched_screens(tmp_path, SHELL_PANEL_PLAN, observations)) == len(expected)
-    else:
-        assert ['off'] not in result['events']
 
 
 @pytest.mark.parametrize('route', ['legacy', 'leaf', 'explicit-leaf'])

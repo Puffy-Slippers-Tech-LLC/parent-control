@@ -42,8 +42,7 @@ def progress_text(meta, *, now_ns=None):
         minutes, seconds = divmod(max(0, (now - started) // 1_000_000_000), 60)
         elapsed = f'{minutes}m {seconds}s' if minutes else f'{seconds}s'
         operation += f' - ({elapsed})'
-    completed = progress['current'] - 1
-    return (f"[{completed}/{progress['total']}] [{progress['case_id']}]: {progress['title']}" + suffix,
+    return (f"[{progress['current']}/{progress['total']}] [{progress['case_id']}]: {progress['title']}" + suffix,
             progress['step'], operation)
 
 

@@ -78,8 +78,10 @@ def test_system_lifecycle_events_share_numeric_identity_and_keep_original_select
     # Numeric metadata never replaces the pytest selection or checkpoint identity.
     assert runner.pytest_command(RUN, 'removal', selection)[-1].endswith(
         'test_removal.py::test_remove_reboot_reinstall')
-    resumed = runner.resume_selection(selection, {'removal::test_remove_reboot_reinstall'})
-    assert any(item.phase == 'removal' for item in resumed.executions)
+    retry = 'removal::test_remove_reboot_reinstall'
+    completed = {item.phase + '::' + item.case_id for item in selection.executions} - {retry}
+    resumed = runner.resume_selection(selection, completed)
+    assert resumed.phases == ('installed', 'rebooted', 'removal')
 
 
 def test_unknown_system_cases_need_an_explicit_numeric_assignment():

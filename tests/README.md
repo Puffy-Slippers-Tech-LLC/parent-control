@@ -362,7 +362,8 @@ arguments, until each passes. After a failure, a fresh Codex process receives
 that run's generated investigation prompt, applies a repair, exits, and the
 script uses `run-tests --resume --resume-case=CASE --resume-case-only` to retry that exact case
 under its original selectors and on its failing VM, retaining required lifecycle
-prerequisites. A passing retry leaves the category incomplete. The launcher
+predecessors only. Repair and verification stop at that case; later lifecycle
+phases stay pending. A passing retry leaves the category incomplete. The launcher
 closes out the verified repair before resuming the remaining cases with
 `run-tests --resume`, without repeating completed passes. Failures before a case
 event retain the exact case the launcher was attempting as context, including

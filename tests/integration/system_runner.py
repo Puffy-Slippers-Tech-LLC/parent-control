@@ -591,24 +591,18 @@ def resume_selection(selection, completed, *, fresh_install=False):
                       if item.phase + '::' + item.case_id not in completed)
     # A failed suite audit after the final case needs a real guarded attempt.
     remaining = remaining or selection.executions[-1:]
-    if fresh_install:
+    dependencies = {phase for item in remaining for phase in PHASE_DEPENDENCIES[item.phase]}
+    if fresh_install and any(item.area != 'package' for item in remaining):
         # Upgrade attempts reinstall from the baseline before dependent areas.
-        lifecycle = ('installed', 'rebooted')
-        remaining = tuple(item for item in selection.executions
-                          if item in remaining or item.phase in lifecycle)
-    if any(item.phase in FIRST_CONFIGURE_PHASES for item in remaining):
-        remaining = tuple(item for item in selection.executions
-                          if item in remaining or item.phase in FIRST_CONFIGURE_PHASES)
-    if any(item.case_id == PREVIOUS_POLICY_CASE for item in remaining):
-        remaining = tuple(item for item in selection.executions
-                          if item in remaining or item.case_id == PREVIOUS_POLICY_CASE)
-    for history in (*REMOVAL_HISTORIES, *PAM_HISTORIES):
-        # State-changing histories cannot splice retained predecessor passes
-        # into a newly restored guest.
-        lifecycle = (*history.prerequisites, *history.phases)
-        if any(item.phase in lifecycle for item in remaining):
-            remaining = tuple(item for item in selection.executions
-                              if item in remaining or item.phase in lifecycle)
+        dependencies.update(('installed', 'rebooted'))
+    for item in remaining:
+        if item.case_id == PREVIOUS_POLICY_CASE:
+            dependencies.update(PREVIOUS_POLICY_PHASES[:PREVIOUS_POLICY_PHASES.index(item.phase)])
+    # A newly restored guest needs predecessors, never later lifecycle phases.
+    # In particular, an installation case must not pull in removal histories
+    # merely because they share that installation prerequisite.
+    remaining = tuple(item for item in selection.executions
+                      if item in remaining or item.phase in dependencies)
     phases = tuple(phase for phase in selection.phases if any(item.phase == phase for item in remaining))
     return replace(selection, phases=phases, executions=remaining)
 
@@ -2179,7 +2173,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                                        TRUSTED_FIXTURES_CASE, False),)),
                 'selection:trusted-fixtures-requires-isolated-old-package')
         require(not previous_policy or (has_previous and not already_installed and
-                selection.phases == PREVIOUS_POLICY_PHASES),
+                selection.phases == PREVIOUS_POLICY_PHASES[:len(selection.phases)]),
                 'selection:previous-policy-requires-isolated-upgrade')
         first_configure = any(phase in FIRST_CONFIGURE_PHASES for phase in selection.phases)
         pam_history = next((history for history in PAM_HISTORIES
@@ -2194,10 +2188,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 not install_phases and not reboot_phases and not first_configure and not pam_history),
                 'selection:installation-requires-baseline')
         require(not first_configure or (not has_previous and not install_phases and
-                not reboot_phases and selection.phases == FIRST_CONFIGURE_PHASES),
+                not reboot_phases and selection.phases == FIRST_CONFIGURE_PHASES[:len(selection.phases)]),
                 'selection:first-configure-requires-isolated-baseline')
         require(pam_history is None or (not has_previous and not install_phases and
-                not reboot_phases and selection.phases == pam_history.phases),
+                not reboot_phases and selection.phases == pam_history.phases[:len(selection.phases)]),
                 'selection:pam-variants-require-isolated-baseline')
         if already_installed:
             lease.save('snapshot-readiness')
@@ -2232,7 +2226,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 with ledger.measure('collection'):
                     vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
                     vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
-        if not already_installed and not first_configure and pam_history is None and not trusted_fixtures:
+        if (not already_installed and not first_configure and pam_history is None and not trusted_fixtures
+                and (not previous_policy or install_phases)):
             lease.save('package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)

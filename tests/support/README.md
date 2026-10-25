@@ -170,8 +170,10 @@ complement runtime outcomes; they grant no concurrent-updater qualification.
 Ubuntu's [product-free system preparation](../integration/README.md#ubuntu-product-free-system-preparation)
 and the same [Fedora boundary](../integration/README.md#fedora-product-free-system-preparation)
 are qualified through the real system attempt and all three Parent bootstrap
-alias compositions. It selects only trusted-hard after SSH readiness and before
-installation input. Its dedicated engineering selector also verifies immutable
+alias compositions. Its default selects only trusted-hard after SSH readiness
+and before installation input; ordinary histories use the scoped subsets in the
+[product-free system contract](../integration/README.md#ubuntu-product-free-system-preparation).
+Its dedicated engineering selector also verifies immutable
 selection after edits to the actual private producer source checkout, across
 two restored boots. Ubuntu's [installed-system preparation](../integration/README.md#ubuntu-installed-system-preparation)
 and the same [Fedora boundary](../integration/README.md#fedora-installed-system-preparation)

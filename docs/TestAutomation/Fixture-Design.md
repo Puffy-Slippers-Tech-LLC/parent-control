@@ -141,7 +141,7 @@ Missing or incompatible inputs refuse before mutation or scenario input.
 
 | Preparation envelope | Fixture boundary |
 | --- | --- |
-| Product-free system | Trusted hard closure after transport readiness, before Parent bootstrap; preserve product absence. |
+| Product-free system | Selected closure after transport readiness, before installation input; trusted hard by default, command only for Ubuntu removal/recovery and PAM histories. Preserve product absence. |
 | Installed system | Trusted hard closure before case input; preserve installed history and restore mode. |
 | Installed E2E | Native closure by default; the fixed baseline caller selects native plus activity before stage actions, with actual activity readback under current readiness. Preserve online resume/rebind and explicit offline attachment. |
 | Product-free E2E | Native closure after SSH, before customer package input; GDM-only entry uses an empty closure. |

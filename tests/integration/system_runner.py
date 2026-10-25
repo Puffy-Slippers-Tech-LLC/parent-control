@@ -2152,7 +2152,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             # PAM histories seed policy with this command on both targets;
             # The selected Ubuntu removal/recovery histories also observe
             # native enforcement with it, including the ownership-refusal retry.
-            subsets += ('command',)
+            # Ubuntu uses the command itself as its native readiness witness.
+            # An unused trusted-hard payload would force a full trust DB update.
+            subsets = (('command',) if fixture_selection['target'] == 'ubuntu'
+                       else (*subsets, 'command'))
         with ledger.measure('bootstrap'):
             vm.probe_ready()
             if already_installed:

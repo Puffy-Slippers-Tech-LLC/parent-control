@@ -110,16 +110,15 @@ and `system_runner.installed_run(already_installed=False)` use the
 [shared fixture provisioner](../support/README.md#attempt-owned-fixture-provisioning)
 after guarded SSH readiness, before uploading installation inputs or running a
 system phase. The launcher selects the execution-owned immutable input before
-VM acquisition. The default provisions only `trusted-hard`. Ubuntu's
-`test_remove_reboot_reinstall` and `test_aborted_cleanup_rollback_retry` histories
-also provision `command`, including its desktop launcher, before installation
-so their assertions can observe native enforcement through removal and rollback.
-PAM installation histories
-on both targets also provision `command` and retain its mechanical comparison
-file for their post-reboot policy and enforcement checks. Other selections
-retain the default subset, except Fedora's denial-publication removal history,
-which also provisions `trusted-hard-launcher` and retains the authenticated
-`trusted-hard` comparison file for its native enforcement checks.
+VM acquisition. The default provisions only `trusted-hard`. Ubuntu removal,
+recovery and PAM installation histories instead provision only `command`,
+including its desktop launcher. The command supplies the native readiness
+witness and the histories' enforcement checks, avoiding an unused trusted
+payload and its full trust-database update. Fedora retains its default
+`trusted-hard` subset and adds `command` or `trusted-hard-launcher` where the
+selected history requires them. Each history retains its
+mechanical or authenticated `trusted-hard` comparison file for post-reboot policy
+and enforcement checks. Other selections retain the default subset.
 Readiness binds the selected
 manifest, VM UUID, actual boot and unique attempt. Missing or incompatible
 selections release no input. Other unmigrated

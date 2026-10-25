@@ -2416,6 +2416,11 @@ section has one bold title combining the branch and terminal status, such as
 start and finish; when every runner is idle, the last finished terminal remains.
 Click a terminal heading to open its branch tab. An individual branch tab shows
 only its own terminal. Finished tabs retain their output and remain selectable.
+When a runner exits, its terminal heading uses the recorded result: **finished**
+for success, **failed** for a nonzero failure, **stopped** for cancellation, or
+**incomplete** when the result is missing or unreadable. A successful `fix-tests`
+run stopped at its task budget shows **task limit reached**.
+Failed headings and fatal repair-launcher messages appear in bold red.
 Related Git worktrees on named branches are discovered automatically; detached
 snapshots appear only when `tools/watch` is launched from that checkout. Launch
 `tools/watch` from an unrelated checkout to add it to the same window. Branch
@@ -2437,7 +2442,8 @@ in that checkout, including VM repair pipelines and plan launchers. Its transcri
 scroll position and draft are independent of Run Status. Interactive sessions
 support the existing prompt, interruption and continuation controls, including
 `fix-tests` repairs. Pending developer decisions remain available in the launcher.
-The tab shows only an active agent session's dedicated transcript.
+The tab shows only an active agent session's dedicated transcript. Its label is
+blue while a session is active and returns to the default text color otherwise.
 Before an agent starts, after it finishes,
 or when a supervisor has no dedicated session artifacts, the tab shows an
 empty-state message and disables input. Launcher output stays in Run Status.

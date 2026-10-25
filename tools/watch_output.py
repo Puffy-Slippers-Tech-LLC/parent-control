@@ -160,6 +160,24 @@ class Output:
             return False
         return True
 
+    def completion_status(self):
+        """Describe the displayed run's recorded outcome after its owner exits."""
+        if self.run is None:
+            return 'incomplete'
+        try:
+            workflow = self.label == 'fix-tests'
+            result = self.reader.read(self.run / ('result.json' if workflow else 'result'), 4096)
+            if workflow and not isinstance(result, dict):
+                return 'incomplete'
+            status = result.get('status') if workflow else result
+            if type(status) is not int:
+                return 'incomplete'
+            if status == 0 and workflow and (self.run / 'limited').exists():
+                return 'task limit reached'
+            return {0: 'finished', 130: 'stopped'}.get(status, 'failed')
+        except (OSError, ValueError, KeyError, TypeError):
+            return 'incomplete'
+
     def discover(self):
         for kind, label in (('fix-tests', 'fix-tests'), ('fix-tests-host', 'fix-tests'), ('sessions-host', 'run-tests'),
                             ('sessions', 'run-tests')):

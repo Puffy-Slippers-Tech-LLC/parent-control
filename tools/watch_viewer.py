@@ -219,7 +219,8 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             session_scrolling.connect('scroll', lambda _controller, _dx, dy:
                 (self.session_output.scroll(-round(dy * 3)), True)[1])
             self.session_terminal.add_controller(session_scrolling)
-            self.output_tabs.append_page(session_scroll, Gtk.Label(label='Session'))
+            self.session_tab_label = Gtk.Label(label='Session')
+            self.output_tabs.append_page(session_scroll, self.session_tab_label)
             self.append(self.output_tabs)
             self.vm_keys = {name: 'vm-' + name.encode('ascii').hex() for name in vm_feeds}
             self.vm_ids = {self.vm_keys[name]: vm.id for name, vm in configured.items()}
@@ -352,12 +353,16 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                     run, _label = self.output.discover()
                     self.output_active = run is not None
                     label, active = self.output.label, self.output_active
-                text = ('Terminal Outputs -- ' + label + ('' if active else ' (finished)')
+                status = '' if active else self.output.completion_status()
+                text = ('Terminal Outputs -- ' + label + (f' ({status})' if status else '')
                         if label else 'Terminal Outputs -- Waiting for tests')
                 if self.branch is not None:
                     text = f'[{self.branch}] {text}'
-                if self.output_status.get_label() != text:
-                    self.output_status.set_label(text)
+                markup = GLib.markup_escape_text(text)
+                if status == 'failed':
+                    markup = f'<b><span foreground="#c01c28">{markup}</span></b>'
+                if self.output_status.get_label() != markup:
+                    self.output_status.set_markup(markup)
                 if not self.session_terminal.get_has_selection():
                     available, session_reset, session_data = self.session_output.poll()
                     if available:
@@ -366,6 +371,9 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                             self.session_terminal.feed(b'\033[?2004h')
                     elif self.session_available is not False:
                         self.session_writer.feed(b'No active launcher session.\n', reset=True)
+                    if available != self.session_available:
+                        self.session_tab_label.set_markup(
+                            '<span foreground="#3584e4">Session</span>' if available else 'Session')
                     self.session_available = available
                     self.session_terminal.set_input_enabled(available)
                 self.output_active = self.output_active or bool(self.session_available)

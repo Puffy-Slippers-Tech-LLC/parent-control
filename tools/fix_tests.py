@@ -612,7 +612,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     except (KeyboardInterrupt, Stopped):
         status = 130
     except (OSError, ValueError) as error:
-        print(f'fix-tests: {error}', file=sys.stderr, flush=True)
+        print(f'\033[1;31mfix-tests: {error}\033[0m', file=sys.stderr, flush=True)
     finally:
         if reload and not (run / 'cancel').exists():
             try:
@@ -621,7 +621,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             except Stopped:
                 status = 130
             except (OSError, ValueError) as error:
-                print(f'fix-tests: controller reload failed: {error}; resume the retained run.',
+                print(f'\033[1;31mfix-tests: controller reload failed: {error}; resume the retained run.\033[0m',
                       file=sys.stderr, flush=True)
         elif reload:
             status = 130
@@ -1497,7 +1497,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         raise
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         panel({'last_error': str(error)})
-        print(f'\nfix-tests: {error}', file=sys.stderr, flush=True)
+        print(f'\n\033[1;31mfix-tests: {error}\033[0m', file=sys.stderr, flush=True)
     finally:
         if not reload:
             unfinished = commits is not None and RepairCoordinator.recovery_state(commits.state) != 'complete'

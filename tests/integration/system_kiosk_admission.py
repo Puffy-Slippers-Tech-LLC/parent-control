@@ -350,8 +350,9 @@ def empty_authentication_probe(expected_account, stage, record, *, expected_auth
 
 
 def routing(uid):
-    from system_assertions import account_property
-    return tuple(account_property(uid, INTERFACE, prop) for prop in ('Session', 'SessionType'))
+    from system_assertions import account_properties
+    values = account_properties(uid, INTERFACE, {'Session': 's', 'SessionType': 's'})
+    return values['Session'], values['SessionType']
 
 
 def set_routing(uid, values):

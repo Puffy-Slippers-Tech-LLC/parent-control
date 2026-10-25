@@ -22,6 +22,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # doubles and private records; enforcement adds closed one-shot variants only.
 # No live trust DB, VM, bus, socket or process owner is added; both existing
 # unit and cleanup compatible classifications remain applicable.
+# Native enforcement refusal reductions keep per-boundary guards and finite
+# successful fixture dispatch with the same private files/process doubles.
+# Resource ownership and compatible unit/cleanup scheduling are unchanged.
 # Task completion no longer archives/carries turns; expiry regressions use only
 # private checkpoints and missing paths. Existing owned cleanup children and
 # compatible unit/cleanup classifications remain; no UI or shared resource added.

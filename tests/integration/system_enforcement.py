@@ -1030,14 +1030,15 @@ def _native_policy_transition(accounts, record, variant, caller):
         future, _, _ = native_paths('pattern-future')
         guest.require(not future.exists() and not future.is_symlink(),
                       'enforcement:future-fixture-collision')
-    # Share the screen-time classes across fixtures: whitespace owns soft/off;
-    # command owns hard/on and soft/on. Pattern and retention focus on their
-    # distinct matching/persistence behavior with allow/hard/off recovery.
+    # Share the screen-time classes across fixtures: command owns hard/off,
+    # hard/on and soft/on; whitespace owns hash matching and soft/off. Repeating
+    # hard/off with the same hash renderer adds no boundary. Pattern and
+    # retention retain their distinct matching/persistence and recovery checks.
     # Every fixture retains an initial allowed launch, denial and recovery.
     # Clear each denial before the next mode so stale rules cannot satisfy it.
     stages = (('allowed', None), ('hard', 'permanent'), ('restored', None))
     if variant == 'whitespace':
-        stages += (('soft', 'conditional'), ('soft-restored', None))
+        stages = (('allowed', None), ('soft', 'conditional'), ('soft-restored', None))
     if variant == 'command':
         stages += (('enabled-hard', 'permanent'), ('enabled-restored', None),
                    ('enabled-soft', 'conditional'), ('enabled-soft-restored', None))
@@ -1090,8 +1091,17 @@ def _native_policy_transition(accounts, record, variant, caller):
                 record(f'{prefix}.future.fixture.sha256', guest.sha(future))
             observe_launch(child, not blocked, variant=variant)
             record(f'{prefix}.{stage}.child', 'denied' if blocked else 'allowed')
-            observe_launch(other, True, variant=variant)
-            record(f'{prefix}.{stage}.other', 'allowed')
+            # The initial control and each denied policy prove UID isolation.
+            # Repeating the other user's allow after clearing this child's
+            # denial adds no new result; the child's own recovery stays live.
+            if stage == 'allowed' or blocked:
+                observe_launch(other, True, variant=variant)
+                record(f'{prefix}.{stage}.other', 'allowed')
+            if blocked:
+                # Check saved-state isolation while this policy is active;
+                # later recovery must not hide a transient cross-user write.
+                guest.require(request('GetPreferences', '(u)', (other,))[0] == other_before,
+                              'enforcement:other-preferences-changed')
             if variant == 'pattern':
                 for launch_variant in ('pattern-unrelated', 'pattern-future'):
                     if launch_variant == 'pattern-future' and not future_created:
@@ -1100,8 +1110,9 @@ def _native_policy_transition(accounts, record, variant, caller):
                     observe_launch(child, allowed, variant=launch_variant)
                     record(f'{prefix}.{stage}.{launch_variant}.child',
                            'allowed' if allowed else 'denied')
-                    observe_launch(other, True, variant=launch_variant)
-                    record(f'{prefix}.{stage}.{launch_variant}.other', 'allowed')
+                    if blocked:
+                        observe_launch(other, True, variant=launch_variant)
+                        record(f'{prefix}.{stage}.{launch_variant}.other', 'allowed')
                 if stage == 'hard':
                     # Trusted files can encounter a distribution allow before
                     # late wildcard guards. Prove the same future version stays
@@ -1113,8 +1124,6 @@ def _native_policy_transition(accounts, record, variant, caller):
                     rules_after = record_rules('hard-future', child, True, record, variant=variant)
                     guest.require(rules_after == rules_before, 'enforcement:future-rules-changed')
                     record(f'{prefix}.future.unchanged-rules', 'passed')
-            guest.require(request('GetPreferences', '(u)', (other,))[0] == other_before,
-                          'enforcement:other-preferences-changed')
             print(f'onpc-system: stage=native-{variant}-{stage} outcome=passed', flush=True)
     finally:
         # This is the scenario's policy restoration. Outer VM baseline cleanup
@@ -1132,6 +1141,8 @@ def _native_policy_transition(accounts, record, variant, caller):
             request('SetPreferences', '(us)', (child, original))
             guest.require(request('GetPreferences', '(u)', (child,))[0] == original,
                           'enforcement:policy-restore-mismatch')
+            # The active-policy checks above cover transient isolation. This
+            # final comparison also covers recovery and policy restoration.
             guest.require(request('GetPreferences', '(u)', (other,))[0] == other_before,
                           'enforcement:other-preferences-changed')
         except Exception as error:

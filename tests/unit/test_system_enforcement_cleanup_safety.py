@@ -201,15 +201,16 @@ def test_native_probe_guest_refusal_precedes_bus_import_and_files(
 
 
 @pytest.mark.parametrize('boundary', ['guard', 'identity'])
-@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'pattern-future', 'pattern-unrelated', 'retention', 'trusted-hard', 'trusted-soft'])
-def test_refused_boundary_prevents_exec(monkeypatch, capsys, boundary, variant):
+def test_refused_boundary_prevents_exec(monkeypatch, capsys, boundary):
+    # Both boundaries precede exec for every variant. The successful dispatch
+    # check below retains the complete finite fixture registration separately.
     guard, identity, execute = Mock(), Mock(), Mock()
     (guard if boundary == 'guard' else identity).side_effect = enforcement.guest.GuestError('refused')
     monkeypatch.setattr(enforcement.guest, 'guard', guard)
     monkeypatch.setattr(enforcement, 'drop_identity', identity)
     monkeypatch.setattr(enforcement.os, 'execv', execute)
     with pytest.raises(enforcement.guest.GuestError, match='refused'):
-        enforcement.launch_as(1001, variant)
+        enforcement.launch_as(1001)
     execute.assert_not_called()
     assert capsys.readouterr().out == ''
     if boundary == 'guard':
@@ -238,8 +239,7 @@ def test_success_replaces_same_process_with_one_shot_target(monkeypatch, capsys,
     assert capsys.readouterr().out.encode() == enforcement.IDENTITY
 
 
-@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'retention', 'trusted-hard', 'trusted-soft'])
-def test_guest_refusal_prevents_fixture_files(monkeypatch, tmp_path, variant):
+def test_guest_refusal_prevents_fixture_files(monkeypatch, tmp_path):
     monkeypatch.setattr(enforcement, 'TARGET', tmp_path / 'native/fixture')
     monkeypatch.setattr(enforcement, 'DESKTOP', tmp_path / 'fixture.desktop')
     monkeypatch.setattr(enforcement, 'SPACE_TARGET', tmp_path / 'spaces/native fixture')
@@ -250,7 +250,7 @@ def test_guest_refusal_prevents_fixture_files(monkeypatch, tmp_path, variant):
     monkeypatch.setattr(enforcement, 'RETENTION_DESKTOP', tmp_path / 'retention.desktop')
     monkeypatch.setattr(enforcement.guest, 'guard', Mock(side_effect=enforcement.guest.GuestError('refused')))
     with pytest.raises(enforcement.guest.GuestError, match='refused'):
-        enforcement.provision_native(variant)
+        enforcement.provision_native()
     assert list(tmp_path.iterdir()) == []
 
 

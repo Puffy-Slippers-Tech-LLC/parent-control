@@ -21,7 +21,7 @@ import threading
 import time
 
 import system_guest as guest
-from system_assertions import accepted, account_property, account_state, call
+from system_assertions import accepted, account_property, account_state, call, session_limits
 from system_enforcement import native_paths, observe_launch, provision_native
 
 PRODUCT = 'oh-no-parent-control'
@@ -186,9 +186,7 @@ def verify_removed(state, *, purged=False, record=None):
     guest.guard()
     guest.require(package_absent(), 'removal:package-still-installed')
     uid = state['accounts']['child']
-    guest.require(account_property(uid, LIMITS, 'LimitType') == 0 and
-                  account_property(uid, LIMITS, 'DailyLimit') == 0 and
-                  account_property(uid, LIMITS, 'ActiveExtension') == [0, 0] and
+    guest.require(session_limits(uid) == (0, 0, [0, 0]) and
                   account_property(uid, 'com.endlessm.ParentalControls.AppFilter',
                                    'AppFilter') == [False, []], 'removal:restrictions-remain')
     if purged:

@@ -13,7 +13,7 @@ import stat
 import time
 
 import system_guest as guest
-from system_assertions import accepted, account_property
+from system_assertions import accepted, account_property, session_limits
 from system_caller import FixturePassword, PersistentCaller, TextAgent
 from system_enforcement import call, native_paths, observe_launch, provision_native, record_rules
 from system_removal import account_digest, extension_lists, persistent_home_identity
@@ -97,8 +97,7 @@ def policy_projection(preferences):
 
 
 def native_state(uid):
-    return {'limits': [account_property(uid, LIMITS, prop) for prop in (
-                'LimitType', 'DailyLimit', 'ActiveExtension')],
+    return {'limits': list(session_limits(uid)),
             'filter': account_property(uid, FILTER, 'AppFilter'),
             'extensions': extension_lists(uid)}
 

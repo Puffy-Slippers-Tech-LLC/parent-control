@@ -521,6 +521,9 @@ system_enforcement compatible classification and cleanup inventory are unchanged
 Removing system_enforcement's scenario-replay matrices leaves only private
 fixture/catalog trees and process-local doubles in that unit module. It retains
 compatible scheduling; no bus, service, subprocess or cleanup owner is added.
+Its cleanup module samples shared guest/credential refusals once per boundary,
+retaining finite successful fixture dispatch. It keeps the same pytest-private
+files and process-local doubles, compatible in unit and cleanup inventories.
 
 Child trust upgrade/retry/boot regressions use tiny private pytest machine trees,
 synthetic boot IDs, and synchronously waited relocated maintainer-script/helper

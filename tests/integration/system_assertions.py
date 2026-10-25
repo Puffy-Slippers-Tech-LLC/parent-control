@@ -63,17 +63,21 @@ def account_properties(uid, interface, properties):
     return {name: values[name]['data'] for name in properties}
 
 
+def session_limits(uid):
+    """One fresh native-limit observation, shared by lifecycle assertions."""
+    properties = {'LimitType': 'u', 'DailyLimit': 'u', 'ActiveExtension': '(tu)'}
+    values = account_properties(uid, 'com.endlessm.ParentalControls.SessionLimits', properties)
+    return tuple(values[name] for name in properties)
+
+
 def account_state(uid):
     """Snapshot preferences, limits and app filter without putting them in assertions."""
     guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
                'FindUserById', 'x', str(uid)])
     record = Path('/var/lib/oh-no-parent-control/preferences') / f'{uid}.json'
-    limits = account_properties(uid, 'com.endlessm.ParentalControls.SessionLimits', {
-        'LimitType': 'u', 'DailyLimit': 'u', 'ActiveExtension': '(tu)',
-    })
     return (
         record.read_bytes() if record.exists() else None,
-        *(limits[prop] for prop in ('LimitType', 'DailyLimit', 'ActiveExtension')),
+        *session_limits(uid),
         account_property(uid, 'com.endlessm.ParentalControls.AppFilter', 'AppFilter'),
     )

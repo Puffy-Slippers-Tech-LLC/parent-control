@@ -1445,7 +1445,7 @@ def identity_filesystem_refusal_retry(record, variant):
                                     merge_stderr=True)
         status = guest.commands.last_returncode
         record('onpc.identity-filesystem.native-status', str(status))
-        if variant == 'state-owner':
+        if variant in ('state-owner', 'state-link'):
             # Snapshot refusal reports catalogued fields and cause provenance;
             # exception messages are excluded by the diagnostics contract.
             refused = (

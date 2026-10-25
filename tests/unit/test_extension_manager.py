@@ -479,6 +479,39 @@ class ExtensionManagerTests(unittest.TestCase):
         verify.assert_not_called()
         set_list.assert_not_called()
 
+    def test_disable_observations_preserve_failure_and_exclude_identifiers(self):
+        for unavailable in (False, True):
+            with self.subTest(unavailable=unavailable):
+                values = [[UUID, "private@example.com"], [UUID]]
+                values += ([RuntimeError("private-error")] if unavailable else
+                           [["private@example.com"], [], [], []])
+                with (
+                    mock.patch.object(self.manager, "_run_command"),
+                    mock.patch.object(self.manager, "_runtime_state", return_value=(False, False)),
+                    mock.patch.object(self.manager, "_list", side_effect=values) as read,
+                    mock.patch.object(self.manager, "_set_list") as write,
+                    mock.patch("oh_no_parent_control.extension_manager.time.sleep") as sleep,
+                    self.assertLogs("onpc", "INFO") as logs,
+                    self.assertRaisesRegex(RuntimeError, "activation verification failed"),
+                ):
+                    self.manager._set_live(self.account, False)
+                write.assert_not_called()
+                observations = [decode(record.onpc_payload) for record in logs.records]
+                if not unavailable:
+                    fields = [item["fields"] for item in observations
+                              if item["event"] == "extension-manager.setting-observation"]
+                    self.assertEqual(fields, [
+                        {"key": key, "stage": stage, "present": False}
+                        for stage in ("live-observation-1", "live-observation-2")
+                        for key in (ENABLED_KEY, DISABLED_KEY)])
+                    self.assertEqual(sleep.call_args_list, [mock.call(0.25), mock.call(1)])
+                for call in read.call_args_list[2:]:
+                    self.assertGreater(call.kwargs["timeout"], 0)
+                    self.assertLessEqual(call.kwargs["timeout"], 4)
+                self.assertNotIn("diagnostic.rejected", [item["event"] for item in observations])
+                for secret in (UUID, "private@example.com", "private-error"):
+                    self.assertNotIn(secret, "\n".join(logs.output))
+
     def test_live_enable_rejects_inactive_extension_and_rolls_back(self):
         account = SimpleNamespace(
             pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name="child",

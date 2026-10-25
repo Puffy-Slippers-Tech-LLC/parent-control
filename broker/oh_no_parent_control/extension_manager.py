@@ -344,8 +344,10 @@ class ExtensionManager:
         LOG.info("extension-manager.004", available=value == "(true,)")
         return value == "(true,)"
 
-    def _list(self, account, key):
-        result = self._run_as(account, "gsettings", "get", SCHEMA, key)
+    def _list(self, account, key, *, timeout=None):
+        arguments = ("gsettings", "get", SCHEMA, key)
+        result = (self._run_as(account, *arguments) if timeout is None else
+                  self._run_command(account, arguments, require_live=True, timeout=timeout))
         try:
             value = ast.literal_eval(result.stdout.strip().removeprefix("@as "))
         except (SyntaxError, ValueError) as error:
@@ -425,8 +427,33 @@ class ExtensionManager:
                 ENABLED_KEY, (UUID in enabled_settings) == enabled, "live") or
                 not self._verify_setting(
                     DISABLED_KEY, not enabled or UUID not in disabled_settings, "live")):
+            if not enabled:
+                self._observe_disable_settings(account)
             raise RuntimeError("GNOME extension activation verification failed")
         LOG.info("extension-manager.005", configured=configured, active=active)
+
+    def _observe_disable_settings(self, account):
+        # Diagnose delayed persistence versus a persistent Shell/settings
+        # disagreement. These reads never turn the original failure into a pass
+        # and never write settings or emit extension identifiers.
+        deadline = time.monotonic() + 4
+        try:
+            for delay, stage in ((0.25, "live-observation-1"),
+                                 (1, "live-observation-2")):
+                if deadline - time.monotonic() <= delay:
+                    return
+                time.sleep(delay)
+                for key in (ENABLED_KEY, DISABLED_KEY):
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return
+                    present = UUID in self._list(account, key, timeout=remaining)
+                    LOG.info("extension-manager.setting-observation",
+                             key=key, present=present, stage=stage)
+        except Exception:
+            # Command/parse failures have their existing diagnostics. Keep the
+            # original activation error and the caller's rollback path intact.
+            pass
 
     def _verify_installation(self):
         try:

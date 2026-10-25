@@ -556,7 +556,8 @@ def test_system_case_retry_selects_its_required_history_without_crediting_omissi
     omitted = set(json.loads(resumed[-1].split('=', 1)[1]))
     selected = system_runner.resume_selection(plan, omitted)
     assert retry in {execution.phase + '::' + execution.case_id for execution in selected.executions}
-    assert (selected.phases == system_runner.ROLLBACK_PHASES if history else
+    # A focused retry retains predecessors and stops at the selected phase.
+    assert (selected.phases == ('rollback-installed', 'rollback-rebooted', 'rollback') if history else
             [execution.case_id for execution in selected.executions] == ['test_b'])
     assert item.resumed_nodeids == () and checkpoint.passed('system') == set()
 

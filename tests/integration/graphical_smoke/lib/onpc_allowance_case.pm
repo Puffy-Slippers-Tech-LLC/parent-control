@@ -22,14 +22,16 @@ sub run {
     $journey->consume_observation('parent-selected',
         onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child'));
     $journey->seen('allowance-configured');
-    for my $value (15) {
-        onpc_allowance_selection::select($journey, "preset-$value", [$value], 'confirm');
-        $journey->seen("preset-$value-read");
-    }
-    onpc_allowance_boundaries::exercise($journey, 'persistence');
+    onpc_allowance_selection::select($journey, 'preset-15', [15], 'confirm');
+    $journey->seen('preset-15-read');
+    onpc_allowance_selection::select($journey, 'custom-choice', ['custom'], 'confirm');
+    onpc_allowance_boundaries::custom_value($journey, 'custom', 1);
+    # Each selection already returns the child's complete allowance/settings.
+    # The controller checks both children before and after reopening; a second
+    # custom-editor read would repeat the same saved-value observation.
+    onpc_allowance_boundaries::reload_child($journey, 'edited');
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
     onpc_allowance_boundaries::reload_child($journey, 'persist');
-    $journey->seen('persist-saved');
     $journey->finish();
 }
 1;

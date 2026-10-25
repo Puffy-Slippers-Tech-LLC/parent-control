@@ -1338,7 +1338,8 @@ def scenario_fixture_files(selection, *, target=None):
                                     item.case_id in ('test_remove_reboot_reinstall',
                                                      'test_aborted_cleanup_rollback_retry',
                                                      'test_interrupted_finalization_retry[denial-publication]',
-                                                     'test_interrupted_finalization_retry[account-finalization]')
+                                                     'test_interrupted_finalization_retry[account-finalization]',
+                                                     'test_ownership_refusal_retry[systemd-user-edit]')
                                     for item in selection.executions):
         files.append('fixtures/mechanical/identity-trusted-hard')
     return tuple(files)
@@ -2109,7 +2110,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         item.case_id in ('test_remove_reboot_reinstall',
                                          'test_aborted_cleanup_rollback_retry',
                                          'test_interrupted_finalization_retry[denial-publication]',
-                                         'test_interrupted_finalization_retry[account-finalization]')
+                                         'test_interrupted_finalization_retry[account-finalization]',
+                                         'test_ownership_refusal_retry[systemd-user-edit]')
                         for item in selection.executions)):
             subsets += ('trusted-hard-launcher',)
         if (not already_installed and any(
@@ -2571,7 +2573,8 @@ def main(argv=None):
                                 item.case_id in ('test_remove_reboot_reinstall',
                                                  'test_aborted_cleanup_rollback_retry',
                                                  'test_interrupted_finalization_retry[denial-publication]',
-                                                 'test_interrupted_finalization_retry[account-finalization]')
+                                                 'test_interrupted_finalization_retry[account-finalization]',
+                                                 'test_ownership_refusal_retry[systemd-user-edit]')
                                 for item in selection.executions)):
                     stage_mechanical_comparison(fixture_input,
                         directory / 'input/fixtures/mechanical/identity-trusted-hard',

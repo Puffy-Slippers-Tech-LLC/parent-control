@@ -1,7 +1,7 @@
 """Invalid-only feedback qualification, with public input and result proofs."""
 
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management
 from private_artifacts import require
 from ui_observations import FeedbackStateObservation
 from accessible_ui import REJECTION_CASES, TEXT_OPERATIONS, REJECTION_FORMATS, DUPLICATE_OPERATIONS
@@ -25,10 +25,8 @@ STAGES = (
     'rejection-wrong-entry', 'rejection-reopen', 'rejection-reopened-send', 'rejection-reopened-read',
 )
 SCREENS = {
-    **fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
-    **{stage: 'ui:' + stage for stage in (
-        'parent-window', 'child-picker-opened', 'child-choice-highlighted',
-        'parent-selected', *STAGES)},
+    **fresh_desktop('parent'), **parent_management(),
+    **{stage: 'ui:' + stage for stage in STAGES},
 }
 PLAN = JourneyPlan(
     prefix='feedback-rejection', worker_mode='feedback_rejection', screen_tags=SCREENS,

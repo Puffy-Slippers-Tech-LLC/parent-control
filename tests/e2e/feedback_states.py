@@ -6,7 +6,7 @@ do not qualify submission rejection or the complete text/email scenario.
 """
 
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management
 from private_artifacts import require
 from ui_observations import FeedbackStateObservation
 from accessible_ui import FEEDBACK_STATE_PROJECTIONS
@@ -31,11 +31,9 @@ def edit_states():
 
 
 SCREENS = {
-    **fresh_desktop('parent'),
-    'parent-command': 'ui:parent-command-launch',
+    **fresh_desktop('parent'), **parent_management(),
     **{stage: 'ui:' + stage for stage in (
-        'parent-window', 'child-picker-opened', 'child-choice-highlighted',
-        'parent-selected', 'feedback-open', 'feedback-state-empty')},
+        'feedback-open', 'feedback-state-empty')},
     **edit_states(),
     **{stage: 'ui:' + stage for stage in (
         'feedback-state-close', 'feedback-state-wrong-entry', 'feedback-state-reopen')},

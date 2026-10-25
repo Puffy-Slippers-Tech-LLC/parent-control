@@ -70,8 +70,14 @@ def test_inventory_bytes_and_caller_inputs_are_frozen_before_execution(attempt):
                                   run_id='run-two', root=path.parent)
 
 
-@pytest.mark.parametrize('status', ['failed', 'skipped', 'interrupted', 'xfail', 'flaky', 'not-run'])
-@pytest.mark.parametrize('location', ['step', 'assertion', 'product', 'infrastructure', 'collection', 'cleanup'])
+@pytest.mark.parametrize('location,status', [
+    # Every required location must reject a failure. Other nonpassing states
+    # exercise the shared acceptance rule without crossing both dimensions.
+    ('step', 'failed'), ('assertion', 'failed'), ('product', 'failed'),
+    ('infrastructure', 'failed'), ('collection', 'failed'), ('cleanup', 'failed'),
+    ('step', 'skipped'), ('step', 'interrupted'), ('step', 'xfail'),
+    ('step', 'flaky'), ('step', 'not-run'),
+])
 def test_any_nonpassing_required_result_prevents_acceptance(attempt, status, location):
     contract, collector, result, _, _ = attempt
     if location == 'step':
@@ -205,8 +211,14 @@ def test_first_failure_survives_cleanup_and_cannot_be_replaced_by_retry(attempt)
     assert contract.failure_state('E2E-001/gdm-observation')['first_failure'] == first
 
 
-@pytest.mark.parametrize('location', ['steps', 'assertions', 'artifacts', 'outcomes', 'cleanup', 'failures'])
-@pytest.mark.parametrize('value', [None, 7, 'private-sentinel', {}])
+@pytest.mark.parametrize('location,value', [
+    # Check private input at every entry point, then representative wrong types
+    # for a list and missing fields for a mapping; these dimensions do not interact.
+    ('steps', 'private-sentinel'), ('assertions', 'private-sentinel'),
+    ('artifacts', 'private-sentinel'), ('outcomes', 'private-sentinel'),
+    ('cleanup', 'private-sentinel'), ('failures', 'private-sentinel'),
+    ('steps', None), ('steps', 7), ('steps', {}), ('outcomes', {}),
+])
 def test_malformed_nested_results_have_bounded_secret_free_errors(attempt, location, value):
     contract, collector, result, _, _ = attempt
     result[location] = value

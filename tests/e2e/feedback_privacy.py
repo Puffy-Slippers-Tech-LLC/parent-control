@@ -1,18 +1,16 @@
 """FEED05 and FEED10(dialog): a synthetic draft, with Send untouched."""
 
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management
 from private_artifacts import require
 from ui_observations import FeedbackObservation
 from accessible_ui import TEXT_OPERATIONS
 from feedback_composition import privacy_review
 
 SCREENS = {
-    **fresh_desktop('parent'),
-    'parent-command': 'ui:parent-command-launch',
+    **fresh_desktop('parent'), **parent_management(),
     **{stage: 'ui:' + stage for stage in (
-        'parent-window', 'child-picker-opened', 'child-choice-highlighted',
-        'parent-selected', 'feedback-close-refused', 'feedback-open',
+        'feedback-close-refused', 'feedback-open',
         *(stage for stage, (binding, _) in TEXT_OPERATIONS.items()
           if binding in ('body-first', 'reply-first')),
         'feedback-draft')},

@@ -1,21 +1,18 @@
 """FEED08 fixed qualification; complete case 155 remains separate."""
 from installed_journey import JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management
 from attachment_composition import diagnostic_export, DiagnosticExportJourney
+from feedback_composition import text_fragment
 from synthetic_files import diagnostic_export_actions
 
 
 SCREENS = {
-    **fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
-    **{stage: 'ui:' + stage for stage in ('parent-window', 'child-picker-opened',
-        'child-choice-highlighted', 'parent-selected')},
+    **fresh_desktop('parent'), **parent_management(),
     **{stage: operation for entry in ('first', 'second') for stage, operation in {
         entry + '-feedback': 'ui:' + ('feedback-open' if entry == 'first' else 'feedback-draft-reopen'),
         entry + '-collection': 'ui:feedback-collection-ready',
-        **{entry + '-text-' + binding + '-' + step: 'ui:text-' + binding + '-' + step
-           for binding in ('body-first', 'reply-first')
-           for step in (('anchor', 'focus', 'selected', 'read') if binding == 'reply-first'
-                        else ('focus', 'selected', 'read'))},
+        **text_fragment('body-first', prefix=entry + '-text-body-first'),
+        **text_fragment('reply-first', prefix=entry + '-text-reply-first'),
         entry + '-capture': 'ui:switch-draft-before',
         entry + '-refused': 'ui:export-save-chooser-wrong-entry',
         **diagnostic_export(entry),

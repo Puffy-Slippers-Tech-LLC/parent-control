@@ -4,7 +4,7 @@ from accessible_ui import (LENGTH_OBSERVATIONS, REJECTION_CASES, TEXT_REPETITION
                            DUPLICATE_OPERATIONS)
 from feedback_rejection import text_stages
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management
 from private_artifacts import require
 from ui_observations import FeedbackStateObservation
 
@@ -38,10 +38,8 @@ STAGES = ('feedback-open', *(stage for family in ('ascii', 'mixed') for stage in
     f'rejection-{family}-reopened-send', f'rejection-{family}-reopened-read',
     *(('length-ascii-reset-close', 'length-ascii-reset-open') if family == 'ascii' else ()))))
 SCREENS = {
-    **fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
-    **{stage: 'ui:' + stage for stage in (
-        'parent-window', 'child-picker-opened', 'child-choice-highlighted',
-        'parent-selected', *STAGES)},
+    **fresh_desktop('parent'), **parent_management(),
+    **{stage: 'ui:' + stage for stage in STAGES},
     'length-ascii-reset-close': 'ui:length-ascii-close',
     'length-ascii-reset-open': 'ui:length-ascii-reopen',
 }

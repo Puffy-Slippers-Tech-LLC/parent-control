@@ -945,7 +945,10 @@ class Run:
                     raise ValueError('selection:resume-inventory-changed')
                 # The installed runner preserves any required lifecycle history.
                 # These omissions are selection, never saved passing results.
-                return [*command, '--completed-cases=' + json.dumps(sorted(selected - {retry}))]
+                requested = ({node for node in selected - passed
+                              if node.partition('::')[0] == self.checkpoint.retry_area}
+                             if self.checkpoint.retry_area else {retry})
+                return [*command, '--completed-cases=' + json.dumps(sorted(selected - requested))]
             item.resumed_nodeids = tuple(sorted(passed & selected))
             if not passed:
                 return command

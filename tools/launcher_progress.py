@@ -12,6 +12,7 @@ def case_progress(run, *, reader=None):
     value = (reader.read(run / 'case-progress.json', 8192) if reader is not None else
              read_json(run / 'case-progress.json', 8192))
     if (not isinstance(value, dict) or value.get('category') not in ('system', 'e2e')
+            or type(value.get('area', False)) is not bool
             or any(type(value.get(key)) is not int for key in
                    ('completed', 'total', 'index', 'round', 'vm_started_ns', 'started_ns', 'case_started_ns'))
             or not 0 <= value['completed'] <= value['total'] <= 100000
@@ -93,9 +94,14 @@ def watch_case_progress(root, vm, progress, *, reader):
             progress = dict(step='', operation='Preparing VM: Waiting for test runner')
         else:
             progress = dict(progress)
+        # An area invocation runs multiple selected checks. Its fresh shared
+        # heartbeat owns their live IDs/timers; the launcher still owns totals.
+        active = ({key: progress[key] for key in ('case_id', 'title', 'case_started_ns')}
+                  if current.get('area') and 'case_id' in progress else {})
         progress.update(current=current['completed'], total=current['total'],
                         case_id=current['case_id'], title=current['title'],
                         started_ns=current['started_ns'], case_started_ns=current['case_started_ns'])
+        progress.update(active)
         return progress
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return progress

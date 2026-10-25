@@ -271,6 +271,14 @@ trees and finite, waited test/agent doubles. No shared checkpoint, live service
 or new child lifetime is added; its compatible unit/cleanup classifications hold.
 test_test_checkpoint's validation-order checks use its existing private files
 only; its compatible unit classification is unchanged.
+Its system-history scheduling checks also use private checkpoints and in-process
+runner doubles, without acquiring a VM, source lease, subprocess or shared state.
+The existing compatible unit classification remains appropriate; no cleanup or
+UI inventory changes apply.
+System-runner fail-stop and VM-queue forwarding assertions use only their
+existing in-memory command/registry inputs, adding no resource or cleanup owner.
+Session area forwarding retains its existing private checkpoint and bounded,
+waited child; its compatible classification and other inventories are unchanged.
 
 Native fixture readback extends its existing private descriptor trees and
 ownership doubles, plus one bounded, waited isolated Python import check.

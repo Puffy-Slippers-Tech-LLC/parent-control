@@ -533,7 +533,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         os.environ['ONPC_RUNNER_INVOCATION'] = json.dumps(declaration['invocation']
             if isinstance(declaration, dict) else dict(
             repair_run=str(run), attempt=uuid.uuid4().hex,
-            selection=[[category, [arg for arg in options if arg not in ('--resume', '--resume-case-only')
+            selection=[[category, [arg for arg in options if arg not in ('--resume', '--resume-case-only', '--resume-area-only')
                                    and not arg.startswith('--resume-case=')]]]))
     elif kind == 'recovery':
         from vm_selection import execution_arguments, execution_binding
@@ -763,19 +763,20 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             from vm_selection import execution_binding
             binding = execution_binding() if not host_only_selection([(category, [])]) else ''
             def selectors(values):
-                return [arg for arg in values if arg not in ('--resume', '--resume-case-only') and not arg.startswith('--resume-case=')]
+                return [arg for arg in values if arg not in ('--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
             if (kind != replay['kind'] or category != replay['category']
                     or selectors(options) != selectors(replay['options'])
                     or (vm or binding) != (replay.get('vm') or binding)):
                 raise ValueError('retained controller operation differs from the original selection')
-            def retry_case(values):
-                return next((arg for arg in values if arg.startswith('--resume-case=')), None)
-            if kind != 'test' or replay['status'] or retry_case(options) == retry_case(replay['options']):
+            def retry_scope(values):
+                return (next((arg for arg in values if arg.startswith('--resume-case=')), None),
+                        '--resume-area-only' in values)
+            if kind != 'test' or replay['status'] or retry_scope(options) == retry_scope(replay['options']):
                 return replay['status']
             # A successful case is already in the runner checkpoint. Reload can
             # advance to the next case; its execution must not reuse that status.
         invocation = dict(repair_run=str(run), attempt=uuid.uuid4().hex,
-                          selection=[[category, [arg for arg in options if arg not in ('--resume', '--resume-case-only')
+                          selection=[[category, [arg for arg in options if arg not in ('--resume', '--resume-case-only', '--resume-area-only')
                                                  and not arg.startswith('--resume-case=')]]]) if kind == 'test' else None
         arguments = dict(args=options, invocation=invocation, vm=vm) if kind == 'test' else options
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),

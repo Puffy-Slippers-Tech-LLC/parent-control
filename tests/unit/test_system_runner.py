@@ -1563,6 +1563,7 @@ def test_pytest_command_selects_both_required_tests_without_skips():
     assert before[-2].endswith('::test_installed_package')
     assert runner.guest_command(RUN, 'install')[-2:] == [runner.PAYLOAD + '/system_guest.py', 'install']
     authorization = runner.pytest_command(RUN, 'authorization', selection)
+    assert '-x' in authorization  # Stop the area after the first failure and its teardown.
     assert authorization[-1].endswith(
         '/test_authorization.py::test_real_selected_parent_authentication[child1]')
 

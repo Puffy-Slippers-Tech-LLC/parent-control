@@ -537,6 +537,7 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
 @pytest.mark.parametrize('history', [False, True])
 def test_system_case_retry_selects_its_required_history_without_crediting_omissions(
         tmp_path, monkeypatch, history):
+    import fix_tests_queue
     import system_runner
     from tests.support.vm_registry import vm_name
     from tests.support.vm_runner import RECOVERY_INVENTORIES
@@ -560,6 +561,76 @@ def test_system_case_retry_selects_its_required_history_without_crediting_omissi
     assert (selected.phases == ('rollback-installed', 'rollback-rebooted', 'rollback') if history else
             [execution.case_id for execution in selected.executions] == ['test_b'])
     assert item.resumed_nodeids == () and checkpoint.passed('system') == set()
+    if not history:
+        checkpoint.retry('system', retry, area=True)
+        scoped = regression.Run.resume_command(SimpleNamespace(root=ROOT, checkpoint=checkpoint),
+                                               item, command)
+        omitted = set(json.loads(scoped[-1].split('=', 1)[1]))
+        scoped = system_runner.resume_selection(plan, omitted)
+        assert scoped.phases == ('authorization',)
+        assert [execution.case_id for execution in scoped.executions] == ['test_a', 'test_b']
+        assert checkpoint.passed('system') == set()
+        checkpoint.retry('system', retry)
+        assert checkpoint.retry_area is None
+
+    # Normal scheduling runs the complete selected history or area once. Interrupted
+    # attempts retain only real passes and reconstruct predecessors on resume;
+    # the exact repair retry above must still stop before later phases.
+    options = (['--area=removal', '--test=test_aborted_cleanup_rollback_retry'] if history else
+               ['--area=authorization'])
+    plan = system_runner.resolve_selection(
+        'removal' if history else 'authorization',
+        'test_aborted_cleanup_rollback_retry' if history else None,
+        inventories=inventories, target_package_format='deb')
+    cases = [execution.phase + '::' + execution.case_id
+             for execution in plan.executions if not execution.prerequisite]
+    monkeypatch.setattr(fix_tests_queue, 'case_inventory', lambda *_: cases)
+    monkeypatch.setattr(fix_tests_queue, 'publish_case_progress', lambda *_, **__: None)
+    normal_root = tmp_path / 'normal'
+    gate = fix_tests_queue.RepairGate(normal_root)
+    calls = []
+    status = 1
+
+    def execute(arguments):
+        assert arguments[:len(options)] == options
+        assert arguments[-1] == ('--resume-case-only' if history else '--resume-area-only')
+        forwarded = ['system', *arguments]
+        assert test_commands.execution_arguments(forwarded) == (['system', *options], False)
+        target = arguments[-2].partition('=')[2]
+        calls.append(target)
+        saved = Checkpoint(normal_root, [('system', options)], resume=True, binding=vm_name())
+        if history:
+            with pytest.raises(ValueError, match='area retry requires an independent system area'):
+                saved.retry('system', target, area=True)
+        saved.retry('system', target, area=not history)
+        resumed = regression.Run.resume_command(
+            SimpleNamespace(root=ROOT, checkpoint=saved), item,
+            [str(ROOT / 'tools/run-tests'), 'system', '--unattended', *options])
+        omitted = set(json.loads(resumed[-1].split('=', 1)[1]))
+        actual = system_runner.resume_selection(plan, omitted)
+        nodes = [execution.phase + '::' + execution.case_id for execution in actual.executions]
+        assert target in nodes
+        assert (nodes[-1] == target if history else actual.phases == ('authorization',))
+        for node in nodes[:-1] if status else nodes:
+            saved.event('system', dict(kind='finished', nodeid=node), set())
+        if status:
+            saved.event('system', dict(kind='failure', nodeid=nodes[-1]), {nodes[-1]})
+        saved.finish([SimpleNamespace(retry_category='system', count_overall=True,
+                                     state='Failed' if status else 'Passed')])
+        return status
+
+    inventory = {'system': {'args': options}}
+    assert fix_tests_queue.run_cases(normal_root, 'system', options, execute, gate,
+                                    inventory=inventory, round_number=1) == 1
+    interrupted = Checkpoint(normal_root, [('system', options)], resume=True, binding=vm_name())
+    assert cases[-1] not in interrupted.passed('system')
+    assert not interrupted.complete('system')
+    status = 0
+    assert fix_tests_queue.run_cases(normal_root, 'system', [*options, '--resume'], execute, gate,
+                                    inventory=inventory, round_number=1) == 0
+    assert calls == ([cases[-1], cases[-1]] if history else [cases[0], cases[-1]])
+    completed = Checkpoint(normal_root, [('system', options)], resume=True, binding=vm_name())
+    assert set(cases) <= completed.passed('system') and completed.complete('system')
 
 
 @pytest.mark.parametrize('pending_phase', ['rollback', 'rollback-rearmed-rebooted'])

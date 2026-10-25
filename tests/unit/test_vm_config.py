@@ -894,6 +894,9 @@ def test_focused_queue_split_preserves_resume_and_exact_options():
     args = ['--resume', '--resume-case=case[param]', '--stop-on-error', 'system',
             '--area=authorization', '--test=case[param]']
     assert split(ROOT, args) == ([], args)
+    for scope in ('--resume-case-only', '--resume-area-only'):
+        scoped = [args[0], scope, *args[1:]]
+        assert split(ROOT, scoped) == ([], scoped)
 
 
 def test_cancelling_parallel_workers_waits_for_each_owned_child_cleanup(tmp_path):

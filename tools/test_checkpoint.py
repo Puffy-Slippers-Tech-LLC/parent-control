@@ -20,6 +20,7 @@ else:
 
 EXCLUDE = 'ONPC_TEST_COMPLETED_CASES'
 ONLY = 'ONPC_TEST_RETRY_CASE'
+INDEPENDENT_SYSTEM_AREAS = ('authorization', 'enforcement', 'session')
 SAVE_INTERVAL = 5
 RESUME_SELECTION_MISMATCH = 'resume selection differs from checkpoint; start without --resume to reset it'
 
@@ -73,6 +74,7 @@ class Checkpoint:
         from vm_selection import VARIABLE, BATCH
         groups = {}
         self.retry_case = None
+        self.retry_area = None
         for kind, args in selections:
             if kind in AGGREGATES:
                 expanded = [(name, entry['args']) for name, entry in suite_inventory([kind]).items()]
@@ -164,11 +166,15 @@ class Checkpoint:
     def entry(self, kind):
         return self.state['categories'].get(kind) if kind in self.selected else None
 
-    def retry(self, kind, case):
+    def retry(self, kind, case, *, area=False):
         completed_cases(json.dumps([case]))
         if self.selected != {kind}:
             raise ValueError('case retry requires one category')
+        phase = case.partition('::')[0]
+        if area and (kind != 'system' or phase not in INDEPENDENT_SYSTEM_AREAS):
+            raise ValueError('area retry requires an independent system area')
         self.retry_case = case
+        self.retry_area = phase if area else None
         self.event(kind, dict(kind='failure', nodeid=case), set())
 
     def passed(self, kind):

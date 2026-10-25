@@ -204,15 +204,19 @@ def execution_arguments(argv):
     """The leading coordinator option does not alter category arguments."""
     resume = '--resume' in argv
     only = '--resume-case-only' in argv
+    area = '--resume-area-only' in argv
+    if only and area:
+        raise ValueError('--resume-case-only conflicts with --resume-area-only')
     replay = [arg.partition('=')[2] for arg in argv if arg.startswith('--resume-case=')]
-    if only and not replay:
-        raise ValueError('--resume-case-only requires --resume-case')
+    if (only or area) and not replay:
+        raise ValueError(('--resume-area-only' if area else '--resume-case-only') +
+                         ' requires --resume-case')
     if replay:
         from regression_events import completed_cases
         if not resume or len(replay) != 1:
             raise ValueError('--resume-case requires --resume and one case')
         completed_cases(json.dumps(replay))
-    argv = [arg for arg in argv if arg not in ('--resume', '--resume-case-only') and not arg.startswith('--resume-case=')]
+    argv = [arg for arg in argv if arg not in ('--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
     if resume and not argv:
         argv = ['all']
     stop = argv[:1] == ['--stop-on-error']
@@ -225,7 +229,7 @@ def execution_arguments(argv):
 def vm_request(argv):
     from vm_selection import vm_config, execution_selection, extract_execution, selected
     args, selector = vm_config.extract_selector(argv)
-    request = [arg for arg in args if arg not in ('--resume', '--resume-case-only') and not arg.startswith('--resume-case=')]
+    request = [arg for arg in args if arg not in ('--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
     if request[:1] == ['--stop-on-error']:
         request = request[1:]
     vm_artifacts = request[:3] == ['artifacts', 'prepare', '--for-vm']
@@ -1173,7 +1177,7 @@ def host_only_request(argv):
     from vm_selection import extract_execution as extract
     args, _ = extract(argv, required=False)
     args = args or ['all']
-    args = [arg for arg in args if arg not in ('--resume', '--resume-case-only') and not arg.startswith('--resume-case=')] or ['all']
+    args = [arg for arg in args if arg not in ('--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')] or ['all']
     if args[:1] == ['--stop-on-error']:
         args = args[1:] or ['all']
     category = args[0]

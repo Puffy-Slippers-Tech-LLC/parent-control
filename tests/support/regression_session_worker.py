@@ -31,6 +31,8 @@ dispatch = test_commands._main
 
 def run(argv, *, detached=False, checkpoint=None):
     assert detached
+    if '--resume-area-only' in argv:
+        assert checkpoint.retry_area == 'authorization'
     root = Path(sys.argv[1])
     (root / 'started').write_text(argv[0])
     # Readers use existence as readiness; publish only after the write closes.

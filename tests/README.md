@@ -389,10 +389,23 @@ For a configured VM queue, host categories run once and each VM owns its
 system/E2E pipeline, checkpoint and reports through all requested rounds. The
 host pipeline runs alongside the VM pipelines without consuming a VM slot;
 the registry concurrency cap limits only the VM pipelines. Normal cases execute in
-parallel through fresh case-only runner invocations with the original selectors
-and required lifecycle prerequisites. Package preparation reuses content-qualified
-inputs, rebuilding when source changes; each next case loads the current inputs
-instead of retaining a whole category's frozen inputs.
+parallel through fresh runner invocations with the original selectors
+and required lifecycle prerequisites. For a system case spanning several phases,
+normal scheduling targets its last selected unfinished phase. The runner executes
+its predecessors in order in that same attempt, recording each actual pass,
+instead of starting a separate attempt for every prefix of the history. Independent
+checks in each authorization, enforcement or session area share one normal
+invocation, including its VM startup and immutable fixture inputs. The internal
+`--resume-area-only` scope keeps the original selectors and excludes actual saved
+passes; it never grants a pass to an omitted case. Each area still starts from
+its own restored state, and guest pytest stops after the first failure and its
+teardown before controller collection and cleanup. Source admission and reload
+happen between histories or areas, so a repair queued on another VM waits for
+that admitted group and its owned cleanup. Repair verification still stops at
+the exact failed case/phase.
+Package preparation reuses content-qualified inputs, rebuilding when source
+changes; each next history, area or E2E case loads the current inputs instead of
+retaining a whole category's frozen inputs.
 
 The VM dashboard's `Overall` accumulates completed selected system and E2E cases
 over their combined selected total for that VM and round. Both inventories are
@@ -405,8 +418,9 @@ selected case's persistent ID/title and case/category clocks,
 including while its prerequisites run. These display counts never grant a pass;
 the runner's teardown-complete checkpoint remains authoritative.
 
-Every failed case joins one launcher-wide FIFO repair queue. Active cases finish;
-new normal cases wait until the entire queue is empty. Exactly one repair,
+Every failed case joins one launcher-wide FIFO repair queue. Admitted system
+histories/areas and active E2E cases finish their execution and owned cleanup;
+new normal work waits until the entire queue is empty. Exactly one repair,
 exact-case verification and commit/push/propagation transaction runs at a time.
 Its source lease survives worker reload and remains held by its supervisor during
 owned cleanup. Other VMs cannot load its unverified edits. A queued failure is

@@ -175,7 +175,8 @@ def _select(root, argv):
                 with nested_operation(root, run):
                     from test_checkpoint import request_record
                     request_record(root, 'run-tests', {'argv': [arg for arg in requested
-                                   if arg != '--resume-case-only' and not arg.startswith('--resume-case=')]})
+                                   if arg not in ('--resume-case-only', '--resume-area-only')
+                                   and not arg.startswith('--resume-case=')]})
                     subprocess.Popen(command, cwd=root, env=environment,
                                      stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
                                      start_new_session=True,
@@ -287,8 +288,8 @@ def owned_worker(root, argv, run, owner):
                 if replay:
                     if len(categories) != 1:
                         raise ValueError('case retry requires one category')
-                    if '--resume-case-only' in argv:
-                        checkpoint.retry(categories[0], replay[0])
+                    if '--resume-case-only' in argv or '--resume-area-only' in argv:
+                        checkpoint.retry(categories[0], replay[0], area='--resume-area-only' in argv)
                     else:
                         checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
                 before_run(root, argv, categories=categories)

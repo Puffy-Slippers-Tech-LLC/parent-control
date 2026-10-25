@@ -30,6 +30,7 @@ def split(root, argv):
     def flatten(groups):
         result = [*(['--resume'] if '--resume' in argv else []),
                   *(['--resume-case-only'] if '--resume-case-only' in argv else []),
+                  *(['--resume-area-only'] if '--resume-area-only' in argv else []),
                   *[arg for arg in argv if arg.startswith('--resume-case=')],
                   *(['--stop-on-error'] if stop else []),
                   *(value for kind, options in groups for value in (kind, *options))]
@@ -200,8 +201,8 @@ def worker(argv):
             groups = selections(root, args)
             if len(groups) != 1:
                 raise ValueError('case retry requires one category')
-            if '--resume-case-only' in args:
-                checkpoint.retry(groups[0][0], replay[0])
+            if '--resume-case-only' in args or '--resume-area-only' in args:
+                checkpoint.retry(groups[0][0], replay[0], area='--resume-area-only' in args)
             else:
                 checkpoint.event(groups[0][0], dict(kind='failure', nodeid=replay[0]), set())
         return _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)

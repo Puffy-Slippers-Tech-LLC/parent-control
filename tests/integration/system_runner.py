@@ -1978,7 +1978,7 @@ def pytest_command(run, phase, selection):
             f'PYTHONPATH={PAYLOAD}',
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-m', 'pytest',
             '-c', PAYLOAD + '/pytest.ini', '--noconftest', '--rootdir', PAYLOAD,
-            '--junitxml', f'{PAYLOAD}/results/{phase}.xml', '-q', '-p', 'system_progress',
+            '--junitxml', f'{PAYLOAD}/results/{phase}.xml', '-q', '-x', '-p', 'system_progress',
             *qualification, *selectors]
 
 

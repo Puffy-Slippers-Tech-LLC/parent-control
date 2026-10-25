@@ -342,12 +342,12 @@ def case_totals(root, inventory, category, cases):
 
 
 def run_cases(root, category, options, execute, gate, *, inventory, round_number, completed_categories=()):
-    """Start a fresh maintained runner for every case, never a frozen whole batch.
+    """Start fresh runners per system history/independent area or E2E case.
 
-    The case-only runner retains the original checkpoint selectors and reconstructs
+    Scoped runners retain the original checkpoint selectors and reconstruct
     required lifecycle prerequisites. Its teardown-complete checkpoint owns credit.
     """
-    from test_checkpoint import Checkpoint
+    from test_checkpoint import Checkpoint, INDEPENDENT_SYSTEM_AREAS
     from vm_selection import selected
     original = [arg for arg in options if arg != '--resume']
     checkpoint = Checkpoint(root, [(category, original)], resume='--resume' in options,
@@ -369,20 +369,37 @@ def run_cases(root, category, options, execute, gate, *, inventory, round_number
             case = next((case for case in cases if case not in passed), None)
             if case is None:
                 break
-            print(f'fix-tests: executing case {case}', flush=True)
+            area = category == 'system' and case.partition('::')[0] in INDEPENDENT_SYSTEM_AREAS
+            requested = {case}
+            if area:
+                requested = {candidate for candidate in cases if candidate not in passed
+                             and candidate.partition('::')[0] == case.partition('::')[0]}
+            elif category == 'system':
+                # Target the last selected phase of this logical case once.
+                # The runner executes its predecessors in order and credits
+                # only actual passes; missing predecessors remain queued.
+                logical_case = case.partition('::')[2]
+                case = next(candidate for candidate in reversed(cases)
+                            if candidate not in passed and
+                            candidate.partition('::')[2] == logical_case)
+                requested = {case}
+            print((f'fix-tests: executing system area {case.partition("::")[0]} '
+                   f'({len(requested)} remaining cases)' if area else
+                   f'fix-tests: executing case {case}'), flush=True)
             publish_case_progress(root, gate.run, category, cases, case, passed,
                                   totals=totals, round_number=round_number,
-                                  completed_categories=completed_categories)
+                                  completed_categories=completed_categories, area=area)
             gate.last_generation = generation
-            status = execute([*original, '--resume', '--resume-case=' + case, '--resume-case-only'])
+            status = execute([*original, '--resume', '--resume-case=' + case,
+                              '--resume-area-only' if area else '--resume-case-only'])
             gate.case_result(status)
         checkpoint = Checkpoint(root, [(category, original)], resume=True, binding=selected().name)
         publish_case_progress(root, gate.run, category, cases, case, checkpoint.passed(category),
                               totals=totals, round_number=round_number,
-                              completed_categories=completed_categories)
+                              completed_categories=completed_categories, area=area)
         if status:
             return status
-        if case not in checkpoint.passed(category):
+        if not requested <= checkpoint.passed(category):
             raise ValueError('case runner returned success without teardown-complete case evidence')
     if not set(cases) <= checkpoint.passed(category):
         raise ValueError('VM selection is incomplete after case execution')
@@ -395,7 +412,7 @@ def run_cases(root, category, options, execute, gate, *, inventory, round_number
 
 
 def publish_case_progress(root, run, category, cases, case, passed, *, totals, round_number,
-                          completed_categories=()):
+                          completed_categories=(), area=False):
     """One selected-case count and clock for the dashboard and VM tile."""
     from launcher_progress import case_progress
     from vm_recording import case_identity
@@ -418,7 +435,7 @@ def publish_case_progress(root, run, category, cases, case, passed, *, totals, r
     same_category = (same_round and previous.get('category') == category
                      and previous.get('total') == len(cases)
                      and not (previous.get('completed') == len(cases) and not completed))
-    launcher.atomic(run / 'case-progress.json', dict(category=category, case=case,
+    launcher.atomic(run / 'case-progress.json', dict(category=category, case=case, area=area,
         completed=completed, total=len(cases), index=cases.index(nodeid) + 1,
         round=round_number, categories=counts,
         vm_started_ns=previous['vm_started_ns'] if same_round else now,

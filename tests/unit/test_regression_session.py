@@ -556,10 +556,17 @@ def test_agent_owned_runs_register_before_spawn_and_clear_parent_from_tests(tmp_
 @pytest.mark.parametrize('argv', [[category, '--test-option'] for category in test_commands.CATEGORIES])
 def test_every_category_preserves_arguments_and_reconnects_before_validation(
         tmp_path, workers, monkeypatch, argv):
+    if argv[0] == 'system':
+        argv = [*argv, '--resume', '--resume-case=authorization::case', '--resume-area-only']
     run, started = session.select(tmp_path, argv)
     assert started
     wait_for(tmp_path / 'arguments')
     assert (tmp_path / 'arguments').read_text() == ' '.join(argv)
+    if argv[0] == 'system':
+        from test_checkpoint import request_record
+        request = request_record(tmp_path, 'run-tests')['argv']
+        assert '--resume-area-only' not in request
+        assert not any(arg.startswith('--resume-case=') for arg in request)
     def refuse(*_):
         pytest.fail('new arguments must not be validated during attachment')
     monkeypatch.setattr(test_commands, 'validate', refuse)

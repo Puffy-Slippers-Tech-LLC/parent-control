@@ -378,10 +378,10 @@ CASES = (
                  'Deleted target and approver fail closed'),
     CaseIdentity(179, 'authorization', 'test_root_method_permissions_and_approver_exclusion',
                  'Root method permissions and approver exclusion'),
-    CaseIdentity(180, 'authorization', 'test_ineligible_callers_cannot_use_broker[ListManagedUsers-noninteractive]',
-                 'Ineligible callers cannot use broker [ListManagedUsers-noninteractive]'),
-    CaseIdentity(181, 'authorization', 'test_ineligible_callers_cannot_use_broker[ListManagedUsers-system]',
-                 'Ineligible callers cannot use broker [ListManagedUsers-system]'),
+    CaseIdentity(180, 'authorization', 'test_ineligible_callers_cannot_use_broker[noninteractive]',
+                 'Ineligible callers cannot use broker [noninteractive]'),
+    CaseIdentity(181, 'authorization', 'test_ineligible_callers_cannot_use_broker[system]',
+                 'Ineligible callers cannot use broker [system]'),
     CaseIdentity(182, 'authorization', 'test_ineligible_callers_cannot_use_broker[ListApprovers-noninteractive]',
                  'Ineligible callers cannot use broker [ListApprovers-noninteractive]'),
     CaseIdentity(183, 'authorization', 'test_ineligible_callers_cannot_use_broker[ListApprovers-system]',
@@ -490,10 +490,10 @@ CASES = (
                  'Icons match authoritative account properties [parent1]'),
     CaseIdentity(235, 'authorization', 'test_icons_match_authoritative_account_properties[parent2]',
                  'Icons match authoritative account properties [parent2]'),
-    CaseIdentity(236, 'authorization', 'test_ineligible_selected_approvers_fail_closed[child1-child1]',
-                 'Ineligible selected approvers fail closed [child1-child1]'),
-    CaseIdentity(237, 'authorization', 'test_ineligible_selected_approvers_fail_closed[child1-kiosk]',
-                 'Ineligible selected approvers fail closed [child1-kiosk]'),
+    CaseIdentity(236, 'authorization', 'test_ineligible_selected_approvers_fail_closed[child1]',
+                 'Ineligible selected approvers fail closed [child1]'),
+    CaseIdentity(237, 'authorization', 'test_ineligible_selected_approvers_fail_closed[kiosk]',
+                 'Ineligible selected approvers fail closed [kiosk]'),
     CaseIdentity(238, 'authorization', 'test_ineligible_selected_approvers_fail_closed[child2-child1]',
                  'Ineligible selected approvers fail closed [child2-child1]'),
     CaseIdentity(239, 'authorization', 'test_ineligible_selected_approvers_fail_closed[child2-kiosk]',
@@ -633,6 +633,9 @@ UNBOUND_CASES = MappingProxyType({
         203, 204, 205, 206, 207, 208, 209,
     ), ('retired', 'ineligible caller classes sampled across distinct permission boundaries')),
     **dict.fromkeys((
+        182, 183, 184, 185, 210, 211, 212, 213, 214, 215,
+    ), ('retired', 'permission boundaries combined per caller class in 180/181')),
+    **dict.fromkeys((
         219, 220, 221, 222, 223, 227, 229,
     ), ('retired', 'invalid target classes sampled across read, management and station entry')),
     **dict.fromkeys((
@@ -644,6 +647,9 @@ UNBOUND_CASES = MappingProxyType({
     **dict.fromkeys((
         238, 239, 240, 241, 247, 248,
     ), ('retired', 'approver classes sampled across child and kiosk request surfaces')),
+    **dict.fromkeys((
+        242, 243, 244, 245, 246, 249,
+    ), ('retired', 'representative approver classes combined per request surface in 236/237')),
     # The C04a disposition map in docs/SystemDesign/Kiosk-Confinement.md owns
     # surviving behavior and receiving tasks for the removed private runtime.
     10: ('retired', 'private MAC unload witness; quarantine/finalization recovery remains in 9/11'),

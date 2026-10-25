@@ -137,6 +137,10 @@ def request_operation(surface, target, approver):
     }
 
 
+def denied(reply, boundary):
+    guest.require(reply.get('error') == DENIED, 'authorization:' + boundary)
+
+
 @pytest.mark.parametrize('method,role', [
     pytest.param(method, role, id=f'{method}-{role}') for method, role in METHOD_ROLE_CASES
 ])
@@ -183,15 +187,19 @@ def test_private_records_and_log_components(accounts, role):
     guest.require(accounts_unchanged(accounts, before),
                   'authorization:private-probe-write')
     own = 'parent' if role in ('parent1', 'parent2', 'locked') else 'kiosk' if role == 'kiosk' else 'child'
-    for component in {'parent', 'child', 'kiosk', 'broker'} - {own}:
-        reply = call(accounts[role], 'LogEvent', '(sss)', (component, 'INFO', LOG_EVENT))
-        guest.require(reply.get('error') == DENIED, 'authorization:log-impersonation')
+    replies = batch(accounts[role], [
+        {'kind': 'call', 'method': 'LogEvent', 'signature': '(sss)',
+         'args': (component, 'INFO', LOG_EVENT)}
+        for component in ('parent', 'child', 'kiosk', 'broker') if component != own])
+    for reply in replies:
+        denied(reply, 'log-impersonation')
 
 
 def test_account_discovery_after_installation(accounts):
     for role in ('parent1', 'kiosk'):
-        children = accepted(call(accounts[role], 'ListManagedUsers'))[0]
-        approvers = accepted(call(accounts[role], 'ListApprovers'))[0]
+        children, approvers = (accepted(reply)[0] for reply in batch(accounts[role], [
+            {'kind': 'call', 'method': method, 'signature': '()', 'args': ()}
+            for method in ('ListManagedUsers', 'ListApprovers')]))
         child_uids, approver_uids = {row[0] for row in children}, {row[0] for row in approvers}
         guest.require({accounts[key] for key in ('child1', 'child2', 'unrelated')} <= child_uids,
                       'authorization:discovery-missing-child')
@@ -326,7 +334,7 @@ def test_root_method_permissions_and_approver_exclusion(accounts):
                 args = (target, json.dumps(desired))
             elif method == 'SetParentControl':
                 args = (target, True, 37)
-            before = account_state(target)
+            before = account_state(target) if method == 'SetParentControl' or not allowed else None
             reply = call(0, method, signature, args, allow_root=True)
             if allowed:
                 result = accepted(reply)
@@ -348,8 +356,6 @@ def test_root_method_permissions_and_approver_exclusion(accounts):
             else:
                 guest.require(reply.get('error') == DENIED, 'authorization:root-request-only-denial')
                 guest.require(account_state(target) == before, 'authorization:root-denial-write')
-            guest.require(accounts_unchanged(accounts, others),
-                          'authorization:root-cross-account-write')
             print(f'onpc-system: stage=root-method method={method} '
                   f'outcome={"allowed" if allowed else "denied"}', flush=True)
 
@@ -361,27 +367,31 @@ def test_root_method_permissions_and_approver_exclusion(accounts):
             args = (0, 300, False) if surface == 'child1' else (target, 0, 300, False)
             reply = call(accounts[surface], method, signature, args)
             guest.require(reply.get('error') == DENIED, 'authorization:root-selected-approver')
-            guest.require(account_state(target) == before and all(
-                account_state(accounts[key]) == state for key, state in others.items()),
-                'authorization:root-approver-denial-write')
+            guest.require(account_state(target) == before,
+                          'authorization:root-approver-denial-write')
         for component in ('child', 'kiosk', 'broker'):
             reply = call(0, 'LogEvent', '(sss)', (component, 'INFO', LOG_EVENT),
                          allow_root=True)
             guest.require(reply.get('error') == DENIED, 'authorization:root-log-impersonation')
+        # Every operation above targets child1. One fresh comparison protects
+        # all other accounts without rereading them after each read-only call.
+        guest.require(accounts_unchanged(accounts, others),
+                      'authorization:root-cross-account-write')
     finally:
         accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
         accepted(call(accounts['parent1'], 'SetPreferences', '(us)', (target, original)))
 
 
 @pytest.mark.parametrize('role', ('noninteractive', 'system'))
-@pytest.mark.parametrize('method', (
-    'ListManagedUsers', 'ListApprovers', 'GetOwnAccount',
-    'RequestOwnAccess', 'RequestAccess', 'LogEvent',
-))
-def test_ineligible_callers_cannot_use_broker(accounts, role, method):
-    signature, args, _ = invocation(method, role, accounts)
-    reply = call(accounts[role], method, signature, args)
-    guest.require(reply.get('error') == DENIED, 'authorization:ineligible-caller')
+def test_ineligible_callers_cannot_use_broker(accounts, role):
+    # Each identity class shares one real caller. Retain discovery, own-account,
+    # both request entry points and logging as separate permission boundaries.
+    methods = ('ListManagedUsers', 'ListApprovers', 'GetOwnAccount',
+               'RequestOwnAccess', 'RequestAccess', 'LogEvent')
+    with PersistentCaller(accounts[role]) as caller:
+        for method in methods:
+            signature, args, _ = invocation(method, role, accounts)
+            denied(caller.call(method, signature, args), 'ineligible-caller:' + method)
 
 
 # Sample each invalid target class across read, management and station entry.
@@ -438,28 +448,22 @@ def test_icons_match_authoritative_account_properties(accounts, target_role):
             guest.require(own[2] == expected, 'authorization:authoritative-own-icon')
 
 
-@pytest.mark.parametrize('approver,surface', [
-    pytest.param(approver, surface, id=f'{approver}-{surface}') for approver, surface in (
-        ('child1', 'child1'), ('child1', 'kiosk'),
-        ('locked', 'child1'), ('locked', 'kiosk'),
-        ('kiosk', 'child1'), ('kiosk', 'kiosk'),
-        ('noninteractive', 'child1'), ('system', 'kiosk'),
-    )
-])
-def test_ineligible_selected_approvers_fail_closed(accounts, surface, approver):
+@pytest.mark.parametrize('surface', ('child1', 'kiosk'))
+def test_ineligible_selected_approvers_fail_closed(accounts, surface):
+    # Vary invalid identity classes across the two entry points. Locked parents
+    # keep both routes because they have management rights but cannot approve.
+    approvers = (('child1', 'locked', 'noninteractive') if surface == 'child1'
+                 else ('kiosk', 'locked', 'system'))
     target = accounts['child1']
     accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
     try:
         before = snapshot_accounts(accounts)
-        if surface == 'child1':
-            reply = call(target, 'RequestOwnAccess', '(uub)',
-                         (accounts[approver], 300, False))
-        else:
-            reply = call(accounts['kiosk'], 'RequestAccess', '(uuub)',
-                         (target, accounts[approver], 300, False))
-        guest.require(reply.get('error') == DENIED, 'authorization:ineligible-approver')
-        guest.require(accounts_unchanged(accounts, before),
-                      'authorization:ineligible-approver-write')
+        with PersistentCaller(accounts[surface]) as caller:
+            for approver in approvers:
+                caller.send(request_operation(surface, target, accounts[approver]))
+                denied(caller.receive(), 'ineligible-approver:' + approver)
+                guest.require(accounts_unchanged(accounts, before),
+                              'authorization:ineligible-approver-write')
     finally:
         accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
 

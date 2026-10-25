@@ -1018,15 +1018,15 @@ def native_policy_transition(accounts, record, variant='command'):
         future, _, _ = native_paths('pattern-future')
         guest.require(not future.exists() and not future.is_symlink(),
                       'enforcement:future-fixture-collision')
-    # The ordinary command owns the full screen-time interaction matrix.
-    # Whitespace exercises quoting in both policy modes; pattern and retention
-    # pair hard/off with soft/on rather than repeating that complete matrix.
+    # Share the screen-time classes across fixtures: whitespace owns soft/off;
+    # command owns hard/on. Every fixture retains an initial allowed launch,
+    # hard/off denial and recovery; pattern/retention also retain soft/on.
+    # Clear each denial before the next mode so stale rules cannot satisfy it.
     stages = (('allowed', None), ('hard', 'permanent'), ('restored', None))
-    if variant in ('command', 'whitespace'):
+    if variant == 'whitespace':
         stages += (('soft', 'conditional'), ('soft-restored', None))
     if variant == 'command':
-        stages += (('enabled-allowed', None), ('enabled-hard', 'permanent'),
-                   ('enabled-restored', None))
+        stages += (('enabled-hard', 'permanent'), ('enabled-restored', None))
     if variant != 'whitespace':
         stages += (('enabled-soft', 'conditional'), ('enabled-soft-restored', None))
     try:

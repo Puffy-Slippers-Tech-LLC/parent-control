@@ -107,6 +107,21 @@ class Progress:
                     result['detail'] = ('Installed test failed; traceback is flushed in '
                                         'guest results/regression-failures.jsonl and collected '
                                         'in this attempt’s private guest-results directory.')
+                    if (self.phase == 'reinstalled-rebooted'
+                            and nodeid == 'test_remove_reboot_reinstall'):
+                        # Forward only bounded static sites from this case's
+                        # diagnostic experiment, never guest messages or values.
+                        locations = event.get('failure_locations')
+                        if isinstance(locations, list):
+                            result['failure_locations'] = [
+                                dict(file=site['file'], line=site['line'])
+                                for site in locations[:12]
+                                if isinstance(site, dict)
+                                and site.get('file') in (
+                                    'test_removal.py', 'system_removal.py', 'system_guest.py',
+                                    'system_assertions.py', 'system_enforcement.py', 'owned_commands.py')
+                                and type(site.get('line')) is int
+                                and 0 < site['line'] <= 1000000]
                 write_event(sys.stdout, **result)
             except (ValueError, TypeError, AttributeError):
                 continue

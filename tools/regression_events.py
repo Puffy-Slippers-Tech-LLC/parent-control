@@ -140,6 +140,22 @@ def pytest_runtest_logreport(report):
     if os.environ.get('ONPC_REGRESSION_EVENTS') != '1':
         return
     if report.failed or report.skipped or getattr(report, 'wasxfail', None):
+        diagnostic = {}
+        if (report.failed and os.environ.get('ONPC_SYSTEM_PHASE') == 'reinstalled-rebooted'
+                and report.nodeid == 'test_removal.py::test_remove_reboot_reinstall'):
+            # Keep this retained-case experiment value-free. Raw tracebacks and
+            # command output remain private; static source sites survive rotation.
+            locations = []
+            traceback = getattr(report.longrepr, 'reprtraceback', None)
+            for entry in getattr(traceback, 'reprentries', ())[-12:]:
+                location = getattr(entry, 'reprfileloc', None)
+                filename = Path(str(getattr(location, 'path', ''))).name
+                line = getattr(location, 'lineno', None)
+                if (filename in ('test_removal.py', 'system_removal.py', 'system_guest.py',
+                                 'system_assertions.py', 'system_enforcement.py', 'owned_commands.py')
+                        and type(line) is int and 0 < line <= 1000000):
+                    locations.append(dict(file=filename, line=line))
+            diagnostic['failure_locations'] = locations
         detail = str(report.longrepr) if report.longrepr else 'Unexpected pass of an expected failure'
         private = os.environ.get('ONPC_REGRESSION_PRIVATE')
         if private:
@@ -152,7 +168,7 @@ def pytest_runtest_logreport(report):
                 stream.flush()
                 os.fsync(stream.fileno())
             detail = 'Installed test failed; detailed traceback: ' + str(path)
-        emit('failure', nodeid=report.nodeid, when=report.when, detail=detail)
+        emit('failure', nodeid=report.nodeid, when=report.when, detail=detail, **diagnostic)
     if report.when == 'teardown':
         emit('finished', nodeid=report.nodeid)
 

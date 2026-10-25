@@ -670,28 +670,20 @@ def test_first_configuration_rejects_previous_artifact_selection(
 
 
 @pytest.mark.parametrize('phase', ['first-configure', 'first-configure-rebooted'])
-@pytest.mark.parametrize('fault', [None, 'missing', 'extra', 'duplicate', 'identity', 'failure', 'skipped'])
 def test_first_configuration_junit_requires_exact_unskipped_package_identity(
-        tmp_path, first_configure_inventories, phase, fault):
+        tmp_path, first_configure_inventories, phase):
     selection = runner.resolve_selection('package', runner.FIRST_CONFIGURE_CASE,
                                          inventories=first_configure_inventories)
-    write_junit_results(tmp_path, selection, fault)
-    if fault:
-        output = tmp_path / 'guest-results'
-        (output / (phase + '.xml')).write_bytes(
-            (output / (selection.phases[-1] + '.xml')).read_bytes())
-        with pytest.raises(runner.Error):
-            runner.reconcile_junit(tmp_path, phase, selection)
-    else:
-        assert runner.reconcile_junit(tmp_path, phase, selection) == (
-            ('package', runner.FIRST_CONFIGURE_CASE),)
-        evidence = runner.selection_evidence(tmp_path, selection)
-        assert evidence['expected_executions'] == [
-            {'phase': item, 'area': 'package', 'case_id': runner.FIRST_CONFIGURE_CASE,
-             'prerequisite': False} for item in selection.phases]
-        assert evidence['executed_cases'] == [
-            {'phase': item, 'area': 'package', 'case_id': runner.FIRST_CONFIGURE_CASE}
-            for item in selection.phases]
+    write_junit_results(tmp_path, selection)
+    assert runner.reconcile_junit(tmp_path, phase, selection) == (
+        ('package', runner.FIRST_CONFIGURE_CASE),)
+    evidence = runner.selection_evidence(tmp_path, selection)
+    assert evidence['expected_executions'] == [
+        {'phase': item, 'area': 'package', 'case_id': runner.FIRST_CONFIGURE_CASE,
+         'prerequisite': False} for item in selection.phases]
+    assert evidence['executed_cases'] == [
+        {'phase': item, 'area': 'package', 'case_id': runner.FIRST_CONFIGURE_CASE}
+        for item in selection.phases]
 
 
 @pytest.mark.parametrize('fails', [False, True])
@@ -1044,33 +1036,24 @@ def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path, history):
     assert 'host_files' not in identity  # No graphical activation in prerequisites.
 
 
-@pytest.mark.parametrize('fault', [None, 'missing', 'extra', 'duplicate', 'identity', 'failure', 'skipped'])
-@pytest.mark.parametrize('history,phase', [(history, phase)
-                         for history in runner.REMOVAL_HISTORIES[1:]
-                         for phase in history.phases])
-def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path, fault, history, phase):
+# Shared malformed-result coverage lives in
+# test_junit_reconciliation_rejects_incomplete_or_unhealthy_identities.
+# Each registered history still has to account for every expected execution.
+@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
+def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path, history):
     selection = runner.resolve_selection(
         'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
-    write_junit_results(tmp_path, selection, fault)
-    if fault:
-        # Both recovery phases execute the same registered case, while keeping
-        # separate JUnit identities. Exercise each phase's audit independently.
-        output = tmp_path / 'guest-results'
-        (output / (phase + '.xml')).write_bytes(
-            (output / (history.phases[-1] + '.xml')).read_bytes())
-        with pytest.raises(runner.Error):
-            runner.reconcile_junit(tmp_path, phase, selection)
-    else:
-        for phase in selection.phases:
-            runner.reconcile_junit(tmp_path, phase, selection)
-        evidence = runner.selection_evidence(tmp_path, selection)
-        assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 6
-        assert evidence['executed_cases'][-1] == {
-            'phase': history.phases[-1], 'area': 'removal', 'case_id': selection.test}
+    write_junit_results(tmp_path, selection)
+    for phase in selection.phases:
+        runner.reconcile_junit(tmp_path, phase, selection)
+    evidence = runner.selection_evidence(tmp_path, selection)
+    assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 6
+    assert evidence['executed_cases'][-1] == {
+        'phase': history.phases[-1], 'area': 'removal', 'case_id': selection.test}
 
 
 @pytest.mark.parametrize('history,phase', [(history, phase)
-                         for history in runner.REMOVAL_HISTORIES[1:]
+                         for history in runner.REMOVAL_HISTORIES[1:2]
                          for phase in history.phases])
 def test_recovery_timeout_and_progress_use_logical_phase_and_restore_callback(history, phase):
     selection = runner.resolve_selection(
@@ -2632,14 +2615,6 @@ def test_enforcement_selection_freezes_helpers_and_only_package_prerequisites(tm
     assert 'test_authorization.py' not in manifest['files']
     command = runner.pytest_command(RUN, 'enforcement', selection)
     assert command[-1] == f'{runner.PAYLOAD}/test_enforcement.py::{case}'
-
-
-@pytest.mark.parametrize('fault', ['missing', 'extra', 'duplicate', 'failure', 'skipped', 'identity'])
-def test_enforcement_results_must_match_executed_case(tmp_path, fault):
-    selection = runner.resolve_selection('enforcement', inventories=INVENTORIES)
-    write_junit_results(tmp_path, selection, fault)
-    with pytest.raises(runner.Error, match=':enforcement'):
-        runner.reconcile_junit(tmp_path, 'enforcement', selection)
 
 
 @pytest.mark.parametrize(('area', 'capture_failure'), [

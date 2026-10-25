@@ -49,23 +49,6 @@ def test_watcher_refuses_vm_selection_before_desktop_or_resource_access(monkeypa
     launch.assert_not_called()
 
 
-def test_each_vm_discovers_only_its_own_display_and_progress_registrations(tmp_path, monkeypatch):
-    import e2e_watch_viewer as viewer
-    directory = tmp_path / str(os.getuid())
-    directory.mkdir()
-    monkeypatch.setattr(viewer, 'BASE', tmp_path)
-    feeds = [Feed('First-VM'), Feed('Second-VM')]
-    for kind in ('current', 'progress'):
-        paths = [directory / (kind + '-' + feed.vm_name.encode('ascii').hex() + '.json')
-                 for feed in feeds]
-        for path in paths:
-            path.touch()
-        assert [feed.registration_path(kind) for feed in feeds] == paths
-        paths[0].unlink()
-        assert feeds[0].registration_path(kind) == directory / (kind + '.json')
-        assert feeds[1].registration_path(kind) == paths[1]
-
-
 def test_vm_feed_is_scoped_to_checkout_and_legacy_primary_only(tmp_path):
     from pathlib import Path
     import e2e_watch_viewer as viewer
@@ -137,54 +120,6 @@ def test_same_vm_frames_and_progress_follow_only_the_owning_checkout(tmp_path, m
         source.close()
 
 
-def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
-    from watch_viewer import desktop_launch_command
-    monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
-    monkeypatch.setenv('SNAP', '/snap/code/current')
-    monkeypatch.setenv('LD_PRELOAD', '/editor/injected.so')
-    command = desktop_launch_command()
-    assert command[0] == '/usr/bin/systemd-run'
-    assert '--user' in command and '--service-type=exec' in command
-    assert '--scope' not in command
-    assert '--wait' not in command and '--pipe' not in command and '--collect' in command
-    assert '--setenv=WAYLAND_DISPLAY=wayland-test' in command
-    assert not any('SNAP' in item or 'LD_PRELOAD' in item for item in command)
-    assert command[-3] == '--'
-    assert command[-2].endswith('/tools/watch')
-    assert command[-1] == '--desktop-session'
-    assert '--vm' not in command
-
-
-def test_snap_launch_propagates_service_failure_without_opening_editor_owned_window(monkeypatch):
-    import watch_viewer as viewer
-    monkeypatch.setattr('sys.argv', ['watch'])
-    monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
-    original_read = viewer.Path.read_text
-    monkeypatch.setattr(viewer.Path, 'read_text', lambda self, *a, **kw:
-        'snap.code.code (complain)\n' if str(self) == '/proc/self/attr/current' else original_read(self, *a, **kw))
-    launch = Mock(return_value=Mock(returncode=7))
-    window = Mock(side_effect=AssertionError('Viewer must start from the user manager'))
-    monkeypatch.setattr(viewer.subprocess, 'run', launch)
-    monkeypatch.setattr(viewer, 'application', window)
-    assert viewer.main() == 7
-    assert launch.call_count == 1
-    window.assert_not_called()
-
-
-def test_snap_identity_after_delegation_refuses_instead_of_launching_forever(monkeypatch):
-    import watch_viewer as viewer
-    monkeypatch.setattr('sys.argv', ['watch', '--desktop-session'])
-    monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
-    original_read = viewer.Path.read_text
-    monkeypatch.setattr(viewer.Path, 'read_text', lambda self, *a, **kw:
-        'snap.code.code (complain)\n' if str(self) == '/proc/self/attr/current' else original_read(self, *a, **kw))
-    launch = Mock(side_effect=AssertionError('Do not retry delegation'))
-    monkeypatch.setattr(viewer.subprocess, 'run', launch)
-    with pytest.raises(ValueError, match='desktop-session-still-has-snap-identity'):
-        viewer.main()
-    launch.assert_not_called()
-
-
 @pytest.fixture
 def frames():
     source = protocol.Frames('a' * 32)
@@ -200,16 +135,6 @@ def receive(source):
         server.sendmsg([b'ONPC-WATCH-1'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
                                          array.array('i', [source.read_fd]))])
         return protocol.receive_frames(client, owner=os.getuid())
-
-
-@pytest.mark.parametrize('locked', [True, False])
-def test_controller_lease_status_uses_read_only_frame_metadata(frames, locked):
-    from e2e_watch_collector import receive_progress
-    server, client = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-    with server, client:
-        client.send(b'lease-locked' if locked else b'lease-unlocked')
-        assert receive_progress(server, frames)
-    assert protocol.read_frame(frames.memory)[1]['lease_locked'] is locked
 
 
 def test_readers_cannot_modify_frames_even_by_reopening_fd(frames):

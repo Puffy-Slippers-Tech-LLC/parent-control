@@ -107,8 +107,13 @@ def test_generic_password_prompt_cannot_authorize_a_fixture_role(distribution):
         worker.distribution_inputs()
 
 
-@pytest.mark.parametrize('name', [*GDM_RENDERINGS, *PARENT_RENDERINGS])
-@pytest.mark.parametrize('fault', [None, 'tag', 'role', 'threshold', 'region', 'click'])
+# Keep every alias's distinct layout/click contract; shared schema and
+# threshold refusals need only one representative rendering.
+@pytest.mark.parametrize('name,fault', [
+    (name, fault) for name in (*GDM_RENDERINGS, *PARENT_RENDERINGS)
+    for fault in (None, 'region', 'click')
+] + [('onpc-gdm-parent-baseline-installed-account', fault)
+     for fault in ('tag', 'role', 'threshold')])
 def test_fixed_rendering_alias_preserves_identity_layout_and_click_authority(distribution, name, fault):
     dist, _ = distribution
     source = Path(worker.__file__).resolve().parents[1] / 'integration/graphical_smoke/needles'

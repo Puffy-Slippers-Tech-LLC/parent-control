@@ -117,7 +117,10 @@ so their assertions can observe native enforcement through removal and rollback.
 PAM installation histories
 on both targets also provision `command` and retain its mechanical comparison
 file for their post-reboot policy and enforcement checks. Other selections
-retain the default subset. Readiness binds the selected
+retain the default subset, except Fedora's denial-publication removal history,
+which also provisions `trusted-hard-launcher` and retains the authenticated
+`trusted-hard` comparison file for its native enforcement checks.
+Readiness binds the selected
 manifest, VM UUID, actual boot and unique attempt. Missing or incompatible
 selections release no input. Other unmigrated
 envelopes retain their refusal.

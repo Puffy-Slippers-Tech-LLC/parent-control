@@ -99,7 +99,7 @@ def accounts():
 
 @pytest.fixture(scope='module')
 def callers(accounts):
-    """Reuse agentless bus connections; each case still makes fresh calls."""
+    """Reuse synchronous agentless calls; lifecycle/agent cases own their callers."""
     with ExitStack() as stack:
         connections = {}
 
@@ -432,19 +432,20 @@ def test_ineligible_targets_fail_closed(accounts, callers, role, method):
 
 
 @pytest.mark.parametrize('role', ('child1',))
-def test_enabled_child_request_reaches_authentication_without_grant(accounts, role):
+def test_enabled_child_request_reaches_authentication_without_grant(accounts, callers, role):
     target = accounts[role]
-    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
+    manager = callers('parent1')
+    accepted(manager.call('SetParentControl', '(ubu)', (target, True, 60)))
     try:
         before = snapshot_accounts(accounts)
-        result = accepted(call(target, 'RequestOwnAccess', '(uub)',
-                               (accounts['parent1'], 300, False)))
+        result = accepted(callers(role).call('RequestOwnAccess', '(uub)',
+                                            (accounts['parent1'], 300, False)))
         guest.require(result[1] in ('denied', 'cancelled') and result[2] == 0,
                       'authorization:enabled-agentless-request')
         guest.require(accounts_unchanged(accounts, before),
                       'authorization:denied-request-write')
     finally:
-        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
 @pytest.mark.parametrize('target_role', ('child1', 'parent1'))
@@ -467,31 +468,32 @@ def test_icons_match_authoritative_account_properties(accounts, callers, target_
 
 
 @pytest.mark.parametrize('surface', ('child1', 'kiosk'))
-def test_ineligible_selected_approvers_fail_closed(accounts, surface):
+def test_ineligible_selected_approvers_fail_closed(accounts, callers, surface):
     # Vary invalid identity classes across the two entry points. Locked parents
     # keep both routes because they have management rights but cannot approve.
     approvers = (('child1', 'locked', 'noninteractive') if surface == 'child1'
                  else ('kiosk', 'locked', 'system'))
     target = accounts['child1']
-    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
+    manager, caller = callers('parent1'), callers(surface)
+    accepted(manager.call('SetParentControl', '(ubu)', (target, True, 60)))
     try:
         before = snapshot_accounts(accounts)
-        with PersistentCaller(accounts[surface]) as caller:
-            for approver in approvers:
-                caller.send(request_operation(surface, target, accounts[approver]))
-                denied(caller.receive(), 'ineligible-approver:' + approver)
-            guest.require(accounts_unchanged(accounts, before),
-                          'authorization:ineligible-approver-write')
+        for approver in approvers:
+            caller.send(request_operation(surface, target, accounts[approver]))
+            denied(caller.receive(), 'ineligible-approver:' + approver)
+        guest.require(accounts_unchanged(accounts, before),
+                      'authorization:ineligible-approver-write')
     finally:
-        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
-def test_administrator_eligibility_predicates(accounts, record_testsuite_property):
+def test_administrator_eligibility_predicates(accounts, callers, record_testsuite_property):
     """Isolate shell/name exclusions from role, locality, system and lock state."""
     guest.guard()
     interface = 'org.freedesktop.Accounts.User'
     target = accounts['child1']
-    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
+    manager = callers('parent1')
+    accepted(manager.call('SetParentControl', '(ubu)', (target, True, 60)))
     try:
         for predicate in ('noninteractive', 'unsafe-name'):
             name = 'onpc-auth-check-' + predicate
@@ -573,21 +575,19 @@ def test_administrator_eligibility_predicates(accounts, record_testsuite_propert
                        interface, 'SetLocked', 'b', 'false'])
             if predicate == 'noninteractive':
                 require_ready('eligible')
-                guest.require(uid in {row[0] for row in accepted(call(
-                    accounts['parent1'], 'ListApprovers'))[0]}, 'authorization:eligible-control')
+                guest.require(uid in {row[0] for row in accepted(manager.call(
+                    'ListApprovers'))[0]}, 'authorization:eligible-control')
                 guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
                            interface, 'SetShell', 's', '/usr/sbin/nologin'])
             require_ready('excluded')
             before = snapshot_accounts(accounts)
-            offered = {row[0] for row in accepted(call(accounts['parent1'], 'ListApprovers'))[0]}
+            offered = {row[0] for row in accepted(manager.call('ListApprovers'))[0]}
             guest.require(uid not in offered and accounts['parent1'] in offered,
                           'authorization:predicate-discovery')
             for surface in ('child1', 'kiosk'):
-                if surface == 'child1':
-                    reply = call(target, 'RequestOwnAccess', '(uub)', (uid, 300, False))
-                else:
-                    reply = call(accounts['kiosk'], 'RequestAccess', '(uuub)',
-                                 (target, uid, 300, False))
+                caller = callers(surface)
+                caller.send(request_operation(surface, target, uid))
+                reply = caller.receive()
                 record_testsuite_property('onpc.eligibility-denial', json.dumps({
                     'predicate': predicate, 'surface': surface,
                     'access_denied': reply.get('error') == DENIED,
@@ -600,7 +600,7 @@ def test_administrator_eligibility_predicates(accounts, record_testsuite_propert
             guest.require(accounts_unchanged(accounts, before),
                           'authorization:predicate-state-write')
     finally:
-        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
 @pytest.fixture
@@ -647,7 +647,7 @@ def test_remote_accounts_are_excluded(accounts, callers, remote_directory, recor
     guest.require(not approvers.intersection(remote.values()) and accounts['parent1'] in approvers,
                   'authorization:remote-approver-discovery')
     target = accounts['child1']
-    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
+    accepted(manager.call('SetParentControl', '(ubu)', (target, True, 60)))
     try:
         before = snapshot_accounts(accounts)
         attempts = (
@@ -671,17 +671,18 @@ def test_remote_accounts_are_excluded(accounts, callers, remote_directory, recor
         guest.require(accounts_unchanged(accounts, before),
                       'authorization:remote-state-write')
     finally:
-        accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
-def test_management_changes_preserve_other_accounts(accounts):
+def test_management_changes_preserve_other_accounts(accounts, callers):
     before = snapshot_accounts(accounts, (key for key in ROLES if key != 'child1'))
     target = accounts['child1']
-    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 37)))
-    accepted(call(target, 'UpdateRequestPreferences', '(usdbu)',
-                  (target, 'custom', 10.0, True, accounts['parent2'])))
-    accepted(call(accounts['parent1'], 'RevokeOneTimeGrant', '(u)', (target,)))
-    accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
+    manager = callers('parent1')
+    accepted(manager.call('SetParentControl', '(ubu)', (target, True, 37)))
+    accepted(callers('child1').call('UpdateRequestPreferences', '(usdbu)',
+                                  (target, 'custom', 10.0, True, accounts['parent2'])))
+    accepted(manager.call('RevokeOneTimeGrant', '(u)', (target,)))
+    accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
     guest.require(accounts_unchanged(accounts, before),
                   'authorization:management-cross-account-write')
 

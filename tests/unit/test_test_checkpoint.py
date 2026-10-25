@@ -602,8 +602,11 @@ def test_system_rpm_posterase_resume_replays_all_predecessors(pending_phase):
     completed = {item.phase + '::' + item.case_id for item in selection.executions
                  if item.phase != pending_phase}
     resumed = system_runner.resume_selection(selection, completed)
-    assert resumed.phases == focused.phases
-    assert resumed.executions == focused.executions
+    # Replay every required predecessor, stopping at the unfinished phase.
+    expected_phases = focused.phases[:focused.phases.index(pending_phase) + 1]
+    assert resumed.phases == expected_phases
+    assert resumed.executions == tuple(item for item in focused.executions
+                                      if item.phase in expected_phases)
 
 
 @pytest.mark.parametrize('resume', [False, True])

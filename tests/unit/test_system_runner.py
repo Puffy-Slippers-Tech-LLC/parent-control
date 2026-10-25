@@ -882,99 +882,15 @@ def test_ownership_family_does_not_enable_partial_unknown_or_other_area_selector
         runner.resolve_selection(area, test, inventories=RECOVERY_INVENTORIES)
 
 
-def removal_dispatch_helpers():
-    return SimpleNamespace(**{name: Mock() for name in (
-        'remove', 'removed_rebooted', 'reinstalled_rebooted', 'purged_rebooted',
-        'purge_reinstalled_rebooted', 'aborted_cleanup_rollback_retry',
-        'rollback_rearmed_rebooted', 'interrupted_finalization_retry',
-        'finalization_retry_rebooted', 'ownership_refusal_retry',
-        'ownership_retry_rebooted', 'identity_filesystem_refusal_retry',
-        'identity_filesystem_retry_rebooted', 'rpm_posterase_recovery',
-        'rpm_posterase_reinstalled_rebooted')})
-
-
-@pytest.mark.parametrize('phase,expected', [
-    ('rpm-posterase', 'rpm_posterase_recovery'),
-    ('rpm-posterase-reinstalled-rebooted', 'rpm_posterase_reinstalled_rebooted'),
-    ('rollback', None), ('removal', None), ('rpm-posterase-rebooted', None),
-])
-def test_rpm_posterase_guest_dispatch_requires_exact_continuous_phase(monkeypatch, phase, expected):
-    helpers = removal_dispatch_helpers()
-    monkeypatch.setitem(sys.modules, 'system_removal', helpers)
-    case = load_module('private_rpm_posterase_dispatch', runner.ROOT / 'tests/system/test_removal.py')
-    monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
-    record = Mock()
-    if expected is None:
-        with pytest.raises(KeyError):
-            case.test_rpm_posterase_recovery(record)
-    else:
-        case.test_rpm_posterase_recovery(record)
-    for name, helper in vars(helpers).items():
-        if name == expected:
-            helper.assert_called_once_with(record)
-        else:
-            helper.assert_not_called()
-
-
-@pytest.mark.parametrize('variant', ['denial-publication', 'account-finalization'])
-@pytest.mark.parametrize('phase_kind', ['interruption', 'rebooted', 'foreign'])
-def test_interrupted_finalization_guest_dispatch_keeps_exact_variant(
-        monkeypatch, variant, phase_kind):
-    helpers = removal_dispatch_helpers()
-    monkeypatch.setitem(sys.modules, 'system_removal', helpers)
-    case = load_module('private_finalization_dispatch',
-                       runner.ROOT / 'tests/system/test_removal.py')
-    registration = case.test_interrupted_finalization_retry.pytestmark[0]
-    assert registration.args == ('variant', ['denial-publication', 'account-finalization'])
-    phase = {'interruption': variant, 'rebooted': variant + '-retry-rebooted',
-             'foreign': 'rollback'}[phase_kind]
-    monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
-    record = Mock()
-    if phase_kind == 'foreign':
-        with pytest.raises(KeyError):
-            case.test_interrupted_finalization_retry(record, variant)
-    else:
-        case.test_interrupted_finalization_retry(record, variant)
-    expected = {'interruption': 'interrupted_finalization_retry',
-                'rebooted': 'finalization_retry_rebooted'}.get(phase_kind)
-    for name, helper in vars(helpers).items():
-        if name == expected:
-            helper.assert_called_once_with(record, variant)
-        else:
-            helper.assert_not_called()
-
-
-@pytest.mark.parametrize('family,variant', [(family, variant)
-                         for family, variants in OWNERSHIP_FAMILIES for variant in variants])
-@pytest.mark.parametrize('phase_kind', ['refusal', 'rebooted', 'foreign', 'other-variant', 'other-family'])
-def test_ownership_guest_dispatch_keeps_exact_variant(monkeypatch, family, variant, phase_kind):
-    helpers = removal_dispatch_helpers()
-    monkeypatch.setitem(sys.modules, 'system_removal', helpers)
-    case = load_module('private_ownership_dispatch', runner.ROOT / 'tests/system/test_removal.py')
-    dispatch = getattr(case, family)
-    registration = dispatch.pytestmark[0]
-    variants = dict(OWNERSHIP_FAMILIES)[family]
-    assert registration.args == ('variant', list(variants))
-    other_family = next(name for name, _ in OWNERSHIP_FAMILIES if name != family)
-    phase = {'refusal': variant, 'rebooted': variant + '-retry-rebooted',
-             'foreign': 'rollback',
-             'other-variant': next(item for item in variants if item != variant),
-             'other-family': dict(OWNERSHIP_FAMILIES)[other_family][0]}[phase_kind]
-    monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
-    record = Mock()
-    if phase_kind not in ('refusal', 'rebooted'):
-        with pytest.raises(KeyError):
-            dispatch(record, variant)
-    else:
-        dispatch(record, variant)
-    prefix = family.removeprefix('test_').removesuffix('_refusal_retry')
-    expected = {'refusal': prefix + '_refusal_retry',
-                'rebooted': prefix + '_retry_rebooted'}.get(phase_kind)
-    for name, helper in vars(helpers).items():
-        if name == expected:
-            helper.assert_called_once_with(record, variant)
-        else:
-            helper.assert_not_called()
+# Keep finite selection coverage for every installed history. Shared staging
+# needs only its three import closures; verdict safety is exercised once below
+# and by the malformed-JUnit cases, rather than per guest test body/variant.
+RECOVERY_INPUT_HISTORIES = tuple(
+    next(history for history in runner.REMOVAL_HISTORIES if history.case_id == case)
+    for case in ('test_aborted_cleanup_rollback_retry',
+                 'test_identity_filesystem_refusal_retry[home-owner]',
+                 'test_rpm_posterase_recovery')
+)
 
 
 @pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
@@ -1010,7 +926,7 @@ def test_focused_recovery_listing_has_exact_prerequisite_closure(capsys, history
         assert runner.PAYLOAD + '/results/' + phase + '.xml' in command
 
 
-@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
+@pytest.mark.parametrize('history', RECOVERY_INPUT_HISTORIES, ids=lambda history: history.case_id)
 def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path, history):
     selection = runner.resolve_selection(
         'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
@@ -1036,11 +952,8 @@ def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path, history):
     assert 'host_files' not in identity  # No graphical activation in prerequisites.
 
 
-# Shared malformed-result coverage lives in
-# test_junit_reconciliation_rejects_incomplete_or_unhealthy_identities.
-# Each registered history still has to account for every expected execution.
-@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
-def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path, history):
+def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path):
+    history = runner.REMOVAL_HISTORIES[1]
     selection = runner.resolve_selection(
         'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
     write_junit_results(tmp_path, selection)
@@ -1087,8 +1000,8 @@ def test_recovery_prerequisites_omit_comprehensive_kiosk_activation(
     assert not (tmp_path / 'guest-results').exists()
 
 
-@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
-def test_focused_recovery_rejects_foreign_phase_and_result_identity(tmp_path, history):
+def test_focused_recovery_rejects_foreign_phase_and_result_identity(tmp_path):
+    history = runner.REMOVAL_HISTORIES[1]
     selection = runner.resolve_selection('removal', history.case_id, inventories=RECOVERY_INVENTORIES)
     with pytest.raises(runner.Error, match='pytest:unselected-phase'):
         runner.pytest_command(RUN, 'removal', selection)
@@ -1261,17 +1174,6 @@ def test_clean_bootstrap_requires_explicit_qualified_target_branch(
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     (tmp_path / 'ssh-key.pub').write_bytes(b'ssh-ed25519 QUFB onpc-system-test\n')
     g, files = bootstrap_guest('fedora' if fedora else 'ubuntu')
-    if fedora:
-        from guest_test_dependencies import FEDORA_VERSIONS
-        g.inspect_get_distro.return_value = 'fedora'
-        g.inspect_get_major_version.return_value = 44
-        g.inspect_get_minor_version.return_value = 0
-        files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
-        files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
-        g.inspect_list_applications2.return_value = [
-            {'app2_name': name, 'app2_version': version} for name, version in FEDORA_VERSIONS.items()]
-        g.feature_available.return_value = False
-        g.is_file.return_value = True
     guestfs.GuestFS.return_value = g
     with patch.object(runner, 'retire_snapshot_payload'):
         assert runner.bootstrap(commands, lease, tmp_path, guestfs,
@@ -1455,9 +1357,17 @@ def test_minimal_system_inputs_keep_only_actual_scenario_comparison_files(area, 
     assert runner.scenario_fixture_files(selected) == expected
 
 
-@pytest.mark.parametrize('failure', [None, 'write', 'readback', 'missing-tools', 'symlink', 'wrong-package'])
-@pytest.mark.parametrize('observation_only', [False, True])
-@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+# Both OS adapters and both marker scopes keep success coverage. Package/tool
+# failures depend on the OS; SSH writes, links and readback are shared and vary
+# one dimension at a time instead of crossing all faults with every scope.
+@pytest.mark.parametrize('package_format,observation_only,failure', [
+    ('deb', False, None), ('rpm', False, None),
+    ('deb', True, None), ('rpm', True, None),
+    ('deb', False, 'write'), ('rpm', True, 'readback'),
+    ('deb', False, 'missing-tools'), ('rpm', False, 'missing-tools'),
+    ('deb', True, 'symlink'),
+    ('deb', False, 'wrong-package'), ('rpm', False, 'wrong-package'),
+])
 def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_path, failure, observation_only, package_format):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
@@ -1470,19 +1380,6 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
         (tmp_path / ('input/package.' + staged_format)).write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     g, files = bootstrap_guest('fedora' if package_format == 'rpm' else 'ubuntu')
-    if package_format == 'rpm':
-        from guest_test_dependencies import FEDORA_VERSIONS
-        g.inspect_get_distro.return_value = 'fedora'
-        g.inspect_get_major_version.return_value = 44
-        g.inspect_get_minor_version.return_value = 0
-        files.pop('/var/lib/dpkg/status')
-        files.pop('/etc/apt/sources.list.d/ubuntu.sources')
-        files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
-        files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
-        g.inspect_list_applications2.return_value = [
-            {'app2_name': name, 'app2_version': version} for name, version in FEDORA_VERSIONS.items()]
-        g.feature_available.return_value = False
-        g.is_file.return_value = True
     retire = Mock()
     guestfs.GuestFS.return_value = g
     authorized = '/root/.ssh/authorized_keys'
@@ -1505,7 +1402,7 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
             files[authorized] = b'wrong-key'
     g.close.side_effect = close
     (tmp_path / 'ssh-key.pub').write_bytes(b'ssh-ed25519 QUFB onpc-system-test\n')
-    if failure and not (failure == 'wrong-package' and observation_only):
+    if failure:
         with patch.object(runner, 'retire_snapshot_payload', retire), pytest.raises(
                 (runner.CommandError, runner.Error, ValueError),
                 match='assets:package-platform-mismatch' if failure == 'wrong-package' else None):

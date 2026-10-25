@@ -89,8 +89,10 @@ def accounts():
         print(f'onpc-system: stage=usage-boundary role={role} '
               f'exit={guest.commands.last_returncode}', flush=True)
     # Empty policies exercise authorization without selecting application processes.
-    for role in ('child1', 'child2', 'unrelated'):
-        accepted(call(values['parent1'], 'SetParentControl', '(ubu)', (values[role], False, 60)))
+    for reply in batch(values['parent1'], [
+            {'kind': 'call', 'method': 'SetParentControl', 'signature': '(ubu)',
+             'args': (values[role], False, 60)} for role in ('child1', 'child2', 'unrelated')]):
+        accepted(reply)
     print('onpc-system: stage=authorization-accounts outcome=ready')
     return values
 
@@ -204,17 +206,18 @@ def test_cross_child_targets_fail_closed(accounts, callers, role, method):
 
 @pytest.mark.parametrize('role', ('child1', 'parent1', 'kiosk'))
 def test_private_records_and_log_components(accounts, role):
-    replies = batch(accounts[role], [
+    private_operations = [
         {'kind': kind, 'target': accounts[target]}
-        for target in ('child1', 'child2') for kind in ('private-read', 'private-write')])
-    guest.require(replies == [{'readable': False}, {'writable': False}] * 2,
-                  'authorization:private-record')
+        for target in ('child1', 'child2') for kind in ('private-read', 'private-write')]
     own = 'parent' if role in ('parent1', 'parent2', 'locked') else 'kiosk' if role == 'kiosk' else 'child'
-    replies = batch(accounts[role], [
+    log_operations = [
         {'kind': 'call', 'method': 'LogEvent', 'signature': '(sss)',
          'args': (component, 'INFO', LOG_EVENT)}
-        for component in ('parent', 'child', 'kiosk', 'broker') if component != own])
-    for reply in replies:
+        for component in ('parent', 'child', 'kiosk', 'broker') if component != own]
+    replies = batch(accounts[role], private_operations + log_operations)
+    guest.require(replies[:len(private_operations)] == [{'readable': False}, {'writable': False}] * 2,
+                  'authorization:private-record')
+    for reply in replies[len(private_operations):]:
         denied(reply, 'log-impersonation')
 
 

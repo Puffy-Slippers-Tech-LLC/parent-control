@@ -14,7 +14,7 @@ import threading
 import time
 
 import system_guest as guest
-from system_caller import drop_identity
+from system_caller import PersistentCaller, drop_identity
 from system_assertions import call as broker_call, accepted
 
 TARGET = Path('/opt/onpc-test-fixtures-command/native-fixture')
@@ -993,6 +993,18 @@ def native_probe_storage_lifecycle(record):
 
 def native_policy_transition(accounts, record, variant='command'):
     """Representative hard/soft transitions, with UID isolation throughout."""
+    # One real caller owns this continuous history, including restoration. Keep
+    # every observation fresh while avoiding a new interpreter/bus connection
+    # for each policy write and readback. The shared caller owns its exact child.
+    with PersistentCaller(accounts['parent']) as caller:
+        _native_policy_transition(accounts, record, variant, caller)
+
+
+def _native_policy_transition(accounts, record, variant, caller):
+    def request(method, signature='()', args=()):
+        return accepted(caller.call(method, signature, args),
+                        category='enforcement:broker-call-failed')
+
     guest.guard()
     target, desktop, desktop_id = native_paths(variant)
     guest.require(variant in ('command', 'whitespace', 'pattern', 'retention'),
@@ -1000,16 +1012,16 @@ def native_policy_transition(accounts, record, variant='command'):
     record_execution_backend(record)
     prefix = f'onpc.native.{variant}'
     record(f'{prefix}.fixture.sha256', guest.sha(target))
-    parent, child, other = (accounts[role] for role in ('parent', 'child', 'other'))
-    applications = call(parent, 'ListApplications', '(u)', (child,))[0]
+    child, other = (accounts[role] for role in ('child', 'other'))
+    applications = request('ListApplications', '(u)', (child,))[0]
     matches = [row for row in applications if row[0] == desktop_id]
     guest.require(len(matches) == 1 and matches[0][4] == [str(target)],
                   'enforcement:catalog-target')
-    original = call(parent, 'GetPreferences', '(u)', (child,))[0]
+    original = request('GetPreferences', '(u)', (child,))[0]
     preferences = json.loads(original)
     guest.require(not preferences['apps'] and not preferences['parent_control_enabled'],
                   'enforcement:requires-clean-policy')
-    other_before = call(parent, 'GetPreferences', '(u)', (other,))[0]
+    other_before = request('GetPreferences', '(u)', (other,))[0]
     original_limit = preferences['daily_time_limit_minutes']
     screen_time_attempted = False
     future_created = False
@@ -1038,8 +1050,8 @@ def native_policy_transition(accounts, record, variant='command'):
                 # SetPreferences deliberately cannot toggle screen-time control.
                 # Mark before calling: even a failed reply can follow a write.
                 screen_time_attempted = True
-                call(parent, 'SetParentControl', '(ubu)', (child, True, original_limit))
-                toggled = json.loads(call(parent, 'GetPreferences', '(u)', (child,))[0])
+                request('SetParentControl', '(ubu)', (child, True, original_limit))
+                toggled = json.loads(request('GetPreferences', '(u)', (child,))[0])
                 guest.require(toggled['parent_control_enabled'] is True and
                               toggled['daily_time_limit_minutes'] == original_limit and
                               toggled['apps'] == preferences['apps'],
@@ -1050,8 +1062,8 @@ def native_policy_transition(accounts, record, variant='command'):
                 'state': app_state, 'targets': [str(target)],
                 'patterns': [str(target.with_name('Versioned-*.AppImage'))] if variant == 'pattern' else [],
                 'user_saved_match_rule': variant == 'pattern'}} if blocked else {})
-            call(parent, 'SetPreferences', '(us)', (child, json.dumps(preferences)))
-            saved = json.loads(call(parent, 'GetPreferences', '(u)', (child,))[0])
+            request('SetPreferences', '(us)', (child, json.dumps(preferences)))
+            saved = json.loads(request('GetPreferences', '(u)', (child,))[0])
             guest.require(saved['parent_control_enabled'] is enabled and
                           saved['daily_time_limit_minutes'] == original_limit and
                           saved['apps'] == preferences['apps'],
@@ -1059,16 +1071,16 @@ def native_policy_transition(accounts, record, variant='command'):
             rules_before = record_rules(stage, child, blocked, record, variant=variant)
             if variant == 'retention' and stage == 'hard':
                 remove_retention_launcher(launcher_identity)
-                applications = call(parent, 'ListApplications', '(u)', (child,))[0]
+                applications = request('ListApplications', '(u)', (child,))[0]
                 guest.require(all(row[0] != desktop_id for row in applications),
                               'enforcement:launcher-still-listed')
                 record(f'{prefix}.missing.catalog', 'absent')
-                retained = json.loads(call(parent, 'GetPreferences', '(u)', (child,))[0])
+                retained = json.loads(request('GetPreferences', '(u)', (child,))[0])
                 guest.require(retained == saved, 'enforcement:missing-policy-lost')
                 # Exercise the public save's catalog reconciliation, not just
                 # persistence before the next write. The executable stays put.
-                call(parent, 'SetPreferences', '(us)', (child, json.dumps(retained)))
-                retained = json.loads(call(parent, 'GetPreferences', '(u)', (child,))[0])
+                request('SetPreferences', '(us)', (child, json.dumps(retained)))
+                retained = json.loads(request('GetPreferences', '(u)', (child,))[0])
                 guest.require(retained == saved, 'enforcement:missing-policy-lost')
                 record_rules('missing', child, True, record, variant=variant)
                 record(f'{prefix}.missing.saved-policy', 'retained')
@@ -1101,7 +1113,7 @@ def native_policy_transition(accounts, record, variant='command'):
                     rules_after = record_rules('hard-future', child, True, record, variant=variant)
                     guest.require(rules_after == rules_before, 'enforcement:future-rules-changed')
                     record(f'{prefix}.future.unchanged-rules', 'passed')
-            guest.require(call(parent, 'GetPreferences', '(u)', (other,))[0] == other_before,
+            guest.require(request('GetPreferences', '(u)', (other,))[0] == other_before,
                           'enforcement:other-preferences-changed')
             print(f'onpc-system: stage=native-{variant}-{stage} outcome=passed', flush=True)
     finally:
@@ -1111,16 +1123,16 @@ def native_policy_transition(accounts, record, variant='command'):
         restoration_error = None
         if screen_time_attempted:
             try:
-                call(parent, 'SetParentControl', '(ubu)', (child, False, original_limit))
+                request('SetParentControl', '(ubu)', (child, False, original_limit))
             except Exception as error:
                 restoration_error = error
         # Restore app choices even if disabling screen time failed. The full
         # preference readback must still reject a retained enabled state.
         try:
-            call(parent, 'SetPreferences', '(us)', (child, original))
-            guest.require(call(parent, 'GetPreferences', '(u)', (child,))[0] == original,
+            request('SetPreferences', '(us)', (child, original))
+            guest.require(request('GetPreferences', '(u)', (child,))[0] == original,
                           'enforcement:policy-restore-mismatch')
-            guest.require(call(parent, 'GetPreferences', '(u)', (other,))[0] == other_before,
+            guest.require(request('GetPreferences', '(u)', (other,))[0] == other_before,
                           'enforcement:other-preferences-changed')
         except Exception as error:
             restoration_error = restoration_error or error

@@ -23,7 +23,7 @@ def legacy_lease(**options):
 
 def bootstrap_guest(os_id='ubuntu'):
     """Offline guest file behavior shared by bootstrap and controller tests."""
-    from guest_test_dependencies import VERSIONS
+    from guest_test_dependencies import FEDORA_VERSIONS, VERSIONS
     files = {
         '/var/lib/dpkg/status': '\n\n'.join(
             f'Package: {name}\nVersion: {version}\nStatus: install ok installed\n'
@@ -45,9 +45,9 @@ def bootstrap_guest(os_id='ubuntu'):
                        if stat.S_ISDIR(info['st_mode']))
     g = Mock()
     g.inspect_os.return_value = ['/dev/sda2']
-    g.inspect_get_distro.return_value = 'ubuntu'
-    g.inspect_get_major_version.return_value = 26
-    g.inspect_get_minor_version.return_value = 4
+    g.inspect_get_distro.return_value = os_id
+    g.inspect_get_major_version.return_value = 44 if os_id == 'fedora' else 26
+    g.inspect_get_minor_version.return_value = 0 if os_id == 'fedora' else 4
     g.inspect_get_mountpoints.return_value = {'/': '/dev/sda2'}
     g.read_file.side_effect = files.__getitem__
     g.write.side_effect = files.__setitem__
@@ -62,6 +62,14 @@ def bootstrap_guest(os_id='ubuntu'):
     })
     g.filesize.side_effect = lambda path: len(files[path])
     if os_id == 'fedora':
+        files.pop('/var/lib/dpkg/status')
+        files.pop('/etc/apt/sources.list.d/ubuntu.sources')
+        files['/etc/os-release'] = files['/usr/lib/os-release']
+        g.inspect_list_applications2.return_value = [
+            {'app2_name': name, 'app2_version': version}
+            for name, version in FEDORA_VERSIONS.items()]
+        g.feature_available.return_value = False
+        g.is_file.return_value = True
         language, _, _ = language_guest('fedora')
         g.command.side_effect = lambda argv: ('' if argv[0] == '/usr/sbin/setfiles' else
                                               language.command.side_effect(argv))

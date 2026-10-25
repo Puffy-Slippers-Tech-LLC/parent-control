@@ -554,15 +554,6 @@ def test_missing_language_stops_real_bootstrap_before_any_guest_write(tmp_path, 
     import system_runner
     from tests.support.vm_runner import bootstrap_guest, legacy_lease
     g, files = bootstrap_guest(os_id)
-    if os_id == 'fedora':
-        import guest_test_dependencies
-        g.inspect_get_distro.return_value = 'fedora'
-        g.inspect_get_major_version.return_value = 44
-        g.inspect_get_minor_version.return_value = 0
-        files['/etc/os-release'] = files['/usr/lib/os-release']
-        g.inspect_list_applications2.return_value = [
-            {'app2_name': name, 'app2_version': version}
-            for name, version in guest_test_dependencies.FEDORA_VERSIONS.items()]
     files.pop(assets.LOCALE_PATH)
     @contextmanager
     def mounted(*args, **kwargs):

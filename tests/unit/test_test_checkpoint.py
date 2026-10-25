@@ -570,9 +570,12 @@ def test_system_recovery_resume_replays_whole_unfinished_history_only(pending_ph
     completed = {item.phase + '::' + item.case_id for item in selection.executions
                  if item.phase != pending_phase}
     resumed = system_runner.resume_selection(selection, completed)
-    assert resumed.phases == system_runner.ROLLBACK_PHASES
+    # Replay every predecessor, but stop at the unfinished phase.
+    expected_phases = system_runner.ROLLBACK_PHASES[
+        :system_runner.ROLLBACK_PHASES.index(pending_phase) + 1]
+    assert resumed.phases == expected_phases
     assert resumed.executions == tuple(item for item in selection.executions
-                                      if item.phase in system_runner.ROLLBACK_PHASES)
+                                      if item.phase in expected_phases)
     # Completed destructive histories are not replayed for an independent area.
     completed = {item.phase + '::' + item.case_id for item in selection.executions
                  if item.phase != 'authorization'}

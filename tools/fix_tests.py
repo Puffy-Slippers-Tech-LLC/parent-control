@@ -888,6 +888,21 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             checkpoint.state['pending'] = category
             checkpoint.save()
         def run_requested(requested, options, description, *, vm=None):
+            display_cases = None
+            completed_categories = [kind for kind in inventory if checkpoint is not None and checkpoint.complete(kind)]
+            if parent is not None and requested in ('system', 'e2e') and (focused or probe):
+                from fix_tests_queue import case_inventory, case_totals, publish_case_progress
+                from test_checkpoint import Checkpoint
+                from vm_selection import selected
+                original = inventory[requested]['args']
+                display_cases = case_inventory(root, requested, original)
+                if display_cases:
+                    totals = case_totals(root, inventory, requested, display_cases)
+                    saved = Checkpoint(root, [(requested, original)], resume=True, binding=selected().name)
+                    publish_case_progress(root, run, requested, display_cases, retry_case,
+                                          saved.passed(requested) - {retry_case},
+                                          totals=totals, round_number=round_number,
+                                          completed_categories=completed_categories)
             while True:
                 status = execute('test', requested, options, vm=vm)
                 # run-tests consumes an active/unread predecessor before honoring
@@ -895,6 +910,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 with (run / 'last-test.log').open('rb') as stream:
                     attached = b'Attached to run-tests session:' in stream.read(8192)
                 if not attached:
+                    if display_cases:
+                        saved = Checkpoint(root, [(requested, original)], resume=True, binding=selected().name)
+                        publish_case_progress(root, run, requested, display_cases, retry_case,
+                                              saved.passed(requested),
+                                              totals=totals, round_number=round_number,
+                                              completed_categories=completed_categories)
                     return status
                 print(f'fix-tests: previous run-tests output delivered; starting {description}.',
                       flush=True)
@@ -937,7 +958,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if parent is not None and category in ('system', 'e2e') and not retry_case:
                 from fix_tests_queue import run_cases
                 status = run_cases(root, category, options, lambda case_options:
-                    run_requested(category, case_options, description, vm=verification_vm), repair_gate)
+                    run_requested(category, case_options, description, vm=verification_vm), repair_gate,
+                    inventory=inventory, round_number=round_number,
+                    completed_categories=[kind for kind in inventory
+                                          if checkpoint is not None and checkpoint.complete(kind)])
                 generation = repair_gate.last_generation
             else:
                 with repair_gate.source():

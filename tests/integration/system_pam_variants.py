@@ -13,7 +13,7 @@ import stat
 
 import system_guest as guest
 from system_assertions import accepted, call
-from system_enforcement import DESKTOP_ID, TARGET, observe_launch, provision_native
+from system_enforcement import native_paths, observe_launch, provision_native
 from system_first_configure import boot, ordinary_controls, verify_visibility
 from system_kiosk_accounts import fingerprint, ordinary_state, owned_bytes, verify_ordinary
 from system_kiosk_admission import (PAM_AUTH_ERR, empty_authentication_probe,
@@ -221,18 +221,25 @@ def configuration_output():
 
 
 def seed_policy(state):
-    accounts = provision_native()
+    # Fedora's existing policy rejects the untrusted mechanical fixture for
+    # every user. Use the independently verified trusted witness, as removal
+    # histories do, so the allow control measures product policy isolation.
+    variant = 'trusted-hard' if fedora() else 'command'
+    accounts = provision_native(variant)
+    target, _, desktop_id = native_paths(variant)
+    for role in ('child', 'other'):
+        observe_launch(accounts[role], True, variant=variant)
     parent, child = accounts['parent'], accounts['child']
     accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 60)))
     preferences = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
-    preferences['apps'] = {DESKTOP_ID: {'state': 'permanent', 'targets': [str(TARGET)],
+    preferences['apps'] = {desktop_id: {'state': 'permanent', 'targets': [str(target)],
                                       'patterns': [], 'user_saved_match_rule': False}}
     preferences['request'].update(last_selected_duration='custom', last_custom_minutes=23)
     accepted(call(parent, 'SetPreferences', '(us)', (child, json.dumps(preferences))))
     # No temporary grant is created: full preservation includes its zero value.
-    observe_launch(child, False)
-    observe_launch(accounts['other'], True)
-    state.update(accounts=accounts, policy=policy_state(accounts),
+    observe_launch(child, False, variant=variant)
+    observe_launch(accounts['other'], True, variant=variant)
+    state.update(accounts=accounts, native_variant=variant, policy=policy_state(accounts),
                  preferences=removal.preference_digest(child))
 
 
@@ -397,12 +404,12 @@ def remove(record, variant):
     effective_stack(record, 'configured-reboot', state)
     verify_session_composition(record)
     empty_authentication_probe(0, 'pam-variant.configured-reboot.empty-authentication', record)
-    observe_launch(state['accounts']['child'], False)
-    observe_launch(state['accounts']['other'], True)
+    observe_launch(state['accounts']['child'], False, variant=state['native_variant'])
+    observe_launch(state['accounts']['other'], True, variant=state['native_variant'])
     accounts = state['accounts']
     kiosk = pwd.getpwnam(removal.PRODUCT)
     guest.retain_identity_for_redaction(kiosk.pw_uid)
-    removed = {'accounts': accounts,
+    removed = {'accounts': accounts, 'native_variant': state['native_variant'],
                'other': removal.account_digest(accounts['other']),
                'other_policy': removal.account_digest(accounts['other'], include_preferences=False),
                'other_extensions': removal.extension_lists(accounts['other']),

@@ -42,7 +42,7 @@ def progress_text(meta, *, now_ns=None):
         minutes, seconds = divmod(max(0, (now - started) // 1_000_000_000), 60)
         elapsed = f'{minutes}m {seconds}s' if minutes else f'{seconds}s'
         operation += f' - ({elapsed})'
-    return (f"[{progress['current']}/{progress['total']}] [{progress['case_id']}]: {progress['title']}" + suffix,
+    return (f"[{progress['current']}/{progress['total']}][{progress['case_id']}]: {progress['title']}" + suffix,
             progress['step'], operation)
 
 
@@ -145,6 +145,8 @@ class Feed:
         from vm_selection import selected
         self.vm_name = selected().name if vm_name is None else vm_name
         self.root = root
+        from watch_output import JsonReader
+        self.case_reader = JsonReader()
         self.memory = None
         self.sequence = 0
         self.next_connect = 0
@@ -324,9 +326,13 @@ class Feed:
                 return None
             age = time.monotonic_ns() - value['updated_ns']
             require(0 <= age < 3_000_000_000, 'progress-expired')
-            return json.loads(progress_packet(value['progress']))
+            progress = json.loads(progress_packet(value['progress']))
         except (OSError, ValueError, KeyError, TypeError):
-            return None
+            progress = None
+        if self.root is not None:
+            from launcher_progress import watch_case_progress
+            progress = watch_case_progress(self.root, self.vm_name, progress, reader=self.case_reader)
+        return progress
 
     def poll(self, *, pixels=True):
         now = time.monotonic()

@@ -1,6 +1,104 @@
 """Durable controller steps, separate from frequently changing child output."""
 
+import hashlib
 import json
+import re
+import time
+
+
+def case_progress(run, *, reader=None):
+    """Read spectator counts only; checkpoints remain the execution authority."""
+    from watch_output import read_json
+    value = (reader.read(run / 'case-progress.json', 8192) if reader is not None else
+             read_json(run / 'case-progress.json', 8192))
+    if (not isinstance(value, dict) or value.get('category') not in ('system', 'e2e')
+            or any(type(value.get(key)) is not int for key in
+                   ('completed', 'total', 'index', 'round', 'vm_started_ns', 'started_ns', 'case_started_ns'))
+            or not 0 <= value['completed'] <= value['total'] <= 100000
+            or not 1 <= value['index'] <= value['total']
+            or value['round'] < 1
+            or not 0 <= value['vm_started_ns'] <= value['started_ns'] <= value['case_started_ns'] <= time.monotonic_ns()
+            or not isinstance(value.get('case_id'), str)
+            or not re.fullmatch(r'[1-9][0-9]{0,9}', value['case_id'])
+            or not isinstance(value.get('title'), str) or len(value['title']) > 384
+            or not value['title'].isprintable()):
+        raise ValueError('invalid category display progress')
+    counts = value.get('categories')
+    if (not isinstance(counts, dict) or not counts or set(counts) - {'system', 'e2e'}
+            or any(not isinstance(item, dict) or set(item) != {'completed', 'total'}
+                   or type(item['completed']) is not int or type(item['total']) is not int
+                   or not 0 <= item['completed'] <= item['total'] <= 100000
+                   for item in counts.values())
+            or counts.get(value['category']) != dict(completed=value['completed'], total=value['total'])):
+        raise ValueError('invalid overall display progress')
+    return value
+
+
+def case_frame(steps, lines, current):
+    """Show VM-wide overall progress and category-specific selected-case counters."""
+    from regression import Category, Dashboard, CATEGORY_NAMES
+    if not steps or f'Category: {current["category"]} (' not in steps[-1]['lines'][0]:
+        return lines
+    done, total = current['completed'], current['total']
+    now = time.monotonic()
+    item = Category(CATEGORY_NAMES[current['category']], total, done=done,
+                    started=current['started_ns'] / 1e9)
+    overall_done = sum(count['completed'] for count in current['categories'].values())
+    overall_total = sum(count['total'] for count in current['categories'].values())
+    elapsed = (now - current['vm_started_ns'] / 1e9) / 60
+    overall = (f'Overall - {int(100 * overall_done / overall_total)}% '
+               f'({overall_done}/{overall_total}) - {elapsed:.1f}m')
+    summary = steps[-1]['lines'][0]
+    steps[-1]['lines'][0] = (re.sub(r'Overall - [^|]+', overall + ' ', summary).rstrip()
+                             if ' | Overall - ' in summary else summary + ' | ' + overall)
+    result = []
+    for line in lines:
+        plain = Dashboard.ANSI.sub('', line)
+        if plain.startswith('Overall - '):
+            line = overall
+        else:
+            prefix, marker, row = plain.partition('[')
+            label, separator, tail = row.partition('] ')
+            if marker and separator and tail.startswith(item.name):
+                item.state = ('Failed' if label == '✗' else 'Passed' if done == total else
+                              'Pending' if label in ('Pending', 'Waiting') else 'Running')
+                item.wait_reason = ''
+                if label == 'Waiting':
+                    item.wait_reason = tail[len(item.name):].removeprefix(': ').rsplit(' (', 1)[0]
+                elif reason := re.search(r'\) - [0-9.]+[sm] \((.*)\)$', tail):
+                    item.wait_reason = reason[1]
+                line = prefix + Dashboard([]).category(item, now)
+        result.append(line)
+    return result
+
+
+def watch_case_progress(root, vm, progress, *, reader):
+    """Overlay the active repair queue on both manual and recorded VM tiles."""
+    from test_storage import directory
+    from watch_output import active_run, snapshot
+    try:
+        run = active_run(directory('fix-tests', root=root, create=False), workflow=True, reader=reader)
+        if run is None or reader.read(run / 'pipelines.json').get(vm, {}).get('status') != 'running':
+            return progress
+        child = run / ('pipeline-' + hashlib.sha256(vm.encode()).hexdigest()[:24])
+        if (reader.read(child / 'vm.json') != {'vm': vm}
+                or reader.read(child / 'pipeline.json') != {'parent': str(run)}):
+            return progress
+        current = case_progress(child, reader=reader)
+        steps = snapshot(child / 'controller.json', steps=True, reader=reader)
+        if not steps or f'Category: {current["category"]} (' not in steps[-1]['lines'][0]:
+            return progress
+        # A previous invocation's heartbeat can remain fresh during startup.
+        if not progress or progress.get('started_ns', 0) < current['case_started_ns']:
+            progress = dict(step='', operation='Preparing VM: Waiting for test runner')
+        else:
+            progress = dict(progress)
+        progress.update(current=current['completed'], total=current['total'],
+                        case_id=current['case_id'], title=current['title'],
+                        started_ns=current['started_ns'], case_started_ns=current['case_started_ns'])
+        return progress
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return progress
 
 
 def read_progress(run):

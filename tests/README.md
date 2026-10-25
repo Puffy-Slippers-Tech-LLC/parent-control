@@ -390,6 +390,17 @@ and required lifecycle prerequisites. Package preparation reuses content-qualifi
 inputs, rebuilding when source changes; each next case loads the current inputs
 instead of retaining a whole category's frozen inputs.
 
+The VM dashboard's `Overall` accumulates completed selected system and E2E cases
+over their combined selected total for that VM and round. Both inventories are
+discovered before the first case, so changing categories does not reset Overall.
+The installed-system/E2E row shows completed cases over that category's selected
+inventory. Discovery, prerequisite replays and package preparation still run but
+add nothing to these totals. `Cases` shows the current case's position in its
+category queue. The VM tile uses the category's completed/total count, the active
+selected case's persistent ID/title and case/category clocks,
+including while its prerequisites run. These display counts never grant a pass;
+the runner's teardown-complete checkpoint remains authoritative.
+
 Every failed case joins one launcher-wide FIFO repair queue. Active cases finish;
 new normal cases wait until the entire queue is empty. Exactly one repair,
 exact-case verification and commit/push/propagation transaction runs at a time.

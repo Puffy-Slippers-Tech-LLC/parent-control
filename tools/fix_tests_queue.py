@@ -330,7 +330,18 @@ def case_inventory(root, category, options):
     return cases
 
 
-def run_cases(root, category, options, execute, gate):
+def case_totals(root, inventory, category, cases):
+    """Discover every selected VM case category before showing the overall total."""
+    totals = {category: len(cases)}
+    for kind, spec in inventory.items():
+        if kind in ('system', 'e2e') and kind != category:
+            selected = case_inventory(root, kind, spec['args'])
+            if selected is not None:
+                totals[kind] = len(selected)
+    return totals
+
+
+def run_cases(root, category, options, execute, gate, *, inventory, round_number, completed_categories=()):
     """Start a fresh maintained runner for every case, never a frozen whole batch.
 
     The case-only runner retains the original checkpoint selectors and reconstructs
@@ -347,6 +358,7 @@ def run_cases(root, category, options, execute, gate):
             generation = gate.generation()
             if inventory_generation != generation:
                 cases = case_inventory(root, category, original)
+                totals = case_totals(root, inventory, category, cases) if cases is not None else None
                 inventory_generation = generation
             if cases is None:
                 gate.last_generation = generation
@@ -358,12 +370,16 @@ def run_cases(root, category, options, execute, gate):
             if case is None:
                 break
             print(f'fix-tests: executing case {case}', flush=True)
-            launcher.atomic(gate.run / 'case-progress.json', dict(category=category, case=case,
-                completed=len(set(cases) & passed), total=len(cases)))
+            publish_case_progress(root, gate.run, category, cases, case, passed,
+                                  totals=totals, round_number=round_number,
+                                  completed_categories=completed_categories)
             gate.last_generation = generation
             status = execute([*original, '--resume', '--resume-case=' + case, '--resume-case-only'])
             gate.case_result(status)
         checkpoint = Checkpoint(root, [(category, original)], resume=True, binding=selected().name)
+        publish_case_progress(root, gate.run, category, cases, case, checkpoint.passed(category),
+                              totals=totals, round_number=round_number,
+                              completed_categories=completed_categories)
         if status:
             return status
         if case not in checkpoint.passed(category):
@@ -372,9 +388,44 @@ def run_cases(root, category, options, execute, gate):
         raise ValueError('VM selection is incomplete after case execution')
     checkpoint.entry(category)['complete'] = True
     checkpoint.save()
-    launcher.atomic(gate.run / 'case-progress.json', dict(category=category, case=None,
-        completed=len(cases), total=len(cases)))
+    publish_case_progress(root, gate.run, category, cases, None, checkpoint.passed(category),
+                          totals=totals, round_number=round_number,
+                          completed_categories=completed_categories)
     return 0
+
+
+def publish_case_progress(root, run, category, cases, case, passed, *, totals, round_number,
+                          completed_categories=()):
+    """One selected-case count and clock for the dashboard and VM tile."""
+    from launcher_progress import case_progress
+    from vm_recording import case_identity
+    nodeid = case or cases[-1]
+    identifier, title = case_identity(root, category, dict(nodeid=nodeid))
+    now = time.monotonic_ns()
+    try:
+        previous = case_progress(run)
+    except (OSError, ValueError, KeyError, TypeError):
+        previous = {}
+    completed = len(set(cases) & passed)
+    same_round = previous.get('round') == round_number
+    counts = {kind: dict(completed=total if kind in completed_categories else 0, total=total)
+              for kind, total in totals.items()}
+    if same_round:
+        for kind, value in previous['categories'].items():
+            if kind in counts and value['total'] == counts[kind]['total']:
+                counts[kind]['completed'] = max(counts[kind]['completed'], value['completed'])
+    counts[category]['completed'] = completed
+    same_category = (same_round and previous.get('category') == category
+                     and previous.get('total') == len(cases)
+                     and not (previous.get('completed') == len(cases) and not completed))
+    launcher.atomic(run / 'case-progress.json', dict(category=category, case=case,
+        completed=completed, total=len(cases), index=cases.index(nodeid) + 1,
+        round=round_number, categories=counts,
+        vm_started_ns=previous['vm_started_ns'] if same_round else now,
+        case_id=str(identifier), title=title,
+        started_ns=previous['started_ns'] if same_category else now,
+        case_started_ns=(previous['case_started_ns'] if same_category
+                         and previous.get('case') in (nodeid, None) else now)))
 
 
 def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopping=False):
@@ -460,7 +511,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
 
     def publish():
         from launcher_chat import read_state, send_input, take_input
-        from launcher_progress import read_progress, repair_progress
+        from launcher_progress import read_progress, repair_progress, case_progress, case_frame
         from launcher_question import pending
         lines = [f'VM pipelines | concurrency {snapshot["concurrency"]}']
         queue_path = run / 'repair-queue.json'
@@ -490,14 +541,18 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             saved = json.loads(checkpoint_path.read_text()) if checkpoint_path.exists() else {}
             lines.extend(['', pipeline_heading(name, states[name]['status'], steps, question, saved,
                                                blocker=blocker, stopping=stopping)])
-            lines.extend(step['lines'][0] for step in steps[-1:] if step['key'] != 'admission')
-            progress = child / 'case-progress.json'
-            if progress.exists():
-                current = json.loads(progress.read_text())
-                lines.append(f'Cases: {current["completed"]}/{current["total"]}')
             frame = child / 'frame.json'
-            if frame.exists():
-                lines.extend(json.loads(frame.read_text()))
+            details = json.loads(frame.read_text()) if frame.exists() else []
+            try:
+                current = case_progress(child)
+            except (OSError, ValueError, KeyError, TypeError):
+                current = None
+            if current is not None:
+                details = case_frame(steps, details, current)
+            lines.extend(step['lines'][0] for step in steps[-1:] if step['key'] != 'admission')
+            if current is not None and steps and f'Category: {current["category"]} (' in steps[-1]['lines'][0]:
+                lines.append(f'Cases: {current["index"]}/{current["total"]}')
+            lines.extend(details)
             parent_question = run / 'question.json'
             displayed = json.loads(parent_question.read_text()) if parent_question.exists() else None
             if question and (displayed is None or displayed.get('id') == question['id']

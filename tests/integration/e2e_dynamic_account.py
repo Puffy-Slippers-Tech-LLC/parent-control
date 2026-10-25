@@ -8,6 +8,7 @@ import shlex
 import sys
 
 import system_guest as guest
+from system_assertions import account_properties
 
 
 USERNAME = "onpc-e2e-new-child"
@@ -23,6 +24,10 @@ INELIGIBLE_USERNAME = 'onpc-e2e-locked-parent'
 EXPECTED_ELIGIBLE_ACCOUNTS = len(FIXED_CHILDREN)
 NONINTERACTIVE_SHELLS = ("", "/bin/false", "/usr/sbin/nologin")
 APPROVER_NONINTERACTIVE_SHELLS = (*NONINTERACTIVE_SHELLS, '/usr/bin/false', '/sbin/nologin')
+USER_PROPERTIES = {'Uid': 't', 'UserName': 's', 'LocalAccount': 'b',
+                   'SystemAccount': 'b', 'AccountType': 'i', 'Locked': 'b', 'Shell': 's'}
+ROLE_PROPERTIES = {key: USER_PROPERTIES[key]
+                   for key in ('LocalAccount', 'SystemAccount', 'AccountType')}
 
 
 def property_value(path, name, signature):
@@ -33,6 +38,15 @@ def property_value(path, name, signature):
     guest.require(len(fields) == 2 and fields[0] == signature,
                   "dynamic-account:property")
     return fields[1]
+
+
+def property_values(path, properties=USER_PROPERTIES):
+    """Share typed batched reads with system tests; keep busctl's scalar spelling."""
+    guest.require(re.fullmatch(r'/org/freedesktop/Accounts/User[0-9]+', path),
+                  'dynamic-account:property-path')
+    values = account_properties(int(path.rsplit('User', 1)[1]), USER_INTERFACE, properties)
+    return {name: ('true' if value else 'false') if properties[name] == 'b' else str(value)
+            for name, value in values.items()}
 
 
 def account_path(uid):
@@ -73,11 +87,7 @@ def create():
     account = pwd.getpwnam(USERNAME)
     guest.require(account.pw_uid >= 1000 and account.pw_shell == "/bin/bash",
                   "dynamic-account:identity")
-    observed = {
-        "LocalAccount": property_value(reply[1], "LocalAccount", "b"),
-        "SystemAccount": property_value(reply[1], "SystemAccount", "b"),
-        "AccountType": property_value(reply[1], "AccountType", "i"),
-    }
+    observed = property_values(reply[1], ROLE_PROPERTIES)
     guest.require(observed == {
         "LocalAccount": "true", "SystemAccount": "false", "AccountType": "0",
     }, "dynamic-account:eligibility")
@@ -98,11 +108,7 @@ def prepare_empty():
         if entry.pw_name == KIOSK_USERNAME:
             continue
         path = account_path(entry.pw_uid)
-        observed = {
-            "LocalAccount": property_value(path, "LocalAccount", "b"),
-            "SystemAccount": property_value(path, "SystemAccount", "b"),
-            "AccountType": property_value(path, "AccountType", "i"),
-        }
+        observed = property_values(path, ROLE_PROPERTIES)
         if observed == {
             "LocalAccount": "true", "SystemAccount": "false",
             "AccountType": "0",
@@ -151,12 +157,7 @@ def prepare_no_approver(approver_uids):
         guest.require(path == f'/org/freedesktop/Accounts/User{entry.pw_uid}',
                       'no-approver:identity')
         paths[entry.pw_name] = path
-        observed[entry.pw_name] = {
-            name: property_value(path, name, signature)
-            for name, signature in (
-                ('Uid', 't'), ('UserName', 's'), ('LocalAccount', 'b'),
-                ('SystemAccount', 'b'), ('AccountType', 'i'), ('Locked', 'b'), ('Shell', 's'))
-        }
+        observed[entry.pw_name] = property_values(path)
         guest.require(observed[entry.pw_name]['Uid'] == str(entry.pw_uid)
                       and observed[entry.pw_name]['UserName'] == entry.pw_name,
                       'no-approver:identity')
@@ -183,11 +184,7 @@ def prepare_no_approver(approver_uids):
                       'no-approver:retained-account')
     for name in sorted(targets):
         guest.guard()
-        guest.require(all(property_value(paths[name], key, signature) == observed[name][key]
-                          for key, signature in (
-                              ('Uid', 't'), ('UserName', 's'), ('LocalAccount', 'b'),
-                              ('SystemAccount', 'b'), ('AccountType', 'i'),
-                              ('Locked', 'b'), ('Shell', 's'))),
+        guest.require(property_values(paths[name]) == observed[name],
                       'no-approver:target-changed')
         fields = shlex.split(guest.run([
             'busctl', '--system', 'call', ACCOUNTS_NAME, paths[name],
@@ -199,10 +196,7 @@ def prepare_no_approver(approver_uids):
     for name, before in observed.items():
         guest.guard()
         expected = {**before, 'Locked': 'true'} if name in targets else before
-        after = {key: property_value(paths[name], key, signature)
-                 for key, signature in (
-                     ('Uid', 't'), ('UserName', 's'), ('LocalAccount', 'b'),
-                     ('SystemAccount', 'b'), ('AccountType', 'i'), ('Locked', 'b'), ('Shell', 's'))}
+        after = property_values(paths[name])
         guest.require(after == expected, 'no-approver:retained-identity')
     guest.guard()
     print(f'onpc-e2e: stage=no-approver outcome=prepared locked={len(targets)}', flush=True)
@@ -218,14 +212,11 @@ def prepare_ineligible_approver():
                   and len(identities) == len({entry.pw_uid for entry in identities})
                   and set((*FIXED_CHILDREN, *FIXED_APPROVERS, KIOSK_USERNAME)) <= set(names),
                   'ineligible-approver:identity')
-    properties = (('Uid', 't'), ('UserName', 's'), ('LocalAccount', 'b'),
-                  ('SystemAccount', 'b'), ('AccountType', 'i'), ('Locked', 'b'), ('Shell', 's'))
-
     def read(entry):
         path = account_path(entry.pw_uid)
         guest.require(path == f'/org/freedesktop/Accounts/User{entry.pw_uid}',
                       'ineligible-approver:identity')
-        values = {key: property_value(path, key, signature) for key, signature in properties}
+        values = property_values(path)
         guest.require(values['Uid'] == str(entry.pw_uid) and values['UserName'] == entry.pw_name,
                       'ineligible-approver:identity')
         return path, values

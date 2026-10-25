@@ -9,7 +9,7 @@ import pwd
 import time
 
 import system_guest as guest
-from system_assertions import account_property
+from system_assertions import account_properties
 
 
 def disposable_identity_name(role, surface=None):
@@ -34,8 +34,9 @@ def create_disposable_identity(role, record_testsuite_property, *, surface=None)
                '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
                'CreateUser', 'ssi', name, '', '1' if role == 'approver' else '0'])
     uid = pwd.getpwnam(name).pw_uid
-    observed = {prop: account_property(uid, 'org.freedesktop.Accounts.User', prop)
-                for prop in ('AccountType', 'LocalAccount', 'SystemAccount')}
+    observed = account_properties(uid, 'org.freedesktop.Accounts.User', {
+        'AccountType': 'i', 'LocalAccount': 'b', 'SystemAccount': 'b',
+    })
     record_testsuite_property('onpc.deletion-fixture', json.dumps(
         {'role': role, 'surface': surface, **observed}, sort_keys=True))
     guest.require(observed == {'AccountType': int(role == 'approver'),

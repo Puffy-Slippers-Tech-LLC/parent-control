@@ -85,7 +85,7 @@ def test_kiosk_expiry_installed_runtime(record_testsuite_property):
     import json
     import re
     import system_guest as guest
-    from system_session_expiry import verify_offline_recovery, verify_pam_scope
+    from system_session_expiry import verify_offline_recovery, verify_pam_scopes
 
     guest.guard()
 
@@ -132,5 +132,4 @@ def test_kiosk_expiry_installed_runtime(record_testsuite_property):
         verify_offline_recovery(record_testsuite_property)
     finally:
         record_backend('after-offline-recovery')
-    for service in ('gdm-password', 'gdm-autologin', 'login', 'sshd'):
-        verify_pam_scope(service, record_testsuite_property)
+    verify_pam_scopes(record_testsuite_property)

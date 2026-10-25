@@ -147,55 +147,63 @@ def pam_probe(service):
         pam.pam_end(handle, 0)
 
 
-def verify_pam_scope(service, record):
+def verify_pam_scopes(record, services=SERVICES):
+    """Share policy setup; each PAM stack still owns its native scope witness."""
     accounts = identities()
+    guest.require(bool(services) and all(service in SERVICES for service in services),
+                  'expiry:pam-service')
     child, parent = accounts['child'], accounts['parent']
     before = account_state(accounts['other'])
     accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 0)))
     try:
-        marker = guest.guard()
-        unit = 'onpc-expiry-' + marker['run'] + '-' + service
-        # --pipe passes its output descriptors to PID 1. Fedora's enforcing
-        # SELinux policy refuses the runner's regular temporary-file descriptors
-        # before the service starts (fedora-selinux/selinux-policy#3287). Reuse
-        # the bounded terminal transport so only PTY descriptors cross that
-        # boundary; retain the same installed PAM worker and independent results.
-        terminal = guest.package_path().suffix == '.rpm'
-        raw = guest.commands.run([
-            'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
-            '--unit=' + unit, '--property=Type=exec', '--property=RuntimeMaxSec=45',
-            '--setenv=ONPC_EXPECTED_RUN=' + marker['run'],
-            '--setenv=PYTHONDONTWRITEBYTECODE=1',
-            '/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_session_expiry.py'),
-            '--pam', service], timeout=60, check=False, merge_stderr=False, terminal=terminal)
-        status = guest.commands.last_returncode
-        observations = [json.loads(line) for line in raw.decode().splitlines()
-                        if line.startswith('{')]
-        record('onpc.expiry.pam.' + service, json.dumps([
-            {key: value for key, value in observation.items() if key != 'scope'}
-            for observation in observations], sort_keys=True))
-        guest.require(len(observations) >= 2 and observations[0]['stage'] == 'account'
-                      and observations[0]['status'] == 0
-                      and observations[1]['stage'] == 'scope-created', 'expiry:pam-witnesses')
-        if service.startswith('gdm-'):
-            guest.require(status == 0 and observations[0]['remaining_seconds'] <= 1
-                          and observations[1]['runtime_max'] == 'infinity'
-                          and observations[-1] == {'stage': 'past-deadline', 'scope_active': True},
-                          'expiry:gdm-runtime-witness')
-        else:
-            scope = observations[1].get('scope', '')
-            guest.require(re.fullmatch(r'session-[a-zA-Z0-9_-]+\.scope', scope),
-                          'expiry:scope-witness-identity')
-            journal = guest.run(['journalctl', '--no-pager', '-b', '-u', scope])
-            # pam_systemd moves the worker out of its launcher service. That
-            # service can exit successfully even when the scope kills its
-            # member. Require the owned scope's actual timer-expiry event.
-            guest.require(observations[1]['runtime_max'] != 'infinity'
-                          and 'Scope reached runtime time limit. Stopping.' in journal,
-                          'expiry:non-gdm-runtime-witness')
-        guest.require(account_state(accounts['other']) == before, 'expiry:other-account-changed')
+        for service in services:
+            observe_pam_scope(service, record)
+            guest.require(account_state(accounts['other']) == before, 'expiry:other-account-changed')
     finally:
         accepted(call(parent, 'SetParentControl', '(ubu)', (child, False, 60)))
+
+
+def observe_pam_scope(service, record):
+    marker = guest.guard()
+    unit = 'onpc-expiry-' + marker['run'] + '-' + service
+    # --pipe passes its output descriptors to PID 1. Fedora's enforcing
+    # SELinux policy refuses the runner's regular temporary-file descriptors
+    # before the service starts (fedora-selinux/selinux-policy#3287). Reuse
+    # the bounded terminal transport so only PTY descriptors cross that
+    # boundary; retain the same installed PAM worker and independent results.
+    terminal = guest.package_path().suffix == '.rpm'
+    raw = guest.commands.run([
+        'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
+        '--unit=' + unit, '--property=Type=exec', '--property=RuntimeMaxSec=45',
+        '--setenv=ONPC_EXPECTED_RUN=' + marker['run'],
+        '--setenv=PYTHONDONTWRITEBYTECODE=1',
+        '/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_session_expiry.py'),
+        '--pam', service], timeout=60, check=False, merge_stderr=False, terminal=terminal)
+    status = guest.commands.last_returncode
+    observations = [json.loads(line) for line in raw.decode().splitlines()
+                    if line.startswith('{')]
+    record('onpc.expiry.pam.' + service, json.dumps([
+        {key: value for key, value in observation.items() if key != 'scope'}
+        for observation in observations], sort_keys=True))
+    guest.require(len(observations) >= 2 and observations[0]['stage'] == 'account'
+                  and observations[0]['status'] == 0
+                  and observations[1]['stage'] == 'scope-created', 'expiry:pam-witnesses')
+    if service.startswith('gdm-'):
+        guest.require(status == 0 and observations[0]['remaining_seconds'] <= 1
+                      and observations[1]['runtime_max'] == 'infinity'
+                      and observations[-1] == {'stage': 'past-deadline', 'scope_active': True},
+                      'expiry:gdm-runtime-witness')
+    else:
+        scope = observations[1].get('scope', '')
+        guest.require(re.fullmatch(r'session-[a-zA-Z0-9_-]+\.scope', scope),
+                      'expiry:scope-witness-identity')
+        journal = guest.run(['journalctl', '--no-pager', '-b', '-u', scope])
+        # pam_systemd moves the worker out of its launcher service. That
+        # service can exit successfully even when the scope kills its
+        # member. Require the owned scope's actual timer-expiry event.
+        guest.require(observations[1]['runtime_max'] != 'infinity'
+                      and 'Scope reached runtime time limit. Stopping.' in journal,
+                      'expiry:non-gdm-runtime-witness')
 
 
 def installed_manager():

@@ -1,6 +1,7 @@
 """The E2E-003 fixture is fixed, guarded and collision-safe."""
 
 import io
+import json
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -117,6 +118,13 @@ def test_guest_empty_fixture_changes_complete_finite_eligible_set(monkeypatch, g
     def run(argv):
         if argv[-4:-2] == [guest_fixture.ACCOUNTS_INTERFACE, "FindUserById"]:
             return f'o "{paths[argv[-1]]}"'
+        if argv[-3:] == ['GetAll', 's', guest_fixture.USER_INTERFACE]:
+            path = argv[5]
+            return json.dumps({'type': 'a{sv}', 'data': [{
+                'LocalAccount': {'type': 'b', 'data': True},
+                'SystemAccount': {'type': 'b', 'data': False},
+                'AccountType': {'type': 'i', 'data': int(roles[path])},
+            }]})
         if "get-property" in argv:
             path, name = argv[-3], argv[-1]
             values = {"LocalAccount": "b true", "SystemAccount": "b false",
@@ -152,6 +160,8 @@ def test_guest_empty_fixture_refuses_an_unexpected_eligible_set_before_mutation(
         uid = int(path.rsplit('User', 1)[1])
         return {'LocalAccount': 'true', 'SystemAccount': 'false', 'AccountType': roles[uid]}[name]
     monkeypatch.setattr(guest_fixture, 'property_value', property_value)
+    monkeypatch.setattr(guest_fixture, 'property_values', lambda path, properties: {
+        name: property_value(path, name, signature) for name, signature in properties.items()})
     run = Mock()
     monkeypatch.setattr(guest_fixture.guest, "run", run)
     monkeypatch.setattr(guest_fixture.guest, "guard", Mock())
@@ -226,6 +236,7 @@ def no_approver_guest(monkeypatch, fault=None):
     monkeypatch.setattr(guest_fixture, 'account_path',
                         lambda uid: f'/org/freedesktop/Accounts/User{uid}')
     monkeypatch.setattr(guest_fixture, 'property_value', lambda path, key, _: records[path][key])
+    monkeypatch.setattr(guest_fixture, 'property_values', lambda path: dict(records[path]))
     guard = Mock()
     monkeypatch.setattr(guest_fixture.guest, 'guard', guard)
 

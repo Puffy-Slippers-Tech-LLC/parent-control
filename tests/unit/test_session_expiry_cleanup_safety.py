@@ -12,7 +12,7 @@ import system_graphical_expiry as graphical
 
 @pytest.mark.parametrize('entry,args', [
     ('identities', ()), ('grant', (1000, 1)), ('pam_probe', ('gdm-password',)),
-    ('verify_pam_scope', ('gdm-password', Mock())),
+    ('verify_pam_scopes', (Mock(),)),
     ('verify_offline_recovery', (Mock(),)), ('installed_manager', ()),
     ('verify_zero_time_pam', (Mock(),)), ('pam_password_status', (1000, Mock())),
     ('pam_password_in_process', (1000, b'fixture')),
@@ -105,9 +105,12 @@ def test_pam_probe_observes_open_session_without_executing_diagnostic_children(m
     command.assert_not_called()
 
 
-@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-@pytest.mark.parametrize('service', expiry.SERVICES)
-@pytest.mark.parametrize('witnesses', [True, False])
+# Vary the native scope, capture transport and missing-result boundary once.
+# The installed suite still exercises all four PAM service stacks.
+@pytest.mark.parametrize('package_format,service,witnesses', [
+    ('deb', 'gdm-password', True), ('deb', 'login', True),
+    ('rpm', 'gdm-password', True), ('deb', 'gdm-password', False),
+])
 def test_pam_scope_uses_supported_capture_and_requires_native_witnesses(
         monkeypatch, package_format, service, witnesses):
     accounts = {'parent': 1003, 'child': 1004, 'other': 1005}
@@ -133,10 +136,10 @@ def test_pam_scope_uses_supported_capture_and_requires_native_witnesses(
     monkeypatch.setattr(expiry.guest, 'run', Mock(
         return_value='Scope reached runtime time limit. Stopping.'))
     if witnesses:
-        expiry.verify_pam_scope(service, Mock())
+        expiry.verify_pam_scopes(Mock(), services=(service,))
     else:
         with pytest.raises(expiry.guest.GuestError, match='expiry:pam-witnesses'):
-            expiry.verify_pam_scope(service, Mock())
+            expiry.verify_pam_scopes(Mock(), services=(service,))
     args, options = commands.run.call_args
     assert '--pipe' in args[0] and '--wait' in args[0] and '--collect' in args[0]
     assert args[0][-2:] == ['--pam', service]

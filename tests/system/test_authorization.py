@@ -11,28 +11,40 @@ import pytest
 
 import system_guest as guest
 from system_caller import FixturePassword, PersistentCaller, TextAgent
-from system_assertions import batch, call, accepted, account_property, account_state
+from system_assertions import batch, call, accepted, account_property, account_properties, account_state
 from system_accounts import create_disposable_identity, delete_disposable_identity
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 DENIED = guest.BUS + '.Error.AccessDenied'
 ROLES = ('child1', 'child2', 'parent1', 'parent2', 'kiosk', 'unrelated', 'locked')
-METHODS = (
-    'ListManagedUsers', 'ListApprovers', 'GetOwnAccount', 'GetPreferences',
-    'ListApplications', 'GetTimeStatus', 'CalculateRemainingTime',
-    'CalculateOwnRemainingTime', 'PrepareOwnSession', 'UpdateRequestPreferences',
-    'UpdateRequestPreferencesWithUnit',
-    'SetRequestMuted', 'SetPreferences', 'SetParentControl', 'RevokeOneTimeGrant',
-    'RequestOwnAccess', 'RequestAccess', 'LogEvent',
-)
-# One identity per caller class. Locked administrators retain management
-# rights; approver eligibility and changes of identity have dedicated cases.
+# Keep all roles at independent management and request boundaries. Discovery
+# already checks ListApprovers as parent/kiosk; arithmetic, own-only operations
+# and request-choice variants sample shared permissions instead of crossing
+# every endpoint with every role. GetTimeStatus retains all three real callers
+# because its usage query crosses a separate native-service permission boundary.
+METHOD_ROLES = {
+    'ListManagedUsers': ('child1', 'parent1', 'kiosk', 'locked'),
+    'ListApprovers': ('child1',),
+    'GetOwnAccount': ('child1', 'parent1', 'kiosk'),
+    'GetPreferences': ('child1', 'parent1', 'kiosk'),
+    'ListApplications': ('child1', 'parent1', 'kiosk'),
+    'GetTimeStatus': ('child1', 'parent1', 'kiosk'),
+    'CalculateRemainingTime': ('child1', 'parent1'),
+    'CalculateOwnRemainingTime': ('child1', 'parent1'),
+    'PrepareOwnSession': ('child1', 'kiosk'),
+    'UpdateRequestPreferences': ('child1', 'parent1', 'kiosk'),
+    'UpdateRequestPreferencesWithUnit': ('child1', 'kiosk'),
+    'SetRequestMuted': ('child1', 'kiosk'),
+    'SetPreferences': ('child1', 'parent1', 'kiosk'),
+    'SetParentControl': ('child1', 'parent1', 'kiosk', 'locked'),
+    'RevokeOneTimeGrant': ('child1', 'parent1', 'kiosk'),
+    'RequestOwnAccess': ('child1', 'kiosk'),
+    'RequestAccess': ('child1', 'parent1', 'kiosk'),
+    'LogEvent': ('child1', 'parent1', 'kiosk', 'locked'),
+}
+METHODS = tuple(METHOD_ROLES)
 METHOD_ROLE_CASES = tuple(
-    (method, role)
-    for method in METHODS
-    for role in (('child1', 'parent1', 'kiosk', 'locked')
-                 if method in ('ListManagedUsers', 'SetParentControl', 'LogEvent')
-                 else ('child1', 'parent1', 'kiosk'))
+    (method, role) for method, roles in METHOD_ROLES.items() for role in roles
 )
 LOG_EVENT = json.dumps({'v': 1, 'event': 'diagnostic.rejected',
                        'operation': 0, 'fields': {}})
@@ -513,11 +525,13 @@ def test_administrator_eligibility_predicates(accounts, record_testsuite_propert
                     '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
                     'FindUserById', 'x', str(uid)]))['data']
                 guest.require(resolved == [path], 'authorization:eligibility-resolution')
-                observed = {prop: account_property(uid, interface, prop) for prop in (
-                    'AccountType', 'LocalAccount', 'SystemAccount', 'Locked')}
+                observed = account_properties(uid, interface, {
+                    'AccountType': 'i', 'LocalAccount': 'b', 'SystemAccount': 'b',
+                    'Locked': 'b', 'Shell': 's', 'UserName': 's',
+                })
                 # Record predicates, never usernames, UIDs or credentials.
-                shell = account_property(uid, interface, 'Shell')
-                username = account_property(uid, interface, 'UserName')
+                shell = observed.pop('Shell')
+                username = observed.pop('UserName')
                 observed['interactive'] = shell == '/bin/bash'
                 observed['safe_name'] = bool(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*[$]?', username))
                 observed['nss_matches'] = (pwd.getpwuid(uid).pw_shell == shell and
@@ -605,10 +619,12 @@ def test_remote_accounts_are_excluded(accounts, callers, remote_directory, recor
     record_testsuite_property('onpc.remote-packages', package_versions())
     interface = 'org.freedesktop.Accounts.User'
     for role, uid in remote.items():
-        observed = {prop: account_property(uid, interface, prop) for prop in (
-            'AccountType', 'LocalAccount', 'SystemAccount', 'Locked')}
-        shell = account_property(uid, interface, 'Shell')
-        name = account_property(uid, interface, 'UserName')
+        observed = account_properties(uid, interface, {
+            'AccountType': 'i', 'LocalAccount': 'b', 'SystemAccount': 'b',
+            'Locked': 'b', 'Shell': 's', 'UserName': 's',
+        })
+        shell = observed.pop('Shell')
+        name = observed.pop('UserName')
         observed.update(interactive=shell == '/bin/bash',
                         safe_name=bool(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*[$]?', name)),
                         nss_matches=pwd.getpwuid(uid).pw_name == name and

@@ -43,15 +43,37 @@ def account_property(uid, interface, prop):
         interface, prop]))['data']
 
 
+def account_properties(uid, interface, properties):
+    """Read a fresh, typed group from one AccountsService observation.
+
+    Callers supply only the properties they compare. Do not cache this result
+    across mutations or use it as a broker/customer acceptance observation.
+    """
+    reply = json.loads(guest.run([
+        'busctl', '--system', '--json=short', 'call', 'org.freedesktop.Accounts',
+        f'/org/freedesktop/Accounts/User{uid}', 'org.freedesktop.DBus.Properties',
+        'GetAll', 's', interface]))
+    guest.require(reply.get('type') == 'a{sv}' and isinstance(reply.get('data'), list)
+                  and len(reply['data']) == 1 and isinstance(reply['data'][0], dict),
+                  'accounts:properties-reply')
+    values = reply['data'][0]
+    guest.require(all(isinstance(values.get(name), dict)
+                      and values[name].get('type') == signature and 'data' in values[name]
+                      for name, signature in properties.items()), 'accounts:properties-reply')
+    return {name: values[name]['data'] for name in properties}
+
+
 def account_state(uid):
     """Snapshot preferences, limits and app filter without putting them in assertions."""
     guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
                'FindUserById', 'x', str(uid)])
     record = Path('/var/lib/oh-no-parent-control/preferences') / f'{uid}.json'
+    limits = account_properties(uid, 'com.endlessm.ParentalControls.SessionLimits', {
+        'LimitType': 'u', 'DailyLimit': 'u', 'ActiveExtension': '(tu)',
+    })
     return (
         record.read_bytes() if record.exists() else None,
-        *(account_property(uid, 'com.endlessm.ParentalControls.SessionLimits', prop)
-          for prop in ('LimitType', 'DailyLimit', 'ActiveExtension')),
+        *(limits[prop] for prop in ('LimitType', 'DailyLimit', 'ActiveExtension')),
         account_property(uid, 'com.endlessm.ParentalControls.AppFilter', 'AppFilter'),
     )

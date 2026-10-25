@@ -124,7 +124,7 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
     )
     from ui_watch_viewer import panel as ui_panel
     from e2e_watch_viewer import panel as vm_panel
-    from watch_output import Output, SessionOutput, terminal, TerminalWriter
+    from watch_output import Output, LogOutput, SessionOutput, terminal, TerminalWriter
 
     for name in ('GIO_LAUNCHED_DESKTOP_FILE', 'GIO_LAUNCHED_DESKTOP_FILE_PID',
                  'DESKTOP_STARTUP_ID', 'XDG_ACTIVATION_TOKEN'):
@@ -154,7 +154,8 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             self.terminal, self.output_scroll = terminal(prefix + 'watch-output', 'Test runner terminal output')
             self.writer = TerminalWriter(self.terminal)
             self.output = output if output is not None else Output(root, terminal_size=lambda: os.terminal_size((
-                max(1, self.terminal.get_column_count()), max(1, self.terminal.get_row_count()))))
+                max(1, self.terminal.get_column_count()), max(1, self.terminal.get_row_count()))),
+                show_log=False)
             self.output_scroll.set_overlay_scrolling(False)
             self.output_adjustment = Gtk.Adjustment()
             self.output_scrollbar = Gtk.Scrollbar(orientation=Gtk.Orientation.VERTICAL,
@@ -199,6 +200,15 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             output_row.append(self.output_scroll)
             output_row.append(self.output_scrollbar)
             self.output_tabs.append_page(output_row, Gtk.Label(label='Run Status'))
+            self.log_terminal, log_scroll = terminal(
+                prefix + 'watch-outputs', 'Launcher terminal output')
+            self.log_writer = TerminalWriter(self.log_terminal)
+            self.log_output = LogOutput(root)
+            log_keys = Gtk.EventControllerKey()
+            log_keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            log_keys.connect('key-pressed', self.log_key)
+            self.log_terminal.add_controller(log_keys)
+            self.output_tabs.append_page(log_scroll, Gtk.Label(label='Outputs'))
             self.session_terminal, session_scroll = terminal(
                 prefix + 'watch-session', 'Active launcher session')
             self.session_terminal.set_cursor_shape(Vte.CursorShape.UNDERLINE)
@@ -316,6 +326,17 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                 return True
             return False
 
+        def log_key(self, _controller, keyval, _keycode, state):
+            control = bool(state & Gdk.ModifierType.CONTROL_MASK)
+            shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
+            if control and keyval in (Gdk.KEY_c, Gdk.KEY_C):
+                self.log_terminal.copy_clipboard_format(Vte.Format.TEXT) if shift else self.log_output.cancel()
+                return True
+            if control and shift and keyval in (Gdk.KEY_a, Gdk.KEY_A):
+                self.log_terminal.select_all()
+                return True
+            return False
+
         def terminal_context(self, gesture, _presses, x, y):
             gesture.set_state(Gtk.EventSequenceState.CLAIMED)
             rectangle = Gdk.Rectangle()
@@ -344,6 +365,9 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                     self.next_vm[key] = now + (.1 if self.selected == 'all' else 1 / 30)
             if now >= self.next_output:
                 self.next_output = now + .2
+                if not self.log_terminal.get_has_selection():
+                    _label, _active, log_reset, log_data = self.log_output.poll()
+                    self.log_writer.feed(log_data, reset=log_reset)
                 if not self.terminal.get_has_selection():
                     label, active, reset, data = self.output.poll()
                     self.writer.feed(data, reset=reset)

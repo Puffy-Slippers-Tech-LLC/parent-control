@@ -2447,8 +2447,10 @@ showing the busiest physical disk and excluding partitions and virtual mappings.
 Unavailable measurements show a dash until a valid sample is available.
 The left terminal follows active VM `fix-tests`, then host `fix-tests` output before `run-tests`,
 using VS Code Light+ colors, wrapping and vertical scrollback. The left panel
-has **Run Status** and **Session** tabs below its heading separator.
-Run Status keeps the live pipeline dashboard and test output. Session embeds the
+has **Run Status**, **Outputs** and **Session** tabs below its heading separator.
+Run Status keeps the live pipeline dashboard. Outputs keeps ordinary launcher
+and test terminal output, excluding dashboards and mirrored agent sessions,
+with its own selection and scrollback. Session embeds the
 shared [session panel](../tools/launcher_session.py), following the active agent
 in that checkout, including VM repair pipelines and plan launchers. Its transcript,
 scroll position and draft are independent of Run Status. Interactive sessions
@@ -2458,7 +2460,7 @@ The tab shows only an active agent session's dedicated transcript. Its label is
 blue while a session is active and returns to the default text color otherwise.
 Before an agent starts, after it finishes,
 or when a supervisor has no dedicated session artifacts, the tab shows an
-empty-state message and disables input. Launcher output stays in Run Status.
+empty-state message and disables input. Launcher output stays in Outputs.
 Input is checked against the displayed owner and session before delivery.
 The initial
 horizontal split is 25%/75%, adjustable by dragging. The right viewer has one

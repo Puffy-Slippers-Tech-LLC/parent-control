@@ -97,9 +97,10 @@ def active_run(base, *, workflow=False, reader=None):
 
 
 class Output:
-    def __init__(self, root=None, *, terminal_size=None):
+    def __init__(self, root=None, *, terminal_size=None, show_log=True):
         self.root = root or Path(__file__).resolve().parents[1]
         self.terminal_size = terminal_size
+        self.show_log = show_log
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
         self.run = None
         self.label = ''
@@ -116,7 +117,7 @@ class Output:
             # The embedded terminal supplies its own dimensions and needs the
             # same in-place dashboard as an attached launcher, not log snapshots.
             self.display = LauncherDisplay(io.StringIO(), terminal_size=self.terminal_size)
-        if self.terminal_size is not None and data:
+        if self.show_log and self.terminal_size is not None and data:
             self.display.write(self.decoder.decode(data))
         try:
             steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
@@ -190,7 +191,7 @@ class Output:
                 continue
         return None, ''
 
-    def poll(self):
+    def poll(self, *, progress=True):
         run, label = self.discover()
         active = run is not None
         # Drain the final bytes after owner exit and keep the last transcript.
@@ -220,12 +221,44 @@ class Output:
                 pass
         if data:
             self.line_start = data.endswith(b'\n')
+        if not progress:
+            return label, active, reset, data
         if self.terminal_size is not None and self.run == run and run is not None:
             data = self.progress(active, data)
         elif self.run == run and run is not None and self.line_start:
             # Never insert dashboard text into a partial UTF-8/ANSI/log line.
             data += self.progress(active)
         return label, active, reset, data
+
+
+class LogOutput(Output):
+    """Follow ordinary launcher output without dashboards or mirrored sessions."""
+
+    def __init__(self, root=None):
+        super().__init__(root)
+        self.pending = b''
+        self.session_line = False
+
+    def poll(self):
+        from launcher_render import SESSION_LINE
+        label, active, reset, data = super().poll(progress=False)
+        if reset:
+            self.pending = b''
+            self.session_line = False
+        self.pending += data
+        output = bytearray()
+        while self.pending:
+            line, newline, rest = self.pending.partition(b'\n')
+            self.session_line = self.session_line or SESSION_LINE.encode() in line
+            # Wait for complete lines, keeping memory bounded for long writes.
+            if not newline and active and len(line) < TAIL_BYTES:
+                break
+            if not self.session_line:
+                output.extend(line + newline)
+            self.pending = rest
+            if newline:
+                self.session_line = False
+        return label, active, reset, bytes(output)
 
 
 class SessionOutput:

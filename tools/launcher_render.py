@@ -32,6 +32,10 @@ HANGING_PREFIX = re.compile(r'^(?: *[•└│✓○] | {2,})')
 SCROLLBACK_LINES = 2000
 SCROLLBACK_CHARACTERS = 256 * 1024
 
+# An invisible OSC tag distinguishes mirrored session lines in mixed launcher
+# logs. Dedicated session transcripts retain their original text.
+SESSION_LINE = '\033]777;onpc-session\007'
+
 
 def retained_tail(lines):
     """Keep the newest text within the observer's in-memory history budget."""
@@ -639,6 +643,7 @@ class SessionTranscript:
     def __init__(self, stream, run):
         self.stream = stream
         self.path = run / 'session-output.log'
+        self.line_start = True
         fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_NONBLOCK | os.O_NOFOLLOW, 0o600)
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
@@ -652,7 +657,9 @@ class SessionTranscript:
 
     def write(self, value):
         from detached_launcher import compact_log, MAX_LOG_BYTES
-        self.stream.write(value)
+        for part in value.splitlines(keepends=True):
+            self.stream.write((SESSION_LINE if self.line_start else '') + part)
+            self.line_start = part.endswith('\n')
         self.log.write(value.encode('utf-8'))
         self.log.flush()
         if self.log.tell() > MAX_LOG_BYTES:

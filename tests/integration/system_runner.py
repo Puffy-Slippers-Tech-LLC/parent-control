@@ -2136,7 +2136,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                       'test_ownership_refusal_retry[confinement-record-uid]',
                                       'test_identity_filesystem_refusal_retry[kiosk-marker-uid]',
                                       'test_identity_filesystem_refusal_retry[home-owner]',
-                                      'test_identity_filesystem_refusal_retry[home-link]'))
+                                      'test_identity_filesystem_refusal_retry[home-link]',
+                                      'test_identity_filesystem_refusal_retry[home-mount]'))
                 for item in selection.executions)):
             # PAM histories seed policy with this command on both targets;
             # The selected Ubuntu removal/recovery histories also observe

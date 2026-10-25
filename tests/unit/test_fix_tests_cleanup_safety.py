@@ -321,12 +321,25 @@ def test_verified_case_is_pushed_before_repairing_the_next_failure(checkout):
     assert (root / 'owned.py').read_text() == 'unrelated staged work\n'
 
 
-def test_case_closeout_finishes_before_remaining_tests_start(checkout):
-    from vm_selection import execution_selection
+def test_case_closeout_finishes_before_remaining_tests_start(checkout, monkeypatch):
+    from vm_selection import BATCH, execution_selection
     root, _ = checkout
     _, vms = execution_selection()
     assert len(vms) == 2
+    # Both harmless pipeline doubles must fail before the shared repair starts;
+    # the development host's real VM concurrency may intentionally be only one.
+    monkeypatch.setenv(BATCH, json.dumps({'concurrency': 2, 'vms': [vm.name for vm in vms]}))
     (root / 'mode').write_text('vm-pipeline')
+    # The synthetic runner's cases need the same identity lookup input as a
+    # real checkout now that per-case progress resolves public case metadata.
+    identities = root / 'tests/integration/system_case_ids.py'
+    identities.parent.mkdir(parents=True)
+    identities.write_text(
+        'from types import SimpleNamespace\n'
+        'CASES = {name: SimpleNamespace(numeric_id=index, title=name)\n'
+        '         for index, name in enumerate(("installed::case-a", "installed::case-b"), 1)}\n'
+        'def identity_for_event(nodeid):\n'
+        '    return CASES.get(nodeid)\n')
     (root / 'inventory.json').write_text(json.dumps({'system': {'scope': 'vm', 'args': []}}))
     run, _ = fix_tests.select(root, categories=('system',))
     output = io.StringIO()

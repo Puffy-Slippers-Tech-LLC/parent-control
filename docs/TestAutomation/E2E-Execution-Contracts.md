@@ -594,9 +594,8 @@ task/brief dependency order, scenario bindings, acceptance, recipe links and
 shared-operation composition in the changed source. Lifecycle recorders still
 declare their command operations and comparison callbacks through shared APIs.
 Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md): changes to the
-shared selection/parser guards use their existing focused core regressions;
-ordinary plan, recipe, wrapper or scenario-body changes do not require unit
-suites or repeated consumer matrices. Do not restore retired test files to
+shared selection/parser guards use their existing focused core regressions.
+Do not restore retired test files to
 satisfy an older close-out command. Listing, link checks and source review
 neither qualify UI adapters nor establish a live product pass.
 

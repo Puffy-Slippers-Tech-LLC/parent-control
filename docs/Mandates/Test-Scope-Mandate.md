@@ -1,6 +1,7 @@
 # Test scope mandate
 
-This mandate owns whether coverage is warranted and how much to add or retain.
+This mandate owns coverage requirements and proportionality, subject to
+[AGENTS.md](../../AGENTS.md#tests-and-acceptance).
 Apply it when planning, adding, changing or reviewing tests, including test
 infrastructure work and automated repair. [Test maintenance](../../tests/README.md)
 owns execution and failure handling; the [UI mandate](UI-Automation-Mandate.MD)
@@ -24,15 +25,6 @@ implementing a core guarantee belongs to core infrastructure; an ordinary case
 helper, test data builder or assertion wrapper does not become core merely
 because other tests use it.
 
-**By default, no new unit tests for non-product code, unless specifically asked for.**
-Change and run non-product code through its existing consumers; if it breaks,
-fix it in use. This default includes infrastructure, launchers, qualification
-scripts and reusable helpers, even when they implement a critical guarantee.
-Maintain existing coverage without automatically adding cases or suites.
-Apply this rule to new implementation, automated repair and every task brief
-or launcher. A specific request for non-product unit tests permits them within
-the requested scope, subject to the proportionality and duplication limits below.
-
 Classify the specific behavior being tested, not the importance of the tool
 containing it. A failure that makes ordinary development work unavailable,
 incorrect, inconvenient or slower does not by itself justify new unit tests. Shared
@@ -47,29 +39,11 @@ to that attempt. It does not mean separately unit-testing every scenario's
 assertions, expected values, observations or sequence with synthetic product
 results. Those are ordinary test code; validate them through their product tests.
 
-Do not add dedicated unit-test suites for ordinary development aids unless
-specifically asked for. Examples include their presentation, convenience and
-orchestration features: VM test video recording, watchers/viewers, scenario
-composition, qualification wrappers, assertion helpers and fixture data builders.
-Use them in their normal workflow. Complexity, reuse or a bug in such a tool
-does not by itself warrant another test layer. Shared credential and destructive
-operation guards remain tested once at their existing owner, rather than through
-every tool that calls them.
-
-Do not add assertions, parameters, fixtures or cases for non-product behavior to
-an existing unit suite without a specific request. An existing test owner
-does not grant broader coverage scope. Adapt existing tests only as necessary
-to preserve an admitted guarantee when its implementation or interface changes;
-validate ordinary feature behavior through its normal consumers or a bounded
-smoke run instead.
-
 ## Limits
 
 - Do not automatically add tests for test cases, assertions, doubles, private
   fixtures or helpers. Verify ordinary test changes by running the affected
-  tests. Add a separate non-product unit regression only when specifically asked
-  for and existing coverage does not already protect the behavior. Stop there;
-  that regression creates no obligation for another layer of tests around it.
+  tests.
 - Keep at most one dedicated test layer around a core infrastructure guarantee.
   Test its real implementation with small controlled inputs; do not add tests of
   that regression, its doubles, assertions or private setup. A small synthetic
@@ -110,17 +84,12 @@ existing coverage is insufficient. Keep this explanation in the normal change de
 needed; do not create a separate checklist, evidence file or test for it.
 If no concrete gap exists, do not add the test.
 
-For specifically requested non-product unit coverage, identify any existing test
-owner before adding another case or module. Review the fully expanded parameter
-count, not just the number of test functions. Prefer extending or replacing the owner's
-representative check over copying it into a new consumer-specific module.
-Keep the tests within the specific request; a bug fix alone does not authorize
-new non-product unit coverage. Automated implementation and repair must apply
-this default too. Do not build another checker, registry or test suite to enforce
-this mandate.
+Review the fully expanded parameter count, not just the number of test functions.
+Prefer extending or replacing the owner's representative check over copying it
+into a new consumer-specific module. Do not build another checker, registry or
+test suite to enforce this mandate.
 
-This default does not require removing existing non-product unit tests. Remove
-test-tool UI tests and redundant recursive checks rather than moving their entire
+Remove test-tool UI tests and redundant recursive checks rather than moving their entire
 matrices to another layer. Preserve any unique core guarantee with the smallest
 effective direct check; preserve required product coverage. A reduction does
 not require a replacement test for every deleted case. Preserve unrelated work

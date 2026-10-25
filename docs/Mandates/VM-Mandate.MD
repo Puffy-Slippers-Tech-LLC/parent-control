@@ -227,10 +227,9 @@ ownership.
   [clean boundary](../../tests/integration/Environment.md#ubuntu-clean-snapshots),
   including [Fedora policy verification](../../tests/integration/Environment.md#fedora-clean-snapshots),
   preserves fixture-only independence, exact legacy retirement and old recovery.
-  Keep first-run, repeat, update and interrupted-retry behavior safe. Unit
+  Keep first-run, repeat, update and interrupted-retry behavior safe. Existing
   coverage follows the [test scope mandate](Test-Scope-Mandate.md) at the shared
-  dangerous reconciliation boundary; ordinary fixture features and consumers
-  do not add their own unit matrices.
+  dangerous reconciliation boundary.
   Auto mode still applies available system updates and replaces snapshots as
   documented; idempotence never weakens the lease, provenance or product-free gate.
 - `./setup.sh` is the sole public VM-host setup entry point. Modes must be

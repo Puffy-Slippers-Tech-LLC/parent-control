@@ -7,7 +7,7 @@ owns which layer exercises each matrix. Read this mandate when changing either
 layer's automation, including shared workers.
 
 Apply the [test scope mandate](Test-Scope-Mandate.md) before requiring UI
-coverage. By default, no new unit tests for non-product code, unless specifically asked for.
+coverage.
 Maintain existing focused shared coverage. UI tests of test tools are excluded.
 The automation routes below do not create additional coverage obligations or
 per-consumer matrices.

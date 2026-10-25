@@ -229,8 +229,7 @@ the validated export/storage routes; their lifetime does not govern task status.
 
 Changes affecting destructive cleanup, foreign-resource isolation or core
 execution/evidence identity use focused regressions at their existing shared
-owner under the [test scope mandate](Test-Scope-Mandate.md). Ordinary allocation,
-retention convenience and helper features have no unit suites. Run only the
+owner under the [test scope mandate](Test-Scope-Mandate.md). Run only the
 affected shared safety checks before exercising a changed protected operation;
 unchanged guards create no prerequisite test run. Cleanup itself runs no regression tests; it only
 recovers recorded owned resources under the [cleanup contract](../../tests/README.md#cleanup-safety-prerequisites).

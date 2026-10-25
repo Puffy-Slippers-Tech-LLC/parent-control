@@ -67,8 +67,8 @@ Apply the same principle to test code, fixtures, qualification and acceptance
 under the [test scope mandate](Mandates/Test-Scope-Mandate.md). Reuse existing
 coverage and qualified operations. Add cases only for distinct uncovered product
 outcomes or failure boundaries, using small representative inputs and the lowest
-effective layer. Keep shared safety checks at their owner. No new non-product
-unit tests without a specific request, tests of tests or per-consumer matrices.
+effective layer. Keep shared safety checks at their owner. Do not add tests of
+tests or per-consumer matrices.
 
 Use the [shortest reliable public journey](Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope);
 remove redundant navigation, readbacks and incidental prerequisites while

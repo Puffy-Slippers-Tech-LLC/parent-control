@@ -1073,5 +1073,5 @@ old test names, parameter IDs or matrices. Validate affected callers
 at the [lowest effective scope](../README.md#all-established-regressions), retaining
 required acceptance and selectors; extraction alone does not require unrelated suites.
 Changed dangerous cleanup or ownership boundaries use their existing focused
-shared regressions; ordinary helper changes do not add units. See [test maintenance](../README.md)
+shared regressions. See [test maintenance](../README.md)
 for authorized launchers and evidence boundaries.

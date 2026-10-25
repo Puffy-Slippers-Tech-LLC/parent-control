@@ -131,8 +131,8 @@ smoke run demonstrating:
 
 Follow the [test scope mandate](Mandates/Test-Scope-Mandate.md): validate this
 development tool through existing consumers and bounded smoke use, maintain
-affected existing coverage, and do not add tool UI tests or default new
-non-product unit suites. Select the lowest effective existing checks through
+affected existing coverage, and do not add tool UI tests.
+Select the lowest effective existing checks through
 maintained launchers. Follow repository build requirements if edits affect
 building or packaging. Report unavailable prerequisites and unverified behavior
 as unresolved; source review alone does not demonstrate the working integration.

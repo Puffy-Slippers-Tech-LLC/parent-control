@@ -32,7 +32,8 @@ PROFILES = ('oh-no-parent-control-session-limits', 'oh-no-parent-control-kiosk-o
 
 
 def run(arguments, *, input=None):
-    return subprocess.run(arguments, input=input, check=True, capture_output=True,
+    # Keep helper refusal reasons visible in the native package transaction.
+    return subprocess.run(arguments, input=input, check=True, stdout=subprocess.PIPE,
                           text=True, timeout=60, env=ENV)
 
 

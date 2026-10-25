@@ -254,7 +254,7 @@ Record the specific conflicting shared resource for any required exclusivity.
 Do not declare work complete with a module merely left in the unreviewed fallback.
 
 `test_e2e_baseline_auth_pause.py` uses pytest-private records, in-memory public
-UI/transport doubles, fake clocks and bounded waited Perl children. It owns no
+UI/transport doubles and fake clocks. It owns no
 VM, display, socket, bus, external service, shared cache or fixture build; its
 small CPU/I/O load permits compatible unit overlap. It adds no cleanup module
 or resource owner. Existing MATE and TIME03 host checks retain those same

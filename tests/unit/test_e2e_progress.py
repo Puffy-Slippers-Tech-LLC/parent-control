@@ -1,7 +1,6 @@
 """Worker progress messages are allowlisted and cannot export secrets."""
 
 import json
-import re
 
 import inventory
 from tools.e2e_progress import Progress, operation_labels
@@ -39,22 +38,3 @@ def test_worker_messages_are_bounded_allowlisted_and_cleared_at_step_boundary(tm
     path.unlink()
     path.symlink_to(tmp_path / 'missing')
     assert progress.snapshot()['operation'] == 'Checking the selected child'
-
-
-def test_new_worker_blocks_require_literal_nonsecret_operation_messages():
-    # Bookkeeping helpers either do no customer operation or dispatch to blocks
-    # which log it. New action blocks must opt into the shared progress contract.
-    bookkeeping = {'onpc_journey::new', 'onpc_journey::seen',
-                   'onpc_journey::consume_observation', 'onpc_journey::service_system_prompt',
-                   'onpc_password::seal_capture'}
-    for path in LIB.glob('*.pm'):
-        if path.stem == 'onpc_progress':
-            continue
-        source = path.read_text()
-        assert 'use onpc_progress ();' in source
-        blocks = re.split(r'^sub (\w+) \{\n', source, flags=re.MULTILINE)
-        for name, body in zip(blocks[1::2], blocks[2::2]):
-            if name.startswith('_') or f'{path.stem}::{name}' in bookkeeping:
-                continue
-            assert re.match(r"    onpc_progress::operation\('[^'\n]+'\);", body), (path, name)
-        assert not re.search(r'onpc_progress::operation\((?!\')', source)

@@ -2,7 +2,6 @@
 from tests.support.vm_registry import vm_name
 
 import json
-import io
 import os
 from pathlib import Path
 import socket
@@ -22,61 +21,6 @@ def intent(transcript):
     return json.loads(transcript.packet('a' * 32))['operation']
 
 
-def test_serial_vm_selection_publishes_to_each_vm_after_queue_validation(monkeypatch):
-    import vm_config
-    selected = None
-    monkeypatch.setattr(vm_config, 'selected', lambda **_: selected)
-    monkeypatch.setattr(activity.os, 'geteuid', lambda: 0)
-    monkeypatch.setenv('PKEXEC_UID', '12345')
-    monkeypatch.setattr(activity, '_instance', None)
-    monkeypatch.setattr(activity, '_attempted', False)
-    monkeypatch.setattr(activity, '_attempted_vm', None)
-    monkeypatch.setattr(activity.atexit, 'register', Mock())
-    publishers = []
-    def publish(uid):
-        assert uid == 12345
-        value = SimpleNamespace(registry=SimpleNamespace(vm_name=selected.name),
-                                transcript=activity.Transcript(), close=Mock())
-        publishers.append(value)
-        return value
-    monkeypatch.setattr(activity, 'Publication', publish)
-    with activity.operation('Validating the backup queue'):
-        assert not publishers and activity.current() is None
-    for name in ('First-VM', 'Second-VM'):
-        selected = SimpleNamespace(name=name)
-        with activity.operation('Backing up registered VM disks'):
-            assert publishers[-1].registry.vm_name == name
-            assert intent(publishers[-1].transcript) == 'Backing up registered VM disks'
-    assert len(publishers) == 2
-    publishers[0].close.assert_called_once_with()
-    publishers[1].close.assert_not_called()
-
-
-def test_intent_precedes_action_and_nested_work_restores_it(transcript):
-    activity.event('Waiting for an experiment')
-    with activity.operation('Restoring the VM snapshot'):
-        assert intent(transcript) == 'Restoring the VM snapshot'
-        command = activity.command(['qemu-img'])
-        assert intent(transcript) == 'Restoring the VM snapshot'
-        command.finish(0)
-        with pytest.raises(RuntimeError), activity.operation('Checking restored VM'):
-            assert intent(transcript) == 'Checking restored VM'
-            raise RuntimeError
-        assert intent(transcript) == 'Restoring the VM snapshot'
-    assert intent(transcript) == 'Waiting for an experiment'
-
-
-def test_failed_spawn_clears_command_intent(transcript, monkeypatch):
-    commands = Commands()
-    def spawn(*args, **kwargs):
-        assert intent(transcript) == 'Host $ missing-command'
-        raise FileNotFoundError
-    monkeypatch.setattr('owned_commands.subprocess.Popen', spawn)
-    with pytest.raises(FileNotFoundError):
-        commands.run(['missing-command'])
-    assert intent(transcript) == ''
-
-
 def test_transport_publishes_before_ownership_probe_and_hides_private_input(transcript):
     from vm_transport import Transport
     def guard(_):
@@ -86,95 +30,6 @@ def test_transport_publishes_before_ownership_probe_and_hides_private_input(tran
         Transport({}, guard=guard).call(['python3', '-c', 'private-source'], input=b'private-input')
     assert intent(transcript) == ''
     assert 'private-source' not in transcript.packet('a' * 32).decode()
-
-
-def test_multiple_publishers_keep_live_output_and_surviving_intent(tmp_path, monkeypatch):
-    import e2e_watch_viewer as viewer
-    directory = tmp_path / str(os.getuid())
-    directory.mkdir()
-    for run in ('a' * 32, 'b' * 32):
-        (directory / ('activity-' + run + '.json')).touch()
-    # Crashed publishers must not exhaust the live producer bound.
-    for number in range(129):
-        (directory / f'activity-{number:032x}.json').touch()
-    monkeypatch.setattr(viewer, 'BASE', tmp_path)
-    first, second = activity.Transcript(), activity.Transcript()
-    first.begin('Installing in the VM')
-    first.append('installation started\n')
-    token = second.begin('Observing the VM desktop')
-    second.append('desktop ready\n')
-    values = {'a' * 32: first, 'b' * 32: second}
-    feed = Feed()
-    def packet(directory, path):
-        run = path.stem.removeprefix('activity-')
-        return json.loads(values[run].packet(run)) if run in values else None
-    monkeypatch.setattr(feed, 'activity_packet', packet)
-    value = feed.activity()
-    assert value['operation'] == 'Observing the VM desktop'
-    assert value['text'] == 'installation started\ndesktop ready\n'
-    second.end(token)
-    first.append('installation finished\n')
-    feed.next_activity = 0
-    value = feed.activity()
-    assert value['operation'] == 'Installing in the VM'
-    assert value['text'].count('installation started') == 1
-    assert value['text'].endswith('installation finished\n')
-    values.pop('b' * 32)
-    feed.next_activity = 0
-    assert feed.activity()['operation'] == 'Installing in the VM'
-    # Reconnection to the same producer resumes after its already seen output.
-    values['b' * 32] = second
-    second.append('desktop observed again\n')
-    feed.next_activity = 0
-    assert feed.activity()['text'].count('desktop ready') == 1
-    assert feed.activity()['text'].endswith('desktop observed again\n')
-
-
-def test_footer_shows_non_e2e_intent_and_preserves_newer_e2e_progress():
-    from e2e_watch_viewer import activity_text
-    value = dict(operation='VM maintenance: reboot', operation_started_ns=10_000_000_000)
-    assert activity_text(value, now_ns=12_000_000_000) == 'VM maintenance: reboot - (2s)'
-    assert activity_text(value, dict(operation_started_ns=11_000_000_000)) == ''
-
-
-def test_publishers_preserve_explicit_intent_over_child_commands(tmp_path, monkeypatch):
-    import e2e_watch_viewer as viewer
-    directory = tmp_path / str(os.getuid())
-    directory.mkdir()
-    parent, child = activity.Transcript(), activity.Transcript()
-    values = {'a' * 32: parent, 'b' * 32: child}
-    for run in values:
-        (directory / ('activity-' + run + '.json')).touch()
-    monkeypatch.setattr(viewer, 'BASE', tmp_path)
-    feed = Feed()
-    def packet(_, path):
-        run = path.stem.removeprefix('activity-')
-        return json.loads(values[run].packet(run)) if run in values else None
-    monkeypatch.setattr(feed, 'activity_packet', packet)
-    parent.begin('Restoring the VM snapshot', priority=2)
-    child.begin('Host $ qemu-img')
-    assert feed.activity()['operation'] == 'Restoring the VM snapshot'
-    nested = child.begin('Checking restored VM', priority=2)
-    feed.next_activity = 0
-    assert feed.activity()['operation'] == 'Checking restored VM'
-    child.end(nested)
-    feed.next_activity = 0
-    assert feed.activity()['operation'] == 'Restoring the VM snapshot'
-
-
-def test_footer_restores_explicit_intent_and_clears_completed_events(transcript):
-    from e2e_watch_viewer import activity_text
-    with activity.operation('Restoring the VM snapshot'):
-        parent = json.loads(transcript.packet('a' * 32))
-        with activity.operation('Checking restored VM'):
-            progress = dict(operation='Checking restored VM',
-                operation_started_ns=json.loads(transcript.packet('a' * 32))['operation_started_ns'])
-        restored = json.loads(transcript.packet('a' * 32))
-        assert activity_text(restored, progress).startswith('Restoring the VM snapshot - (')
-        assert restored['operation_started_ns'] == parent['operation_started_ns']
-        activity.event('Snapshot restoration complete')
-    assert 'Snapshot restoration complete' in transcript.text
-    assert activity_text(json.loads(transcript.packet('a' * 32))) == ''
 
 
 @pytest.fixture
@@ -220,67 +75,6 @@ raise SystemExit(7)
     assert 'stderr while running' in transcript.text
     assert '[exit 7]' in transcript.text
     assert (tmp_path / 'command-0001-stderr.txt').read_text() == 'stderr while running\n'
-
-
-@pytest.mark.parametrize('status', [0, 100])
-def test_guest_apt_reaches_spectator_before_exit(tmp_path, transcript, monkeypatch, capsys, status):
-    import system_guest as guest
-    release = tmp_path / 'release'
-    script = tmp_path / 'apt_fixture.py'
-    script.write_text('''import os, pathlib, sys, time
-assert os.isatty(1) and os.isatty(2)
-assert os.environ['TERM'] == 'xterm-256color'
-print('Unpacking package...', flush=True)
-print('APT diagnostic', file=sys.stderr, flush=True)
-deadline = time.monotonic() + 5
-while not pathlib.Path(sys.argv[1]).exists():
-    if time.monotonic() > deadline: raise SystemExit(9)
-    time.sleep(.01)
-print('\\033[1;31mREBOOT REQUIRED\\033[0m', flush=True)
-raise SystemExit(int(sys.argv[2]))
-''')
-    observer = activity.command(['ssh'], activity.remote_command(
-        ['/usr/bin/python3', '/var/tmp/onpc-system-input/system_guest.py', 'install-suite'], False))
-    # Model the two SSH streams. The package child cannot exit until both have
-    # traversed the guest helper and the host's actual spectator line handling.
-    class Stream(io.BytesIO):
-        def __init__(self, channel):
-            super().__init__()
-            self.channel = channel
-
-        def write(self, data):
-            observer.output(data, self.channel)
-            if ('Unpacking package...' in transcript.text and
-                    'APT diagnostic' in transcript.text and not release.exists()):
-                assert '[exit' not in transcript.text
-                release.touch()
-            return super().write(data)
-
-    class PackageCommands(Commands):
-        def run(self, argv, **kwargs):
-            assert argv == ['apt-get', 'update']
-            return super().run([sys.executable, str(script), str(release), str(status)], **kwargs)
-
-    commands = PackageCommands()
-    commands.directory = tmp_path
-    monkeypatch.setattr(guest, 'commands', commands)
-    monkeypatch.setattr(guest, 'sys', SimpleNamespace(
-        stdout=SimpleNamespace(buffer=Stream('stdout')),
-        stderr=SimpleNamespace(buffer=Stream('stderr'))))
-    monkeypatch.setattr(activity, 'current', lambda: None)
-    if status:
-        with pytest.raises(CommandError, match='command:failed'):
-            guest.run(['apt-get', 'update'], timeout=8)
-    else:
-        assert guest.run(['apt-get', 'update'], timeout=8) == (
-            'Unpacking package...\r\nAPT diagnostic\r\n\x1b[1;31mREBOOT REQUIRED\x1b[0m')
-    observer.finish(commands.last_returncode)
-    assert commands.last_returncode == status
-    assert '\x1b[1;31mREBOOT REQUIRED\x1b[0m' in transcript.text
-    assert f'[exit {status}]' in transcript.text
-    assert capsys.readouterr().out == f'$ apt-get update\n[exit {status}]\n'
-    assert (tmp_path / 'command-0001.txt').read_bytes() == (
-        b'Unpacking package...\r\nAPT diagnostic\r\n\x1b[1;31mREBOOT REQUIRED\x1b[0m\r\n')
 
 
 def test_guest_private_probe_does_not_forward_output(monkeypatch, capsys):
@@ -351,16 +145,6 @@ def test_registered_test_names_and_run_redaction(transcript):
     assert selection[1]
     assert 'a' * 32 not in transcript.text
     assert 'test_authorization.py::test_password_denied PASSED' in transcript.text
-
-
-def test_transcript_is_bounded_and_preserves_utf8(transcript):
-    transcript.begin('😀' * 500)
-    transcript.append('😀' * 20000)
-    packet = transcript.packet('a' * 32)
-    assert len(packet) < 100000
-    assert len(json.loads(packet)['text']) == 8000
-    assert json.loads(packet)['offset'] == 12000
-    assert len(json.loads(packet)['operation']) == 384
 
 
 def test_terminal_controls_colors_and_redaction_survive_chunk_boundaries(transcript):

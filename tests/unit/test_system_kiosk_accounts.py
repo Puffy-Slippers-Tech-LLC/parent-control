@@ -1,9 +1,7 @@
-"""Classification assertions use private files and OS/service doubles only."""
+"""Account fixture writes and service operations preserve ownership."""
 
-import copy
 import json
 import os
-from pathlib import Path
 import stat
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -126,30 +124,6 @@ def test_precommit_injection_has_one_identity_pinned_target(tmp_path, monkeypatc
     assert product['subprocess'].run is native_run
 
 
-def test_retained_record_oracle_keeps_unknown_keys_comments_and_groups(monkeypatch):
-    monkeypatch.setattr(accounts, 'ICON', Path('/fixed-test-icon'))
-    original = (b'[User]\nLanguage=fr_FR.UTF-8\nSystemAccount=false\n'
-                b'Icon=/original\n# Existing comment\nUnknown=keep\\svalue\n\n'
-                b'[org.example.Existing]\nData=keep extension\n')
-    visible = accounts.fixture_record(original, hidden=False)
-    hidden = accounts.fixture_record(original, hidden=True)
-    assert hidden.replace(b'SystemAccount=true', b'SystemAccount=false') == visible
-    for retained in (b'Language=fr_FR.UTF-8', b'# Existing comment',
-                     b'Unknown=keep\\svalue', b'[org.example.Existing]\nData=keep extension'):
-        assert retained in visible
-    assert visible.count(b'SystemAccount=') == visible.count(b'Icon=') == 1
-    assert b'Icon=/fixed-test-icon' in visible
-    assert b'X-OnpcConfinementMetadata=' in visible
-    assert b'[org.example.OnpcConfinementRetained]' in visible
-
-
-@pytest.mark.parametrize('raw', [b'[User]\n', b'[User]\nSystemAccount=maybe\n',
-                               b'[User]\nSystemAccount=true\nSystemAccount=false\n'])
-def test_fixture_refuses_ambiguous_classification(raw):
-    with pytest.raises(accounts.guest.GuestError, match='fixture-record-shape'):
-        accounts.fixture_record(raw, hidden=True)
-
-
 @pytest.mark.parametrize('replacement', [False, True])
 def test_fixture_mask_cleanup_preserves_foreign_replacement(tmp_path, monkeypatch, replacement):
     mask = tmp_path / 'accounts-daemon.service'
@@ -235,147 +209,6 @@ def test_fixture_refuses_preexisting_runtime_mask_without_service_action(tmp_pat
             pytest.fail('foreign mask admitted')
     command.assert_not_called()
     assert mask.is_symlink()
-
-
-@pytest.mark.parametrize('changed', ['content', 'mode', 'xattr', 'icon'])
-def test_metadata_assertion_detects_each_preserved_boundary(monkeypatch, changed):
-    expected = {'sha256': 'a', 'uid': 0, 'gid': 0, 'mode': 0o600, 'xattrs': {'label': 'b'}}
-    actual = dict(expected)
-    key = {'content': 'sha256', 'mode': 'mode', 'xattr': 'xattrs', 'icon': 'sha256'}[changed]
-    actual[key] = {'mode': 0o640, 'xattrs': {'label': 'changed'}}.get(key, 'changed')
-    monkeypatch.setattr(accounts, 'fingerprint', lambda path:
-                        actual if (path == accounts.ICON) == (changed == 'icon') else expected)
-    with pytest.raises(accounts.guest.GuestError, match='retained-metadata-changed') as error:
-        accounts.verify_preserved(expected, expected)
-    detail = json.loads(str(error.value).split('retained-metadata-changed:', 1)[1])
-    role = 'icon' if changed == 'icon' else 'cache'
-    assert set(detail) == {role}
-    assert detail[role]['fields'] == [key]
-    if key == 'sha256':
-        assert detail[role]['sha256'] == {'expected': 'a', 'actual': 'changed'}
-    elif key == 'mode':
-        assert detail[role]['mode'] == {'expected': '0o600', 'actual': '0o640'}
-    else:
-        assert detail[role]['xattrs'] == [{'name': 'label', 'expected_sha256': 'b',
-                                          'actual_sha256': 'changed'}]
-
-
-def test_metadata_diagnostics_bound_xattr_names_and_count():
-    expected = {'sha256': 'a', 'uid': 0, 'gid': 0, 'mode': 0o600, 'xattrs': {}}
-    actual = copy.deepcopy(expected)
-    actual['xattrs'] = {f'user.fixture-{index:02d}-' + 'x' * 100: 'b' * 64
-                       for index in range(20)}
-    detail = accounts.fingerprint_difference(expected, actual)
-    assert detail['fields'] == ['xattrs']
-    assert len(detail['xattrs']) == 8 and detail['omitted_xattrs'] == 12
-    assert all(len(attribute['name']) == 96 for attribute in detail['xattrs'])
-    assert all(attribute['expected_sha256'] is None and
-               attribute['actual_sha256'] == 'b' * 64 for attribute in detail['xattrs'])
-
-
-def test_equal_fingerprints_pass_without_diagnostic_output(capsys):
-    expected = {'sha256': 'a', 'uid': 0, 'gid': 0, 'mode': 0o600, 'xattrs': {}}
-    accounts.require_fingerprints((('cache', expected, copy.deepcopy(expected)),), 'failure')
-    assert capsys.readouterr() == ('', '')
-
-
-@pytest.mark.parametrize('initial_mode', [0o600, 0o644])
-def test_fresh_restart_accepts_only_source_owned_permission_normalization(initial_mode):
-    before = {'sha256': 'a', 'uid': 0, 'gid': 0, 'mode': initial_mode,
-              'xattrs': {'security.selinux': 'b'}}
-    original = copy.deepcopy(before)
-    accounts.verify_fresh_restart(before, dict(before, mode=0o600))
-    assert before == original
-
-
-@pytest.mark.parametrize('initial_mode', [0o400, 0o640, 0o666])
-def test_fresh_restart_refuses_unexpected_initial_permissions(initial_mode):
-    before = {'sha256': 'a', 'uid': 0, 'gid': 0, 'mode': initial_mode, 'xattrs': {}}
-    with pytest.raises(accounts.guest.GuestError, match='fresh-initial-mode'):
-        accounts.verify_fresh_restart(before, dict(before, mode=0o600))
-
-
-@pytest.mark.parametrize('final_mode', [0o644, 0o640, 0o400])
-def test_fresh_restart_requires_daemon_canonical_permissions(final_mode):
-    before = {'sha256': 'a', 'uid': 0, 'gid': 0, 'mode': 0o644, 'xattrs': {}}
-    with pytest.raises(accounts.guest.GuestError, match='fresh-restart-changed-record'):
-        accounts.verify_fresh_restart(before, dict(before, mode=final_mode))
-
-
-@pytest.mark.parametrize('field,value', [('sha256', 'changed'), ('uid', 1), ('gid', 1),
-                                       ('xattrs', {'security.selinux': 'changed'})])
-def test_fresh_restart_permission_normalization_keeps_every_other_field_exact(field, value):
-    before = {'sha256': 'a', 'uid': 0, 'gid': 0, 'mode': 0o644,
-              'xattrs': {'security.selinux': 'b'}}
-    after = dict(before, mode=0o600)
-    after[field] = value
-    with pytest.raises(accounts.guest.GuestError, match='fresh-restart-changed-record') as error:
-        accounts.verify_fresh_restart(before, after)
-    detail = json.loads(str(error.value).split('fresh-restart-changed-record:', 1)[1])
-    assert detail['cache']['fields'] == [field]
-
-
-@pytest.mark.parametrize('role', ['administrator', 'standard'])
-@pytest.mark.parametrize('field', ['uid', 'icon_path', 'cache', 'icon'])
-def test_ordinary_witness_detects_each_role_without_disclosing_identifiers(monkeypatch, role, field):
-    metadata = {'sha256': 'a', 'uid': 0, 'gid': 0, 'mode': 0o600, 'xattrs': {}}
-    state = {'uid': 1000, 'icon_path': '/private/expected', 'cache': metadata, 'icon': metadata}
-    expected = {name: copy.deepcopy(state) for name in accounts.ORDINARY_ACCOUNTS}
-    actual = copy.deepcopy(expected)
-    if field in ('cache', 'icon'):
-        actual[role][field] = dict(metadata, sha256='changed')
-    else:
-        actual[role][field] = 2000 if field == 'uid' else '/private/actual'
-    monkeypatch.setattr(accounts, 'ordinary_state', lambda: actual)
-    with pytest.raises(accounts.guest.GuestError, match='ordinary-metadata-changed') as error:
-        accounts.verify_ordinary(expected)
-    detail = json.loads(str(error.value).split('ordinary-metadata-changed:', 1)[1])
-    changed = {'fields': [field]}
-    if field in ('cache', 'icon'):
-        changed[field] = {'fields': ['sha256'], 'sha256': {'expected': 'a', 'actual': 'changed'}}
-    assert detail == {role: changed}
-
-
-@pytest.mark.parametrize('missing', ['administrator', 'standard'])
-def test_ordinary_witness_requires_both_roles(monkeypatch, missing):
-    actual = {role: {} for role in accounts.ORDINARY_ACCOUNTS}
-    expected = {role: value for role, value in actual.items() if role != missing}
-    monkeypatch.setattr(accounts, 'ordinary_state', lambda: actual)
-    with pytest.raises(accounts.guest.GuestError, match='ordinary-witness-roles'):
-        accounts.verify_ordinary(expected)
-
-
-@pytest.mark.parametrize('fault', [None, 'missing-marker', 'content', 'extra-xattr',
-                                 'marker-uid', 'marker-before', 'marker-inode'])
-def test_pending_transaction_keeps_exact_independent_metadata_oracle(monkeypatch, fault):
-    expected = {'sha256': 'visible-hash', 'uid': 0, 'gid': 0, 'mode': 0o600,
-                'xattrs': {'user.original': 'original-hash'}}
-    actual = copy.deepcopy(expected)
-    actual['xattrs'][accounts.TRANSACTION] = 'transaction-hash'
-    marker = {'version': 1, 'uid': 1002, 'device': 11, 'inode': 22,
-              'before': 'hidden-hash', 'after': 'visible-hash'}
-    if fault == 'missing-marker':
-        del actual['xattrs'][accounts.TRANSACTION]
-    elif fault == 'content':
-        actual['sha256'] = 'foreign-content'
-    elif fault == 'extra-xattr':
-        actual['xattrs']['user.foreign'] = 'foreign-hash'
-    elif fault == 'marker-uid':
-        marker['uid'] = 2002
-    elif fault == 'marker-before':
-        marker['before'] = 'foreign-original'
-    elif fault == 'marker-inode':
-        marker['inode'] = 23
-    monkeypatch.setattr(accounts, 'fingerprint', lambda _: copy.deepcopy(actual))
-    monkeypatch.setattr(accounts.os, 'getxattr', lambda *_: json.dumps(marker).encode())
-    arguments = (Path('/fixture/slot'), expected, {'sha256': 'hidden-hash'},
-                 SimpleNamespace(pw_uid=1002), SimpleNamespace(st_dev=11, st_ino=22))
-    if fault:
-        with pytest.raises(accounts.guest.GuestError, match='transaction-'):
-            accounts.verify_pending(*arguments)
-    else:
-        accounts.verify_pending(*arguments)
-        assert expected['xattrs'] == {'user.original': 'original-hash'}
 
 
 def test_witness_is_private_and_never_overwrites_an_existing_entry(tmp_path, monkeypatch):

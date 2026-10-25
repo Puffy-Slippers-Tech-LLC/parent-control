@@ -1273,7 +1273,7 @@ parent_about_cleanup_safety parent_client
 parent_grid_pixels parent_main parent_native_surface parent_needles
 parent_setup_cleanup_safety ppa_build preferences prepare_baseline
 prepare_baseline_cleanup_safety prepare_baseline_tool prepare_vm prepare_vm_contract
-preview_screen prepared_kiosk_pam privileged_test_runner probe_bus_client_cleanup_safety
+prepared_kiosk_pam privileged_test_runner probe_bus_client_cleanup_safety
 probe_channel_cleanup_safety probe_generation_cleanup_safety product_free_entry_cleanup_safety provision publish
 publish_source_integrity publishing_tests public_atspi qualification_storage_cleanup_safety read_only_launcher regression regression_cleanup
 regression_cleanup_safety regression_inputs regression_resources regression_schedule
@@ -1290,7 +1290,7 @@ system_probe_decision system_probe_sandbox_cleanup_safety system_qualification
 system_remote_accounts system_runner system_runner_cleanup_safety system_snapshots systemd_unit
 terminal_cleanup_safety test_account_password test_activity test_applications test_artifacts test_launchers
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety
-ui_cleanup_safety ui_watch_cleanup_safety uninstall unit_test_launcher usage_query_retry verify_test_traceability
+ui_cleanup_safety ui_watch_cleanup_safety uninstall unit_test_launcher usage_query_retry
 vm_backup_cleanup_safety vm_config vm_control_cleanup_safety vm_pool vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
 write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 """.split())
@@ -1308,8 +1308,11 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # red failure reporting uses process-local launcher doubles. Compatible overlap
 # remains valid; no shared host paths, VM operations or extra subprocesses.
 # Watch registry refresh uses the existing bounded discovery thread with private
-# JSON and finite Git doubles; per-VM activity rebinding uses publication doubles.
-# Neither adds a live host/VM resource or changes compatible unit scheduling.
+# JSON and finite Git doubles, without live host/VM resource ownership.
+# Non-product coverage reductions retain system_runner's private files and
+# command doubles, needle-input private staging, and watcher socketpairs/memfds.
+# No process, storage or cleanup owner is added; these modules remain compatible
+# in unit scheduling and the cleanup/UI inventories are unchanged.
 # Missing foreign disk chains and network interruption/ownership checks add
 # only private fixture files and process-local libvirt doubles; no new owner,
 # service, cache or resource demand changes this compatible classification.

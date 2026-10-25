@@ -260,13 +260,39 @@ def verify_removed(state, *, purged=False, record=None):
                             'NameHasOwner', 's', guest.BUS]) == 'b false',
                   'removal:broker-still-owns-bus')
     for role in ('child', 'other'):
-        observe_launch(state['accounts'][role], True,
-                       variant=state.get('native_variant', 'command'))
+        try:
+            observe_launch(state['accounts'][role], True,
+                           variant=state.get('native_variant', 'command'))
+        except guest.GuestError:
+            removed_launch_failure_diagnostics()
+            raise
     if guest.package_path().suffix == '.rpm':
         guest.run(['authselect', 'check'])
         guest.require(guest.run(['authselect', 'current', '--raw']) == state['authselect'],
                       'removal:authselect-not-restored')
         guest.require(guest.run(['getenforce']) == 'Enforcing', 'removal:selinux-not-enforcing')
+
+
+def removed_launch_failure_diagnostics():
+    """Capture policy/reload evidence only after the unchanged launch check fails."""
+    previous_returncode = guest.commands.last_returncode
+    probes = (
+        ('compiled', ['cat', '/etc/fapolicyd/compiled.rules']),
+        ('rules', ['fapolicyd-cli', '--list']),
+        ('journal', ['journalctl', '--boot', '--unit=fapolicyd.service',
+                     '--lines=80', '--no-pager', '--output=short-monotonic']),
+    )
+    try:
+        for name, arguments in probes:
+            try:
+                # Reuse private command artifacts and never replace the failure.
+                guest.commands.run(arguments, check=False, timeout=10, merge_stderr=True)
+                outcome = 'collected' if guest.commands.last_returncode == 0 else 'failed'
+            except Exception:
+                outcome = 'unavailable'
+            print(f'onpc-system: stage=removed-launch-{name} outcome={outcome}', flush=True)
+    finally:
+        guest.commands.last_returncode = previous_returncode
 
 
 def configure_restrictions(accounts, *, variant='command'):
@@ -1419,7 +1445,18 @@ def identity_filesystem_refusal_retry(record, variant):
                                     merge_stderr=True)
         status = guest.commands.last_returncode
         record('onpc.identity-filesystem.native-status', str(status))
-        guest.require(conflict.reason in output and (fedora or status != 0),
+        if variant == 'state-owner':
+            # Snapshot refusal reports catalogued fields and cause provenance;
+            # exception messages are excluded by the diagnostics contract.
+            refused = (
+                b'onpc.uninstall uninstall snapshot outcome=failed error_type=UninstallCleanupError'
+                in output.splitlines() and re.search(
+                    rb'^onpc.runtime Failure provenance depth=1 link=cause '
+                    rb'error_type=UninstallCleanupError source=uninstall line=[1-9][0-9]* '
+                    rb'os_error=none exit_code=256;', output, re.MULTILINE) is not None)
+        else:
+            refused = conflict.reason in output
+        guest.require(refused and (fedora or status != 0),
                       'identity-filesystem:native-conflict-not-refused')
         conflict.verify()
         if conflict.preflight:

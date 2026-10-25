@@ -300,6 +300,7 @@ def test_vm_worker_recovers_under_its_reservation_before_testing(monkeypatch, cl
     import test_checkpoint
     import test_recovery
     import vm_test_queue
+    import regression_process
     from vm_selection import selected
     events = []
     @contextmanager
@@ -320,5 +321,8 @@ def test_vm_worker_recovers_under_its_reservation_before_testing(monkeypatch, cl
     monkeypatch.setattr(test_commands, '_main', lambda *a, **k: events.append('test') or run_status)
     # worker replaces stdout with its frame adapter; restore it after the call.
     monkeypatch.setattr(sys, 'stdout', sys.stdout)
+    # The process entry point also installs its cancellation event globally.
+    # Restore it so later tests do not inherit this worker's mock stop flag.
+    monkeypatch.setattr(regression_process, 'session_stop', regression_process.session_stop)
     assert vm_test_queue.worker(['--execute', selected().name, 'system']) == (cleanup_status or run_status)
     assert events == ['checkout', 'recovery', *(['test'] if not cleanup_status else []), 'checkin']

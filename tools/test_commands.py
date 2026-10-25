@@ -822,8 +822,10 @@ def plan(root, category, argv):
         # repeats it after pkexec. Loading this checkout copy confers no privilege.
         import runpy
         dispatcher = runpy.run_path(host.confined_file(root, 'tools/onpc-test-runner'))
-        from vm_selection import arguments
-        vm_args = arguments() if '--list' not in argv else []
+        from vm_selection import arguments, selected
+        # Listings feed the repair queue, so retain the bound VM's package
+        # format. An unbound listing can still show the general inventory.
+        vm_args = arguments() if '--list' not in argv or selected(required=False) is not None else []
         command = dispatcher['selection'](root, [category, *argv, *vm_args],
             allow_missing_artifacts=category in ('system', 'e2e') or live_refresh_selection(category, argv))
         selectors = dict(value.split('=', 1) for value in command

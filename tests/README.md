@@ -1231,6 +1231,8 @@ close-out; cases already executing retain their active status until they wait.
 `Running` is reserved for normal tests outside a repair transaction. Test
 execution within a repair transaction, including diagnostic runs and queued-failure
 rechecks, stays `Verifying` until repair work or Git close-out resumes.
+An active agent session shows `Repairing`, even while its controller progress
+still contains the preceding test or admission status.
 The lower frame divides execution details and optional session input on the left
 from current task summary and status/issues on the right. `run-tests` has no
 session composer; `fix-tests`, E2E and ordinary plan workflows offer the

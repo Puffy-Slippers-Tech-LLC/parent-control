@@ -445,22 +445,27 @@ def publish_case_progress(root, run, category, cases, case, passed, *, totals, r
                          and previous.get('case') in (nodeid, None) else now)))
 
 
-def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopping=False):
+def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopping=False,
+                     session=None):
     """Summarize scheduling and repair phases without granting execution credit."""
     terminal = {'complete': 'Complete', 'limited': 'Task limit reached',
                 'stopped': 'Stopped', 'blocked': 'Blocked'}
-    phase = steps[-1]['lines'][-1] if steps else ''
+    phase = next((line for line in reversed(steps[-1]['lines'])
+                  if line.startswith('Status: ')), '') if steps else ''
+    agent_active = session is not None and session.get('status') == 'running'
     status = terminal.get(state)
     if status is None:
         if stopping:
             status = 'Stopping' if state == 'running' else 'Stopped'
-        elif state == 'queued' or phase == 'Status: Queued on repair':
+        elif state == 'queued' or phase == 'Status: Queued on repair' and not agent_active:
             status = (f'Queued on {blocker} repair' if blocker and blocker != name else
                       'Repairing' if blocker == name and state == 'running' else 'Queued on VM slot')
         elif question:
             status = 'Waiting for input'
         elif saved.get('pending') is not None:
             status = 'Save fix'
+        elif agent_active:
+            status = 'Repairing'
         elif phase == 'Status: Verifying':
             status = 'Verifying'
         elif phase.startswith(('Status: fixing errors', 'Status: validating retained response')):
@@ -556,8 +561,10 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             question = pending(child)
             checkpoint_path = child / 'checkpoint.json'
             saved = json.loads(checkpoint_path.read_text()) if checkpoint_path.exists() else {}
+            session_path = child / 'session-view.json'
+            session = json.loads(session_path.read_text()) if session_path.exists() else None
             lines.extend(['', pipeline_heading(name, states[name]['status'], steps, question, saved,
-                                               blocker=blocker, stopping=stopping)])
+                                               blocker=blocker, stopping=stopping, session=session)])
             frame = child / 'frame.json'
             details = json.loads(frame.read_text()) if frame.exists() else []
             try:

@@ -518,6 +518,9 @@ The same compatible unit classification applies, without new shared resources.
 Post-exit trust-metadata diagnostics use C API and command doubles only. They
 open no host database, load no real library and spawn no process; the existing
 system_enforcement compatible classification and cleanup inventory are unchanged.
+Removing system_enforcement's scenario-replay matrices leaves only private
+fixture/catalog trees and process-local doubles in that unit module. It retains
+compatible scheduling; no bus, service, subprocess or cleanup owner is added.
 
 Child trust upgrade/retry/boot regressions use tiny private pytest machine trees,
 synthetic boot IDs, and synchronously waited relocated maintainer-script/helper

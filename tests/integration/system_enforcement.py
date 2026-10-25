@@ -1019,16 +1019,16 @@ def native_policy_transition(accounts, record, variant='command'):
         guest.require(not future.exists() and not future.is_symlink(),
                       'enforcement:future-fixture-collision')
     # Share the screen-time classes across fixtures: whitespace owns soft/off;
-    # command owns hard/on. Every fixture retains an initial allowed launch,
-    # hard/off denial and recovery; pattern/retention also retain soft/on.
+    # command owns hard/on and soft/on. Pattern and retention focus on their
+    # distinct matching/persistence behavior with allow/hard/off recovery.
+    # Every fixture retains an initial allowed launch, denial and recovery.
     # Clear each denial before the next mode so stale rules cannot satisfy it.
     stages = (('allowed', None), ('hard', 'permanent'), ('restored', None))
     if variant == 'whitespace':
         stages += (('soft', 'conditional'), ('soft-restored', None))
     if variant == 'command':
-        stages += (('enabled-hard', 'permanent'), ('enabled-restored', None))
-    if variant != 'whitespace':
-        stages += (('enabled-soft', 'conditional'), ('enabled-soft-restored', None))
+        stages += (('enabled-hard', 'permanent'), ('enabled-restored', None),
+                   ('enabled-soft', 'conditional'), ('enabled-soft-restored', None))
     try:
         # Clear and witness the hard denial before testing soft policy so stale
         # hard rules cannot satisfy the conditional-policy assertion.

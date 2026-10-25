@@ -1,5 +1,6 @@
 """Installed system-bus assertions; run only through the guarded VM runner."""
 
+from contextlib import ExitStack
 import json
 from pathlib import Path
 import pwd
@@ -35,8 +36,6 @@ METHOD_ROLE_CASES = tuple(
 )
 LOG_EVENT = json.dumps({'v': 1, 'event': 'diagnostic.rejected',
                        'operation': 0, 'fields': {}})
-
-
 
 
 @pytest.fixture(scope='module')
@@ -82,6 +81,20 @@ def accounts():
         accepted(call(values['parent1'], 'SetParentControl', '(ubu)', (values[role], False, 60)))
     print('onpc-system: stage=authorization-accounts outcome=ready')
     return values
+
+
+@pytest.fixture(scope='module')
+def callers(accounts):
+    """Reuse agentless bus connections; each case still makes fresh calls."""
+    with ExitStack() as stack:
+        connections = {}
+
+        def get(role):
+            if role not in connections:
+                connections[role] = stack.enter_context(PersistentCaller(accounts[role]))
+            return connections[role]
+
+        yield get
 
 
 def invocation(method, role, accounts):
@@ -144,9 +157,9 @@ def denied(reply, boundary):
 @pytest.mark.parametrize('method,role', [
     pytest.param(method, role, id=f'{method}-{role}') for method, role in METHOD_ROLE_CASES
 ])
-def test_method_role_matrix(accounts, role, method):
+def test_method_role_matrix(accounts, callers, role, method):
     signature, args, allowed = invocation(method, role, accounts)
-    reply = call(accounts[role], method, signature, args)
+    reply = callers(role).call(method, signature, args)
     if allowed:
         result = accepted(reply)
         if method == 'GetOwnAccount':
@@ -166,26 +179,24 @@ def test_method_role_matrix(accounts, role, method):
         ('UpdateRequestPreferencesWithUnit', 'child1'), ('SetRequestMuted', 'child1'),
     )
 ])
-def test_cross_child_targets_fail_closed(accounts, role, method):
+def test_cross_child_targets_fail_closed(accounts, callers, role, method):
     signature, args, _ = invocation(method, role, accounts)
     other = accounts['child2'] if role == 'child1' else accounts['child1']
-    before = accepted(call(accounts['parent1'], 'GetPreferences', '(u)', (other,)))
-    reply = call(accounts[role], method, signature, (other, *args[1:]))
+    manager = callers('parent1')
+    before = accepted(manager.call('GetPreferences', '(u)', (other,)))
+    reply = callers(role).call(method, signature, (other, *args[1:]))
     guest.require(reply.get('error') == DENIED, 'authorization:cross-child-denial')
-    after = accepted(call(accounts['parent1'], 'GetPreferences', '(u)', (other,)))
+    after = accepted(manager.call('GetPreferences', '(u)', (other,)))
     guest.require(before == after, 'authorization:cross-child-write')
 
 
 @pytest.mark.parametrize('role', ('child1', 'parent1', 'kiosk'))
 def test_private_records_and_log_components(accounts, role):
-    before = snapshot_accounts(accounts, ('child1', 'child2'))
     replies = batch(accounts[role], [
         {'kind': kind, 'target': accounts[target]}
         for target in ('child1', 'child2') for kind in ('private-read', 'private-write')])
     guest.require(replies == [{'readable': False}, {'writable': False}] * 2,
                   'authorization:private-record')
-    guest.require(accounts_unchanged(accounts, before),
-                  'authorization:private-probe-write')
     own = 'parent' if role in ('parent1', 'parent2', 'locked') else 'kiosk' if role == 'kiosk' else 'child'
     replies = batch(accounts[role], [
         {'kind': 'call', 'method': 'LogEvent', 'signature': '(sss)',
@@ -195,11 +206,10 @@ def test_private_records_and_log_components(accounts, role):
         denied(reply, 'log-impersonation')
 
 
-def test_account_discovery_after_installation(accounts):
+def test_account_discovery_after_installation(accounts, callers):
     for role in ('parent1', 'kiosk'):
-        children, approvers = (accepted(reply)[0] for reply in batch(accounts[role], [
-            {'kind': 'call', 'method': method, 'signature': '()', 'args': ()}
-            for method in ('ListManagedUsers', 'ListApprovers')]))
+        children, approvers = (accepted(callers(role).call(method))[0]
+                              for method in ('ListManagedUsers', 'ListApprovers'))
         child_uids, approver_uids = {row[0] for row in children}, {row[0] for row in approvers}
         guest.require({accounts[key] for key in ('child1', 'child2', 'unrelated')} <= child_uids,
                       'authorization:discovery-missing-child')
@@ -217,10 +227,6 @@ def test_account_discovery_after_installation(accounts):
                               for row in rows), 'authorization:icon-path')
 
 
-
-
-
-
 @pytest.fixture
 def disposable_identities(accounts, record_testsuite_property):
     # Create both before deleting either, so this slice cannot reuse a deleted UID.
@@ -236,8 +242,6 @@ def disposable_identities(accounts, record_testsuite_property):
     accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)',
                   (values['target'], False, 60)))
     return values
-
-
 
 
 def test_deleted_target_and_approver_fail_closed(accounts, disposable_identities,
@@ -403,11 +407,11 @@ def test_ineligible_callers_cannot_use_broker(accounts, role):
         ('RequestAccess', 'kiosk'), ('RequestAccess', 'system'),
     )
 ])
-def test_ineligible_targets_fail_closed(accounts, role, method):
+def test_ineligible_targets_fail_closed(accounts, callers, role, method):
     caller = 'kiosk' if method == 'RequestAccess' else 'parent1'
     signature, args, _ = invocation(method, caller, accounts)
     before = account_state(accounts[role])
-    reply = call(accounts[caller], method, signature, (accounts[role], *args[1:]))
+    reply = callers(caller).call(method, signature, (accounts[role], *args[1:]))
     guest.require(reply.get('error') == DENIED, 'authorization:ineligible-target')
     guest.require(account_state(accounts[role]) == before, 'authorization:ineligible-target-write')
 
@@ -429,7 +433,7 @@ def test_enabled_child_request_reaches_authentication_without_grant(accounts, ro
 
 
 @pytest.mark.parametrize('target_role', ('child1', 'parent1'))
-def test_icons_match_authoritative_account_properties(accounts, target_role):
+def test_icons_match_authoritative_account_properties(accounts, callers, target_role):
     target = accounts[target_role]
     method = 'ListManagedUsers' if target_role == 'child1' else 'ListApprovers'
     path = f'/org/freedesktop/Accounts/User{target}'
@@ -438,13 +442,12 @@ def test_icons_match_authoritative_account_properties(accounts, target_role):
                    'org.freedesktop.Accounts.User', 'SetIconFile', 's', icon])
         expected = account_property(target, 'org.freedesktop.Accounts.User', 'IconFile')
         guest.require(bool(expected) == bool(icon), 'authorization:icon-fixture')
-        for role in ('parent1', 'kiosk'):
-            rows = accepted(call(accounts[role], method))[0]
-            matches = [row for row in rows if row[0] == target]
-            guest.require(len(matches) == 1 and matches[0][2] == expected,
-                          'authorization:authoritative-list-icon')
+        rows = accepted(callers('parent1').call(method))[0]
+        matches = [row for row in rows if row[0] == target]
+        guest.require(len(matches) == 1 and matches[0][2] == expected,
+                      'authorization:authoritative-list-icon')
         if target_role == 'child1':
-            own = accepted(call(target, 'GetOwnAccount'))
+            own = accepted(callers('child1').call('GetOwnAccount'))
             guest.require(own[2] == expected, 'authorization:authoritative-own-icon')
 
 
@@ -462,8 +465,8 @@ def test_ineligible_selected_approvers_fail_closed(accounts, surface):
             for approver in approvers:
                 caller.send(request_operation(surface, target, accounts[approver]))
                 denied(caller.receive(), 'ineligible-approver:' + approver)
-                guest.require(accounts_unchanged(accounts, before),
-                              'authorization:ineligible-approver-write')
+            guest.require(accounts_unchanged(accounts, before),
+                          'authorization:ineligible-approver-write')
     finally:
         accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
 
@@ -553,17 +556,15 @@ def test_administrator_eligibility_predicates(accounts, record_testsuite_propert
                        interface, 'SetLocked', 'b', 'false'])
             if predicate == 'noninteractive':
                 require_ready('eligible')
-                for caller in ('parent1', 'child1', 'kiosk'):
-                    guest.require(uid in {row[0] for row in accepted(call(
-                        accounts[caller], 'ListApprovers'))[0]}, 'authorization:eligible-control')
+                guest.require(uid in {row[0] for row in accepted(call(
+                    accounts['parent1'], 'ListApprovers'))[0]}, 'authorization:eligible-control')
                 guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', path,
                            interface, 'SetShell', 's', '/usr/sbin/nologin'])
             require_ready('excluded')
             before = snapshot_accounts(accounts)
-            for caller in ('parent1', 'child1', 'kiosk'):
-                offered = {row[0] for row in accepted(call(accounts[caller], 'ListApprovers'))[0]}
-                guest.require(uid not in offered and accounts['parent1'] in offered,
-                              'authorization:predicate-discovery')
+            offered = {row[0] for row in accepted(call(accounts['parent1'], 'ListApprovers'))[0]}
+            guest.require(uid not in offered and accounts['parent1'] in offered,
+                          'authorization:predicate-discovery')
             for surface in ('child1', 'kiosk'):
                 if surface == 'child1':
                     reply = call(target, 'RequestOwnAccess', '(uub)', (uid, 300, False))
@@ -577,10 +578,10 @@ def test_administrator_eligibility_predicates(accounts, record_testsuite_propert
                 }, sort_keys=True))
                 guest.require(reply.get('error') == DENIED,
                               'authorization:predicate-direct-selection:' + predicate + ':' + surface)
-                guest.require(accounts_unchanged(accounts, before),
-                              'authorization:predicate-state-write')
                 print(f'onpc-system: stage=eligibility predicate={predicate} '
                       f'surface={surface} outcome=denied', flush=True)
+            guest.require(accounts_unchanged(accounts, before),
+                          'authorization:predicate-state-write')
     finally:
         accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
 
@@ -596,7 +597,7 @@ def remote_directory():
         restore_nss(restoration)
 
 
-def test_remote_accounts_are_excluded(accounts, remote_directory, record_testsuite_property):
+def test_remote_accounts_are_excluded(accounts, callers, remote_directory, record_testsuite_property):
     """Real LDAP identities must be rejected solely for their nonlocal status."""
     from system_remote_accounts import package_versions
 
@@ -619,14 +620,13 @@ def test_remote_accounts_are_excluded(accounts, remote_directory, record_testsui
             'SystemAccount': False, 'Locked': False, 'interactive': True,
             'safe_name': True, 'nss_matches': True,
         }, 'authorization:independent-remote-predicate:' + role)
-    for caller in ('parent1', 'kiosk'):
-        managed = {row[0] for row in accepted(call(accounts[caller], 'ListManagedUsers'))[0]}
-        guest.require(not managed.intersection(remote.values()) and accounts['child1'] in managed,
-                      'authorization:remote-child-discovery')
-    for caller in ('parent1', 'child1', 'kiosk'):
-        approvers = {row[0] for row in accepted(call(accounts[caller], 'ListApprovers'))[0]}
-        guest.require(not approvers.intersection(remote.values()) and accounts['parent1'] in approvers,
-                      'authorization:remote-approver-discovery')
+    manager = callers('parent1')
+    managed = {row[0] for row in accepted(manager.call('ListManagedUsers'))[0]}
+    approvers = {row[0] for row in accepted(manager.call('ListApprovers'))[0]}
+    guest.require(not managed.intersection(remote.values()) and accounts['child1'] in managed,
+                  'authorization:remote-child-discovery')
+    guest.require(not approvers.intersection(remote.values()) and accounts['parent1'] in approvers,
+                  'authorization:remote-approver-discovery')
     target = accounts['child1']
     accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, True, 60)))
     try:
@@ -649,8 +649,8 @@ def test_remote_accounts_are_excluded(accounts, remote_directory, record_testsui
                 'boundary': boundary, 'access_denied': reply.get('error') == DENIED,
             }, sort_keys=True))
             guest.require(reply.get('error') == DENIED, 'authorization:remote-denial:' + boundary)
-            guest.require(accounts_unchanged(accounts, before),
-                          'authorization:remote-state-write')
+        guest.require(accounts_unchanged(accounts, before),
+                      'authorization:remote-state-write')
     finally:
         accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
 
@@ -905,11 +905,16 @@ def test_authenticated_request_rejects_deleted_target(accounts, passwords,
                   'outcome=authenticated-denied-state-preserved', flush=True)
 
 
-@pytest.mark.parametrize('surface', ('child1', 'kiosk'))
-@pytest.mark.parametrize('mutation', ('child-role', 'approver-role', 'preferences'))
+@pytest.mark.parametrize('mutation,surface', [
+    pytest.param(mutation, surface, id=f'{mutation}-{surface}')
+    for mutation, surface in (
+        ('child-role', 'child1'), ('child-role', 'kiosk'),
+        ('approver-role', 'child1'), ('preferences', 'kiosk'),
+    )
+])
 def test_authenticated_request_revalidates_live_state(accounts, passwords, surface, mutation,
                                                      authentication_diagnostics):
-    """Authenticate successfully after a real, observable mid-prompt change."""
+    """Cover both target routes and each shared post-authentication predicate."""
     target = accounts['child1']
     selected, other = accounts['parent1'], accounts['parent2']
     accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))

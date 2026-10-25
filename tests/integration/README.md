@@ -521,6 +521,12 @@ remote accounts, disconnects and mid-prompt changes remain separate histories.
 Removed combinations keep their numeric IDs reserved as retired; surviving
 selectors and IDs do not change. Shared request and account-state helpers keep
 observations fresh within each independently selectable case.
+Agentless permission cases reuse guarded caller connections within the module;
+authentication and disconnect histories retain their own callers. Denial groups
+compare account state once after their rejected calls, with no intentional
+mutation between the two observations. Mid-prompt target-role changes retain
+both request routes; shared approver-role and preference revalidation use one
+route each (IDs 259 and 262).
 
 `package` → `test_pam_environment_installation_variants` selects four independent
 baseline histories (IDs 283–286): plain, distro profile, administrator override
@@ -986,13 +992,16 @@ The selector is explicit and isolated; ordinary current-package or upgrade
 selections do not add it. Its passing result qualifies inputs, without granting
 candidate-upgrade or customer GUI acceptance.
 
-Native policy cases use finite sequences: the command baseline keeps the full
-hard/soft matrix with screen-time control off and on; whitespace keeps
-allow/hard/restore/soft/restore with control off; future-pattern and
-missing-launcher cases keep allow/hard/restore followed by enabled-soft/restore.
+Native policy cases use finite sequences: the command baseline keeps
+allow/hard/restore with screen-time control off, then hard/restore/soft/restore
+with control on; whitespace keeps allow/hard/restore/soft/restore with control
+off. Future-pattern and missing-launcher cases keep allow/hard/restore, leaving
+the shared enabled soft-policy transitions to the command baseline.
 Each observed stage retains other-child controls and each case restores its
 policy independently. Historical installed results below describe the earlier
 complete sequences; the reduced sequences require their own installed validation.
+The systemd probe history keeps admission refusal followed by a successful fresh
+generation; that recovery also covers the ordinary success path.
 
 `test_native_whitespace_policy_is_uid_scoped` checks its representative
 transitions and other-child assertions using a fixed executable filename
@@ -1005,8 +1014,8 @@ direct `execv` after credential verification. Private rule filenames and public
 property names include the variant to retain both cases in a combined run.
 Inspect its retained-app-snapshot prerequisite with
 `tools/run-tests system --vm NAME --list --area enforcement --test test_native_whitespace_policy_is_uid_scoped`.
-Host regressions cover the scenario and failure witnesses; the full installed
-run linked above also passed this case.
+Direct host regressions retain fixture and cleanup guards; the full installed
+run linked above passed the earlier sequence.
 
 `test_native_future_pattern_is_uid_scoped` checks its representative transitions
 with a saved same-directory `Versioned-*.AppImage` pattern. A second matching version
@@ -1021,8 +1030,9 @@ the same guest/credential checks and owned one-shot process. Fixture setup
 refuses existing paths; files remain in the guest for outer baseline cleanup.
 Inspect the case and its retained-app-snapshot prerequisite with
 `tools/run-tests system --vm NAME --list --area enforcement --test test_native_future_pattern_is_uid_scoped`.
-Host regressions establish scenario behavior, catalog parsing and rule witnesses;
-the full installed run linked above also passed its kernel enforcement checks.
+Host regressions retain fixture creation, catalog parsing and direct rule
+coverage. System-test bodies are not replayed through synthetic fault matrices;
+the full installed run linked above passed the earlier kernel enforcement sequence.
 
 `test_native_missing_launcher_retains_policy` removes its dedicated native
 launcher after witnessing the initial hard policy in source and compiled rules.
@@ -1032,14 +1042,14 @@ are refused. The executable remains present. The broker catalog must omit the
 launcher while preferences retain its policy, including after a public
 `SetPreferences` save reconciles the missing catalog entry. Both rule files must
 still deny the selected child, and command launches must witness child denial
-and other-child allowance. The transitions continue through screen-time
-enablement, soft policy and policy restoration with the launcher absent. The
+and other-child allowance. Policy restoration must allow both children with
+the launcher still absent. The
 outer baseline cleanup owns remaining fixture files. Inspect its prerequisite
 closure with
 `tools/run-tests system --vm NAME --list --area enforcement --test test_native_missing_launcher_retains_policy`.
-Host regressions use real catalog parsing, broker preference reconciliation and
-rule rendering with substituted OS boundaries. Installed execution passed in
-the full run linked above.
+Direct host regressions retain catalog parsing, broker preference reconciliation,
+rule rendering and guarded launcher removal. Installed execution of the earlier
+sequence passed in the full run linked above.
 
 `test_native_catalog_is_selected_child_scoped` uses the same prerequisite
 closure and reads the installed broker catalog as the parent while selecting

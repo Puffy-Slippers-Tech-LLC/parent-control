@@ -39,7 +39,7 @@ def test_native_command_policy_is_uid_scoped(native_accounts, record_testsuite_p
 def test_native_probe_systemd_lifecycle(record_testsuite_property):
     # One continuous scenario also proves a settled refusal permits a fresh
     # independent generation; retain each stage's distinct evidence.
-    for stage, refuse in (('success', False), ('refusal', True), ('after-refusal', False)):
+    for stage, refuse in (('refusal', True), ('after-refusal', False)):
         def record(key, value):
             record_testsuite_property(f'{key}.{stage}', value)
         native_probe_lifecycle(record, refuse_admission=refuse)

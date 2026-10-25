@@ -616,6 +616,8 @@ BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})
 # Equivalent authorization inputs retain their original IDs while representative
 # cases cover their permission classes. Never reuse these numeric IDs.
 UNBOUND_CASES = MappingProxyType({
+    **dict.fromkeys((260, 261), (
+        'retired', 'shared post-authentication predicates sampled in 259/262; both target routes retained in 257/258')),
     **dict.fromkeys((
         27, 29, 31, 34, 36, 38, 39, 41, 43, 45, 46, 48, 50, 52, 53, 55, 57, 59, 60, 62, 64,
         66, 67, 69, 71, 73, 74, 76, 78, 80, 81, 83, 85, 87, 88, 90, 92, 94, 95, 97, 99, 101,

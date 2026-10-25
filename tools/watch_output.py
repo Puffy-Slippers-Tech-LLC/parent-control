@@ -270,6 +270,9 @@ class SessionOutput:
         self.run = self.owner = self.identity = None
         self.offset = 0
         self.panel = None
+        self.state = {}
+        self.active = False
+        self.input_enabled = False
         self.reader = JsonReader()
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
 
@@ -300,19 +303,33 @@ class SessionOutput:
                     if (not isinstance(value, dict) or not isinstance(value.get('session'), str)
                             or not isinstance(value.get('started_at'), (int, float))
                             or type(value.get('interactive')) is not bool
-                            or value.get('status') != 'running'):
+                            or value.get('status') not in ('running', 'finished')):
                         continue
-                    sessions.append((value['started_at'], owner, run, value))
+                    sessions.append((value['status'] == 'running', value['started_at'], owner, run, value))
                 except (OSError, ValueError, TypeError):
                     continue
         if sessions:
-            _started, owner, run, value = max(sessions, key=lambda item: item[0])
+            _active, _started, owner, run, value = max(sessions, key=lambda item: item[:2])
             return owner, run, value, 'session-output.log'
+        # Retain the last displayed transcript after launcher exit, without
+        # retaining authority to send input to that owner.
+        if self.run is not None:
+            return None, self.run, dict(self.state, status='finished'), 'session-output.log'
         return None, None, {}, None
 
     def current(self):
         owner, run, state, _source = self.discover()
-        return owner == self.owner and run == self.run and state.get('session') == self.identity
+        if (owner is None or owner != self.owner or run != self.run
+                or state.get('session') != self.identity):
+            return False
+        if state['status'] == 'running':
+            return True
+        try:
+            question = self.reader.read(run / 'question.json')
+            return (self.panel.question is not None and question.get('answer') is None
+                    and question.get('id') == self.panel.question.question['id'])
+        except (OSError, ValueError, TypeError, AttributeError):
+            return False
 
     def send(self, text):
         from launcher_chat import send_input
@@ -332,7 +349,12 @@ class SessionOutput:
 
     def feed(self, data):
         from launcher_chat import send_input
-        if self.panel is None or not self.current():
+        if self.panel is None:
+            return
+        if data in (b'\x1b[5~', b'\x1b[6~'):
+            self.scroll(self.panel.output_height * (1 if data == b'\x1b[5~' else -1))
+            return
+        if not self.input_enabled or not self.current():
             return
         if data in (b'\x03', b'\x1b') and not self.panel.editor.paste:
             if self.panel.input_mode == 'chat':
@@ -341,8 +363,6 @@ class SessionOutput:
                                expected_session=self.panel.chat_state.get('session'))
                 except (OSError, ValueError) as error:
                     self.panel.editor.error = str(error)
-        elif data in (b'\x1b[5~', b'\x1b[6~'):
-            self.scroll(self.panel.output_height * (1 if data == b'\x1b[5~' else -1))
         elif self.panel.input_mode == 'chat':
             self.panel.editor.feed(data)
         elif self.panel.question:
@@ -360,6 +380,7 @@ class SessionOutput:
             self.owner = self.run = self.identity = self.panel = None
             self.offset = 0
             self.decoder.reset()
+            self.active = self.input_enabled = False
             return False, False, b''
         reset = (run, state['session']) != (self.run, self.identity)
         if reset:
@@ -368,16 +389,17 @@ class SessionOutput:
             self.offset = 0
             self.decoder.reset()
         panel = self.panel
-        panel.input_mode = 'chat' if state['interactive'] else 'question'
+        self.owner = owner
+        self.state = state
         panel.chat_state = state
         try:
             chat = self.reader.read(run / 'chat-state.json')
-            if state['interactive'] and isinstance(chat, dict):
+            if state['status'] == 'running' and state['interactive'] and isinstance(chat, dict):
                 panel.chat_state = chat
-            elif state['interactive']:
+            elif state['status'] == 'running' and state['interactive']:
                 panel.chat_state = dict(session=None, status='starting')
         except (OSError, ValueError):
-            if state['interactive']:
+            if state['status'] == 'running' and state['interactive']:
                 panel.chat_state = dict(session=None, status='starting')
         # Workflow transitions can publish only mailbox/lifecycle fields.
         # Keep the supervisor's display metadata without reusing its input identity.
@@ -386,10 +408,13 @@ class SessionOutput:
                 panel.chat_state[name] = state[name]
         try:
             question = self.reader.read(run / 'question.json')
-            if question.get('answer') is not None:
+            if owner is None or question.get('answer') is not None:
                 question = None
         except (OSError, ValueError):
             question = None
+        self.active = owner is not None and (state['status'] == 'running' or question is not None)
+        self.input_enabled = self.active and (state['interactive'] or question is not None)
+        panel.input_mode = 'chat' if self.active and state['interactive'] and question is None else 'question'
         previous = panel.question.question['id'] if panel.question else None
         if (question['id'] if question else None) != previous:
             panel.question = QuestionInput(question, lambda identity, choice, text:

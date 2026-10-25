@@ -640,7 +640,7 @@ class TranscriptWriter:
 class SessionTranscript:
     """Mirror rendered agent output into the current session's bounded log."""
 
-    def __init__(self, stream, run):
+    def __init__(self, stream, run, *, append=False):
         self.stream = stream
         self.path = run / 'session-output.log'
         self.line_start = True
@@ -649,7 +649,10 @@ class SessionTranscript:
         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
             os.close(fd)
             raise ValueError('unsafe session transcript')
-        os.ftruncate(fd, 0)
+        if append:
+            os.lseek(fd, 0, os.SEEK_END)
+        else:
+            os.ftruncate(fd, 0)
         self.log = os.fdopen(fd, 'wb')
 
     def isatty(self):

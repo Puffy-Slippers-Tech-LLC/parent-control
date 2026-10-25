@@ -1,6 +1,7 @@
 """Persist a workflow decision independently of any attached terminal."""
 
 import codecs
+from contextlib import closing
 import fcntl
 import json
 import re
@@ -79,7 +80,7 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
                     on_wait=lambda: None):
     """The owner waits without a timeout; shared observers submit the answer."""
     from launcher_progress import publish_progress
-    from launcher_render import AgentRenderer
+    from launcher_render import AgentRenderer, SessionTranscript
     validate_blocker(blocker)
     question = dict(blocker, id=identity, answer=None)
     with launcher.lock(run / 'question-gate') as gate:
@@ -90,23 +91,25 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
             launcher.atomic(path, question)
     on_wait()
     publish_progress(run, progress_key, [heading, 'Paused — waiting for your answer'])
-    renderer = AgentRenderer(sys.stdout)
-    renderer.message(blocker['explanation'])
-    # Only observers render an editable selection; the transcript has no default vote.
-    prompt = QuestionInput(question, None)
-    prompt.selected = None
-    renderer.console.print('\n'.join(prompt.lines()), markup=False)
-    print(f'No timeout. Reattach with tools/{label} to answer after a disconnect.', flush=True)
-    while True:
-        if (run / 'cancel').exists():
-            raise launcher.Stopped()
-        if (run / 'stop').exists():
-            return None
-        question = json.loads(path.read_text())
-        if question['answer'] is not None:
-            renderer.console.print('\n'.join(QuestionInput(question, None).lines()), markup=False)
-            return {'question': question['question'], 'answer': question['answer']}
-        time.sleep(.1)
+    with closing(SessionTranscript(sys.stdout, run, append=True)) as transcript:
+        renderer = AgentRenderer(transcript)
+        renderer.message(blocker['explanation'])
+        # Only observers render an editable selection; the transcript has no default vote.
+        prompt = QuestionInput(question, None)
+        prompt.selected = None
+        renderer.console.print('\n'.join(prompt.lines()), markup=False)
+        print(f'No timeout. Reattach with tools/{label} to answer after a disconnect.',
+              file=transcript, flush=True)
+        while True:
+            if (run / 'cancel').exists():
+                raise launcher.Stopped()
+            if (run / 'stop').exists():
+                return None
+            question = json.loads(path.read_text())
+            if question['answer'] is not None:
+                renderer.console.print('\n'.join(QuestionInput(question, None).lines()), markup=False)
+                return {'question': question['question'], 'answer': question['answer']}
+            time.sleep(.1)
 
 
 def pending(run):

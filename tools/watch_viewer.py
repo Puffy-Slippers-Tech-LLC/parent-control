@@ -395,12 +395,11 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                             self.session_terminal.feed(b'\033[?2004h')
                     elif self.session_available is not False:
                         self.session_writer.feed(b'No active launcher session.\n', reset=True)
-                    if available != self.session_available:
-                        self.session_tab_label.set_markup(
-                            '<span foreground="#3584e4">Session</span>' if available else 'Session')
+                    self.session_tab_label.set_markup(
+                        '<span foreground="#3584e4">Session</span>' if self.session_output.active else 'Session')
                     self.session_available = available
-                    self.session_terminal.set_input_enabled(available)
-                self.output_active = self.output_active or bool(self.session_available)
+                    self.session_terminal.set_input_enabled(self.session_output.input_enabled)
+                self.output_active = self.output_active or self.session_output.active
             self.active = self.output_active or self.ui.active or any(view.active for view in self.vms.values())
             return True
 

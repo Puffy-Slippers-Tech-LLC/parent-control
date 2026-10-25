@@ -2455,12 +2455,14 @@ shared [session panel](../tools/launcher_session.py), following the active agent
 in that checkout, including VM repair pipelines and plan launchers. Its transcript,
 scroll position and draft are independent of Run Status. Interactive sessions
 support the existing prompt, interruption and continuation controls, including
-`fix-tests` repairs. Pending developer decisions remain available in the launcher.
-The tab shows only an active agent session's dedicated transcript. Its label is
-blue while a session is active and returns to the default text color otherwise.
-Before an agent starts, after it finishes,
-or when a supervisor has no dedicated session artifacts, the tab shows an
-empty-state message and disables input. Launcher output stays in Outputs.
+`fix-tests` repairs. Pending developer decisions appear in Session and remain
+available in the launcher. Session retains the latest agent's dedicated transcript
+through verification and after completion, until another agent session replaces it.
+Its label is blue while an agent is active or a developer decision is pending,
+and returns to the default text color otherwise. Input is disabled for a finished
+session without a pending decision. Before an agent starts, or when a supervisor
+has no dedicated session artifacts, the tab shows an empty-state message and
+disables input. Launcher output stays in Outputs.
 Input is checked against the displayed owner and session before delivery.
 The initial
 horizontal split is 25%/75%, adjustable by dragging. The right viewer has one

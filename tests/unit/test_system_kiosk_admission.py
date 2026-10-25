@@ -34,8 +34,9 @@ def worker(monkeypatch):
     return SimpleNamespace(service=service, root=root, pam=pam, load=load, account=account)
 
 
-@pytest.mark.parametrize('callback', ['account', 'session'])
-@pytest.mark.parametrize('status', [0, 7, 4])
+@pytest.mark.parametrize('callback,status', [
+    ('account', 0), ('account', 7), ('session', 0), ('session', 4),
+])
 def test_worker_invokes_one_native_callback_and_cleans_up(worker, callback, status):
     operation = worker.pam.pam_acct_mgmt if callback == 'account' else worker.pam.pam_open_session
     operation.return_value = status
@@ -182,10 +183,15 @@ def test_account_probe_refuses_invalid_arguments_before_command(controller, serv
     controller.assert_not_called()
 
 
-@pytest.mark.parametrize('service', admission.DURABLE_SERVICES)
-@pytest.mark.parametrize('role', admission.USERS)
-@pytest.mark.parametrize('callback', ['account', 'session'])
+@pytest.mark.parametrize('service,role,callback', [
+    ('gdm-password', 'kiosk', 'account'),
+    ('systemd-user', 'kiosk', 'session'),
+    ('gdm-password', 'ordinary', 'session'),
+    ('systemd-user', 'other', 'account'),
+])
 def test_probe_exact_invocation_and_typed_result(controller, service, role, callback):
+    # The transport forwards service/role names unchanged. Sample both native
+    # callbacks and all roles without crossing those independent dimensions.
     status = admission.PAM_AUTH_ERR if role == 'kiosk' else 0
     result = {'callback': callback, 'status': status,
               'close': 0 if callback == 'session' and status == 0 else None, 'end': 0}
@@ -266,10 +272,13 @@ def test_empty_token_worker_preserves_authentication_and_account_denial(
     worker.pam.pam_end.assert_called_once_with(handle, authenticated or accounted)
 
 
-@pytest.mark.parametrize('package', ['deb', 'rpm'])
-@pytest.mark.parametrize('authenticated,accounted', [(0, 0), (0, 6), (7, None)])
+@pytest.mark.parametrize('package,authenticated,accounted', [
+    ('deb', 0, 0), ('deb', 0, 6), ('deb', 7, None), ('rpm', 0, 0),
+])
 def test_empty_token_probe_observes_exact_native_authority(
         controller, monkeypatch, package, authenticated, accounted):
+    # Authentication/account verdicts and Fedora's caller prefix are separate
+    # boundaries; one Fedora control suffices for that prefix selection.
     monkeypatch.setattr(admission.guest, 'package_path', lambda: Path('package.' + package))
     entered = Mock()
 

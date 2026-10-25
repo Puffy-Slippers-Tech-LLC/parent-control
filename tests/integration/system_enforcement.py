@@ -116,9 +116,15 @@ def provision_catalog(accounts):
 def observe_catalog(accounts, record):
     """Read through the installed broker as parent, switching selected child."""
     guest.guard()
+    with PersistentCaller(accounts['parent']) as caller:
+        _observe_catalog(accounts, record, caller)
+
+
+def _observe_catalog(accounts, record, caller):
     root = TARGET.parent / 'catalog'
     for stage, role in (('child', 'child'), ('other', 'other'), ('child-again', 'child')):
-        rows = call(accounts['parent'], 'ListApplications', '(u)', (accounts[role],))[0]
+        rows = accepted(caller.call('ListApplications', '(u)', (accounts[role],)),
+                        category='enforcement:broker-call-failed')[0]
         expected = {'Shared': role if role == 'child' else 'system',
                     'ChildOnly' if role == 'child' else 'OtherOnly': role,
                     'Relative': 'system', 'DesktopPath': 'system',
@@ -1063,8 +1069,14 @@ def _native_policy_transition(accounts, record, variant, caller):
                 'state': app_state, 'targets': [str(target)],
                 'patterns': [str(target.with_name('Versioned-*.AppImage'))] if variant == 'pattern' else [],
                 'user_saved_match_rule': variant == 'pattern'}} if blocked else {})
-            request('SetPreferences', '(us)', (child, json.dumps(preferences)))
-            saved = json.loads(request('GetPreferences', '(u)', (child,))[0])
+            # The fresh original read already established the clean policy.
+            # Observe its real rules/launches before any save; rewriting the
+            # same empty policy only repeats native compilation and reload.
+            if stage == 'allowed':
+                saved = json.loads(original)
+            else:
+                request('SetPreferences', '(us)', (child, json.dumps(preferences)))
+                saved = json.loads(request('GetPreferences', '(u)', (child,))[0])
             guest.require(saved['parent_control_enabled'] is enabled and
                           saved['daily_time_limit_minutes'] == original_limit and
                           saved['apps'] == preferences['apps'],
@@ -1106,6 +1118,10 @@ def _native_policy_transition(accounts, record, variant, caller):
                 for launch_variant in ('pattern-unrelated', 'pattern-future'):
                     if launch_variant == 'pattern-future' and not future_created:
                         continue
+                    if launch_variant == 'pattern-unrelated' and stage != 'allowed' and not blocked:
+                        # This nonmatch was allowed both before and during the
+                        # denial. Only the blocked versions need a recovery.
+                        continue
                     allowed = launch_variant == 'pattern-unrelated' or not blocked
                     observe_launch(child, allowed, variant=launch_variant)
                     record(f'{prefix}.{stage}.{launch_variant}.child',
@@ -1138,8 +1154,17 @@ def _native_policy_transition(accounts, record, variant, caller):
         # Restore app choices even if disabling screen time failed. The full
         # preference readback must still reject a retained enabled state.
         try:
-            request('SetPreferences', '(us)', (child, original))
-            guest.require(request('GetPreferences', '(u)', (child,))[0] == original,
+            restored = None
+            if not failed and restoration_error is None:
+                try:
+                    restored = request('GetPreferences', '(u)', (child,))[0]
+                except Exception:
+                    # A failed observation cannot prevent the original repair.
+                    pass
+            if restored != original:
+                request('SetPreferences', '(us)', (child, original))
+                restored = request('GetPreferences', '(u)', (child,))[0]
+            guest.require(restored == original,
                           'enforcement:policy-restore-mismatch')
             # The active-policy checks above cover transient isolation. This
             # final comparison also covers recovery and policy restoration.

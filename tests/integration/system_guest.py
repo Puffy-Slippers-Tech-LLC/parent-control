@@ -595,19 +595,22 @@ def installed(*, reboot_required=False):
             require(path.is_symlink() and os.readlink(path) == entry['target'], 'installed-symlink')
         else:
             require(stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == entry['mode'], 'installed-mode')
-            if info.st_gid != installed_group(path):
+            expected_group = installed_group(path)
+            if info.st_gid != expected_group:
                 # Package inventory paths are static integration names, not user data.
                 print(f'onpc-system: installed-group path={path} gid={info.st_gid}', flush=True)
-            require(info.st_gid == installed_group(path), 'installed-group')
+            require(info.st_gid == expected_group, 'installed-group')
     private = Path('/etc/oh-no-parent-control/config.json').stat()
     require(private.st_uid == 0 and stat.S_IMODE(private.st_mode) == 0o600, 'configuration-permissions')
     rules_before = execution_rule_state() if reboot_required else None
     activate_broker(reboot_required=reboot_required)
-    for unit in (BROKER, 'accounts-daemon.service', 'fapolicyd.service', 'display-manager.service'):
-        require(run(['systemctl', 'is-active', unit]) == 'active', 'service-ready')
+    units = [BROKER, 'accounts-daemon.service', 'fapolicyd.service', 'display-manager.service']
     if package_path().suffix == '.rpm':
-        require(run(['systemctl', 'is-active', 'oh-no-parent-control-execution-policy-ready.service']) ==
-                'active', 'service-ready')
+        units.append('oh-no-parent-control-execution-policy-ready.service')
+    # systemctl emits one state per requested unit. Keep every readiness
+    # assertion while paying for a single process/system-bus connection.
+    require(run(['systemctl', 'is-active', *units]).splitlines() == ['active'] * len(units),
+            'service-ready')
     verify_pam()
     for name in ('child.request-own-access', 'kiosk.request-access'):
         path = Path('/usr/share/polkit-1/actions') / f'tech.puffyslippers.com.ohnoparentcontrol.{name}.policy'

@@ -579,7 +579,8 @@ def removal_recovery_state():
     return {'uid': uid, 'expires': current_expiry(), 'pam': pam}
 
 
-def verify_quarantine(saved, *, marker_uid=None):
+def verify_quarantine(saved, *, marker_uid=None, phase='quarantined'):
+    guest.require(phase in ('quarantined', 'releasing'), 'finalization:invalid-quarantine-phase')
     value = private_recovery_record(Path('/var/lib/oh-no-parent-control/kiosk-configuration-account.json'))
     try:
         expiry = json.loads(value.contents)
@@ -589,7 +590,7 @@ def verify_quarantine(saved, *, marker_uid=None):
                   type(expiry.get('uid')) is int and
                   (expiry.get('expires') is None or type(expiry.get('expires')) is int) and
                   expiry == {'version': 1, 'uid': saved['uid'],
-                  'expires': saved['expires'], 'phase': 'quarantined'} and current_expiry() == 1,
+                  'expires': saved['expires'], 'phase': phase} and current_expiry() == 1,
                   'finalization:quarantine-record-changed')
     guest.require(private_recovery_record(Path(
         '/var/lib/oh-no-parent-control/package-created-kiosk-uid')).contents ==
@@ -599,11 +600,11 @@ def verify_quarantine(saved, *, marker_uid=None):
                   'finalization:recovery-records-changed')
 
 
-def quarantine_active(recovery):
+def quarantine_active(recovery, *, phase='quarantined'):
     """Bracket observations with the same independently checked native barrier."""
     try:
         verify_quarantine({'uid': recovery['kiosk_identity'][0],
-                           'expires': recovery['expires']})
+                           'expires': recovery['expires']}, phase=phase)
     except (FileNotFoundError, guest.GuestError):
         return False
     return True
@@ -1242,6 +1243,7 @@ def private_recovery_record(path):
 def observe_rpm_reinstall(state, recovery, generated, record):
     """Witness restored enforcement while durable admission still excludes kiosk."""
     from guest_install_recipe import install
+    from system_removal_faults import expiry_release_gate, record_reinstall_access
     guest.guard()
     guest.enable_diagnostics()
     transaction = guest.Commands()
@@ -1261,29 +1263,60 @@ def observe_rpm_reinstall(state, recovery, generated, record):
     worker = threading.Thread(target=execute, name='onpc-rpm-reinstall')
     snapshot = Path('/var/lib/oh-no-parent-control/uninstall-enforcement.json')
     observed = False
-    worker.start()
-    try:
-        while worker.is_alive():
-            guarded = quarantine_active(recovery)
-            if not os.path.lexists(snapshot) and guarded:
-                restored = (account_digest(state['accounts']['child']) == recovery['policy'] and
-                            extension_lists(state['accounts']['child']) == recovery['extensions'] and
-                            all((Path(name).read_bytes() if os.path.lexists(name) else None) == value
-                                for name, value in generated.items()))
-                if restored:
+    started = time.monotonic()
+    polls = eligible = 0
+    observations = []
+    with expiry_release_gate(recovery['expires'], record) as gate:
+        worker.start()
+        try:
+            while worker.is_alive():
+                polls += 1
+                if os.path.lexists(gate.ready_path):
+                    gate.verify_triggered()
+                    eligible += 1
+                    sample_started = time.monotonic()
+                    sample = {'started_seconds': round(sample_started - started, 6)}
+                    observations.append(sample)
+                    # release_account journals 'releasing' before invoking
+                    # usermod. Our exact-command gate has not run usermod yet:
+                    # require the real native expiry to remain closed throughout.
+                    guest.require(not os.path.lexists(snapshot),
+                                  'rpm-posterase:snapshot-not-consumed-before-release')
+                    guest.require(quarantine_active(recovery, phase='releasing'),
+                                  'rpm-posterase:quarantine-missing-before-release')
+                    restored = (account_digest(state['accounts']['child']) == recovery['policy'] and
+                                extension_lists(state['accounts']['child']) == recovery['extensions'] and
+                                all((Path(name).read_bytes() if os.path.lexists(name) else None) == value
+                                    for name, value in generated.items()))
+                    sample['restored'] = restored
+                    sample['state_read_seconds'] = round(time.monotonic() - sample_started, 6)
+                    guest.require(restored, 'rpm-posterase:enforcement-not-restored-before-release')
+                    launch_started = time.monotonic()
                     observe_launch(state['accounts']['child'], False,
                                    variant=state.get('native_variant', 'command'))
-                # Bracket the complete native read: an endpoint after the
-                # barrier was released cannot supply this transition receipt.
-                guarded = quarantine_active(recovery)
-                if restored and guarded:
-                    observed = True
+                    sample['native_denied'] = True
+                    sample['native_read_seconds'] = round(time.monotonic() - launch_started, 6)
+                    # Endpoints after release still cannot supply this receipt.
+                    guarded = quarantine_active(recovery, phase='releasing')
+                    sample['quarantine_after'] = guarded
+                    sample['finished_seconds'] = round(time.monotonic() - started, 6)
+                    observed = guarded
                     break
-            time.sleep(0.01)
-    finally:
-        # The recipe owns only make install and its Commands timeout/pidfd.
-        # Always join it, including failed observations and cancellation.
-        worker.join()
+                time.sleep(0.01)
+        finally:
+            # Resume the exact native command even after a failed observation,
+            # then join before unmounting its pinned fixture. No process scan
+            # or inferred-descendant signal belongs to this observer.
+            try:
+                gate.resume()
+            finally:
+                worker.join()
+            record('onpc.rpm-posterase.reinstall-observation', json.dumps({
+                'polls': polls, 'eligible': eligible, 'observed': observed,
+                'worker_failed': 'error' in result, 'last_observations': observations,
+                'joined_seconds': round(time.monotonic() - started, 6)}, sort_keys=True))
+            if 'error' in result:
+                record_reinstall_access(gate, record)
     if 'error' in result:
         raise result['error']
     guest.require(observed, 'rpm-posterase:restoration-before-release-not-observed')

@@ -1446,12 +1446,16 @@ def identity_filesystem_refusal_retry(record, variant):
         if variant in ('state-owner', 'state-link'):
             # Snapshot refusal reports catalogued fields and cause provenance;
             # exception messages are excluded by the diagnostics contract.
+            # DNF5 prefixes RPM scriptlet output; retain exact diagnostic
+            # matching after removing only that documented transport prefix.
+            diagnostics = (b'\n'.join(line.removeprefix(b'>>> ')
+                                      for line in output.splitlines()) if fedora else output)
             refused = (
                 b'onpc.uninstall uninstall snapshot outcome=failed error_type=UninstallCleanupError'
-                in output.splitlines() and re.search(
+                in diagnostics.splitlines() and re.search(
                     rb'^onpc.runtime Failure provenance depth=1 link=cause '
                     rb'error_type=UninstallCleanupError source=uninstall line=[1-9][0-9]* '
-                    rb'os_error=none exit_code=256;', output, re.MULTILINE) is not None)
+                    rb'os_error=none exit_code=256;', diagnostics, re.MULTILINE) is not None)
         else:
             refused = conflict.reason in output
         guest.require(refused and (fedora or status != 0),

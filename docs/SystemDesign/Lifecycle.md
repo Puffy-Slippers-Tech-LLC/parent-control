@@ -95,7 +95,9 @@ Rollback files, receipt and their directories are flushed before replacing live
 backend configuration; its directory is then flushed too. Restoration requires
 the owned replacement to be unchanged; local edits block automatic cleanup.
 
-Refresh and exact-record confirmation share a 120-second deadline. Each read
+Installation refresh and exact-record confirmation share a 300-second deadline,
+allowing Ubuntu's full `debdb` package hashing to finish on cold or busy systems.
+Broker and boot readiness retain their 120-second deadline. Each read
 runs in a bounded subprocess using liblmdb's public registered read transaction,
 not unlocked `--dump-db` output or a journal event. Fresh snapshots retry missing
 records. fapolicyd 2.0 publication metadata selects `trust.meta/current` and

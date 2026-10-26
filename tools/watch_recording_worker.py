@@ -78,6 +78,20 @@ def launch_command(root, control_fd, output, *, owner_fd=None, vm_names=None):
             *(['--vms', json.dumps(list(vm_names))] if vm_names is not None else [])]
 
 
+def launch_environment():
+    """Use host GTK libraries and schemas for the entire private bus session."""
+    environment = dict(os.environ)
+    for name in ('LD_PRELOAD', 'LD_LIBRARY_PATH', 'GTK_PATH', 'GTK_EXE_PREFIX',
+                 'GTK_DATA_PREFIX', 'GTK_IM_MODULE', 'GTK_MODULES',
+                 'GDK_PIXBUF_MODULE_FILE', 'GDK_PIXBUF_MODULEDIR',
+                 'GIO_MODULE_DIR', 'GIO_EXTRA_MODULES', 'GI_TYPELIB_PATH'):
+        environment.pop(name, None)
+    environment.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                       XDG_DATA_DIRS='/usr/local/share:/usr/share',
+                       GSETTINGS_SCHEMA_DIR='/usr/share/glib-2.0/schemas')
+    return environment
+
+
 def shared_owner_descriptors():
     """Keep the master ownership lease held by every explicitly owned child."""
     from test_storage import scratch_descriptors

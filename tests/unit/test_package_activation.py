@@ -75,16 +75,19 @@ def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch
     trust.write_text('# packaged\n' + '\n'.join(records) + '\n')
     complete = json.dumps([line.split() for line in records])
     state = dict(clock=0, reads=0, updates=0)
+    budget = 300 if refresh else 120
 
     def run(argv, **kwargs):
-        assert 0 < kwargs['timeout'] <= 120 - state['clock']
+        assert 0 < kwargs['timeout'] <= budget - state['clock']
         assert kwargs['check'] and kwargs['capture_output']
         assert kwargs['env']['LC_ALL'] == 'C'
         if argv == ['/usr/sbin/fapolicyd-cli', '--update']:
             state['updates'] += 1
             if fault == 'update':
                 raise subprocess.CalledProcessError(1, argv)
-            state['clock'] += 30
+            # A healthy installation rebuild can exceed the broker/boot
+            # budget. It must still produce exact committed records.
+            state['clock'] += 130
             return SimpleNamespace(stdout='')
         assert argv == [sys.executable, '-I', str(Path(namespace['__file__']).resolve()),
                         'read-child-trust']

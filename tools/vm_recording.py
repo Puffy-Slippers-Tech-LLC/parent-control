@@ -295,7 +295,7 @@ class Session:
 
     def start(self):
         from test_storage import runtime_directory, scratch_directory, scratch_descriptors
-        from watch_recording_worker import launch_command, process_identity
+        from watch_recording_worker import launch_command, launch_environment, process_identity
         from recording_storage import Store
         from recording_control import Publication
         try:
@@ -323,6 +323,7 @@ class Session:
             try:
                 self.process = subprocess.Popen(launch_command(self.root, remote.fileno(), self.master,
                     owner_fd=self.publication.descriptors()[0], vm_names=tuple(self.configured)),
+                    env=launch_environment(),
                     stdin=subprocess.DEVNULL, stdout=self.log, stderr=subprocess.STDOUT,
                     pass_fds=(remote.fileno(), *scratch_descriptors(),
                               *self.publication.descriptors()), start_new_session=True)

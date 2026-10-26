@@ -574,7 +574,11 @@ def child_trust_manifest(path=Path('/') / EXTENSION_TRUST_PATH):
 def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH, *, refresh=False) -> None:
     """Wait for exact packaged records; bound every snapshot in a child process."""
     expected = child_trust_manifest(path)
-    deadline = time.monotonic() + 120
+    # Installation refreshes every enabled backend. Ubuntu's debdb hashes the
+    # installed packages again, which can exceed the startup-only wait budget.
+    # Keep broker/boot waits short; installation still verifies exact records
+    # under one finite deadline shared by the refresh and all snapshot reads.
+    deadline = time.monotonic() + (300 if refresh else 120)
     if refresh:
         remaining = deadline - time.monotonic()
         if remaining <= 0:

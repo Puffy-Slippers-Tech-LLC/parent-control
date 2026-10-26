@@ -494,6 +494,19 @@ class Recording:
             self.state['staging'] = None
             self._save()
         if self.state['current'] is not None:
+            current = self._open(self.state['current'], missing=True)
+            required = self.state['required']
+            ordinary = required is None or (required['retired'] and
+                                             required['original'] != self.state['current'])
+            if current is None and ordinary:
+                # Ordinary review clips may be deleted outside the recorder.
+                # Retire only the stale claim, under this case's existing lease;
+                # required evidence and replaced/corrupt files still refuse.
+                self.state['current'] = self.state['provenance'] = None
+                self._save()
+                return
+            if current is not None:
+                os.close(current)
             self._verify(self.state['current'])
 
     def _recover_publication(self, pending):

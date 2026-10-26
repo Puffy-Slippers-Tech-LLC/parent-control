@@ -496,6 +496,41 @@ def sample_install_trust(stop, samples):
         except (OSError, ValueError):
             row['guest_counters'] = 'unavailable'
         try:
+            # Observe file-cache churn directly; CPU and read-byte totals alone
+            # do not show whether the guest is reclaiming cached package data.
+            for line in Path('/proc/vmstat').read_text().splitlines():
+                key, value = line.split()
+                if key in ('pgmajfault', 'pswpin', 'pswpout', 'pgscan_kswapd',
+                           'pgscan_direct', 'workingset_refault_file'):
+                    row['guest_' + key] = int(value)
+            for line in Path('/proc/meminfo').read_text().splitlines():
+                key, value = line.split(':', 1)
+                if key in ('MemAvailable', 'Cached', 'SwapFree'):
+                    row['guest_' + key + '_kb'] = int(value.split()[0])
+        except (OSError, ValueError):
+            row['guest_cache_counters'] = 'unavailable'
+        try:
+            # Separate cold-read volume from slow virtual-disk service. Keep
+            # numeric device IDs only, and omit partitions to avoid counting
+            # the same I/O twice. Deltas describe this installation interval.
+            disks = []
+            for line in Path('/proc/diskstats').read_text().splitlines():
+                fields = line.split()
+                major, minor = int(fields[0]), int(fields[1])
+                if (int(fields[3]) == 0 or
+                        Path('/sys/dev/block', f'{major}:{minor}', 'partition').exists()):
+                    continue
+                if len(disks) == 32:
+                    row['guest_disks_truncated'] = True
+                    break
+                disks.append({'major': major, 'minor': minor,
+                              'reads': int(fields[3]), 'read_sectors': int(fields[5]),
+                              'read_ms': int(fields[6]), 'in_flight': int(fields[11]),
+                              'io_ms': int(fields[12]), 'weighted_io_ms': int(fields[13])})
+            row['guest_disks'] = disks
+        except (OSError, ValueError, IndexError):
+            row['guest_disks'] = 'unavailable'
+        try:
             pid = int(Path('/run/fapolicyd.pid').read_text().strip())
             require(pid > 1, 'diagnostic-daemon-pid')
             process = Path('/proc', str(pid))
@@ -505,6 +540,8 @@ def sample_install_trust(stop, samples):
             row['daemon_start_ticks'] = int(fields[19])
             row['daemon_cpu_ticks'] = int(fields[11]) + int(fields[12])
             row['daemon_block_io_ticks'] = int(fields[39])
+            row['daemon_minor_faults'] = int(fields[7])
+            row['daemon_major_faults'] = int(fields[9])
             for line in (process / 'io').read_text().splitlines():
                 key, value = line.split(':', 1)
                 if key in ('rchar', 'syscr', 'read_bytes'):

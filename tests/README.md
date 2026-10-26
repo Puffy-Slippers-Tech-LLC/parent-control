@@ -1741,7 +1741,10 @@ System lifecycle phases share one case ID; parameter variants have separate
 IDs. Existing assignments must never be renumbered or reused.
 
 Each category/ID retains only its latest playable recording, including a failed
-test's recording. Publication is atomic and replaces the earlier owned clip
+test's recording. If an ordinary clip has been deleted, the next case owner
+retires its stale manifest claim before recording a replacement. Missing required
+evidence, replaced files and corrupt recordings still refuse recovery.
+Publication is atomic and replaces the earlier owned clip
 even when its VM-name suffix changes. Encoder/validation failure preserves the
 previous file and reports an infrastructure error. Every candidate is decoded
 in full before publication. Temporary full-session media
@@ -1751,6 +1754,8 @@ Publication displays one refreshing `Recording: x/y` progress line in the runner
 and watch terminal, counting completed clips out of the session's total.
 Individual recording paths remain in the session's `recordings.json` index.
 
+The private session bus and renderer use host GTK libraries and schemas, excluding
+inherited editor/Snap loader and GTK module overrides.
 The private renderer requires the existing GTK/Mutter/VTE development stack and
 FFmpeg, installed only through `./setup.sh`. It records at 5 fps with one fast VP9
 encoder and bounded frame handoff. No audio is recorded. Keyframe-aligned clips

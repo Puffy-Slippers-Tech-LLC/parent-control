@@ -68,7 +68,7 @@ def run(root, argv, *, reloading=False):
             # A batch-owned allocation would conflict with that VM's old claim
             # after an interrupted input was removed and recreated.
             output_lock = threading.Lock()
-            frames = {}
+            frames = {name: ['Queued'] for name in snapshot['vms']}
 
             def publish_frames():
                 if hasattr(sys.stdout, 'frame'):
@@ -76,10 +76,10 @@ def run(root, argv, *, reloading=False):
                     for index, name in enumerate(snapshot['vms']):
                         if index:
                             lines.append('')
-                        lines.extend([f'VM: {name}', *frames.get(name, ['Queued'])])
+                        lines.extend([f'VM: {name}', *frames[name]])
                     sys.stdout.frame(lines)
 
-            def execute(vm):
+            def execute_worker(vm):
                 if launcher_reload.pending():
                     return dict(status=launcher_reload.STATUS, handoffs=[])
                 environment = test_launcher.environment(root)
@@ -108,7 +108,9 @@ def run(root, argv, *, reloading=False):
                                 handoffs.append(value.removeprefix('Failure handoff: '))
                             with output_lock:
                                 if value.startswith(FRAME_PREFIX):
-                                    frames[vm.name] = json.loads(value[len(FRAME_PREFIX):])
+                                    frame = json.loads(value[len(FRAME_PREFIX):])
+                                    # Clearing a dashboard does not finish its worker.
+                                    frames[vm.name] = frame or ['Running (waiting for progress)']
                                     publish_frames()
                                 else:
                                     print(f'[{vm.name}] {value}', flush=True)
@@ -119,6 +121,26 @@ def run(root, argv, *, reloading=False):
                             print(f'[{vm.name}] ' + pending.decode('utf-8', errors='replace'), flush=True)
                 return {'status': status, 'handoffs': handoffs}
 
+            def execute(vm):
+                with output_lock:
+                    frames[vm.name] = ['Starting worker']
+                    publish_frames()
+                try:
+                    result = execute_worker(vm)
+                except (ValueError, OSError):
+                    with output_lock:
+                        frames[vm.name] = ['Failed (worker error)']
+                        publish_frames()
+                    raise
+                status = result['status']
+                state = {0: 'Finished', 130: 'Stopped',
+                         launcher_reload.STATUS: 'Reload pending'}.get(status, f'Failed (exit {status})')
+                with output_lock:
+                    frames[vm.name] = [state]
+                    publish_frames()
+                return result
+
+            publish_frames()
             results = dispatch(vms, snapshot['concurrency'], execute, control.stopped)
             # Keep the actual joined results even if failure-detail processing
             # below cannot read a diagnostic handoff.
@@ -193,6 +215,7 @@ def worker(argv):
     # The batch's checkout-local gate is not a VM reservation or cleanup proof.
     os.environ.pop(test_activity.VARIABLE, None)
     from vm_pool import reservation
+    sys.stdout.frame(['Queued (waiting for VM checkout)'])
     with launcher_reload.watching(), Control().installed(pipe=True) as control, reservation(name, stopped=control.stopped), \
             test_activity.activity(root, named_vm=True):
         # Nested aggregate controllers observe the same parent cancellation.
@@ -201,6 +224,7 @@ def worker(argv):
         from test_recovery import cleanup
         if control.stopped.is_set():
             return 130
+        sys.stdout.frame(['Preparing tests'])
         status = cleanup(root)
         if status:
             return status

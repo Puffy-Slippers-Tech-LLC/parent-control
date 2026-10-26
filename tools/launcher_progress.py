@@ -6,6 +6,19 @@ import re
 import time
 
 
+ANSI = re.compile(r'\x1b\[[?0-9;]*[A-Za-z]')
+
+
+def completed_text(text):
+    """Render completed progress consistently in controller and dashboard rows."""
+    return '\033[32m' + ANSI.sub('', text) + '\033[0m'
+
+
+def category_cases(current):
+    name = 'E2E' if current['category'] == 'e2e' else current['category'].capitalize()
+    return completed_text(f'{name} Cases: ({current["completed"]}/{current["total"]})')
+
+
 def case_progress(run, *, reader=None):
     """Read spectator counts only; checkpoints remain the execution authority."""
     from watch_output import read_json
@@ -47,16 +60,17 @@ def case_frame(steps, lines, current):
     overall_done = sum(count['completed'] for count in current['categories'].values())
     overall_total = sum(count['total'] for count in current['categories'].values())
     elapsed = (now - current['vm_started_ns'] / 1e9) / 60
-    overall = (f'Overall - {int(100 * overall_done / overall_total)}% '
+    overall = (f'Overall - {int(100 * overall_done / max(overall_total, 1))}% '
                f'({overall_done}/{overall_total}) - {elapsed:.1f}m')
-    summary = steps[-1]['lines'][0]
-    steps[-1]['lines'][0] = (re.sub(r'Overall - [^|]+', overall + ' ', summary).rstrip()
-                             if ' | Overall - ' in summary else summary + ' | ' + overall)
+    summary = Dashboard.ANSI.sub('', steps[-1]['lines'][0])
+    steps[-1]['lines'][0] = completed_text(
+        re.sub(r'Overall - [^|]+', overall + ' ', summary).rstrip()
+        if ' | Overall - ' in summary else summary + ' | ' + overall)
     result = []
     for line in lines:
         plain = Dashboard.ANSI.sub('', line)
         if plain.startswith('Overall - '):
-            line = overall
+            line = completed_text(overall)
         else:
             prefix, marker, row = plain.partition('[')
             label, separator, tail = row.partition('] ')
@@ -138,19 +152,18 @@ def publish_progress(run, key, lines, *, replaces=()):
     temporary.replace(run / 'controller.json')
 
 
-def publish_repair_status(run, round_number, category, categories, status, *, model=None, effort=None):
+def publish_repair_status(run, round_number, category, categories, status, *, model=None, effort=None,
+                          completed=0):
     """Update one category entry through testing, repair and retries."""
     previous = repair_progress(run, read_progress(run))
     key = f'{round_number}:{category}'
-    index = categories.index(category) + 1 if category in categories else 1
-    total = len(categories) if category in categories else 1
-    summary = f'Round {round_number}: Category: {category} ({index}/{total})'
+    summary = f'Round {round_number}: Category: {category} ({completed}/{len(categories)})'
     if status == 'fixing errors' and previous:
         key = previous[-1]['key']
         summary = previous[-1]['lines'][0]
     if status == 'fixing errors' and model:
         status += f' ({model}' + (f' {effort}' if effort else '') + ')'
-    publish_progress(run, key, [summary, 'Status: ' + status])
+    publish_progress(run, key, [completed_text(summary), 'Status: ' + status])
 
 
 def repair_progress(run, steps, *, child_steps=None):
@@ -161,11 +174,10 @@ def repair_progress(run, steps, *, child_steps=None):
         child = run / 'test-controller.json'
         child_steps = json.loads(child.read_text()) if child.exists() else []
     if child_steps:
-        prefix, _, summary = steps[-1]['lines'][0].partition(': ')
-        nested = child_steps[-1]['lines'][0]
-        if 'Category: all ' in summary:
-            summary = nested
-        else:
-            summary = summary.partition(' | ')[0] + ' | ' + nested.partition(' | ')[2]
-        steps[-1]['lines'][0] = prefix + ': ' + summary
+        prefix, _, summary = ANSI.sub('', steps[-1]['lines'][0]).partition(': ')
+        nested = ANSI.sub('', child_steps[-1]['lines'][0])
+        if 'Category: all ' in summary and (category := re.search(r'Category: (\S+) ', nested)):
+            summary = summary.replace('Category: all ', f'Category: {category[1]} ', 1)
+        summary = summary.partition(' | ')[0] + ' | ' + nested.partition(' | ')[2]
+        steps[-1]['lines'][0] = completed_text(prefix + ': ' + summary)
     return steps

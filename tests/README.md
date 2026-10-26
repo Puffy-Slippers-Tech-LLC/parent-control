@@ -412,8 +412,10 @@ over their combined selected total for that VM and round. Both inventories are
 discovered before the first case, so changing categories does not reset Overall.
 The installed-system/E2E row shows completed cases over that category's selected
 inventory. Discovery, prerequisite replays and package preparation still run but
-add nothing to these totals. `Cases` shows the current case's position in its
-category queue. The VM tile uses the category's completed/total count, the active
+add nothing to these totals. The round's category counter shows completed categories
+over selected categories; `System Cases: (x/y)` and `E2E Cases: (x/y)` show completed
+cases over the named category's selected total. These counters and `Overall` use
+the shared green progress renderer. The VM tile uses the category's completed/total count, the active
 selected case's persistent ID/title and case/category clocks,
 including while its prerequisites run. These display counts never grant a pass;
 the runner's teardown-complete checkpoint remains authoritative.

@@ -734,7 +734,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         from launcher_chat import read_state
         previous = read_state(run)
         publish_repair_status(run, round_number, category, categories, status,
-                              model=model, effort=effort)
+                              model=model, effort=effort,
+                              completed=sum(checkpoint.complete(kind) for kind in categories)
+                              if checkpoint is not None else 0)
         key = read_progress(run)[-1]['key']
         active_task = f'{round_number}:{category}'
         update_task_info(run, active_task, {})
@@ -1030,6 +1032,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                     checkpoint.save()
                 pending = None
                 close_verified(category=category)
+                publish_repair_status(run, round_number, category, categories, 'Running tests',
+                                      completed=sum(checkpoint.complete(kind) for kind in categories))
                 if status_line is not None:
                     print(status_line, flush=True)
                 return None

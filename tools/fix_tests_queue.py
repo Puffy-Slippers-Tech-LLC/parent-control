@@ -542,7 +542,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
 
     def publish():
         from launcher_chat import read_state, send_input, take_input
-        from launcher_progress import read_progress, repair_progress, case_progress, case_frame
+        from launcher_progress import read_progress, repair_progress, case_progress, case_frame, category_cases
         from launcher_question import pending
         lines = [f'VM pipelines | concurrency {snapshot["concurrency"]}']
         queue_path = run / 'repair-queue.json'
@@ -584,7 +584,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                 details = case_frame(steps, details, current)
             lines.extend(step['lines'][0] for step in steps[-1:] if step['key'] != 'admission')
             if current is not None and steps and f'Category: {current["category"]} (' in steps[-1]['lines'][0]:
-                lines.append(f'Cases: {current["index"]}/{current["total"]}')
+                lines.append(category_cases(current))
             lines.extend(details)
             parent_question = run / 'question.json'
             displayed = json.loads(parent_question.read_text()) if parent_question.exists() else None

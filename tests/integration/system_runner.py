@@ -1349,7 +1349,8 @@ def scenario_fixture_files(selection, *, target=None):
                                                      'test_ownership_refusal_retry[gdm-hook-link]',
                                                      'test_ownership_refusal_retry[confinement-record-owner]',
                                                      'test_ownership_refusal_retry[confinement-record-link]',
-                                                     'test_ownership_refusal_retry[confinement-record-uid]')
+                                                     'test_ownership_refusal_retry[confinement-record-uid]',
+                                                     *REMOVAL_FAMILIES['test_identity_filesystem_refusal_retry'])
                                     for item in selection.executions):
         files.append('fixtures/mechanical/identity-trusted-hard')
     return tuple(files)
@@ -2130,7 +2131,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                          'test_ownership_refusal_retry[gdm-hook-link]',
                                          'test_ownership_refusal_retry[confinement-record-owner]',
                                          'test_ownership_refusal_retry[confinement-record-link]',
-                                         'test_ownership_refusal_retry[confinement-record-uid]')
+                                         'test_ownership_refusal_retry[confinement-record-uid]',
+                                         *REMOVAL_FAMILIES['test_identity_filesystem_refusal_retry'])
                         for item in selection.executions)):
             subsets += ('trusted-hard-launcher',)
         if (not already_installed and any(
@@ -2644,7 +2646,8 @@ def main(argv=None):
                                                  'test_ownership_refusal_retry[gdm-hook-link]',
                                                  'test_ownership_refusal_retry[confinement-record-owner]',
                                                  'test_ownership_refusal_retry[confinement-record-link]',
-                                                 'test_ownership_refusal_retry[confinement-record-uid]')
+                                                 'test_ownership_refusal_retry[confinement-record-uid]',
+                                                 *REMOVAL_FAMILIES['test_identity_filesystem_refusal_retry'])
                                 for item in selection.executions)):
                     stage_mechanical_comparison(fixture_input,
                         directory / 'input/fixtures/mechanical/identity-trusted-hard',

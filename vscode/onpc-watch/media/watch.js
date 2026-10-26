@@ -5,10 +5,9 @@
     const vscode = acquireVsCodeApi();
     const grid = document.getElementById('grid');
     const viewers = document.getElementById('viewers');
-    const checkouts = document.getElementById('checkouts');
     const resources = document.getElementById('resources');
     const cards = new Map();
-    let state = vscode.getState() || { scope: 'all', selected: 'all' };
+    let state = { scope: 'all', selected: vscode.getState()?.selected || 'all' };
     let pending = Promise.resolve();
 
     function select(scope, selected) {
@@ -103,9 +102,6 @@
     async function render(snapshot) {
         state = { scope: snapshot.scope, selected: snapshot.selected };
         vscode.setState(state);
-        tabs(checkouts, [{ id: 'all', label: 'All', active: true }, ...snapshot.checkouts.map(item =>
-            ({ ...item, active: snapshot.entries.some(entry => entry.active && entry.label.startsWith(`[${item.label}] `)) }))],
-            state.scope, scope => select(scope, 'all'));
         tabs(viewers, [{ id: 'all', label: 'All', active: true }, ...snapshot.entries.map(entry =>
             ({ id: entry.id, label: entry.label, active: entry.locked }))],
             state.selected, selected => select(state.scope, selected));

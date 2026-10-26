@@ -7,7 +7,7 @@ Reload VS Code after updating it. Open an ONPC checkout, press **Ctrl+Shift+P**,
 and select **ONPC: Watch** (`onpc.watch`). Repeating the command reveals the
 existing tab. Multiple workspace roots offer a checkout picker.
 
-The tab contains the shared All grid, UI worker and VM tabs, checkout scopes,
+The tab contains the shared All grid across checkouts, UI worker and VM tabs,
 VM progress, filtered command output and host resource usage. Screens are view
 only. Start tests through the usual launchers; the viewer also works alongside
 `make watch`. Select an idle VM tab to wait for its next run. The Reconnect button

@@ -30,8 +30,8 @@ function html(webview, context) {
         <link rel="stylesheet" href="${style}"><title>ONPC Watch</title></head>
         <body><nav id="viewers" aria-label="Viewers"></nav>
         <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main>
-        <footer><nav id="checkouts" aria-label="Checkouts"></nav>
-        <span id="resources"></span><button id="restart" title="Reconnect to the watch backend">Reconnect</button></footer>
+        <footer><span id="resources"></span>
+        <button id="restart" title="Reconnect to the watch backend">Reconnect</button></footer>
         <script nonce="${nonce}" src="${script}"></script></body></html>`;
 }
 

@@ -40,11 +40,9 @@ nav button[aria-pressed="true"] {
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
 }
 .status { color: var(--vscode-descriptionForeground); }
-footer { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--vscode-panel-border); }
-#checkouts { flex: 1; min-width: 0; }
-#resources { white-space: pre; font-family: var(--vscode-editor-font-family); font-size: .9em; }
-#restart { border: 0; margin-right: 8px; padding: 4px 8px; background: var(--vscode-button-secondaryBackground); }
+footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 4px 8px; border-top: 1px solid var(--vscode-panel-border); }
+#resources { flex: 1; min-width: 0; white-space: pre-wrap; font-family: var(--vscode-editor-font-family); font-size: .9em; }
+#restart { border: 0; padding: 4px 8px; background: var(--vscode-button-secondaryBackground); }
 @media (max-width: 650px) {
     #grid { grid-template-columns: minmax(0, 1fr); }
-    #resources { display: none; }
 }

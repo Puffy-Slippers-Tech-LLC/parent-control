@@ -16,6 +16,7 @@ Usage: ./setup.sh [MODE] [--vm NAME]
   --test-tools-only     Refresh test helpers/policies/rules, viewer icon and old bytecode ownership
                        Includes guarded root guest commands through tools/test-vm exec
   --ui-tests-only       Prepare this checkout's UI test environment using installed host packages
+  --watch               Install/update only the ONPC Watch VS Code editor extension
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
@@ -35,7 +36,7 @@ fi
 readonly mode="${1-}"
 readonly vm_name="${3-}"
 case "$mode" in
-    ''|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
+    ''|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--watch|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -109,9 +110,16 @@ install_test_tools() {
     echo 'setup: [stage:graphical-host-policies]'
     run_root graphical-policy /usr/bin/python3 -IB "$script_dir/tools/install_graphical_test_policy.py"
     install_codex_rules
+    install_watch_extension --if-available
+}
+
+install_watch_extension() {
+    echo 'setup: [stage:watch-extension]'
+    /usr/bin/python3 -B "$script_dir/tools/install_watch_extension.py" "$@"
 }
 
 case "$mode" in
+    --watch) install_watch_extension ;;
     --ui-tests-only)
         /bin/bash "$script_dir/tools/setup_checkout.sh" --ui-tests-only
         ;;

@@ -2175,6 +2175,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             # Supply the initial version, unrelated control and launcher. The
             # case creates the future version only after witnessing active rules.
             subsets += ('pattern',)
+        if any(item.area == 'enforcement'
+               and item.case_id == 'test_native_missing_launcher_retains_policy'
+               for item in selection.executions):
+            # Supply the executable and launcher before the case removes only
+            # the launcher to verify that the saved policy still applies.
+            subsets += ('retention',)
         with ledger.measure('bootstrap'):
             vm.probe_ready()
             if already_installed:

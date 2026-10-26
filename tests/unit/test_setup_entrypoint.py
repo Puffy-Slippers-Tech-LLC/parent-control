@@ -35,7 +35,7 @@ if name == 'install_test_runner.py' and os.environ.get('ONPC_SETUP_FAIL') != nam
     pathlib.Path('installed-setup').touch()
 sys.exit(7 if os.environ.get('ONPC_SETUP_FAIL') == name else 0)
 '''
-    for name in ('install_test_runner.py', 'install_graphical_test_policy.py', 'install_codex_rules.py', 'rpm_builder.py', 'deb_builder.py'):
+    for name in ('install_test_runner.py', 'install_graphical_test_policy.py', 'install_codex_rules.py', 'rpm_builder.py', 'deb_builder.py', 'install_watch_extension.py'):
         (root / 'tools' / name).write_text(stub)
     (root / 'tests/integration/prepare_baseline.py').write_text(stub)
     shutil.copy2(ROOT / 'tests/integration/test_account_password.py', root / 'tests/integration/test_account_password.py')
@@ -88,7 +88,8 @@ def run_setup(root, *args, failure='', denied=False):
 
 
 RULES = [('install_codex_rules.py', ['--system']), ('install_codex_rules.py', [])]
-TOOLS = [('install_test_runner.py', []), ('install_graphical_test_policy.py', []), *RULES]
+TOOLS = [('install_test_runner.py', []), ('install_graphical_test_policy.py', []), *RULES,
+         ('install_watch_extension.py', ['--if-available'])]
 DEPS = [('setup_dependencies.sh.py', []), ('rpm_builder.py', []), ('setup_checkout.sh.py', [])]
 FEDORA_DEPS = [DEPS[0], ('deb_builder.py', []), DEPS[2]]
 

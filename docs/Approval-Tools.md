@@ -148,6 +148,12 @@ For an additional worktree on a configured host, `./setup.sh --ui-tests-only`
 creates its checkout-local UI environment from the pinned requirements. This
 unprivileged mode changes neither host package versions nor Git configuration;
 missing system prerequisites still require the normal dependency setup route.
+`./setup.sh --watch` installs or updates only the caller's VS Code watch
+extension through the available `code`, `code-insiders` or `codium` CLI, without
+administrator privileges or dependency setup. Full setup and tools refresh also
+install it when that CLI is present. Reload VS Code and use **ONPC: Watch** from
+the Command Palette in a trusted checkout; see the
+[extension guide](../vscode/onpc-watch/README.md).
 
 The [rules renderer](../tools/install_codex_rules.py) validates its required
 launcher inventory, then discovers every regular executable under `tools/`

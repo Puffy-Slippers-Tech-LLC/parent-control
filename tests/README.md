@@ -2443,6 +2443,15 @@ development tools, not customer E2E commands.
 
 ### Watching host UI tests
 
+To use just the right viewer inside VS Code, install it with `./setup.sh --watch`,
+reload VS Code, then open **Ctrl+Shift+P → ONPC: Watch** from a trusted checkout.
+The [workspace extension](../vscode/onpc-watch/README.md) uses the same read-only
+UI/VM feeds, worktree discovery and viewer scope selection as the desktop watcher.
+Its editor tab includes the All grid, individual viewers, progress and filtered
+VM command output. Ordinary setup and `--test-tools-only` also install it when a
+VS Code CLI is available. `--watch` installs only this extension, without host
+dependency, helper, rule or product setup. Both viewers can run together.
+
 Open `tools/watch` (or `make watch`) as the desktop user before or during a run.
 Both return after launching and repeated launches present one watcher for the
 desktop user session, including launches from other checkouts. Bottom tabs show

@@ -484,11 +484,20 @@ def terminal(identity, description):
 
 
 class TerminalWriter:
-    def __init__(self, view):
+    def __init__(self, view, *, mouse_tracking=True):
         from tests.integration.watch_activity import TerminalControls
         self.view = view
         self.controls = TerminalControls()
         self.last_cr = False
+        self.mouse_tracking = mouse_tracking
+
+    @staticmethod
+    def without_mouse_tracking(match):
+        # A transcript has no mouse consumer. Preserve display modes in mixed
+        # DECSET/DECRST sequences while keeping native selection and scrolling.
+        modes = [mode for mode in match[1].split(b';')
+                 if int(mode) not in (9, 1000, 1001, 1002, 1003, 1005, 1006, 1007, 1015, 1016)]
+        return b'\x1b[?' + b';'.join(modes) + match[2] if modes else b''
 
     def feed(self, data, *, reset=False):
         if reset:
@@ -496,6 +505,9 @@ class TerminalWriter:
             self.controls.__init__()
             self.last_cr = False
         data = self.controls.feed(data)
+        if not self.mouse_tracking:
+            data = re.sub(rb'\x1b\[\?([0-9]+(?:;[0-9]+)*)([hl])',
+                          self.without_mouse_tracking, data)
         if not data:
             return
         # Pipes lack the PTY's LF->CRLF conversion. Honor split CRLF pairs.

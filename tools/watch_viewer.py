@@ -176,22 +176,7 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
             keys.connect('key-pressed', self.terminal_key)
             self.terminal.add_controller(keys)
-            context = Gtk.GestureClick(button=Gdk.BUTTON_SECONDARY)
-            context.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-            context.connect('pressed', self.terminal_context)
-            self.terminal.add_controller(context)
-            self.menu = Gtk.Popover(has_arrow=False)
-            self.menu.set_parent(self.terminal)
-            menu_items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            for identity, label, action in (('watch-copy', 'Copy', self.copy_selection),
-                                            ('watch-select-all', 'Select All', self.select_output),
-                                            ('watch-stop', 'Stop command', self.stop_command)):
-                button = Gtk.Button(label=label)
-                set_automation_id(button, prefix + identity)
-                button.add_css_class('flat')
-                button.connect('clicked', lambda _button, callback=action: (callback(), self.menu.popdown()))
-                menu_items.append(button)
-            self.menu.set_child(menu_items)
+            self.menu = self.terminal_menu(self.terminal, self.output, prefix)
             self.append(self.output_status)
             self.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
             self.output_tabs = Gtk.Notebook(hexpand=True, vexpand=True)
@@ -202,8 +187,9 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             self.output_tabs.append_page(output_row, Gtk.Label(label='Run Status'))
             self.log_terminal, log_scroll = terminal(
                 prefix + 'watch-outputs', 'Launcher terminal output')
-            self.log_writer = TerminalWriter(self.log_terminal)
+            self.log_writer = TerminalWriter(self.log_terminal, mouse_tracking=False)
             self.log_output = LogOutput(root)
+            self.log_menu = self.terminal_menu(self.log_terminal, self.log_output, prefix + 'outputs-')
             log_keys = Gtk.EventControllerKey()
             log_keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
             log_keys.connect('key-pressed', self.log_key)
@@ -229,6 +215,8 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             session_scrolling.connect('scroll', lambda _controller, _dx, dy:
                 (self.session_output.scroll(-round(dy * 3)), True)[1])
             self.session_terminal.add_controller(session_scrolling)
+            self.session_menu = self.terminal_menu(
+                self.session_terminal, None, prefix + 'session-')
             self.session_tab_label = Gtk.Label(label='Session')
             self.output_tabs.append_page(session_scroll, self.session_tab_label)
             self.append(self.output_tabs)
@@ -273,6 +261,29 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
         def copy_selection(self):
             if self.terminal.get_has_selection():
                 self.terminal.copy_clipboard_format(Vte.Format.TEXT)
+
+        def terminal_menu(self, view, output, identity_prefix):
+            menu = Gtk.Popover(has_arrow=False)
+            menu.set_parent(view)
+            menu_items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            actions = [
+                ('watch-copy', 'Copy', lambda: view.copy_clipboard_format(Vte.Format.TEXT)
+                 if view.get_has_selection() else None),
+                ('watch-select-all', 'Select All', view.select_all)]
+            if output is not None:
+                actions.append(('watch-stop', 'Stop command', output.cancel))
+            for identity, label, action in actions:
+                button = Gtk.Button(label=label)
+                set_automation_id(button, identity_prefix + identity)
+                button.add_css_class('flat')
+                button.connect('clicked', lambda _button, callback=action: (callback(), menu.popdown()))
+                menu_items.append(button)
+            menu.set_child(menu_items)
+            context = Gtk.GestureClick(button=Gdk.BUTTON_SECONDARY)
+            context.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            context.connect('pressed', self.terminal_context, menu)
+            view.add_controller(context)
+            return menu
 
         def scroll_output_to(self, adjustment):
             if not self.syncing_output_scroll:
@@ -337,13 +348,13 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                 return True
             return False
 
-        def terminal_context(self, gesture, _presses, x, y):
+        def terminal_context(self, gesture, _presses, x, y, menu):
             gesture.set_state(Gtk.EventSequenceState.CLAIMED)
             rectangle = Gdk.Rectangle()
             rectangle.x, rectangle.y = int(x), int(y)
             rectangle.width = rectangle.height = 1
-            self.menu.set_pointing_to(rectangle)
-            self.menu.popup()
+            menu.set_pointing_to(rectangle)
+            menu.popup()
 
         def tick(self, *, render=True):
             now = time.monotonic()
@@ -408,6 +419,8 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             for view in self.vms.values():
                 view.close()
             self.menu.unparent()
+            self.log_menu.unparent()
+            self.session_menu.unparent()
 
     return Viewer()
 

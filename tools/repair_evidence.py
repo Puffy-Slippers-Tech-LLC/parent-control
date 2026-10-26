@@ -43,7 +43,8 @@ def capture(root, destination, handoff_path, output):
     """Preserve reports and the failed attempt's command tails before retrying.
 
     Never follow free-form prompt paths. Discover only runner handoff records,
-    adjacent report logs and structured failed-attempt raw_directory fields.
+    adjacent report logs, structured failed-attempt raw_directory fields and
+    the installed-system runner's fixed evidence-directory marker.
     Missing/refused/truncated evidence stays explicit and cannot imply a pass.
     """
     root = Path(root)
@@ -128,6 +129,16 @@ def capture(root, destination, handoff_path, output):
 
     def attempts(content):
         for line in content.splitlines():
+            # System preparation can fail before any case result exists. Its
+            # runner still finalizes this evidence marker after owned cleanup.
+            match = re.fullmatch(r'check-system: \[evidence:(.+)\]', line)
+            if match:
+                path = source(match[1])
+                raw = path.parent
+                if (path.name == 'evidence'
+                        and raw.parent == storage / 'privileged/allocations'
+                        and re.fullmatch(r'onpc-system-[A-Za-z0-9_-]+', raw.name)):
+                    raw_directories.add(raw)
             try:
                 value = json.loads(line)
             except (ValueError, TypeError):
@@ -178,7 +189,29 @@ def capture(root, destination, handoff_path, output):
     for raw in sorted(raw_directories):
         private = raw / 'private'
         try:
+            failed_sequences = []
+            if raw.name.startswith('onpc-system-'):
+                save(raw / 'evidence/result.json')
+                provenance = save(raw / 'commands.json')
+                try:
+                    records = json.loads(provenance or 'null')
+                except ValueError:
+                    records = None  # A bounded tail may not contain complete JSON.
+                if isinstance(records, list):
+                    failed_sequences = [record['sequence'] for record in records
+                        if isinstance(record, dict) and record.get('check') is True
+                        and type(record.get('exit_status')) is int
+                        and record['exit_status'] != 0
+                        and type(record.get('sequence')) is int
+                        and record['sequence'] > 0]
             names = read(private, listing=True)
+            # Cleanup/readiness commands may follow the failed installation.
+            # Prioritize its exact streams before the recent-output fallback.
+            for sequence in failed_sequences[-8:]:
+                for suffix in ('-stderr.txt', '.txt'):
+                    name = f'command-{sequence:04d}{suffix}'
+                    if name in names:
+                        save(private / name)
             errors = [name for name in names
                       if re.fullmatch(r'command-[0-9]+-stderr\.txt', name)]
             outputs = [name for name in names

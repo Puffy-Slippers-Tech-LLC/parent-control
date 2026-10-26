@@ -1573,6 +1573,43 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     return status
 
 
+def resume_failure_context(previous, run, values):
+    """Read referenced bounded copies before retention can retire their owner."""
+    from repair_evidence import read_failure
+    snapshots, replacements = {}, {}
+    marker = re.compile(r'(?m)^Retained private failure context \(bounded log tails\): (.+)$')
+
+    def reference(match):
+        source = match[1]
+        if source not in replacements:
+            path = Path(source)
+            try:
+                relative = path.relative_to(previous)
+                if (len(relative.parts) not in (1, 2)
+                        or (len(relative.parts) == 2 and not re.fullmatch(
+                            r'pipeline-[0-9a-f]{24}', relative.parts[0]))
+                        or not re.fullmatch(r'failure-evidence-[0-9a-f]{32}\.json', relative.name)):
+                    raise ValueError('not a current repair failure copy')
+                # The shared reader pins directories and refuses links, foreign
+                # owners, changed files and oversized records.
+                snapshots[relative] = read_failure(path)
+                replacements[source] = ('Retained private failure context (bounded log tails): '
+                                        + str(run / relative))
+            except (OSError, ValueError) as error:
+                replacements[source] = ('Optional diagnostic copy unavailable after resume: '
+                                        + source + ' (' + type(error).__name__ + ')')
+        return replacements[source]
+
+    def rewrite(value):
+        if isinstance(value, dict):
+            return {key: rewrite(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [rewrite(item) for item in value]
+        return marker.sub(reference, value) if isinstance(value, str) else value
+
+    return rewrite(values), snapshots
+
+
 def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False, tasks=None,
            reload=False):
     from vm_selection import execution_binding, check_binding, save_binding
@@ -1583,6 +1620,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     retained_queue = {}
     retained_pending = None
     retained_waiting = []
+    retained_evidence = {}
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
         with lock(legacy / 'owner') as owner:
@@ -1598,7 +1636,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                     request(run)
                 return run, False
     def command(run, owner):
-        nonlocal retained_git, retained_pipelines, retained_queue, retained_pending, retained_waiting
+        nonlocal retained_git, retained_pipelines, retained_queue, retained_pending, retained_waiting, retained_evidence
         # Only explicit resume carries workflow state into a new allocation.
         # Read before shared retention can retire the previous run allocation.
         previous = current_run(run.parent) if resume else None
@@ -1633,6 +1671,9 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                         entry['verification_attempt'].pop('handoffs', None)
                     if entry.get('pending_response'):
                         entry['pending_response'].pop('turn', None)
+        if previous is not None:
+            (retained_git, retained_pipelines), retained_evidence = resume_failure_context(
+                previous, run, [retained_git, retained_pipelines])
         selected_model, _ = initial_model(model, effort)
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
@@ -1644,6 +1685,12 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
 
     kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
     def started(run):
+        # The new run is registered before writing payloads. Publish copies
+        # before checkpoints that point to them; never copy old conversations.
+        for relative, evidence in retained_evidence.items():
+            path = private_directory((run / relative).parent) / relative.name
+            atomic(path, evidence)
+            path.chmod(0o600)
         if retained_git is not None:
             atomic(run / 'checkpoint.json', retained_git)
         if retained_queue:

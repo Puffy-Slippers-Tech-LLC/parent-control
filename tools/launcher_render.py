@@ -33,7 +33,8 @@ SCROLLBACK_LINES = 2000
 SCROLLBACK_CHARACTERS = 256 * 1024
 
 # An invisible OSC tag distinguishes mirrored session lines in mixed launcher
-# logs. Dedicated session transcripts retain their original text.
+# logs. Remove it before Rich's ANSI decoding, which exposes unknown OSC payloads.
+# Dedicated session transcripts retain their original text.
 SESSION_LINE = '\033]777;onpc-session\007'
 
 
@@ -326,7 +327,7 @@ class LauncherDisplay:
     def wrapped(self, lines, width, *, task_labels=False):
         rows = []
         for line in lines:
-            text = line.copy() if isinstance(line, Text) else Text.from_ansi(line)
+            text = line.copy() if isinstance(line, Text) else Text.from_ansi(line.replace(SESSION_LINE, ''))
             if task_labels:
                 self.style_task_label(text)
             if self.is_rule(text):
@@ -539,7 +540,7 @@ class LauncherDisplay:
             width = shutil.get_terminal_size().columns
 
         def replay_line(line):
-            text = Text.from_ansi(line)
+            text = Text.from_ansi(line.replace(SESSION_LINE, ''))
             if self.is_rule(text):
                 text = Text('─' * max(1, width - 1), style='dim')
             self.console.print(text, soft_wrap=True)
@@ -621,7 +622,7 @@ class TranscriptWriter:
         except (OSError, ValueError):
             width = shutil.get_terminal_size().columns
         width = max(1, width)
-        text = Text.from_ansi(value)
+        text = Text.from_ansi(value.replace(SESSION_LINE, ''))
         prefix = HANGING_PREFIX.match(text.plain)
         if prefix is None or text.cell_len <= width:
             self.stream.write(value + end)

@@ -110,9 +110,21 @@ class Output:
         self.line_start = True
         self.reader = JsonReader()
 
-    def progress(self, active, data=b''):
+    def status(self, active):
+        """Read the same status publications for desktop and editor viewers."""
         from launcher_progress import repair_progress
-        from launcher_render import LauncherDisplay, clean
+        from launcher_render import clean
+        steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
+        if self.label == 'fix-tests':
+            steps = repair_progress(self.run, steps,
+                child_steps=snapshot(self.run / 'test-controller.json', steps=True, reader=self.reader))
+        details = snapshot(self.run / 'frame.json', reader=self.reader) if active else []
+        if steps:
+            details = [line for line in details if not clean(line).startswith('Overall - ')]
+        return steps, details
+
+    def progress(self, active, data=b''):
+        from launcher_render import LauncherDisplay
         if self.display is None:
             # The embedded terminal supplies its own dimensions and needs the
             # same in-place dashboard as an attached launcher, not log snapshots.
@@ -120,13 +132,7 @@ class Output:
         if self.show_log and self.terminal_size is not None and data:
             self.display.write(self.decoder.decode(data))
         try:
-            steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
-            if self.label == 'fix-tests':
-                steps = repair_progress(self.run, steps,
-                    child_steps=snapshot(self.run / 'test-controller.json', steps=True, reader=self.reader))
-            details = snapshot(self.run / 'frame.json', reader=self.reader) if active else []
-            if steps:
-                details = [line for line in details if not clean(line).startswith('Overall - ')]
+            steps, details = self.status(active)
             self.display.update(steps, details)
         except (OSError, ValueError, KeyError, TypeError):
             # A rejected progress publication must not swallow fresh log bytes.

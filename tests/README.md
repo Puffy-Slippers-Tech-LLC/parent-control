@@ -1247,16 +1247,15 @@ from current task summary and status/issues on the right. `run-tests` has no
 session composer; `fix-tests`, E2E and ordinary plan workflows offer the
 conversation composer described below. Repair prompts steer the active agent;
 messages sent during testing queue for the next repair session in that workflow.
-For `fix-tests`, the lower-left area has its own initial 1:2 split: the left
-pane shows the current pipeline status, round/category progress, case counts
-and test tree; the right pane has **Active**, **Session** and **Launcher** tabs.
+For `fix-tests`, the lower-left area has **Active**, **Session** and **Launcher**
+tabs across its full width. Pipeline status, round/category progress, case counts
+and the test tree are available in **ONPC: Watch** and `make watch`.
 **Active (Session)** follows the active repair session, including its shared
 transcript and chatbox; otherwise **Active (Launcher)** shows launcher output.
 The explicit **Session** tab shares that same session and draft, or shows
 `No active session`. **Launcher** shows output only; **Active (Launcher)** keeps
-the composer available between sessions. Click a tab or use Alt+1/2/3. Both inner
-panes reuse the shared scrolling controls; dragging their divider changes only
-this split, retaining its ratio when the terminal resizes.
+the composer available between sessions. Click a tab or use Alt+1/2/3.
+The tabs reuse the shared scrolling controls.
 The upper and lower frames share an initial width ratio of 75:25; dragging either
 vertical divider resizes both frames together and keeps their dividers aligned.
 The shared ratio survives terminal resizing. Both dividers turn blue while dragging
@@ -2470,12 +2469,14 @@ development tools, not customer E2E commands.
 
 ### Watching host UI tests
 
-To use just the right viewer inside VS Code, install it with `./setup.sh --watch`,
+To use run status and the viewers inside VS Code, install with `./setup.sh --watch`,
 reload VS Code, then open **Ctrl+Shift+P → ONPC: Watch** from a trusted checkout.
 The [workspace extension](../vscode/onpc-watch/README.md) uses the same read-only
 UI/VM feeds, worktree discovery and viewer scope selection as the desktop watcher.
-Its editor tab includes the All grid, individual viewers, progress and filtered
-VM command output. Ordinary setup and `--test-tools-only` also install it when a
+Its editor tab starts with a draggable 30:70 split: the left panel shows only
+Run Status across worktrees, without the desktop watcher's Run Status/Outputs/Session
+tabs; the right includes the All grid, individual viewers, progress and filtered
+VM command output. The split ratio is remembered. Ordinary setup and `--test-tools-only` also install it when a
 VS Code CLI is available. `--watch` installs only this extension, without host
 dependency, helper, rule or product setup. Both viewers can run together.
 

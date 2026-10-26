@@ -17,6 +17,27 @@ nav button[aria-pressed="true"] {
     color: var(--vscode-tab-activeForeground);
 }
 .idle { opacity: .6; }
+#watch {
+    display: grid; grid-template-columns: minmax(0, 30fr) 6px minmax(0, 70fr);
+    flex: 1; min-height: 0; min-width: 0;
+}
+#runs { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; }
+.run { display: flex; flex: 1 1 0; flex-direction: column; min-height: 100px; overflow: hidden; }
+.run + .run { border-top: 1px solid var(--vscode-panel-border); }
+.run-heading {
+    margin: 0; padding: 8px; flex-shrink: 0; font-size: 1em;
+    overflow-wrap: anywhere; border-bottom: 1px solid var(--vscode-panel-border);
+}
+.run-heading.failed { color: var(--vscode-errorForeground); }
+.run-status {
+    flex: 1; margin: 0; padding: 8px; overflow: auto; min-height: 0;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
+}
+#divider { cursor: ew-resize; touch-action: none; background: var(--vscode-panel-border); }
+#divider:hover, #divider:focus-visible, .resizing #divider { background: var(--vscode-focusBorder); }
+.resizing, .resizing * { cursor: ew-resize !important; user-select: none; }
+#viewer { display: flex; flex-direction: column; min-width: 0; min-height: 0; container-type: inline-size; }
 #viewers { border-bottom: 1px solid var(--vscode-panel-border); }
 #grid {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -46,6 +67,6 @@ nav button[aria-pressed="true"] {
 footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 4px 8px; border-top: 1px solid var(--vscode-panel-border); }
 #resources { flex: 1; min-width: 0; white-space: pre-wrap; font-family: var(--vscode-editor-font-family); font-size: .9em; }
 #restart { border: 0; padding: 4px 8px; background: var(--vscode-button-secondaryBackground); }
-@media (max-width: 650px) {
+@container (max-width: 650px) {
     #grid { grid-template-columns: minmax(0, 1fr); }
 }

@@ -1,13 +1,22 @@
 # ONPC Watch
 
-Open the right viewer from `make watch` in a VS Code editor tab.
+Open run status and the `make watch` viewers in a VS Code editor tab.
 
 Run `./setup.sh --watch` as your desktop user to install or update this extension.
 Reload VS Code after updating it. Open an ONPC checkout, press **Ctrl+Shift+P**,
 and select **ONPC: Watch** (`onpc.watch`). Repeating the command reveals the
 existing tab. Multiple workspace roots offer a checkout picker.
 
-The tab contains the shared All grid across checkouts, UI worker and VM tabs,
+The tab starts with a 30:70 left/right split. Drag the divider to resize it;
+the tab remembers its ratio. Focus the divider and use the arrow keys to resize
+with the keyboard, or double-click it to restore 30:70.
+
+The left panel shows **Run Status** across related Git worktrees, using the
+same runner discovery and pipeline dashboard as `make watch`. Active worktrees
+share the panel in equal sections; when idle, it retains the last displayed run.
+It contains status only, without Run Status/Outputs/Session tabs.
+
+The right panel contains the shared All grid across checkouts, UI worker and VM tabs,
 VM progress, filtered command output and host resource usage. Screens are view
 only. Start tests through the usual launchers; the viewer also works alongside
 `make watch`. Select an idle VM tab to wait for its next run. The Reconnect button

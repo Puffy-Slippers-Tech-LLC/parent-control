@@ -18,7 +18,7 @@ from launcher_session import SessionPanel, clock_duration, working_duration
 
 
 class Divider:
-    """A proportional split shared by the outer frames and nested execution pane."""
+    """A proportional split shared by the outer frames."""
 
     def __init__(self, ratio):
         self.ratio = ratio
@@ -106,9 +106,7 @@ class TaskDisplay(LauncherDisplay):
         self.cancel_on_ctrl_c = cancel_on_ctrl_c
         self.divider = Divider(.75)
         self.execution_tabs = execution_tabs
-        self.execution_divider = Divider(1 / 3)
         self.execution_tab = 'active'
-        self.execution_column = 0
         self.execution_width = 0
         self.execution_first = 0
         self.execution_controls = []
@@ -127,7 +125,6 @@ class TaskDisplay(LauncherDisplay):
         self.offsets['info'] = 0
         self.offsets['summary'] = 0
         self.offsets['description'] = 0
-        self.offsets['pipeline'] = 0
         self.offsets['session'] = 0
         self.description = {}
         self.description_top = 0
@@ -269,7 +266,7 @@ class TaskDisplay(LauncherDisplay):
 
     def output_width(self):
         if self.execution_tabs:
-            return max(1, self.execution_width - self.execution_column - int(self.mouse_capture))
+            return max(1, self.execution_width - int(self.mouse_capture))
         return max(1, self.divider_column - 1 - int(self.mouse_capture))
 
     def execution_source(self):
@@ -278,12 +275,10 @@ class TaskDisplay(LauncherDisplay):
         return self.execution_tab
 
     def execution_layout(self, width, height, logs, first):
-        """Compose the repair status and tabbed output from the shared pane controls."""
+        """Compose tabbed output from the shared pane controls."""
         self.execution_width, self.execution_first = width, first
-        status_width = self.execution_divider.width(width)
-        self.execution_column = status_width + 1
-        content_left = status_width + 2
-        content_width = max(1, width - status_width - 1)
+        content_left = 1
+        content_width = max(1, width)
         self.execution_controls = []
         self.execution_selection = []
         self.execution_tab_bounds = []
@@ -293,16 +288,6 @@ class TaskDisplay(LauncherDisplay):
             self.output_height = 0
             self.chat_top = first + height
             return [Text(' ' * width) for _ in range(height)]
-        status = self.details or [line for step in self.steps for line in step['lines']]
-        left = self.scroll_rows('pipeline', status,
-            max(1, status_width - int(self.mouse_capture)), height)
-        left += [Text('')] * (height - len(left))
-        scrollbar, bottom = self.scrollbar_controls('pipeline', status_width, height, first)
-        self.execution_controls.append(('pipeline', scrollbar, bottom, status_width))
-        for index, row in enumerate(left):
-            left[index] = self.scrollbar_row(row, status_width, first + index, scrollbar, bottom)
-        self.execution_selection.append((1, max(1, status_width - int(self.mouse_capture)),
-                                         first, first + height - 1))
         session = self.execution_session
         active = bool(session and session.active)
         source = self.execution_source()
@@ -349,9 +334,7 @@ class TaskDisplay(LauncherDisplay):
             body[index] = self.scrollbar_row(row, content_width, first + 1 + index, scrollbar, bottom)
         self.execution_selection.append((content_left, max(content_left, width - int(self.mouse_capture)),
                                          first + 1, first + output_height))
-        right = [tabs, *body] if height else []
-        return [left[index] + self.execution_divider.line(self.dragging == 'execution') + right[index]
-                for index in range(height)]
+        return [tabs, *body] if height else []
 
     def overview_lines(self, step):
         """Normalize retained completions from older, still-running backends."""
@@ -580,11 +563,10 @@ class TaskDisplay(LauncherDisplay):
                     self.mouse_capture = not self.mouse_capture
                     self.set_mouse_mode()
                 else:
-                    pane = self.focus if self.focus in ('top', 'description', 'pipeline', 'session') else 'bottom'
+                    pane = self.focus if self.focus in ('top', 'description', 'session') else 'bottom'
                     if self.execution_tabs and self.focus in ('bottom', 'session', 'chat'):
                         pane = 'session' if self.execution_source() == 'session' else 'bottom'
                     height = {'top': self.top_height, 'description': self.description_height,
-                              'pipeline': max(1, self.size.lines - self.execution_first + 1) if self.size else 1,
                               'session': self.output_height, 'bottom': self.output_height}[pane]
                     self.offsets[pane] = max(0, self.offsets[pane] +
                         (max(1, height) if key == navigation[0] else -max(1, height)))
@@ -742,19 +724,13 @@ class TaskDisplay(LauncherDisplay):
     def execution_mouse(self, base, column, row, released):
         """Route nested pane controls before the enclosing frame handles its own."""
         inside = (self.execution_first <= row and 1 <= column < self.divider_column)
-        if not (inside or self.dragging == 'execution' or self.execution_grab is not None):
+        if not (inside or self.execution_grab is not None):
             return False
-        if self.dragging and self.dragging != 'execution':
+        if self.dragging:
             return False
-        over = inside and column == self.execution_column
         if released:
-            self.dragging = None
             self.execution_grab = None
-            self.set_pointer('ew-resize' if over else '')
-            self.draw()
-            return True
-        if base == 32 and self.dragging == 'execution':
-            self.execution_divider.move(column, self.execution_width)
+            self.set_pointer('')
             self.draw()
             return True
         if base == 0:
@@ -772,19 +748,11 @@ class TaskDisplay(LauncherDisplay):
                     base, column, row, edge=edge,
                     allow_drag=self.focus == pane):
                 return True
-        if over:
-            self.set_pointer('ew-resize')
-            if base == 0:
-                self.selection = None
-                self.dragging = 'execution'
-                self.draw()
-            return True
-        pane = ('pipeline' if column < self.execution_column else
-                'session' if self.execution_source() == 'session' else 'bottom')
+        pane = 'session' if self.execution_source() == 'session' else 'bottom'
         self.set_pointer('text' if self.chat_bounds and self.chat_bounds[0] <= column <= self.chat_bounds[1]
                          and self.chat_bounds[2] <= row <= self.chat_bounds[3] else '')
         if base in (64, 65):
-            if pane != 'pipeline' and row >= self.chat_top:
+            if row >= self.chat_top:
                 return True
             self.selection = None
             self.offsets[pane] = max(0, self.offsets[pane] + (3 if base == 64 else -3))
@@ -874,7 +842,7 @@ class TaskDisplay(LauncherDisplay):
                          tuple(session_panel.transcript), session_panel.pending,
                          json.dumps(session_panel.chat_state, sort_keys=True),
                          tuple(session_panel.details)) if session_panel else None
-        state = (size, self.divider.ratio, self.execution_divider.ratio, self.execution_tab,
+        state = (size, self.divider.ratio, self.execution_tab,
                  session_state, self.dragging, self.task_totals,
                  tuple(summary_lines), total_duration, working, error_age, status_age,
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),

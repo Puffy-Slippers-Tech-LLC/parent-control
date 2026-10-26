@@ -28,8 +28,12 @@ function html(webview, context) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
         <link rel="stylesheet" href="${style}"><title>ONPC Watch</title></head>
-        <body><nav id="viewers" aria-label="Viewers"></nav>
-        <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main>
+        <body><div id="watch">
+        <aside id="runs" aria-label="Run status across worktrees"><p class="empty" role="status">Waiting for tests…</p></aside>
+        <div id="divider" role="separator" aria-label="Resize run status and viewers"
+            aria-orientation="vertical" aria-valuemin="10" aria-valuemax="90" aria-valuenow="30" tabindex="0"></div>
+        <section id="viewer" aria-label="UI and VM viewers"><nav id="viewers" aria-label="Viewers"></nav>
+        <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main></section></div>
         <footer><span id="resources"></span>
         <button id="restart" title="Reconnect to the watch backend">Reconnect</button></footer>
         <script nonce="${nonce}" src="${script}"></script></body></html>`;

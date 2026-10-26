@@ -18,6 +18,29 @@ from e2e_watch_viewer import AsyncFeed, Feed, activity_text, progress_text, WAIT
 from ui_watch_transport import Feeds, label
 from watch_checkouts import Discovery, checkout, identity
 from watch_viewer import ResourceUsage, viewer_entries
+from watch_output import Output
+
+
+def status_spans(lines):
+    """Keep status colors and emphasis without sending HTML or terminal controls."""
+    from rich.text import Text
+    from rich.console import Console
+    from launcher_render import SESSION_LINE, clean
+    console = Console()
+    rows = []
+    for line in lines:
+        text = Text.from_ansi(line.replace(SESSION_LINE, ''))
+        spans = []
+        for segment in text.render(console):
+            style = segment.style
+            color = style.color if style else None
+            # Neutral terminal foregrounds must follow VS Code's light/dark theme.
+            themed = color and (color.type.name == 'DEFAULT' or
+                               (color.type.name == 'STANDARD' and color.number in (0, 7, 15)))
+            spans.append(dict(text=clean(segment.text), bold=bool(style and style.bold),
+                              color=color.get_truecolor().hex if color and not themed else None))
+        rows.append(spans)
+    return rows
 
 
 def png(pixels, width, height, stride, *, rgba=False, red_first=False):
@@ -53,7 +76,37 @@ class Viewer:
         self.vms = {}
         self.configured = {}
         self.images = {}
+        self.outputs = {}
+        self.last_output = root
+        self.status_cache = {}
         self.resources = ResourceUsage()
+
+    def run_status(self):
+        sections = []
+        for root, branch in self.roots.items():
+            if root not in self.outputs:
+                self.outputs[root] = Output(root, show_log=False)
+            output = self.outputs[root]
+            label, active, _reset, _data = output.poll(progress=False)
+            if active:
+                self.last_output = root
+            status = '' if active else output.completion_status()
+            lines = []
+            if output.run is not None:
+                try:
+                    steps, details = output.status(active)
+                    lines = [line for step in steps for line in step['lines']]
+                    if details:
+                        lines += ['─', *details]
+                except (OSError, ValueError, KeyError, TypeError):
+                    lines = ['Run status unavailable']
+            if self.status_cache.get(root, (None,))[0] != lines:
+                self.status_cache[root] = lines, status_spans(lines)
+            sections.append(dict(id=str(root), label=f'[{branch}] Run Status' +
+                (f' — {label}' + (f' ({status})' if status else '') if label else ''),
+                active=active, status=status, rows=self.status_cache[root][1]))
+        active = [section for section in sections if section['active']]
+        return active or [section for section in sections if section['id'] == str(self.last_output)]
 
     def close(self):
         self.discovery.close()
@@ -172,6 +225,7 @@ class Viewer:
                 label=f'[{self.roots[Path(root)]}] {name}', active=active, locked=locked))
         self.images = {entry: value for entry, value in self.images.items() if entry in shown}
         return dict(scope=scope, selected=selected, entries=values,
+                    runs=self.run_status(),
                     checkouts=[dict(id=str(root), label=branch) for root, branch in self.roots.items()],
                     resources=self.resources.text())
 

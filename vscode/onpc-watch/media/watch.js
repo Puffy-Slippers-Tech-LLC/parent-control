@@ -1,4 +1,4 @@
-/* The webview only selects views and acknowledges rendered snapshots. */
+/* The webview renders read-only status and feeds, and keeps its split locally. */
 'use strict';
 
 (() => {
@@ -6,13 +6,55 @@
     const grid = document.getElementById('grid');
     const viewers = document.getElementById('viewers');
     const resources = document.getElementById('resources');
+    const runs = document.getElementById('runs');
+    const layout = document.getElementById('watch');
+    const divider = document.getElementById('divider');
     const cards = new Map();
-    let state = { scope: 'all', selected: vscode.getState()?.selected || 'all' };
+    const sections = new Map();
+    const saved = vscode.getState();
+    let state = { scope: 'all', selected: saved?.selected || 'all' };
+    let split = Number.isFinite(saved?.split) ? saved.split : 30;
     let pending = Promise.resolve();
+
+    function persist() {
+        vscode.setState({ ...state, split });
+    }
+
+    function resize(value) {
+        split = Math.min(90, Math.max(10, value));
+        layout.style.gridTemplateColumns = `minmax(0, ${split}fr) 6px minmax(0, ${100 - split}fr)`;
+        divider.setAttribute('aria-valuenow', String(Math.round(split)));
+        persist();
+    }
+
+    divider.addEventListener('pointerdown', event => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        divider.focus();
+        divider.setPointerCapture(event.pointerId);
+        document.body.classList.add('resizing');
+    });
+    divider.addEventListener('pointermove', event => {
+        if (!divider.hasPointerCapture(event.pointerId)) return;
+        const bounds = layout.getBoundingClientRect();
+        resize(100 * (event.clientX - bounds.left - 3) / Math.max(1, bounds.width - 6));
+    });
+    divider.addEventListener('pointerup', event => {
+        if (divider.hasPointerCapture(event.pointerId)) divider.releasePointerCapture(event.pointerId);
+    });
+    divider.addEventListener('lostpointercapture', () => document.body.classList.remove('resizing'));
+    divider.addEventListener('dblclick', () => resize(30));
+    divider.addEventListener('keydown', event => {
+        const value = { ArrowLeft: split - 2, ArrowRight: split + 2, Home: 10, End: 90 }[event.key];
+        if (value === undefined) return;
+        event.preventDefault();
+        resize(value);
+    });
+    resize(split);
 
     function select(scope, selected) {
         state = { scope, selected };
-        vscode.setState(state);
+        persist();
         vscode.postMessage({ type: 'select', ...state });
     }
 
@@ -99,9 +141,53 @@
         grid.replaceChildren(empty);
     }
 
+    function runStatus(entries) {
+        const ids = new Set(entries.map(entry => entry.id));
+        for (const [id, section] of sections) {
+            if (!ids.has(id)) { section.body.remove(); sections.delete(id); }
+        }
+        if (entries.length) runs.querySelector('.empty')?.remove();
+        entries.forEach((entry, index) => {
+            let section = sections.get(entry.id);
+            if (!section) {
+                const body = element('section', 'run', runs);
+                const heading = element('h2', 'run-heading', body);
+                const content = element('pre', 'run-status', body);
+                section = { body, heading, content };
+                sections.set(entry.id, section);
+            }
+            if (runs.children[index] !== section.body) runs.insertBefore(section.body, runs.children[index] || null);
+            section.heading.textContent = entry.label;
+            section.heading.classList.toggle('failed', entry.status === 'failed');
+            const signature = JSON.stringify([entry.rows, entry.active]);
+            if (section.signature === signature) return;
+            section.signature = signature;
+            const follow = section.content.scrollHeight - section.content.clientHeight - section.content.scrollTop < 24;
+            const rows = entry.rows.map(row => {
+                const line = document.createElement('div');
+                if (!row.length) line.textContent = '\u00a0';
+                row.forEach(part => {
+                    const span = element('span', '', line);
+                    span.textContent = part.text;
+                    if (part.color) span.style.color = part.color;
+                    if (part.bold) span.style.fontWeight = 'bold';
+                });
+                return line;
+            });
+            if (!rows.length) {
+                const waiting = document.createElement('div');
+                waiting.textContent = entry.active ? 'Waiting for run status…' : 'Waiting for tests…';
+                rows.push(waiting);
+            }
+            section.content.replaceChildren(...rows);
+            if (follow) section.content.scrollTop = section.content.scrollHeight;
+        });
+    }
+
     async function render(snapshot) {
         state = { scope: snapshot.scope, selected: snapshot.selected };
-        vscode.setState(state);
+        persist();
+        runStatus(snapshot.runs);
         tabs(viewers, [{ id: 'all', label: 'All', active: true }, ...snapshot.entries.map(entry =>
             ({ id: entry.id, label: entry.label, active: entry.locked }))],
             state.selected, selected => select(state.scope, selected));

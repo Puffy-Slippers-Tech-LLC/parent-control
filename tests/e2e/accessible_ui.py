@@ -6767,6 +6767,13 @@ class AccessibleUI:
         require(child in CHILD_IDENTITIES and type(opened) is bool, 'ui:child-binding')
         uid = (self.fixture_uids[child] if self.fixture_uids is not None
                else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        if child == NEW_CHILD:
+            # Account creation precedes Parent's periodic discovery refresh.
+            # Wait only on public choices before the single guarded setter;
+            # a missing account still fails at the existing read deadline.
+            self.wait(lambda: str(uid) in self.id_target(
+                'parent-child-selector', sensitive=True, showing=False).getChoices(),
+                'new-child-choice')
         self.set_value('parent-child-selector', str(uid))
         return True
 

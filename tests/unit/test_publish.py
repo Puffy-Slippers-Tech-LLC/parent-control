@@ -135,7 +135,7 @@ def test_source_gate_requires_committed_inputs(repository):
         publish.source_state(repository)
 
 
-@pytest.mark.parametrize('branch', ['main', 'feature', 'releases/v01.1', None, 'releases/v1.2'])
+@pytest.mark.parametrize('branch', ['feature', 'releases/v01.1', None, 'releases/v1.2'])
 def test_wrong_branch_stops_before_preparation(repository, monkeypatch, branch):
     (repository / 'data/app.json').write_text('{"version": "1.1"}\n')
     git(repository, 'add', publish.HISTORY, 'data/app.json')
@@ -530,7 +530,7 @@ def test_launcher_help_and_invalid_arguments_have_no_side_effects(args, exit_cod
 
 
 @pytest.mark.parametrize('exit_code', [0, 7])
-@pytest.mark.parametrize('target,arguments', [('publish', []), ('publish-status', ['--status'])])
+@pytest.mark.parametrize('target,arguments', [('publish', [])])
 def test_make_publish_targets_invoke_one_tool_and_propagate_failure(tmp_path, exit_code, target, arguments):
     # Exercise the real Makefile with a recording publisher, never a live upload.
     checkout = tmp_path / 'checkout with spaces'
@@ -572,7 +572,7 @@ def test_status_monitors_recorded_release_with_changed_checkout_without_writes(
         journal_before = path.read_bytes()
         if changed_head:
             git(repository, 'commit', '--allow-empty', '-m', 'monitoring fix')
-        git(repository, 'switch', '-c', 'local-work')
+        git(repository, 'switch', '-c', 'releases/v1.1')
         (repository / 'docs/README.md').write_text('Uncommitted local work.\n')
         (repository / publish.HISTORY).write_text('Unfinished new release notes.\n')
         head = git(repository, 'rev-parse', 'HEAD')
@@ -581,16 +581,18 @@ def test_status_monitors_recorded_release_with_changed_checkout_without_writes(
         def forbidden(*args, **kwargs):
             pytest.fail('status mode attempted a publishing or writing operation')
 
-        for name in ('save', 'publish', 'source_state', 'verify_frozen', 'execute', 'finish_checkout'):
+        for name in ('save', 'source_state', 'verify_frozen', 'execute', 'finish_checkout'):
             monkeypatch.setattr(publish, name, forbidden)
         original_command = publish.command
 
         def read_only_command(*args, **kwargs):
-            assert args == ('git', 'rev-parse', '--absolute-git-dir')
+            assert args in (('git', 'rev-parse', '--absolute-git-dir'),
+                            ('git', 'branch', '--show-current'),
+                            ('git', 'symbolic-ref', '--short', 'HEAD'))
             return original_command(*args, **kwargs)
 
         monkeypatch.setattr(publish, 'command', read_only_command)
-        publish.publication_status(repository)
+        publish.publish(repository)
         assert path.read_bytes() == journal_before
         assert git(repository, 'rev-parse', 'HEAD') == head
         assert git(repository, 'status', '--porcelain') == status
@@ -1349,13 +1351,15 @@ def test_main_monitor_handoff_failure_prevents_completion(main_update_candidate,
     assert (publish.journal_directory(target) / 'monitor.json').exists()
 
 
-def test_main_monitor_does_not_authorize_publication(main_update_candidate):
+def test_main_publish_monitors_without_authorizing_publication(main_update_candidate, monkeypatch):
     target, root, _, state, path = main_update_candidate
     publish.update_main_checkout(root, state, path)
     monitor_path = publish.journal_directory(target) / 'monitor.json'
     before = monitor_path.read_bytes()
-    with pytest.raises(ValueError, match='releases/v'):
-        publish.publish(target)
+    checked = []
+    monkeypatch.setattr(publish, 'wait_for_publication', lambda state: checked.append(state['version']))
+    publish.publish(target)
+    assert checked == [state['version']]
     assert monitor_path.read_bytes() == before
     assert not monitor_path.with_name('state.json').exists()
 

@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Publish with `make publish`; monitor without publishing with `make publish-status`."""
+"""Publish or reconnect to publication monitoring with `make publish`."""
 from __future__ import annotations
 
 import argparse
@@ -160,7 +160,7 @@ def journal_directory(root):
 
 
 @contextmanager
-def locked(root):
+def locked(root, *, attach=False):
     directory = journal_directory(root)
     directory.mkdir(mode=0o700, exist_ok=True)
     if directory.is_symlink() or directory.stat().st_uid != os.getuid():
@@ -170,6 +170,9 @@ def locked(root):
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
+            if attach:
+                yield None
+                return
             raise ValueError('another publisher is already running for this checkout') from None
         yield directory / 'state.json'
 
@@ -852,8 +855,15 @@ def execute(root, state, state_path):
 
 
 def publish(root=ROOT):
+    if command('git', 'branch', '--show-current', cwd=root) == 'main':
+        publication_status(root)
+        return
     branch = publishing_branch(root)
-    with locked(root) as state_path:
+    with locked(root, attach=True) as state_path:
+        if state_path is None:
+            say('publisher already running; connecting to publication monitoring')
+            publication_status(root)
+            return
         state = json.loads(state_path.read_text()) if state_path.exists() else None
         if state is not None and state['phase'] != 'complete':
             if 'branch' not in state:
@@ -896,7 +906,7 @@ def publish(root=ROOT):
 
 class PublisherParser(argparse.ArgumentParser):
     def error(self, message):
-        say('use make publish or make publish-status; use --help for usage', error=True)
+        say('use make publish; use --help for usage', error=True)
         self.exit(2)
 
 

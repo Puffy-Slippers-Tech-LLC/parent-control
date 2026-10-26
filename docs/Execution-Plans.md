@@ -665,14 +665,26 @@ retroactively committed by restart; preserve their changes for explicit close-ou
 After a launcher pushes a task, optimization or verified repair commit, shared
 Git infrastructure propagates that exact commit to every other branch listed in
 [`config/worktree.json`](../config/worktree.json). Entries in `worktrees` are
-branch names, resolved through Git's registered worktree inventory; exclude the
-current checkout by its resolved path. This is symmetric: with `main` and
-`worktree` configured, either checkout merges its completed work into the other.
+branch names. Checked-out branches resolve through Git's registered worktree
+inventory; exclude the current checkout by its resolved path. This is symmetric:
+with `main` and `worktree` configured, either checkout merges its completed work
+into the other.
 Additional configured worktrees receive the same change. A checkout without this
-configuration has no propagation destinations. Missing configured checkouts,
-detached destinations, existing Git operations or missing upstreams refuse with
-an actionable retained checkpoint; the launcher never creates branches or
-changes Git configuration.
+configuration has no propagation destinations. A branch without a local checkout
+uses its configured remote upstream, or the same branch name on the sole matching
+remote when no upstream is configured. A detached checkout remains untouched.
+Missing or ambiguous remote destinations, existing Git operations or missing
+upstreams on checked-out branches refuse with an actionable retained checkpoint;
+the launcher never creates local branches or changes Git configuration.
+
+Remote destinations use a detached worktree inside the retained run allocation.
+The controller fetches the remote branch, merges the exact completion commit and
+pushes explicitly to that remote branch without force. Remote-only commits are
+preserved, and conflicts use the same unattended resolver as checked-out targets.
+The checkpoint retains checkout and remote identities across interruption; the
+temporary worktree is removed after its push succeeds. Unchecked local branches
+are left at their existing commits. Every configured destination must finish
+before task completion.
 
 This boundary is shared by ordinary-plan launchers, `write-e2e` (including its
 optimization commits), and `fix-tests`. Every committing launcher must use

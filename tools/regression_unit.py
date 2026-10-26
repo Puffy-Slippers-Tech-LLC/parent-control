@@ -175,6 +175,10 @@ stash objects and checkpoint/lock trees, bounded waited Git children and a
 private supervised Python agent double. It owns no live service, network, VM, bus, display,
 shared cache or heavy build. Compatible unit scheduling is appropriate; cleanup
 and UI inventories gain no module.
+Remote-only propagation reuses those private bare remotes and creates detached
+worktrees only beneath the fixture's retained run. Interrupted add/merge/push/remove
+checks keep the same bounded waited Git children and private cleanup ownership;
+the unit classification and cleanup/UI inventories remain unchanged.
 Explicit propagation reconciliation reuses those private Git/checkpoint fixtures
 and bounded waited children, including backup and retained-stash checks. Its
 resource ownership and compatible unit classification remain unchanged.

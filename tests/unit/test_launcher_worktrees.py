@@ -101,16 +101,19 @@ def test_symmetric_propagation_preserves_index_worktree_untracked_and_other_stas
 
 
 @pytest.mark.parametrize('concurrent_commit', [False, True])
-def test_merge_conflicts_are_resolved_automatically_before_active_work_returns(trees, concurrent_commit):
+@pytest.mark.parametrize('remote_only', [False, True])
+def test_merge_conflicts_are_resolved_automatically_before_active_work_returns(trees, concurrent_commit, remote_only):
     f = trees
     f.change(f.other, 'shared', 'other committed work\n')
     (f.other / 'unstaged').write_text('keep destination active work\n')
+    if remote_only:
+        f.git(f.other, 'checkout', '--detach', '-q')
     commit = f.change(f.root, 'shared', 'main committed work\n')
     calls = []
     def resolve(root, phase, details):
         calls.append(phase)
         assert (root / 'unstaged').read_text() == 'base\n'
-        assert details['stash']
+        assert bool(details['stash']) != remote_only
         (root / 'shared').write_text('main committed work\nother committed work\n')
         f.git(root, 'add', '--', 'shared')
         if concurrent_commit:
@@ -118,11 +121,13 @@ def test_merge_conflicts_are_resolved_automatically_before_active_work_returns(t
             f.git(root, 'commit', '--no-edit')
     propagation.propagate(f.root, f.run, {}, commit, git=f.git, resolve=resolve)
     assert calls == ['merge']
-    assert f.git(f.other, 'merge-base', '--is-ancestor', commit, 'HEAD').returncode == 0
+    head = 'refs/remotes/origin/worktree' if remote_only else 'HEAD'
+    assert f.git(f.other, 'merge-base', '--is-ancestor', commit, head).returncode == 0
     assert (f.other / 'unstaged').read_text() == 'keep destination active work\n'
     assert f.git(f.other, 'show', 'HEAD:unstaged').stdout == 'base\n'
-    assert f.git(f.other, 'rev-parse', 'HEAD').stdout == f.git(f.other, 'rev-parse', '@{upstream}').stdout
-    assert bool(f.git(f.other, 'stash', 'list').stdout) == concurrent_commit
+    if not remote_only:
+        assert f.git(f.other, 'rev-parse', 'HEAD').stdout == f.git(f.other, 'rev-parse', '@{upstream}').stdout
+    assert bool(f.git(f.other, 'stash', 'list').stdout) == (concurrent_commit and not remote_only)
 
 
 def test_stash_conflict_uses_resolver_and_keeps_active_work_uncommitted(trees):
@@ -148,9 +153,13 @@ def test_stash_conflict_uses_resolver_and_keeps_active_work_uncommitted(trees):
     assert not f.git(f.other, 'stash', 'list').stdout
 
 
-@pytest.mark.parametrize('boundary', ['stash', 'merge', 'apply', 'push', 'drop'])
+@pytest.mark.parametrize('boundary', ['stash', 'merge', 'apply', 'push', 'drop',
+                                    'remote-add', 'remote-merge', 'remote-push', 'remote-remove'])
 def test_interrupted_writes_resume_without_duplicate_merge_or_lost_work(trees, boundary):
     f = trees
+    remote_only = boundary.startswith('remote-')
+    if remote_only:
+        f.git(f.other, 'checkout', '--detach', '-q')
     (f.other / 'unstaged').write_text('active destination work\n')
     commit = f.change(f.root, 'shared', 'completed task\n')
     interrupted = False
@@ -159,8 +168,12 @@ def test_interrupted_writes_resume_without_duplicate_merge_or_lost_work(trees, b
         result = f.git(root, *args, **kwargs)
         matches = dict(stash=args[:2] == ('stash', 'push'), merge=args[:1] == ('merge',),
                        apply=args[:2] == ('stash', 'apply'), push=args == ('push',),
-                       drop=args[:2] == ('stash', 'drop'))
-        if root == f.other and matches[boundary] and not interrupted:
+                       drop=args[:2] == ('stash', 'drop'),
+                       **{'remote-add': args[:2] == ('worktree', 'add'),
+                          'remote-merge': args[:1] == ('merge',),
+                          'remote-push': args[:1] == ('push',),
+                          'remote-remove': args[:2] == ('worktree', 'remove')})
+        if (remote_only or root == f.other) and matches[boundary] and not interrupted:
             interrupted = True
             raise OSError('interrupted after Git write')
         return result
@@ -176,8 +189,13 @@ def test_interrupted_writes_resume_without_duplicate_merge_or_lost_work(trees, b
         assert (root / 'unstaged').read_text() == 'active destination work\n'
     propagation.propagate(f.root, f.run, saved, commit, git=f.git, resolve=resolve)
     assert f.git(f.root, 'rev-parse', 'HEAD').stdout == source_head
-    assert f.git(f.other, 'rev-parse', 'HEAD').stdout.strip() == commit
-    assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() == commit
+    if remote_only:
+        assert f.git(f.root, 'rev-parse', 'refs/remotes/origin/worktree').stdout.strip() == commit
+        target, = saved['worktree_propagation']['targets']
+        assert target['phase'] == 'done' and not Path(target['path']).exists()
+    else:
+        assert f.git(f.other, 'rev-parse', 'HEAD').stdout.strip() == commit
+        assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() == commit
     assert (f.other / 'unstaged').read_text() == 'active destination work\n'
     assert not f.git(f.other, 'stash', 'list').stdout
 
@@ -223,11 +241,21 @@ def test_rewritten_destination_before_merge_preserves_original_stash(trees, monk
     assert f.git(f.other, 'show', target['stash'] + ':unstaged').stdout == 'saved destination work\n'
 
 
-def test_all_configured_destinations_and_source_exclusion(trees):
+@pytest.mark.parametrize('unchecked', [(), ('worktree',), ('third',), ('worktree', 'third')])
+@pytest.mark.parametrize('keep_local_branch', [False, True])
+def test_all_configured_destinations_and_source_exclusion(trees, unchecked, keep_local_branch):
     f = trees
     third = f.other.parent / 'third'
     f.git(f.root, 'worktree', 'add', '-qb', 'third', str(third))
     f.git(third, 'push', '-qu', 'origin', 'third')
+    local_heads = {}
+    for branch, destination in (('worktree', f.other), ('third', third)):
+        if branch in unchecked:
+            # Divergent remote work must survive along with the completion.
+            local_heads[branch] = f.change(destination, branch + '-only', branch + ' work\n')
+            f.git(f.root, 'worktree', 'remove', str(destination))
+            if not keep_local_branch:
+                f.git(f.root, 'branch', '-D', branch)
     config = f.root / 'config/worktree.json'
     config.write_text(json.dumps(dict(worktrees=['main', 'worktree', 'third'])))
     f.git(f.root, 'add', '--', 'config/worktree.json')
@@ -236,8 +264,16 @@ def test_all_configured_destinations_and_source_exclusion(trees):
     state = {}
     propagation.propagate(f.root, f.run, state, commit, git=f.git)
     assert [item['branch'] for item in state['worktree_propagation']['targets']] == ['worktree', 'third']
-    for destination in (f.other, third):
-        assert f.git(destination, 'rev-parse', '@{upstream}').stdout.strip() == commit
+    for branch in ('worktree', 'third'):
+        head = f.git(f.root, 'rev-parse', 'refs/remotes/origin/' + branch).stdout.strip()
+        assert f.git(f.root, 'merge-base', '--is-ancestor', commit, head).returncode == 0
+        if branch in unchecked:
+            assert f.git(f.root, 'merge-base', '--is-ancestor', local_heads[branch], head).returncode == 0
+            if keep_local_branch:
+                assert f.git(f.root, 'rev-parse', 'refs/heads/' + branch).stdout.strip() == local_heads[branch]
+    assert all(item['phase'] == 'done' for item in state['worktree_propagation']['targets'])
+    assert all(not Path(item['path']).exists() for item in state['worktree_propagation']['targets']
+               if item.get('remote_target'))
 
 
 @pytest.mark.parametrize('defect', ['missing', 'duplicate', 'detached', 'operation', 'upstream', 'busy'])
@@ -258,8 +294,12 @@ def test_preflight_refuses_without_touching_destination_work(trees, defect):
         if defect == 'busy':
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             (f.run / 'cancel').touch()
-        with pytest.raises(propagation.launcher.Stopped if defect == 'busy' else ValueError):
+        if defect == 'detached':
             propagation.propagate(f.root, f.run, {}, commit, git=f.git)
+            assert f.git(f.root, 'rev-parse', 'refs/remotes/origin/worktree').stdout.strip() == commit
+        else:
+            with pytest.raises(propagation.launcher.Stopped if defect == 'busy' else ValueError):
+                propagation.propagate(f.root, f.run, {}, commit, git=f.git)
     assert (f.other / 'unstaged').read_text() == 'untouched active work\n'
     assert not f.git(f.other, 'stash', 'list').stdout
 
@@ -567,6 +607,17 @@ destination.write_text(json.dumps(dict(status='resolved', summary='Private agent
     with propagation.launcher.lock(f.run.parent / 'owner') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX)
         result = propagation._resolve_once(f.other, f.run, 'merge', dict(source_root=str(f.root)))
+        # A later remote conflict must not recreate a successfully retired
+        # destination just to revisit its already completed nested cleanup.
+        session = f.run / 'worktree-resolution'
+        retired = f.run / 'retired-remote-worktree'
+        record = propagation.launcher._start_record(session / 'propagation-owner.json')
+        record['destination'] = str(retired)
+        propagation.launcher._publish_start(session / 'propagation-owner.json', record)
+        propagation.launcher.atomic(f.run / 'checkpoint.json', dict(worktree_propagation=dict(
+            targets=[dict(path=str(retired), remote_target=True, phase='done')])))
+        result = propagation._resolve_once(f.other, f.run, 'merge', dict(source_root=str(f.root)))
+        assert not retired.exists()
     assert result['status'] == 'resolved'
     session = f.run / 'worktree-resolution'
     assert (session / 'nested-closed').exists()

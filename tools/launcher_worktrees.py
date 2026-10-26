@@ -74,11 +74,94 @@ def configured_targets(root, *, git=git_output):
             branches[fields['branch'].removeprefix('refs/heads/')] = Path(fields['worktree']).resolve()
     targets = []
     for name in names:
+        if git(root, 'check-ref-format', 'refs/heads/' + name, check=False).returncode:
+            raise ValueError(f'invalid configured worktree branch: {name}')
         if name not in branches:
-            raise ValueError(f'configured worktree branch is not checked out: {name}')
-        if branches[name] != root.resolve():
+            targets.append(dict(branch=name, remote_target=True))
+        elif branches[name] != root.resolve():
             targets.append(dict(path=str(branches[name]), branch=name))
     return targets
+
+
+def _configured(root, target, git):
+    for item in configured_targets(root, git=git):
+        if item['branch'] == target['branch']:
+            return (item.get('remote_target') == target.get('remote_target')
+                    and (item.get('remote_target') or item['path'] == target['path']))
+    return False
+
+
+def _remote_destination(git, root, branch):
+    """Prefer a local branch's upstream, otherwise require one remote match."""
+    upstream = _branch_upstream(git, root, branch)
+    if upstream:
+        remote, merge = upstream
+        if remote == '.' or not merge.startswith('refs/heads/'):
+            raise ValueError(f'configured branch needs a remote upstream: {branch}')
+        return remote, merge
+    matches = []
+    for remote in _run(git, root, 'remote').splitlines():
+        ref = 'refs/heads/' + branch
+        result = git(root, 'ls-remote', '--exit-code', '--heads', remote, ref, check=False)
+        if result.returncode == 0:
+            matches.append((remote, ref))
+        elif result.returncode != 2:
+            raise ValueError('could not discover propagation remote: ' + result.stderr.strip())
+    if len(matches) != 1:
+        raise ValueError(f'configured branch needs one unambiguous remote destination: {branch}')
+    return matches[0]
+
+
+def _branch_upstream(git, root, branch):
+    refs = _run(git, root, 'for-each-ref',
+                '--format=%(refname)%00%(upstream:remotename)%00%(upstream:remoteref)',
+                'refs/heads/' + branch)
+    for line in refs.splitlines():
+        ref, remote, merge = line.split('\0')
+        if ref == 'refs/heads/' + branch and remote:
+            return [remote, merge]
+    return None
+
+
+def _prepare_remote(git, root, run, target, save):
+    """Retain a detached checkout without creating or moving a local branch."""
+    if 'phase' not in target:
+        remote, ref = _remote_destination(git, root, target['branch'])
+        target.update(path=str((run / ('remote-worktree-' + uuid.uuid4().hex)).resolve()),
+                      remote=remote, remote_ref=ref,
+                      configured_upstream=_branch_upstream(git, root, target['branch']),
+                      remote_url=_run(git, root, 'remote', 'get-url', remote),
+                      push_url=_run(git, root, 'remote', 'get-url', '--push', remote),
+                      phase='remote-fetch')
+        save()
+    _remote_identity(git, root, target)
+    if target['phase'] == 'remote-fetch':
+        _run(git, root, 'fetch', target['remote'], target['remote_ref'])
+        target.update(upstream_commit=_run(git, root, 'rev-parse', '--verify', 'FETCH_HEAD'),
+                      phase='remote-checkout')
+        save()
+    if target['phase'] == 'remote-checkout':
+        destination = Path(target['path'])
+        if not os.path.lexists(destination):
+            _run(git, root, 'worktree', 'add', '--detach', str(destination), target['upstream_commit'])
+        # Also authenticate an add that finished just before interruption.
+        _identity(git, destination, target)
+        _idle(git, destination)
+        _expect_head(git, destination, target['upstream_commit'], 'remote checkout', exact=True)
+        if git(destination, 'status', '--porcelain', '--untracked-files=all').stdout:
+            raise ValueError('remote propagation checkout contains unexpected active work')
+        info = destination.stat()
+        target.update(phase='merge', head=target['upstream_commit'], stash=None, active={},
+                      upstream=target['remote'] + '/' + target['remote_ref'].removeprefix('refs/heads/'),
+                      checkout_identity=[info.st_dev, info.st_ino])
+        save()
+
+
+def _remote_identity(git, root, target):
+    if (_branch_upstream(git, root, target['branch']) != target['configured_upstream']
+            or _run(git, root, 'remote', 'get-url', target['remote']) != target['remote_url']
+            or _run(git, root, 'remote', 'get-url', '--push', target['remote']) != target['push_url']):
+        raise ValueError('worktree propagation remote changed; retained transaction is preserved')
 
 
 def _run(git, root, *args):
@@ -106,6 +189,16 @@ def _idle(git, root):
 
 
 def _identity(git, root, target):
+    if target.get('remote_target'):
+        _remote_identity(git, root, target)
+        records = _run(git, root, 'worktree', 'list', '--porcelain', '-z').split('\0\0')
+        if (root.is_symlink() or not any('worktree ' + str(root) in record.split('\0')
+                                        and 'detached' in record.split('\0') for record in records)):
+            raise ValueError('remote propagation checkout identity changed')
+        info = root.stat()
+        if target.get('checkout_identity', [info.st_dev, info.st_ino]) != [info.st_dev, info.st_ino]:
+            raise ValueError('remote propagation checkout identity changed')
+        return
     branch = _run(git, root, 'symbolic-ref', '--quiet', '--short', 'HEAD')
     upstream = _run(git, root, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}')
     if branch != target['branch'] or upstream != target['upstream']:
@@ -140,8 +233,7 @@ def reconcile_destination(root, run, state, head, *, git=git_output, check=False
     target = pending[0]
     destination = Path(target['path'])
     with transaction_lock(root, run, git=git):
-        if not any(item['path'] == target['path'] and item['branch'] == target['branch']
-                   for item in configured_targets(root, git=git)):
+        if not _configured(root, target, git):
             raise ValueError('configured destination changed during worktree propagation')
         _identity(git, destination, target)
         _idle(git, destination)
@@ -277,12 +369,18 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
         def save():
             launcher.atomic(run / 'checkpoint.json', state)
         for target in transaction['targets']:
-            destination = Path(target['path'])
             if target.get('phase') == 'done':
                 continue
-            actual = configured_targets(root, git=git)
-            if not any(item['path'] == target['path'] and item['branch'] == target['branch'] for item in actual):
+            if not _configured(root, target, git):
                 raise ValueError('configured destination changed during worktree propagation')
+            if target.get('remote_target'):
+                _prepare_remote(git, root, run, target, save)
+            destination = Path(target['path'])
+            if target.get('phase') == 'remote-remove':
+                _remove_remote(git, root, target)
+                target['phase'] = 'done'
+                save()
+                continue
             if 'phase' not in target:
                 _idle(git, destination)
                 target.update(phase='stash', head=_head(git, destination),
@@ -362,7 +460,12 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
                 save()  # Keep the stash until verified restoration and push are recorded.
             if target['phase'] == 'push':
                 _idle(git, destination)
-                _run(git, destination, 'push')
+                if target.get('remote_target'):
+                    head = _head(git, destination)
+                    _run(git, destination, 'push', target['remote'], head + ':' + target['remote_ref'])
+                    target['pushed_head'] = head
+                else:
+                    _run(git, destination, 'push')
                 target['phase'] = 'drop'
                 save()
             if target['phase'] == 'drop':
@@ -381,9 +484,24 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
                             and subject.endswith(target['marker'])):
                         _run(git, destination, 'stash', 'drop', f'stash@{{{index}}}')
                         break
+                if target.get('remote_target'):
+                    target['phase'] = 'remote-remove'
+                    save()
+                    _remove_remote(git, root, target)
                 target['phase'] = 'done'
                 save()
             print(f"Propagated {commit[:12]} to {target['branch']} and pushed.", flush=True)
+
+
+def _remove_remote(git, root, target):
+    destination = Path(target['path'])
+    if os.path.lexists(destination):
+        _identity(git, destination, target)
+        _idle(git, destination)
+        _expect_head(git, destination, target['pushed_head'], 'remote checkout removal', exact=True)
+        _run(git, root, 'worktree', 'remove', str(destination))
+    elif 'worktree ' + str(destination) in _run(git, root, 'worktree', 'list', '--porcelain').splitlines():
+        raise ValueError('remote propagation checkout disappeared before removal')
 
 
 def resolve_conflicts(root, run, phase, details, *, git=git_output):
@@ -423,7 +541,12 @@ def _resolve_once(root, run, phase, details):
     previous = session / 'propagation-owner.json'
     if previous.exists():
         recorded = launcher._start_record(previous)
-        launcher.finish_nested(Path(recorded['destination']), session)
+        targets = json.loads((run / 'checkpoint.json').read_text()).get('worktree_propagation', {}).get('targets', [])
+        retired = (session / 'nested-closed').exists() and any(
+            item.get('remote_target') and item.get('phase') == 'done'
+            and item.get('path') == recorded['destination'] for item in targets)
+        if not retired:
+            launcher.finish_nested(Path(recorded['destination']), session)
     source_info = run.stat()
     workflow = launcher.propagation_source_run(Path(details['source_root']), run)
     owner_info = (workflow.parent / 'owner').stat()

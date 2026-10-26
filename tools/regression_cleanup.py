@@ -18,6 +18,9 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# Shutdown recovery in the existing launcher fixtures uses a private, finite,
+# synchronously waited cleanup helper double. It acquires no live VM, service,
+# socket or shared path; both launcher unit/cleanup classifications still hold.
 # Trusted-native baseline reconciliation uses the existing in-memory guestfs
 # doubles and private records; enforcement adds closed one-shot variants only.
 # No live trust DB, VM, bus, socket or process owner is added; both existing

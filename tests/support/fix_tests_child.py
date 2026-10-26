@@ -287,7 +287,7 @@ def main(*, conversation_prompt=None):
             deadline = time.monotonic() + 15
             while not (root / 'release').exists() and time.monotonic() < deadline:
                 time.sleep(.02)
-        if mode.startswith('agent') and not (root / 'fixed').exists():
+        if kind == 'test' and mode.startswith('agent') and not (root / 'fixed').exists():
             handoff = root / 'failure.json'
             count = int((root / 'repair-count').read_text()) if (root / 'repair-count').exists() else 0
             prompt = f'LATEST FAILURE ONLY {count + 1}' if mode == 'agent-repeat' else 'LATEST FAILURE ONLY'

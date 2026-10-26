@@ -1312,6 +1312,10 @@ def worker(root, run, owner, tasks, state_json):
                     (owner, *launcher.scratch_descriptors()))
             except OSError as error:
                 status, reason = 1, f'controller reload failed: {error}; resume the retained run'
+        try:
+            launcher.finish_shutdown(root, run)
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            status, reason = 1, f'owned cleanup failed: {error}'
         previous = read_progress(run)
         if previous and not previous[-1].get('replaces'):
             lines = previous[-1]['lines']

@@ -798,6 +798,9 @@ from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units
 # files and mocked controllers. Existing compatible classifications remain valid;
 # no live model, VM, display, shared cache or new cleanup authority is used.
 from regression_resources import HOST_WORKERS
+# Launcher shutdown recovery retains private fixture helpers and synchronously
+# waited children, with no live VM, service, socket or shared mutable state.
+# Existing launcher unit and cleanup compatibility classifications still hold.
 from regression_ui import Bucket
 
 # Request release-note concurrency checks use in-memory broker/window doubles

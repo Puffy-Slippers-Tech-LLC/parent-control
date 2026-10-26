@@ -947,6 +947,38 @@ def finish_nested(root, run):
     return active
 
 
+def finish_shutdown(root, run, *, restore_vms=True):
+    """Join owned tests, then restore the stopped workflow's entire VM selection."""
+    finish_nested(root, run)
+    if not restore_vms or not any((run / marker).exists() for marker in ('stop', 'cancel')):
+        return
+    path = run / 'vm.json'
+    # vm.json uses the existing save_binding/check_binding metadata contract;
+    # unlike private startup receipts, older records use the caller's umask.
+    record = json.loads(path.read_text()) if path.exists() else {'vm': None}
+    if not isinstance(record, dict) or set(record) != {'vm'}:
+        raise ValueError('invalid shutdown VM binding; preserve recovery records')
+    binding = record['vm']
+    if binding is None:
+        return  # Host-only workflows must not acquire or change a VM.
+    names = binding.get('vms') if isinstance(binding, dict) else [binding]
+    if (not isinstance(names, list) or not names
+            or any(not isinstance(name, str) or not name for name in names)):
+        raise ValueError('invalid shutdown VM selection; preserve recovery records')
+    # Cleanup is serial and uses the existing snapshot/instance ownership guards.
+    # The recovery route borrows an enclosing checkout, or acquires each VM's,
+    # and waits for baseline restoration before checkin. Do not inherit the stop request
+    # as cancellation of this recovery or register it as new agent-owned work.
+    selection = ','.join(dict.fromkeys(names))
+    print(f'launcher: restoring VMs to baseline before shutdown: {selection}.', flush=True)
+    status = subprocess.run([str(root / 'tools/cleanup-e2e'), '--vm', selection],
+                            cwd=root, env=environment(), stdin=subprocess.DEVNULL,
+                            pass_fds=scratch_descriptors(), check=False).returncode
+    if status:
+        raise ValueError(f'launcher: baseline cleanup failed (status={status}); '
+                         'preserve recovery records and resume cleanup')
+
+
 def follow(run, stream=None, *, label='launcher', view=None, display=None):
     from launcher_view import view_for
     stream = stream or sys.stdout

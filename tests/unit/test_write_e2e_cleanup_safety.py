@@ -173,8 +173,12 @@ def checkout(tmp_path, monkeypatch):
     subprocess.run(['git', 'config', 'user.name', 'Launcher test'], cwd=tmp_path, check=True)
     subprocess.run(['git', 'config', 'user.email', 'launcher@example.invalid'], cwd=tmp_path, check=True)
     (tmp_path / '.git/info/exclude').write_text(
-        'bin/\nscript.json\ncalls.jsonl\nagent-ready-*\nrelease*\n'
+        'bin/\ntools/\nscript.json\ncalls.jsonl\nagent-ready-*\nrelease*\n'
         'nested-ready\ncleanup-started\nnested-cleaned\n')
+    (tmp_path / 'tools').mkdir()
+    cleanup = tmp_path / 'tools/cleanup-e2e'
+    cleanup.write_text('#!/bin/sh\nexit 0\n')
+    cleanup.chmod(0o700)
     (tmp_path / 'bin').mkdir()
     codex = tmp_path / 'bin/codex'
     codex.write_text('#!/usr/bin/python3\nimport runpy\n'

@@ -634,6 +634,11 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             status = 130
             repair_gate.release(unfinished=True)
         try:
+            detached_launcher.finish_shutdown(root, run, restore_vms=not host_only_request(selected))
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            status = 1
+            print(f'fix-tests: owned cleanup failed: {error}', file=sys.stderr, flush=True)
+        try:
             lifetime.close()
         except (OSError, ValueError) as error:
             status = 1

@@ -983,7 +983,10 @@ def worker(root, run, owner, spec, state, *, reloading=False):
         status, reason = 1, str(error)
     finally:
         try:
-            launcher.finish_nested(root, run)
+            try:
+                launcher.finish_shutdown(root, run)
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                reload, status, reason = False, 1, f'owned cleanup failed: {error}'
             if reload and (run / 'cancel').exists():
                 reload, status, reason = False, 130, 'cancelled after owned cleanup'
             elif reload and (run / 'stop').exists():

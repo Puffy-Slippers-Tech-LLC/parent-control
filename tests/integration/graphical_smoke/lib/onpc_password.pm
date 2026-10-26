@@ -114,6 +114,11 @@ sub enter_kiosk_mate_password {
         my $reject = @_ == 2 && defined($wrong) && $wrong eq 'wrong';
         my $chinese = @_ == 2 && defined($wrong) && $wrong =~ /\Achinese-(?:first|second)\z/;
         my $long_request = @_ == 2 && defined($wrong) && $wrong eq 'long-request';
+        my $usability = !$chinese && !$long_request && (
+            $reject && ($journey->{prefix} // '') eq 'confinement-usability-rejection'
+                && ($journey->{stage_prefix} // '') eq 'rejection-'
+            || !$reject && ($journey->{prefix} // '') eq 'confinement-usability'
+                && ($journey->{stage_prefix} // '') eq '');
         my $baseline = ($journey->{prefix} // '') eq 'baseline-journey-kiosk-rejection' && $reject
             || (($journey->{prefix} // '') eq 'baseline-journey-kiosk-first'
                 || ($journey->{prefix} // '') eq 'baseline-journey-kiosk-final') && $long_request;
@@ -124,7 +129,7 @@ sub enter_kiosk_mate_password {
             . 'kiosk-mate-' . ($chinese || $long_request ? $wrong : $binding);
         die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request)
             && ref($journey) eq 'onpc_journey'
-            && ($baseline || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
+            && ($baseline || $usability || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
                 || ($journey->{prefix} // '') eq 'active-grant-disable-engineering'
                 || ($journey->{prefix} // '') eq 'active-grant-disable-public') :
                 ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding

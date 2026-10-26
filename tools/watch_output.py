@@ -264,9 +264,11 @@ class LogOutput(Output):
 class SessionOutput:
     """Follow the displayed workflow's session, with owner-checked input routing."""
 
-    def __init__(self, output, terminal_size):
+    def __init__(self, output, terminal_size, *, owner_run=None, embedded=False):
         self.output = output
         self.terminal_size = terminal_size
+        self.owner_run = owner_run
+        self.embedded = embedded
         self.run = self.owner = self.identity = None
         self.offset = 0
         self.panel = None
@@ -277,6 +279,13 @@ class SessionOutput:
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
 
     def discover(self):
+        if self.owner_run is not None:
+            try:
+                owner = active_run(self.owner_run.parent, workflow=True, reader=self.reader)
+            except (OSError, ValueError, KeyError, TypeError):
+                owner = None
+            owners = [owner] if owner == self.owner_run else []
+            return self.discover_sessions(owners)
         owner, _ = self.output.discover()
         owners = [owner] if owner is not None else []
         # Plan-based tools have independent namespaces and need no test runner.
@@ -293,6 +302,9 @@ class SessionOutput:
                         continue
             except (OSError, ValueError):
                 continue
+        return self.discover_sessions(owners)
+
+    def discover_sessions(self, owners):
         sessions = []
         for owner in dict.fromkeys(owners):
             # Repair admission permits one writer; select its newest session.
@@ -385,7 +397,8 @@ class SessionOutput:
         reset = (run, state['session']) != (self.run, self.identity)
         if reset:
             self.owner, self.run, self.identity = owner, run, state['session']
-            self.panel = SessionPanel(io.StringIO(), send=self.send, terminal_size=self.terminal_size)
+            self.panel = SessionPanel(io.StringIO(), send=self.send,
+                terminal_size=self.terminal_size, embedded=self.embedded)
             self.offset = 0
             self.decoder.reset()
         panel = self.panel

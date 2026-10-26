@@ -11,7 +11,8 @@ ANSI = re.compile(r'\x1b\[[?0-9;]*[A-Za-z]')
 
 def completed_text(text):
     """Render completed progress consistently in controller and dashboard rows."""
-    return '\033[32m' + ANSI.sub('', text) + '\033[0m'
+    return re.sub(r'(?<=\()\d+(?=/\d+\))',
+                  lambda match: '\033[32m' + match[0] + '\033[0m', ANSI.sub('', text))
 
 
 def category_cases(current):

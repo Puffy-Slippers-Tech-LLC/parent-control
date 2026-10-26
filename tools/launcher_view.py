@@ -62,12 +62,14 @@ class WorkflowView:
     overview_current: bool = False
     cancel_on_ctrl_c: bool = False
     plan: tuple | None = None
+    execution_tabs: bool = False
 
     def display(self, stream, run):
         from launcher_display import TaskDisplay
         return TaskDisplay(stream, run=run, input_mode=self.input_mode,
                            totals=self.totals, overview_current=self.overview_current,
                            cancel_on_ctrl_c=self.cancel_on_ctrl_c,
+                           execution_tabs=self.execution_tabs,
                            log_path=run / 'output')
 
 
@@ -82,7 +84,7 @@ def plan_view(root, path):
 VIEWS = {
     'write-e2e': WorkflowView('chat', True, e2e_progress, e2e_totals),
     'fix-tests': WorkflowView('chat', True, repair_progress, overview_current=True,
-                              cancel_on_ctrl_c=True),
+                              cancel_on_ctrl_c=True, execution_tabs=True),
     'run-tests': WorkflowView(),
     'sync-whatsnew': WorkflowView(totals=whatsnew_totals),
 }

@@ -415,7 +415,9 @@ inventory. Discovery, prerequisite replays and package preparation still run but
 add nothing to these totals. The round's category counter shows completed categories
 over selected categories; `System Cases: (x/y)` and `E2E Cases: (x/y)` show completed
 cases over the named category's selected total. These counters and `Overall` use
-the shared green progress renderer. The VM tile uses the category's completed/total count, the active
+the shared progress renderer: only the completed numerator in `(x/y)` is green;
+labels, percentages, totals and durations retain their default color.
+The VM tile uses the category's completed/total count, the active
 selected case's persistent ID/title and case/category clocks,
 including while its prerequisites run. These display counts never grant a pass;
 the runner's teardown-complete checkpoint remains authoritative.
@@ -1245,6 +1247,16 @@ from current task summary and status/issues on the right. `run-tests` has no
 session composer; `fix-tests`, E2E and ordinary plan workflows offer the
 conversation composer described below. Repair prompts steer the active agent;
 messages sent during testing queue for the next repair session in that workflow.
+For `fix-tests`, the lower-left area has its own initial 1:2 split: the left
+pane shows the current pipeline status, round/category progress, case counts
+and test tree; the right pane has **Active**, **Session** and **Launcher** tabs.
+**Active (Session)** follows the active repair session, including its shared
+transcript and chatbox; otherwise **Active (Launcher)** shows launcher output.
+The explicit **Session** tab shares that same session and draft, or shows
+`No active session`. **Launcher** shows output only; **Active (Launcher)** keeps
+the composer available between sessions. Click a tab or use Alt+1/2/3. Both inner
+panes reuse the shared scrolling controls; dragging their divider changes only
+this split, retaining its ratio when the terminal resizes.
 The upper and lower frames share an initial width ratio of 75:25; dragging either
 vertical divider resizes both frames together and keeps their dividers aligned.
 The shared ratio survives terminal resizing. Both dividers turn blue while dragging

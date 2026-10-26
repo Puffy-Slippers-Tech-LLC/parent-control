@@ -414,6 +414,14 @@ authority and retire with that run. Plan and repair sessions use the shared
 conversation input throughout work, including steering the active agent and
 answering pending developer decisions. Prompts entered between repair sessions
 queue for the next agent in the displayed workflow.
+The repair launcher's lower-left area additionally splits current pipeline status
+from tabbed output, initially 1:2. Its draggable divider uses the shared ratio
+and scrolling controls and retains the chosen proportion across terminal resizing.
+**Active (Session)** and **Session** share the current session transcript and
+chatbox; without an active session, **Session** shows `No active session` and
+**Active (Launcher)** shows launcher output with the composer available between
+sessions. **Launcher** shows output only. Click the tabs or use Alt+1/2/3. Session
+discovery and input stay scoped to the attached workflow and its VM pipelines.
 The top-left overview is at most five terminal rows high, including wrapped
 lines, and shrinks further in short terminals. All overview content scrolls
 together with the mouse wheel; click it to direct Page Up/Page Down there.

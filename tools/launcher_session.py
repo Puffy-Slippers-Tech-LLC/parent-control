@@ -27,8 +27,9 @@ class SessionPanel(LauncherDisplay):
     Layout returns rows and caret geometry without claiming terminal ownership.
     """
 
-    def __init__(self, stream, *, send, **kwargs):
+    def __init__(self, stream, *, send, embedded=False, **kwargs):
         super().__init__(stream, **kwargs)
+        self.embedded = embedded
         self.editor = ChatEditor(send)
         self.chat_state = {}
         self.input_mode = 'chat'
@@ -113,7 +114,7 @@ class SessionPanel(LauncherDisplay):
         return ''
 
     def draw(self):
-        if not self.tty:
+        if not self.tty or self.embedded:
             return
         size = self.terminal_size()
         width, height = max(1, size.columns - 1), max(1, size.lines)

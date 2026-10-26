@@ -179,6 +179,8 @@ Remote-only propagation reuses those private bare remotes and creates detached
 worktrees only beneath the fixture's retained run. Interrupted add/merge/push/remove
 checks keep the same bounded waited Git children and private cleanup ownership;
 the unit classification and cleanup/UI inventories remain unchanged.
+Remote push races and their conflict recovery reuse those private remotes and
+waited Git children; they add no shared resource or external service.
 Explicit propagation reconciliation reuses those private Git/checkpoint fixtures
 and bounded waited children, including backup and retained-stash checks. Its
 resource ownership and compatible unit classification remain unchanged.

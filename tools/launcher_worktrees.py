@@ -164,6 +164,45 @@ def _remote_identity(git, root, target):
         raise ValueError('worktree propagation remote changed; retained transaction is preserved')
 
 
+def _refresh_remote(git, destination, target, save, resolve):
+    """Resume a rejected remote push without losing either side's commits."""
+    _identity(git, destination, target)
+    _expect_head(git, destination, target['merged_head'], 'remote push recovery')
+    if target['phase'] == 'remote-refetch':
+        _idle(git, destination)
+        _run(git, destination, 'fetch', target['remote'], target['remote_ref'])
+        target.update(upstream_commit=_run(git, destination, 'rev-parse', '--verify', 'FETCH_HEAD'),
+                      phase='remote-remerge')
+        save()
+    _merge(git, destination, target, target['upstream_commit'], resolve)
+    target.update(merged_head=_head(git, destination), phase='push')
+    save()
+
+
+def _push_remote(git, destination, target, save, resolve):
+    for attempt in range(5):
+        _identity(git, destination, target)
+        _idle(git, destination)
+        _expect_head(git, destination, target['merged_head'], 'remote push')
+        head = _head(git, destination)
+        result = git(destination, 'push', '--porcelain', target['remote'],
+                     head + ':' + target['remote_ref'], check=False)
+        if not result.returncode:
+            target['pushed_head'] = head
+            return
+        rejected = any(line.startswith('!\t') and line.endswith(
+            ('[rejected] (non-fast-forward)', '[rejected] (fetch first)'))
+            for line in result.stdout.splitlines())
+        if not rejected:
+            raise ValueError(f'worktree propagation {destination}: git push failed: '
+                             + (result.stderr or result.stdout).strip())
+        target['phase'] = 'remote-refetch'
+        save()
+        if attempt == 4:
+            raise ValueError('remote branch kept advancing during propagation; retained transaction preserved')
+        _refresh_remote(git, destination, target, save, resolve)
+
+
 def _run(git, root, *args):
     result = git(root, *args, check=False)
     if result.returncode:
@@ -390,6 +429,8 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
                     active=_active_snapshot(git, destination))
                 save()
             _identity(git, destination, target)
+            if target['phase'] in ('remote-refetch', 'remote-remerge'):
+                _refresh_remote(git, destination, target, save, resolve)
             if target['phase'] in ('fetch', 'upstream', 'merge'):
                 _expect_head(git, destination, target['head'], 'propagation merge')
             if target['phase'] == 'stash':
@@ -461,9 +502,7 @@ def propagate(root, run, state, commit, *, git=git_output, resolve=None):
             if target['phase'] == 'push':
                 _idle(git, destination)
                 if target.get('remote_target'):
-                    head = _head(git, destination)
-                    _run(git, destination, 'push', target['remote'], head + ':' + target['remote_ref'])
-                    target['pushed_head'] = head
+                    _push_remote(git, destination, target, save, resolve)
                 else:
                     _run(git, destination, 'push')
                 target['phase'] = 'drop'

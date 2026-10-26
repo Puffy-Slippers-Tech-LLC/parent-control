@@ -362,10 +362,12 @@ positive grant observation; the approval leaf alone does not prove it.
 already combines zero-grant rejection/Cancel endpoints, positive effects and
 exit/reentry, but its roughly 24-minute history includes broader feature work.
 
-**Before D00a product editing**, select an exact applicable complete existing
-history or insert a small both-target installed prerequisite to compose and
-qualify this short gate from those operations. No dedicated short complete gate
-was found; qualification of leaves is insufficient. Bind each changed slice's
+The D00 audit found no dedicated short complete gate; qualification of leaves
+was insufficient. D00a1 subsequently qualified the
+[short public history](../TestAutomation/E2E-Building-Blocks.md#short-confinement-usability-history)
+on both targets, including public restoration and owned runner cleanup.
+**Before each product task completes**, run that gate on its candidate and bind
+each changed slice's
 representative variation/recovery control above as well: host injections for
 parse/command errors, installed engineering checks for actual routing/lease/
 service context, then restored public usability. New variations are unqualified;
@@ -378,6 +380,30 @@ editing, keeping each product fix's review/build, both-target usability and
 cleanup together. D00 audits only: it supplies no installed pass, closes no
 other task, and allocates no VM/artifacts. D00b verifies this empty obsolete-
 consumer disposition against D00a's actual changes rather than replaying C03/C04.
+
+#### D00a prerequisite allocation
+
+D00a's source inspection confirmed the service allowlist in native
+`kiosk_identity`/helper `main`, the drift/discovery rejection in `verify_session`,
+and the stale-state rejection in `admission`/`lock_current`. These are independent
+boundaries; they cannot share one small product fix and its required installed
+gate. No product code changed during this split and no installed result is
+claimed. The [ordered queue](../Kiosk-Desktop-Queue.md) now allocates:
+
+| Owner | Remaining finite deliverable |
+| --- | --- |
+| D00a1 | Completed: short public history qualified on both targets with restoration and runner cleanup. The wider completed baseline stays accepted. |
+| D00a2 | Remove unjustified service-name rejection; verify actual dedicated graphical execution through the affected service, a reached prohibited-route control and ordinary-account login, with same-candidate both-target public usability. |
+| D00a3 | Remove the avoidable saved-routing/discovery admission dependency, including drift, malformed-reply and transient discovery controls. Keep invalid identity/authority barriers and prove restored public use on both targets. |
+| D00a | Resolve owned lease/recovery at native `admission`/`lock_current` and lifecycle `barriers`, preserving live/foreign state, read-only Fedora leases and active writer exclusion. Include stale-mode, retained-handle and release/reentry controls with both-target usability. |
+
+Historical migration capture/rollback remains necessary; broader provisioning,
+expiry provenance, locale/agent and shared-service defects retain the explicit
+owners above. The prerequisite insertion does not close D00a or D00b, change
+their scope, or qualify new variation bindings. Each product fix owns its review,
+build, affected checks, exact-candidate public history and restoration before
+completion. Any independently missing reusable qualification must precede its
+product consumer under the shared execution contract.
 
 ## Verification scope and evidence limits
 

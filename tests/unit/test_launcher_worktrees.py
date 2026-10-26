@@ -110,19 +110,36 @@ def test_merge_conflicts_are_resolved_automatically_before_active_work_returns(t
         f.git(f.other, 'checkout', '--detach', '-q')
     commit = f.change(f.root, 'shared', 'main committed work\n')
     calls = []
+    remote_advance = None
+    def git(root, *args, **kwargs):
+        nonlocal remote_advance
+        if remote_only and args[:1] == ('push',) and remote_advance is None:
+            (f.other / 'shared').write_text('late remote replacement\n')
+            f.git(f.other, 'add', '--', 'shared')
+            f.git(f.other, 'commit', '-qm', 'remote advance during propagation')
+            remote_advance = f.git(f.other, 'rev-parse', 'HEAD').stdout.strip()
+            f.git(f.other, 'push', 'origin', 'HEAD:refs/heads/worktree')
+        return f.git(root, *args, **kwargs)
     def resolve(root, phase, details):
         calls.append(phase)
         assert (root / 'unstaged').read_text() == 'base\n'
         assert bool(details['stash']) != remote_only
-        (root / 'shared').write_text('main committed work\nother committed work\n')
+        content = 'main committed work\nother committed work\n'
+        if remote_advance:
+            content += 'late remote replacement\n'
+        (root / 'shared').write_text(content)
         f.git(root, 'add', '--', 'shared')
         if concurrent_commit:
             # Another owner can finish the pending merge during resolution.
             f.git(root, 'commit', '--no-edit')
-    propagation.propagate(f.root, f.run, {}, commit, git=f.git, resolve=resolve)
-    assert calls == ['merge']
+    propagation.propagate(f.root, f.run, {}, commit, git=git, resolve=resolve)
+    assert calls == ['merge'] * (2 if remote_only else 1)
     head = 'refs/remotes/origin/worktree' if remote_only else 'HEAD'
     assert f.git(f.other, 'merge-base', '--is-ancestor', commit, head).returncode == 0
+    if remote_advance:
+        assert f.git(f.other, 'merge-base', '--is-ancestor', remote_advance, head).returncode == 0
+        assert f.git(f.other, 'show', head + ':shared').stdout == (
+            'main committed work\nother committed work\nlate remote replacement\n')
     assert (f.other / 'unstaged').read_text() == 'keep destination active work\n'
     assert f.git(f.other, 'show', 'HEAD:unstaged').stdout == 'base\n'
     if not remote_only:
@@ -163,15 +180,23 @@ def test_interrupted_writes_resume_without_duplicate_merge_or_lost_work(trees, b
     (f.other / 'unstaged').write_text('active destination work\n')
     commit = f.change(f.root, 'shared', 'completed task\n')
     interrupted = False
+    remote_advance = None
     def git(root, *args, **kwargs):
-        nonlocal interrupted
+        nonlocal interrupted, remote_advance
+        if boundary == 'remote-push' and args[:1] == ('push',) and remote_advance is None:
+            # A different checkout advances the branch after our initial fetch.
+            (f.other / 'remote-only').write_text('concurrent remote work\n')
+            f.git(f.other, 'add', '--', 'remote-only')
+            f.git(f.other, 'commit', '-qm', 'concurrent remote change')
+            remote_advance = f.git(f.other, 'rev-parse', 'HEAD').stdout.strip()
+            f.git(f.other, 'push', 'origin', 'HEAD:refs/heads/worktree')
         result = f.git(root, *args, **kwargs)
         matches = dict(stash=args[:2] == ('stash', 'push'), merge=args[:1] == ('merge',),
                        apply=args[:2] == ('stash', 'apply'), push=args == ('push',),
                        drop=args[:2] == ('stash', 'drop'),
                        **{'remote-add': args[:2] == ('worktree', 'add'),
                           'remote-merge': args[:1] == ('merge',),
-                          'remote-push': args[:1] == ('push',),
+                          'remote-push': remote_advance is not None and args[:1] == ('merge',),
                           'remote-remove': args[:2] == ('worktree', 'remove')})
         if (remote_only or root == f.other) and matches[boundary] and not interrupted:
             interrupted = True
@@ -190,7 +215,13 @@ def test_interrupted_writes_resume_without_duplicate_merge_or_lost_work(trees, b
     propagation.propagate(f.root, f.run, saved, commit, git=f.git, resolve=resolve)
     assert f.git(f.root, 'rev-parse', 'HEAD').stdout == source_head
     if remote_only:
-        assert f.git(f.root, 'rev-parse', 'refs/remotes/origin/worktree').stdout.strip() == commit
+        head = f.git(f.root, 'rev-parse', 'refs/remotes/origin/worktree').stdout.strip()
+        assert f.git(f.root, 'merge-base', '--is-ancestor', commit, head).returncode == 0
+        if remote_advance:
+            assert f.git(f.root, 'merge-base', '--is-ancestor', remote_advance, head).returncode == 0
+            assert f.git(f.root, 'show', head + ':remote-only').stdout == 'concurrent remote work\n'
+        else:
+            assert head == commit
         target, = saved['worktree_propagation']['targets']
         assert target['phase'] == 'done' and not Path(target['path']).exists()
     else:

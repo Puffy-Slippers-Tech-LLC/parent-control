@@ -1,7 +1,7 @@
 # Prevent full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **D00a — [Close residual conflicting confinement source](Kiosk-Prompt-Tasks/D00a-source-cleanup.md)**.
+Next task: **D00a2 — [Remove service-name admission rejection](Kiosk-Prompt-Tasks/D00a2-service-dispatch.md)**.
 
 ## Outcome and scope
 

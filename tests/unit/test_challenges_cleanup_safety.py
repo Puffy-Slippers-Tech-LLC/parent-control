@@ -238,7 +238,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
 # table once; exercise shared sealing/refusal faults only on the base approval.
 @pytest.mark.parametrize('fault,binding,credential,scope', [
     *[('', binding, 'fixture-only-canary', scope)
-      for scope in ('base', 'flow', 'package-removal', 'revoke-cancel', 'revocation', 'unknown')
+      for scope in ('base', 'flow', 'package-removal', 'revoke-cancel', 'revocation', 'unknown',
+                    'confinement-usability', 'confinement-usability-rejection')
       for binding in ('approval', 'rejection')],
     *[(fault, 'approval', 'fixture-only-canary', 'base')
       for fault in ('qualified', 'rechecked', 'typing', 'capture', 'review', 'stale', 'missing')],
@@ -265,7 +266,7 @@ sub type_password {
 }
 package main;
 require onpc_journey; require onpc_password;
-my $journey = onpc_journey->new(prefix => $scope eq 'flow' ? 'kiosk-approval-flow' : $scope eq 'base' ? 'kiosk-' . $binding : $scope, review => ($fault eq 'review' ? 1 : 0),
+my $journey = onpc_journey->new(prefix => $scope eq 'flow' ? 'kiosk-approval-flow' : $scope eq 'base' ? 'kiosk-' . $binding : $scope eq 'confinement-usability-rejection' ? 'confinement-usability' : $scope, review => ($fault eq 'review' ? 1 : 0),
     exchange => sub {
         my ($stage) = @_;
         push @events, $stage;
@@ -273,6 +274,7 @@ my $journey = onpc_journey->new(prefix => $scope eq 'flow' ? 'kiosk-approval-flo
         return {} if $fault eq 'missing';
         return {observed => $fault eq 'stale' ? $binding . '-qualified' : $stage};
     });
+$journey = $journey->scope('rejection') if $scope eq 'confinement-usability-rejection';
 my @args = $binding eq 'rejection' ? ($journey, 'wrong') : ($journey);
 my $ok = eval { onpc_password::enter_kiosk_mate_password(@args); 1 };
 my $error = "$@"; my $before = scalar @events;
@@ -284,7 +286,10 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     raw = run_perl(program, fault, binding, credential, scope).stdout
     assert 'fixture-only-canary' not in raw
     value = json.loads(raw)
-    allowed = scope in ('base', 'flow') or (scope in ('package-removal', 'revoke-cancel', 'revocation') and binding == 'approval')
+    allowed = (scope in ('base', 'flow') or
+               scope in ('package-removal', 'revoke-cancel', 'revocation', 'confinement-usability')
+               and binding == 'approval' or
+               scope == 'confinement-usability-rejection' and binding == 'rejection')
     assert bool(value['ok']) == (allowed and not fault), value
     assert value['retry'] == value['capture'] == 0
     assert len(value['events']) == value['before']
@@ -292,7 +297,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     if not allowed:
         assert value['events'] == []
     elif not fault:
-        assert value['events'] == [binding + '-qualified', binding + '-rechecked', 'read', 'type']
+        prefix = 'rejection-' if scope == 'confinement-usability-rejection' else ''
+        assert value['events'] == [prefix + binding + '-qualified', prefix + binding + '-rechecked', 'read', 'type']
 
 
 @pytest.mark.parametrize('fault', ['', 'qualified', 'rechecked', 'typing', 'capture', 'review', 'cancel-authority', 'stale'])

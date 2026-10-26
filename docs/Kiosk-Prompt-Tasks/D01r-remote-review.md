@@ -18,7 +18,8 @@ ordinary-account remote desktop and normal kiosk entry controls, and restoration
 
 Keep provider/version/target applicability and automation readiness in the
 existing design/catalogue owners. Identify missing public-provider bindings and
-their finite qualification prerequisites for C07/D03. No absent service or failed
+their finite qualification prerequisites before C07 product editing; D03 only
+audits the delivered map. No absent service or failed
 ordinary-account positive can count as a denial. If no provider can meet the
 scope, retain the blocker and required decision rather than silently omit remote
 coverage or broaden to all providers.

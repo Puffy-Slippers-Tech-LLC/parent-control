@@ -30,6 +30,20 @@ Apply the master's narrow denylist to each refusal/default/error branch: map the
 exact attack predicate or its removal/recovery owner, plus a benign adjacent or
 unknown configuration that must preserve passwordless app access. Failed discovery,
 missing state and parse/lock errors alone supply no intentional-attack evidence.
+Use the master's [resilient admission review](../Kiosk-Desktop-Plan.md#resilient-admission-and-recovery)
+to distinguish attacks, benign variation, transient faults and real lifecycle/
+administrator barriers. Include the existing service-name restrictions, routing
+repair/refusal, AccountsService failures and new/existing lease errors; an old
+refusal test is no usability justification. Keep fixes at their narrow owner.
+Include available concrete configurations from earlier passwordless-login
+failures. If an incident's exact input is unavailable, record that limit and
+cover its known error boundary; do not claim the incident was reproduced.
+
+Select a finite representative normal/variation/recovery map and existing
+qualified operations for D00a's both-target gate. Identify missing small operation
+prerequisites before product edits. Split independent audit/cleanup boundaries
+before execution if they exceed the task budget; do not build a whole-host matrix
+or add a general product acceptance campaign.
 
 This is source review, without implementation or installed acceptance. Do not
 wait for C05 merely to inspect residual source; do respect any active baseline

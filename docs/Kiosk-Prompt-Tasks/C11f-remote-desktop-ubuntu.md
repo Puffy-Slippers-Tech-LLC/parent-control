@@ -27,5 +27,6 @@ smart-child justification and normal-use control. A diagnostic screen or denied
 normal entry is not a usability pass. Retain the full result, exact inputs and
 owned restoration; follow failure handling for any mismatch.
 
-Product repairs require independent review/build and reruns of affected complete
-histories. Record any invalidated earlier baseline/final evidence explicitly.
+Return product repairs to a small both-target installed prerequisite under the
+master's usability gate before editing. This single-target task cannot push a
+repair validated only on Ubuntu. Record affected earlier results explicitly.

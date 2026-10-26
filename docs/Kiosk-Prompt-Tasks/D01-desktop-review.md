@@ -2,7 +2,7 @@
 
 Acceptance: review
 
-Required tasks: D00f (closed cleanup/tolerant-use gates; external C05u/C05f gate below).
+Required tasks: D00b (cleanup includes D00a's both-target usability; external C05u/C05f gate below).
 Estimate: 20–30 min.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract).
@@ -19,8 +19,8 @@ child-reachable alternate graphical-session selection, request-session actions
 that can start a full desktop. D01r separately reviews the named remote provider.
 For each record actual child access, deliberate action, prohibited desktop result,
 smallest enforcement owner, negative, permitted kiosk/ordinary-account positive
-and restoration. D00u/f own affected installed checks after cleanup; trust those
-completed gates rather than reopening baseline tasks.
+and restoration. D00a owns affected installed checks before cleanup completion;
+trust those completed checks rather than reopening baseline tasks.
 
 Keep the map in the existing confinement design owner. Identify already effective
 barriers and precise gaps for D02, without implementation or installed claims.

@@ -26,10 +26,14 @@ under D00/D00a/D00b; C06a verifies that handoff through D04. This queue adds onl
 justified protections to the pinned v1.3 confinement slice, retaining main's
 non-confinement features. Do not recreate the old main/v1.4 subtraction approach.
 The desktop master's [usability stop gate](Kiosk-Desktop-Plan.md#usability-stop-gate)
-is binding here: each product slice is followed by separate both-target core-use
+sets the shared availability priority. This remaining queue retains its own
+acceptance declarations: each product slice is followed by separate both-target core-use
 renewals before the next product slice. A normal broken/rejected kiosk session
 blocks advancement immediately. Final acceptance may reuse exact applicable
 gate evidence; qualification and customer histories retain their own assertions.
+The desktop queue now owns its bounded usability check inside each product task
+before completion/propagation; its narrower check does not replace this remaining
+plan's wider histories or complete any row here.
 The master's [narrow denylist](Kiosk-Desktop-Plan.md#admission-uses-a-narrow-denylist)
 also binds this queue: unknown/strange configuration preserves passwordless app
 access. Only specifically justified deliberate breach patterns may be rejected;

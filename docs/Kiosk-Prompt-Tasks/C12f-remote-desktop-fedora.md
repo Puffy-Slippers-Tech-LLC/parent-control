@@ -27,7 +27,8 @@ smart-child justification and normal-use control. A diagnostic screen or denied
 normal entry is not a usability pass. Retain the full result, exact inputs and
 owned restoration; follow failure handling for any mismatch.
 
-For shared repairs, obtain product review/build and rerun invalidated complete
-Ubuntu histories before closing this task. Preserve unchanged valid evidence.
+Return product repairs to a small both-target installed prerequisite under the
+master's usability gate before editing. This single-target task cannot push a
+repair validated only on Fedora. Preserve unchanged valid results.
 Use actual Fedora GDM/PAM/SELinux and genuine authentication; no release-readiness
 claim is implied.

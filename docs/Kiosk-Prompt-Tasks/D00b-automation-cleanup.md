@@ -25,8 +25,10 @@ port is not an installed pass. Do not delete reports, checkpoints or VM baseline
 and do not execute general E2E feature work from this queue. If no residual exists,
 record verified absence rather than repeat accepted cleanup.
 
-Run affected host regressions and the maintained consistency/link checks; rebuild
-only if packaged inputs changed. Independent missing implementation becomes a
+Change only automation and documentation here. A required production/package
+edit returns to a small both-target installed prerequisite under the master's
+usability gate; it cannot be pushed as host-only cleanup.
+Run affected host regressions and the maintained consistency/link checks. Independent missing implementation becomes a
 bounded prerequisite before this selected consumer. Record closed dispositions,
-invalidated baseline results and exact renewal ownership for D01. No conflicting
+affected baseline results and exact check ownership for D01. No conflicting
 unfinished source/automation consumer may remain an unexplained dependency.

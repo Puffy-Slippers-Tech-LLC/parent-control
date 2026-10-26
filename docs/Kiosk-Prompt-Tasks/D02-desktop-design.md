@@ -31,6 +31,19 @@ denylist: inspect all affected refusal/default/error branches and pair each
 specific attack predicate with benign adjacent/unknown access controls. Prefer
 blocking the prohibited action over rejecting entry to the request app.
 
+Review the master's resilient admission dispositions as well as attack negatives.
+Require an observable predicate for each precise desktop attempt and its actual
+selected-session/launch boundary; saved defaults or an unknown service name are
+not proof. Pair it with the benign adjacent input and affected fault/restoration
+control. Preserve real lifecycle/admin barriers without treating ordinary faults
+as attacks or weakening PAM authentication globally.
+
+Freeze one small defect/boundary per product task, existing both-target usability
+bindings, explicit timeouts and any missing qualification prerequisites. Prepare
+those prerequisites before product editing. Split independent work if a fix,
+review/build and the short both-target gate cannot fit 30–60 minutes. Do not move
+its gate to a later task or expand it to a general feature campaign.
+
 Keep the reviewed map in the design owner. Each implementation slice remains
 limited to its named boundary and directly affected regressions. Independent
 implementation/qualification work follows the selected-consumer prerequisite

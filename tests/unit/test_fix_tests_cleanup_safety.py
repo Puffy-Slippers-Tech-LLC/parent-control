@@ -67,6 +67,8 @@ def checkout(tmp_path, monkeypatch):
             command = list(args[0])
             command[2] = str(ROOT / 'tests/support/fix_tests_child.py')
             args = (command, *args[1:])
+            kwargs['env'] = dict(kwargs.get('env', os.environ),
+                                 ONPC_FIXTURE_RUN=command[command.index('--worker') + 2])
         child = popen(*args, **kwargs)
         if '--worker' in args[0]:
             spawned.append(child)
@@ -120,12 +122,14 @@ def test_changed_dependency_bytes_reload_before_validation_retry_or_answer_conti
         wait_for(run / 'question.json')
         source = source_root / 'tools/repair_evidence.py'
         source.write_bytes(source.read_bytes() + b'\n# changed after blocker\n')
+        from launcher_reload import request
+        request(run)
         question = json.loads((run / 'question.json').read_text())
         assert submit(run, question['id'], 0)
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0, output.getvalue()
-    assert 'controller sources changed' in output.getvalue()
-    assert 'Reloading automatically in the same run' in output.getvalue()
+    assert 'manual reload requested' in output.getvalue()
+    assert 'Reloading controller in the same run' in output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['kind'] for call in calls] == (
         ['test', 'agent', 'test', 'test'] if result == 'test_fixed' else ['test', 'agent', 'agent', 'test', 'test'])

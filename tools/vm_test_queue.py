@@ -17,6 +17,7 @@ import test_retention
 from regression_process import Control, FRAME_PREFIX
 from vm_selection import BATCH, VARIABLE, vm_config
 from vm_queue import dispatch
+import launcher_reload
 
 
 def split(root, argv):
@@ -41,7 +42,7 @@ def split(root, argv):
     return flatten(host) if host else [], flatten(guests)
 
 
-def run(root, argv):
+def run(root, argv, *, reloading=False):
     from test_commands import _main, selections
     from test_checkpoint import Checkpoint
     snapshot = json.loads(os.environ[BATCH])
@@ -76,14 +77,18 @@ def run(root, argv):
                                         for line in ([f'VM: {name}', *frames.get(name, ['Queued'])]))])
 
             def execute(vm):
+                if launcher_reload.pending():
+                    return dict(status=launcher_reload.STATUS, handoffs=[])
                 environment = test_launcher.environment(root)
+                if launcher_reload.current is not None:
+                    launcher_reload.current.inherit(environment)
                 environment.pop(BATCH, None)
                 # A worker starts its own retention session, never another VM's.
                 environment.pop(test_retention.VARIABLE, None)
                 environment[VARIABLE] = vm.name
                 environment.pop('ONPC_RUNNER_INVOCATION', None)
                 command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                           '--execute', vm.name, *guest_args]
+                           '--execute-reload' if reloading else '--execute', vm.name, *guest_args]
                 pending = b''
                 handoffs = []
                 with (directory / (vm.name + '.log')).open('xb') as log:
@@ -117,6 +122,10 @@ def run(root, argv):
             (directory / 'results.json').write_text(json.dumps(results, indent=2))
             (directory / 'results.json').chmod(0o600)
             print(f'VM results: {directory / "results.json"}', flush=True)
+            if (not control.stopped.is_set() and launcher_reload.pending()
+                    and all((result['status'] if isinstance(result, dict) else result)
+                            in (0, launcher_reload.STATUS) for result in results.values())):
+                launcher_reload.check()
             categories = []
             failures = []
             for vm in vms:
@@ -171,7 +180,7 @@ def run(root, argv):
 
 def worker(argv):
     mode, name, *args = argv
-    if mode != '--execute':
+    if mode not in ('--execute', '--execute-reload'):
         raise ValueError('private VM queue entry only')
     vm_config.select(name)
     os.environ.pop(BATCH, None)
@@ -181,7 +190,7 @@ def worker(argv):
     # The batch's checkout-local gate is not a VM reservation or cleanup proof.
     os.environ.pop(test_activity.VARIABLE, None)
     from vm_pool import reservation
-    with Control().installed(pipe=True) as control, reservation(name, stopped=control.stopped), \
+    with launcher_reload.watching(), Control().installed(pipe=True) as control, reservation(name, stopped=control.stopped), \
             test_activity.activity(root, named_vm=True):
         # Nested aggregate controllers observe the same parent cancellation.
         import regression_process
@@ -201,11 +210,18 @@ def worker(argv):
             groups = selections(root, args)
             if len(groups) != 1:
                 raise ValueError('case retry requires one category')
-            if '--resume-case-only' in args or '--resume-area-only' in args:
+            if mode == '--execute-reload':
+                if '--resume-case-only' in args or '--resume-area-only' in args:
+                    checkpoint.retry_case = replay[0]
+                    checkpoint.retry_area = replay[0].partition('::')[0] if '--resume-area-only' in args else None
+            elif '--resume-case-only' in args or '--resume-area-only' in args:
                 checkpoint.retry(groups[0][0], replay[0], area='--resume-area-only' in args)
             else:
                 checkpoint.event(groups[0][0], dict(kind='failure', nodeid=replay[0]), set())
-        return _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
+        try:
+            return _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
+        except launcher_reload.ReloadRequested:
+            return launcher_reload.STATUS
 
 
 if __name__ == '__main__':

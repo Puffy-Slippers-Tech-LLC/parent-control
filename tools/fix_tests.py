@@ -28,6 +28,7 @@ from detached_launcher import (
     compact_log, TAIL_BYTES,
 )
 import detached_launcher
+from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
 from launcher_runtime import (SessionResultRejected, TaskBudget, TaskLimitReached, add_options,
                               read_session_result, retain_result_rejection, result_recovery_instructions,
@@ -46,7 +47,7 @@ CASE_RETRY_CATEGORIES = {'system', 'e2e', 'unit', 'component', 'ui', 'fixture-ru
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
-class ControllerReload(Exception):
+class ControllerReload(ReloadRequested):
     """The child-free worker must replace its imported decision code."""
 
 
@@ -66,18 +67,11 @@ def reload_controller(root, run, owner, *options, gate=None):
         descriptors = (owner, *detached_launcher.scratch_descriptors(), *repair_descriptors())
         if writers:
             atomic(run / 'repair-lease.json', dict(pid=os.getpid(), fds=writers))
-        inherited = {fd: os.get_inheritable(fd) for fd in descriptors}
         try:
-            for fd in descriptors:
-                os.set_inheritable(fd, True)
-            sys.stdout.flush()
-            sys.stderr.flush()
-            os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                     '--reload-worker', str(root), str(run), str(owner), *options])
+            replace_interpreter(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                '--reload-worker', str(root), str(run), str(owner), *options], descriptors)
         finally:
             os.environ.pop(STARTUP_SOURCE, None)
-            for fd, value in inherited.items():
-                os.set_inheritable(fd, value)
 
 
 def reattach_label(run):
@@ -567,6 +561,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
 
 
 def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false', *, reloading=False):
+    from contextlib import ExitStack
     from vm_pool import selected_reservation
     from test_commands import host_only_request
     selected = json.loads(requested)
@@ -583,15 +578,18 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         threading.Thread(target=parent_stopped, daemon=True).start()
     status = 1
     reload = False
+    reload_continuation = False
+    lifetime = ExitStack()
     try:
-        with selected_reservation(enabled=not host_only_request(selected),
-                                  stopped=lambda: (run / 'cancel').exists()):
+        from launcher_reload import watching
+        with watching(parent or run):
+            lifetime.enter_context(selected_reservation(enabled=not host_only_request(selected),
+                                   stopped=lambda: (run / 'cancel').exists()))
             from vm_selection import BATCH
             if parent is None and BATCH in os.environ and not host_only_request(selected):
                 from fix_tests_queue import run as run_queue
                 status = run_queue(root, run, owner, model, effort, app_model, requested, rounds, resume)
             else:
-                from contextlib import ExitStack
                 # Recover retained writers before any source imports or normal
                 # admission. An empty ticket can precede begin() after a crash.
                 path = run / 'checkpoint.json'
@@ -607,14 +605,23 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                     startup.enter_context(repair_gate.source())
                     status = reserved_worker(root, run, owner, model, effort, app_model, requested, rounds, resume,
                         reloading=reloading, repair_gate=repair_gate, startup=startup)
-    except ControllerReload:
+    except ReloadRequested as error:
         reload = True
+        reload_continuation = isinstance(error, ControllerReload)
     except (KeyboardInterrupt, Stopped):
         status = 130
     except (OSError, ValueError) as error:
         print(f'\033[1;31mfix-tests: {error}\033[0m', file=sys.stderr, flush=True)
     finally:
-        if reload and not (run / 'cancel').exists():
+        if reload and parent is not None and not (run / 'cancel').exists():
+            from launcher_reload import STATUS
+            # The parent waits for every pipeline to reach this boundary, then
+            # replaces its coordinator too. Keep the exact live continuation.
+            if reload_continuation:
+                atomic(run / 'reload-ready.json', True)
+            repair_gate.release(unfinished=True)
+            status = STATUS
+        elif reload and not (run / 'cancel').exists():
             try:
                 reload_controller(root, run, owner, model, effort, app_model, requested, rounds, 'true',
                                   gate=repair_gate)
@@ -625,6 +632,12 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                       file=sys.stderr, flush=True)
         elif reload:
             status = 130
+            repair_gate.release(unfinished=True)
+        try:
+            lifetime.close()
+        except (OSError, ValueError) as error:
+            status = 1
+            print(f'fix-tests: checkout cleanup failed: {error}', file=sys.stderr, flush=True)
         budget = TaskBudget(parent or run)
         if parent is None:
             budget.close()
@@ -659,9 +672,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     recovery_only = bool(os.environ.get(RECOVERY_ONLY))
     retained_failure = None
     from fix_tests_git import RepairCommits
-    from repair_evidence import controller_sources
     commits = None
-    sources = controller_sources()
+    reload_request = ReloadRequest(parent or run)
     latest_attempt = None
     restart_continuation = None
     loop_state = {}
@@ -669,25 +681,29 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     test_replay = None
     task_inflight = False
 
+    def retain_runtime(*, continuation=None):
+        continuation = continuation or restart_continuation
+        if continuation is not None and commits.key(tuple(continuation['failure'][name]
+                for name in ('category', 'case', 'vm'))) not in commits.state['repairs']:
+            continuation = None  # The authorized repair already closed.
+        commits.state['controller_restart'] = dict(run=str(run),
+            sessions={commits.key(key): value for key, value in case_sessions.items()},
+            runtime=dict(loop=loop_state, repair=repair_context, test=test_replay,
+                results={commits.key(key): value for key, value in case_results.items()},
+                tiers={commits.key(key): value for key, value in case_tiers.items()},
+                answers=developer_answers, task_inflight=task_inflight,
+                task=active_task))
+        if continuation is not None:
+            commits.state['controller_restart']['continuation'] = continuation
+        commits.save()
+
     def check_controller(*, continuation=None):
-        current = controller_sources()
-        if current != sources:
-            continuation = continuation or restart_continuation
-            if continuation is not None and commits.key(tuple(continuation['failure'][name]
-                    for name in ('category', 'case', 'vm'))) not in commits.state['repairs']:
-                continuation = None  # The authorized repair already closed.
-            commits.state['controller_restart'] = dict(expected=sources, actual=current,
-                sessions={commits.key(key): value for key, value in case_sessions.items()},
-                runtime=dict(loop=loop_state, repair=repair_context, test=test_replay,
-                    results={commits.key(key): value for key, value in case_results.items()},
-                    tiers={commits.key(key): value for key, value in case_tiers.items()},
-                    answers=developer_answers, task_inflight=task_inflight,
-                    task=active_task))
-            if continuation is not None:
-                commits.state['controller_restart']['continuation'] = continuation
-            commits.save()
-            print('fix-tests: repair controller sources changed; exact handoff retained. '
-                  'Reloading automatically in the same run.', flush=True)
+        check_stop()
+        if reload_request.pending():
+            retain_runtime(continuation=continuation)
+            print('fix-tests: manual reload requested; exact handoff retained. '
+                  + ('Waiting for the other pipelines before controller reload.' if parent is not None else
+                     'Reloading controller in the same run.'), flush=True)
             raise ControllerReload()
 
     def task_started():
@@ -1157,6 +1173,30 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if previous and not diagnostic and previous.get('verification') is False:
             escalate('same_case_verification_failed')
 
+        def answer_blocker(result, metadata, identity):
+            nonlocal blocker_summary, restart_continuation
+            progress_row = repair_progress(run, read_progress(run))[-1]
+            repair_context['blocked'] = dict(result=result, session=metadata, id=identity)
+            answer = wait_for_answer(run, result['blocker'], identity, progress_row['key'],
+                label=reattach_label(run), heading=progress_row['lines'][0], on_poll=check_controller)
+            if answer is None:
+                raise Stopped()
+            developer_answers.append(answer)
+            atomic(run / 'developer-answers.json', developer_answers)
+            blocker_summary = result['summary']
+            repair_context.pop('blocked', None)
+            repair_context['blocker_summary'] = blocker_summary
+            restart_continuation = dict(failure=target, result=result,
+                answers=developer_answers, prompt=prompt, session=metadata)
+            commits.state.setdefault('controller_restart', {})['continuation'] = restart_continuation
+            commits.save()
+            check_controller(continuation=restart_continuation)
+            print('Answer received. Continuing this repair.', flush=True)
+
+        if repair_context is not None and repair_context.get('blocked'):
+            blocked = repair_context['blocked']
+            answer_blocker(blocked['result'], blocked['session'], blocked['id'])
+
         while True:
             check_stop()
             repair_context = dict(failure=target, prompt=prompt, failure_prompt=failure_prompt,
@@ -1236,10 +1276,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                     # failure a response replay loop in explicitly fresh runs.
                     entry.pop('pending_response', None)
                 commits.save()
-            check_controller()
             if status:
                 raise ValueError(f'repair agent exited with status {status}; '
                                  'inspect the output before restarting')
+            check_controller()
             try:
                 result = read_session_result(run)
                 def validate(value):
@@ -1261,20 +1301,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                          event='result_replay' if replaying else 'result')
             if result['status'] == 'blocked':
                 check_budget()
-                progress_row = repair_progress(run, read_progress(run))[-1]
-                answer = wait_for_answer(
-                    run, result['blocker'], uuid.uuid4().hex, progress_row['key'],
-                    label=reattach_label(run), heading=progress_row['lines'][0])
-                if answer is None:
-                    raise Stopped()
-                developer_answers.append(answer)
-                atomic(run / 'developer-answers.json', developer_answers)
-                blocker_summary = result['summary']
-                restart_continuation = dict(failure=target, result=result,
-                    answers=developer_answers, prompt=prompt, session=metadata)
-                repair_context['blocker_summary'] = blocker_summary
-                check_controller(continuation=restart_continuation)
-                print('Answer received. Continuing this repair.', flush=True)
+                answer_blocker(result, metadata, uuid.uuid4().hex)
                 continue
             if result['status'] in ('app_issue', 'uncertain', 'stalled'):
                 initial_classification = not classification and result['status'] != 'stalled'
@@ -1418,30 +1445,33 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             retained_failure = None  # The live loop continuation already owns this operation.
         if retained_failure is not None and retained_failure['category'] in completed:
             completed.remove(retained_failure['category'])
-        if startup is not None:
-            startup.close()
-        if commits.state['repairs']:
-            repair_gate.acquire()
-        if reloading:
+        saved = commits.state.get('controller_restart', {})
+        same_run = saved.get('run') == str(run)
+        if reloading or same_run:
             # An automatic replacement is the same run, with the same allowances.
-            saved = commits.state['controller_restart']
             runtime = saved['runtime']
             case_sessions = {tuple(json.loads(key)): value for key, value in saved['sessions'].items()}
             case_results = {tuple(json.loads(key)): value for key, value in runtime['results'].items()}
             case_tiers = {tuple(json.loads(key)): tuple(value) for key, value in runtime['tiers'].items()}
             developer_answers = runtime['answers']
-            loop_state = runtime['loop']
-            repair_context, test_replay = runtime['repair'], runtime['test']
+            if reloading:
+                loop_state = runtime['loop']
+                repair_context, test_replay = runtime['repair'], runtime['test']
             task_inflight, active_task = runtime['task_inflight'], runtime['task']
             atomic(run / 'developer-answers.json', developer_answers)
+            (run / 'reload-ready.json').unlink(missing_ok=True)
         continuation = commits.state.get('controller_restart', {}).get('continuation')
         if continuation is not None:
             restart_continuation = continuation
             developer_answers = continuation['answers']
             atomic(run / 'developer-answers.json', developer_answers)
         latest_attempt = commits.state.get('runner_attempt')
+        repair_gate.on_reload = check_controller
+        if startup is not None:
+            startup.close()
+        if commits.state['repairs']:
+            repair_gate.acquire()
         commits.guard = check_controller
-        commits.state['controller_sources'] = sources
         commits.save()
         check_stop()
         # Accepted Git work precedes repair verification and normal admission.
@@ -1524,6 +1554,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         panel({'last_error': str(error)})
         print(f'\n\033[1;31mfix-tests: {error}\033[0m', file=sys.stderr, flush=True)
     finally:
+        if recovery_only and reloading and status == 0 and not reload:
+            # The FIFO supervisor starts normal work only after every retained
+            # ticket drains. Carry allowances and the admitted category across
+            # that same-run process handoff, without replaying its closed repair.
+            loop_state.clear()
+            repair_context, test_replay = None, None
+            retain_runtime()
         if not reload:
             unfinished = commits is not None and RepairCoordinator.recovery_state(commits.state) != 'complete'
             repair_gate.release(unfinished=unfinished)
@@ -1536,7 +1573,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     return status
 
 
-def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False, tasks=None):
+def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False, tasks=None,
+           reload=False):
     from vm_selection import execution_binding, check_binding, save_binding
     from test_commands import repair_host_only_request
     name = execution_binding()
@@ -1555,6 +1593,9 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                 check_binding(run, name)
                 if stop:
                     (run / 'cancel').touch(mode=0o600)
+                elif reload:
+                    from launcher_reload import request
+                    request(run)
                 return run, False
     def command(run, owner):
         nonlocal retained_git, retained_pipelines, retained_queue, retained_pending, retained_waiting
@@ -1629,7 +1670,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
             print(f"fix-tests: limits now tasks={limit if limit is not None else 'all'}", flush=True)
     return detached_launcher.select(root, kind, command, stop=stop,
         on_attach=attached,
-        on_start=started)
+        on_start=started, **({'reload': True} if reload else {}))
 
 
 def follow(run, stream=None):
@@ -1710,6 +1751,14 @@ def main(argv=None):
     try:
         if args.stop and not args.categories and args.vm is None:
             return stop_all(root)
+        if args.reload and not args.categories and args.vm is None:
+            runs = []
+            for kind in ('fix-tests-host', 'fix-tests'):
+                selected, _ = detached_launcher.select(root, kind, None, reload=True, existing_only=True)
+                if selected is not None:
+                    runs.append(selected)
+            if runs:
+                return max(follow(selected) for selected in runs)
         from vm_selection import execution_selection
         from test_commands import repair_host_only_request
         host_only = repair_host_only_request(root, args.categories)
@@ -1729,7 +1778,8 @@ def main(argv=None):
         run, started = select(root, stop=requested, model=args.model, effort=args.effort,
                               categories=args.categories, rounds=args.rounds,
                               **({'tasks': args.tasks} if args.tasks is not None else {}),
-                              **({'resume': True} if args.resume else {}))
+                              **({'resume': True} if args.resume else {}),
+                              **({'reload': True} if args.reload else {}))
         if run is None:
             print('fix-tests: no active launcher.')
             return 0

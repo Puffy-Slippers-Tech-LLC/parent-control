@@ -5,6 +5,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_launcher import main
+from launcher_bootstrap import run
 
 if __name__ == '__main__':
-    sys.exit(main(category='unit'))
+    sys.exit(run(lambda: main(category='unit')))

@@ -421,6 +421,7 @@ def test_real_launcher_transport_with_private_codex_double(repository, parallel)
         'tools/sync-whatsnew', 'tools/sync_whatsnew.py', 'tools/whats_new_catalogs.py',
         'tools/sync_whatsnew_response.schema.json', 'tools/sync_whatsnew_translator.toml',
         'tools/detached_launcher.py', 'tools/test_storage.py', 'tools/test_retention.py',
+        'tools/launcher_bootstrap.py', 'tools/launcher_observer.py', 'tools/launcher_reload.py',
         'tools/test_input_transfer.py', 'tools/test_io.py', 'tools/vm_pool.py',
         'tools/evidence_capture.py', 'tools/evidence_identity.py',
         'tools/launcher_view.py', 'tools/launcher_runtime.py',

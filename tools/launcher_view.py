@@ -61,6 +61,7 @@ class WorkflowView:
     totals: object = None
     overview_current: bool = False
     cancel_on_ctrl_c: bool = False
+    plan: tuple | None = None
 
     def display(self, stream, run):
         from launcher_display import TaskDisplay
@@ -68,6 +69,14 @@ class WorkflowView:
                            totals=self.totals, overview_current=self.overview_current,
                            cancel_on_ctrl_c=self.cancel_on_ctrl_c,
                            log_path=run / 'output')
+
+
+def plan_view(root, path):
+    root = Path(root)
+    return WorkflowView('chat', True,
+        lambda run, steps, child_steps: plan_progress(run, steps, child_steps,
+            remaining=lambda: plan_totals(root, path)[1]),
+        lambda: plan_totals(root, path), plan=(str(root), path))
 
 
 VIEWS = {

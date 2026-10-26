@@ -184,6 +184,7 @@ Report meaningful failures and unresolved work in the normal handoff.
 tools/execute-plan --plan 'docs/Example.md' --check
 tools/execute-plan --plan 'docs/Example.md' --tasks 2
 tools/execute-plan --plan 'docs/Example.md' --tasks 0
+tools/execute-plan --plan 'docs/Example.md' --reload
 tools/execute-plan --plan 'docs/Example.md' --stop
 ```
 
@@ -270,8 +271,9 @@ separate three-session coordinator repair allowance above; `write-e2e` and
 credit, promotion or allowance reset.
 Stop/cancellation remain effective between attempts. Repeated rejection ends at
 the applicable session cap with a resumable checkpoint and diagnostic handoff.
-If ordinary-plan controller or validation sources change during any session, the
-controller reloads automatically at the next session boundary with the result and handoff retained,
+An explicit `--reload` requests fresh launcher code in an active run. Saved source
+edits alone never trigger interpreter replacement. The ordinary-plan controller
+reloads at the next session boundary with the result and handoff retained,
 before admitting another task, waiting for an answer or spending another session
 under stale code. This includes a valid `continue` response: another coordinator
 session in the same controller cannot load changed controller code. After owned
@@ -280,13 +282,61 @@ lock, run identity, observer connection and scratch leases. Reload continues
 the exact live checkpoint without replaying startup comparisons against edited
 task, queue or acceptance metadata or reinterpreting its processed handoff.
 Normal result and close-out validation still apply at their ordinary boundaries.
-Removal of an old validation source during a parallel refactor also triggers
-reload rather than terminating the controller on a missing-file check.
 Reload preserves task/session counts, session caps, suspended consumers, answers,
 capacity retry state and live task limits; it allocates no new retention slot and
 grants no extra work. Stop and cancellation still take precedence. A failed reload
 retains a resumable failure. Manual restarts also consume the current queue and
 briefs without comparing their definitions with old snapshots.
+
+The shared `--reload` option applies to ordinary plans and their dedicated wrappers,
+`fix-tests`, `write-e2e`, `sync-whatsnew`, `run-tests` and its direct `run-unit-tests`
+observer. Use the same plan/VM/scope
+selection as for attachment. It keeps the terminal attached to the existing run;
+when idle the flag is ignored and ordinary startup applies. It does not cancel work,
+reset allowances or replay an observer's original task limit. Bare `fix-tests
+--reload` requests both active repair scopes before following them.
+Existing observers check the shared request while their owner is active.
+[`launcher_bootstrap.py`](../tools/launcher_bootstrap.py) is the stable trampoline:
+it only runs the entry point, lets an observer reload unwind its contexts, and
+replaces the interpreter. Shared request and descriptor handling lives in
+[`launcher_reload.py`](../tools/launcher_reload.py); observer reattachment lives in
+[`launcher_observer.py`](../tools/launcher_observer.py), outside the bootstrap.
+The fresh observer follows the exact retained run directly; it never replays
+the launch command, reapplies `--tasks`, selects work or starts a new backend.
+Its display rebuilds from retained output and progress. Unsent input, partial
+keyboard/paste sequences, edited answers and active selections defer replacement
+until finished or cleared. Terminal modes are restored before replacement;
+reload adds no completion recap and does not cancel the owner. Internal test-frame
+forwarders stay under their existing supervisor. Controllers reload only after
+their admitted operations and cleanup finish. Ordinary plans and E2E implementation
+retain session/task checkpoints; repair pipelines drain to retained boundaries before
+their coordinator reloads; translations finish and retain their current batch.
+The test scheduler stops admitting jobs, joins active work, saves completed cases
+and reloads with the original selectors and checkpoint. Cancellation takes precedence;
+cleanup/audit failures retain a failed result rather than being hidden by reload.
+Subsequent supervisors import current code. Bootstrap edits require reattachment, as do observers
+started before this support was installed. An observer reload/import failure
+leaves the backend running and its retained result available for reattachment.
+A controller import failure ends that owner with an incomplete result and its
+last checkpoint retained for manual recovery.
+
+Requests are asynchronous: “reload requested” confirms publication, not completed
+replacement. A pipeline waiting for controller reload has retained its boundary;
+the coordinator still waits for the other admitted pipelines and cleanup.
+Owners started before this request protocol was installed cannot consume it;
+finish or stop them through their existing interface, then start current code.
+Reload keeps activity and scratch descriptors and an existing single-VM checkout
+helper alive across exec. Drained VM workers retain their checkpoints and repair
+source fence; their successors use the original selectors and same-run budgets.
+
+Reload is not checkout isolation. Already-imported modules stay in memory until
+their controller boundary, but fresh supervisors, test workers, dynamic imports
+and installed helpers resolving this checkout can read saved edits immediately.
+One admitted operation can therefore use code from more than one revision.
+Finish coherent edits before requesting reload; the flag cannot refresh code
+already loaded by an active child or undo work it has completed. No file watcher,
+source snapshot or per-file hot-patching protocol is involved.
+
 Capacity recovery applies to every launcher-owned model session: ordinary plans,
 `fix-tests`, `write-e2e` (including optimization), `sync-whatsnew`, and worktree
 conflict resolution. The shared runtime owns the retry policy. Ordinary plans
@@ -739,6 +789,7 @@ single state machine containing every task type's acceptance branches.
 
 | Shared component | Responsibility | Customization |
 | --- | --- | --- |
+| [`launcher_bootstrap.py`](../tools/launcher_bootstrap.py) / [`launcher_reload.py`](../tools/launcher_reload.py) / [`launcher_observer.py`](../tools/launcher_observer.py) | Stable interpreter trampoline, explicit reload requests and observer reattachment | Exact run, label and plan projection; never workflow admission |
 | [`execution_plan.py`](../tools/execution_plan.py) | Markdown selection, dependency/pointer and completion guards | Master/queue paths, task briefs and acceptance metadata |
 | [`plan_launcher.py`](../tools/plan_launcher.py) | Resumable ordinary-plan session driver | Immutable `PlanWorkflow`: name, plan, model/effort, session allowance, VM selection, Git policy |
 | [`launcher_runtime.py`](../tools/launcher_runtime.py) | Common options, locked task budget and live limit changes | Worker defines an accepted task boundary and default budget |

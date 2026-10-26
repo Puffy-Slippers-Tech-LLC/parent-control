@@ -24,6 +24,7 @@ import uuid
 import pytest
 
 import launcher_git
+import launcher_reload
 from execution_plan import Plan, local_file, plan_namespace
 from launcher_runtime import TaskBudget, task_counters, task_limit, task_progress, warn_remaining
 from launcher_view import plan_totals, view_for
@@ -275,6 +276,7 @@ def validator_checkout(tmp_path, monkeypatch, request, rig):
         assert {name for name in snapshot if current[name] != snapshot[name]} == {changed}
         assert all(current[name] == snapshot[name] for name in ORIGINAL_VALIDATOR_SOURCES
                    if name != changed)
+        launcher_reload.request(rig.run)
 
     inputs = rig.run / 'input' / 'selected-inputs.json'
     inputs.parent.mkdir()
@@ -490,7 +492,7 @@ def test_rejected_result_reloads_before_retrying_with_stale_validation_code(
     assert rig.worker() == 'reloaded'
     assert attempts == [1]
     state = json.loads((rig.run / 'checkpoint.json').read_text())
-    assert 'validation code changed' in state['reason']
+    assert 'manual reload requested' in state['reason']
     assert 'reloading controller' in state['reason'] and 'session limit reached' not in state['reason']
     assert rig.reloads == [(rig.root, rig.run, rig.spec)]
     assert state['task_sessions'] == 1 and state['session_limit'] == 5
@@ -533,7 +535,7 @@ def test_valid_result_source_change_reloads_before_next_admission_or_blocked_wai
     assert rig.worker() == 'reloaded'
     assert attempts == [1] and admissions == [rig.run]
     state = json.loads((rig.run / 'checkpoint.json').read_text())
-    assert 'validation code changed' in state['reason'] and 'reloading controller' in state['reason']
+    assert 'manual reload requested' in state['reason'] and 'reloading controller' in state['reason']
     assert state['task_id'] == '001' and state['task_sessions'] == state['total_sessions'] == 1
     assert state['queue_before'] == original and not state['in_flight']
     assert 'result_recovery' not in state
@@ -667,9 +669,7 @@ def test_reload_exec_preserves_owner_and_scratch_descriptors_and_restores_on_fai
 
 
 def test_failed_reload_publishes_resumable_failure(rig, monkeypatch):
-    sources = workflow.response_validator_sources()
-    reads = iter([sources, {}])
-    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: next(reads))
+    monkeypatch.setattr(workflow.ReloadRequest, 'pending', lambda _: True)
     def fail(*_):
         raise OSError('synthetic exec failure')
     monkeypatch.setattr(workflow, 'reload_controller', fail)
@@ -683,9 +683,7 @@ def test_failed_reload_publishes_resumable_failure(rig, monkeypatch):
 
 @pytest.mark.parametrize('marker', ['stop', 'cancel'])
 def test_stop_during_reload_cleanup_finishes_without_replacement(rig, monkeypatch, marker):
-    sources = workflow.response_validator_sources()
-    reads = iter([sources, {}])
-    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: next(reads))
+    monkeypatch.setattr(workflow.ReloadRequest, 'pending', lambda _: True)
     monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda *_: (rig.run / marker).touch())
     assert rig.worker() == (130 if marker == 'cancel' else 0)
     assert rig.reloads == []
@@ -779,20 +777,20 @@ def test_suspended_dependency_change_restarts_before_prerequisite_and_resumes_ex
     assert TaskBudget(rig.run).read()['completed'] == 1
 
 
-def test_unchanged_dependency_bytes_do_not_restart_worker(
+def test_dependency_edits_without_reload_request_do_not_restart_worker(
         rig, monkeypatch, private_plan_runs, validator_checkout):
     execute = workflow.execute
 
     def unchanged(*args):
         path = validator_checkout.path
-        path.write_bytes(path.read_bytes())
-        assert workflow.response_validator_sources() == validator_checkout.snapshot
+        path.write_bytes(path.read_bytes() + b'\n# unfinished edit\n')
+        assert workflow.response_validator_sources() != validator_checkout.snapshot
         return execute(*args)
 
     monkeypatch.setattr(workflow, 'execute', unchanged)
     assert rig.worker() == 0
     state = json.loads((rig.run / 'checkpoint.json').read_text())
-    assert 'validation code changed' not in state['reason']
+    assert 'manual reload requested' not in state['reason']
     assert rig.calls == [('001', 1, rig.spec.effort)]
     assert TaskBudget(rig.run).read()['completed'] == 1
 
@@ -947,13 +945,12 @@ def test_capacity_recovery_preserves_prerequisite_and_suspended_consumer(
         if outcome == 'delay-stop':
             (rig.run / 'stop').touch()
     monkeypatch.setattr(workflow, 'time', SimpleNamespace(time=lambda: now[0], sleep=sleep))
-    sources = workflow.response_validator_sources()
-    monkeypatch.setattr(workflow, 'response_validator_sources',
-                        lambda: {} if calls and outcome == 'source-change' else sources)
     def execute(root, spec, run, owner):
         (run / 'agent-error.json').unlink(missing_ok=True)
         state = json.loads((run / 'checkpoint.json').read_text())
         calls.append(state)
+        if len(calls) == 1 and outcome == 'source-change':
+            launcher_reload.request(run)
         models.append((spec.model, spec.effort))
         assert state['task_id'] == 'pre'
         assert state['suspended_tasks']['001'] == deferred['suspended_tasks']['001']
@@ -3463,7 +3460,7 @@ def test_relocated_public_cli_checks_plan_without_an_agent(tmp_path):
     tools = tmp_path / 'tools'
     tools.mkdir()
     source = Path(workflow.__file__).parent
-    for name in ['execute-plan', 'plan_launcher.py', 'detached_launcher.py', 'execution_plan.py',
+    for name in ['execute-plan', 'launcher_bootstrap.py', 'launcher_reload.py', 'plan_launcher.py', 'detached_launcher.py', 'execution_plan.py',
                  'document_checks.py', 'launcher_git.py', 'launcher_progress.py', 'launcher_question.py',
                  'launcher_runtime.py', 'test_storage.py', 'test_retention.py', 'test_io.py', 'test_input_transfer.py',
                  'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py']:
@@ -3737,7 +3734,7 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     tools.mkdir()
     source = Path(workflow.__file__).parent
     names = [
-        'execute-plan', 'plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'detached_launcher.py',
+        'execute-plan', 'launcher_bootstrap.py', 'launcher_reload.py', 'plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'detached_launcher.py',
         'launcher_git.py', 'launcher_runtime.py', 'launcher_progress.py',
         'launcher_question.py', 'launcher_view.py', 'launcher_display.py', 'launcher_session.py',
         'launcher_chat.py', 'launcher_render.py', 'watch_output.py', 'vm_selection.py', 'vm_pool.py',
@@ -3788,6 +3785,7 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     if source_change:
         dependency = 'tools/launcher_runtime.py'
         steps[0]['writes'][dependency] = (tmp_path / dependency).read_text() + '\n# Upstream controller change.\n'
+        steps[0]['wait'] = True
     (tmp_path / 'script.json').write_text(json.dumps(steps))
     environment = {name: value for name, value in os.environ.items()
                    if not name.startswith(('CODEX_', 'ONPC_TEST_', 'ONPC_WORKFLOW_'))}
@@ -3803,12 +3801,38 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     # is cancelled only through its exact recorded run and ownership lock; no PID
     # discovery or process-group signalling is used during fixture cleanup.
     observer = subprocess.Popen([sys.executable, '-B', str(tools / 'execute-plan'),
-                                 '--plan', plan.path, '--tasks', str(limit)], cwd=tmp_path,
+                                 '--plan', plan.path, '--tasks', str(limit),
+                                 *(['--reload'] if source_change else [])], cwd=tmp_path,
                                 env=environment, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     owner_released = True
+    reload_observer = None
     try:
+        if source_change:
+            deadline = time.monotonic() + 10
+            while not (tmp_path / 'agent-ready-1').exists() and time.monotonic() < deadline:
+                time.sleep(.02)
+            assert (tmp_path / 'agent-ready-1').exists(), 'private agent did not start'
+            (tmp_path / dependency).write_text(steps[0]['writes'][dependency])
+            command_line = Path(f'/proc/{observer.pid}/cmdline')
+            time.sleep(1.2)
+            assert b'launcher_bootstrap.py' not in command_line.read_bytes(), 'file edit triggered reload'
+            reload_observer = subprocess.Popen([sys.executable, '-B', str(tools / 'execute-plan'),
+                '--plan', plan.path, '--reload'], cwd=tmp_path, env=environment,
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            # The observer replaces itself while the same first session remains
+            # in flight. Existing assertions below protect exact-once admission,
+            # task limits, accepted verdicts and Git close-out across both reloads.
+            deadline = time.monotonic() + 10
+            while (b'launcher_bootstrap.py' not in command_line.read_bytes()
+                   and time.monotonic() < deadline):
+                time.sleep(.02)
+            assert b'launcher_bootstrap.py' in command_line.read_bytes(), 'observer did not reload'
+            (tmp_path / 'release').touch()
         output, errors = observer.communicate(timeout=30)
+        if reload_observer is not None:
+            reload_output, reload_errors = reload_observer.communicate(timeout=30)
+            assert reload_observer.returncode == 0, reload_output + reload_errors
     finally:
         run = launcher.current_run(namespace) if namespace.exists() else None
         if run is not None:
@@ -3822,6 +3846,10 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
         if observer.poll() is None:
             observer.kill()  # Only this test's explicitly spawned observer.
         observer.communicate(timeout=5)
+        if reload_observer is not None:
+            if reload_observer.poll() is None:
+                reload_observer.kill()
+            reload_observer.communicate(timeout=5)
     assert owner_released, 'recorded detached worker did not finish owned cancellation'
     assert observer.returncode == 0, output + errors
     assert run is not None

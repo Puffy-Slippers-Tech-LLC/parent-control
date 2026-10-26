@@ -11,7 +11,9 @@ import sys
 import threading
 import time
 import uuid
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import test_activity
 import test_launcher
@@ -70,14 +72,14 @@ def current_session(directory):
         return run, busy(owner)
 
 
-def select(root, argv):
+def select(root, argv, *, reload=False):
     # Activity descriptor state is process-local. Concurrent callers in this
     # process serialize only startup; detached host/VM workers remain independent.
     with _startup:
-        return _select(root, argv)
+        return _select(root, argv, reload=reload)
 
 
-def _select(root, argv):
+def _select(root, argv, *, reload=False):
     from test_commands import host_only_request, includes_host_request, is_inspection, validate
     # Inspection never attaches, waits for locks, or consumes an unread result.
     if is_inspection(argv):
@@ -109,6 +111,10 @@ def _select(root, argv):
                     raise ValueError('vm-config: active run requires its original VM queue')
             if '--stop' in argv:
                 (run / 'cancel').touch(mode=0o600)
+            elif reload:
+                from launcher_reload import request
+                request(run)
+                print('run-tests: reload requested; continuing the same run.', flush=True)
             return run, False
         if '--stop' in argv:
             return None, False
@@ -169,6 +175,8 @@ def _select(root, argv):
                 from test_storage import scratch_descriptors
                 from detached_launcher import nested_operation, WORKFLOW_DIRECTORY
                 environment = test_launcher.environment(root)
+                from launcher_reload import ReloadRequest
+                ReloadRequest(run).inherit(environment)
                 # Registration belongs to this public invocation. Test fixtures
                 # and further runner workers must not claim the agent's owner.
                 environment.pop(WORKFLOW_DIRECTORY, None)
@@ -201,7 +209,7 @@ def follow(run, stream=None):
             atomic(Path(destination) / 'frame.json', [])
 
 
-def main(root, argv):
+def main(root, argv, *, reload=False):
     run = None
     requested = False
 
@@ -213,7 +221,7 @@ def main(root, argv):
 
     previous = signal.signal(signal.SIGINT, cancel)
     try:
-        run, started = select(root, argv)
+        run, started = select(root, argv, **({'reload': True} if reload else {}))
         if run is None:
             from test_commands import is_inspection
             if '--stop' in argv and not is_inspection(argv):
@@ -226,7 +234,7 @@ def main(root, argv):
         if not started and '--stop' in argv:
             print('run-tests: cancellation requested; waiting for owned cleanup.',
                   file=sys.stderr, flush=True)
-        elif not started:
+        elif not started and not reload:
             print('WARNING: A previous run is in the background or has an unread result; '
                   'ignoring all new arguments and attaching to it.', file=sys.stderr, flush=True)
         # Install cancellation before advertising readiness to a supervisor.
@@ -239,20 +247,56 @@ def main(root, argv):
         signal.signal(signal.SIGINT, previous)
 
 
-def worker(root, argv, run, owner):
+def worker(root, argv, run, owner, *, reloading=False):
     # setsid in Popen disconnects the controlling terminal before this exec.
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    if (run / 'cancel').exists():
+        (run / 'result').write_text('130')
+        os.close(owner)
+        return 130
     import regression_process
     import test_io
+    import launcher_reload
+    from test_storage import scratch_descriptors
     regression_process.session_stop = threading.Event()
     # Keep cancellation cooperative through recorder startup, publication and
     # final result storage, after the inner category controllers have exited.
-    with regression_process.Control().installed(), test_io.low_io():
-        return owned_worker(root, argv, run, owner)
+    with launcher_reload.watching(run), regression_process.Control().installed(), test_io.low_io(), \
+            ExitStack() as resources:
+        try:
+            return owned_worker(root, argv, run, owner, resources=resources, reloading=reloading)
+        except launcher_reload.ReloadRequested:
+            status = 130
+            try:
+                if not (run / 'cancel').exists() and not regression_process.session_stop.is_set():
+                    options = argv if '--resume' in argv else ['--resume', *argv]
+                    print('run-tests: reloading controller; completed work retained.', flush=True)
+                    os.environ.update(test_activity.environment(reloading=True))
+                    launcher_reload.replace(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                        str(root), str(run), str(owner), '--reload-worker', *options],
+                        (owner, *test_activity.descriptors(reloading=True), *scratch_descriptors()))
+            except (OSError, ValueError) as error:
+                status = 1
+                print(f'run-tests: controller reload failed: {error}; resume the retained run.', flush=True)
+            finally:
+                try:
+                    resources.close()
+                except (OSError, ValueError) as error:
+                    status = 1
+                    print(f'Test runner lifetime cleanup failed: {error}', file=sys.stderr, flush=True)
+                try:
+                    (run / 'result').write_text(str(status))
+                finally:
+                    os.close(owner)
+            return status
 
 
-def owned_worker(root, argv, run, owner):
+def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
+    if resources is None:
+        with ExitStack() as resources:
+            return owned_worker(root, argv, run, owner, resources=resources, reloading=reloading)
     import regression_process
+    from launcher_reload import ReloadRequested, STATUS as RELOAD_STATUS
     finished = threading.Event()
 
     def cancellation():
@@ -264,6 +308,8 @@ def owned_worker(root, argv, run, owner):
     watcher = threading.Thread(target=cancellation, daemon=True)
     watcher.start()
     status = 1
+    continuing = reloading
+    reloading = False
     media = None
     original = sys.stdout
     sys.stdout = SessionOutput(run, original)
@@ -271,31 +317,39 @@ def owned_worker(root, argv, run, owner):
         from test_commands import _main, selections, host_only_selection
         from vm_pool import selected_reservation
         from test_commands import host_only_request, includes_host_request
-        with selected_reservation(enabled=not host_only_request(argv),
-                                  stopped=regression_process.session_stop), \
-                test_activity.activity(root, host_only=host_only_request(argv),
-                                       includes_host=includes_host_request(root, argv)):
-            from test_recovery import before_run
-            categories = [kind for kind, _ in selections(root, argv)] if argv else []
-            sys.stdout.controller('preparing', [
-                f'Category: {categories[0] if categories else "all"} (1/{len(categories) or 1}) | Preparing tests'])
-            from vm_selection import BATCH
-            checkpoint = None
-            if BATCH not in os.environ or host_only_selection([(kind, []) for kind in categories]):
-                from test_checkpoint import Checkpoint
-                checkpoint = Checkpoint(root, selections(root, argv or ['all']), resume='--resume' in argv)
-                replay = [arg.partition('=')[2] for arg in argv if arg.startswith('--resume-case=')]
-                if replay:
-                    if len(categories) != 1:
-                        raise ValueError('case retry requires one category')
+        resources.enter_context(selected_reservation(enabled=not host_only_request(argv),
+                                stopped=regression_process.session_stop))
+        resources.enter_context(test_activity.activity(root, host_only=host_only_request(argv),
+                                includes_host=includes_host_request(root, argv)))
+        # Lifetime resources stay open until replacement or final owned cleanup.
+        from test_recovery import before_run
+        categories = [kind for kind, _ in selections(root, argv)] if argv else []
+        sys.stdout.controller('preparing', [
+            f'Category: {categories[0] if categories else "all"} (1/{len(categories) or 1}) | Preparing tests'])
+        from vm_selection import BATCH
+        checkpoint = None
+        if BATCH not in os.environ or host_only_selection([(kind, []) for kind in categories]):
+            from test_checkpoint import Checkpoint
+            checkpoint = Checkpoint(root, selections(root, argv or ['all']), resume='--resume' in argv)
+            replay = [arg.partition('=')[2] for arg in argv if arg.startswith('--resume-case=')]
+            if replay:
+                if len(categories) != 1:
+                    raise ValueError('case retry requires one category')
+                if continuing:
                     if '--resume-case-only' in argv or '--resume-area-only' in argv:
-                        checkpoint.retry(categories[0], replay[0], area='--resume-area-only' in argv)
-                    else:
-                        checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
-                before_run(root, argv, categories=categories)
-            from vm_recording import recording
-            with recording(root, enabled=not host_only_selection([(kind, []) for kind in categories])) as media:
-                status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}))
+                        checkpoint.retry_case = replay[0]
+                        checkpoint.retry_area = replay[0].partition('::')[0] if '--resume-area-only' in argv else None
+                elif '--resume-case-only' in argv or '--resume-area-only' in argv:
+                    checkpoint.retry(categories[0], replay[0], area='--resume-area-only' in argv)
+                else:
+                    checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
+            before_run(root, argv, categories=categories)
+        from vm_recording import recording
+        with recording(root, enabled=not host_only_selection([(kind, []) for kind in categories])) as media:
+            status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}),
+                           **({'reloading': True} if continuing else {}))
+    except ReloadRequested:
+        reloading, status = True, RELOAD_STATUS
     except KeyboardInterrupt:
         status = 130
     except Exception as error:
@@ -305,7 +359,7 @@ def owned_worker(root, argv, run, owner):
     finally:
         finished.set()
         watcher.join()
-        if status == 0 and regression_process.session_stop.is_set():
+        if status in (0, RELOAD_STATUS) and regression_process.session_stop.is_set():
             status = 130
         if media is not None:
             try:
@@ -317,13 +371,27 @@ def owned_worker(root, argv, run, owner):
         sys.stdout.flush()
         sys.stderr.flush()
         sys.stdout = original
-        for variable in (test_activity.VARIABLE, test_activity.HOST_VARIABLE):
-            if variable in os.environ:
-                os.close(int(os.environ[variable]))
-        (run / 'result').write_text(str(status))
-        os.close(owner)
+        if reloading and status != RELOAD_STATUS:
+            reloading = False
+        if not reloading:
+            try:
+                resources.close()
+            except (OSError, ValueError) as error:
+                status = 1
+                print(f'Test runner lifetime cleanup failed: {error}', file=sys.stderr, flush=True)
+            for variable in (test_activity.VARIABLE, test_activity.HOST_VARIABLE,
+                             test_activity.COMPATIBILITY_VARIABLE):
+                if variable in os.environ:
+                    os.close(int(os.environ.pop(variable)))
+            (run / 'result').write_text(str(status))
+            os.close(owner)
+    if reloading:
+        raise ReloadRequested()
     return status
 
 
 if __name__ == '__main__':
-    sys.exit(worker(Path(sys.argv[1]), sys.argv[4:], Path(sys.argv[2]), int(sys.argv[3])))
+    options = sys.argv[4:]
+    reloading = options[:1] == ['--reload-worker']
+    sys.exit(worker(Path(sys.argv[1]), options[1:] if reloading else options,
+                    Path(sys.argv[2]), int(sys.argv[3]), reloading=reloading))

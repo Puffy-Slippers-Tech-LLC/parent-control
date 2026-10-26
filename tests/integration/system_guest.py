@@ -333,10 +333,10 @@ def broker_startup_cause_diagnostic():
     child_trust_inputs_diagnostic()
 
 
-def child_trust_inputs_diagnostic():
+def child_trust_inputs_diagnostic(*, include_timing=False):
     """Separate missing integration inputs from a daemon/database load failure.
 
-    Only fixed categories and booleans leave this failure-only probe. It does
+    Only fixed categories and numeric observations leave this probe. It does
     not reload the database, repair files, or accept a subsequent startup.
     """
     observation = {'event': 'child-trust-inputs', 'installed_trust': 'unavailable',
@@ -379,10 +379,30 @@ def child_trust_inputs_diagnostic():
                             '--lines=200', '--output=json'], timeout=5,
                            check=False, merge_stderr=False).decode()
         events = set()
+        timeline = []
         for line in raw.splitlines():
-            message = json.loads(line).get('MESSAGE')
+            entry = json.loads(line)
+            message = entry.get('MESSAGE')
             if not isinstance(message, str):
                 continue
+            if include_timing:
+                event = {
+                    'It looks like there was an update of the system... Syncing DB.': 'refresh-start',
+                    'Updating trust database': 'database-update',
+                    'Creating trust database': 'database-create',
+                    'Loading trust data from file backend': 'file-backend-load',
+                    'Importing trust data from file backend': 'file-backend-import',
+                    'Updated': 'refresh-completed',
+                }.get(message)
+                count = re.fullmatch(r'Computing hashes for ([0-9]+) packages\.', message)
+                if count:
+                    event = 'package-hashing'
+                timestamp = str(entry.get('__MONOTONIC_TIMESTAMP', ''))
+                if event and timestamp.isascii() and timestamp.isdecimal():
+                    row = {'event': event, 'boot_seconds': int(timestamp) / 1000000}
+                    if count:
+                        row['packages'] = int(count[1])
+                    timeline.append(row)
             if message in ('Loading trust data from file backend', 'Loading file backend',
                            'Importing trust data from file backend'):
                 events.add('file-backend-load')
@@ -399,6 +419,8 @@ def child_trust_inputs_diagnostic():
                 events.add('owned-trust-file-error')
         observation['daemon_journal'] = 'read' if commands.last_returncode == 0 else 'read-failed'
         observation['daemon_events'] = sorted(events)
+        if include_timing:
+            observation['daemon_timeline'] = timeline
     except Exception:
         pass
     print(json.dumps(observation, sort_keys=True), flush=True)
@@ -453,10 +475,112 @@ def install():
     install_package()
 
 
+def sample_install_trust(stop, samples):
+    """Observe rebuild cost without reading package data or changing the daemon.
+
+    Retain at most ten minutes of numeric guest/process counters. No command
+    lines, account identities, unrelated trust records or process signals.
+    """
+    started = time.monotonic()
+    for _ in range(60):
+        row = {'seconds': round(time.monotonic() - started, 3)}
+        try:
+            row['boot_seconds'] = float(Path('/proc/uptime').read_text().split()[0])
+            cpu = Path('/proc/stat').read_text().splitlines()[0].split()
+            row['guest_cpu_ticks'] = [int(value) for value in cpu[1:]]
+            for kind in ('cpu', 'io', 'memory'):
+                pressure = Path('/proc/pressure', kind).read_text()
+                match = re.search(r'^some .*\btotal=([0-9]+)$', pressure, re.MULTILINE)
+                if match:
+                    row[kind + '_pressure_us'] = int(match[1])
+        except (OSError, ValueError):
+            row['guest_counters'] = 'unavailable'
+        try:
+            pid = int(Path('/run/fapolicyd.pid').read_text().strip())
+            require(pid > 1, 'diagnostic-daemon-pid')
+            process = Path('/proc', str(pid))
+            require((process / 'comm').read_text().strip() == 'fapolicyd',
+                    'diagnostic-daemon-identity')
+            fields = (process / 'stat').read_text().rpartition(')')[2].split()
+            row['daemon_start_ticks'] = int(fields[19])
+            row['daemon_cpu_ticks'] = int(fields[11]) + int(fields[12])
+            row['daemon_block_io_ticks'] = int(fields[39])
+            for line in (process / 'io').read_text().splitlines():
+                key, value = line.split(':', 1)
+                if key in ('rchar', 'syscr', 'read_bytes'):
+                    row['daemon_' + key] = int(value)
+            # A restart during sampling cannot join two processes' counters.
+            current = (process / 'stat').read_text().rpartition(')')[2].split()
+            require(current[19] == fields[19], 'diagnostic-daemon-replaced')
+        except (OSError, ValueError, IndexError, GuestError):
+            row = {key: value for key, value in row.items()
+                   if not key.startswith('daemon_')}
+            row['daemon_counters'] = 'unavailable'
+        samples.append(row)
+        if stop.wait(10):
+            break
+
+
 def install_package():
+    from contextlib import redirect_stdout
+    import threading
     from guest_install_recipe import install as install_recipe
     enable_diagnostics()
-    install_recipe(run, guard, package_path())
+    # The retained failure ended while debdb was still hashing. Observe that
+    # interval, rather than guessing from counters collected after it finishes.
+    # This guest-only observer owns no subprocess, storage or VM resource.
+    started = time.monotonic()
+    samples = []
+    stop = threading.Event()
+    observer = threading.Thread(target=sample_install_trust, args=(stop, samples))
+    try:
+        observer.start()
+    except RuntimeError:
+        # An unavailable observer must not prevent the real installation.
+        observer = None
+    failed = True
+    try:
+        install_recipe(run, guard, package_path())
+        failed = False
+    finally:
+        elapsed = time.monotonic() - started
+        stop.set()
+        if observer is not None:
+            observer.join()
+        original_returncode = commands.last_returncode
+        try:
+            # Keep successful measurements too: an intermittent timeout needs
+            # a comparison, and later reboots replace the current-boot journal.
+            # Reuse the existing private directory and redacted *.txt collector.
+            path = commands.directory / 'install-trust-diagnostic.txt'
+            with path.open('x') as output, redirect_stdout(output):
+                os.fchmod(output.fileno(), 0o600)
+                print(json.dumps({'event': 'install-trust-cost',
+                                  'installation': 'failed' if failed else 'passed',
+                                  'duration_seconds': round(elapsed, 3),
+                                  'ticks_per_second': os.sysconf('SC_CLK_TCK'),
+                                  'samples': samples}, sort_keys=True), flush=True)
+                child_trust_inputs_diagnostic(include_timing=True)
+                # Read only; never request another refresh or accept this
+                # observation as a successful installation.
+                raw = commands.run([
+                    '/usr/libexec/oh-no-parent-control-package-activation',
+                    'read-child-trust'], timeout=5, check=False, merge_stderr=False)
+                if commands.last_returncode == 0:
+                    rows = json.loads(raw)
+                    expected = Path('/usr/share/oh-no-parent-control/child-extension.trust')
+                    expected = {tuple(line.split()) for line in expected.read_text().splitlines()
+                                if line.strip() and not line.startswith('#')}
+                    present = {tuple(row) for row in rows}
+                    require(bool(expected) and present <= expected,
+                            'diagnostic-trust-unexpected-record')
+                    print(json.dumps({'event': 'install-trust-after-install',
+                                      'missing_records': len(expected - present)}), flush=True)
+        except Exception:
+            # Optional evidence must never change the installation outcome.
+            pass
+        finally:
+            commands.last_returncode = original_returncode
     print('onpc-system: stage=package-install outcome=passed', flush=True)
 
 

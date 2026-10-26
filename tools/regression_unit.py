@@ -96,7 +96,7 @@ result file beneath the pytest-private checkout; its resource scope is unchanged
 No external network, shared Git state, VM,
 display, bus or additional asynchronous cleanup owner is acquired; both modules
 retain compatible unit scheduling and the existing cleanup classification.
-Automatic repair-controller reload uses the same recorded worker and private
+Explicit repair-controller reload uses the same recorded worker and private
 checkout, with real exec replacement, finite synthetic children and bounded
 teardown. Descriptor checks are process-local. It adds no VM, display, socket,
 shared cache or external service; both modules remain compatible in unit and
@@ -182,9 +182,9 @@ Mandatory Git close-out checks reuse these private worktrees/remotes and bounded
 waited Git children. The private-helper boundary check only parses checkout
 source. Existing unit/cleanup classifications remain valid; no shared resource,
 service, cache, VM, display or UI inventory is added.
-Automatic controller-reload checks keep the same private records and lock trees,
+Explicit controller-reload checks keep the same private records and lock trees,
 with process-local exec/descriptor doubles. Public detached checks also exercise
-real interpreter replacement, bounded local app-server doubles and private Git
+real interpreter replacement, a second identity-owned reload observer, bounded local app-server doubles and private Git
 remotes; they retain the recorded worker owner through cancellation and wait for
 release. No VM, external service, shared cache or new cleanup resource is added;
 the existing compatible classification remains appropriate.

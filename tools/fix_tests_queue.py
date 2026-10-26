@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 
 import detached_launcher as launcher
+import launcher_reload
 from launcher_runtime import TaskBudget
 
 
@@ -254,6 +255,8 @@ class RepairGate:
     def _check_stop(self):
         if self.stopped() or (self.run / 'cancel').exists() or (self.parent / 'cancel').exists():
             raise launcher.Stopped()
+        if launcher_reload.pending():
+            getattr(self, 'on_reload', launcher_reload.check)()
 
     def _admit(self, fd, *, writer):
         from launcher_progress import read_progress, publish_progress
@@ -449,7 +452,7 @@ def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopp
                      session=None):
     """Summarize scheduling and repair phases without granting execution credit."""
     terminal = {'complete': 'Complete', 'limited': 'Task limit reached',
-                'stopped': 'Stopped', 'blocked': 'Blocked'}
+                'stopped': 'Stopped', 'blocked': 'Blocked', 'reload': 'Waiting for controller reload'}
     phase = next((line for line in reversed(steps[-1]['lines'])
                   if line.startswith('Status: ')), '') if steps else ''
     agent_active = session is not None and session.get('status') == 'running'
@@ -476,7 +479,7 @@ def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopp
             status = 'Running'
     color = ('90' if status.startswith('Queued on ') else
              '38;2;0;152;255' if status == 'Running' else
-             '38;2;255;165;0' if status in ('Repairing', 'Verifying', 'Save fix') else
+             '38;2;255;165;0' if status in ('Repairing', 'Verifying', 'Save fix', 'Waiting for controller reload') else
              '32' if status == 'Complete' else '31')
     return f'VM: {name} (\033[1;{color}m{status}\033[0m)'
 
@@ -488,11 +491,17 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
     media = None
     status = 1
     try:
-        with Control().installed() as control, recording(root, enabled=True) as media:
+        with launcher_reload.watching(run), Control().installed() as control, recording(root, enabled=True) as media:
             status = _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds, resume, control)
+        if status == launcher_reload.STATUS:
+            from fix_tests import ControllerReload
+            raise ControllerReload()
         return status
     except KeyboardInterrupt:
         status = 130
+        raise
+    except launcher_reload.ReloadRequested:
+        status = launcher_reload.STATUS
         raise
     except Exception:
         status = 1
@@ -592,6 +601,8 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
     def execute_owned(name, selection, *, recovery=False):
         if control.stopped.is_set() or (run / 'cancel').exists():
             return 130
+        if launcher_reload.pending():
+            return launcher_reload.STATUS
         child = child_run(name)
         (child / 'result.json').unlink(missing_ok=True)
         launcher.atomic(child / 'pipeline.json', dict(parent=str(run)))
@@ -603,6 +614,8 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
         states[name]['status'] = 'running'
         args = [value for kind, spec in selection.items() for value in (kind, *spec['args'])]
         environment = launcher.environment()
+        if launcher_reload.current is not None:
+            launcher_reload.current.inherit(environment)
         environment.pop(BATCH, None)
         if recovery:
             environment[RECOVERY_ONLY] = '1'
@@ -611,8 +624,10 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
         else:
             environment[VARIABLE] = name
         command = ['/usr/bin/python3', '-IBu', str(WORKER),
-                   '--worker', str(root), str(child), str(owner), model, effort, app_model,
-                   json.dumps(args), rounds, 'true' if recovery else resume]
+                   '--reload-worker' if (child / 'reload-ready.json').exists() else '--worker',
+                   str(root), str(child), str(owner), model, effort, app_model,
+                   json.dumps(args), rounds,
+                   'true' if recovery or (child / 'reload-ready.json').exists() else resume]
         pending = b''
         with (child / 'output').open('ab') as log:
             def output(data):
@@ -653,11 +668,14 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             path = child / 'checkpoint.json'
             saved = json.loads(path.read_text()) if path.exists() else {}
             unfinished = coordinator.recovery_state(saved) != 'complete'
+            if status == launcher_reload.STATUS and not launcher_reload.pending():
+                raise ValueError('pipeline exited with reload status without a reload request')
             if status == 0 and unfinished and not recovery:
                 raise ValueError('pipeline finished with unresolved retained repairs')
             if status == 0 and not unfinished:
                 coordinator.discard(child.name)
-            states[name]['status'] = ('limited' if (child / 'limited').exists() else
+            states[name]['status'] = ('reload' if status == launcher_reload.STATUS else
+                'limited' if (child / 'limited').exists() else
                 'queued' if status == 0 and recovery else
                 'complete' if status == 0 else 'stopped' if status == 130 else 'blocked')
             publish()
@@ -666,6 +684,10 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
     def execute(name, selection, *, recovery=False):
         try:
             status = execute_owned(name, selection, recovery=recovery)
+        except launcher_reload.ReloadRequested:
+            # A reload can arrive while the supervisor is waiting for a source
+            # lease. No child was admitted; let the other pipelines drain.
+            status = launcher_reload.STATUS
         except launcher.Stopped:
             with output_lock:
                 states[name]['status'] = 'stopped'
@@ -676,7 +698,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                 print(f'[{name}] pipeline infrastructure failed: {error}', flush=True)
                 states[name]['status'] = 'blocked'
             status = 2
-        if status:
+        if status and status != launcher_reload.STATUS:
             if status != 130:
                 failed.set()
             control.stop()  # No worker can wait behind a dead queue owner.
@@ -702,7 +724,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             raise ValueError('resume round exceeds --rounds; retain the original round count')
         remaining += sum(not saved.complete(kind) for kind in selection)
         remaining += (int(rounds) - number) * len(selection)
-    parent_budget.update(lambda value: value.update(remaining=remaining))
+    parent_budget.update(lambda value: value.update(remaining=remaining + value['completed']))
     warn_remaining(parent_budget.read()['tasks'], remaining, label='fix-tests')
     with ThreadPoolExecutor(max_workers=1) as pool:
         host_task = pool.submit(execute, 'host', host) if host else None
@@ -717,4 +739,5 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
     launcher.atomic(run / 'vm-results.json', results)
     if any(value['status'] == 'limited' for value in states.values()):
         (run / 'limited').touch(mode=0o600)
-    return 1 if failed.is_set() else 130 if control.stopped.is_set() else 1 if any(statuses.values()) else 0
+    return (1 if failed.is_set() else 130 if control.stopped.is_set() else
+            launcher_reload.STATUS if launcher_reload.pending() else 1 if any(statuses.values()) else 0)

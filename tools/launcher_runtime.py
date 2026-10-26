@@ -138,7 +138,10 @@ def task_limit(value):
 def add_options(parser, *, stop_help='stop at the next safe task/session boundary'):
     parser.add_argument('--tasks', type=int,
                         help='maximum completed tasks; 0 or negative: all remaining; replaces an active limit')
-    parser.add_argument('--stop', action='store_true', help=stop_help)
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument('--stop', action='store_true', help=stop_help)
+    actions.add_argument('--reload', action='store_true',
+                         help='reload a running launcher at safe boundaries; ignored when starting a new run')
 
 
 def warn_remaining(tasks, remaining, *, label):

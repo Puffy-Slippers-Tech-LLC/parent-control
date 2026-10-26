@@ -124,6 +124,7 @@ class TaskDisplay(LauncherDisplay):
         self.selection_panels = []
         self.visible_rows = []
         self.recap_printed = False
+        self.reloading = False
 
     def __enter__(self):
         super().__enter__()
@@ -258,6 +259,9 @@ class TaskDisplay(LauncherDisplay):
         return pinned, history
 
     def close(self):
+        if self.reloading:
+            self.restore_terminal()
+            return
         super().close()
         if self.recap_printed:
             return
@@ -300,6 +304,18 @@ class TaskDisplay(LauncherDisplay):
             else:
                 self.stream.write(f'{border}\n{message}\n{border}\n')
         self.stream.flush()
+
+    def reload_ready(self):
+        """Defer replacement while input or an edited answer is unfinished."""
+        editor, question = self.editor, self.question
+        editing = (editor.text or editor.pending or editor.paste or editor.decoder.getstate()[0]
+                   or self.input_pending or self.mouse_pending or self.dragging or self.selection
+                   or self.scrollbar_grab is not None or self.top_scrollbar_grab is not None
+                   or self.description_grab is not None
+                   or self.escape_since is not None)
+        answering = question and (question.text or question.buffer or question.pasting
+                    or question.decoder.getstate()[0] or question.selected != 0)
+        return not (editing or answering)
 
     def update_question(self, question, send):
         if self.input_mode != 'chat':

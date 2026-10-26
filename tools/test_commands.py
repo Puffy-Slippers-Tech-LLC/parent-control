@@ -261,6 +261,7 @@ def usage():
        tools/run-tests --help
        tools/run-tests --list
        tools/run-tests --stop
+       tools/run-tests --reload
 
 With no categories, start the all aggregate. An active run or
 unread result takes precedence over new execution categories. Attach to a
@@ -271,6 +272,8 @@ cases and retrying failed or interrupted cases. Without it, a new execution
 resets the checkpoint. Keep the original selectors; a changed selection refuses
 resume. Required preparation and lifecycle prerequisites still run.
 --stop requests cancellation of the active run and waits for owned cleanup.
+--reload refreshes a running launcher at safe boundaries and stays attached;
+when idle, the flag is ignored and execution starts normally.
 VM categories read config/test-vm.json and execute every entry with enabled
 equal to the string "true", using at most concurrency VMs simultaneously.
 --vm accepts a name or ID, a comma-separated list, all-enabled, or all.
@@ -980,7 +983,7 @@ def plan(root, category, argv):
     raise ValueError('unknown test category; use --help or --list')
 
 
-def _main(argv=None, *, detached=False, checkpoint=None):
+def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
     argv = list(sys.argv[1:] if argv is None else argv)
     if is_inspection(argv):
         argv = [arg for arg in argv if arg != '--resume']
@@ -1001,7 +1004,8 @@ def _main(argv=None, *, detached=False, checkpoint=None):
         from vm_selection import BATCH
         if BATCH in os.environ:
             from vm_test_queue import run
-            return run(Path(__file__).resolve().parents[1], argv)
+            return run(Path(__file__).resolve().parents[1], argv,
+                       **({'reloading': True} if reloading else {}))
     try:
         argv, stop_on_error = execution_arguments(argv)
         if os.geteuid() == 0:
@@ -1219,6 +1223,12 @@ def is_inspection(argv):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    reload = '--reload' in argv
+    if reload:
+        argv = [arg for arg in argv if arg != '--reload']
+        if '--stop' in argv:
+            print('run-tests: --reload cannot be combined with --stop', file=sys.stderr)
+            return 2
     try:
         from test_checkpoint import resume_arguments
         argv = resume_arguments(Path(__file__).resolve().parents[1], argv)
@@ -1241,7 +1251,7 @@ def main(argv=None):
                 validate(root, argv)
                 return _main(argv)
         from regression_session import main as session_main
-        return session_main(root, argv)
+        return session_main(root, argv, **({'reload': True} if reload else {}))
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'test activity ownership unavailable'
         print('run-tests: ' + detail, file=sys.stderr)

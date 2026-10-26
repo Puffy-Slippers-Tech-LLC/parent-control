@@ -31,6 +31,7 @@ EXIT_TIMING_PATTERN = (r'\nEnded: (?:0[1-9]|1[0-2]):[0-5]\d'
 def test_real_source_bytes_stop_before_acceptance_and_replay_without_another_session(
         tmp_path, monkeypatch, changed, stall):
     import repair_evidence
+    from launcher_reload import request
     from types import SimpleNamespace
 
     root = tmp_path / 'task'
@@ -57,6 +58,15 @@ def test_real_source_bytes_stop_before_acceptance_and_replay_without_another_ses
     invocations = []
     response = reply('stalled', 'not_run') if stall else reply()
 
+    class Replaced(BaseException):
+        pass
+
+    def replace(command, descriptors):
+        os.close(descriptors[0])
+        raise Replaced()
+
+    monkeypatch.setattr(workflow, 'replace_interpreter', replace)
+
     def execute(_root, run, *_args):
         invocations.append(1)
         result = response
@@ -67,6 +77,7 @@ def test_real_source_bytes_stop_before_acceptance_and_replay_without_another_ses
         if changed:
             path = source_root / 'tools' / changed
             path.write_bytes(path.read_bytes() + b'\n# changed dependency bytes\n')
+            request(run)
         else:
             (run / 'stop').touch()
         return result
@@ -79,7 +90,11 @@ def test_real_source_bytes_stop_before_acceptance_and_replay_without_another_ses
     initial = workflow.fresh_state('001')
     if stall:
         initial['model_tier'] = 2
-    assert workflow.worker(root, first, owner, 1, json.dumps(initial)) == 0
+    if changed:
+        with pytest.raises(Replaced):
+            workflow.worker(root, first, owner, 1, json.dumps(initial))
+    else:
+        assert workflow.worker(root, first, owner, 1, json.dumps(initial)) == 0
     retained = json.loads((first / 'checkpoint.json').read_text())
     assert len(invocations) == 1 and retained['task_sessions'] == 1
     if changed is None:
@@ -90,23 +105,17 @@ def test_real_source_bytes_stop_before_acceptance_and_replay_without_another_ses
     assert {name for name in inventory if captured[name] != after[name]} == {changed}
     assert retained['failed_attempts'] == retained['live_attempts'] == 0
     assert retained['source_changed_result'] == response
-    monkeypatch.setattr(launcher, 'current_run', lambda _: first)
-    resumed = workflow.initial_state(root, tmp_path)
-    second = tmp_path / 'second'
-    second.mkdir(mode=0o700)
-    launcher.atomic(second / 'checkpoint.json', resumed)
-    (second / 'stop').touch()
-    workflow.TaskBudget(second).initialize(1)
-    owner = os.open(second / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
-    assert workflow.worker(root, second, owner, 1, json.dumps(resumed)) == (1 if stall else 0)
-    replayed = json.loads((second / 'checkpoint.json').read_text())
+    (first / 'stop').touch()
+    owner = os.open(first / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert workflow.worker(root, first, owner, 1, '{}') == (1 if stall else 0)
+    replayed = json.loads((first / 'checkpoint.json').read_text())
     assert len(invocations) == 1 and replayed['task_sessions'] == 1
     assert replayed['failed_attempts'] == replayed['live_attempts'] == (0 if stall else 1)
     if stall:
         assert replayed['model_tier'] == 2
     assert 'source_changed_result' not in replayed
     assert not replayed.get('evidence_turns')
-    assert json.loads((second / 'result.json').read_text()) == dict(status=1 if stall else 0, sessions=0, tasks=0)
+    assert json.loads((first / 'result.json').read_text()) == dict(status=1 if stall else 0, sessions=1, tasks=0)
     assert workflow.queue_state(root)[0] == '001'
 
 

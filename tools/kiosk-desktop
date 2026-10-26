@@ -5,12 +5,13 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from plan_launcher import PlanWorkflow, main
+from launcher_bootstrap import run
 
 if __name__ == '__main__':
-    sys.exit(main(PlanWorkflow(
+    sys.exit(run(lambda: main(PlanWorkflow(
         name='kiosk-desktop',
         plan='docs/Kiosk-Desktop-Plan.md',
         model='gpt-6.1-sol',
         effort='high',
         vm=True,
-    )))
+    ))))

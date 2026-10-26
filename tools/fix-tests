@@ -5,6 +5,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fix_tests import main
+from launcher_bootstrap import run
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(run(main))

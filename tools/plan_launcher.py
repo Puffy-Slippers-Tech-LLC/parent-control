@@ -29,6 +29,7 @@ from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequ
                           pull_before_commit, reconciliation_instructions, stage_task,
                           validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_progress
+from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
 from launcher_runtime import (AgentCapacityUnavailable, CAPACITY_RETRY_DELAYS, SessionResultRejected, TaskBudget,
                               add_options, capacity_failure, capacity_retry,
@@ -726,6 +727,9 @@ def execute(root, spec, run, owner):
 RESPONSE_VALIDATOR_SOURCES = (
     'plan_launcher.py', 'execution_plan.py', 'document_checks.py',
     'launcher_runtime.py', 'detached_launcher.py',
+    'launcher_reload.py',
+    'launcher_observer.py', 'launcher_view.py', 'launcher_display.py',
+    'launcher_session.py', 'launcher_chat.py', 'launcher_render.py', 'watch_output.py',
     # Shared storage retirement still protects owned resources and any older
     # required captures. These guards do not collect task archives.
     'test_retention.py', 'test_storage.py', 'test_io.py', 'test_input_transfer.py',
@@ -752,18 +756,8 @@ def response_validator_sources():
 def reload_controller(root, run, owner, spec):
     """Replace imports without releasing ownership, scratch leases or the run."""
     descriptors = (owner, *launcher.scratch_descriptors())
-    inherited = {fd: os.get_inheritable(fd) for fd in descriptors}
-    try:
-        for fd in descriptors:
-            os.set_inheritable(fd, True)
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                 '--reload-worker', str(root), str(run), str(owner), json.dumps(asdict(spec))])
-    finally:
-        # exec only returns on failure. Preserve the ordinary finalization path.
-        for fd, value in inherited.items():
-            os.set_inheritable(fd, value)
+    replace_interpreter(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+        '--reload-worker', str(root), str(run), str(owner), json.dumps(asdict(spec))], descriptors)
 
 
 def worker(root, run, owner, spec, state, *, reloading=False):
@@ -781,8 +775,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
         plan = load_plan(root, spec.plan, state)
         state.setdefault('selected_tasks', list(state.get('queue_before') or plan.state()))
         refresh_live_plan(plan, state)
-        validator_sources = response_validator_sources()
-        reload_reason = ('launcher validation code changed during the session; '
+        reload_request = ReloadRequest(run)
+        reload_reason = ('manual reload requested; '
                          'reloading controller and continuing the retained handoff')
         if state.get('recovery_run'):
             launcher.finish_nested(root, Path(state['recovery_run']))
@@ -803,7 +797,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             # A valid continuation can need new startup recovery just as a
             # rejected response can need repaired guards. Never spend another
             # session, select another task or wait for an answer under old code.
-            if response_validator_sources() != validator_sources:
+            if reload_request.pending():
                 reload, reason = True, reload_reason
                 break
             plan = load_plan(root, spec.plan, state)
@@ -856,7 +850,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 launcher.atomic(run / 'chat-state.json', {'session': state.get('total_sessions'),
                     'task_id': state['task_id'], 'task_session': state['task_sessions'], 'status': 'blocked'})
                 answer = wait_for_answer(run, state['blocker'], state['blocker_id'],
-                    state['task_id'], label=spec.name, heading=f"Task {state['task_id']}: {state['title']}")
+                    state['task_id'], label=spec.name, heading=f"Task {state['task_id']}: {state['title']}",
+                    on_poll=reload_request.check)
                 if answer is None:
                     reason = 'stopped at a session boundary'
                     break
@@ -865,7 +860,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 state['session_limit'] = max(state['session_limit'], task_session_usage(state) + 1)
                 # Waiting can outlive a repair; retain the answer for the fresh
                 # controller instead of starting a turn under the old imports.
-                if response_validator_sources() != validator_sources:
+                if reload_request.pending():
                     reload, reason = True, reload_reason
                     break
             retrying_capacity = capacity_retry(state)
@@ -980,6 +975,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             else:
                 state['phase'] = 'recover'
             launcher.atomic(run / 'checkpoint.json', state)
+    except ReloadRequested:
+        reload, reason = True, reload_reason
     except launcher.Stopped:
         status, reason = 130, 'cancelled after owned cleanup'
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
@@ -1035,6 +1032,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                         help='explicitly permit this unfinished scope revision during a reviewed plan split')
     add_options(parser)
     args = parser.parse_args(argv)
+    if args.reload and (args.check or args.reconcile):
+        parser.error('--reload cannot be combined with --check or --reconcile')
     run = None
     interrupted = False
 
@@ -1129,11 +1128,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             if initial_info:
                 launcher.atomic(selected / 'task-info.json', initial_info)
             save_binding(selected, binding)
-        from launcher_view import WorkflowView, plan_progress, plan_totals
-        def progress(run, steps, child_steps):
-            return plan_progress(run, steps, child_steps,
-                                 remaining=lambda: plan_totals(root, path)[1])
-        view = WorkflowView('chat', True, progress, lambda: plan_totals(root, path))
+        from launcher_view import WorkflowView, plan_view
+        view = plan_view(root, path)
         with ExitStack() as observer:
             display = None
             def prepare(selected):
@@ -1144,7 +1140,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                     f'{spec.name}: resuming task queue…']}], [])
             run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
                                            on_attach=attach, on_start=start, on_prepare=prepare,
-                                           namespace=plan_namespace(path), resumable_start=True)
+                                           namespace=plan_namespace(path), resumable_start=True,
+                                           **({'reload': True} if args.reload else {}))
             if run is None:
                 print(f'{spec.name}: no active launcher.')
                 return 0

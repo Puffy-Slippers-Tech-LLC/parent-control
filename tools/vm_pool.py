@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import select
+import stat
 import subprocess
 import sys
 import uuid
@@ -22,6 +23,13 @@ RUNTIME = Path('/run/onpc-vm-pool')
 VARIABLE = 'ONPC_VM_CHECKOUT'
 OPTION = '--vm-checkout='
 _local = ContextVar('vm_checkout', default=None)
+_keeper = ContextVar('vm_checkout_keeper', default=None)
+RELOAD_KEEPER = 'ONPC_VM_RELOAD_KEEPER'
+
+
+def reload_keeper():
+    """The current owner can exec while its existing checkout helper stays alive."""
+    return _keeper.get()
 
 
 def identity(value):
@@ -199,9 +207,21 @@ def reservation(name, *, stopped=None):
     check(helper)
     command = ['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                *arguments(), 'pool', '--vm', configured.name]
+    inherited = os.environ.pop(RELOAD_KEEPER, None)
+    if inherited is not None:
+        saved = json.loads(inherited)
+        if (saved['name'] != configured.name or saved['receipt'] != os.environ.get(VARIABLE)
+                or saved['pid'] <= 1 or saved['input'] < 3 or saved['output'] < 3
+                or saved['input'] == saved['output']):
+            raise ValueError('vm-pool: invalid inherited checkout keeper')
+        if any(not stat.S_ISFIFO(os.fstat(saved[key]).st_mode) for key in ('input', 'output')):
+            raise ValueError('vm-pool: inherited checkout keeper is not a pipe')
+        if os.waitpid(saved['pid'], os.WNOHANG) != (0, 0):
+            raise ValueError('vm-pool: inherited checkout keeper exited')
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'})
     previous = os.environ.get(VARIABLE)
+    token = None
     try:
         while not select.select([process.stdout], [], [], 0.1)[0]:
             if cancelled():
@@ -216,8 +236,19 @@ def reservation(name, *, stopped=None):
         if cancelled():
             raise KeyboardInterrupt
         os.environ[VARIABLE] = receipt
+        token = _keeper.set(dict(name=configured.name, receipt=receipt, pid=process.pid,
+                                 input=process.stdin.fileno(), output=process.stdout.fileno()))
+        if inherited is not None:
+            # Borrow and verify through the ordinary host helper before joining
+            # the pre-exec helper. At least one keeper holds the same checkout.
+            os.close(saved['input'])
+            os.close(saved['output'])
+            if os.waitstatus_to_exitcode(os.waitpid(saved['pid'], 0)[1]):
+                raise ValueError('vm-pool: inherited checkout checkin failed')
         yield
     finally:
+        if token is not None:
+            _keeper.reset(token)
         if previous is None:
             os.environ.pop(VARIABLE, None)
         else:

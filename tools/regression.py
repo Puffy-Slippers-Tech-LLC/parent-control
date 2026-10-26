@@ -350,7 +350,7 @@ class Dashboard:
             self.lines = 0
             self.terminal_size = None
 
-    def finish(self):
+    def finish(self, *, reloading=False):
         """Leave one complete summary in the normal terminal history."""
         self.restore_terminal()
         if not self.finished:
@@ -359,6 +359,11 @@ class Dashboard:
             # attached observer may still poll while evidence is finalized.
             if hasattr(self.stream, 'frame'):
                 self.stream.frame([])
+            if reloading:
+                if hasattr(self.stream, 'controller'):
+                    self.stream.controller('reload', ['run-tests: reload requested; completed work retained'])
+                self.stream.flush()
+                return
             self.controller(time.monotonic(), self.render(time.monotonic()), force=True)
             self.stream.write('\n'.join(self.render(time.monotonic())) + '\n')
             self.stream.flush()
@@ -986,6 +991,8 @@ class Run:
         if self.control.stopped.is_set():
             item.state = 'Interrupted'
             return 130, ''
+        from launcher_reload import check
+        check()
         item.retry_category = ('ui' if Path(command[0]).name == 'run-ui-tests' else
                                command[1] if Path(command[0]).name == 'run-tests' else None)
         if not collect and self.resume_category(item):
@@ -1026,11 +1033,13 @@ class Run:
             execution.close()
 
     def wait_for_resources(self, item, kind):
+        from launcher_reload import check
         if kind in ('system', 'e2e'):
             self.admission.demands[kind] = vm_demand(self.root)
         started = time.monotonic()
         previous = None
         while not self.control.stopped.is_set() and not self.admission.allows(kind, []):
+            check()
             item.wait_reason = self.admission.reason
             if item.wait_reason != previous:
                 self.report.write('\nScheduler: ' + item.wait_reason + '\n')
@@ -1041,6 +1050,8 @@ class Run:
             self.control.stopped.wait(2)
         item.waiting += time.monotonic() - started
         item.wait_reason = ''
+        if not self.control.stopped.is_set():
+            check()
 
     def host_jobs(self, jobs, *, phase='host'):
         jobs = [job for job in jobs if not self.resume_category(job.item, job.item.retry_category or job.kind)]
@@ -1449,6 +1460,8 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
     run = None
     status = 1
     failed = False
+    reloading = False
+    from launcher_reload import ReloadRequested, STATUS as RELOAD_STATUS
     with Control().installed() as control:
         try:
             report = Report(root)
@@ -1462,6 +1475,8 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
             run.checkpoint = checkpoint
             run.run()
             status = run.result_status()
+        except ReloadRequested:
+            reloading, status = True, RELOAD_STATUS
         except (Exception, KeyboardInterrupt) as error:
             failed = not isinstance(error, KeyboardInterrupt)
             if report is None and failed:
@@ -1481,17 +1496,22 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
         finally:
             if control.stopped.is_set() and not failed:
                 status = 130
+            if reloading and run is not None and any(
+                    item.failures or item.state == 'Failed' for item in run.categories):
+                reloading, status = False, 1
             try:
                 if run is not None:
                     run.dashboard.cleanup_finished = True
                     for item in run.categories:
                         item.stop_timer()
                         if item.state in ('Running', 'Pending'):
-                            item.state = 'Interrupted' if status == 130 else 'Blocked'
+                            item.state = ('Pending' if reloading and status == RELOAD_STATUS else
+                                          'Interrupted' if status == 130 else 'Blocked')
                     report.snapshot(run.categories)
                     if checkpoint is not None:
                         checkpoint.finish(run.categories)
-                    report.write('\n## Final result\n\n' + ('Passed' if status == 0 else
+                    report.write('\n## Final result\n\n' + ('Reload requested; progress retained' if reloading and status == RELOAD_STATUS else
+                                 'Passed' if status == 0 else
                                  'Interrupted; owned child cleanup finished' if status == 130 else 'Failed') + '\n')
                     report.write('\nVM backing verification: ' + run.verification_mode + '\n')
                     summary = '\n'.join(run.dashboard.render(time.monotonic()))
@@ -1506,7 +1526,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
             finally:
                 if run is not None:
                     try:
-                        run.dashboard.finish()
+                        run.dashboard.finish(**({'reloading': True} if reloading and status == RELOAD_STATUS else {}))
                     except (Exception, KeyboardInterrupt):
                         status = 1
                         run.dashboard.restore_terminal()
@@ -1558,6 +1578,8 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                   file=sys.stderr, flush=True)
     if report is not None:
         report.release_session()
+    if reloading and status == RELOAD_STATUS and not control.stopped.is_set():
+        raise ReloadRequested()
     return status
 
 

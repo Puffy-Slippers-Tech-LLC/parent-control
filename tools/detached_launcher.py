@@ -117,10 +117,11 @@ def environment():
     # identities and launcher FD claims. No parent conversation is ever passed.
     result = dict(os.environ)
     for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
-                 'ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', 'ONPC_REGRESSION_EVENTS',
+                 'ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', 'ONPC_TEST_COMPATIBILITY_FD', 'ONPC_REGRESSION_EVENTS',
                  'ONPC_REGRESSION_INVENTORY', 'ONPC_TEST_RETRY_CASE', 'ONPC_TEST_COMPLETED_CASES',
                  FRAME_DIRECTORY, WORKFLOW_DIRECTORY, 'ONPC_REPAIR_STARTUP_FD',
-                 'ONPC_REPAIR_WRITER_FD', 'ONPC_REPAIR_RECOVERY_ONLY'):
+                 'ONPC_REPAIR_WRITER_FD', 'ONPC_REPAIR_RECOVERY_ONLY',
+                 'ONPC_LAUNCHER_RELOAD_BASELINE', 'ONPC_VM_RELOAD_KEEPER'):
         result.pop(name, None)
     result['PYTHONUNBUFFERED'] = '1'
     return result
@@ -699,7 +700,8 @@ def _audit_start(store, directory, pending):
 
 
 def select(root, name, command, *, stop=False, stop_marker='cancel',
-           on_attach=None, on_start=None, on_prepare=None, namespace=None, resumable_start=False):
+           on_attach=None, on_start=None, on_prepare=None, namespace=None, resumable_start=False,
+           reload=False, existing_only=False):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
@@ -720,8 +722,12 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
                 on_attach(run)
             if stop:
                 (run / stop_marker).touch(mode=0o600)
+            elif reload:
+                from launcher_reload import request
+                request(run)
+                print(f'{name}: reload requested; continuing the same run.', flush=True)
             return run, False
-        if stop:
+        if stop or existing_only:
             return None, False
         pending_path = directory / 'pending-start.json'
         pending = None
@@ -796,7 +802,10 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
             atomic(directory / 'current.json', published_record)
             output_context = (run / 'output').open('xb')
         with output_context as output:
-            subprocess.Popen(argv, cwd=root, env=environment(), stdin=subprocess.DEVNULL,
+            from launcher_reload import ReloadRequest
+            child_environment = environment()
+            ReloadRequest(run).inherit(child_environment)
+            subprocess.Popen(argv, cwd=root, env=child_environment, stdin=subprocess.DEVNULL,
                              stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
                              pass_fds=(owner, *scratch_descriptors()))
         return run, True
@@ -951,6 +960,9 @@ def follow(run, stream=None, *, label='launcher', view=None, display=None):
 
 def follow_output(run, stream, display, *, label='launcher', test_session=False,
                   destination=None, owner_busy=None, view=None):
+    import launcher_bootstrap
+    from launcher_observer import reload_if_requested
+    from launcher_reload import ReloadRequest
     from launcher_view import view_for
     from launcher_render import clean
     from watch_output import JsonReader, snapshot
@@ -958,6 +970,9 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
     view = view or view_for(label)
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     forwarded = None
+    # Internal test-output forwarding remains in its owning process. Public
+    # observers can unwind through the stable bootstrap and resume directly.
+    reload = ReloadRequest(run) if launcher_bootstrap.enabled and destination is None else None
     with lock((run if test_session else run.parent) / 'owner') as owner, (run / 'output').open('rb') as output:
         offset = 0 if test_session else max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES)
         output.seek(offset)
@@ -1004,6 +1019,8 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
                 if not active:
                     lines = []
                 display.update(steps, lines)
+            if active and reload is not None:
+                reload_if_requested(reload, run, label, view, display, test_session=test_session)
             data = output.read(65536)
             if data:
                 display.write(decoder.decode(data))

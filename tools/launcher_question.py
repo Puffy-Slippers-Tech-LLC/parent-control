@@ -77,7 +77,7 @@ def validate_blocker(blocker):
 
 
 def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
-                    on_wait=lambda: None):
+                    on_wait=lambda: None, on_poll=lambda: None):
     """The owner waits without a timeout; shared observers submit the answer."""
     from launcher_progress import publish_progress
     from launcher_render import AgentRenderer, SessionTranscript
@@ -105,6 +105,7 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
                 raise launcher.Stopped()
             if (run / 'stop').exists():
                 return None
+            on_poll()
             question = json.loads(path.read_text())
             if question['answer'] is not None:
                 renderer.console.print('\n'.join(QuestionInput(question, None).lines()), markup=False)

@@ -170,6 +170,7 @@ def test_environment(root):
     result.pop(RECORDING_CONTROL, None)
     result.pop(test_activity.VARIABLE, None)
     result.pop(test_activity.HOST_VARIABLE, None)
+    result.pop(test_activity.COMPATIBILITY_VARIABLE, None)
     # Unit doubles deliberately replace/remove paths. They must not register
     # those fixtures as real aggregate outputs. UI workers opt in explicitly.
     import test_retention
@@ -294,6 +295,9 @@ def main(argv=None, *, category='unit'):
             raise ValueError('run host tests as an unprivileged user')
         root = Path(__file__).resolve().parents[1]
         argv = list(sys.argv[1:] if argv is None else argv)
+        reload = category == 'unit' and '--reload' in argv
+        if reload:
+            argv = [arg for arg in argv if arg != '--reload']
         # Validate before creating ownership files or running prerequisites.
         pytest_command(root, argv[1:] if argv[:1] == ['--unattended'] else argv, category)
         # Collection is inspection, including through the direct UI wrapper.
@@ -314,7 +318,8 @@ def main(argv=None, *, category='unit'):
             # workers already own their session and must never reattach to it.
             from regression_session import main as session_main
             options = argv[1:] if argv[:1] == ['--unattended'] else argv
-            return session_main(root, [category, '--unattended', *options])
+            return session_main(root, [category, '--unattended', *options],
+                                **({'reload': True} if reload else {}))
         with test_activity.activity(root, host_only=None if inherited else True):
             if argv[:1] == ['--unattended']:
                 from regression_process import host_run

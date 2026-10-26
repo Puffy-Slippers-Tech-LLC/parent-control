@@ -1414,7 +1414,12 @@ Parent About, replace `--ready` with `--scenario 'E2E-030/parent'`. The
 pending scope and prerequisites.
 Every `tools/run-tests` category runs independently of its terminal. Closing the
 terminal detaches the display; tests continue. Ctrl+C requests cancellation and
-waits for owned cleanup. Invoke `tools/run-tests --vm NAME` for a VM run in a new terminal to attach to
+waits for owned cleanup. `--reload` requests fresh shared launcher code through the
+[stable bootstrap](../docs/Execution-Plans.md#common-launcher-interface), following
+the same run. Observers defer replacement while input is unfinished; controllers
+join admitted work and preserve completed cases before replacement. Source edits
+alone never trigger reload. When idle, `--reload` is ignored and starts normally.
+Invoke `tools/run-tests --vm NAME` for a VM run in a new terminal to attach to
 the existing progress and final output, including its exit status. While a run
 is active in the requested scope, execution invocations warn and attach to it,
 ignoring new categories or invalid options. VM attachment and cancellation

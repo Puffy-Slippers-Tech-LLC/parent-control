@@ -515,7 +515,8 @@ class LauncherDisplay:
                 self.stream.write('\033[?1002l\033[?1006l\033[?2004l')
                 self.stream.flush()
             finally:
-                termios.tcsetattr(self.input_fd, termios.TCSAFLUSH, self.input_attributes)
+                action = termios.TCSANOW if getattr(self, 'reloading', False) else termios.TCSAFLUSH
+                termios.tcsetattr(self.input_fd, action, self.input_attributes)
                 self.input_fd = None
                 self.input_attributes = None
         if self.screen:

@@ -12,6 +12,7 @@ import queue
 from typing import Callable
 
 from regression_resources import Admission, HOST_WORKERS
+import launcher_reload
 
 
 @dataclass
@@ -61,6 +62,7 @@ def run_jobs(jobs, *, control, begin, run_command, admission=None, waiting=lambd
     messages = queue.Queue(maxsize=8)
     reasons = {}
     failure = None
+    reloading = False
     maximum = 0
 
     def wait_for(job, reason):
@@ -80,8 +82,10 @@ def run_jobs(jobs, *, control, begin, run_command, admission=None, waiting=lambd
                     admission.update()
                 if control.stopped.is_set():
                     pending.clear()
+                if launcher_reload.pending() and not control.stopped.is_set() and not active:
+                    launcher_reload.check()
                 for job in list(pending):
-                    if control.stopped.is_set():
+                    if control.stopped.is_set() or launcher_reload.pending():
                         break
                     if any(outcomes.get(key) is False for key in job.requires):
                         blocked(job, 'required host job failed')
@@ -99,7 +103,7 @@ def run_jobs(jobs, *, control, begin, run_command, admission=None, waiting=lambd
                         wait_for(job, admission.reason)
                         continue
                     command = job.command() if callable(job.command) else job.command
-                    if control.stopped.is_set():
+                    if control.stopped.is_set() or launcher_reload.pending():
                         break
                     execution = begin(job)
                     if control.stopped.is_set():
@@ -148,6 +152,8 @@ def run_jobs(jobs, *, control, begin, run_command, admission=None, waiting=lambd
                         finally:
                             execution.close()
                 tick()
+        except launcher_reload.ReloadRequested as error:
+            failure, reloading = error, True
         except BaseException as error:
             failure = error
             control.stop()
@@ -157,22 +163,24 @@ def run_jobs(jobs, *, control, begin, run_command, admission=None, waiting=lambd
             while active:
                 try:
                     execution, data = messages.get(timeout=.1)
-                    if failure is None:
+                    if failure is None or reloading:
                         execution.output(data)
                 except queue.Empty:
                     pass
                 except BaseException as error:
-                    failure = failure or error
+                    failure = error if reloading else failure or error
+                    reloading = False
                     control.stop()
                 for future in list(active):
                     if future.done() and messages.empty():
                         _, execution = active.pop(future)
                         try:
                             status = future.result()
-                            if failure is None:
+                            if failure is None or reloading:
                                 execution.finish(status)
                         except BaseException as error:
-                            failure = failure or error
+                            failure = error if reloading else failure or error
+                            reloading = False
                             control.stop()
                         finally:
                             execution.close()

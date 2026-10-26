@@ -16,6 +16,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import detached_launcher as launcher
+from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from test_storage import directory as storage_directory
 from tools import whats_new_catalogs as catalogs
 
@@ -218,22 +219,38 @@ def execute(root, run, owner, model, effort, subagents):
 
 def worker(root, run, owner, model, effort, subagents, batch_size):
     status, summary = 1, 'incomplete'
+    reload_request = ReloadRequest(run)
+    reloading = False
+    retained = run / 'translation-state.json'
     try:
-        release = catalogs.prepare(root)
+        if (run / 'cancel').exists():
+            raise launcher.Stopped()
+        saved = json.loads(retained.read_text()) if retained.exists() else {}
+        release = catalogs.latest(root)
+        if saved and (saved['source_digest'] != release.source_digest
+                      or tuple(saved.get('languages', release.languages)) != release.languages):
+            raise ValueError('English source or supported languages changed during translation; rerun')
+        saved = dict(source_digest=release.source_digest, languages=list(release.languages),
+                     batches=saved.get('batches', 0), completed=saved.get('completed', []))
+        launcher.atomic(retained, saved)
+        catalogs.prepare(root, release)
         work = catalogs.pending(root, release)
+        if set(saved['completed']) & work.keys():
+            raise ValueError('a completed translation changed; preserve edits and start a new run')
         print(f'sync-whatsnew: latest v{release.version}; {len(work)} languages pending; '
               f'{model} {effort}, Standard speed, up to {subagents} read-only helpers.', flush=True)
         languages = list(work)
         for offset in range(0, len(languages), batch_size):
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
+            reload_request.check()
             batch = {language: work[language] for language in languages[offset:offset + batch_size]}
             originals = {language: catalogs.fingerprint(catalogs.catalog_path(root, release, language))
                          for language in batch}
             context = translation_context(root, batch)
             (run / 'prompt.txt').write_text(prompt(release, batch, subagents, context=context), encoding='utf-8')
             (run / 'agent-result.json').unlink(missing_ok=True)
-            number = offset // batch_size + 1
+            number = saved['batches'] + 1
             print(f'sync-whatsnew: batch {number}: ' + ', '.join(batch), flush=True)
             lanes = assignments(batch, subagents)
             print(f'sync-whatsnew: {len(lanes)} translation lanes '
@@ -242,17 +259,31 @@ def worker(root, run, owner, model, effort, subagents, batch_size):
             response = execute(root, run, owner, model, effort, subagents)
             (run / 'agent-result.json').replace(run / f'batch-{number}.json')
             apply_response(root, release, batch, response, originals)
+            saved.update(batches=number, completed=[*saved['completed'], *batch])
+            launcher.atomic(retained, saved)
             print(f'sync-whatsnew: batch {number} validated in {time.monotonic() - started:.1f}s; '
                   + response['summary'], flush=True)
         if catalogs.latest(root) != release:
             raise ValueError('English source changed during translation; rerun')
         catalogs.check(root)
         status, summary = 0, f'v{release.version}: all {len(release.languages)} non-English languages complete'
+        reload_request.check()
+    except ReloadRequested:
+        reloading = True
     except launcher.Stopped:
         status, summary = 130, 'cancelled; validated translations retained; rerun to finish pending entries'
     except Exception as error:
         summary = str(error)
     finally:
+        if reloading and (run / 'cancel').exists():
+            status, summary = 130, 'cancelled; validated translations retained'
+        if reloading and not (run / 'cancel').exists():
+            try:
+                replace_interpreter(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                    '--worker', str(root), str(run), str(owner), model, effort,
+                    str(subagents), str(batch_size)], (owner, *launcher.scratch_descriptors()))
+            except OSError as error:
+                status, summary = 1, f'controller reload failed: {error}; resume the retained run'
         launcher.atomic(run / 'result.json', dict(status=status, summary=summary))
         print('sync-whatsnew: ' + summary, flush=True)
         os.close(owner)
@@ -289,6 +320,8 @@ def main(argv=None):
         actions.add_argument('--check', action='store_true', help='validate latest-release completeness; no writes/model')
         actions.add_argument('--prepare', action='store_true', help='prepare latest translation PO/POT sources; no model')
         actions.add_argument('--stop', action='store_true', help='cancel only the owned translation session and await cleanup')
+        actions.add_argument('--reload', action='store_true',
+                             help='reload a running launcher after the current batch; ignored when starting')
         parser.add_argument('--model', default=DEFAULT_MODEL, help='coordinator/translator model (default: gpt-6.1-sol)')
         parser.add_argument('--effort', choices=('medium', 'high', 'xhigh'), default=DEFAULT_EFFORT)
         parser.add_argument('--subagents', type=int, choices=range(0, 7), default=DEFAULT_SUBAGENTS,
@@ -319,7 +352,8 @@ def main(argv=None):
             return [sys.executable, '-IBu', str(Path(__file__).resolve()), '--worker', str(ROOT),
                     str(run), str(owner), args.model, args.effort, str(args.subagents), str(args.batch_size)]
 
-        run, _started = launcher.select(ROOT, 'sync-whatsnew', start, stop=args.stop)
+        run, _started = launcher.select(ROOT, 'sync-whatsnew', start, stop=args.stop,
+                                       **({'reload': True} if args.reload else {}))
         if run is None:
             print('sync-whatsnew: no active translation session')
             return 0

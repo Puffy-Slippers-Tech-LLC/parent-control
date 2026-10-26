@@ -14,6 +14,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import detached_launcher as launcher
+from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer as wait_for_developer
 from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
                               retain_result_rejection, result_recovery_instructions, task_limit,
@@ -834,7 +835,7 @@ def retain_diagnostic_state(state, result):
     return state
 
 
-def wait_for_answer(run, state, progress_key):
+def wait_for_answer(run, state, progress_key, *, on_poll=lambda: None):
     """The detached owner waits; terminals may come and go without answering."""
     from launcher_progress import read_progress
     blocker = state.get('blocker') or {
@@ -849,7 +850,8 @@ def wait_for_answer(run, state, progress_key):
                     'task_session': state['task_sessions'], 'task_id': state['task_id'], 'status': 'blocked'})
     answer = wait_for_developer(
         run, blocker, state['blocker_id'], progress_key, label='write-e2e', heading=heading,
-        on_wait=lambda: save_handoff(run, state, 'waiting for your answer', display=False))
+        on_wait=lambda: save_handoff(run, state, 'waiting for your answer', display=False),
+        on_poll=on_poll)
     if answer is None:
         return False
     state.update(phase='recover', recovery_run=str(run), user_answer=answer)
@@ -1074,7 +1076,6 @@ def task_info_instructions(run, task):
 
 def worker(root, run, owner, tasks, state_json):
     from launcher_progress import publish_progress, read_progress
-    from repair_evidence import controller_sources
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     def cancel(*_):
@@ -1090,8 +1091,13 @@ def worker(root, run, owner, tasks, state_json):
     total = state.get('total_sessions', state.get('task_sessions', 0))
     count, completed, status, reason = 0, 0, 0, 'task limit reached'
     completions = []
+    retained_runtime = state.pop('reload_runtime', None)
+    if retained_runtime is not None:
+        count, completed = retained_runtime['sessions'], retained_runtime['completed']
+        completions = retained_runtime['completions']
     budget = TaskBudget(run)
-    sources = controller_sources()
+    reload_request = ReloadRequest(run)
+    reloading = False
     final_replayed_stall = False
 
     def compact_completions():
@@ -1099,6 +1105,8 @@ def worker(root, run, owner, tasks, state_json):
             publish_completion(run, task_id, heading, duration, keys)
 
     try:
+        if (run / 'cancel').exists():
+            raise launcher.Stopped()
         if state.get('source_changed_result') is not None:
             # The previous controller could not load changed validation code.
             # Replay its exact closed response under this fresh process without
@@ -1139,14 +1147,17 @@ def worker(root, run, owner, tasks, state_json):
             state['commit_required'] = True
             launcher.atomic(run / 'checkpoint.json', state)
         while not final_replayed_stall:
-            if controller_sources() != sources:
-                reason = 'controller sources changed; restart tools/write-e2e from the retained boundary'
-                break
+            if (run / 'cancel').exists():
+                raise launcher.Stopped()
             if state['phase'] == 'complete' and optimization_due(state):
                 state = start_optimization(state)
                 launcher.atomic(run / 'checkpoint.json', state)
+            if (run / 'stop').exists():
+                reason = 'stopped at a session boundary'
+                break
+            reload_request.check()
             if state['phase'] == 'blocked':
-                if not wait_for_answer(run, state, str(count)):
+                if not wait_for_answer(run, state, str(count), on_poll=reload_request.check):
                     reason = 'paused at your request'
                     break
                 # An explicit answer authorizes a recovery session even when
@@ -1155,9 +1166,7 @@ def worker(root, run, owner, tasks, state_json):
                 state['task_session_limit'] = max(state.get('task_session_limit', MAX_TASK_SESSIONS),
                                                   state['task_sessions'] + 1)
                 launcher.atomic(run / 'checkpoint.json', state)
-                if controller_sources() != sources:
-                    reason = 'controller sources changed; restart tools/write-e2e with the retained answer'
-                    break
+                reload_request.check()
             if task_session_limit_reached(state):
                 status, reason = 1, 'task session limit reached'
                 budget.close()
@@ -1234,20 +1243,17 @@ def worker(root, run, owner, tasks, state_json):
                     state['stage_candidates'] = sorted(candidates)
                     launcher.atomic(run / 'checkpoint.json', state)
                     launcher.finish_nested(root, run)
-                if controller_sources() != sources:
+                if reload_request.pending():
                     state['source_changed_result'] = result
                     launcher.atomic(run / 'checkpoint.json', state)
-                    reason = 'controller sources changed; restart tools/write-e2e to validate the retained response'
-                    break
+                    raise ReloadRequested()
                 updated = validate_session_result(result, lambda result: accept_result(root, state, result, before))
             except SessionResultRejected as error:
                 launcher.finish_nested(root, run)
                 state.update(phase='optimize' if state.get('optimization_session') else 'recover',
                              in_flight=False)
                 retain_result_rejection(run, error, label='write-e2e', checkpoint=state)
-                if controller_sources() != sources:
-                    reason = 'controller sources changed; restart tools/write-e2e with the retained rejected response'
-                    break
+                reload_request.check()
                 continue
             updated.pop('result_recovery', None)
             optimizing = bool(state.get('optimization_session'))
@@ -1281,11 +1287,31 @@ def worker(root, run, owner, tasks, state_json):
                 compact_completions()
         if (run / 'stop').exists():
             reason = 'stopped at a session boundary'
+    except ReloadRequested:
+        reloading, reason = True, 'manual reload requested; continuing the retained boundary'
     except launcher.Stopped:
         status, reason = 130, 'cancelled after owned cleanup'
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         status, reason = 1, str(error)
     finally:
+        if reloading:
+            try:
+                launcher.finish_nested(root, run)
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                reloading, status, reason = False, 1, f'owned cleanup failed: {error}'
+            if (run / 'cancel').exists():
+                reloading, status, reason = False, 130, 'cancelled after owned cleanup'
+            elif (run / 'stop').exists():
+                reloading, reason = False, 'stopped at a session boundary'
+        if reloading:
+            state['reload_runtime'] = dict(sessions=count, completed=completed, completions=completions)
+            save_handoff(run, state, reason, display=False)
+            try:
+                replace_interpreter(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                    '--worker', str(root), str(run), str(owner), json.dumps(tasks), '{}'],
+                    (owner, *launcher.scratch_descriptors()))
+            except OSError as error:
+                status, reason = 1, f'controller reload failed: {error}; resume the retained run'
         previous = read_progress(run)
         if previous and not previous[-1].get('replaces'):
             lines = previous[-1]['lines']
@@ -1470,7 +1496,8 @@ def select(root, argv):
             launcher.atomic(run / 'task-info.json', initial_info)
 
     return launcher.select(root, 'write-e2e', command, stop='--stop' in argv, stop_marker='stop',
-                           on_attach=attach, on_start=start)
+                           on_attach=attach, on_start=start,
+                           **({'reload': True} if '--reload' in argv else {}))
 
 
 def main(argv=None):

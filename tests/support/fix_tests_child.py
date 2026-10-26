@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+
 
 def app_server(args):
     """Expose the existing repair double through the shared conversation protocol."""
@@ -374,6 +376,10 @@ def main(*, conversation_prompt=None):
         source_root = Path((root / 'controller-root').read_text())
         changed = source_root / 'tools' / script['change_source']
         changed.write_bytes(changed.read_bytes() + b'\n# changed dependency bytes\n')
+        from launcher_reload import request
+        from fix_tests_queue import parent_run
+        workflow_run = Path(os.environ['ONPC_FIXTURE_RUN'])
+        request(parent_run(workflow_run) or workflow_run)
     print(json.dumps({'type': 'item.completed', 'item': {
         'id': 'thinking', 'type': 'reasoning', 'text': 'PRIVATE REASONING FIXTURE'}}), flush=True)
     print(json.dumps({'type': 'item.completed', 'item': {

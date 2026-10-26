@@ -14,8 +14,10 @@ import stat
 
 VARIABLE = 'ONPC_TEST_ACTIVITY_FD'
 HOST_VARIABLE = 'ONPC_TEST_HOST_ACTIVITY_FD'
+COMPATIBILITY_VARIABLE = 'ONPC_TEST_COMPATIBILITY_FD'
 _descriptor = None
 _host_descriptor = None
+_compatibility_descriptor = None
 _host_only = False
 _named_vm = False
 
@@ -32,12 +34,16 @@ def retention_path(root):
     return legacy.with_name('retention' + suffix)
 
 
-def descriptors():
-    return tuple(fd for fd in (_descriptor, _host_descriptor) if fd is not None)
+def descriptors(*, reloading=False):
+    values = (_descriptor, _host_descriptor, _compatibility_descriptor) if reloading else (_descriptor, _host_descriptor)
+    return tuple(fd for fd in values if fd is not None)
 
 
-def environment():
-    return {key: str(fd) for key, fd in ((VARIABLE, _descriptor), (HOST_VARIABLE, _host_descriptor))
+def environment(*, reloading=False):
+    values = [(VARIABLE, _descriptor), (HOST_VARIABLE, _host_descriptor)]
+    if reloading:
+        values.append((COMPATIBILITY_VARIABLE, _compatibility_descriptor))
+    return {key: str(fd) for key, fd in values
             if fd is not None}
 
 
@@ -109,7 +115,7 @@ def cleanup_verified(root):
 
 @contextmanager
 def activity(root, *, host_only=None, named_vm=None, includes_host=False):
-    global _descriptor, _host_only, _named_vm
+    global _descriptor, _host_only, _named_vm, _compatibility_descriptor
     directory = Path(root) / 'artifacts/test-activity'
     for parent in (directory, *directory.parents):
         if parent.is_symlink():
@@ -118,6 +124,7 @@ def activity(root, *, host_only=None, named_vm=None, includes_host=False):
     previous = _descriptor
     previous_host_only = _host_only
     previous_named_vm = _named_vm
+    previous_compatibility = _compatibility_descriptor
     value = os.environ.get(VARIABLE)
     inherited = previous
     if inherited is None and value is not None:
@@ -163,8 +170,20 @@ def activity(root, *, host_only=None, named_vm=None, includes_host=False):
             if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
                     or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
                 raise ValueError('unsafe test activity lock')
+            inherited_compatibility = previous_compatibility
+            if inherited_compatibility is None and COMPATIBILITY_VARIABLE in os.environ:
+                value = os.environ[COMPATIBILITY_VARIABLE]
+                if not value.isdecimal() or int(value) < 3:
+                    raise ValueError('invalid inherited compatibility activity descriptor')
+                inherited_compatibility = int(value)
+            if inherited_compatibility is not None:
+                other = os.fstat(inherited_compatibility)
+                if (info.st_dev, info.st_ino) != (other.st_dev, other.st_ino):
+                    raise ValueError('foreign compatibility activity descriptor')
+            _compatibility_descriptor = (compatibility if inherited_compatibility is None
+                                         else inherited_compatibility)
             try:
-                fcntl.flock(compatibility, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                fcntl.flock(_compatibility_descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
             except BlockingIOError as error:
                 raise ValueError('another test launcher owns this checkout; wait for its cleanup') from error
         identity = os.fstat(opened)
@@ -195,6 +214,7 @@ def activity(root, *, host_only=None, named_vm=None, includes_host=False):
         _descriptor = previous
         _host_only = previous_host_only
         _named_vm = previous_named_vm
+        _compatibility_descriptor = previous_compatibility
         os.close(opened)
         if compatibility is not None:
             os.close(compatibility)

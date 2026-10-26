@@ -110,11 +110,11 @@ If Git cannot merge the changes, publication stops with the merge state in main;
 resolve and commit that merge, or abort it and reconcile the conflicting edits,
 then rerun `make publish`.
 
-To check or resume monitoring an uploaded release without publishing anything,
-run this from its release checkout or the reconciled main checkout:
+To reconnect to an ongoing publication, run the same command from its release
+checkout or the reconciled main checkout:
 
 ```sh
-make publish-status
+make publish
 ```
 
 Before displaying `MAIN UPDATED`, publishing durably records a monitoring
@@ -122,8 +122,10 @@ reference in main's private Git directory. Main status checks prefer this
 reference over any older local release journal and follow the release journal's
 progress. Each newer release replaces the reference; resuming an older release
 cannot replace a newer reference. Any legacy local journal is preserved.
-Main supports only `make publish-status`; `make publish` still requires a
-`releases/vX.Y` branch in the separate release checkout.
+On main, `make publish` only monitors publication. Starting or resuming the
+full publishing workflow requires a `releases/vX.Y` branch in the separate
+release checkout. When that checkout already has a running publisher,
+`make publish` connects to read-only publication monitoring instead.
 If the release checkout is removed or reused, main still checks the exact
 version recorded at handoff through the public endpoints.
 
@@ -133,7 +135,8 @@ the newest source version for
 resolute in the PPA. It immediately checks publication, prints green success and
 exits if verified, or continues polling with the same checks as `make publish`.
 A recorded attempt that has not reached the upload step reports an error; this
-command cannot upload it. The target invokes `tools/publish.py --status`.
+monitor cannot upload it. Direct `tools/publish.py --status` remains available
+for read-only monitoring from any branch.
 
 [`tools/publish.py`](../tools/publish.py) is the single publishing entry point.
 Its supporting source-verification and signing modules live in
@@ -361,9 +364,9 @@ completion. A different clone has no knowledge of an uncertain upload: do not
 restart the same release there or copy/delete the journal to bypass recovery.
 The atomic non-forced branch/tag push prevents competing prepared attempts
 from replacing published refs, but local locks do not coordinate independent
-clones. Use `make publish-status` after an interruption to resume monitoring,
+clones. Use `make publish` from main after an interruption to resume monitoring,
 including after updating the publishing tool or changing local files, HEAD,
-branch, or release notes in that checkout. It only reads the journal and public endpoints; it does
+or release notes while remaining on main. It only reads the journal and public endpoints; it does
 not build, sign, push, upload, update the journal, or fast-forward the checkout.
 It can also run alongside a publisher, monitoring the release selected at startup.
 The main checkout can monitor the handed-off release after `MAIN UPDATED`;
@@ -398,8 +401,8 @@ bodies or private error details. Public reads request HTTP cache revalidation.
 Success requires the exact source version, successful amd64 build, matching
 binary publication, package-index entry, and downloaded package checksum to
 agree. A timeout includes the last observed condition. After editing monitoring
-code, stop the old command and run `make publish-status` to load the changes.
-Unlike `make publish`, status checks accept a changed release checkout.
+code, stop the old command and run `make publish` from main to load the changes.
+Read-only monitoring accepts a changed checkout.
 
 If no source appears, inspect Launchpad and the publisher's rejection email.
 Resolve confirmed rejection or failed builds before starting a corrected release;

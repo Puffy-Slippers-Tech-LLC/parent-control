@@ -207,10 +207,6 @@ check-release-version:
 publish:
 	@tools/publish.py
 
-.PHONY: publish-status
-publish-status:
-	@tools/publish.py --status
-
 ifeq ($(shell id -u),0)
 APT := apt
 DNF := dnf

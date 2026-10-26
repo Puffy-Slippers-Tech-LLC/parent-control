@@ -287,10 +287,11 @@ retained evidence, main checkout selection and retry behavior. The main pause
 confirmation is the only routine publishing confirmation; credentials remain
 noninteractive.
 
-To check or resume monitoring an uploaded release from its release checkout:
+To reconnect to an ongoing publication, run the same command from its release
+checkout or the reconciled main checkout:
 
 ```sh
-make publish-status
+make publish
 ```
 
 ## Diagnose failures

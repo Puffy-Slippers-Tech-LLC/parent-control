@@ -216,9 +216,10 @@ input before VM acquisition. Unrelated callers retain the `native` closure.
 `check_e2e_baseline_journey` and `check_e2e_active_grant_disable`, respectively,
 to the finite `native`, `activity` and `baseline-child` union. The last subset supplies
 only Riley's four native catalogue launchers; Jordan retains the shared runtime
-and existing native launchers. `E2E-015/child-overlay-cancel` selects this same
-union under its own fixed caller identity before journey construction, so the
-original child activity can be verified and resumed after Cancel. It retains
+and existing native launchers. `E2E-015/child-overlay-cancel`,
+`E2E-015/child-overlay-escape` and `E2E-015/child-overlay-approved` select this same
+union under their own fixed caller identities before journey construction, so the
+original child activity can be verified and resumed after each exit. Each retains
 the shared readiness and activity-file verification before input; preparation
 does not establish the case's customer result. After app-snapshot restoration, guarded
 SSH readiness and fresh credential binding, `InstalledSetup.provision` uses the

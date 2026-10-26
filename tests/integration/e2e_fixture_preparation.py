@@ -7,7 +7,8 @@ SUBSETS = ('native',)
 ACTIVITY_SUBSETS = ('native', 'activity', 'baseline-child')
 ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
-                    'E2E-015/child-overlay-cancel', 'E2E-015/child-overlay-escape')
+                    'E2E-015/child-overlay-cancel', 'E2E-015/child-overlay-escape',
+                    'E2E-015/child-overlay-approved')
 
 
 def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):

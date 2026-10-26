@@ -54,6 +54,10 @@ PLAN = JourneyPlan(
 
 
 def execute(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    # Approved exit must resume the same activity captured before the request.
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-015/child-overlay-approved'
     record_installed_journey(recorder, context, PLAN, timeout=1800,
                              journey_type=KioskRequestJourney,
                              actions=fixture_actions(include_refusal=False))

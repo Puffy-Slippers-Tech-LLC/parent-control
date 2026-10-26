@@ -173,6 +173,9 @@ app is bootstrapped with fresh attempt credentials; an online resume cannot
 qualify this branch. After SSH readiness and system startup completion,
 `system_runner.installed_run` uses the
 same immutable input and trusted-hard provisioner before uploading system input.
+When the selected enforcement cases include `test_native_command_policy_is_uid_scoped`,
+preparation also selects `command`, supplying its executable and desktop launcher
+through that same guarded provisioner before the case verifies their bytes and metadata.
 Installed-product verification and all system assertions remain in their
 original order. A session reboot requires read-only readiness renewal for the
 new boot after system startup completes, without replacing fixtures or resetting

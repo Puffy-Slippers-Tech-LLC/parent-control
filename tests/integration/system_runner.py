@@ -2156,6 +2156,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             # An unused trusted-hard payload would force a full trust DB update.
             subsets = (('command',) if fixture_selection['target'] == 'ubuntu'
                        else (*subsets, 'command'))
+        if ('command' not in subsets and any(
+                item.area == 'enforcement'
+                and item.case_id == 'test_native_command_policy_is_uid_scoped'
+                for item in selection.executions)):
+            # Clean app snapshots omit the command and its desktop launcher.
+            # Prepare both before the case's read-only fixture verification.
+            subsets += ('command',)
         with ledger.measure('bootstrap'):
             vm.probe_ready()
             if already_installed:

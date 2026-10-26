@@ -177,7 +177,8 @@ Its dedicated engineering selector also verifies immutable
 selection after edits to the actual private producer source checkout, across
 two restored boots. Ubuntu's [installed-system preparation](../integration/README.md#ubuntu-installed-system-preparation)
 and the same [Fedora boundary](../integration/README.md#fedora-installed-system-preparation)
-use that same hard-only boundary after explicit offline app restoration and
+use that same boundary with the case-required subsets described in the
+installed-system contract, after explicit offline app restoration and
 fresh SSH bootstrap. Read-only readiness renewal after a session reboot
 checks the same selected bytes and native state without resetting scenario
 mutations. Ubuntu's [installed E2E preparation](../integration/README.md#ubuntu-installed-e2e-preparation)

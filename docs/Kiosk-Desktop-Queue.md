@@ -18,7 +18,7 @@ not general product acceptance. Ordinary tasks take 20–30 minutes; the named
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | D00 | [Audit the confinement replacement and cleanup boundary](Kiosk-Prompt-Tasks/D00-cleanup-audit.md) | Baseline | Verify the pinned v1.3 confinement lineage and map residual conflicting source and automation to their cleanup owners | 20–30 min |
+| [x] | D00 | Audit the confinement replacement and cleanup boundary | Baseline | Verify the pinned v1.3 confinement lineage and map residual conflicting source and automation to their cleanup owners | Reviewed lineage, admission residuals and finite gate prerequisites in the design owner; obsolete automation map empty; links and both metadata routes passed |
 | [ ] | D00a | [Close residual conflicting confinement source](Kiosk-Prompt-Tasks/D00a-source-cleanup.md) | D00 | Resolve one residual confinement issue and require both-target tolerant kiosk use before completion | 30–60 min; session exception: small confinement fix, review/build and both-target usability |
 | [ ] | D00b | [Close obsolete confinement automation consumers](Kiosk-Prompt-Tasks/D00b-automation-cleanup.md) | D00a | Reconcile residual obsolete v1.4 fixtures, imports and registrations with retained behavioral outcomes and historical evidence | 20–30 min |
 | [ ] | D01 | [Review full desktop entry routes](Kiosk-Prompt-Tasks/D01-desktop-review.md) | D00b | Verify accepted cleanup/baseline use and map finite local desktop attacks with permitted controls | 20–30 min |

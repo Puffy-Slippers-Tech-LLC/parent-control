@@ -230,6 +230,155 @@ Wellbeing and bounded package-diagnostic feature consumers. Current direct
 request/approval/cancellation APIs are preserved; no controller/visit-token API
 is selected.
 
+### D00 residual cleanup audit
+
+Source review at candidate `134ce316f372f35615242a01d2b7f1551597b690`
+confirmed `releases/v1.3` resolves to
+`188be907c46b1cd0dabae06ac898c43e75beb05e`. The worktree initially had no
+staged, unstaged or untracked changes. No overlapping baseline source work was
+present. Completed C01–C04
+dispositions and C05u/f acceptance remain accepted, without reopening reports.
+
+The release comparison retains `gnome-session --session oh-no-parent-control`,
+`Kiosk=true`, the required app and app-success/failure shutdown. Current deltas
+preserve the notification provider, vendor agent/locale restart interface,
+isolated shared form and named crash-notifier conflicts. The ordinary native
+time-check result mapping and GDM runtime-cap behavior remain release-derived.
+The added native kiosk dispatch/lease and UID-bound provisioning are reviewed
+below, rather than assumed safe from their lineage.
+
+The source/package retirement is already delivered: [Makefile](../../Makefile)
+selects the public session, current form, native PAM, provisioning and lifecycle;
+it selects no private runtime/material/view/preparation service, confinement
+loader, compositor/audio override or PreSession hook. Current file discovery and
+the C02d deletion in `a2b98d14` agree. Do not replay those deletions or restore
+whole release files. [The fixed feature wrapper](../../tools/kiosk_session.c)
+has only Wellbeing and package-query roles; it is not a session dispatcher.
+Historical policy capture/removal in
+[lifecycle_migration.py](../../packaging/lifecycle_migration.py) and its
+[package renderer](../../packaging/render_lifecycle.py) remains necessary for
+owned upgrade/rollback/post-erase cleanup, not a selectable legacy fallback.
+
+#### Admission refusals and recovery owners
+
+Trace: shared distro PAM → native `pam_sm_acct_mgmt`/`pam_sm_open_session` →
+`kiosk_identity`/`admission`/`run_kiosk_check` → login helper
+`main`/`verify_session`/`read_session`. Session opening also requires a successful
+account check on that handle; `pam_sm_close_session` retains the lease until
+`pam_end`. Provisioning/configuration is a separate writer, not a login repair
+daemon. These complete functions and their callers establish the following
+finite map for both targets; none of the errors below proves a child attack.
+
+| Boundary and current result | Disposition, owner and representative control |
+| --- | --- |
+| [Native `kiosk_identity`](../../tools/pam_oh_no_parent_control.c) and [login helper `main`](../../tools/oh-no-parent-control-login-check) reject every service except `gdm-password`/`systemd-user`; missing service is an error. Native non-kiosk accounts bypass kiosk checks; `systemd-user` keeps a lease without routing work. | **D00a residual: service-name allowlist.** Unknown graphical-service naming alone is no deliberate breach predicate. Positive control: the dedicated Wayland app selected through `gdm-autologin` or an unfamiliar graphical PAM service, with actual execution verified. Pair it with a specifically reached prohibited route, not a synthetic name. Named terminal/SSH/remote services are leads, not proof of actual selected execution. D01/D01r and remaining C06a own those route maps. Do not turn arbitrary PAM invocations into successful unrestricted sessions. |
+| Login helper `verify_session` repairs a saved session/type mismatch, then returns denial even after successful readback. Account stage uses the saved type; session stage uses `XDG_SESSION_TYPE`. Empty/unrecognized values also deny. Saved defaults do not attest to the selected executable. | **D00a residual: routing/retry boundary.** `Session=ubuntu`, empty saved fields, or stale `SessionType=x11` with an actual dedicated Wayland launch are availability controls, not attacks. Keep the actual alternate-desktop attempt separate for D01/D02. Prefer safe owned repair or removing the avoidable dependency; prove usable entry after recovery without a rejection loop or manual state deletion. Missing transport alone supplies no attack evidence. |
+| `read_session` parse failure, missing NSS account, UID zero, bus error or timeout returns unavailable (2); repair setter/readback errors return denial (1). Native `run_kiosk_check` maps them to PAM errors. Each bus call is bounded at 4/5 seconds and the native child at 25 seconds, with reap on timeout. | **D00a residual: routing-service availability**, separate from routing drift if it needs an independent fix. Preserve foreign/invalid identity barriers. Malformed or temporarily unavailable routing discovery must not become an attack verdict or a kiosk password requirement. Cover one malformed reply and one transient service failure with restoration and fresh public use. Preserve original sanitized cause; do not mechanically translate errors to PAM success. |
+| Native `admission`: a missing lease is created read-only/no-follow; an existing lease is opened read-only. New-inode `fstat`/`lstat`/identity/`fchmod`, existing open, shared `flock`, and retained `lock_current` stat/identity/barrier checks can all deny. Existing mode other than 0600, changed inode/link/type/owner, or inaccessible barrier state is never repaired. | **D00a residual: owned lease recovery.** Separate a stale but proven owned inode/mode or transient I/O fault from foreign/replaced state. No mode bit, failed stat or missing state demonstrates child control. Keep no-follow/inode ownership and foreign/live preservation; repair only proven owned state through its writer. Controls: absent/new lease, healthy existing lease, one owned stale-mode case, retained-handle recheck, and release/reentry. Do not unlink a live or foreign inode. |
+| Shared-lock contention and an existing removal marker deny immediately. `lock_current` also rechecks the marker on existing handles. | **Preserve actual lifecycle ownership**, not an attack claim. An active exclusive configuration/removal writer must exclude admission; a live admission must exclude removal through teardown. A failed read, orphaned owned marker or accidental contention is not evidence of an active authorized operation. D00a's lease/recovery slice must distinguish these and demonstrate fresh use after the owner finishes; wider interrupted-state histories remain with remaining C09c. |
+| Native PAM user/service/data errors, wrong options, absent successful account binding, allocation/clock/fork/exec/wait failure or abnormal helper exit fail the attempt. Session maps failure to `PAM_SESSION_ERR`; `pam_set_data` failure releases a newly held lease. | Preserve API/identity and same-handle authority, bounded child cleanup and no fabricated grant. These are operational failures, not desktop-defense passes. D00a changes only directly affected recovery paths; reuse host timeout/fresh-retry and handle-binding controls, then public entry after restoration. Ordinary authentication/time enforcement and explicit vendor/admin denial stay authoritative. |
+| [Provisioning](../../tools/provision.py) `kiosk_account`, `cache_kiosk`, `provision_accounts_service` and `provision_configuration` reject foreign UID/home/admin identity, unsafe ownership, wrong object/visibility/limit/routing readbacks, missing templates or invalid broker configuration. `provision_icon` alone catches optional artwork errors. | Retain identity/configuration authority and optional icon isolation. A service/parse/readback failure during owned configure can leave quarantine; it is availability work, not attack success. D00a owns a demonstrated direct admission-cleanup conflict; do not add provisioning to every login or a host inventory. Keep fresh unsaved and retained hidden-account recovery distinct; opaque AccountsService metadata and a missing/custom icon must remain usable. |
+| [Package postinst](../../packaging/lifecycle/postinst.in) calls lifecycle `prepare`, visibility recovery, provisioning, distro activation, `commit_migration` and `release_account`. Readiness/foreign-state/contention failures retain quarantine/records. Distro `verify`/`runtime_ready` check finite owned blocks/payload, preserving opaque vendor content and administrator edits. | **Retain owned migration/removal**, including capture receipts and post-erase finalization. Verify recovery through the maintained configure retry, never manual record deletion. Existing first-configuration, interruption and vendor-PAM histories remain their owners. The documented [expiry provenance limitation](Lifecycle.md#kiosk-provisioning-and-selected-session) is unresolved, not evidence that an administrator's day-1 denial can be cleared. Broader lifecycle redesign is outside D00a cleanup; any directly affected authority defect needs its own both-target prerequisite. |
+
+Selected session units have no private readiness/material dependency or human
+idle deadline. Notifications and the vendor agent are wanted, not required;
+app failure/exit shuts down the session. An absent optional unit is not an
+admission predicate. The app still needs the system bus at construction;
+`RequestWindow._load_users`, `_users_done` and `_approvers_done` surface broker
+failures, while `_preferences_saved` → `_agent_prepared` → `_request_done` keeps
+genuine approval, denial and Cancel separate. `_request_failed` re-enables the
+form; `KioskLogout` bounds public logout handoff at 750 ms with unit shutdown
+fallback. Do not claim this proves every service outage recovers automatically.
+
+Preserve these main feature consumers in
+[main.py](../../kiosk/oh_no_parent_control_kiosk/main.py),
+[agent_locale.py](../../kiosk/oh_no_parent_control_kiosk/agent_locale.py) and
+[session_logout.py](../../kiosk/oh_no_parent_control_kiosk/session_logout.py).
+Locale discovery/C-only inventories and agent environment-write/restart/job/
+timeout errors stop approval, not session admission. The existing
+[native-authentication fallback gap](Localization.md#native-authentication-fallback)
+belongs to remaining C09a1; required shared-service and unavailable-child gaps
+remain C09b/C09b1. They are availability defects, not justified protective
+refusals, and gain no acceptance here. No language/feature campaign is added to
+desktop cleanup; an edit touching these callers must include its affected control.
+
+#### Automation disposition and bounded validation
+
+**D00b residual: empty in the inspected selected consumers.**
+[test_enforcement.py](../../tests/system/test_enforcement.py) binds 267 to
+`system_kiosk_confinement.verify_session_composition`, 268 to
+`system_kiosk_admission.verify` and 271 to `system_kiosk_scope.verify`.
+Their exact owners are
+[system_kiosk_confinement.py](../../tests/integration/system_kiosk_confinement.py),
+[system_kiosk_admission.py](../../tests/integration/system_kiosk_admission.py) and
+[system_kiosk_scope.py](../../tests/integration/system_kiosk_scope.py).
+The census explicitly reports identity-only/unqualified confinement; 268 proves
+account routing/refusal/retry, not graphical authentication or usable entry.
+271 preserves vendor execution and invocation-owned cleanup. No selected private
+view worker/import was found. [The registry](../../tests/integration/system_case_ids.py)
+keeps 270/292/10 retired and 269/289–294's pending/retired dispositions;
+`validate_inventory` rejects registration of `UNBOUND_CASES`. Preserve those IDs
+and historical results, not their retired machinery.
+
+Retain product coverage in
+[test_prepared_kiosk_pam.py](../../tests/unit/test_prepared_kiosk_pam.py),
+[test_kiosk_login.py](../../tests/unit/test_kiosk_login.py),
+[test_provision.py](../../tests/unit/test_provision.py),
+[test_kiosk_confinement.py](../../tests/unit/test_kiosk_confinement.py),
+[test_system_kiosk_admission.py](../../tests/unit/test_system_kiosk_admission.py),
+[test_system_kiosk_scope.py](../../tests/unit/test_system_kiosk_scope.py) and
+[test_package_configuration.py](../../tests/unit/test_package_configuration.py).
+Old refusal assertions describe current behavior, not usability approval; revise
+only the affected product expectations with their authorized repair. Names such
+as “prepared” do not justify deleting current product tests. No task-brief/history
+tests or replacement tests of retired tests are required by this review.
+
+Concrete earlier failure boundaries survive in source: Fedora GDM `xdm_t`
+versus user-manager `init_t` requires read-only shared leases; lifecycle
+`barriers` labels only its verified exclusively held inode `xdm_var_run_t`
+when package creation would leave `var_run_t` (delivered in `03c206e4`).
+`test_removal_exclusion_spans_close_until_pam_end_and_releases` checks new/existing
+leases for both callers; installed `caller_identity`/`pam_caller_command` retains
+the real Fedora contexts. [system_kiosk_accounts.py](../../tests/integration/system_kiosk_accounts.py)
+`fixture_record`/`exercise` retains `SystemAccount=true` despite visible daemon
+state, unknown metadata/xattrs, unsafe-mode and atomic recovery cases. The exact
+inputs of other earlier passwordless-login incidents are unavailable; these are
+known error-boundary controls, not a claim to have reproduced those incidents.
+
+D00a's finite gate uses the qualified
+[cross-plan operations](../TestAutomation/E2E-Building-Blocks.md#cross-plan-baseline-reuse):
+`journey_blocks.station_entry`, `request_flow.prepared_request` (75 seconds,
+one child/approver), `approval_flow.rejected_request` (wrong password and
+independent Cancel), `kiosk_approved_flow.approved_request`, public Parent grant
+readback, normal exit and fresh usable entry/request, then owned restoration.
+Their source owners are [journey_blocks.py](../../tests/e2e/journey_blocks.py),
+[request_flow.py](../../tests/e2e/request_flow.py),
+[approval_flow.py](../../tests/e2e/approval_flow.py),
+[kiosk_approved_flow.py](../../tests/e2e/kiosk_approved_flow.py) and
+[kiosk_approval.py](../../tests/e2e/kiosk_approval.py).
+`QUALIFICATION_PLAN`/`KioskApprovalJourney.check_settings` supplies independent
+positive grant observation; the approval leaf alone does not prove it.
+[baseline_journey.py](../../tests/e2e/baseline_journey.py) `PLAN`/`BaselineJourney`
+already combines zero-grant rejection/Cancel endpoints, positive effects and
+exit/reentry, but its roughly 24-minute history includes broader feature work.
+
+**Before D00a product editing**, select an exact applicable complete existing
+history or insert a small both-target installed prerequisite to compose and
+qualify this short gate from those operations. No dedicated short complete gate
+was found; qualification of leaves is insufficient. Bind each changed slice's
+representative variation/recovery control above as well: host injections for
+parse/command errors, installed engineering checks for actual routing/lease/
+service context, then restored public usability. New variations are unqualified;
+268 and a visible window cannot substitute for them. Add ordinary-account login
+for shared PAM edits; overlay/enforcement controls only if their callers change.
+
+The service-dispatch, routing/service and owned-lease residuals are independent
+boundaries. D00a must split required independent fixes/qualification before
+editing, keeping each product fix's review/build, both-target usability and
+cleanup together. D00 audits only: it supplies no installed pass, closes no
+other task, and allocates no VM/artifacts. D00b verifies this empty obsolete-
+consumer disposition against D00a's actual changes rather than replaying C03/C04.
+
 ## Verification scope and evidence limits
 
 The completed v1.3-derived baseline validation accepted Ubuntu and Fedora core

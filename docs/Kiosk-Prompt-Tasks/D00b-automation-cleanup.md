@@ -10,7 +10,8 @@ and the [test documentation working route](../TestAutomation/README.md#working-r
 
 ## Session boundary and deliverable
 
-Close D00's residual automation map against D00a's selected product source.
+Close D00's [automation disposition](../SystemDesign/Kiosk-Confinement.md#automation-disposition-and-bounded-validation)
+against D00a's selected product source.
 Trace obsolete v1.4 fixtures, imports, registrations and package-test consumers
 to their existing C03/C04 dispositions. Remove stale mechanism requirements;
 retain customer outcomes, ordinary-account positives, stable case identities,

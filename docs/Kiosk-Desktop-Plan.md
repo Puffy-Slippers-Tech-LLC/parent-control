@@ -1,7 +1,7 @@
 # Prevent full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **D00 — [Audit the confinement replacement and cleanup boundary](Kiosk-Prompt-Tasks/D00-cleanup-audit.md)**.
+Next task: **D00a — [Close residual conflicting confinement source](Kiosk-Prompt-Tasks/D00a-source-cleanup.md)**.
 
 ## Outcome and scope
 

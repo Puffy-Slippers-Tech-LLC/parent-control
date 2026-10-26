@@ -10,7 +10,8 @@ Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contra
 
 ## Session boundary and deliverable
 
-Resolve one issue from D00's residual conflicting confinement source map. Follow
+Resolve one issue from D00's [residual source and admission map](../SystemDesign/Kiosk-Confinement.md#d00-residual-cleanup-audit).
+Resolve the map's independent fix/qualification prerequisites before product edits. Follow
 complete affected functions and their direct runtime, broker/frontend, package
 and lifecycle consumers. Preserve main features, approval/time/app behavior,
 ordinary accounts, useful diagnostics and unrelated in-progress work.

@@ -251,7 +251,10 @@ def compare_diagnostic_contents(archive, contents):
         b'onpc-parent-', b'onpc-child-', b'first@example.invalid',
         b'Synthetic feedback first', b'ONPC synthetic attachment')))
     info = json.loads(contents['system-info.json'])
-    require(type(info) is dict and set(info) == {'schema', 'system', 'health', 'counts', 'logs'}
+    # The documented summary may include saved languages under report-local
+    # role labels. read_report below validates their closed grammar and bounds.
+    keys = {'schema', 'system', 'health', 'counts', 'logs'}
+    require(type(info) is dict and set(info) in (keys, keys | {'user_languages'})
             and type(info['schema']) is int and info['schema'] == 3
             and type(info['logs']) is dict and len(info['logs']) <= 12)
     folders = {'broker/', 'child/', 'kiosk/', 'parent/'}

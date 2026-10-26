@@ -143,7 +143,7 @@ Missing or incompatible inputs refuse before mutation or scenario input.
 | --- | --- |
 | Product-free system | Selected closure after transport readiness, before installation input; trusted hard by default, command only for Ubuntu removal/recovery and PAM histories. Preserve product absence. |
 | Installed system | Trusted hard closure before case input; preserve installed history and restore mode. |
-| Installed E2E | Native closure by default; the fixed baseline caller selects native plus activity before stage actions, with actual activity readback under current readiness. Preserve online resume/rebind and explicit offline attachment. |
+| Installed E2E | Native closure by default; the fixed activity consumers listed in the [preparation contract](../../tests/integration/README.md#ubuntu-installed-e2e-preparation) select the native/activity/baseline-child union before stage actions, with actual activity readback under current readiness. Preserve online resume/rebind and explicit offline attachment. |
 | Product-free E2E | Native closure after SSH, before customer package input; GDM-only entry uses an empty closure. |
 | Standalone transfer | Transport-only preboot preparation, native provisioning after SSH, separate package-only transfer. |
 | Standalone serial | Preserve credential/getty preboot lifetime; native provisioning precedes graphical or customer input. |

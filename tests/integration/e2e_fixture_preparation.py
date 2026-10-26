@@ -6,11 +6,12 @@ import xml.etree.ElementTree as ET
 SUBSETS = ('native',)
 ACTIVITY_SUBSETS = ('native', 'activity', 'baseline-child')
 ACTIVITY_CALLER = 'check_e2e_baseline_journey'
-ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable')
+ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
+                    'E2E-015/child-overlay-cancel')
 
 
 def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
-    """Only the fixed installed baseline callers select both catalogues and activity."""
+    """Only fixed installed activity consumers select both catalogues and activity."""
     if (type(subsets) is not tuple or
             (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
              and caller in ACTIVITY_CALLERS and not product_free))):

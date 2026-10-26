@@ -51,27 +51,32 @@ def highlight(message, *, success=False):
 
 @contextmanager
 def monitoring_line():
-    """Keep terminal polling on one physical line; logs remain plain text."""
+    """Refresh repeated polls inline and preserve status transitions."""
     terminal = sys.stdout.isatty()
     active = False
+    previous_status = None
 
-    def update(message, *, error=False):
-        nonlocal active
+    def update(message, *, status=None, error=False):
+        nonlocal active, previous_status
         if not terminal:
-            say(message, error=error)
+            say(message, error=error, success=not error)
             return
+        current_status = (message if status is None else status, error)
+        if active and current_status != previous_status:
+            print(flush=True)
         # Leave the last column unused to avoid wrapping/scrolling the banner.
         width = max(1, shutil.get_terminal_size(fallback=(80, 24)).columns - 1)
         line = ('publish: ' + message)[:width]
-        color = '\033[31m' if error else ''
+        color = '\033[31m' if error else '\033[32m'
         print('\r\033[2K' + color + line + '\033[0m', end='', flush=True)
         active = True
+        previous_status = current_status
 
     try:
         yield update
     finally:
         if active:
-            print('\r\033[2K', end='', flush=True)
+            print(flush=True)
 
 
 def environment():
@@ -690,7 +695,8 @@ def poll_publication(state, state_path, update):
             detail = progress['detail']
         stamp = datetime.now().astimezone().strftime('%H:%M:%S %Z')
         elapsed = int(time.monotonic() - started)
-        update(f'{stamp} (+{elapsed}s): {detail}; retrying in {POLL_SECONDS}s', error=unavailable)
+        update(f'{stamp} (+{elapsed}s): {detail}; retrying in {POLL_SECONDS}s',
+               status=detail, error=unavailable)
         time.sleep(POLL_SECONDS)
     raise ValueError(f'publication not confirmed within 24 hours; last check: {detail}; '
                      'rerun to resume monitoring without re-uploading; '

@@ -386,11 +386,11 @@ and never upload it again automatically. Status reads tolerate transient service
 errors and poll every 30 seconds for up to 24 hours per invocation. A confirmed
 build failure is a red error, not a success or an automatic source rewrite.
 Each pending check reports its local timestamp with timezone, elapsed monitoring time,
-remaining condition and retry delay. In a terminal, polling replaces one status
-line, including transient errors, so the highlighted main-update message stays
-visible. The line is shortened to the terminal width to avoid wrapping; redirected
-output retains ordinary full log lines. The status line is cleared on success,
-failure or interruption. Source acceptance/publication, build
+remaining condition and retry delay. In a terminal, repeated polls of the same
+status update inline; a changed status starts a new line. Progress is green and
+errors are red. The line is shortened to the terminal width to avoid wrapping;
+redirected output retains ordinary full log lines. The final status line is
+preserved on success, failure or interruption. Source acceptance/publication, build
 creation/queue/building, binary publication, and package-index propagation have
 distinct messages; a completed build is not reported as still pending. Network
 errors identify the check that could not be read, without printing response

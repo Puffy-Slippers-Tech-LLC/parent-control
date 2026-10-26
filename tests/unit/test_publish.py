@@ -1575,7 +1575,7 @@ def test_main_sync_handles_remote_advance_without_force(main_update_candidate, t
 
 
 @pytest.mark.parametrize('ending', ['success', 'failure', 'interrupt'])
-def test_terminal_monitor_replaces_one_line_and_preserves_banner(monkeypatch, ending):
+def test_terminal_monitor_refreshes_repeats_and_preserves_status_changes(monkeypatch, ending):
     class Terminal(io.StringIO):
         def isatty(self):
             return True
@@ -1584,13 +1584,15 @@ def test_terminal_monitor_replaces_one_line_and_preserves_banner(monkeypatch, en
     monkeypatch.setattr(publish.sys, 'stdout', output)
     monkeypatch.setattr(publish.shutil, 'get_terminal_size', lambda **kwargs: os.terminal_size((60, 24)))
     monkeypatch.setattr(publish.time, 'sleep', lambda seconds: None)
-    outcomes = iter([None, URLError('offline'), ending])
+    outcomes = iter([None, None, 'accepted', URLError('offline'), ending])
 
     def poll(version, *, progress):
         progress['detail'] = 'waiting for an exact published package ' + 'x' * 120
         result = next(outcomes)
         if isinstance(result, Exception):
             raise result
+        if result == 'accepted':
+            progress['detail'] = 'source accepted; waiting for publication'
         if result == 'failure':
             raise ValueError('terminal build failure')
         if result == 'interrupt':
@@ -1606,9 +1608,14 @@ def test_terminal_monitor_replaces_one_line_and_preserves_banner(monkeypatch, en
             publish.wait_for_publication({'version': '1.1'})
     text = output.getvalue()
     assert text.count('MAIN UPDATED') == 1 and '\033[1;32m' in text
-    assert text.count('\n') == (3 if ending == 'success' else 2)
-    updates = text.split('\r\033[2K')[1:3]
+    assert text.count('\n') == (6 if ending == 'success' else 5)
+    updates = text.split('\r\033[2K')[1:]
     for line in updates:
-        plain = line.replace('\033[31m', '').replace('\033[0m', '')
+        plain = line.split('\n')[0].replace('\033[31m', '').replace('\033[32m', '').replace('\033[0m', '')
         assert len(plain) <= 59
-    assert text.count('\r\033[2K') == 3  # Two updates, then cleanup on every exit.
+    assert text.count('\r\033[2K') == 4
+    assert text.count('\033[32m') == 3
+    assert text.count('\033[31m') == 1
+    assert '\033[0m\r\033[2K' in text  # Repeated status refreshes inline.
+    assert '\033[0m\n\r\033[2K\033[32mpublish: ' in text
+    assert '\033[0m\n\r\033[2K\033[31mpublish: ' in text

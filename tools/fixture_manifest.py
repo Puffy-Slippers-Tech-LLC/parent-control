@@ -99,7 +99,8 @@ def declarations():
                                        'trusted-hard-launcher', 'trusted-soft-launcher'}):
                 subsets.add('controls')
         action = ('trust' if destination in trusted else
-                  'native-execute' if destination in runtime and mode == 0o755 else
+                  'native-execute' if mode == 0o755 and
+                  (destination in runtime or source == 'mechanical') else
                   'native-open' if destination in runtime and mode == 0o644
                   and destination.startswith(native_assets.PREFIX + '/') else 'none')
         result[_digest(destination.encode())] = {

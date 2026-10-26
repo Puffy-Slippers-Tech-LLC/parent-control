@@ -248,13 +248,28 @@ class Native:
                    native_assets.source_destinations('@other@').items()
                    if source in native_assets.runtime_sources()}
         by_path = {m['destination']: m for m in request['members'].values()}
-        if not any(m['native_action'] in ('native-open', 'native-execute')
-                   for m in request['members'].values()):
-            return {}
-        require(set(runtime.values()) <= set(by_path), 'native-runtime-closure')
-        expected = {source: by_path[path]['sha256'] for source, path in runtime.items()}
-        return native_assets.native_policy_files(expected, tuple(
-            request['accounts'][role]['uid'] for role in ('child', 'other')))
+        child_uids = tuple(request['accounts'][role]['uid'] for role in ('child', 'other'))
+        rules = {}
+        if any(path in by_path for path in runtime.values()):
+            require(set(runtime.values()) <= set(by_path), 'native-runtime-closure')
+            expected = {source: by_path[path]['sha256'] for source, path in runtime.items()}
+            rules = native_assets.native_policy_files(expected, child_uids)
+        # The one-shot engineering fixtures need the same stock-policy admission
+        # as GUI payloads. Keep them untrusted so the product's concrete and
+        # wildcard denials still run first, including for identical future copies.
+        mechanical = sorted({m['sha256'] for m in request['members'].values()
+            if m['native_action'] == 'native-execute' and m['destination'] not in runtime.values()})
+        if mechanical:
+            require(len(set(child_uids)) == 2 and all(
+                type(uid) is int and 1000 <= uid < 2 ** 32 for uid in child_uids),
+                'native-fixture-uids')
+            subject = ','.join(str(uid) for uid in sorted(child_uids))
+            path = native_assets.NATIVE_POLICY_PATHS[1]
+            rules[path] = rules.get(path,
+                b'# Finite reusable fixture admission; inputs remain untrusted.\n') + ''.join(
+                    f'allow perm=execute uid={subject} : sha256hash={digest} trust=0\n'
+                    for digest in mechanical).encode('ascii')
+        return rules
 
     def _backend(self):
         f = self.files

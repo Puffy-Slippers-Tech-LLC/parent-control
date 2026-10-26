@@ -3165,7 +3165,7 @@ or alternative launch substitutes for the declared route.
 
 | Case / binding | Scope |
 | --- | --- |
-| 62 / `app_launch.GRID_PLAN`, `onpc_app_launch::run(..., 'enabled', 'grid')` | 30 daily minutes/zero grant; Jordan `other-child`, Riley `child`; each freshly enters and uses A through the grid. `riley-grid` verifies its existing launcher without installing it. |
+| 62 / `app_launch.GRID_PLAN`, `onpc_app_launch::run(..., 'enabled', 'grid')` | 30 daily minutes/zero grant; Jordan `other-child`, Riley `child`; each freshly enters and uses A through the grid. Reuses the qualified native/activity/baseline-child preparation: setup verifies Riley's catalogue and shared runtime; the native stage action verifies Jordan's catalogue. |
 | 80 / `app_launch.PLAN`, `onpc_app_launch::run` | Same enabled setup; Jordan then Riley freshly enter and use `Exact Fixture.AppImage` through the fixed command route. |
 | 81 / `app_launch.DISABLED_PLAN`, `run(..., 'disabled')` | Limits off/zero allowance; skip only enabled allowance setup/readback. Both children prove the same command target usable. |
 

@@ -221,7 +221,12 @@ and existing native launchers. `E2E-015/child-overlay-cancel`,
 union under their own fixed caller identities before journey construction, so the
 original child activity can be verified and resumed after each exit. Each retains
 the shared readiness and activity-file verification before input; preparation
-does not establish the case's customer result. After app-snapshot restoration, guarded
+does not establish the case's customer result. `E2E-019/native-grid-allowed-enabled`
+also selects this qualified union under its own fixed caller identity. Setup
+independently verifies Riley's catalogue and shared runtime before input; its
+native stage action verifies Jordan's catalogue. This replaces its unqualified
+`riley-grid` preparation without changing either child's grid-use assertions.
+After app-snapshot restoration, guarded
 SSH readiness and fresh credential binding, `InstalledSetup.provision` uses the
 [shared provisioner](../support/README.md#attempt-owned-fixture-provisioning)
 before scenario asset transfer and input. `InstalledJourney` and the

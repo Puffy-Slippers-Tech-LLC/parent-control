@@ -103,8 +103,13 @@ def execute_disabled(recorder, context):
 
 
 def execute_grid(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    # Reuse the qualified union: setup verifies Riley's catalogue and shared
+    # runtime; the stage action independently verifies Jordan's catalogue.
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-019/native-grid-allowed-enabled'
     record_installed_journey(recorder, context, GRID_PLAN, timeout=1800,
-                             actions=fixture_actions(include_refusal=False, profile='riley-grid'),
+                             actions=fixture_actions(include_refusal=False),
                              journey_type=AppPolicyJourney)
 
 

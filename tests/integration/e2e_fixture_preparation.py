@@ -8,11 +8,12 @@ ACTIVITY_SUBSETS = ('native', 'activity', 'baseline-child')
 ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'E2E-015/child-overlay-cancel', 'E2E-015/child-overlay-escape',
-                    'E2E-015/child-overlay-approved')
+                    'E2E-015/child-overlay-approved',
+                    'E2E-019/native-grid-allowed-enabled')
 
 
 def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
-    """Only fixed installed activity consumers select both catalogues and activity."""
+    """Only fixed installed consumers select both catalogues and activity."""
     if (type(subsets) is not tuple or
             (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
              and caller in ACTIVITY_CALLERS and not product_free))):

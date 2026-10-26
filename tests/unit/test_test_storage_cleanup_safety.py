@@ -372,7 +372,7 @@ def test_budget_diagnostic_failure_keeps_the_original_refusal(tmp_path, monkeypa
     assert (path / 'evidence').read_bytes() == b'x' * 8192
 
 
-def test_scratch_recovery_preserves_locked_owner_and_reclaims_idle(tmp_path, monkeypatch):
+def test_scratch_recovery_preserves_locked_owner_and_reclaims_idle(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(storage, 'ROOT', tmp_path)
     monkeypatch.setattr(storage, '_scratch', None)
     monkeypatch.setattr(storage, '_scratch_fd', None)
@@ -389,6 +389,23 @@ def test_scratch_recovery_preserves_locked_owner_and_reclaims_idle(tmp_path, mon
     third = storage.scratch_directory()
     assert not first.exists()
     assert second.is_dir() and third.is_dir()
+    # Missing control files never grant cleanup authority over the old payload,
+    # nor make an independent new allocation depend on adopting that payload.
+    for missing in ('owner', 'identity.json'):
+        orphan = storage._scratch
+        fcntl.flock(storage._scratch_fd, fcntl.LOCK_UN)
+        (orphan / 'keep').write_text('unverified allocation')
+        (orphan.parent / missing).unlink()
+        before = {path.name: path.read_bytes() for path in orphan.parent.iterdir() if path.is_file()}
+        monkeypatch.setattr(storage, '_scratch', None)
+        monkeypatch.setattr(storage, '_scratch_fd', None)
+        fresh = storage.scratch_directory()
+        assert fresh.is_dir() and fresh != orphan
+        assert (orphan / 'keep').read_text() == 'unverified allocation'
+        assert {path.name: path.read_bytes() for path in orphan.parent.iterdir()
+                if path.is_file()} == before
+        assert not (orphan.parent / missing).exists()
+        assert str(orphan.parent) in capsys.readouterr().err
 
 
 @pytest.mark.parametrize('boundary', ['directory', 'staging-receipt', 'owner',

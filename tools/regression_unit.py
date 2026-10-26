@@ -397,6 +397,9 @@ directories, real fixture-local retention journals and read-only descriptor
 checks. It preserves existing identities and registers only new slots before
 payloads. No shared cache, build, process, bus or display is added; its compatible
 unit and cleanup classifications remain applicable.
+Incomplete-scratch preservation extends that same fixture-local recovery check
+with tiny files and existing owner locks; it adds no subprocess or shared path
+and retains the module's compatible classification.
 
 Kiosk locale cases in request_time_estimate, adapters, core, service_contract
 and systemd_unit use process-local D-Bus/systemd doubles and tiny tmp_path

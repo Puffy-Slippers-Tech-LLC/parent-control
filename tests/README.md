@@ -1822,6 +1822,10 @@ subprocesses forward inherited scratch leases through the fixture builder too.
 Scratch initialization publishes a complete owner atomically from a recorded
 staging slot; interrupted initialization and deletion can resume without
 adopting unknown payloads or losing the directory identity.
+An older scratch directory missing its owner or identity receipt is reported
+and left untouched; it does not block a fresh, independently owned allocation.
+Unsafe ownership, symlinks, replaced identities and unfinished recorded
+reclamation still refuse rather than being adopted or deleted.
 Pruning always audits registered allocations and budgets, but rewrites its
 journal only when retiring records. Session lifecycle and allocation changes
 still synchronize before returning; unchanged pruning adds no duplicate flushes.

@@ -12,6 +12,7 @@ import json
 import atexit
 import uuid
 import errno
+import sys
 from contextlib import contextmanager, ExitStack
 import tempfile
 import re
@@ -545,7 +546,8 @@ def scratch_directory():
     """Process-owned disk scratch, also reclaimed after an abrupt owner exit.
 
     The locked owner descriptor is inherited by children. Receipts record the
-    allocation identity before it is handed out. Unknown/replaced entries refuse.
+    allocation identity before it is handed out. Incomplete entries are preserved
+    without preventing an independent allocation; unsafe identities still refuse.
     """
     global _scratch, _scratch_fd
     if _scratch is not None:
@@ -565,14 +567,26 @@ def scratch_directory():
             child = retention.directory(parent / name)
             try:
                 retention.private(os.fstat(child))
-                owner = os.open('owner', os.O_RDWR | os.O_NOFOLLOW, dir_fd=child)
+                try:
+                    owner = os.open('owner', os.O_RDWR | os.O_NOFOLLOW, dir_fd=child)
+                except FileNotFoundError:
+                    print(
+                        f'scratch allocation {str(parent / name)!r} is missing its owner file; '
+                        'preserving it and allocating independent scratch', file=sys.stderr)
+                    continue
                 try:
                     retention.private(os.fstat(owner), regular=True)
                     try:
                         fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     except BlockingIOError:
                         continue
-                    receipt = os.open('identity.json', os.O_RDONLY | os.O_NOFOLLOW, dir_fd=child)
+                    try:
+                        receipt = os.open('identity.json', os.O_RDONLY | os.O_NOFOLLOW, dir_fd=child)
+                    except FileNotFoundError:
+                        print(
+                            f'scratch allocation {str(parent / name)!r} is missing its identity receipt; '
+                            'preserving it and allocating independent scratch', file=sys.stderr)
+                        continue
                     with os.fdopen(receipt) as stream:
                         retention.private(os.fstat(stream.fileno()), regular=True)
                         record = json.load(stream)

@@ -52,6 +52,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # synchronous reentry adds no process or shared resource in either inventory.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch; test_test_retention_cleanup_safety remains compatible in both inventories.
+# Incomplete-scratch preservation in test_test_storage_cleanup_safety uses only
+# its existing fixture-private files and owner locks; compatible overlap and
+# cleanup ownership are unchanged, with no new process or shared path.
 # Its deferred archive verification regression reuses tiny private report-history
 # files and real descriptor locks, with no new process or shared resource.
 # Its retention-discard lease checks also use a pytest-private VM-pool runtime

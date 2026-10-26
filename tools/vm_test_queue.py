@@ -72,9 +72,12 @@ def run(root, argv, *, reloading=False):
 
             def publish_frames():
                 if hasattr(sys.stdout, 'frame'):
-                    sys.stdout.frame([f'VM queue | concurrency {snapshot["concurrency"]}',
-                                      *(line for name in snapshot['vms']
-                                        for line in ([f'VM: {name}', *frames.get(name, ['Queued'])]))])
+                    lines = [f'VM queue | concurrency {snapshot["concurrency"]}']
+                    for index, name in enumerate(snapshot['vms']):
+                        if index:
+                            lines.append('')
+                        lines.extend([f'VM: {name}', *frames.get(name, ['Queued'])])
+                    sys.stdout.frame(lines)
 
             def execute(vm):
                 if launcher_reload.pending():

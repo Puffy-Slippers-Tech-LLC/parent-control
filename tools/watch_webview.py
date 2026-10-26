@@ -102,8 +102,8 @@ class Viewer:
                     lines = ['Run status unavailable']
             if self.status_cache.get(root, (None,))[0] != lines:
                 self.status_cache[root] = lines, status_spans(lines)
-            sections.append(dict(id=str(root), label=f'[{branch}] Run Status' +
-                (f' — {label}' + (f' ({status})' if status else '') if label else ''),
+            sections.append(dict(id=str(root), label=f'[{branch}]' +
+                (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active, status=status, rows=self.status_cache[root][1]))
         active = [section for section in sections if section['active']]
         return active or [section for section in sections if section['id'] == str(self.last_output)]

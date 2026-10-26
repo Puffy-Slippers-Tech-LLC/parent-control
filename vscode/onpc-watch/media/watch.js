@@ -164,6 +164,11 @@
             section.signature = signature;
             const follow = section.content.scrollHeight - section.content.clientHeight - section.content.scrollTop < 24;
             const rows = entry.rows.map(row => {
+                if (row.map(part => part.text).join('').trim() === '─') {
+                    const separator = document.createElement('hr');
+                    separator.className = 'run-separator';
+                    return separator;
+                }
                 const line = document.createElement('div');
                 if (!row.length) line.textContent = '\u00a0';
                 row.forEach(part => {

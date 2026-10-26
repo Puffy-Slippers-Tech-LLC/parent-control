@@ -121,6 +121,16 @@ class Output:
         details = snapshot(self.run / 'frame.json', reader=self.reader) if active else []
         if steps:
             details = [line for line in details if not clean(line).startswith('Overall - ')]
+        if details and clean(details[0]).startswith('VM queue | concurrency '):
+            spaced = []
+            seen_vm = False
+            for line in details[1:]:
+                if clean(line).startswith('VM: '):
+                    if seen_vm and spaced[-1]:
+                        spaced.append('')
+                    seen_vm = True
+                spaced.append(line)
+            details = spaced
         return steps, details
 
     def progress(self, active, data=b''):

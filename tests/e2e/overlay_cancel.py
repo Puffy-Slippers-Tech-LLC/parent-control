@@ -82,6 +82,10 @@ def execute(recorder, context):
 
 
 def execute_escape(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    # Escape retains the same child activity as the Cancel journey.
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-015/child-overlay-escape'
     record_installed_journey(recorder, context, ESCAPE_PLAN, timeout=1800,
                              journey_type=KioskRequestJourney,
                              actions=fixture_actions(include_refusal=False))

@@ -2163,6 +2163,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             # Clean app snapshots omit the command and its desktop launcher.
             # Prepare both before the case's read-only fixture verification.
             subsets += ('command',)
+        if any(item.area == 'enforcement'
+               and item.case_id == 'test_native_whitespace_policy_is_uid_scoped'
+               for item in selection.executions):
+            # The whitespace case verifies its own fixed executable and launcher;
+            # clean snapshots contain neither, even when other probe cases ran.
+            subsets += ('whitespace',)
         with ledger.measure('bootstrap'):
             vm.probe_ready()
             if already_installed:

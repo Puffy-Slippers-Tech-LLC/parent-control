@@ -459,8 +459,13 @@ explicit bounded verification case. A saved pass from before the repair cannot
 qualify it. The bounded pass closes only the repair; remaining category cases
 stay pending and resume under normal parallel scheduling after close-out.
 Diagnostic execution alone never triggers a commit. Agents report `stage_paths`
-and leave staging, commits and pushes to the launcher. Pre-existing dirty or
-staged work is protected; overlapping close-out refuses rather than including it.
+and leave staging, commits and pushes to the launcher. If that list omits captured
+changes, the launcher falls back to including all current checkout changes,
+including pre-existing dirty or staged work, after the repaired case passes.
+It reports that fallback and retains it across restart. At close-out it refreshes
+the list; if no changes remain because another owner already committed them,
+it completes successfully without a new commit or push. Outside this fallback, pre-existing
+work remains protected and overlapping close-out refuses rather than including it.
 Edits left by another repair or diagnostic in the retained launcher run recover
 automatically when recorded session changes and exact fingerprints trace the
 overlapping baseline back to a clean start. The original ownership checkpoints

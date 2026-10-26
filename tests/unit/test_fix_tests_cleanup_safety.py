@@ -653,17 +653,48 @@ def test_category_success_without_the_repaired_case_pass_cannot_commit(checkout)
                           capture_output=True, text=True, check=True, timeout=10).stdout.strip() == 'TA: Fixed unit A'
 
 
-def test_unreported_repair_edits_require_a_corrected_handoff_before_verification(checkout):
+def test_unreported_repair_edits_include_all_changes_and_accept_external_commit(checkout):
+    from fix_tests_git import RepairCommits
+    from launcher_git import worktree_snapshot
+
     root, _ = checkout
+    (root / 'owned.py').write_text('preexisting unstaged work\n')
+    (root / 'repair-unrelated.py').write_text('preexisting staged work\n')
+    subprocess.run(['git', 'add', '--', 'repair-unrelated.py'], cwd=root, check=True, timeout=10)
     (root / 'mode').write_text('agent-script')
     (root / 'script.json').write_text(json.dumps(dict(
-        agents=['test_fixed', 'test_fixed'], tests=['A', None], omit_paths_once=True)))
+        agents=['test_fixed'], tests=['A', None], omit_paths_once=True)))
     run, _ = fix_tests.select(root, categories=('unit',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0, output.getvalue()
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    assert [call['kind'] for call in calls] == ['test', 'agent', 'agent', 'test', 'test']
-    assert 'repair omitted changed files from stage_paths' in calls[2]['prompt']
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'test', 'test']
+    assert 'including all checkout changes after case verification' in output.getvalue()
+    for path, content in (('owned.py', 'preexisting unstaged work\n'),
+                          ('repair-unrelated.py', 'preexisting staged work\n')):
+        assert subprocess.run(['git', 'show', '@{upstream}:' + path], cwd=root,
+                              capture_output=True, text=True, check=True, timeout=10).stdout == content
+    assert worktree_snapshot(root) == {}
+
+    # Another owner can commit the captured changes before verified close-out.
+    commits = RepairCommits(root, run)
+    target = ('unit', 'B', '')
+    commits.begin(target)
+    before = worktree_snapshot(root)
+    (root / 'owned.py').write_text('externally committed repair\n')
+    commits.capture_session(target, before)
+    result = dict(status='test_fixed', stage_paths=[])
+    commits.validate_paths(target, result)
+    commits.record(target, result)
+    subprocess.run(['git', 'add', '--', 'owned.py'], cwd=root, check=True, timeout=10)
+    subprocess.run(['git', 'commit', '-qm', 'External repair'], cwd=root, check=True, timeout=10)
+    head = subprocess.run(['git', 'rev-parse', 'HEAD', '@{upstream}'], cwd=root,
+                          capture_output=True, text=True, check=True, timeout=10).stdout
+    RepairCommits(root, run).verified(target)
+    assert subprocess.run(['git', 'rev-parse', 'HEAD', '@{upstream}'], cwd=root,
+                          capture_output=True, text=True, check=True, timeout=10).stdout == head
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['repairs'] == {} and 'pending' not in state and 'commit_intent' not in state
 
 
 @pytest.mark.parametrize('next_category', [False, True])

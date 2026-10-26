@@ -48,11 +48,24 @@ class RepairCommits:
             *entry['stage_candidates'], *session_changes(self.root, before)]))
         self.save()
 
+    def all_changes(self):
+        indexed = set(filter(None, git_output(
+            self.root, 'diff', '--cached', '--no-renames', '--name-only', '-z').stdout.split('\0')))
+        return sorted(set(worktree_snapshot(self.root)) | indexed)
+
     def validate_paths(self, target, result):
         entry = self.state['repairs'][self.key(target)]
         missing = set(entry['stage_candidates']) - set(entry['stage_paths']) - set(result.get('stage_paths', []))
         if missing:
-            raise ValueError('repair omitted changed files from stage_paths: ' + ', '.join(sorted(missing)))
+            # The developer authorizes all checkout changes as the fallback
+            # when the agent's explicit file list is incomplete. Verification
+            # still precedes staging and Git close-out.
+            result['stage_paths'] = sorted(set(result.get('stage_paths', []))
+                                           | set(entry['stage_paths'])
+                                           | set(self.all_changes()))
+            entry['include_all_changes'] = True
+            print('fix-tests: incomplete repair file list; including all checkout changes '
+                  'after case verification: ' + ', '.join(result['stage_paths']), flush=True)
 
     def record(self, target, result):
         entry = self.state['repairs'][self.key(target)]
@@ -128,24 +141,29 @@ class RepairCommits:
             raise ValueError('retained repair response needs current validation before Git close-out')
         # verified() recorded the completed case before this Git transaction.
         # Later edits and report rotation do not invalidate that recorded pass.
-        identity, _ = validate_pull_identity(self.root, self.state)
-        if 'pull_intent' not in self.state:
-            # Reuse shared branch/upstream recovery guards, without pulling or
-            # changing the source that the repair launcher just validated.
-            self.state['pull_intent'] = identity
-            self.save()
-        paths = entry['stage_paths']
-        if self.state.get('commit_intent') is None:
-            self.validate_ownership(entry)
-            self.save()
-            paths = stage_task(self.root, paths)
+        paths = self.all_changes() if entry.get('include_all_changes') else entry['stage_paths']
+        if entry.get('include_all_changes') and not paths and self.state.get('commit_intent') is None:
+            print('fix-tests: verified repair has no remaining checkout changes; '
+                  'continuing without a commit.', flush=True)
         else:
-            paths = self.state['commit_intent']['paths']
-        category, case, vm = entry['failure']
-        message = f'TA: Fixed {category} {case or "infrastructure"}' + (f' on {vm}' if vm else '')
-        commit = commit_push_propagate(self.root, self.run, self.state, paths, message, git=git_output)
-        print(f'fix-tests: committed and pushed verified repair: {commit}', flush=True)
-        self.state['last_commit'] = commit
+            identity, _ = validate_pull_identity(self.root, self.state)
+            if 'pull_intent' not in self.state:
+                # Reuse shared branch/upstream recovery guards, without pulling or
+                # changing the source that the repair launcher just validated.
+                self.state['pull_intent'] = identity
+                self.save()
+            if self.state.get('commit_intent') is None:
+                if not entry.get('include_all_changes'):
+                    self.validate_ownership(entry)
+                self.save()
+                paths = stage_task(self.root, paths)
+            else:
+                paths = self.state['commit_intent']['paths']
+            category, case, vm = entry['failure']
+            message = f'TA: Fixed {category} {case or "infrastructure"}' + (f' on {vm}' if vm else '')
+            commit = commit_push_propagate(self.root, self.run, self.state, paths, message, git=git_output)
+            print(f'fix-tests: committed and pushed verified repair: {commit}', flush=True)
+            self.state['last_commit'] = commit
         queued = self.state.get('queued_failure')
         if queued is not None:
             from fix_tests import failure_target

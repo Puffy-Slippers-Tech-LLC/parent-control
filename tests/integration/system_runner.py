@@ -2158,11 +2158,18 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                        else (*subsets, 'command'))
         if ('command' not in subsets and any(
                 item.area == 'enforcement'
-                and item.case_id == 'test_native_command_policy_is_uid_scoped'
+                and item.case_id in ('test_native_command_policy_is_uid_scoped',
+                                     'test_native_catalog_is_selected_child_scoped')
                 for item in selection.executions)):
             # Clean app snapshots omit the command and its desktop launcher.
             # Prepare both before the case's read-only fixture verification.
             subsets += ('command',)
+        if any(item.area == 'enforcement'
+               and item.case_id == 'test_native_catalog_is_selected_child_scoped'
+               for item in selection.executions):
+            # The catalogue case checks system and per-account launchers in
+            # addition to the command fixture shared by native_accounts.
+            subsets += ('catalogue',)
         if any(item.area == 'enforcement'
                and item.case_id == 'test_native_whitespace_policy_is_uid_scoped'
                for item in selection.executions):

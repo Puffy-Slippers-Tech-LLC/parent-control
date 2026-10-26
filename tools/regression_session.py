@@ -362,12 +362,7 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
         if status in (0, RELOAD_STATUS) and regression_process.session_stop.is_set():
             status = 130
         if media is not None:
-            try:
-                media.write_index(run, status)
-            except OSError:
-                status = 1
-                print('Recording index could not be saved; owned capture cleanup finished.',
-                      file=sys.stderr, flush=True)
+            media.write_index(run, status)
         sys.stdout.flush()
         sys.stderr.flush()
         sys.stdout = original

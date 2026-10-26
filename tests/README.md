@@ -1772,6 +1772,10 @@ This explicit latest-only policy is separate from ordinary report retention.
 Publication displays one refreshing `Recording: x/y` progress line in the runner
 and watch terminal, counting completed clips out of the session's total.
 Individual recording paths remain in the session's `recordings.json` index.
+Controller reload and resume atomically replace that index with the latest
+capture's snapshot in the retained run directory. An index-save failure preserves
+the previous index and warns without changing test results or blocking reload;
+capture and media-publication failures retain their infrastructure-failure behavior.
 
 The private session bus and renderer use host GTK libraries and schemas, excluding
 inherited editor/Snap loader and GTK module overrides.

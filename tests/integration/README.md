@@ -174,10 +174,12 @@ qualify this branch. After SSH readiness and system startup completion,
 `system_runner.installed_run` uses the
 same immutable input and trusted-hard provisioner before uploading system input.
 When the selected enforcement cases include `test_native_command_policy_is_uid_scoped`
-or `test_native_whitespace_policy_is_uid_scoped`, preparation also selects the
-corresponding `command` or `whitespace` subset, supplying its executable and desktop
+or `test_native_whitespace_policy_is_uid_scoped` or `test_native_future_pattern_is_uid_scoped`,
+preparation also selects the corresponding `command`, `whitespace` or `pattern`
+subset, supplying its executable and desktop
 launcher through that same guarded provisioner before the case verifies their
-bytes and metadata.
+bytes and metadata. The pattern subset includes the unrelated control; the future
+version remains a scenario input created only after active rules are witnessed.
 Installed-product verification and all system assertions remain in their
 original order. A session reboot requires read-only readiness renewal for the
 new boot after system startup completes, without replacing fixtures or resetting

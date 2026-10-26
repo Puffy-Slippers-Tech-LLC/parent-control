@@ -2169,6 +2169,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             # The whitespace case verifies its own fixed executable and launcher;
             # clean snapshots contain neither, even when other probe cases ran.
             subsets += ('whitespace',)
+        if any(item.area == 'enforcement'
+               and item.case_id == 'test_native_future_pattern_is_uid_scoped'
+               for item in selection.executions):
+            # Supply the initial version, unrelated control and launcher. The
+            # case creates the future version only after witnessing active rules.
+            subsets += ('pattern',)
         with ledger.measure('bootstrap'):
             vm.probe_ready()
             if already_installed:

@@ -192,7 +192,9 @@ preparation-only selector retains separate proof of both restore branches.
 Ubuntu's [product-free E2E preparation](../integration/README.md#ubuntu-product-free-e2e-preparation)
 and the same [Fedora boundary](../integration/README.md#fedora-product-free-e2e-preparation)
 provision the native closure after owned SSH readiness and before package-only
-scenario transfer. Entry, package and upgrade retain distinct histories;
+scenario transfer. `E2E-027/continuous` adds the existing `baseline-child`
+subset there so Riley has the four launchers its lifecycle journey manages.
+Entry, package and upgrade retain distinct histories;
 GDM-only entry requires no native input or movable payload. Customer input and
 product assertions remain outside fixture preparation acceptance.
 Ubuntu's [standalone transfer preparation](../integration/README.md#ubuntu-standalone-transfer-preparation)

@@ -285,6 +285,13 @@ no movable payload. Dormant install-current-package and Parent About/access smok
 guards remain unavailable. Scenario installation/update and all customer
 checkpoints remain unchanged.
 
+`E2E-027/continuous` selects the finite `native`, `baseline-child` union at
+that same boundary. The lifecycle journey manages Riley, so it needs Riley's
+four launcher files as well as the shared runtime and Jordan's launchers. The
+extra subset is restricted to this product-free caller; preparation still
+verifies the exact selected files before package transfer and customer input.
+Its installed lifecycle acceptance belongs to that exact scenario.
+
 ```sh
 tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_product_free
 ```

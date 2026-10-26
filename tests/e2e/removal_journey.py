@@ -136,6 +136,11 @@ CHECKS = {
 
 
 def execute(recorder, context):
+    from e2e_fixture_preparation import LIFECYCLE_CALLER, LIFECYCLE_SUBSETS
+    # This history manages Riley; the default native closure supplies only
+    # Jordan's launchers. Add Riley's catalogue before any package/UI actions.
+    context.fixture_subsets = LIFECYCLE_SUBSETS
+    context.fixture_caller = LIFECYCLE_CALLER
     record_lifecycle_journey(recorder, context, PLAN, operations=OPERATIONS, checks=CHECKS,
                              actions=fixture_actions(include_refusal=False), timeout=3600)
 

@@ -347,8 +347,8 @@ def prepare_installed_setup(context, transport, guard, *, observer=None):
 
 def prepare_product_free_setup(context, transport, guard, *, observer=None):
     """Prepare the empty baseline before any customer package or desktop input."""
-    from e2e_fixture_preparation import (prepare, require_product_free_restore,
-                                         validate_input)
+    from e2e_fixture_preparation import (SUBSETS, prepare, qualified_subsets,
+                                         require_product_free_restore, validate_input)
     require_product_free_restore(context.lease)
     transfer = getattr(context, 'asset_transfer', None)
     selection = getattr(context, 'fixture_selection', None)
@@ -370,8 +370,11 @@ def prepare_product_free_setup(context, transport, guard, *, observer=None):
             observer('empty', preparation_context)
         guard()
         return None
+    subsets = qualified_subsets(getattr(context, 'fixture_subsets', SUBSETS),
+        caller=getattr(context, 'fixture_caller', None), product_free=True)
     prepared = prepare(transport, context.lease, context.directory, selection,
-                       product_free=True)
+                       product_free=True, subsets=subsets,
+                       caller=getattr(context, 'fixture_caller', None))
     context.verified.fixture_selection = selection
     context.verified.fixture_prepared = prepared
     from installed_setup import InstalledSetup
@@ -398,12 +401,14 @@ class InstalledJourney:
         self.review = review
         self.actions = actions or {}
         if getattr(context, 'fixture_selection', None) is not None:
-            from e2e_fixture_preparation import ACTIVITY_CALLERS, ACTIVITY_SUBSETS, SUBSETS
+            from e2e_fixture_preparation import (ACTIVITY_CALLERS, ACTIVITY_SUBSETS,
+                                                  SUBSETS, qualified_subsets)
             activity = (getattr(context, 'fixture_subsets', SUBSETS) == ACTIVITY_SUBSETS
                 and getattr(context, 'fixture_caller', None) in ACTIVITY_CALLERS
                 and not getattr(context, 'product_free', False))
-            require(getattr(context, 'fixture_subsets', SUBSETS) == SUBSETS or activity,
-                    'fixtures:e2e-profile-not-qualified')
+            qualified_subsets(getattr(context, 'fixture_subsets', SUBSETS),
+                caller=getattr(context, 'fixture_caller', None),
+                product_free=getattr(context, 'product_free', False))
             require(all(getattr(action, 'fixture_profile', 'native') in
                         (('native', 'chinese', 'activity') if activity else ('native', 'chinese'))
                         for action in self.actions.values())

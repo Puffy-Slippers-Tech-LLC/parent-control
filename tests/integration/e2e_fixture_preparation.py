@@ -10,13 +10,17 @@ ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'E2E-015/child-overlay-cancel', 'E2E-015/child-overlay-escape',
                     'E2E-015/child-overlay-approved',
                     'E2E-019/native-grid-allowed-enabled')
+LIFECYCLE_SUBSETS = ('native', 'baseline-child')
+LIFECYCLE_CALLER = 'E2E-027/continuous'
 
 
 def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
-    """Only fixed installed consumers select both catalogues and activity."""
+    """Bind additional fixture files to their fixed consumer and entry state."""
     if (type(subsets) is not tuple or
             (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
-             and caller in ACTIVITY_CALLERS and not product_free))):
+             and caller in ACTIVITY_CALLERS and not product_free)
+             and not (subsets == LIFECYCLE_SUBSETS
+                      and caller == LIFECYCLE_CALLER and product_free))):
         raise ValueError('fixtures:e2e-profile-not-qualified')
     return subsets
 
@@ -79,9 +83,9 @@ def prepare(vm, lease, directory, selection, *, product_free=False,
             **({'product_free': True} if product_free else {})}
 
 
-def asset_hashes(selection, *, subsets=SUBSETS, caller=None, child=False):
+def asset_hashes(selection, *, subsets=SUBSETS, caller=None, child=False, product_free=False):
     """Bind legacy public observation keys to the selected runtime bytes."""
-    subsets = qualified_subsets(subsets, caller=caller)
+    subsets = qualified_subsets(subsets, caller=caller, product_free=product_free)
     if type(child) is not bool or (child and subsets != ACTIVITY_SUBSETS):
         raise ValueError('fixtures:e2e-profile-not-qualified')
     manifest = fixture_execution.verify(selection_record(selection))

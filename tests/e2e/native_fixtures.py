@@ -78,7 +78,8 @@ class NativeFixtures:
                     'fixtures:readiness-required')
             prepared['controller'].require_ready(prepared['receipt'])
             files = asset_hashes(selection, **({'subsets': subsets, 'caller': prepared['caller'],
-                                                'child': selected_child}
+                                                'child': selected_child,
+                                                'product_free': prepared.get('product_free', False)}
                                                if subsets != SUBSETS else {}))
         else:
             files = self.verified.asset_files

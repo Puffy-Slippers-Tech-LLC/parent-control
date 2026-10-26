@@ -277,7 +277,7 @@ class TaskDisplay(LauncherDisplay):
             return 'session' if self.execution_session and self.execution_session.active else 'launcher'
         return self.execution_tab
 
-    def execution_layout(self, width, height, logs, working, first):
+    def execution_layout(self, width, height, logs, first):
         """Compose the repair status and tabbed output from the shared pane controls."""
         self.execution_width, self.execution_first = width, first
         status_width = self.execution_divider.width(width)
@@ -315,32 +315,23 @@ class TaskDisplay(LauncherDisplay):
         tabs.truncate(content_width, overflow='crop')
         tabs.pad_right(max(0, content_width - tabs.cell_len))
         body_height = max(0, height - 1)
-        panel = session.panel if source == 'session' and active else self.session_panel
+        panel = session.panel if source == 'session' and active else None
         pane = 'session' if source == 'session' else 'bottom'
-        if source == 'session' and not active:
-            body = self.scroll_rows(pane, ['No active session'], content_width, body_height)
-            panel = None
+        if panel is None:
+            body = self.scroll_rows(pane, ['No active session'] if source == 'session' else logs,
+                max(1, content_width - int(self.mouse_capture)), body_height)
             output_height = body_height
         else:
-            if source == 'session':
-                logs = [*panel.transcript, *([panel.pending] if panel.pending else []), *panel.details]
-                question = panel.question
-                input_mode = 'chat' if session.input_enabled else 'none'
-                working = panel.working()
-            else:
-                show_composer = self.execution_tab == 'active' and not active
-                question = self.question if show_composer else None
-                input_mode = self.input_mode if show_composer else 'none'
-                panel.chat_state = self.chat_state
+            logs = [*panel.transcript, *([panel.pending] if panel.pending else []), *panel.details]
             body = panel.layout(content_width, body_height, logs,
                 scroll=lambda _pane, lines, columns, rows: self.scroll_rows(pane, lines, columns, rows),
                 output_width=max(1, content_width - int(self.mouse_capture)),
-                input_mode=input_mode, question=question, working=working)
+                input_mode='chat' if session.input_enabled else 'none',
+                question=panel.question, working=panel.working())
             output_height = panel.output_height
-            if source == 'session':
-                # Keep the shared transcript's append/scroll anchoring at this viewport width.
-                panel.size = os.terminal_size((content_width + int(not self.mouse_capture), body_height))
-                panel.offsets['bottom'] = self.offsets['session']
+            # Keep the shared transcript's append/scroll anchoring at this viewport width.
+            panel.size = os.terminal_size((content_width + int(not self.mouse_capture), body_height))
+            panel.offsets['bottom'] = self.offsets['session']
         self.output_height = output_height
         self.chat_top = first + 1 + output_height
         self.chat_bounds = None
@@ -975,7 +966,7 @@ class TaskDisplay(LauncherDisplay):
         if self.execution_tabs:
             left = self.execution_layout(left_width, available,
                 [*self.transcript, *([self.pending] if self.pending else [])],
-                working, len(top) + 2)
+                len(top) + 2)
         else:
             left = self.session_panel.layout(left_width, available, logs, scroll=self.scroll_rows,
                 output_width=self.output_width(), input_mode=self.input_mode,

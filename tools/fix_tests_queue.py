@@ -541,7 +541,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
     pipelines = {name: (child_run(name), host if name == 'host' else guests) for name in states}
 
     def publish():
-        from launcher_chat import read_state, send_input, take_input
+        from launcher_chat import read_state, send_input, take_input, task_info
         from launcher_progress import read_progress, repair_progress, case_progress, case_frame, category_cases
         from launcher_question import pending
         lines = [f'VM pipelines | concurrency {snapshot["concurrency"]}']
@@ -556,7 +556,6 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                         if child.name == (repair_owner or next(iter(waiting), None))), None)
         if repair_owner is not None:
             child = next(child for child, _ in pipelines.values() if child.name == repair_owner)
-            launcher.atomic(run / 'chat-state.json', read_state(child))
             for entry in take_input(run):
                 state = read_state(child)
                 if entry['kind'] == 'message' or entry['session'] in (None, state['session']):
@@ -564,6 +563,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
         stopping = control.stopped.is_set() or (run / 'cancel').exists()
         if waiting:
             lines.append(f'Repair queue: {len(waiting)} | new cases waiting')
+        sessions = []
         for name in states:
             child = child_run(name)
             steps = repair_progress(child, read_progress(child))
@@ -572,6 +572,8 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             saved = json.loads(checkpoint_path.read_text()) if checkpoint_path.exists() else {}
             session_path = child / 'session-view.json'
             session = json.loads(session_path.read_text()) if session_path.exists() else None
+            if session is not None:
+                sessions.append((session['started_at'], child))
             lines.extend(['', pipeline_heading(name, states[name]['status'], steps, question, saved,
                                                blocker=blocker, stopping=stopping, session=session)])
             frame = child / 'frame.json'
@@ -594,6 +596,22 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                     launcher.atomic(child / 'question.json', displayed)
                 elif displayed is None or displayed['id'] != question['id']:
                     launcher.atomic(parent_question, dict(question, explanation=name + ': ' + question['explanation']))
+        latest_session = max(sessions, key=lambda item: item[0])[1] if sessions else None
+        panel_child = (next(child for child, _ in pipelines.values() if child.name == repair_owner)
+                       if repair_owner is not None else latest_session)
+        if panel_child is None:
+            panel_child = next((child for name, (child, _) in pipelines.items()
+                                if states[name]['status'] == 'running'), None)
+        if panel_child is not None:
+            state = read_state(panel_child)
+            # The parent displays one aggregate controller row. Keep the
+            # selected child's task identity and clocks aligned with that row.
+            launcher.atomic(run / 'task-info.json', task_info(panel_child, state.get('task_id')))
+            launcher.atomic(run / 'chat-state.json', dict(state, progress_key='pipelines'))
+        if latest_session is not None:
+            description = latest_session / 'descriptive-output.json'
+            if description.exists():
+                launcher.atomic(run / 'descriptive-output.json', json.loads(description.read_text()))
         launcher.atomic(run / 'frame.json', lines)
         launcher.atomic(state_path, states)
 

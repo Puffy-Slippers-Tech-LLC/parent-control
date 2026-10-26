@@ -28,7 +28,7 @@ from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequ
                           closeout_lock, commit_push_propagate, git_output,
                           pull_before_commit, reconciliation_instructions, stage_task,
                           validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
-from launcher_progress import publish_progress
+from launcher_progress import publish_completion, publish_progress, session_lines, task_heading
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
 from launcher_runtime import (AgentCapacityUnavailable, CAPACITY_RETRY_DELAYS, SessionResultRejected, TaskBudget,
@@ -728,7 +728,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     'plan_launcher.py', 'execution_plan.py', 'document_checks.py',
     'launcher_runtime.py', 'detached_launcher.py',
     'launcher_reload.py',
-    'launcher_observer.py', 'launcher_view.py', 'launcher_display.py',
+    'launcher_observer.py', 'launcher_view.py', 'launcher_display.py', 'launcher_progress.py',
     'launcher_session.py', 'launcher_chat.py', 'launcher_render.py', 'watch_output.py',
     # Shared storage retirement still protects owned resources and any older
     # required captures. These guards do not collect task archives.
@@ -762,7 +762,16 @@ def reload_controller(root, run, owner, spec):
 
 def worker(root, run, owner, spec, state, *, reloading=False):
     from launcher_chat import task_info_instructions
-    from launcher_display import clock_duration
+
+    def heading():
+        return task_heading(state['task_id'], state['title'], Path(state['brief']))
+
+    def completed_task():
+        budget.complete()
+        started = state.get('started_at')
+        duration = time.time() - started if started is not None else None
+        publish_completion(run, state['task_id'], heading(), duration, [state['task_id']])
+
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: (run / 'cancel').touch(mode=0o600))
@@ -783,10 +792,9 @@ def worker(root, run, owner, spec, state, *, reloading=False):
         if reloading and (run / 'cancel').exists():
             raise launcher.Stopped()
         if state.get('pending_completion') and not (reloading and (run / 'stop').exists()):
-            publish_progress(run, state['task_id'], [f"Task {state['task_id']}: {state['title']}",
-                                                    'Recovering accepted task close-out…'])
+            publish_progress(run, state['task_id'], [heading(), 'Recovering accepted task close-out…'])
             if closeout(plan, spec, run, state):
-                budget.complete()
+                completed_task()
                 print(f"{spec.name}: recovered task {state['task_id']} close-out.", flush=True)
         while True:
             if (run / 'cancel').exists():
@@ -912,8 +920,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                                            + task_info_instructions(run, state['task_id']))
             launcher.atomic(run / 'nested.json', [])
             (run / 'nested-closed').unlink(missing_ok=True)
-            publish_progress(run, state['task_id'], [f"Task {state['task_id']}: {state['title']}",
-                f"Session [{state['task_sessions']}]: {active_spec.model} {active_spec.effort}"])
+            publish_progress(run, state['task_id'], session_lines(heading(),
+                state['task_sessions'], active_spec.model, active_spec.effort))
             try:
                 result = execute(root, active_spec, run, owner)
                 plan = load_plan(root, spec.plan, state)
@@ -961,17 +969,13 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 state['pending_completion'] = result
                 launcher.atomic(run / 'checkpoint.json', state)
                 if closeout(plan, spec, run, state):
-                    budget.complete()
-                    duration = clock_duration(time.time() - state['started_at'])
-                    publish_progress(run, 'complete-' + state['task_id'],
-                        [f"\033[32m✓ Task {state['task_id']}: {state['title']} ({duration})\033[0m"],
-                        replaces=[state['task_id']])
+                    completed_task()
             elif result['status'] == 'blocked':
                 state.update(phase='blocked', blocker=result['blocker'], blocker_id=uuid.uuid4().hex)
             elif prerequisite_handoff(plan, state, result):
-                consumer, title = state['task_id'], state['title']
+                consumer, title = state['task_id'], heading()
                 state = defer_to_prerequisite(plan, state)
-                publish_progress(run, consumer, [f'Task {consumer}: {title} — suspended for prerequisite'])
+                publish_progress(run, consumer, [title])
             else:
                 state['phase'] = 'recover'
             launcher.atomic(run / 'checkpoint.json', state)

@@ -795,6 +795,18 @@ tools/execute-plan --plan 'docs/Source-Plan.md' --reconcile RUN --split-plan 'do
 Use composition with small policy objects and presentation strategies. Avoid a
 single state machine containing every task type's acceptance branches.
 
+Presentation has two extension levels: the shared `WorkflowView` supports custom
+launchers, and its `ExecutionPlanView` specialization owns all plan panel wiring.
+Every execution-plan launcher, including `write-e2e`, supplies its checkout and
+master plan to that specialization. It inherits the same layout, queue totals,
+task/session labels, live timing, suspension display, completion overview and
+observer reload identity. The shared progress infrastructure publishes compact
+completion rows for both normal and recovered close-out. Individual plan engines
+own task data, session descriptions and accepted completion boundaries; they do
+not implement panel formatting or wiring. Thin plan entry points supply only
+`PlanWorkflow` configuration. Non-plan launchers such as `fix-tests` use the base
+presentation strategy directly and can customize their layout and progress.
+
 | Shared component | Responsibility | Customization |
 | --- | --- | --- |
 | [`launcher_bootstrap.py`](../tools/launcher_bootstrap.py) / [`launcher_reload.py`](../tools/launcher_reload.py) / [`launcher_observer.py`](../tools/launcher_observer.py) | Stable interpreter trampoline, explicit reload requests and observer reattachment | Exact run, label and plan projection; never workflow admission |
@@ -802,7 +814,7 @@ single state machine containing every task type's acceptance branches.
 | [`plan_launcher.py`](../tools/plan_launcher.py) | Resumable ordinary-plan session driver | Immutable `PlanWorkflow`: name, plan, model/effort, session allowance, VM selection, Git policy |
 | [`launcher_runtime.py`](../tools/launcher_runtime.py) | Common options, locked task budget and live limit changes | Worker defines an accepted task boundary and default budget |
 | [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, following | Worker command, validated namespace, lifecycle callbacks |
-| [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) | Synchronized overview/totals and execution/status column widths and input routing | `WorkflowView`: progress and plan-total projections, question support and optional composer |
+| [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) / [`launcher_progress.py`](../tools/launcher_progress.py) | Synchronized panels, input routing, task formatting and durable completion rows | `ExecutionPlanView`: checkout/master data with shared plan wiring; `WorkflowView`: custom progress, layout options, questions and composer for other launchers |
 | [`launcher_session.py`](../tools/launcher_session.py) | Shared session transcript/composer layout, editor and caret geometry | Host supplies viewport, transcript, session state and authorized input callback; usable in a plan pane or a dedicated watch terminal |
 | [`launcher_git.py`](../tools/launcher_git.py) / [`launcher_worktrees.py`](../tools/launcher_worktrees.py) | Upstream reconciliation, literal paths and mandatory commit/push/propagation close-out with recovery | Workflow owns source-pull policy and commit scope; shared Git owns commit, push, destination discovery, stash/merge/restore, automatic conflict resolution and recovery |
 
@@ -810,7 +822,7 @@ The current adapters use these components according to their workflow:
 
 | Launcher | Shared infrastructure | Execution input and retained engine |
 | --- | --- | --- |
-| `write-e2e` | Task options/budgets, detached supervision, display, Git and queue reader | E2E master, ordered queue and briefs through its specialized acceptance, model and optimization engine |
+| `write-e2e` | Task options/budgets, detached supervision, `ExecutionPlanView`, shared plan progress, Git and queue reader | E2E master, ordered queue and briefs through its specialized acceptance, model and optimization engine |
 | `fix-tests` | Task options/budgets, detached supervision, display and developer questions | Selected suite inventory, verification rounds and failure handoffs through its repair engine; no Markdown task plan |
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |

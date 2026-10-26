@@ -3,10 +3,100 @@
 import hashlib
 import json
 import re
+import sys
 import time
 
 
 ANSI = re.compile(r'\x1b\[[?0-9;]*[A-Za-z]')
+
+
+def task_heading(task, title, brief=None):
+    """Use the same linked, bold task label in every execution-plan pane."""
+    label = f'\033[1mTask {task}\033[22m'
+    if brief is not None:
+        label = f'\033]8;;{brief.resolve().as_uri()}\033\\{label}\033]8;;\033\\'
+    title = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', title).replace('`', '').replace('**', '')
+    return f'{label}: {title}'
+
+
+def plan_task_heading(root, queue, task):
+    text = (root / queue).read_text().split('## Deferred future work', 1)[0]
+    row = re.search(r'^\| \[[ x]\] \| ' + re.escape(task) + r' \| ([^|]+) \|', text, re.MULTILINE)
+    title = row[1].strip() if row else task
+    brief = re.search(r'\[[^\]]+\]\(([^)]+)\)', title)
+    target = (root / queue).parent / brief[1] if brief else root / queue
+    return task_heading(task, title, target)
+
+
+def session_lines(heading, session, model, effort, *, summary=None):
+    detail = f'{summary} ({model} {effort})' if summary else f'{model} {effort}'
+    return [heading, f'\033[1mSession [{session}]\033[22m: {detail}']
+
+
+def format_duration(seconds, *, short=False):
+    minutes = max(0, int(seconds / 60 + 0.5))
+    if short:
+        hours, remaining_minutes = divmod(minutes, 60)
+        return f'{hours}h {remaining_minutes}m' if seconds >= 3600 else f'{minutes}m'
+    if seconds < 3600:
+        return f'{minutes} {"minute" if minutes == 1 else "minutes"}'
+    hours, minutes = divmod(minutes, 60)
+    return (f'{hours} {"hour" if hours == 1 else "hours"} '
+            f'{minutes} {"minute" if minutes == 1 else "minutes"}')
+
+
+def progress_keys(state):
+    """Specialized engines may use session keys; ordinary plans use task IDs."""
+    return state.get('progress_keys', [state.get('task_id')])
+
+
+def task_recap(run, steps):
+    """Project plan task timing and suspension without changing durable rows."""
+    checkpoint = run / 'checkpoint.json'
+    if not steps or not checkpoint.exists():
+        return steps
+    state = json.loads(checkpoint.read_text())
+    for suspended in state.get('suspended_tasks', {}).values():
+        keys = progress_keys(suspended)
+        previous = [step for step in steps if not step.get('replaces') and step['key'] in keys]
+        if previous:
+            latest = previous[-1]
+            steps = [dict(step, lines=[f"\033[38;2;128;128;128m{step['lines'][0]} — Suspended for prerequisite\033[39m"])
+                     if step is latest else step for step in steps
+                     if step not in previous or step is latest]
+    keys = progress_keys(state)
+    if (steps[-1].get('replaces') or 'started_at' not in state
+            or steps[-1]['key'] not in keys):
+        return steps
+    duration = state.get('completed_at', time.time()) - state['started_at']
+    summary = (f" (sessions={state['task_sessions']}, "
+               f"duration={format_duration(duration, short=True)})")
+    color = '\033[38;2;0;102;255m' if state['phase'] != 'complete' else ''
+    reset = '\033[39m' if color else ''
+    return [dict(step, lines=[color + line + reset
+                             for line in [step['lines'][0] + summary, *step['lines'][1:]]])
+            if not step.get('replaces') and step['key'] in keys
+            else step for step in steps]
+
+
+def plan_progress(run, steps, child_steps=None, *, remaining=None):
+    from launcher_runtime import task_progress
+    return task_progress(run, task_recap(run, steps), remaining=remaining)
+
+
+def publish_completion(run, key, heading, duration, keys):
+    """Compact accepted plan sessions into one durable green overview entry."""
+    from launcher_session import clock_duration
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    recap = Text('✓ ') + Text.from_ansi(heading)
+    elapsed = clock_duration(duration) if duration is not None else 'duration unavailable'
+    recap.append(f' ({elapsed})')
+    recap.stylize('green')
+    console = AgentRenderer(sys.stdout).console
+    with console.capture() as capture:
+        console.print(recap, end='', soft_wrap=True)
+    publish_progress(run, 'complete-' + key, [capture.get()], replaces=keys)
 
 
 def completed_text(text):

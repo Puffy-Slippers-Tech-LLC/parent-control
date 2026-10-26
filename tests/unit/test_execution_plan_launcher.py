@@ -27,7 +27,7 @@ import launcher_git
 import launcher_reload
 from execution_plan import Plan, local_file, plan_namespace
 from launcher_runtime import TaskBudget, task_counters, task_limit, task_progress, warn_remaining
-from launcher_view import plan_totals, view_for
+from launcher_view import ExecutionPlanView, plan_totals, plan_view, view_for
 import plan_launcher as workflow
 from plan_launcher import execute as execute_session
 from plan_launcher import reload_controller as replace_controller_process
@@ -106,7 +106,15 @@ def test_plan_adapter_shares_master_ownership_and_common_controls(
     monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
     monkeypatch.setattr(vm_selection, 'execution_selection', lambda selector: selections.append(selector))
     monkeypatch.setattr(vm_selection, 'execution_binding', lambda: None)
-    monkeypatch.setattr(workflow.launcher, 'follow', lambda *_args, **_kwargs: 0)
+    def follow(run, *, view, **_kwargs):
+        assert isinstance(view, ExecutionPlanView)
+        assert view.plan == (str(rig.root), rig.plan.path)
+        assert view.input_mode == 'chat' and view.questions
+        assert not view.execution_tabs
+        assert view_for('fix-tests').execution_tabs
+        assert not isinstance(view_for('fix-tests'), ExecutionPlanView)
+        return 0
+    monkeypatch.setattr(workflow.launcher, 'follow', follow)
     if action == 'stop':
         (rig.root / rig.plan.path).write_text('Interrupted master edit\n')
 
@@ -1576,9 +1584,10 @@ def test_reattached_observer_counts_legacy_unlimited_run_without_changing_budget
 
 def test_e2e_observer_counts_legacy_unlimited_run(tmp_path, monkeypatch):
     import launcher_view
+    from write_e2e import PLAN
     TaskBudget(tmp_path).initialize(0)
-    monkeypatch.setattr(launcher_view, 'e2e_totals', lambda: (17, 9, 26))
-    assert view_for('write-e2e').progress(tmp_path, [], [])[0]['lines'] == ['Tasks: 0/9/9']
+    monkeypatch.setattr(launcher_view, 'plan_totals', lambda root, path: (17, 9, 26))
+    assert plan_view(tmp_path, PLAN).progress(tmp_path, [], [])[0]['lines'] == ['Tasks: 0/9/9']
 
 
 @pytest.mark.parametrize('action', ['attach', 'limit', 'stop'])
@@ -1807,6 +1816,8 @@ def test_completed_evidence_repair_survives_retained_restart(rig, monkeypatch):
 
 @pytest.mark.parametrize('rejection', [None, 'retained', 'source'])
 def test_retained_completion_recovers_estimate_closeout_without_another_session(rig, monkeypatch, rejection):
+    from launcher_progress import read_progress
+    from rich.text import Text
     previous = rig.root / 'previous'
     previous.mkdir()
     queue = queue_estimates(rig.plan)
@@ -1856,6 +1867,9 @@ def test_retained_completion_recovers_estimate_closeout_without_another_session(
     assert [event[0] for event in events] == ['cleanup', 'cleanup', 'stage', 'closeout', 'cleanup']
     assert events[0][1] == previous
     assert TaskBudget(rig.run).read()['completed'] == 1
+    recap = read_progress(rig.run)[-1]
+    assert recap['replaces'] == ['001']
+    assert Text.from_ansi(recap['lines'][0]).plain == '✓ Task 001: Task 001 (duration unavailable)'
     final = json.loads((rig.run / 'checkpoint.json').read_text())
     assert final['phase'] == 'complete' and 'pending_completion' not in final
     assert rig.plan.next_task().id == '002'
@@ -3434,7 +3448,11 @@ def test_e2e_view_reads_canonical_plan_totals(monkeypatch):
     calls = []
     monkeypatch.setattr(launcher_view, 'plan_totals',
                         lambda root, path: calls.append((root, path)) or (3, 7, 10))
-    assert view_for('write-e2e').totals() == (3, 7, 10)
+    root = Path(launcher_view.__file__).resolve().parent.parent
+    view = plan_view(root, write_e2e.PLAN)
+    assert isinstance(view, ExecutionPlanView)
+    assert view.plan == (str(root), write_e2e.PLAN)
+    assert view.totals() == (3, 7, 10)
     assert calls == [(Path(launcher_view.__file__).resolve().parent.parent, write_e2e.PLAN)]
 
 

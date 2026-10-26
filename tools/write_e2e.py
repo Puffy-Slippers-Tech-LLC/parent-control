@@ -14,6 +14,8 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import detached_launcher as launcher
+from launcher_progress import (format_duration, plan_progress as task_progress,
+                               plan_task_heading, publish_completion, session_lines)
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer as wait_for_developer
 from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
@@ -228,65 +230,17 @@ def defer_to_prerequisite(root, state, *, recovery_run=None):
 def session_progress(root, state, count):
     if state.get('optimization_session'):
         batch = state['optimization']['pending']
-        return [f"Optimization: tasks {batch[0]} to {batch[-1]}",
-                f"Session [{state['task_sessions']}]: lessons and reusable E2E composition "
-                '(gpt-6.1-sol high)']
-    task = state['task_id']
-    queue = (root / QUEUE).read_text().split('## Deferred future work', 1)[0]
-    row = re.search(r'^\| \[[ x]\] \| ' + re.escape(task) + r' \| ([^|]+) \|', queue, re.MULTILINE)
-    title = row[1].strip() if row else task
-    brief = re.search(r'\[[^\]]+\]\(([^)]+)\)', title)
-    target = (root / QUEUE).parent / brief[1] if brief else root / QUEUE
-    # OSC 8 file links let the hosting editor handle navigation and its preview
-    # preference. Keep the link and bold style confined to the task label.
-    link = target.resolve().as_uri()
-    task_label = f'\033]8;;{link}\033\\\033[1mTask {task}\033[22m\033]8;;\033\\'
-    title = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', title).replace('`', '').replace('**', '')
+        return session_lines(f"Optimization: tasks {batch[0]} to {batch[-1]}",
+                             state['task_sessions'], 'gpt-6.1-sol', 'high',
+                             summary='lessons and reusable E2E composition')
     summary = ('Writing task code + host validation + first live VM test; close on success, hand off on failure'
                if state['phase'] == 'implement' else
                f"Investigate/fix previous failure + host validation + live VM test {state['live_attempts'] + 1}; close on success, hand off on failure")
     if state.get('diagnostic_continuation'):
         summary = 'Continue live probing/fix experiments; clean acceptance when the correction is supported'
     model, effort = session_model(state)
-    return [f'{task_label}: {title}',
-            f"\033[1mSession [{state['task_sessions']}]\033[22m: {summary} ({model} {effort})"]
-
-
-def task_progress(run, steps, *, remaining=None):
-    """Pin runtime task counts above the refreshed task recap."""
-    from launcher_runtime import task_progress as progress
-    return progress(run, task_recap(run, steps), remaining=remaining)
-
-
-def task_recap(run, steps):
-    """Refresh the current task recap without changing durable controller lines."""
-    checkpoint = run / 'checkpoint.json'
-    if not steps or not checkpoint.exists():
-        return steps
-    state = json.loads(checkpoint.read_text())
-    # A queue repair suspends its consumer without completing it. Its last
-    # session remains in the controller history, but is no longer running.
-    # Derive this from the checkpoint so reconnects also repair older frames.
-    for suspended in state.get('suspended_tasks', {}).values():
-        keys = suspended.get('progress_keys', [])
-        previous = [step for step in steps if not step.get('replaces') and step['key'] in keys]
-        if previous:
-            latest = previous[-1]
-            steps = [dict(step, lines=[f"\033[38;2;128;128;128m{step['lines'][0]} — Suspended for prerequisite\033[39m"])
-                     if step is latest else step for step in steps
-                     if step not in previous or step is latest]
-    if (steps[-1].get('replaces') or 'started_at' not in state
-            or steps[-1]['key'] not in state.get('progress_keys', [])):
-        return steps
-    duration = state.get('completed_at', time.time()) - state['started_at']
-    summary = (f" (sessions={state['task_sessions']}, "
-               f"duration={format_duration(duration, short=True)})")
-    color = '\033[38;2;0;102;255m' if state['phase'] != 'complete' else ''
-    reset = '\033[39m' if color else ''
-    return [dict(step, lines=[color + line + reset
-                             for line in [step['lines'][0] + summary, *step['lines'][1:]]])
-            if not step.get('replaces') and step['key'] in state['progress_keys']
-            else step for step in steps]
+    return session_lines(plan_task_heading(root, QUEUE, state['task_id']),
+                         state['task_sessions'], model, effort, summary=summary)
 
 
 def model_tier(state):
@@ -994,18 +948,6 @@ def save_handoff(run, state, reason, *, display=True):
         sys.stdout.flush()
 
 
-def format_duration(seconds, *, short=False):
-    minutes = max(0, int(seconds / 60 + 0.5))
-    if short:
-        hours, remaining_minutes = divmod(minutes, 60)
-        return f'{hours}h {remaining_minutes}m' if seconds >= 3600 else f'{minutes}m'
-    if seconds < 3600:
-        return f'{minutes} {"minute" if minutes == 1 else "minutes"}'
-    hours, minutes = divmod(minutes, 60)
-    return (f'{hours} {"hour" if hours == 1 else "hours"} '
-            f'{minutes} {"minute" if minutes == 1 else "minutes"}')
-
-
 def show_completion(task, task_sessions, duration):
     from launcher_render import AgentRenderer
     from rich.text import Text
@@ -1015,23 +957,6 @@ def show_completion(task, task_sessions, duration):
     print(f'- Took {task_sessions} sessions.\n'
           f'- Duration: {format_duration(duration)}', flush=True)
     sys.stdout.flush()
-
-
-def publish_completion(run, key, heading, duration, keys):
-    """Replace finished task or optimization sessions with the same green recap."""
-    from launcher_progress import publish_progress
-    from launcher_display import clock_duration
-    from launcher_render import AgentRenderer
-    from rich.text import Text
-    recap = Text('✓ ') + Text.from_ansi(heading)
-    recap.append(f' ({clock_duration(duration)})')
-    recap.stylize('green')
-    console = AgentRenderer(sys.stdout).console
-    with console.capture() as capture:
-        console.print(recap, end='', soft_wrap=True)
-    publish_progress(run, 'complete-' + key,
-                     [capture.get()],
-                     replaces=keys)
 
 
 def task_session_limit_reached(state):
@@ -1528,7 +1453,8 @@ def main(argv=None):
         print('Closing the terminal detaches. Chat Ctrl+C interrupts; again while waiting exits. '
               '--stop waits for a session boundary.',
               flush=True)
-        return launcher.follow(run, label='write-e2e')
+        from launcher_view import plan_view
+        return launcher.follow(run, label='write-e2e', view=plan_view(root, PLAN))
     except BrokenPipeError:
         return 0
     except (OSError, ValueError, ImportError) as error:

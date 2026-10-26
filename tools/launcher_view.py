@@ -4,24 +4,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from launcher_runtime import task_progress
+from launcher_progress import plan_progress
 
 
 def unchanged(run, steps, child_steps):
     return steps
 
 
-def e2e_progress(run, steps, child_steps):
-    from write_e2e import task_progress as progress
-    return progress(run, steps, remaining=lambda: e2e_totals()[1])
-
-
 def repair_progress(run, steps, child_steps):
     from launcher_progress import repair_progress as overlay
     return task_progress(run, overlay(run, steps, child_steps=child_steps))
-
-
-def plan_progress(run, steps, child_steps, *, remaining=None):
-    return task_progress(run, steps, remaining=remaining)
 
 
 def plan_totals(root, path):
@@ -31,11 +23,6 @@ def plan_totals(root, path):
     _, tasks = queue_state(plan.root, plan.path, plan.queue, validate_pointer=False)
     completed = sum(tasks.values())
     return completed, len(tasks) - completed, len(tasks)
-
-
-def e2e_totals():
-    from write_e2e import PLAN
-    return plan_totals(Path(__file__).resolve().parent.parent, PLAN)
 
 
 def whatsnew_totals(root=None):
@@ -73,16 +60,22 @@ class WorkflowView:
                            log_path=run / 'output')
 
 
+class ExecutionPlanView(WorkflowView):
+    """All plan launchers inherit the same panes, progress and reload wiring."""
+
+    def __init__(self, root, path):
+        root = Path(root)
+        super().__init__('chat', True,
+            lambda run, steps, child_steps: plan_progress(run, steps, child_steps,
+                remaining=lambda: plan_totals(root, path)[1]),
+            lambda: plan_totals(root, path), plan=(str(root), path))
+
+
 def plan_view(root, path):
-    root = Path(root)
-    return WorkflowView('chat', True,
-        lambda run, steps, child_steps: plan_progress(run, steps, child_steps,
-            remaining=lambda: plan_totals(root, path)[1]),
-        lambda: plan_totals(root, path), plan=(str(root), path))
+    return ExecutionPlanView(root, path)
 
 
 VIEWS = {
-    'write-e2e': WorkflowView('chat', True, e2e_progress, e2e_totals),
     'fix-tests': WorkflowView('chat', True, repair_progress, overview_current=True,
                               cancel_on_ctrl_c=True, execution_tabs=True),
     'run-tests': WorkflowView(),

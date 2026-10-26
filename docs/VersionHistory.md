@@ -1,4 +1,4 @@
-## v1.4 -
+## v1.4 - 2026-10-26
 ### New Features
 - **Language Dialog**: You can search for a language by its English name as well as its localized name.
 - **Remaing Time Reminders**: Added default critical reminders in child session. Reminders can show in full-screen apps and can be customized, or completely removed, in child preferences.

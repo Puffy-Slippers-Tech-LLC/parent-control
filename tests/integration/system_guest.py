@@ -559,6 +559,7 @@ def sample_install_trust(stop, samples):
 
 
 def install_package():
+    """Install through Make and return its private transaction stdout path."""
     from contextlib import redirect_stdout
     import threading
     from guest_install_recipe import install as install_recipe
@@ -578,6 +579,9 @@ def install_package():
     failed = True
     try:
         install_recipe(run, guard, package_path())
+        # Later diagnostic commands advance the shared sequence. Keep the
+        # native transaction's identity for callers checking its receipt.
+        transaction = commands.directory / f'command-{commands.sequence:04d}.txt'
         failed = False
     finally:
         elapsed = time.monotonic() - started
@@ -619,6 +623,7 @@ def install_package():
         finally:
             commands.last_returncode = original_returncode
     print('onpc-system: stage=package-install outcome=passed', flush=True)
+    return transaction
 
 
 def install_previous():

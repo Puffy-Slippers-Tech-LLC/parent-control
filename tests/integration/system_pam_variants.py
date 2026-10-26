@@ -212,9 +212,8 @@ def verify_policy(state, record, stage):
     record('onpc.pam-variants.policy.' + stage, 'exact-saved-preferences-limits-app-filter-grants')
 
 
-def configuration_output():
-    """Read the exact last native transaction's private stdout and stderr."""
-    diagnostic = guest.commands.directory / f'command-{guest.commands.sequence:04d}.txt'
+def configuration_output(diagnostic):
+    """Read the selected native transaction's private stdout and stderr."""
     return (owned_bytes(diagnostic, private=True) +
             (owned_bytes(diagnostic.with_name(diagnostic.stem + '-stderr.txt'),
                          optional=True, private=True) or b''))
@@ -275,10 +274,10 @@ def pending_retry(state, record):
     owned = create_owned(target, contents)
     inode = identity(target)[:2]
     try:
-        guest.install_package()
-        # Capture the receipt before any subsequent native command advances the
-        # diagnostic sequence. RPM status alone cannot prove post-script success.
-        require(CONFIGURED in configuration_output(), 'pending-vendor-configuration-incomplete')
+        transaction = guest.install_package()
+        # Check this transaction's receipt, independently of later diagnostics.
+        # RPM status alone cannot prove post-script success.
+        require(CONFIGURED in configuration_output(transaction), 'pending-vendor-configuration-incomplete')
         require(fingerprint(target) == owned and identity(target)[:2] == inode,
                 'pending-vendor-overwritten')
         require(all((identity(path) if os.path.lexists(path) else None) == expected
@@ -300,8 +299,9 @@ def pending_retry(state, record):
         unlink_owned(target, owned, inode=inode)
     # This successful transaction leaves no half-configured DEB to configure.
     # Repeat the ordinary public install route after removing only our proposal.
-    guest.install_package()
+    transaction = guest.install_package()
     record('onpc.pam-variants.pending-vendor.retry', 'only-owned-pending-candidate-removed; normal-reinstall')
+    return transaction
 
 
 def verify_administrator_denials(record):
@@ -371,14 +371,14 @@ def verify_reboot(record, variant):
     seed_policy(state)
     save(state)
     if variant == 'pending-vendor':
-        pending_retry(state, record)
+        transaction = pending_retry(state, record)
     else:
-        guest.install_package()
+        transaction = guest.install_package()
     # Same-byte configuration can legitimately require no further reboot marker.
     # The runner still provides a distinct boot before post-retry enforcement.
     # Ubuntu's frontend hook consumes its temporary notice file; Fedora never
     # creates it. Both native routes emit this receipt only after configuration.
-    require(CONFIGURED in configuration_output(), 'repeat-configuration-incomplete')
+    require(CONFIGURED in configuration_output(transaction), 'repeat-configuration-incomplete')
     record('onpc.pam-variants.configuration-receipt', 'native-transaction-completed')
     for name in ('migration-in-progress', 'package-activation-pending',
                  'kiosk-configuration-account.json'):

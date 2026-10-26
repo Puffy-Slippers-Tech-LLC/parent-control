@@ -974,6 +974,30 @@ Daily-only natural-lock qualification does not prove grant-only expiry.
 Unknown, ambiguous, replaced or stale recipients and uncertain input refuse
 without a replay. Neither timeout nor a missing window proves denial.
 
+#### Short confinement usability history
+
+`check_e2e_confinement_usability` dispatches
+[`ConfinementUsabilityJourney` / `PLAN`](../../tests/e2e/confinement_usability.py)
+through `ConfinementUsabilityQualification` and
+[`onpc_confinement_usability::run`](../../tests/integration/graphical_smoke/lib/onpc_confinement_usability.pm).
+The existing installed envelope has a 1800-second worker timeout. The complete
+composition is qualified on `onpc-Ubuntu26.04` and `onpc-Fedora44` through
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' integration check_e2e_confinement_usability`.
+
+Its finite history uses Riley/Jamie (`fixture-child`/`fixture-parent`), daily
+900 seconds, initial zero grant, Custom `1.25` Minutes (75 seconds), and soft apps
+included. Fresh passwordless entry reaches the usable request; wrong-password
+rejection and independent authentication Cancel each retain the form and have
+their own public Parent zero-grant endpoint before any reset. Genuine approval
+exits normally and Parent independently checks the 975-second estimate against
+the actual grant and elapsed time. Another fresh passwordless entry reads a
+usable request before normal exit. Reentry uses the complete REQUEST03/04 form
+result; Parent's periodically refreshed balance is not a fresh operand for a
+second estimate comparison. Public revoke/Confirm, zero allowance and
+limits-off restoration precede the runner's owned session/VM cleanup. This
+short normal-use composition supplies no desktop-defense, fault-variation,
+broader feature or complete baseline acceptance.
+
 <a id="c04p1-compatible-fixture-applicability"></a>
 
 #### Compatible native fixtures

@@ -750,7 +750,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False,
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
          baseline_app_effects=False, baseline_auth_pause=False, baseline_journey=False,
-         active_grant_disable=None,
+         active_grant_disable=None, confinement_usability=False,
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
          fresh_thirty_child='child', time_profiles_daily=None,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
@@ -772,6 +772,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None,
          fixture_selection=None, transfer_qualification=False):
+    require(type(confinement_usability) is bool and (not confinement_usability or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and lock_surface is None and parent_entry is None and approval_flow is None
+        and active_grant_disable is None and time_profiles_daily is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'confinement_usability')
+            and isinstance(value, bool)))), 'smoke:confinement-usability-prerequisites')
     require(active_grant_disable in (None, 'engineering', 'public') and (active_grant_disable is None or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and parent_entry is None and approval_flow is None
@@ -1781,6 +1788,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-baseline-auth-pause-qualification'
         if baseline_journey:
             result['scope'] = 'installed-baseline-journey-qualification'
+        if confinement_usability:
+            result['scope'] = 'installed-confinement-usability-qualification'
         if auth_result:
             result['scope'] = 'installed-auth-result-qualification'
         if kiosk_approved_flow:
@@ -1880,7 +1889,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         package_only=parent_setup or fixture_selection is not None)
                 if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
-                        or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable
+                        or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
                         or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
@@ -2303,6 +2312,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if baseline_journey:
                     from parent_setup_qualification import BaselineJourneyQualification
                     qualification_class = BaselineJourneyQualification
+                if confinement_usability:
+                    from parent_setup_qualification import ConfinementUsabilityQualification
+                    qualification_class = ConfinementUsabilityQualification
                 if kiosk_rejection:
                     from parent_setup_qualification import KioskRejectionQualification
                     qualification_class = KioskRejectionQualification

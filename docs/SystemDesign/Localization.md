@@ -193,10 +193,12 @@ password prompt.
 
 ### Native authentication fallback
 
-When successful locale discovery finds no non-C UTF-8 message locale, kiosk
+When locale discovery fails or finds no non-C UTF-8 message locale, kiosk
 preparation uses an installed C UTF-8 locale, or C, for registration and message
 categories, with source text for the vendor agent. This does not change the
-child's saved language. Locale-discovery failure remains a preparation gap.
+child's saved language. A failed discovery uses C without caching the failure;
+the next preparation retries the bounded inventory command. Required agent
+service preparation and its deadline still apply.
 
 The required behavior is genuine selected-parent authentication with safe
 native/source text when locale discovery or translation assets are unavailable.

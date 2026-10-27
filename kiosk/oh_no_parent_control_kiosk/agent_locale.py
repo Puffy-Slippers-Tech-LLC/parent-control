@@ -108,7 +108,13 @@ class KioskAgentLocale:
 
     def _environment(self, language, desktop_language):
         if self._locales is None:
-            self._locales = installed_locales()
+            try:
+                self._locales = installed_locales()
+            except (OSError, subprocess.SubprocessError, UnicodeError) as error:
+                self._record_failure(error, 'locale-discovery')
+                # Only the optional inventory failed. Still require the real
+                # agent restart, and retry discovery on the next preparation.
+                return agent_environment(language, desktop_language, ())
         return agent_environment(language, desktop_language, self._locales)
 
     def _advance(self):

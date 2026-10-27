@@ -772,7 +772,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None,
          fixture_selection=None, transfer_qualification=False):
-    require((type(confinement_usability) is bool or confinement_usability == 'basic-locales')
+    require((type(confinement_usability) is bool
+             or confinement_usability in ('basic-locales', 'locale-discovery-failure'))
         and (not confinement_usability or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and parent_entry is None and approval_flow is None
@@ -1807,6 +1808,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if confinement_usability:
             result['scope'] = ('installed-basic-locale-auth-qualification'
                 if confinement_usability == 'basic-locales'
+                else 'installed-locale-discovery-auth-qualification'
+                if confinement_usability == 'locale-discovery-failure'
                 else 'installed-confinement-usability-qualification')
         if auth_result:
             result['scope'] = 'installed-auth-result-qualification'
@@ -2341,9 +2344,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     qualification_class = BaselineJourneyQualification
                 if confinement_usability:
                     from parent_setup_qualification import (ConfinementUsabilityQualification,
-                                                           BasicLocaleAuthQualification)
+                        BasicLocaleAuthQualification, LocaleDiscoveryAuthQualification)
                     qualification_class = (BasicLocaleAuthQualification
                         if confinement_usability == 'basic-locales'
+                        else LocaleDiscoveryAuthQualification
+                        if confinement_usability == 'locale-discovery-failure'
                         else ConfinementUsabilityQualification)
                 if kiosk_rejection:
                     from parent_setup_qualification import KioskRejectionQualification

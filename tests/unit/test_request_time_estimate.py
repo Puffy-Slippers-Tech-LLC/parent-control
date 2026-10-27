@@ -1,6 +1,8 @@
 """Asynchronous request-window preferences and estimates without a display."""
 
 from types import SimpleNamespace
+import os
+import subprocess
 from unittest.mock import Mock, patch
 
 import pytest
@@ -494,6 +496,61 @@ def test_kiosk_request_waits_for_agent_locale_and_failure_is_terminal():
     callback(RuntimeError('old preparation failure'))
     assert window._state.in_flight
     assert window._bus_call.call_count == calls
+
+
+@pytest.mark.parametrize('error,result', [
+    (subprocess.CalledProcessError(1, ['/usr/bin/locale', '-a']), 'done'),
+    (subprocess.TimeoutExpired(['/usr/bin/locale', '-a'], 5), 'done'),
+    (FileNotFoundError('locale unavailable'), 'done'),
+    (subprocess.CalledProcessError(1, ['/usr/bin/locale', '-a']), 'failed'),
+])
+def test_locale_discovery_failure_preserves_real_agent_and_request(
+        tmp_path, error, result, caplog):
+    window = request_window()
+    agent = window._agent_locale = KioskAgentLocale()
+    bus = Mock()
+    before = dict(os.environ)
+    with (patch('oh_no_parent_control_kiosk.agent_locale.subprocess.run', side_effect=error) as inventory,
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.get_user_runtime_dir', return_value=str(tmp_path)),
+          patch('oh_no_parent_control_kiosk.agent_locale.Gio.bus_get_sync', return_value=bus),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.timeout_add_seconds', return_value=42),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.source_remove')):
+        window._request_access()
+        finish_request_call(window._bus_call.call_args.args[3])
+        inventory.assert_called_once_with(['/usr/bin/locale', '-a'], check=True,
+                                          capture_output=True, text=True, timeout=5)
+        assert agent._locales is None
+        assert (tmp_path / 'oh-no-parent-control/polkit-agent.env').read_text() == (
+            'LANG=C\nLANGUAGE=C\nLC_ALL=C\n')
+        assert bus.call.call_args.args[3] == 'RestartUnit'
+        assert window._bus_call.call_count == 1
+        agent._completed(result)
+        if result == 'done':
+            assert window._bus_call.call_args.args[0] == 'RequestAccess'
+            assert window._bus_call.call_args.args[1].unpack() == (1001, 1000, 300, False)
+            window._show_error.assert_not_called()
+        else:
+            assert window._bus_call.call_count == 1
+            window._show_error.assert_called_once()
+            assert not window._state.in_flight
+        assert (window._applied_language, window._desktop_language) == ('zh-Hans', 'zh_CN.UTF-8')
+        assert dict(os.environ) == before
+        observations = [decode(record.onpc_payload) for record in caplog.records]
+        assert any(value['event'] == 'kiosk.agent-preparation-failed'
+                   and value['fields'] == {'stage': 'locale-discovery'}
+                   for value in observations)
+        # The failure is not a permanent empty inventory: restored discovery
+        # prepares the selected language and still waits for the required job.
+        inventory.side_effect = None
+        inventory.return_value = SimpleNamespace(stdout='C\nC.utf8\nzh_CN.utf8\n')
+        done = Mock()
+        agent.prepare('zh-Hans', 'zh_CN.UTF-8', done)
+        assert inventory.call_count == 2
+        assert 'LANGUAGE=zh_CN\n' in (tmp_path / 'oh-no-parent-control/polkit-agent.env').read_text()
+        done.assert_not_called()
+        agent._completed('done')
+        done.assert_called_once_with(None)
+        agent.close()
 
 
 @pytest.mark.parametrize('overlay', (False, True))

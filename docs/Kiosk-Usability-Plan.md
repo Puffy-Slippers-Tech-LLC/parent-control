@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U01a — [Keep approval working when locale discovery fails](Kiosk-Usability-Tasks/U01a-locale-discovery.md)**.
+Next task: **U02 — [Keep healthy children able to request time](Kiosk-Usability-Tasks/U02-child-isolation.md)**.
 
 ## Outcome and scope
 

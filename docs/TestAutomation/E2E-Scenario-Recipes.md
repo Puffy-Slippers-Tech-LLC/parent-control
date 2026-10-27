@@ -729,6 +729,12 @@ adds only successful C/C.UTF-8-only discovery and its restoration to this same
 history. It is separate engineering qualification for U01, not a customer case
 or locale-discovery-failure result.
 
+The separate `check_e2e_locale_discovery_auth` variant qualifies a failed locale
+command and restoration on both Ubuntu/Fedora targets through
+`LocaleDiscoveryAuthQualification`. It retains the same public no-grant controls,
+genuine approval, independent time readback and restored usable request history;
+it supplies engineering qualification, not complete customer-case credit.
+
 Selection restores exact owned saved routing with current-value/boot/account
 guards. Both route histories restore public policy and demonstrate Cancel and
 fresh usable passwordless entry. The short history additionally restores grants

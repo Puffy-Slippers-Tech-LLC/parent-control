@@ -14,7 +14,7 @@ def require(value, code):
         raise RuntimeError(code)
 
 
-def guest_operation(action, token, receipt):
+def guest_operation(action, token, receipt, discovery_failure=False):
     sys.path.insert(0, '/var/tmp/onpc-system-input')
     import system_guest as guest
     from system_kiosk_confinement import (ACCOUNT, SERVICES, user_command,
@@ -30,13 +30,22 @@ def guest_operation(action, token, receipt):
     dropin = directory / ('90-onpc-basic-locale-' + token + '.conf')
     # Inline startup avoids a separate temporary executable and its trust setup.
     # The installed entry point and genuine vendor agent remain unchanged.
+    fault = (
+        "import types;"
+        "original=agent_locale.subprocess;"
+        "agent_locale.subprocess=types.SimpleNamespace(SubprocessError=original.SubprocessError,"
+        "run=lambda args,**kwargs:"
+        "original.run(['/usr/bin/false'] if args==['/usr/bin/locale','-a'] else args,**kwargs));"
+        if discovery_failure else
+        "agent_locale.installed_locales=lambda:('C','C.utf8','POSIX');"
+    )
     code = (
         "import os,runpy,sys;"
         f"assert os.getuid()=={account.pw_uid};"
         "sys.path[:0]=['/usr/lib/oh-no-parent-control',"
         "'/usr/lib/oh-no-parent-control/kiosk'];"
         "from oh_no_parent_control_kiosk import agent_locale;"
-        "agent_locale.installed_locales=lambda:('C','C.utf8','POSIX');"
+        + fault +
         "sys.argv=['/usr/bin/oh-no-parent-control'];"
         "runpy.run_path(sys.argv[0],run_name='__main__')"
     )
@@ -85,10 +94,13 @@ def guest_operation(action, token, receipt):
                 'basic-locale:vendor-agent')
         environment = dict(item.split(b'=', 1) for item in
                            (process / 'environ').read_bytes().split(b'\0') if b'=' in item)
+        basic = b'C' if discovery_failure else b'C.utf8'
         require({key: environment.get(key) for key in (b'LANG', b'LANGUAGE', b'LC_ALL')} ==
-                {b'LANG': b'C.utf8', b'LANGUAGE': b'C', b'LC_ALL': b'C.utf8'},
+                {b'LANG': basic, b'LANGUAGE': b'C', b'LC_ALL': basic},
                 'basic-locale:fallback-not-applied')
-        return {'successful_basic_discovery': True, 'native_agent_basic_environment': True}
+        return {'successful_basic_discovery': not discovery_failure,
+                'discovery_command_failure': discovery_failure,
+                'native_agent_basic_environment': True}
 
     require(action == 'restore', 'basic-locale:operation')
     dropin.unlink()
@@ -103,8 +115,9 @@ def guest_operation(action, token, receipt):
 
 
 class BasicLocaleFault:
-    def __init__(self, journey, lease):
+    def __init__(self, journey, lease, *, discovery_failure=False):
         self.journey, self.lease = journey, lease
+        self.discovery_failure = discovery_failure
         self.token, self.receipt, self.restored = secrets.token_hex(16), None, False
         self.source = Path(__file__).read_bytes()
 
@@ -118,14 +131,15 @@ class BasicLocaleFault:
             raw = self.journey.transport.call([
                 'env', 'ONPC_EXPECTED_RUN=' + self.lease.state['run'],
                 '/usr/bin/python3', '-I', '-', action, self.token,
-                json.dumps(self.receipt)], input=self.source, timeout=120)
+                json.dumps(self.receipt), 'failed' if self.discovery_failure else 'basic'],
+                input=self.source, timeout=120)
         self.lease.guard()
         require(type(raw) is bytes and 0 < len(raw) <= 65536, 'basic-locale:response-bound')
         return json.loads(raw)
 
     def install(self):
         self.receipt = self.call('install')
-        return {'installed': True, 'discovery_failure': False}
+        return {'installed': True, 'discovery_failure': self.discovery_failure}
 
     def restore(self):
         if self.receipt is not None and not self.restored:
@@ -136,7 +150,9 @@ class BasicLocaleFault:
 
 
 if __name__ == '__main__':
-    require(len(sys.argv) == 4 and sys.argv[1] in ('install', 'observe', 'restore'),
+    require(len(sys.argv) == 5 and sys.argv[1] in ('install', 'observe', 'restore')
+            and sys.argv[4] in ('basic', 'failed'),
             'basic-locale:arguments')
-    print(json.dumps(guest_operation(sys.argv[1], sys.argv[2], json.loads(sys.argv[3])),
+    print(json.dumps(guest_operation(sys.argv[1], sys.argv[2], json.loads(sys.argv[3]),
+                                     sys.argv[4] == 'failed'),
                      sort_keys=True))

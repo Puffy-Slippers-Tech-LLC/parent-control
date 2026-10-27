@@ -450,11 +450,13 @@ class BasicLocaleAuthQualification(ConfinementUsabilityQualification):
     """One basic-locale fault, real authentication and normal request reentry."""
 
     fault = None
+    discovery_failure = False
 
     def journey(self, context, progress):
         from basic_locale_auth import BasicLocaleFault
         journey = super().journey(context, progress)
-        self.fault = BasicLocaleFault(journey, context.lease)
+        self.fault = BasicLocaleFault(journey, context.lease,
+                                     discovery_failure=self.discovery_failure)
         check_settings = journey.check_settings
 
         def check(stage, observed):
@@ -480,6 +482,12 @@ class BasicLocaleAuthQualification(ConfinementUsabilityQualification):
         finally:
             if self.fault is not None:
                 self.fault.restore()
+
+
+class LocaleDiscoveryAuthQualification(BasicLocaleAuthQualification):
+    """One failed locale command with real approval and normal request reentry."""
+
+    discovery_failure = True
 
 
 class KioskLeaseVariationQualification(ConfinementUsabilityQualification):

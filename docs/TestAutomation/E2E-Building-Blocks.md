@@ -1004,7 +1004,15 @@ Qualified on both declared Ubuntu/Fedora targets, it supplies successful
 C/C.UTF-8-only discovery, genuine native approval with independently observed
 time, rejection/Cancel without a grant, and restored normal request use.
 One temporary service override leaves packaged files and system settings alone;
-the existing runner owns VM cleanup. Discovery failure remains U01a scope.
+the existing runner owns VM cleanup. Discovery failure has its separate history below.
+This is installed engineering qualification, with no complete E2E-case credit.
+
+`check_e2e_locale_discovery_auth` reuses the same history through
+`LocaleDiscoveryAuthQualification`. Qualified on both Ubuntu/Fedora targets, it
+makes the app's locale inventory command exit unsuccessfully and verifies the
+C/source-text native agent, rejection/Cancel without a grant, genuine approval
+with independent time readback, and usable fresh entry after restoring discovery.
+The app-only override is removed and the runner completes owned VM cleanup.
 This is installed engineering qualification, with no complete E2E-case credit.
 
 <a id="c04p1-compatible-fixture-applicability"></a>

@@ -39,7 +39,7 @@ cp .envrc.example ./.envrc
 chmod 600 ./.envrc
 ```
 
-Set `APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` in `.envrc` from Keeper's “Oh No Parent Control” entry. Keep the value out of `.envrc.example` and version control. See [signing setup](docs/Publishing.md#noninteractive-signing).
+Set `APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` in `.envrc` from password manager's “Oh No Parent Control” entry. Keep the value out of `.envrc.example` and version control. See [signing setup](docs/Publishing.md#noninteractive-signing).
 
 Also set `TEST_ACCOUNT_PASSWORD` to your chosen password for all four VM test
 accounts. Baseline preparation and E2E tests require this literal assignment
@@ -56,7 +56,7 @@ cp -n './config/copr.example' "$HOME/.config/copr"
 chmod 600 "$HOME/.config/copr"
 ```
 
-Replace the sample contents with the API Token configuration from Keeper's
+Replace the sample contents with the API Token configuration from password manager's
 “Fedora / COPR Account” entry, including its expiration date. Keep the credentials
 in the private `~/.config/copr` file; never put real values in `copr.example` or
 version control.

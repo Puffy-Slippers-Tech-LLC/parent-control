@@ -21,6 +21,7 @@ use onpc_command_help ();
 use onpc_desktop_session ();
 use onpc_kiosk_entry ();
 use onpc_public_desktop_selection ();
+use onpc_station_shortcuts ();
 use onpc_kiosk_eligible_choices ();
 use onpc_kiosk_multiple ();
 use onpc_restricted_station_about ();
@@ -894,6 +895,13 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_kiosk_eligible_choices::run(\&exchange);
+        return;
+    }
+    if ($ready->{station_shortcuts}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_station_shortcuts::run(\&exchange,
+            $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{public_desktop_selection}) {

@@ -164,6 +164,7 @@ still require shared environment preparation before use.
 | Input | Owner and lifetime |
 | --- | --- |
 | Fixed accounts, guest dependencies, welcome/idle settings | Baseline account/tool reconciliation |
+| Fedora terminal shortcut | `prepare_vm.configure_terminal_shortcut` gives each fixed test account a permanent Ctrl+Alt+T custom binding to `/usr/bin/ptyxis --new-window`, with readback; other custom bindings are preserved. The shared guest dependency inventory supplies Ptyxis. Ubuntu retains its existing shortcut. Qualification only exercises the prepared binding and never configures it. |
 | Stable fixture folder names across desktop-language changes | `baseline_environment.desktop_settings_files`: per-fixture `Hidden=true` XDG autostart override and empty regular systemd user-unit mask for the optional GTK folder renamer; the baseline reconciler owns placement and read-only verification |
 | Stable Ubuntu package inputs during execution | `baseline_environment.automatic_update_files`: empty regular system-unit masks for `apt-daily.service`, `apt-daily.timer`, `apt-daily-upgrade.service` and `apt-daily-upgrade.timer`; the baseline reconciler owns placement and read-only verification. Fedora has no APT masks. |
 | Serial getty and the 600-second console login window | [baseline_console.py](baseline_console.py); attempts only verify |
@@ -186,6 +187,9 @@ retries have explicit regressions. Accounts/settings preserve unrelated state.
 All declaration, builder and runtime sources participate in the baseline digest,
 invalidating stale baselines and their derived app snapshots. Independent offline
 inspection verifies fixtures and console configuration before capture.
+During an explicit refresh, layout classification accepts a structurally valid
+older dependency inventory; capture inspection still requires the current
+inventory and installed packages before accepting the refreshed baseline.
 Trusted native fixtures additionally bind their exact payload identities, native
 package/tool identities and generated trust-fragment digest to the preparation
 source and fixture record. First placement uses `fapolicyd-cli --file add` for

@@ -743,7 +743,7 @@ not that result and supplies no defense pass.
 | Child access and deliberate action | Current disposition and smallest owner | Negative, permitted control and restoration |
 | --- | --- | --- |
 | At GDM, select the station and choose an available full desktop; also check the ordinary-account chooser → Cancel → station sequence without supplying an administrator password. | **C07a1 qualified a no-route disposition on both targets; no missing barrier demonstrated.** Ordinary-account public desktop selection works. Normal passwordless station selection, directly and after ordinary chooser cancellation, reaches the dedicated request without exposing a station chooser. No authentication delay or saved-routing change manufactured reachability. C07a retains its own both-target usability gate and may add only a demonstrated justified barrier. | Independent selected desktop-file command, station-UID session/manager/Kiosk processes and public usable request results passed for both attempts. Owned saved choices and public policy were restored, followed by usable Cancel/reentry and runner/VM cleanup. This does not claim that a selected alternate executable was denied; see the exact qualification below. |
-| In the usable request session press Super, Super-A, Alt+F2 and Ctrl+Alt+T, seeking desktop launch controls. | **Existing vendor boundary; installed desktop negative unqualified.** Dedicated `Kiosk=true` starts GNOME Kiosk rather than full Shell. Upstream [Kiosk compositor](https://github.com/GNOME/gnome-kiosk/blob/50.0/compositor/kiosk-compositor.c) `kiosk_compositor_start` calls `neuter_builtin_keybindings`, whose no-op handler covers `panel-main-menu` and `panel-run-dialog`. This is no claim about every distro shortcut. C07s owns only a demonstrated desktop-enabling result. | After each distinct input, require the usable request and no full desktop/run surface; ordinary-account desktop controls must work. Close any owned surface normally and verify exit/fresh entry. A terminal-only or VT outcome belongs to the remaining plan, not an expanded desktop assertion. |
+| In the usable request session press Super, Super-A, Alt+F2 and Ctrl+Alt+T, seeking desktop launch controls. | **C07s1 qualified these four request-only results and working ordinary controls on both targets.** Dedicated `Kiosk=true` starts GNOME Kiosk rather than full Shell. Upstream [Kiosk compositor](https://github.com/GNOME/gnome-kiosk/blob/50.0/compositor/kiosk-compositor.c) `kiosk_compositor_start` calls `neuter_builtin_keybindings`, whose no-op handler covers `panel-main-menu` and `panel-run-dialog`. This is no claim about every distro shortcut. C07s owns only a demonstrated desktop-enabling result. | Each distinct attempt preserved a usable request without a desktop/run surface. Ordinary overview, app grid, Run and terminal controls worked; Fedora's terminal chord is permanently baseline-prepared. Owned closure, Cancel/fresh entry, public settings restoration and runner cleanup passed. A terminal-only or VT outcome belongs to the remaining plan, not an expanded desktop assertion. |
 | Open About/Help or What's New and try offered links leading to external handlers. | **Source-effective action barrier.** `RequestWindow._build` omits kiosk Help; `_show_about` and `WhatsNewPresenter.show` pass `links_enabled=False`. About renders plain labels; `WhatsNewDialog._render`/`_activate_link` suppress external actions. No new barrier justified. | Complete kiosk action inventory must lack external launches while information remains readable/dismissible; the overlay retains permitted links. Close the dialog and compare the unchanged request. An external handler alone is not a demonstrated chain to a desktop. |
 | Open an error report and try attachments, download, Privacy or editor links. | **Source-effective action barriers.** `ErrorHandler.present` propagates kiosk mode to `FeedbackDialog`; `_choose_attachments`/`_download_logs` are hidden and guarded, Privacy stays in-app, and the editor has no attachment callback. `RichTextEditor._decide_policy` refuses non-blank navigation/new windows. No new barrier justified. | Require useful report/editor/privacy with no chooser or external action; ordinary Parent attachments/export remain permitted. Restore any owned dependency fault, close the report, then exit/reenter normally. Trusted WebKit compromise is excluded. |
 | Open Preferences, preview reminders/banner actions or change language. | **Source-effective fixed actions.** `ReminderDialog._preview` supplies no launch actions; `NotificationApplication._method_call`/`_show` reject supplied actions and expose only dismiss/fixed Preferences activation. `agent_locale.prepare`/`_start` restart the fixed authentication-agent unit. No desktop launcher found. | Preserve usable dialogs, preview and genuine authentication. Cancel drafts/dismiss banners and retain request/settings. Do not add an arbitrary service-launch premise or a general feature campaign. |
@@ -820,10 +820,11 @@ Reuse these exact owners, with their current qualification limits:
   → [`onpc_station::restrictions`](../../tests/integration/graphical_smoke/lib/onpc_station.pm)
   send Super, Super-A and Ctrl+Alt+T.
   [`AccessibleUI.kiosk_restrictions`](../../tests/e2e/accessible_ui.py) checks
-  the complete request tree and bounded outside-app absence. Its Alt+F2 outcome
-  remains unqualified; C07a1's separate public-selection binding is described
-  above. Registration is not both-target desktop qualification; preserve stable
-  cases and extend only a distinct missing outcome.
+  the complete request tree and bounded outside-app absence. C07s1 separately
+  qualified the shared shortcut operation's Alt+F2 result and all four ordinary
+  controls on both targets, as scoped below; C07a1's public-selection binding
+  is described above. Preserve stable cases and extend only a distinct missing
+  outcome; these finite results are not a universal desktop fence.
 - About: `check_e2e_read_restricted_station_about`,
   `RestrictedStationAboutJourney`, `AccessibleUI.open_kiosk_about/read_kiosk_about`
   and [case 192](../../tests/e2e/kiosk_about.py). Preferences/report bindings:
@@ -1026,7 +1027,7 @@ qualification. Trust completed baseline/cleanup work without reopening reports.
 | Consumer and route | Reviewed disposition and allowed change | Distinguishing result and adjacent control |
 | --- | --- | --- |
 | C07a: local GDM alternate desktop selection | **Unproven reachability; no missing barrier established.** First qualify the child's public chooser interval and current selection. If it reaches a full station desktop, fix only that actual selected-launch boundary using a supported vendor mechanism or direct owner fix. Native PAM has no selected-command input; do not invent one from saved routing, service names or session environment. | Tie the public choice to the resolved command, station UID/session and usable desktop result. Pair with the same desktop working for Jordan and dedicated passwordless request entry. Test the ordinary chooser → Cancel → station sequence without artificially delaying authentication or granting the child greeter-process authority. If no alternate route is exposed, record the exact target/action disposition and request-only result; do not claim an alternate executable was blocked. |
-| C07s: request-session shortcuts | **Existing GNOME Kiosk boundary; desktop-result qualification missing.** Preserve `Kiosk=true` and the vendor shortcut handling. Super, Super-A, Alt+F2 and Ctrl+Alt+T are the finite attempts; add a barrier only for a demonstrated chain to a full station desktop, at that action/launch owner. | Require the usable request to remain and no desktop/run surface after each distinct attempt, with the corresponding ordinary-desktop control working on both targets. A terminal-only result retains its remaining-plan owner. No repeated shortcut matrix across approval outcomes is needed merely to qualify the shared binding. |
+| C07s: request-session shortcuts | **Existing GNOME Kiosk boundary; C07s1 supplied the finite both-target qualification.** Preserve `Kiosk=true` and the vendor shortcut handling. Super, Super-A, Alt+F2 and Ctrl+Alt+T are the finite attempts; add a barrier only for a demonstrated chain to a full station desktop, at that action/launch owner. | The usable request remained without a desktop/run surface after each distinct attempt, with all corresponding ordinary-desktop controls working on both targets. Fedora uses its permanently prepared terminal chord. C07s retains its own installed usability and directly affected controls. A terminal-only result retains its remaining-plan owner. No repeated shortcut matrix across approval outcomes is needed merely to qualify the shared binding. |
 | C07s: information, reports, Preferences and normal exit | **Source-effective fixed-action/shutdown barriers; retain them.** The complete methods/callers in the D01 map omit or guard external handlers/choosers, restrict notification actions, restart only the fixed agent, and shut down the session on app exit. No additional session-admission condition is justified. | Keep readable/dismissible information, useful reports, Preferences and genuine approval. Normal Parent/overlay links and Parent attachments/export remain permitted. Cancel/Escape/result/approved exit must return to GDM, followed by a fresh usable request. Exercise only directly affected controls if an owner changes. |
 | C07: fresh system Remote Login over RDP | **Existing vendor password barrier to qualify; no missing product barrier established.** Use the D01r provider and actual distro authentication/launch path. If its real password requirement suffices, retain it without code. A demonstrated escape permits one fix at its narrow authentication or selected-launch owner. | Working Jordan remote desktop/control → station attempt without a kiosk password → repeat Jordan positive. Bind the remote greeter/session and actual PAM/launch result. Authentication refusal before selection means no command started, not a fabricated selected-command denial. Preserve local passwordless request use and unrelated sessions. |
 
@@ -1082,8 +1083,9 @@ these authorization/feature paths is allocated merely to harden desktop entry.
 
 These are finite installed slices, each on `onpc-Ubuntu26.04` and
 `onpc-Fedora44`, with a 20–30 minute budget including its owned restoration.
-Public selection was delivered by C07a1 below; the remaining slices are planned,
-not registered selectors or completed prerequisites. At the selected
+Public selection and shortcut results were delivered by C07a1 and C07s1 below;
+the remaining remote slices are planned, not registered selectors or completed
+prerequisites. At the selected
 future consumer, insert its missing slices immediately before it under the
 [prerequisite contract](../Execution-Plans.md#execution-and-delegation), with
 valid briefs and backward Requires links. D02 needs no live prerequisite and
@@ -1097,15 +1099,29 @@ implementation if its safe implementation/qualification cannot fit that budget.
   histories have an exact no-public-chooser disposition, not alternate-command
   denial credit. Privileged `gdm_service_variation.peer_selection` remains outside
   this public input route. C07a's own acceptance is unchanged.
-- **Before C07s: Check desktop attempts from the request session.** Reuse
+- **Before C07s: Check desktop attempts from the request session — delivered by
+  C07s1.** `check_e2e_station_shortcuts` and its shared
+  `station_shortcuts.StationShortcutsJourney` / `onpc_station_shortcuts::run`
+  passed on both targets; exact provider scope and limits are in the
+  [building-block owner](../TestAutomation/E2E-Building-Blocks.md#request-session-shortcut-results).
+  Each target observed ordinary overview, app grid, Run dialog and terminal,
+  paired with four request-only usable station results. Fedora's Ctrl+Alt+T
+  control is permanently configured by baseline preparation; Ubuntu retains
+  its existing binding. The adapter resolves the unnamed Run dialog by its
+  public label and closes it before testing the terminal chord. No request-session
+  desktop-launch chain was demonstrated. Normal closure, Cancel/fresh entry,
+  exact public settings restoration and runner cleanup passed on both targets.
+  C07s still owns its unchanged installed usability and directly affected controls;
+  this qualification grants no consumer or complete-case acceptance. Reuse
   `restricted_station.py` cases 50–52, `onpc_station::restrictions` and their
-  shared entry/results. Qualify the missing Alt+F2 outcome and both-target
+  shared entry/results, including the qualified Alt+F2 operation and both-target
   ordinary-desktop witnesses. `AccessibleUI.kiosk_restrictions` is a complete
   observed UI-tree/control census with a two-second observation interval, not
   an already-qualified universal desktop fence. Product reads/actions must use
   the Application UI API; keep external desktop observations/input at their
-  qualified provider owner. Repair a missing shared binding in this prerequisite,
-  not by replacing public outcomes with a process census or private state.
+  qualified provider owner. New missing bindings need their own qualification
+  before consumption; do not replace public outcomes with a process census or
+  private state.
 - **Before C07: Prepare remote sign-in; connect safely; check ordinary remote
   desktop use; check the station attempt and recovery.** The four finite slices
   and their return conditions live in the

@@ -783,6 +783,14 @@ def reproduce_transfer_refusal(lease):
                             'riley-refused', 'transfer-refusal')
 
 
+def reproduce_station_shortcuts(lease):
+    """Retain the ordinary Alt+F2 result before the qualification verdict."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from station_shortcuts import StationShortcutsJourney
+    return reproduce_denial(lease, StationShortcutsJourney, None,
+                            'standard-shortcut-run-read', 'station-shortcuts')
+
+
 def reproduce_riley_native_grid(lease):
     """Retain Riley's second grid entry after the actual first launch/use/close."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

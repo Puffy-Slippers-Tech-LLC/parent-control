@@ -148,6 +148,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',
                                       'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                                       'reproduce-kiosk-preferences',
+                                      'reproduce-station-shortcuts',
                                       'reproduce-baseline-app-effects', 'reproduce-baseline-auth-pause',
                                       'reproduce-baseline-restoration',
                                       'probe-kiosk-latency', 'probe-kiosk-prompt-latency',

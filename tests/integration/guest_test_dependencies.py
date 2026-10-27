@@ -38,6 +38,7 @@ FEDORA_REMOTE_VERSIONS = {'openldap-servers': '2.6.10', 'openldap-clients': '2.6
                           'sssd-ldap': '2.12.0', 'sssd-client': '2.12.0'}
 FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2',
                    'python3-gobject': '0', 'gtk4': '0', 'spice-vdagent': '0', 'fapolicyd': '0',
+                   'ptyxis': '0',
                    'xdg-dbus-proxy': '0', 'rpm': '0', 'python3-rpm': '0', 'man-db': '0',
                    **FEDORA_REMOTE_VERSIONS,
                    **dict.fromkeys(FEDORA_CHINESE_PACKAGES, '0')}

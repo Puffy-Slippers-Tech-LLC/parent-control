@@ -862,6 +862,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
     for action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                    'reproduce-kiosk-preferences',
+                   'reproduce-station-shortcuts',
                    'reproduce-baseline-app-effects',
                    'reproduce-baseline-auth-pause',
                    'reproduce-lock-denial', 'reproduce-retained-entry',

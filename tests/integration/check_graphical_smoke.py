@@ -1436,7 +1436,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:kiosk-notification-prerequisites')
     require((type(kiosk_entry) is bool or kiosk_entry in (
             'service-variation', 'service-route', 'routing-variation', 'lease-variation',
-            'public-desktop-selection')) and (not kiosk_entry or (
+            'public-desktop-selection', 'station-shortcuts')) and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
@@ -1635,7 +1635,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = (f'installed-parent-{information_link}-qualification' if information_link != 'license'
                                else 'installed-license-viewer-provider-qualification')
         if kiosk_entry:
-            result['scope'] = ('installed-public-desktop-selection-qualification'
+            result['scope'] = ('installed-station-shortcuts-qualification'
+                               if kiosk_entry == 'station-shortcuts'
+                               else 'installed-public-desktop-selection-qualification'
                                if kiosk_entry == 'public-desktop-selection'
                                else 'installed-kiosk-service-variation-qualification'
                                if kiosk_entry == 'service-variation'
@@ -2092,8 +2094,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import (KioskEntryQualification,
                         KioskServiceVariationQualification, KioskServiceRouteQualification,
                         KioskRoutingVariationQualification, KioskLeaseVariationQualification,
-                        PublicDesktopSelectionQualification)
-                    qualification_class = (PublicDesktopSelectionQualification
+                        PublicDesktopSelectionQualification, StationShortcutsQualification)
+                    qualification_class = (StationShortcutsQualification
+                        if kiosk_entry == 'station-shortcuts' else PublicDesktopSelectionQualification
                         if kiosk_entry == 'public-desktop-selection' else KioskServiceVariationQualification
                         if kiosk_entry == 'service-variation' else KioskServiceRouteQualification
                         if kiosk_entry == 'service-route' else KioskRoutingVariationQualification

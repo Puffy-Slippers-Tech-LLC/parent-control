@@ -1,7 +1,7 @@
 # Prevent full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **C07a — [Prevent local full desktop access](Kiosk-Prompt-Tasks/C07a-local-routes.md)**.
+Next task: **C07s — [Prevent desktop launches from the request session](Kiosk-Prompt-Tasks/C07s-session-escapes.md)**.
 
 ## Outcome and scope
 

@@ -776,9 +776,24 @@ that launch-bound change and restores the exact original fields.
 
 These results establish no reachable alternate station choice in these two
 normal histories, not a selected-command denial or a universal desktop fence.
-No product code or admission predicate changed. C07a consumes this exact result,
-retains the existing mechanism unless a gap is demonstrated, and still owns its
-unchanged complete both-target confinement usability and affected controls.
+No product code or admission predicate changed. C07a's
+[local graphical-session result](#c07a-local-graphical-session-result) consumes
+this exact result with its separate complete both-target usability gate.
+
+#### C07a local graphical-session result
+
+C07a retained the existing mechanism: the qualified direct station selection and
+ordinary chooser → Cancel → station paths exposed no alternate station desktop
+choice on either target. C07a1's ordinary desktop positives and independent launch
+observations remain applicable; no selected-alternate-command denial is claimed.
+
+`check_e2e_confinement_usability` passed on `onpc-Ubuntu26.04` and
+`onpc-Fedora44`: fresh passwordless usable requests, wrong-password rejection and
+independent Cancel with zero grant, genuine approval and independent grant read,
+normal exit, fresh usable entry and public settings/grant restoration. Owned
+session/VM cleanup and baseline restoration passed. No product or automation
+changed, so no new fault boundary, backend review or package build was required.
+Request-session desktop attempts remain with C07s.
 
 ### Existing coverage and D02 handoff
 

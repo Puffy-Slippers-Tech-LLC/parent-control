@@ -407,6 +407,27 @@ overview and task summary use bold task labels, such as `Task 4-5c:`.
 The bottom-left transcript and prompt use the shared
 [`SessionPanel`](../tools/launcher_session.py) component. Other launcher surfaces
 can embed it in their own location without the plan overview or status columns.
+Below the chatbox, the footer keeps the model/effort on the left and a
+`Simplified [on]`/`Simplified [off]` toggle on the right. The `Simplified` label is
+normal gray text; only `[on]`/`[off]` is a blue, underlined, clickable link.
+Simplified defaults to on
+and shows the agent's text messages, using the same descriptive transcript
+previously displayed at bottom right. Each message keeps the standard leading
+`•`, a blank line between messages and indented continuation lines. Non-text
+activity shows a single line ending in `...`, such as `• Ran tools/run-tests --help...`
+or `• Explored Search tests...`, with the full view's verb and content colors.
+Consecutive non-text events replace that line in place; a text message keeps the
+preceding activity line in history and starts a new message. Activity previews
+stay on one physical line, truncating to the current pane width before `...`.
+The observer derives these previews from the existing current-session transcript;
+display reload applies them immediately, including during an active agent session,
+without waiting for controller or supervisor replacement. Hover requests a hand
+pointer where the terminal supports OSC 22; Watch uses its native hand pointer.
+Turning Simplified off restores the full output, including commands, tools and
+their results. Switching views keeps the chat draft
+and saved transcripts intact and returns the output viewport to its newest rows.
+The bottom-right column ends with Last Error and Status; it has no duplicate
+session transcript or trailing horizontal divider.
 The shared supervisor publishes session identity, model/effort and lifecycle in
 `session-view.json`, and a bounded current-session `session-output.log`, inside
 the existing owned run. These display artifacts carry no execution or acceptance

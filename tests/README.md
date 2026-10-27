@@ -1298,6 +1298,10 @@ the draft. Its height follows the content, scrolling around the caret when
 space is limited. Messages steer an active turn or start a continuation in the
 same session after interruption. Replies appear in the left transcript. The
 composer owns Cancel/Escape/Ctrl+C; the output pane has no termination shortcut.
+The shared [session panel contract](../docs/Execution-Plans.md#common-launcher-interface)
+defines its footer's Simplified toggle, which defaults to agent text with an
+inline activity preview and can restore the full command/tool output. The same control is available in Watch's
+Session tab; the task's right column has no duplicate session transcript.
 Pending blocker questions appear above the composer: send a suggested number
 or type your own instructions. Multiple observers share the existing first-answer
 rule. Mouse wheels scroll the panel under the pointer by default.

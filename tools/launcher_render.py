@@ -36,6 +36,8 @@ SCROLLBACK_CHARACTERS = 256 * 1024
 # logs. Remove it before Rich's ANSI decoding, which exposes unknown OSC payloads.
 # Dedicated session transcripts retain their original text.
 SESSION_LINE = '\033]777;onpc-session\007'
+# Simplified activity rows stay on one physical line at every viewport width.
+COMPACT_LINE = '\033]777;onpc-compact\007'
 
 
 def retained_tail(lines):
@@ -82,6 +84,7 @@ class LauncherDisplay:
                                highlight=False, color_system='truecolor', no_color=False)
         self.transcript = deque(maxlen=SCROLLBACK_LINES)
         self.pending = ''
+        self.scroll_transcript = True
         self.steps = []
         self.details = []
         self.size = None
@@ -163,7 +166,7 @@ class LauncherDisplay:
             self.unsaved.append(value)
             self.unsaved = retained_tail(self.unsaved)
         lines = (self.pending + value).split('\n')
-        if self.offsets['bottom'] and self.size:
+        if self.scroll_transcript and self.offsets['bottom'] and self.size:
             width = self.output_width()
             incoming = lines[:-1] + ([lines[-1]] if lines[-1] else [])
             previous = [self.pending] if self.pending else []
@@ -327,6 +330,12 @@ class LauncherDisplay:
     def wrapped(self, lines, width, *, task_labels=False):
         rows = []
         for line in lines:
+            if isinstance(line, str) and line.startswith(COMPACT_LINE):
+                text = Text.from_ansi(line[len(COMPACT_LINE):])
+                text.truncate(max(0, width - 3), overflow='crop')
+                text.append('.' * min(3, width), style='dim')
+                rows.append(text)
+                continue
             text = line.copy() if isinstance(line, Text) else Text.from_ansi(line.replace(SESSION_LINE, ''))
             if task_labels:
                 self.style_task_label(text)

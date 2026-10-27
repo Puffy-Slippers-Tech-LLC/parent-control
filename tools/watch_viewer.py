@@ -210,6 +210,15 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
             session_keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
             session_keys.connect('key-pressed', self.session_key)
             self.session_terminal.add_controller(session_keys)
+            session_click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
+            session_click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            session_click.connect('pressed', self.session_click)
+            self.session_terminal.add_controller(session_click)
+            session_motion = Gtk.EventControllerMotion()
+            session_motion.connect('motion', self.session_motion)
+            session_motion.connect('leave', lambda _controller:
+                self.session_terminal.set_cursor_from_name(None))
+            self.session_terminal.add_controller(session_motion)
             session_scrolling = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
             session_scrolling.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
             session_scrolling.connect('scroll', lambda _controller, _dx, dy:
@@ -336,6 +345,28 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
                 self.session_output.feed(data)
                 return True
             return False
+
+        def session_cell(self, x, y):
+            padding = self.session_terminal.get_style_context().get_padding()
+            column = int((x - padding.left) // max(1, self.session_terminal.get_char_width())) + 1
+            row = int((y - padding.top) // max(1, self.session_terminal.get_char_height())) + 1
+            return column, row
+
+        def session_motion(self, _controller, x, y):
+            panel = self.session_output.panel
+            bounds = panel.simplified_bounds if panel else None
+            column, row = self.session_cell(x, y)
+            over = bounds and bounds[0] <= column <= bounds[1] and row == bounds[2]
+            self.session_terminal.set_cursor_from_name('pointer' if over else None)
+
+        def session_click(self, gesture, _presses, x, y):
+            panel = self.session_output.panel
+            if panel is None:
+                return
+            column, row = self.session_cell(x, y)
+            if panel.toggle_at(column, row):
+                gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+                panel.draw()
 
         def log_key(self, _controller, keyval, _keycode, state):
             control = bool(state & Gdk.ModifierType.CONTROL_MASK)

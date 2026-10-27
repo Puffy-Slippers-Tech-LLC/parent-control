@@ -66,7 +66,9 @@ prepare_package_notice() { :; }
         /var/lib/oh-no-parent-control /home/oh-no-parent-control
     echo 'PASS: Oh No! Parent Control package configuration completed successfully.'
     if [ -f /run/oh-no-parent-control-reboot-required ]; then
-        echo '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
+        # DNF captures scriptlet output, so a TTY check would suppress the red.
+        printf '\033[1;31m%s\033[0m\n' \
+            '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
     fi
 
 # @readiness_start@

@@ -294,6 +294,32 @@ class KioskServiceRouteQualification(KioskEntryQualification):
                       'su-route:' + self.result['service_route']['result'])
 
 
+class KioskRoutingVariationQualification(KioskEntryQualification):
+    """Finite saved-routing controls, then normal restored public entry."""
+
+    def journey(self, context, progress):
+        from gdm_service_variation import qualify_routing
+        journey = KioskEntryQualification.journey(context, progress)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage == 'setup-detached':
+                self.result['routing_variation'] = qualify_routing(
+                    journey.transport, context.lease)
+                observed['routing_variation'] = self.result['routing_variation']
+
+        journey.check_settings = check
+        return journey
+
+    def execute(self, lease, guestfs):
+        super().execute(lease, guestfs)
+        # Preserve refusals as evidence and complete public recovery before
+        # evaluating the shared operation's full qualification verdict.
+        smoke.require(self.result['routing_variation'].get('qualified') is True,
+                      'gdm-routing:' + self.result['routing_variation']['result'])
+
+
 class KioskPreferencesConfinementQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

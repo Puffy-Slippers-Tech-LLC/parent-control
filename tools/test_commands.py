@@ -80,7 +80,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     give_repeated_public_operations_distinct_stages independent_network_management kiosk_approval
     kiosk_approved_flow kiosk_eligible_choices kiosk_entry kiosk_feedback_confinement kiosk_fixtures
     kiosk_language kiosk_language_restoration kiosk_multiple kiosk_no_child kiosk_notification_wellbeing
-    kiosk_preferences_confinement kiosk_rejection kiosk_reminder_binding kiosk_service_route kiosk_service_variation kiosk_valid_duration
+    kiosk_preferences_confinement kiosk_rejection kiosk_reminder_binding kiosk_routing_variation kiosk_service_route kiosk_service_variation kiosk_valid_duration
     license_viewer lock_recipient lock_surface match_editor match_save_cancel mate_prompt
     named_child_custom_saves native_app native_fixtures native_grid_usable natural_expiry
     open_a_customer_document_or_archive operate_public_connectivity_controls

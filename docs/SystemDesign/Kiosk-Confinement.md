@@ -427,6 +427,50 @@ benign controls, independent backend review, build, ordinary-account login and
 exact-candidate both-target short usability gate. A pre-fix refusal is not a
 usable-session or defense pass.
 
+The D00a2 preflight identified a separate control gap:
+`system_kiosk_admission.verify` invokes `pam_acct_mgmt` directly for `login`/
+`sshd`, and `sshd -T` observes configuration only. Neither witnesses an actual
+child-invoked prohibited route. The serial HAR bindings cover their fixed harness
+fixture, not station-account admission. **D00a2r** closes that gap through
+[`su_service_route.qualify(transport, lease)`](../../tests/e2e/su_service_route.py),
+`KioskServiceRouteQualification` and the registered installed selector
+`check_e2e_kiosk_service_route`.
+
+The accepted standard-child fixture invokes the installed setuid `/usr/bin/su
+--login oh-no-parent-control` with an empty token. The child controls that target
+and login action; no kiosk-code execution is assumed. The exec wrapper records
+its actual child credentials and process start time. Boot/cursor/PID/time-bound
+journal observations identify the executable and actual PAM service, **`su-l`
+on both targets**, rather than assuming the service from the command name.
+Independent logind and process observations find no station session or shell.
+
+The native unsupported-service return is silent. A temporary, uniquely named
+tracefs instance and paired uprobes observe the installed module's exported
+`pam_sm_acct_mgmt`, using its package-listed file and ELF symbol/load offset.
+The same child-invoked PID enters with `argc=1` and returns
+`PAM_PERM_DENIED` (6). This distinguishes the native kiosk account refusal from
+an earlier authentication failure or a generic failed command. Observation
+changes neither the module nor PAM dispatch. Unknown/replaced probe definitions
+or instance identities refuse cleanup; only exact owned definitions are removed.
+This binding requires x86_64, existing tracefs and `readelf` on the two named
+targets. Authentication refusal before the callback remains unqualified and
+stops the route without bypassing a gate.
+
+The same child positively invokes `su --login` for the accepted `other-child`
+fixture and runs `/usr/bin/id -u`. The existing private credential reader and
+guarded SSH input carry the fixture password. Before one pipe write, the helper
+observes the password prompt and rechecks the live su PID/start time, executable,
+real/effective credentials, exact target/command and NSS identities. Exit zero,
+the ordinary target's effective UID and the same actual `su-l` service establish
+success. No password, account lock, shell or vendor authentication rule changes.
+
+Installed qualification passed on `onpc-Ubuntu26.04` and `onpc-Fedora44`: native
+refusal, ordinary positive, unchanged credentials/shell/PAM/module, exact trace
+removal, normal public passwordless station entry/form/Cancel/return and owned
+runner/VM cleanup. No product source changed. This qualifies only this reached
+service-route control; D00a2 remains unchecked with all its original graphical
+execution, benign variation, review/build and both-target usability obligations.
+
 #### D00a prerequisite allocation
 
 D00a's source inspection confirmed the service allowlist in native
@@ -440,6 +484,7 @@ claimed. The [ordered queue](../Kiosk-Desktop-Queue.md) now allocates:
 | --- | --- |
 | D00a1 | Completed: short public history qualified on both targets with restoration and runner cleanup. The wider completed baseline stays accepted. |
 | D00a2q | Qualify the real graphical service-variation binding, independent selected-session/result observations and owned restoration on both targets before the service-dispatch product edit; no consumer acceptance credit. |
+| D00a2r | Qualify one actual child-invoked prohibited service route and its account-refusal witness, ordinary-account positive and owned restoration on both targets before the service-dispatch product edit; no product changes or consumer acceptance credit. |
 | D00a2 | Remove unjustified service-name rejection; verify actual dedicated graphical execution through the affected service, a reached prohibited-route control and ordinary-account login, with same-candidate both-target public usability. |
 | D00a3 | Remove the avoidable saved-routing/discovery admission dependency, including drift, malformed-reply and transient discovery controls. Keep invalid identity/authority barriers and prove restored public use on both targets. |
 | D00a | Resolve owned lease/recovery at native `admission`/`lock_current` and lifecycle `barriers`, preserving live/foreign state, read-only Fedora leases and active writer exclusion. Include stale-mode, retained-handle and release/reentry controls with both-target usability. |

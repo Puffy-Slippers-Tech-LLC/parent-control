@@ -3951,6 +3951,30 @@ and selected app/session process observations; it remains unqualified until a
 real positive passes. D00a2 must require `app_execution_qualified == True` after
 its product repair. A saved default or GDM command resolution alone is insufficient.
 
+### Reached service-route control
+
+`check_e2e_kiosk_service_route` dispatches
+[`su_service_route.qualify(transport, lease)`](../../tests/e2e/su_service_route.py)
+through `KioskServiceRouteQualification`, then runs the existing normal public
+station entry/form/Cancel/return history. Installed qualification passed on
+`onpc-Ubuntu26.04` and `onpc-Fedora44`, including owned runner/VM cleanup.
+
+The bound standard child invokes the real setuid `su --login` for the unchanged
+station account with an empty token. Same-invocation native callback entry and
+return establish its account refusal; journal observations identify actual
+`su-l` on both targets. Independent observations find no station session/shell.
+The same child successfully logs in as the ordinary `other-child` fixture through
+that service, with guarded single-use private password input and an independent
+effective-UID result. Exact owned tracing resources are removed before the
+positive and normal passwordless station history. Credentials, shell, vendor PAM
+and native module bytes remain unchanged.
+
+The [design owner](../SystemDesign/Kiosk-Confinement.md#d00a2-service-variation-prerequisite)
+records the caller, witness, input guards, restoration and x86_64 tracefs/readelf
+limits. Earlier authentication refusal remains unqualified and stops this route.
+This supplies no general terminal/SSH protection, graphical execution positive,
+full usability history or D00a2 acceptance.
+
 ### Search and standard sign-in contracts
 
 The qualified Ubuntu 26.04 search tuple is Shell `50.1-0ubuntu1.2`,

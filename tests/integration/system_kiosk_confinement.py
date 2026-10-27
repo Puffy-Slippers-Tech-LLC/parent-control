@@ -68,13 +68,15 @@ def process_identity(process):
     return (fields[19], int(status['PPid']), tuple(status['Uid'].split()))
 
 
-def user_command(account, command, *, check=True, timeout=45):
+def user_command(account, command, *, check=True, timeout=45, input=None,
+                 merge_stderr=False, pass_fds=(), on_output=None):
     return guest.commands.run(
         ['/usr/bin/setpriv', '--reuid', str(account.pw_uid), '--regid', str(account.pw_gid),
          '--clear-groups', '/usr/bin/env', '-i', *ENV,
          f'XDG_RUNTIME_DIR=/run/user/{account.pw_uid}',
          f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{account.pw_uid}/bus', *command],
-        check=check, timeout=timeout, merge_stderr=False)
+        check=check, timeout=timeout, input=input, merge_stderr=merge_stderr,
+        pass_fds=pass_fds, on_output=on_output)
 
 
 def manager_pid(unit):

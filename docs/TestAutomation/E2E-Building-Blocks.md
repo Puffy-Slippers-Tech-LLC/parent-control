@@ -998,6 +998,15 @@ limits-off restoration precede the runner's owned session/VM cleanup. This
 short normal-use composition supplies no desktop-defense, fault-variation,
 broader feature or complete baseline acceptance.
 
+`check_e2e_basic_locale_auth` reuses this history through
+`BasicLocaleAuthQualification` and the [app-only locale fault](../../tests/e2e/basic_locale_auth.py).
+Qualified on both declared Ubuntu/Fedora targets, it supplies successful
+C/C.UTF-8-only discovery, genuine native approval with independently observed
+time, rejection/Cancel without a grant, and restored normal request use.
+One temporary service override leaves packaged files and system settings alone;
+the existing runner owns VM cleanup. Discovery failure remains U01a scope.
+This is installed engineering qualification, with no complete E2E-case credit.
+
 <a id="c04p1-compatible-fixture-applicability"></a>
 
 #### Compatible native fixtures

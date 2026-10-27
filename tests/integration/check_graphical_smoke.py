@@ -772,7 +772,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None,
          fixture_selection=None, transfer_qualification=False):
-    require(type(confinement_usability) is bool and (not confinement_usability or (
+    require((type(confinement_usability) is bool or confinement_usability == 'basic-locales')
+        and (not confinement_usability or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and parent_entry is None and approval_flow is None
         and active_grant_disable is None and time_profiles_daily is None
@@ -1804,7 +1805,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if baseline_journey:
             result['scope'] = 'installed-baseline-journey-qualification'
         if confinement_usability:
-            result['scope'] = 'installed-confinement-usability-qualification'
+            result['scope'] = ('installed-basic-locale-auth-qualification'
+                if confinement_usability == 'basic-locales'
+                else 'installed-confinement-usability-qualification')
         if auth_result:
             result['scope'] = 'installed-auth-result-qualification'
         if kiosk_approved_flow:
@@ -2337,8 +2340,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import BaselineJourneyQualification
                     qualification_class = BaselineJourneyQualification
                 if confinement_usability:
-                    from parent_setup_qualification import ConfinementUsabilityQualification
-                    qualification_class = ConfinementUsabilityQualification
+                    from parent_setup_qualification import (ConfinementUsabilityQualification,
+                                                           BasicLocaleAuthQualification)
+                    qualification_class = (BasicLocaleAuthQualification
+                        if confinement_usability == 'basic-locales'
+                        else ConfinementUsabilityQualification)
                 if kiosk_rejection:
                     from parent_setup_qualification import KioskRejectionQualification
                     qualification_class = KioskRejectionQualification

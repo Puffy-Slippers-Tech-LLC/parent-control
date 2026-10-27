@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U01 — [Keep approval working with only basic locales](Kiosk-Usability-Tasks/U01-authentication-language.md)**.
+Next task: **U01a — [Keep approval working when locale discovery fails](Kiosk-Usability-Tasks/U01a-locale-discovery.md)**.
 
 ## Outcome and scope
 

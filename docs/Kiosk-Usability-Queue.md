@@ -9,7 +9,7 @@ under the master's [sizing boundary](Kiosk-Usability-Plan.md#task-sizing).
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | U01 | [Keep approval working with only basic locales](Kiosk-Usability-Tasks/U01-authentication-language.md) | Baseline | Safe native authentication fallback with C/C.UTF-8-only locales | 30–60 min (exception) |
+| [x] | U01 | Keep approval working with only basic locales | Baseline | Safe native authentication fallback with C/C.UTF-8-only locales | Both targets passed with cleanup; 382 host checks, source/build passed; independent review found no issues. |
 | [ ] | U01a | [Keep approval working when locale discovery fails](Kiosk-Usability-Tasks/U01a-locale-discovery.md) | U01 | Failed locale discovery falls back without blocking genuine approval | 30–60 min (exception) |
 | [ ] | U02 | [Keep healthy children able to request time](Kiosk-Usability-Tasks/U02-child-isolation.md) | U01a | One unavailable child's extension cannot stop healthy-child kiosk use | 45–90 min (exception) |
 | [ ] | U03 | [Allow entry after brief admission contention](Kiosk-Usability-Tasks/U03-admission-recovery.md) | U02 | Bounded handling of transient writer contention without admitting during maintenance | 30–60 min (exception) |

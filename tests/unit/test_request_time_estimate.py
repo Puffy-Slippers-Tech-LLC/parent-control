@@ -333,9 +333,17 @@ def test_agent_locale_is_process_scoped_and_maps_native_catalogues(
     assert dict(os.environ) == before
 
 
-def test_agent_locale_refuses_c_only_hosts_without_starting_approval():
-    with pytest.raises(RuntimeError, match='installed UTF-8 message locale'):
-        agent_environment('zh-Hans', 'zh_CN.UTF-8', ('C', 'C.utf8', 'POSIX'))
+@pytest.mark.parametrize('available,basic', [
+    (('C', 'C.utf8', 'POSIX'), 'C.utf8'),
+    (('C', 'C.UTF-8', 'POSIX'), 'C.UTF-8'),
+    (('C', 'POSIX'), 'C'),
+])
+def test_agent_locale_uses_source_text_on_basic_locale_hosts(available, basic):
+    import os
+    before = dict(os.environ)
+    assert agent_environment('zh-Hans', 'zh_CN.UTF-8', available) == (
+        f'LANG={basic}\nLANGUAGE=C\nLC_ALL={basic}\n')
+    assert dict(os.environ) == before
 
 
 def test_agent_deadline_ignores_late_restart_reply_after_close(tmp_path):

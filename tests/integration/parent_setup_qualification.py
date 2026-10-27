@@ -446,6 +446,42 @@ class ConfinementUsabilityQualification(KioskEntryQualification):
         return ConfinementUsabilityJourney(context, progress)
 
 
+class BasicLocaleAuthQualification(ConfinementUsabilityQualification):
+    """One basic-locale fault, real authentication and normal request reentry."""
+
+    fault = None
+
+    def journey(self, context, progress):
+        from basic_locale_auth import BasicLocaleFault
+        journey = super().journey(context, progress)
+        self.fault = BasicLocaleFault(journey, context.lease)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage == 'setup-detached':
+                observed['basic_locales'] = self.fault.install()
+            elif stage in ('rejection-rejection-qualified', 'approval-qualified'):
+                observed['basic_locales'] = self.fault.call('observe')
+            elif stage == 'approved-balance':
+                observed['basic_locales'] = self.fault.restore()
+            elif stage == 'reentry-open-estimate':
+                smoke.require(self.fault.restored, 'basic-locale:normal-reentry-before-restoration')
+                observed.setdefault('comparison', {})['normal_language_request_restored'] = True
+
+        journey.check_settings = check
+        return journey
+
+    def execute(self, lease, guestfs):
+        try:
+            super().execute(lease, guestfs)
+            smoke.require(self.fault is not None and self.fault.restored,
+                          'basic-locale:history-incomplete')
+        finally:
+            if self.fault is not None:
+                self.fault.restore()
+
+
 class KioskLeaseVariationQualification(ConfinementUsabilityQualification):
     """Owned lease controls followed by the complete short public history."""
 

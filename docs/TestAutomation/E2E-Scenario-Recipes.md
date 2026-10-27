@@ -724,6 +724,11 @@ same 1800-second worker bound. If a concrete product change invalidates that
 reuse, its own both-target installed prerequisite must run this selector before
 completion; a later final task cannot supply a missing product gate.
 
+The [basic-locale variant](E2E-Building-Blocks.md#short-confinement-usability-history)
+adds only successful C/C.UTF-8-only discovery and its restoration to this same
+history. It is separate engineering qualification for U01, not a customer case
+or locale-discovery-failure result.
+
 Selection restores exact owned saved routing with current-value/boot/account
 guards. Both route histories restore public policy and demonstrate Cancel and
 fresh usable passwordless entry. The short history additionally restores grants

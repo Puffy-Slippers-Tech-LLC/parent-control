@@ -181,7 +181,7 @@ separate validated detail for PolicyKit's single-pass expansion.
 
 The kiosk prepares only its native agent's process environment in a private
 runtime file. `LANG` selects registration locale, `LANGUAGE` selects system
-catalogues and an installed non-C UTF-8 `LC_ALL` permits gettext. It generates
+catalogues and an installed non-C UTF-8 `LC_ALL` permits gettext when available. It generates
 no locales or user-manager/system environment changes. Preparation uses public
 systemd restart/job completion, serializes locale changes, reuses identical
 successful settings and invalidates old cache on an attempted change.
@@ -193,9 +193,10 @@ password prompt.
 
 ### Native authentication fallback
 
-**Current gap:** kiosk preparation requires successful environment discovery and
-a non-C UTF-8 message locale. C/C.UTF-8-only inventories can refuse a request
-although native authentication itself is available.
+When successful locale discovery finds no non-C UTF-8 message locale, kiosk
+preparation uses an installed C UTF-8 locale, or C, for registration and message
+categories, with source text for the vendor agent. This does not change the
+child's saved language. Locale-discovery failure remains a preparation gap.
 
 The required behavior is genuine selected-parent authentication with safe
 native/source text when locale discovery or translation assets are unavailable.

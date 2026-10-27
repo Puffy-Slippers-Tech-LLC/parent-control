@@ -32,7 +32,11 @@ def agent_environment(language, desktop_language, available_locales):
                  and not value.lower().startswith('c.')]
     matching = [value for value in available if supported_language(value) == language]
     if not available:
-        raise RuntimeError('kiosk authentication requires an installed UTF-8 message locale')
+        # Translation availability must not prevent a genuine native challenge.
+        # Keep every locale category usable and ask gettext for source text.
+        basic = next((value for value in available_locales
+                      if value.lower().replace('-', '') == 'c.utf8'), 'C')
+        return f'LANG={basic}\nLANGUAGE=C\nLC_ALL={basic}\n'
     preferred = matching or available
     fallback = next((value for value in preferred if value.lower().startswith('en_us.')),
                     preferred[0])

@@ -18,9 +18,10 @@ from collections import deque
 from pathlib import PurePath
 
 from rich.console import Console
-from rich.markdown import CodeBlock, Markdown
+from rich.markdown import CodeBlock, Markdown, Paragraph
 from rich.padding import Padding
 from rich.syntax import Syntax
+from rich.style import Style
 from rich.text import Text
 from rich.theme import Theme
 
@@ -598,9 +599,34 @@ class SessionCodeBlock(CodeBlock):
             yield syntax
 
 
+class SessionParagraph(Paragraph):
+    """Keep top-level prose as logical lines for the observer to wrap."""
+
+    @classmethod
+    def create(cls, markdown, token):
+        paragraph = super().create(markdown, token)
+        paragraph.markdown = markdown
+        return paragraph
+
+    def on_enter(self, context):
+        super().on_enter(context)
+        self.top_level = len(context.stack) == 1
+
+    def __rich_console__(self, console, options):
+        if self.top_level:
+            identity = len(self.markdown.paragraphs)
+            self.markdown.paragraphs[identity] = self.text.copy()
+            self.text.stylize(Style(meta={'session_paragraph': identity}))
+        yield from super().__rich_console__(console, options)
+
+
 class SessionMarkdown(Markdown):
     elements = {**Markdown.elements, 'fence': SessionCodeBlock,
-                'code_block': SessionCodeBlock}
+                'code_block': SessionCodeBlock, 'paragraph_open': SessionParagraph}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.paragraphs = {}
 
 
 class TranscriptWriter:
@@ -776,7 +802,22 @@ class AgentRenderer:
                                          self.console.options.update(width=self.width - 2))
         if title != 'Agent':
             self.console.print(Text('• ' + clean(title), style=style))
+        paragraphs = getattr(body, 'paragraphs', {})
+        emitted = set()
         for index, line in enumerate(lines):
+            paragraph = next((segment.style.meta['session_paragraph']
+                              for segment in line if segment.style
+                              and 'session_paragraph' in segment.style.meta), None)
+            if paragraph is not None:
+                if paragraph in emitted:
+                    continue
+                emitted.add(paragraph)
+                # Retain explicit Markdown breaks, but defer paragraph wrapping
+                # to each observer's actual panel width, including after resize.
+                for part_index, part in enumerate(paragraphs[paragraph].split('\n', allow_blank=True)):
+                    prefix = '• ' if index == 0 and part_index == 0 and title == 'Agent' else '  '
+                    self.console.print(Text(prefix, style='bright_black') + part, soft_wrap=True)
+                continue
             self.console.print(Text(('• ' if index == 0 and title == 'Agent' else '  '), style='bright_black'),
                                Text.assemble(*(Text(segment.text, style=segment.style)
                                                for segment in line)), sep='')

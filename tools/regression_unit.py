@@ -713,6 +713,9 @@ they introduce no shared resource or process ownership.
 Child interaction wait probes execute the source functions with private clock
 and GLib doubles; child_preview remains compatible without a real bus/display.
 """
+# Remote preparation's file-restoration checks extend graphical_smoke_cleanup_safety
+# using only small pytest-private files. They open no VM, socket, bus, display,
+# service or shared cache; its existing unit/cleanup overlap remains appropriate.
 
 # TIME01 tests add only immutable synthetic trees, process-local account/session,
 # clock and transport doubles, and tiny private pytest reply files. Compatible

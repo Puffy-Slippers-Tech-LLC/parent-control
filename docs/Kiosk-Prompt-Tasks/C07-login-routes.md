@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Required tasks: C07s.
+Required tasks: C07s, C07r1, C07r2, C07r3, C07r4.
 Estimate: 30–60 min; session exception: one small confinement fix, review/build and both-target usability.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract)
@@ -22,8 +22,8 @@ before product editing. The existing vendor password gate may already suffice;
 retain it without duplicate code if the real positive/negative checks pass.
 The [frozen D02 design](../SystemDesign/Kiosk-Confinement.md#d02-minimal-desktop-design-decision)
 allocates four small installed slices: preparation, safe connection/ownership,
-ordinary remote desktop use, then the station attempt and recovery. Insert their
-missing prerequisites at this selected consumer and complete them before editing;
+ordinary remote desktop use, then the station attempt and recovery. These are now
+queued immediately before this task as C07r1–C07r4. Complete them before editing;
 split a slice further if it cannot fit 20–30 minutes including restoration.
 Do not claim protection for providers outside the reviewed scope. Implement one
 narrow provider boundary; do not replace shared passwordless authentication or

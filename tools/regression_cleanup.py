@@ -18,6 +18,9 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# Remote preparation's restoration checks use only pytest-private file identities
+# in graphical_smoke_cleanup_safety. No VM/service/process or shared storage owner
+# is added; the existing compatible cleanup and unit classifications still apply.
 # Shutdown recovery in the existing launcher fixtures uses a private, finite,
 # synchronously waited cleanup helper double. It acquires no live VM, service,
 # socket or shared path; both launcher unit/cleanup classifications still hold.

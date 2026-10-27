@@ -1103,7 +1103,8 @@ these authorization/feature paths is allocated merely to harden desktop entry.
 These are finite installed slices, each on `onpc-Ubuntu26.04` and
 `onpc-Fedora44`, with a 20–30 minute budget including its owned restoration.
 Public selection and shortcut results were delivered by C07a1 and C07s1 below;
-the remaining remote slices are planned, not registered selectors or completed
+remote preparation and repeated exact restoration passed on both targets in C07r1;
+the other remote slices are planned, not registered selectors or completed
 prerequisites. At the selected
 future consumer, insert its missing slices immediately before it under the
 [prerequisite contract](../Execution-Plans.md#execution-and-delegation), with

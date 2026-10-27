@@ -1,7 +1,7 @@
 # Prevent full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **D01 — [Review full desktop entry routes](Kiosk-Prompt-Tasks/D01-desktop-review.md)**.
+Next task: **D01r — [Review the named remote-desktop route](Kiosk-Prompt-Tasks/D01r-remote-review.md)**.
 
 ## Outcome and scope
 

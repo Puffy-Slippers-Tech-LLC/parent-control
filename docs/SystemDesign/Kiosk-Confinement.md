@@ -678,6 +678,136 @@ build, affected checks, exact-candidate public history and restoration before
 completion. Any independently missing reusable qualification must precede its
 product consumer under the shared execution contract.
 
+## D01 local desktop route review
+
+D01 reviewed the rebuilt account, PAM, selected-session and request-action
+callers after completed D00b cleanup. The completed
+[C05u/C05f handoff](../TestAutomation/E2E-Building-Blocks.md#c05f-fedora-baseline-acceptance)
+and D00a's both-target usability/restoration remain accepted; no historical
+reports were reopened. This is a source review, with no product changes or new
+installed defense claim. D01r owns the remote provider; D02 owns independent
+design approval and the final small implementation/qualification allocations.
+
+### Actual local selection and execution boundary
+
+Provisioning's `provision_accounts_service` sets the public saved session/type.
+The AccountsService Polkit rule denies the station's own metadata changes. Neither
+controls GDM's current selection. Ubuntu's shared PAM profiles and Fedora's
+authselect integration reach native `pam_sm_acct_mgmt` and
+`pam_sm_open_session`; `kiosk_identity`, `admission` and `run_kiosk_check` bind
+identity, lifecycle ownership and successful account authorization on the same
+handle. The login helper's `main`/`verify_identity` reads no selected executable.
+It receives only user, service and fixed PATH. No selected-command barrier is
+present here; inventing one from `PAM_SERVICE`, saved routing or
+`XDG_SESSION_TYPE` would repeat the removed admission mistake.
+
+The vendor source trace uses upstream 50.0, not an assertion that either distro
+ships unmodified upstream bytes:
+
+- [Shell login dialog](https://github.com/GNOME/gnome-shell/blob/50.0/js/gdm/loginDialog.js):
+  `SessionMenuButton._populate` selects available sessions; its activation calls
+  `SelectSession`. `_onPrompted`/`_shouldShowSessionMenuButton` expose the chooser
+  during verification, excluding an already logged-in user. Immediate passwordless
+  success does not establish a usable chooser interval.
+- [GDM session](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-session.c):
+  `gdm_session_handle_client_select_session` → `gdm_session_select_session` →
+  `get_session_name` prefers the current selection over the saved default.
+  `get_session_command_for_file` reads its desktop `Exec`;
+  `gdm_session_start_session` sends the corresponding Wayland/X session command
+  to the worker. The handler rejects changes after the session is running.
+- [GDM worker](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-session-worker.c):
+  `gdm_session_worker_authorize_user`/`gdm_session_worker_open_session` run PAM;
+  `gdm_session_worker_handle_start_program` and
+  `gdm_session_worker_start_session` execute the supplied program as the account.
+  Its login shell becomes an environment value, not the graphical launcher.
+- [GDM manager](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-manager.c):
+  `on_session_cancelled` → `queue_session_reset` → `on_reset_session` invokes
+  `gdm_session_reset`/`do_reset`, clearing current and saved selections. Choosing
+  another account's desktop and then cancelling is not source evidence of a
+  surviving kiosk selection.
+
+The existing real GDM binding in
+[`gdm_service_variation.py`](../../tests/e2e/gdm_service_variation.py)
+uses `PEER_SELECTION`/`peer_selection` to explicitly select the **dedicated**
+session, then independently observes actual execution. `qualify_routing` varies
+saved defaults, not a child's selected alternate desktop. It cannot prove that
+the chooser is reachable or that a selected full desktop is blocked.
+
+### Finite local attempts and controls
+
+The prohibited result throughout is a usable full desktop **as the station
+account**, with normal desktop launch controls. An ordinary account's desktop,
+a blank compositor, an unavailable dependency or a generic rejected login is
+not that result and supplies no defense pass.
+
+| Child access and deliberate action | Current disposition and smallest owner | Negative, permitted control and restoration |
+| --- | --- | --- |
+| At GDM, select the station and choose an available full desktop; also check the ordinary-account chooser → Cancel → station sequence without supplying an administrator password. | **Unproven local selection gap, not yet a justified new barrier.** GDM can launch a current alternate selection and product PAM does not inspect it, but this review does not demonstrate the chooser interval for passwordless station entry. Vendor reset already clears cancelled selections. C07a/D02 must first establish actual public reachability on each target; absent reachability means no speculative restriction. | Observe the selected desktop ID, resolved command and actual station-UID session/process together with the public desktop result. Pair with the same full desktop working for an ordinary account and passwordless dedicated entry/request/reentry. Cancel and restore only owned selection/settings; preserve existing sessions. Missing chooser/provider qualification is a prerequisite before product editing, not a denied-desktop pass. |
+| In the usable request session press Super, Super-A, Alt+F2 and Ctrl+Alt+T, seeking desktop launch controls. | **Existing vendor boundary; installed desktop negative unqualified.** Dedicated `Kiosk=true` starts GNOME Kiosk rather than full Shell. Upstream [Kiosk compositor](https://github.com/GNOME/gnome-kiosk/blob/50.0/compositor/kiosk-compositor.c) `kiosk_compositor_start` calls `neuter_builtin_keybindings`, whose no-op handler covers `panel-main-menu` and `panel-run-dialog`. This is no claim about every distro shortcut. C07s owns only a demonstrated desktop-enabling result. | After each distinct input, require the usable request and no full desktop/run surface; ordinary-account desktop controls must work. Close any owned surface normally and verify exit/fresh entry. A terminal-only or VT outcome belongs to the remaining plan, not an expanded desktop assertion. |
+| Open About/Help or What's New and try offered links leading to external handlers. | **Source-effective action barrier.** `RequestWindow._build` omits kiosk Help; `_show_about` and `WhatsNewPresenter.show` pass `links_enabled=False`. About renders plain labels; `WhatsNewDialog._render`/`_activate_link` suppress external actions. No new barrier justified. | Complete kiosk action inventory must lack external launches while information remains readable/dismissible; the overlay retains permitted links. Close the dialog and compare the unchanged request. An external handler alone is not a demonstrated chain to a desktop. |
+| Open an error report and try attachments, download, Privacy or editor links. | **Source-effective action barriers.** `ErrorHandler.present` propagates kiosk mode to `FeedbackDialog`; `_choose_attachments`/`_download_logs` are hidden and guarded, Privacy stays in-app, and the editor has no attachment callback. `RichTextEditor._decide_policy` refuses non-blank navigation/new windows. No new barrier justified. | Require useful report/editor/privacy with no chooser or external action; ordinary Parent attachments/export remain permitted. Restore any owned dependency fault, close the report, then exit/reenter normally. Trusted WebKit compromise is excluded. |
+| Open Preferences, preview reminders/banner actions or change language. | **Source-effective fixed actions.** `ReminderDialog._preview` supplies no launch actions; `NotificationApplication._method_call`/`_show` reject supplied actions and expose only dismiss/fixed Preferences activation. `agent_locale.prepare`/`_start` restart the fixed authentication-agent unit. No desktop launcher found. | Preserve usable dialogs, preview and genuine authentication. Cancel drafts/dismiss banners and retain request/settings. Do not add an arbitrary service-launch premise or a general feature campaign. |
+| Cancel/Escape, close a report/result, approve, or close the app hoping to uncover a desktop. | **Source-effective session shutdown.** `RequestWindow._logout` and its Escape/result/approval callers use `KioskLogout.begin`; public GNOME logout has a 750-ms handoff, then app quit. App-unit success/failure starts `gnome-session-shutdown.target`. No desktop fallback is selected. | Observe GDM with no residual station desktop, then fresh usable passwordless entry; authentication denial/Cancel retain the request and grant nothing. Preserve ordinary-account continuity. Injected app/service failure is engineering coverage, not a substitute for public exit. |
+
+### Existing coverage and D02 handoff
+
+Request-action source owners are
+[`RequestWindow`](../../kiosk/oh_no_parent_control_kiosk/main.py),
+[`WhatsNewPresenter`](../../kiosk/oh_no_parent_control_kiosk/whats_new.py),
+[`WhatsNewDialog`](../../kiosk/oh_no_parent_control_kiosk/whats_new_dialog.py),
+[`AboutDialog`](../../common/oh_no_parent_control_ui/about.py),
+[`ErrorHandler`](../../common/oh_no_parent_control_ui/errors.py),
+[`FeedbackDialog`](../../common/oh_no_parent_control_ui/feedback.py),
+[`RichTextEditor`](../../common/oh_no_parent_control_ui/rich_text_editor.py),
+[`ReminderDialog`](../../kiosk/oh_no_parent_control_kiosk/preference_dialog.py),
+[`NotificationApplication`](../../kiosk/oh_no_parent_control_kiosk/notifications.py),
+[`agent_locale`](../../kiosk/oh_no_parent_control_kiosk/agent_locale.py) and
+[`KioskLogout`](../../kiosk/oh_no_parent_control_kiosk/session_logout.py).
+The table names the complete affected methods/callers; no edit to them is
+authorized merely by a source gap or an unfamiliar machine state.
+
+Reuse these exact owners, with their current qualification limits:
+
+- [Restricted-station cases](../../tests/e2e/restricted_station.py) 50–52:
+  `PLAN`/`DENIED_PLAN`/`CANCELLED_PLAN` →
+  [`onpc_restricted_station::run`](../../tests/integration/graphical_smoke/lib/onpc_restricted_station.pm)
+  → [`onpc_station::restrictions`](../../tests/integration/graphical_smoke/lib/onpc_station.pm)
+  send Super, Super-A and Ctrl+Alt+T.
+  [`AccessibleUI.kiosk_restrictions`](../../tests/e2e/accessible_ui.py) checks
+  the complete request tree and bounded outside-app absence. There is no inspected
+  Alt+F2 binding or actual alternate-desktop selection binding. Registration is
+  not both-target desktop qualification; preserve stable cases and extend only
+  a distinct missing outcome.
+- About: `check_e2e_read_restricted_station_about`,
+  `RestrictedStationAboutJourney`, `AccessibleUI.open_kiosk_about/read_kiosk_about`
+  and [case 192](../../tests/e2e/kiosk_about.py). Preferences/report bindings:
+  [`KioskPreferencesConfinementJourney`](../../tests/e2e/kiosk_preferences_confinement.py)
+  and [`KioskFeedbackConfinementJourney`](../../tests/e2e/kiosk_feedback_confinement.py)
+  through their corresponding `check_e2e_kiosk_*_confinement` selectors. These
+  protect offered actions; their census is not a desktop execution fence.
+- Normal exits: [Cancel case 47](../../tests/e2e/kiosk_cancel.py),
+  [Escape case 48](../../tests/e2e/kiosk_escape.py) and the accepted
+  [short usability composition](../TestAutomation/E2E-Building-Blocks.md#short-confinement-usability-history),
+  with its 1800-second worker bound. Reuse its complete approval, denial/Cancel,
+  ordinary-account entry, exit and fresh-request controls on both targets.
+- Host owners are [session composition](../../tests/unit/test_kiosk_login.py),
+  [native/helper admission](../../tests/unit/test_prepared_kiosk_pam.py) and
+  [request rendering](../../tests/unit/test_kiosk_rendering.py).
+  Installed 267 `verify_session_composition` and 268
+  `system_kiosk_admission.verify` check composition/account callbacks; neither
+  binds a child-selected alternate command to a public desktop outcome.
+
+D02 must resolve the finite GDM reachability/selected-command observation and
+shortcut/provider gaps before choosing a fix, preserving the existing effective
+action barriers. Any independent missing automation needs its own both-target
+qualification before its product consumer. Freeze one demonstrated defect and
+one enforcement boundary per product task; if no defect is demonstrated, retain
+the existing mechanism and qualify the result. No private runtime, package
+inventory, service-name allowlist or new test of task/history documents is
+justified. Remote provider work stays with D01r; standalone SSH/terminal/TTY and
+other child-controlled inputs stay with their remaining-plan owners. D01 started
+no VM, product process or temporary allocation requiring restoration.
+
 ## Verification scope and evidence limits
 
 The completed v1.3-derived baseline validation accepted Ubuntu and Fedora core

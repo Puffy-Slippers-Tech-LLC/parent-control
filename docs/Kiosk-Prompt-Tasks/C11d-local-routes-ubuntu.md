@@ -16,6 +16,12 @@ Use D03's exact registered local desktop map for Ubuntu; verify the candidate an
 required operation qualifications before invoking the maintained installed runner.
 No selector is implied merely by this task ID.
 
+The [local acceptance composition](../TestAutomation/E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
+owns exact Ubuntu commands, candidate inputs, finite assertions, bounds and
+restoration. D03a/D03b's enforcing verdicts must be qualified and D03 completed
+before consuming those bindings; the earlier discovery passes alone do not
+assert the final request-only results.
+
 Run the reviewed graphical-session selection and request-session desktop-escape
 attempts through public routes. Demonstrate actual child access, deliberate
 action and failure to obtain a full kiosk desktop. Verify ordinary-account

@@ -64,7 +64,8 @@ prepare_package_notice() { :; }
     restorecon -R /etc/oh-no-parent-control \
         /etc/fapolicyd/rules.d /usr/share/dbus-1/system.d \
         /var/lib/oh-no-parent-control /home/oh-no-parent-control
-    echo 'PASS: Oh No! Parent Control package configuration completed successfully.'
+    printf '\033[1;32m%s\033[0m\n' \
+        'PASS: Oh No! Parent Control package configuration completed successfully.'
     if [ -f /run/oh-no-parent-control-reboot-required ]; then
         # DNF captures scriptlet output, so a TTY check would suppress the red.
         printf '\033[1;31m%s\033[0m\n' \

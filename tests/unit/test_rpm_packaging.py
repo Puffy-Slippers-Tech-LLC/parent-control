@@ -624,6 +624,9 @@ def test_fedora_rpm_scriptlet_owns_configuration_and_preserves_failures(
     assert not any('pam-auth-update' in command or 'deb-systemd-invoke' in command for command in commands)
     assert not (state / 'package-activation-pending').exists()
     assert (root / 'run/oh-no-parent-control-reboot-required').is_file()
+    assert result.stdout.splitlines()[-1] == (
+        '\033[1;32mPASS: Oh No! Parent Control package configuration completed successfully.\033[0m'
+    )
     assert result.stderr.splitlines()[-1] == (
         '\033[1;31m*** REBOOT REQUIRED: reboot before using the kiosk session. ***\033[0m'
     )

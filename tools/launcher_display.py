@@ -124,13 +124,8 @@ class TaskDisplay(LauncherDisplay):
         self.focus = 'chat' if input_mode == 'chat' else 'bottom'
         self.offsets['info'] = 0
         self.offsets['summary'] = 0
-        self.offsets['description'] = 0
         self.offsets['session'] = 0
         self.description = {}
-        self.description_top = 0
-        self.description_height = 0
-        self.description_scrollbar = None
-        self.description_grab = None
         self.top_scrollbar = None
         self.top_scrollbar_grab = None
         self.top_bottom_button = None
@@ -143,6 +138,7 @@ class TaskDisplay(LauncherDisplay):
         self.top_divider_column = 0
         self.chat_top = 0
         self.chat_bounds = None
+        self.simplified_bounds = None
         self.output_height = 0
         self.summary_bottom = 0
         self.escape_since = None
@@ -204,16 +200,16 @@ class TaskDisplay(LauncherDisplay):
             send_input(self.run, 'message', text)
 
     def refresh_chat(self):
-        if self.execution_tabs and self.tty:
+        if (self.execution_tabs or self.input_mode == 'chat') and self.tty:
             from watch_output import SessionOutput
             if self.execution_session is None:
                 self.execution_session = SessionOutput(None, lambda: self.size or shutil.get_terminal_size(),
                     owner_run=self.run, embedded=True)
             session = self.execution_session
-            if session.panel:
+            if self.execution_tabs and session.panel:
                 session.panel.offsets['bottom'] = self.offsets['session']
             _, reset, _ = session.poll()
-            if session.panel:
+            if self.execution_tabs and session.panel:
                 self.offsets['session'] = session.panel.offsets['bottom']
                 session.panel.editor = self.editor
             if reset:
@@ -254,14 +250,6 @@ class TaskDisplay(LauncherDisplay):
             value = {}
         except (OSError, ValueError):
             return
-        if value.get('session') != self.description.get('session'):
-            self.offsets['description'] = 0
-            self.description_grab = None
-        elif self.offsets['description'] and self.size and value != self.description:
-            width = max(1, self.size.columns - self.divider_column - 1 - int(self.mouse_capture))
-            self.offsets['description'] += max(0,
-                len(self.wrapped(value.get('lines', []), width)) -
-                len(self.wrapped(self.description.get('lines', []), width)))
         self.description = value
 
     def output_width(self):
@@ -284,6 +272,7 @@ class TaskDisplay(LauncherDisplay):
         self.execution_tab_bounds = []
         self.execution_cursor = None
         self.chat_bounds = None
+        self.simplified_bounds = None
         if width < 3:
             self.output_height = 0
             self.chat_top = first + height
@@ -312,7 +301,8 @@ class TaskDisplay(LauncherDisplay):
                 scroll=lambda _pane, lines, columns, rows: self.scroll_rows(pane, lines, columns, rows),
                 output_width=max(1, content_width - int(self.mouse_capture)),
                 input_mode='chat' if session.input_enabled else 'none',
-                question=panel.question, working=panel.working())
+                question=panel.question, working=panel.working(),
+                session_logs=[*panel.transcript, *([panel.pending] if panel.pending else [])])
             output_height = panel.output_height
             # Keep the shared transcript's append/scroll anchoring at this viewport width.
             panel.size = os.terminal_size((content_width + int(not self.mouse_capture), body_height))
@@ -324,6 +314,9 @@ class TaskDisplay(LauncherDisplay):
             left_edge, right_edge, top, bottom_edge = panel.chat_bounds
             self.chat_bounds = (left_edge + content_left - 1, right_edge + content_left - 1,
                                 top + first, bottom_edge + first)
+        if panel and panel.simplified_bounds:
+            left_edge, right_edge, footer = panel.simplified_bounds
+            self.simplified_bounds = (left_edge, right_edge, footer + first)
         if panel and panel.cursor:
             row, column = panel.cursor
             self.execution_cursor = (row + first, column + content_left - 1)
@@ -425,7 +418,7 @@ class TaskDisplay(LauncherDisplay):
         editing = (editor.text or editor.pending or editor.paste or editor.decoder.getstate()[0]
                    or self.input_pending or self.mouse_pending or self.dragging or self.selection
                    or self.scrollbar_grab is not None or self.top_scrollbar_grab is not None
-                   or self.description_grab is not None or self.execution_grab is not None
+                   or self.execution_grab is not None
                    or self.escape_since is not None)
         answering = question and (question.text or question.buffer or question.pasting
                     or question.decoder.getstate()[0] or question.selected != 0)
@@ -455,7 +448,6 @@ class TaskDisplay(LauncherDisplay):
         self.selection = None
         self.scrollbar_grab = None
         self.top_scrollbar_grab = None
-        self.description_grab = None
         self.execution_grab = None
         if not self.mouse_capture:
             self.dragging = None
@@ -563,10 +555,10 @@ class TaskDisplay(LauncherDisplay):
                     self.mouse_capture = not self.mouse_capture
                     self.set_mouse_mode()
                 else:
-                    pane = self.focus if self.focus in ('top', 'description', 'session') else 'bottom'
+                    pane = self.focus if self.focus in ('top', 'session') else 'bottom'
                     if self.execution_tabs and self.focus in ('bottom', 'session', 'chat'):
                         pane = 'session' if self.execution_source() == 'session' else 'bottom'
-                    height = {'top': self.top_height, 'description': self.description_height,
+                    height = {'top': self.top_height,
                               'session': self.output_height, 'bottom': self.output_height}[pane]
                     self.offsets[pane] = max(0, self.offsets[pane] +
                         (max(1, height) if key == navigation[0] else -max(1, height)))
@@ -590,6 +582,18 @@ class TaskDisplay(LauncherDisplay):
 
     def mouse(self, button, column, row, released):
         base = button & ~28
+        if base == 0 and not released and self.simplified_bounds:
+            left, right, footer = self.simplified_bounds
+            if left <= column <= right and row == footer:
+                panel = (self.execution_session.panel if self.execution_tabs and self.execution_session
+                         else self.session_panel)
+                if panel and panel.simplified_bounds:
+                    panel.toggle_at(column, panel.simplified_bounds[2])
+                    pane = 'session' if self.execution_tabs else 'bottom'
+                    self.offsets[pane] = 0
+                    self.selection = None
+                    self.draw()
+                    return
         if self.selection and self.selection.active and (released or base == 32):
             self.selection.move(column, row)
             if released:
@@ -611,10 +615,12 @@ class TaskDisplay(LauncherDisplay):
             self.dragging = None
             self.scrollbar_grab = None
             self.top_scrollbar_grab = None
-            self.description_grab = None
         shape = ''
         if over or self.dragging:
             shape = 'ew-resize'
+        elif (self.simplified_bounds and self.simplified_bounds[0] <= column <= self.simplified_bounds[1]
+              and row == self.simplified_bounds[2]):
+            shape = 'pointer'
         elif self.chat_bounds:
             left, right, top, bottom = self.chat_bounds
             if left <= column <= right and top <= row <= bottom:
@@ -628,32 +634,11 @@ class TaskDisplay(LauncherDisplay):
             self.dragging = None
             self.scrollbar_grab = None
             self.top_scrollbar_grab = None
-            self.description_grab = None
         for pane, scrollbar, bottom_button, grab_name in (
                 ('top', self.top_scrollbar, self.top_bottom_button, 'top_scrollbar_grab'),
                 ('bottom', self.scrollbar, self.bottom_button, 'scrollbar_grab')):
             if self.scrollbar_mouse(pane, scrollbar, bottom_button, grab_name, base, column, row):
                 return
-        if base == 32 and self.description_grab is not None and self.description_scrollbar:
-            first, start, thumb, travel, limit = self.description_scrollbar
-            position = min(travel, max(0, row - first - self.description_grab))
-            if travel:
-                self.offsets['description'] = round(limit * (travel - position) / travel)
-            self.draw()
-            return
-        if (base == 0 and self.description_scrollbar and self.size
-                and column == self.size.columns - 1
-                and self.description_top <= row < self.description_top + self.description_height):
-            first, start, thumb, travel, limit = self.description_scrollbar
-            position = row - first
-            self.focus = 'description'
-            if start <= position < start + thumb:
-                self.description_grab = position - start
-            else:
-                self.offsets['description'] = round(limit *
-                    (thumb + travel - 1 - position) / max(1, thumb + travel - 1))
-            self.draw()
-            return
         if base == 0 and over:
             self.dragging = over
             self.draw()
@@ -670,8 +655,8 @@ class TaskDisplay(LauncherDisplay):
                 if column < self.top_divider_column:
                     self.focus = 'top'
                 return
-            if column > self.divider_column and row >= self.description_top and self.description_height:
-                self.focus = 'description'
+            if column > self.divider_column:
+                self.focus = 'info'
                 return
             self.focus = ('bottom' if self.input_mode != 'chat' or
                           column < self.divider_column and row < self.chat_top else 'chat')
@@ -682,9 +667,7 @@ class TaskDisplay(LauncherDisplay):
             if self.input_mode == 'chat' and column < self.divider_column and row >= self.chat_top:
                 return
             pane = ('top' if row <= self.top_height else 'bottom' if column < self.divider_column else
-                    'summary' if row <= self.summary_bottom else
-                    'description' if row >= self.description_top and self.description_height
-                    and self.description.get('lines') else 'info')
+                    'summary' if row <= self.summary_bottom else 'info')
             delta = 3 if base == 64 else -3
             self.offsets[pane] = max(0, self.offsets[pane] + (-delta if pane in ('summary', 'info') else delta))
             self.draw()
@@ -749,7 +732,10 @@ class TaskDisplay(LauncherDisplay):
                     allow_drag=self.focus == pane):
                 return True
         pane = 'session' if self.execution_source() == 'session' else 'bottom'
-        self.set_pointer('text' if self.chat_bounds and self.chat_bounds[0] <= column <= self.chat_bounds[1]
+        self.set_pointer('pointer' if self.simplified_bounds
+                         and self.simplified_bounds[0] <= column <= self.simplified_bounds[1]
+                         and row == self.simplified_bounds[2] else
+                         'text' if self.chat_bounds and self.chat_bounds[0] <= column <= self.chat_bounds[1]
                          and self.chat_bounds[2] <= row <= self.chat_bounds[3] else '')
         if base in (64, 65):
             if row >= self.chat_top:
@@ -841,9 +827,10 @@ class TaskDisplay(LauncherDisplay):
         session_state = (self.execution_session.active, self.execution_session.identity,
                          tuple(session_panel.transcript), session_panel.pending,
                          json.dumps(session_panel.chat_state, sort_keys=True),
-                         tuple(session_panel.details)) if session_panel else None
+                         tuple(session_panel.details), session_panel.simplified,
+                         tuple(session_panel.text_output or [])) if session_panel else None
         state = (size, self.divider.ratio, self.execution_tab,
-                 session_state, self.dragging, self.task_totals,
+                 session_state, self.session_panel.simplified, self.dragging, self.task_totals,
                  tuple(summary_lines), total_duration, working, error_age, status_age,
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
@@ -931,6 +918,14 @@ class TaskDisplay(LauncherDisplay):
             # the transcript for saved logs and replay after the frame closes.
             logs = self.details
         self.session_panel.chat_state = self.chat_state
+        self.scroll_transcript = (self.execution_tabs or self.input_mode != 'chat'
+                                  or not self.session_panel.simplified)
+        if self.input_mode == 'chat' and not self.execution_tabs:
+            self.session_panel.offsets['bottom'] = self.offsets['bottom']
+            description = (self.description if not current or
+                self.description.get('progress_key') in (None, current['key']) else {})
+            self.session_panel.update_text_output(description)
+            self.offsets['bottom'] = self.session_panel.offsets['bottom']
         if self.execution_tabs:
             left = self.execution_layout(left_width, available,
                 [*self.transcript, *([self.pending] if self.pending else [])],
@@ -938,42 +933,25 @@ class TaskDisplay(LauncherDisplay):
         else:
             left = self.session_panel.layout(left_width, available, logs, scroll=self.scroll_rows,
                 output_width=self.output_width(), input_mode=self.input_mode,
-                question=self.question, working=working)
+                question=self.question, working=working,
+                session_logs=[*session_panel.transcript,
+                              *([session_panel.pending] if session_panel.pending else [])]
+                             if session_panel else [])
             self.output_height = self.session_panel.output_height
         remaining = max(0, available - summary_height - len(separator))
-        description_lines = (self.description.get('lines', [])
-                             if not current or self.description.get('progress_key') in (None, current['key']) else [])
-        reserve = min(4, remaining) if description_lines else min(1, remaining)
-        info_height = min(len(self.wrapped(info_lines, right_width)), max(0, remaining - reserve))
+        info_height = min(len(self.wrapped(info_lines, right_width)), remaining)
         info = self.from_top('info', info_lines, right_width, info_height)
         info += [Text('')] * (info_height - len(info))
-        if remaining > info_height:
-            info.append(Text('─' * right_width, style='dim'))
-        self.description_top = len(top) + 2 + summary_height + len(separator) + len(info)
-        self.description_height = max(0, remaining - len(info))
-        description_width = max(1, right_width - int(self.mouse_capture))
-        description_rows = self.scroll_rows('description', description_lines,
-                                            description_width, self.description_height)
-        description_rows += [Text('')] * (self.description_height - len(description_rows))
-        self.description_scrollbar = None
-        total_description = len(self.row_cache['description'][1])
-        if self.mouse_capture and right_width > 1 and self.description_height > 0 and total_description > self.description_height:
-            thumb = max(1, round(self.description_height * self.description_height / total_description))
-            travel = self.description_height - thumb
-            limit = total_description - self.description_height
-            start = round(travel * (limit - self.offsets['description']) / limit)
-            self.description_scrollbar = (self.description_top, start, thumb, travel, limit)
-            for index, row in enumerate(description_rows):
-                row = row.copy()
-                row.pad_right(max(0, description_width - row.cell_len))
-                description_rows[index] = row + Text('█' if start <= index < start + thumb else '░', style='dim')
-        info += description_rows
         right = summary + separator + info
         right = right[:available]
         right += [Text('')] * (available - len(right))
         if not self.execution_tabs:
             self.chat_top = len(top) + 1 + self.output_height + 1
             self.chat_bounds = self.session_panel.chat_bounds
+            self.simplified_bounds = self.session_panel.simplified_bounds
+            if self.simplified_bounds:
+                left_edge, right_edge, footer = self.simplified_bounds
+                self.simplified_bounds = (left_edge, right_edge, footer + len(top) + 1)
             if self.chat_bounds:
                 left_edge, right_edge, first, last = self.chat_bounds
                 self.chat_bounds = (left_edge, right_edge, first + len(top) + 1, last + len(top) + 1)
@@ -1000,7 +978,7 @@ class TaskDisplay(LauncherDisplay):
             self.scrollbar = None
             self.top_bottom_button = None
             self.top_scrollbar = None
-            self.description_scrollbar = None
+            self.simplified_bounds = None
         for row in rows:
             row.truncate(width, overflow='crop')
         self.selection_panels = [
@@ -1008,9 +986,7 @@ class TaskDisplay(LauncherDisplay):
             (left_width + 2, width, 1, self.top_height),
             (1, self.output_width(), self.top_height + 2,
              self.top_height + 1 + self.output_height),
-            (left_width + 2, width, self.top_height + 2, self.description_top - 2),
-            (left_width + 2, width - int(self.mouse_capture), self.description_top,
-             self.description_top + self.description_height - 1),
+            (left_width + 2, width, self.top_height + 2, height),
         ] if width >= 3 else []
         if self.execution_tabs and width >= 3:
             self.selection_panels[2:3] = self.execution_selection

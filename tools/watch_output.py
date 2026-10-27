@@ -413,8 +413,11 @@ class SessionOutput:
         reset = (run, state['session']) != (self.run, self.identity)
         if reset:
             self.owner, self.run, self.identity = owner, run, state['session']
+            simplified = self.panel.simplified if self.panel else True
             self.panel = SessionPanel(io.StringIO(), send=self.send,
                 terminal_size=self.terminal_size, embedded=self.embedded)
+            self.panel.simplified = simplified
+            self.panel.update_text_output({})
             self.offset = 0
             self.decoder.reset()
         panel = self.panel
@@ -451,6 +454,15 @@ class SessionOutput:
         panel.details = ([question['question'],
             *[f'{index + 1}. {option}' for index, option in enumerate(question['options'])],
             'Type a number or your own instructions below.'] if question else [])
+        try:
+            # JSON escaping can expand the bounded prose beyond its text budget.
+            description = self.reader.read(run / 'descriptive-output.json', limit=2 * 1024 * 1024)
+        except FileNotFoundError:
+            description = {}
+        except (OSError, ValueError):
+            description = None
+        if description is not None:
+            panel.update_text_output(description)
         try:
             with open_private(run / source) as stream:
                 size = os.fstat(stream.fileno()).st_size

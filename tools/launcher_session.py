@@ -1,12 +1,13 @@
 """Embeddable launcher transcript and prompt, independent of dashboard layout."""
 
+import re
 import time
 
 from rich.cells import get_character_cell_size
 from rich.text import Text
 
 from launcher_chat import ChatEditor
-from launcher_render import LauncherDisplay
+from launcher_render import COMPACT_LINE, LauncherDisplay, clean, retained_tail
 
 
 def clock_duration(seconds):
@@ -35,6 +36,108 @@ class SessionPanel(LauncherDisplay):
         self.input_mode = 'chat'
         self.output_height = 0
         self.cursor = None
+        self.simplified = True
+        self.simplified_bounds = None
+        self.text_output = None
+        self.text_identity = None
+        self.text_width = 1
+        self.simplified_cache = None
+
+    def simplified_lines(self, logs):
+        """Project retained full output locally, so observer reloads apply now."""
+        source = tuple(logs)
+        if self.simplified_cache is not None and source == self.simplified_cache[0]:
+            return self.simplified_cache[1]
+        rows = []
+        activity = None
+        heading = None
+        prose = False
+        detail_pending = False
+        unknown = False
+
+        def new_block(line):
+            while rows and not clean(rows[-1]).strip():
+                rows.pop()
+            rows.extend(['', line])
+
+        def preview(text):
+            nonlocal activity
+            with self.console.capture() as capture:
+                self.console.print(text, end='', soft_wrap=True)
+            line = COMPACT_LINE + capture.get()
+            if activity is None:
+                new_block(line)
+                activity = len(rows) - 1
+            else:
+                rows[activity] = line
+
+        for line in source:
+            text = Text.from_ansi(line)
+            plain = text.plain
+            if plain.startswith('• '):
+                if plain == '• Turn complete':
+                    continue
+                nontext = re.match(r'^• (?:Ran |Explored$|(?:Tool|Search) (?:working|complete)$|'
+                                   r'File changes —|Plan$|Agent error$)', plain)
+                if nontext and text.get_style_at_offset(self.console, 2).bold:
+                    heading = text
+                    prose = unknown = False
+                    detail_pending = not plain.startswith(('• Ran ', '• Explored'))
+                    preview(text)
+                else:
+                    activity = None
+                    prose, unknown = True, False
+                    new_block(line)
+            elif prose:
+                rows.append(line)
+            elif heading is not None and heading.plain == '• Explored' and re.match(
+                    r'^  (?:└ |  )(?:Read|Search) ', plain):
+                preview(heading + Text(' ') + text[4:])
+            elif detail_pending and plain.strip():
+                start = 4 if plain.startswith('  └ ') else len(plain) - len(plain.lstrip())
+                preview(heading + Text(' ') + text[start:])
+                detail_pending = False
+            elif heading is None and plain and not plain[0].isspace() and not plain.startswith('│ '):
+                if not unknown:
+                    preview(Text('• ', style='bright_black') + text)
+                heading = None
+                unknown = True
+        result = list(retained_tail(rows))
+        self.simplified_cache = (source, result)
+        return result
+
+    def update_text_output(self, record):
+        """Follow prose and the current inline activity from the shared renderer."""
+        if not isinstance(record, dict) or (record and (
+                not isinstance(record.get('session'), str)
+                or not isinstance(record.get('lines'), list)
+                or any(not isinstance(line, str) for line in record['lines']))):
+            return
+        preview = record.get('preview')
+        if preview is not None and not isinstance(preview, str):
+            return
+        lines = list(retained_tail([*record.get('lines', []),
+                                   *(['', preview] if preview is not None else [])]))
+        identity = record.get('session')
+        if identity != self.text_identity:
+            self.offsets['bottom'] = 0
+        elif self.simplified and self.offsets['bottom'] and lines != self.text_output:
+            self.offsets['bottom'] += max(0,
+                len(self.wrapped(lines, self.text_width)) -
+                len(self.wrapped(self.text_output or [], self.text_width)))
+        self.text_output, self.text_identity = lines, identity
+        self.scroll_transcript = not self.simplified
+
+    def toggle_at(self, column, row):
+        if self.simplified_bounds is None:
+            return False
+        left, right, footer = self.simplified_bounds
+        if row != footer or not left <= column <= right:
+            return False
+        self.simplified = not self.simplified
+        self.scroll_transcript = not self.simplified or self.text_output is None
+        self.offsets['bottom'] = 0
+        return True
 
     def editor_rows(self, width):
         rows = []
@@ -55,7 +158,7 @@ class SessionPanel(LauncherDisplay):
         return rows, caret_row, caret_column
 
     def layout(self, width, height, logs, *, scroll=None, output_width=None,
-               input_mode='chat', question=None, working=''):
+               input_mode='chat', question=None, working='', session_logs=None):
         """Return the same transcript/composer at any size and screen location."""
         boxed = width >= 5
         show_hint = height >= 4
@@ -71,6 +174,12 @@ class SessionPanel(LauncherDisplay):
             editor_rows = editor_rows[-max(1, height // 2):]
             chrome_height = 0
         self.output_height = max(0, height - len(editor_rows) - chrome_height)
+        self.text_width = output_width or width
+        if self.simplified and self.text_output is not None:
+            # Retain the shared renderer's bullets, blank message separators
+            # and hanging indentation, including when the viewport reflows.
+            source = logs if session_logs is None else session_logs
+            logs = [*(self.simplified_lines(source) if source else self.text_output), *self.details]
         rows = (scroll or self.scroll_rows)('bottom', logs,
             output_width or width, self.output_height)
         rows += [Text('')] * (self.output_height - len(rows))
@@ -78,11 +187,21 @@ class SessionPanel(LauncherDisplay):
         self.chat_bounds = None
         self.chat_top = self.output_height + 1
         self.editor_height = len(editor_rows)
+        self.simplified_bounds = None
         if input_mode == 'chat':
             hint = Text(self.editor.error or ' '.join(filter(None, (
                 self.chat_state.get('model'), self.chat_state.get('effort')))),
                 style='red' if self.editor.error else 'dim')
-            hint.truncate(width, overflow='crop')
+            toggle = Text('Simplified ', style='#808080')
+            state_label = '[on]' if self.simplified else '[off]'
+            toggle.append(state_label, style='#0066ff underline')
+            if show_hint and width >= len('Simplified [off]'):
+                hint.truncate(max(0, width - toggle.cell_len - 1), overflow='crop')
+                hint.pad_right(width - toggle.cell_len - hint.cell_len)
+                self.simplified_bounds = (width - len(state_label) + 1, width, height)
+                hint += toggle
+            else:
+                hint.truncate(width, overflow='crop')
             label = ' Chat ' + (f'· {working} ' if working else '')
             border = Text('╭' + label[:max(0, width - 2)].ljust(max(0, width - 2), '─') + '╮', style='dim')
             border.truncate(width, overflow='crop')
@@ -120,7 +239,8 @@ class SessionPanel(LauncherDisplay):
         width, height = max(1, size.columns - 1), max(1, size.lines)
         logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
         rows = self.layout(width, height, logs, input_mode=self.input_mode,
-                           question=self.question, working=self.working())
+                           question=self.question, working=self.working(),
+                           session_logs=[*self.transcript, *([self.pending] if self.pending else [])])
         if not self.screen or size != self.size:
             self.stream.write('\033[H\033[2J')
             self.previous = None

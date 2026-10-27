@@ -10,6 +10,30 @@ from tests.support.paths import ROOT
 pytestmark = pytest.mark.ui
 
 
+@pytest.mark.parametrize('surface,language,prefix', (
+    ('parent', 'de', '/de'),
+    ('overlay', 'zh-Hant', '/zh-Hant'),
+    ('kiosk', 'en', ''),
+))
+def test_about_displays_localized_portal_url(
+        launch_ui, automation, wait_for_accessible_state, surface, language, prefix):
+    scope = 'parent' if surface == 'parent' else 'kiosk'
+    launch_ui('parent_component_preview' if surface == 'parent' else 'request_component_preview',
+              complete_language_setup=False, environment_overrides={
+                  'ONPC_LANGUAGE_INITIAL': language,
+                  'ONPC_REQUEST_COMPONENT_OVERLAY': '1' if surface == 'overlay' else '0',
+                  'LANGUAGE': 'en_US.UTF-8', 'LC_ALL': 'C.UTF-8',
+              })
+    ui, wait = automation, wait_for_accessible_state
+    wait(lambda: ui.showing(scope + '-language-ready'), 'saved language loaded')
+    ui.setValue(scope + '-menu-button', 'about')
+    wait(lambda: ui.showing('about-dialog'), 'About opens')
+    expected = 'https://tech.puffyslippers.com' + prefix + '/oh-no-parent-control/'
+    assert ui.getText('about-website-value') == expected
+    if surface != 'kiosk':
+        assert expected in ui.text('about-website-value')
+
+
 @pytest.mark.parametrize("launcher,menu", (
     ("parent_component_preview", "parent-menu-button"),
     ("kiosk_preview", "kiosk-menu-button"),

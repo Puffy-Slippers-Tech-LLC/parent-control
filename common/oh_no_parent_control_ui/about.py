@@ -5,6 +5,7 @@ from __future__ import annotations
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.translation_widgets import (
     localized, set_text, accessible_text, context_for, set_portal_uri,
+    register_retranslation,
 )
 from .localization import portal_url
 
@@ -115,6 +116,22 @@ def _detail_row(icon_name: str | None, label: str, value: str, uri: str | None, 
         )
     else:
         set_automation_id(value_widget, f"about-{identity}-value")
+    if uri and value == uri:
+        # The Website row displays the URL itself, including in the kiosk where
+        # it is plain text. Keep its copy and accessible name in the same locale
+        # as the destination without retaining the native widget in a closure.
+        native = value_widget.weak_ref()
+
+        def refresh_url(_translations):
+            widget = native()
+            current_uri = portal_url(uri, context_for(widget).language)
+            set_text(widget, 'label', current_uri)
+            if isinstance(widget, Gtk.LinkButton):
+                accessible_text(widget, [Gtk.AccessibleProperty.LABEL], [
+                    m.ABOUT_DETAIL_LABEL % {'label': label, 'value': current_uri},
+                ])
+
+        register_retranslation(value_widget, refresh_url)
     copy.append(value_widget)
     row.append(copy)
     return row

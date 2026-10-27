@@ -3977,6 +3977,40 @@ discovery-independent admission, exact restoration, fresh public entry/form/Canc
 and owned cleanup. D00a3q's earlier pre-fix refusal/repair qualification remains
 historical and supplies no product acceptance credit.
 
+### Owned sign-in lease variation
+
+`check_e2e_kiosk_lease_variation` dispatches
+[`kiosk_lease_variation.qualify(transport, lease, expectation='refusal')`](../../tests/e2e/kiosk_lease_variation.py)
+through `KioskLeaseVariationQualification`. It runs the installed
+[`system_kiosk_lease_variation.engineering`](../../tests/integration/system_kiosk_lease_variation.py)
+controls before the complete [short public history](#short-confinement-usability-history),
+including ordinary-account graphical entry, usable station requests, Cancel,
+approval, normal exit and fresh entry. The existing worker deadline is explicitly
+1800 seconds; the engineering command is bounded to 420 seconds.
+
+The finite matrix creates one absent lease through real GDM admission in an idle
+prepared boot, then checks the same healthy inode and retained handles in both
+`gdm-password` and `systemd-user` contexts. Fedora uses the existing `xdm_t` and
+`init_t` caller identities and verifies the native shared descriptors are read-only.
+Its vendor `systemd-user` account stack can return before the shared module;
+that retained control acquires and rechecks its lease through the real session
+stack, with session-error refusal for the stale mode. Other bindings acquire
+and recheck through account admission.
+One owned mode change from `0600` to `0640` must reach native refusal and the
+installed lifecycle writer's pre-fix refusal. Exact inode/owner/link/mode guards
+restore only this attempt's change. A retained handle rechecks the stale and
+restored mode; the real lifecycle `barriers` stays excluded through close until
+`pam_end`, then acquires and releases. While that actual writer holds its barrier,
+station admission refuses and ordinary-account admission remains usable; fresh
+station admission succeeds after release. No lease or removal marker is deleted.
+
+D00a4q passed this refusal binding and the complete restored public history on
+`onpc-Ubuntu26.04` and `onpc-Fedora44`, including owned session/VM cleanup.
+The explicit `expectation='recovery'`
+binding is reserved for D00a: it requires the real writer to repair the same inode
+before fresh admission. It has no passing result here. Engineering callbacks and
+pre-fix refusal supply no product-recovery or desktop-defense acceptance.
+
 ### Reached service-route control
 
 `check_e2e_kiosk_service_route` dispatches

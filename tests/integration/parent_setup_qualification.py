@@ -426,6 +426,32 @@ class ConfinementUsabilityQualification(KioskEntryQualification):
         return ConfinementUsabilityJourney(context, progress)
 
 
+class KioskLeaseVariationQualification(ConfinementUsabilityQualification):
+    """Owned lease controls followed by the complete short public history."""
+
+    def journey(self, context, progress):
+        from kiosk_lease_variation import qualify
+        journey = ConfinementUsabilityQualification.journey(context, progress)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage == 'setup-detached':
+                self.result['lease_variation'] = qualify(
+                    journey.transport, context.lease, expectation='refusal')
+                observed['lease_variation'] = self.result['lease_variation']
+
+        journey.check_settings = check
+        return journey
+
+    def execute(self, lease, guestfs):
+        # ParentJourneyQualification uses an explicit 1800-second worker
+        # deadline for both these controls and the restored public history.
+        super().execute(lease, guestfs)
+        smoke.require(self.result['lease_variation'].get('qualified') is True,
+                      'kiosk-lease:qualification-incomplete')
+
+
 class BaselineJourneyQualification(KioskEntryQualification):
     # This fixed caller selects its finite closure before VM acquisition.
     from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets

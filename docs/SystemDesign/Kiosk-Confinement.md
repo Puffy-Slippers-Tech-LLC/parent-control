@@ -538,6 +538,57 @@ authority, administrator denial, lifecycle exclusion and bounded child cleanup.
 Independent Astra xHigh backend review found no actionable issues; 286 focused
 product/ownership checks, 445 existing launcher checks and DEB/RPM builds passed.
 
+#### D00a lease qualification prerequisite
+
+D00a's resumed source inspection found one concrete stale-mode repair deadlock:
+native `lock_current` requires mode `0600`, while lifecycle `barriers` calls
+`read(path, private=True)` before opening and exclusively locking the same inode.
+An owned mode `0640` therefore blocks both admission and its maintained writer.
+The small repair belongs at that writer after ownership, inode and exclusive-lock
+checks; PAM must retain read-only shared leases and foreign/live-state guards.
+No product edit or installed result was made during this inspection.
+
+Existing `test_prepared_kiosk_pam` controls cover new/existing leases,
+retained-handle identity/mode/marker checks and ownership through `pam_end`.
+Installed `system_kiosk_admission.verify` covers account/service/routing controls;
+`held_account` holds a real account handle but does not qualify a lease-recovery
+variation or restored public use. The qualified service/routing operations and
+short usability history do not cover the missing variation either. **D00a4q**
+therefore qualifies the finite absent/healthy/stale-mode, retained-handle and
+active-writer controls on both targets before D00a product edits. Its current
+refusal characterization and exact fixture restoration earn no repaired-product
+acceptance. No excluded task-brief/history tests are restored.
+
+The registered `check_e2e_kiosk_lease_variation` now binds
+[`kiosk_lease_variation.qualify`](../../tests/e2e/kiosk_lease_variation.py) and
+[`system_kiosk_lease_variation.engineering`](../../tests/integration/system_kiosk_lease_variation.py)
+to the [finite lease matrix](../TestAutomation/E2E-Building-Blocks.md#owned-sign-in-lease-variation).
+One fresh GDM admission creates the absent lease; healthy existing and retained
+handles use real `gdm-password` and `systemd-user` callers, including Fedora's
+`xdm_t`/`init_t` read-only opens. The same inode's `0640` admission/writer refusal,
+identity-guarded exact restoration, same-handle recheck, exclusion through close
+until `pam_end`, actual lifecycle writer hold/release and fresh admission remain
+engineering controls. The complete existing short public history follows exact
+restoration. D00a4q passed the finite refusal controls, complete short public
+history and owned cleanup on `onpc-Ubuntu26.04` and `onpc-Fedora44`, without
+product changes or D00a acceptance credit. The separate `recovery` expectation
+remains unqualified until D00a runs it on the repaired candidate.
+Fedora's vendor `systemd-user` account stack can return at its sufficient
+`pam_unix` entry before the shared module. Its installed retained-handle control
+therefore acquires/rechecks at the actual session include; a successful account
+callback alone is not lease evidence. Ubuntu's user-manager and both GDM
+bindings acquire/recheck at account admission.
+
+Marker disposition is bounded by actual provenance: `prepare` saves authoritative
+removing state before writing its marker; `commit_migration` and `finish_remove`
+erase the marker before state. Their normal interruption order does not create
+an orphan marker without state. `marker` validates ownership/content, and a
+marker without authoritative state is explicitly refused as unowned by the
+configuration/rollback paths. Do not adopt or delete it based on absence of a
+live lock. Valid interrupted marker-plus-state recovery stays with the existing
+configuration writer; broader interrupted-state recovery remains C09c. Transient
+read/lock faults remain bounded engineering/fresh-retry controls, not attack claims.
+
 #### D00a prerequisite allocation
 
 D00a's source inspection confirmed the service allowlist in native
@@ -555,6 +606,7 @@ claimed. The [ordered queue](../Kiosk-Desktop-Queue.md) now allocates:
 | D00a2 | Remove unjustified service-name rejection; verify actual dedicated graphical execution through the affected service, a reached prohibited-route control and ordinary-account login, with same-candidate both-target public usability. |
 | D00a3q | Completed: both-target normal execution, three saved-routing refusal/repair controls, transient discovery loss, exact restoration, fresh public use and owned cleanup passed; no product changes or consumer acceptance credit. |
 | D00a3 | Completed: saved-routing/discovery admission dependency removed; both-target preference execution, discovery loss/restoration, complete public usability and installed admission passed, with invalid identity/authority barriers retained. |
+| D00a4q | Qualify the finite installed lease variation, active writer exclusion, exact fixture restoration and fresh public use on both targets before product edits; no product changes or consumer acceptance credit. |
 | D00a | Resolve owned lease/recovery at native `admission`/`lock_current` and lifecycle `barriers`, preserving live/foreign state, read-only Fedora leases and active writer exclusion. Include stale-mode, retained-handle and release/reentry controls with both-target usability. |
 
 Historical migration capture/rollback remains necessary; broader provisioning,

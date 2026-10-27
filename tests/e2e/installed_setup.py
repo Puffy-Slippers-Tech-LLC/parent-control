@@ -19,6 +19,7 @@ def inputs(root):
         *[(relative, Path(relative).name) for relative in (
         'tests/integration/system_guest.py', 'tests/integration/e2e_dynamic_account.py',
         'tests/integration/system_kiosk_confinement.py',
+        'tests/integration/system_kiosk_lease_variation.py',
         'tests/integration/system_kiosk_feedback.py',
         'tests/integration/system_wellbeing_qualification.py',
         'tests/integration/wellbeing_probe.py')]])

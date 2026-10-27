@@ -1435,7 +1435,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                                   not kiosk_feedback_confinement)),
             'smoke:kiosk-notification-prerequisites')
     require((type(kiosk_entry) is bool or kiosk_entry in (
-            'service-variation', 'service-route', 'routing-variation')) and (not kiosk_entry or (
+            'service-variation', 'service-route', 'routing-variation', 'lease-variation')) and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
@@ -1640,6 +1640,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                if kiosk_entry == 'service-route'
                                else 'installed-kiosk-routing-variation-qualification'
                                if kiosk_entry == 'routing-variation'
+                               else 'installed-kiosk-lease-variation-qualification'
+                               if kiosk_entry == 'lease-variation'
                                else 'installed-kiosk-entry-qualification')
         if kiosk_eligible_choices:
             result['scope'] = 'installed-kiosk-eligible-choices-qualification'
@@ -2086,11 +2088,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_entry:
                     from parent_setup_qualification import (KioskEntryQualification,
                         KioskServiceVariationQualification, KioskServiceRouteQualification,
-                        KioskRoutingVariationQualification)
+                        KioskRoutingVariationQualification, KioskLeaseVariationQualification)
                     qualification_class = (KioskServiceVariationQualification
                         if kiosk_entry == 'service-variation' else KioskServiceRouteQualification
                         if kiosk_entry == 'service-route' else KioskRoutingVariationQualification
-                        if kiosk_entry == 'routing-variation' else KioskEntryQualification)
+                        if kiosk_entry == 'routing-variation' else KioskLeaseVariationQualification
+                        if kiosk_entry == 'lease-variation' else KioskEntryQualification)
                 if kiosk_eligible_choices:
                     from parent_setup_qualification import KioskEligibleChoicesQualification
                     qualification_class = KioskEligibleChoicesQualification

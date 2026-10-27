@@ -742,12 +742,43 @@ not that result and supplies no defense pass.
 
 | Child access and deliberate action | Current disposition and smallest owner | Negative, permitted control and restoration |
 | --- | --- | --- |
-| At GDM, select the station and choose an available full desktop; also check the ordinary-account chooser → Cancel → station sequence without supplying an administrator password. | **Unproven local selection gap, not yet a justified new barrier.** GDM can launch a current alternate selection and product PAM does not inspect it, but this review does not demonstrate the chooser interval for passwordless station entry. Vendor reset already clears cancelled selections. C07a/D02 must first establish actual public reachability on each target; absent reachability means no speculative restriction. | Observe the selected desktop ID, resolved command and actual station-UID session/process together with the public desktop result. Pair with the same full desktop working for an ordinary account and passwordless dedicated entry/request/reentry. Cancel and restore only owned selection/settings; preserve existing sessions. Missing chooser/provider qualification is a prerequisite before product editing, not a denied-desktop pass. |
+| At GDM, select the station and choose an available full desktop; also check the ordinary-account chooser → Cancel → station sequence without supplying an administrator password. | **C07a1 qualified a no-route disposition on both targets; no missing barrier demonstrated.** Ordinary-account public desktop selection works. Normal passwordless station selection, directly and after ordinary chooser cancellation, reaches the dedicated request without exposing a station chooser. No authentication delay or saved-routing change manufactured reachability. C07a retains its own both-target usability gate and may add only a demonstrated justified barrier. | Independent selected desktop-file command, station-UID session/manager/Kiosk processes and public usable request results passed for both attempts. Owned saved choices and public policy were restored, followed by usable Cancel/reentry and runner/VM cleanup. This does not claim that a selected alternate executable was denied; see the exact qualification below. |
 | In the usable request session press Super, Super-A, Alt+F2 and Ctrl+Alt+T, seeking desktop launch controls. | **Existing vendor boundary; installed desktop negative unqualified.** Dedicated `Kiosk=true` starts GNOME Kiosk rather than full Shell. Upstream [Kiosk compositor](https://github.com/GNOME/gnome-kiosk/blob/50.0/compositor/kiosk-compositor.c) `kiosk_compositor_start` calls `neuter_builtin_keybindings`, whose no-op handler covers `panel-main-menu` and `panel-run-dialog`. This is no claim about every distro shortcut. C07s owns only a demonstrated desktop-enabling result. | After each distinct input, require the usable request and no full desktop/run surface; ordinary-account desktop controls must work. Close any owned surface normally and verify exit/fresh entry. A terminal-only or VT outcome belongs to the remaining plan, not an expanded desktop assertion. |
 | Open About/Help or What's New and try offered links leading to external handlers. | **Source-effective action barrier.** `RequestWindow._build` omits kiosk Help; `_show_about` and `WhatsNewPresenter.show` pass `links_enabled=False`. About renders plain labels; `WhatsNewDialog._render`/`_activate_link` suppress external actions. No new barrier justified. | Complete kiosk action inventory must lack external launches while information remains readable/dismissible; the overlay retains permitted links. Close the dialog and compare the unchanged request. An external handler alone is not a demonstrated chain to a desktop. |
 | Open an error report and try attachments, download, Privacy or editor links. | **Source-effective action barriers.** `ErrorHandler.present` propagates kiosk mode to `FeedbackDialog`; `_choose_attachments`/`_download_logs` are hidden and guarded, Privacy stays in-app, and the editor has no attachment callback. `RichTextEditor._decide_policy` refuses non-blank navigation/new windows. No new barrier justified. | Require useful report/editor/privacy with no chooser or external action; ordinary Parent attachments/export remain permitted. Restore any owned dependency fault, close the report, then exit/reenter normally. Trusted WebKit compromise is excluded. |
 | Open Preferences, preview reminders/banner actions or change language. | **Source-effective fixed actions.** `ReminderDialog._preview` supplies no launch actions; `NotificationApplication._method_call`/`_show` reject supplied actions and expose only dismiss/fixed Preferences activation. `agent_locale.prepare`/`_start` restart the fixed authentication-agent unit. No desktop launcher found. | Preserve usable dialogs, preview and genuine authentication. Cancel drafts/dismiss banners and retain request/settings. Do not add an arbitrary service-launch premise or a general feature campaign. |
 | Cancel/Escape, close a report/result, approve, or close the app hoping to uncover a desktop. | **Source-effective session shutdown.** `RequestWindow._logout` and its Escape/result/approval callers use `KioskLogout.begin`; public GNOME logout has a 750-ms handoff, then app quit. App-unit success/failure starts `gnome-session-shutdown.target`. No desktop fallback is selected. | Observe GDM with no residual station desktop, then fresh usable passwordless entry; authentication denial/Cancel retain the request and grant nothing. Preserve ordinary-account continuity. Injected app/service failure is engineering coverage, not a substitute for public exit. |
+
+#### C07a1 public selection qualification
+
+The registered
+[`check_e2e_public_desktop_selection`](../../tests/integration/check_e2e_public_desktop_selection.py)
+binding passed both targets through
+[`PublicDesktopSelectionJourney`](../../tests/e2e/public_desktop_selection.py).
+The [building-block owner](../TestAutomation/E2E-Building-Blocks.md#public-desktop-selection)
+owns its English GNOME 50 GDM adapter, independent launch observer, 120-second
+machine checkpoints and 1800-second worker envelope.
+
+| Target | Ordinary-account positive | Direct station selection and chooser → Cancel → station |
+| --- | --- | --- |
+| `onpc-Ubuntu26.04` | Jordan publicly chose Ubuntu; `ubuntu.desktop` resolved `/usr/bin/gnome-session --session=ubuntu`, with the actual Ubuntu manager, Shell and usable desktop. | Both normal passwordless attempts exposed no station chooser and reached a usable request-only session. |
+| `onpc-Fedora44` | Jordan publicly chose GNOME; `gnome.desktop` resolved `/usr/bin/gnome-session`, with the actual `--session=gnome` manager, Shell and usable desktop. | Both normal passwordless attempts exposed no station chooser and reached a usable request-only session. |
+
+Each station result independently bound `oh-no-parent-control.desktop` and
+`gnome-session --session oh-no-parent-control` to the station UID, active local
+Wayland `gdm-password` session, actual
+`gnome-session-manager@oh-no-parent-control.service` process and GNOME Kiosk.
+Public Riley/Jamie request controls were usable. Exact owned saved routing and
+public policy restoration, normal Cancel, fresh passwordless usable reentry and
+owned session/VM cleanup passed. GDM saved Jordan's selected session name while
+leaving its initially empty saved transport unchanged; cleanup recognizes only
+that launch-bound change and restores the exact original fields.
+
+These results establish no reachable alternate station choice in these two
+normal histories, not a selected-command denial or a universal desktop fence.
+No product code or admission predicate changed. C07a consumes this exact result,
+retains the existing mechanism unless a gap is demonstrated, and still owns its
+unchanged complete both-target confinement usability and affected controls.
 
 ### Existing coverage and D02 handoff
 
@@ -774,10 +805,10 @@ Reuse these exact owners, with their current qualification limits:
   → [`onpc_station::restrictions`](../../tests/integration/graphical_smoke/lib/onpc_station.pm)
   send Super, Super-A and Ctrl+Alt+T.
   [`AccessibleUI.kiosk_restrictions`](../../tests/e2e/accessible_ui.py) checks
-  the complete request tree and bounded outside-app absence. There is no inspected
-  Alt+F2 binding or actual alternate-desktop selection binding. Registration is
-  not both-target desktop qualification; preserve stable cases and extend only
-  a distinct missing outcome.
+  the complete request tree and bounded outside-app absence. Its Alt+F2 outcome
+  remains unqualified; C07a1's separate public-selection binding is described
+  above. Registration is not both-target desktop qualification; preserve stable
+  cases and extend only a distinct missing outcome.
 - About: `check_e2e_read_restricted_station_about`,
   `RestrictedStationAboutJourney`, `AccessibleUI.open_kiosk_about/read_kiosk_about`
   and [case 192](../../tests/e2e/kiosk_about.py). Preferences/report bindings:
@@ -1034,21 +1065,23 @@ these authorization/feature paths is allocated merely to harden desktop entry.
 
 ### Qualification allocations before product edits
 
-These are **planned installed slices**, each on `onpc-Ubuntu26.04` and
+These are finite installed slices, each on `onpc-Ubuntu26.04` and
 `onpc-Fedora44`, with a 20–30 minute budget including its owned restoration.
-They are not registered selectors or completed prerequisites. At the selected
+Public selection was delivered by C07a1 below; the remaining slices are planned,
+not registered selectors or completed prerequisites. At the selected
 future consumer, insert its missing slices immediately before it under the
 [prerequisite contract](../Execution-Plans.md#execution-and-delegation), with
 valid briefs and backward Requires links. D02 needs no live prerequisite and
 does not insert or execute later consumers' work. Split a slice further before
 implementation if its safe implementation/qualification cannot fit that budget.
 
-- **Before C07a: Check public desktop selection.** Qualify public chooser access
-  and ordinary chooser cancellation, independent current selection/command/session
-  observation, the ordinary desktop positive and fresh dedicated request result.
-  Reuse `gdm_service_variation.peer_selection`/`observe_attempt`/`execution` only
-  for their engineering observations: their privileged dedicated selection is
-  not a child's chooser action. No alternate-desktop selector is registered yet.
+- **Before C07a: Check public desktop selection — delivered by C07a1.** The
+  [qualified binding](#c07a1-public-selection-qualification) pairs ordinary public
+  chooser selection/cancellation with independent current command/session/process
+  observations and restored usable request entry on both targets. Both station
+  histories have an exact no-public-chooser disposition, not alternate-command
+  denial credit. Privileged `gdm_service_variation.peer_selection` remains outside
+  this public input route. C07a's own acceptance is unchanged.
 - **Before C07s: Check desktop attempts from the request session.** Reuse
   `restricted_station.py` cases 50–52, `onpc_station::restrictions` and their
   shared entry/results. Qualify the missing Alt+F2 outcome and both-target

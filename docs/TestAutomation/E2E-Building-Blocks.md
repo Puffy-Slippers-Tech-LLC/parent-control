@@ -3978,6 +3978,48 @@ Request, enabled Cancel, 30-minute selection, disabled-limit notice, absent
 mute/custom value. Enabled choices, overlays and authentication retain their
 separate catalogue bindings.
 
+### Public desktop selection
+
+`check_e2e_public_desktop_selection` dispatches
+[`PublicDesktopSelectionJourney`](../../tests/e2e/public_desktop_selection.py)
+through `PublicDesktopSelectionQualification`. Its finite English GNOME 50 GDM binding
+uses Jordan's public full-desktop choice and guarded authentication, station
+selection during normal passwordless entry, and Jordan's chooser → Cancel →
+station sequence. `AccessibleUI.gdm_session_operation` and
+`UiObservations.observe_gdm_chooser` own the external-provider mapping, fresh
+focus proof and single-use keyboard activation. GNOME's Session menu and its
+labelled menu-item ancestors expose focus rather than an accessibility action;
+no geometry is used. Label keys describe public actions, not executable identities.
+[`public_desktop_observation.observe`](../../tests/e2e/public_desktop_observation.py)
+separately binds the runtime desktop ID, resolved desktop-file command, actual
+UID/session and manager/compositor processes. Public request controls or Shell
+controls establish the destination independently.
+
+Owned saved routing is captured before input and restored only after the two
+attempts, with same-run/boot/account and expected-current-value guards. Public
+Parent controls enable and restore the representative child's request controls;
+fresh passwordless entry, usable choices, Cancel and reentry follow restoration.
+New machine checkpoints are bounded to 120 seconds within the existing
+1800-second worker envelope. No authentication delay, station credential,
+privileged greeter selection or saved-routing mutation manufactures reachability.
+
+Installed qualification passed on `onpc-Ubuntu26.04` and `onpc-Fedora44`,
+including exact saved-routing restoration, public policy restoration, usable
+request Cancel/reentry and owned runner/VM cleanup. Jordan selected and entered
+Ubuntu (`ubuntu.desktop`) or GNOME (`gnome.desktop`), respectively. Both direct
+station entry and ordinary chooser → Cancel → station reached the dedicated
+request session without exposing a public station chooser. Actual selected
+`oh-no-parent-control` manager and Kiosk processes matched the station UID and
+active Wayland session in each attempt. The
+[local design map](../SystemDesign/Kiosk-Confinement.md#c07a1-public-selection-qualification)
+records the target/action result and C07a return condition.
+
+An unexposed chooser is a target/action no-route disposition,
+not proof that an alternate command was denied. A full station desktop is a gap
+for C07a; this prerequisite changes no product barrier and supplies no C07a
+acceptance credit. Unknown providers, failed positives and incomplete observations
+remain inconclusive.
+
 ### Graphical service variation
 
 `check_e2e_kiosk_service_variation` dispatches the finite

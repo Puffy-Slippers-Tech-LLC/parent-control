@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Required tasks: D02.
+Required tasks: D02, C07a1.
 Estimate: 30–60 min; session exception: one small confinement fix, review/build and both-target usability.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract)
@@ -14,8 +14,8 @@ design/test owners and source routes below.
 
 Use D02's reviewed local desktop entries and actual GDM/PAM/account/session
 callers. Its [frozen design](../SystemDesign/Kiosk-Confinement.md#d02-minimal-desktop-design-decision)
-establishes no missing barrier yet. At this selected consumer, insert and complete
-the planned public-selection qualification before product editing; saved routing
+establishes no missing barrier yet. Reuse C07a1's completed
+[public-selection qualification](../TestAutomation/E2E-Building-Blocks.md#public-desktop-selection) before product editing; saved routing
 or privileged dedicated-session selection cannot establish child reachability.
 Retain the existing mechanism if no escape is demonstrated, with the exact
 target/action disposition and no unexercised alternate-command denial claim.

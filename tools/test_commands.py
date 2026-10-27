@@ -88,7 +88,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     overlay_choices overlay_language overlay_license overlay_prompt overlay_rejection
     overlay_reminder_editing overlay_valid_choices parent_dialog_language parent_hebrew_policy
     parent_language parent_language_isolation parent_privacy parent_rtl parent_save parent_save_trace
-    parent_search_launch parent_support parent_website policy policy_legend
+    parent_search_launch parent_support parent_website policy policy_legend public_desktop_selection
     read_an_expanded_time_explanation read_overlay_about_and_links read_parent_information_links
     read_restricted_station_about reminder_fullscreen_preference request_choices request_duration
     request_exit request_flow retained_app_visits retained_entry retained_parent retained_unlock

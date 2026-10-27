@@ -239,7 +239,8 @@ class JourneyPlan:
                          'gdm-child-recipient' if role == 'child' else 'gdm-standard-recipient')
             focus = (('gdm-focused', 'gdm-product-free-focused') if role == 'parent' else
                      ('gdm-child-focused', 'gdm-product-free-child-focused') if role == 'child' else
-                     ('gdm-standard-focused', 'gdm-product-free-standard-focused'))
+                     ('gdm-standard-focused', 'gdm-product-free-standard-focused',
+                      'gdm-standard-session-select-full'))
             require(stages.index(first) > 0
                     and self.screen_tags[stages[stages.index(first) - 1]] in
                         tuple('ui:' + operation for operation in focus)

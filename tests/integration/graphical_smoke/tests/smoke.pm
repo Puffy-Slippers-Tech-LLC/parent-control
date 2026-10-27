@@ -20,6 +20,7 @@ use onpc_parent_terminal ();
 use onpc_command_help ();
 use onpc_desktop_session ();
 use onpc_kiosk_entry ();
+use onpc_public_desktop_selection ();
 use onpc_kiosk_eligible_choices ();
 use onpc_kiosk_multiple ();
 use onpc_restricted_station_about ();
@@ -85,7 +86,7 @@ sub exchange {
     print {$request} encode_json({stage => $stage, screenshot => $shot});
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
-    my $deadline = time + ($stage eq 'setup-detached' ? 1500
+    my $deadline = time + ($stage =~ /\Apublic-/ ? 120 : $stage eq 'setup-detached' ? 1500
         : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
         : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter'
             || $stage eq 'reboot-greeter' ? 780 : 420);
@@ -893,6 +894,13 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_kiosk_eligible_choices::run(\&exchange);
+        return;
+    }
+    if ($ready->{public_desktop_selection}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_public_desktop_selection::run(\&exchange,
+            $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{kiosk_entry}) {

@@ -12,6 +12,12 @@ Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contra
 
 Extract request-session desktop escapes from C07a. Use D01/D02's finite
 action/launch map to close one demonstrated route to a full kiosk desktop.
+Follow the [frozen design and qualification allocation](../SystemDesign/Kiosk-Confinement.md#d02-minimal-desktop-design-decision):
+at this selected consumer, insert and complete any missing shortcut/result
+qualification before product editing. Existing action barriers remain effective
+in source; add no restriction without a demonstrated escape. The observed
+UI-tree census is not a qualified desktop fence; require the missing Alt+F2
+outcome and ordinary-desktop witnesses on both targets through shared bindings.
 C07a owns graphical-session admission; standalone terminal/TTY,
 SSH and other exposed-action results retain their remaining-plan owners.
 

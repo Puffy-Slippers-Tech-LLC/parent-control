@@ -967,6 +967,144 @@ restoration to the original enabled/disabled state. Capture no credential values
 in the map or reports. D01r changed no provider state and allocated no VM,
 product process, client or temporary input needing cleanup.
 
+## D02 minimal desktop design decision
+
+D02 independently reviewed the D01/D01r maps and complete affected admission,
+request-action and shutdown callers. **Retain existing mechanisms; no new product
+barrier is justified by the evidence currently available.** This approves a
+finite conditional design, not implemented desktop prevention or installed
+qualification. Trust completed baseline/cleanup work without reopening reports.
+
+### Frozen implementation boundaries
+
+| Consumer and route | Reviewed disposition and allowed change | Distinguishing result and adjacent control |
+| --- | --- | --- |
+| C07a: local GDM alternate desktop selection | **Unproven reachability; no missing barrier established.** First qualify the child's public chooser interval and current selection. If it reaches a full station desktop, fix only that actual selected-launch boundary using a supported vendor mechanism or direct owner fix. Native PAM has no selected-command input; do not invent one from saved routing, service names or session environment. | Tie the public choice to the resolved command, station UID/session and usable desktop result. Pair with the same desktop working for Jordan and dedicated passwordless request entry. Test the ordinary chooser → Cancel → station sequence without artificially delaying authentication or granting the child greeter-process authority. If no alternate route is exposed, record the exact target/action disposition and request-only result; do not claim an alternate executable was blocked. |
+| C07s: request-session shortcuts | **Existing GNOME Kiosk boundary; desktop-result qualification missing.** Preserve `Kiosk=true` and the vendor shortcut handling. Super, Super-A, Alt+F2 and Ctrl+Alt+T are the finite attempts; add a barrier only for a demonstrated chain to a full station desktop, at that action/launch owner. | Require the usable request to remain and no desktop/run surface after each distinct attempt, with the corresponding ordinary-desktop control working on both targets. A terminal-only result retains its remaining-plan owner. No repeated shortcut matrix across approval outcomes is needed merely to qualify the shared binding. |
+| C07s: information, reports, Preferences and normal exit | **Source-effective fixed-action/shutdown barriers; retain them.** The complete methods/callers in the D01 map omit or guard external handlers/choosers, restrict notification actions, restart only the fixed agent, and shut down the session on app exit. No additional session-admission condition is justified. | Keep readable/dismissible information, useful reports, Preferences and genuine approval. Normal Parent/overlay links and Parent attachments/export remain permitted. Cancel/Escape/result/approved exit must return to GDM, followed by a fresh usable request. Exercise only directly affected controls if an owner changes. |
+| C07: fresh system Remote Login over RDP | **Existing vendor password barrier to qualify; no missing product barrier established.** Use the D01r provider and actual distro authentication/launch path. If its real password requirement suffices, retain it without code. A demonstrated escape permits one fix at its narrow authentication or selected-launch owner. | Working Jordan remote desktop/control → station attempt without a kiosk password → repeat Jordan positive. Bind the remote greeter/session and actual PAM/launch result. Authentication refusal before selection means no command started, not a fabricated selected-command denial. Preserve local passwordless request use and unrelated sessions. |
+
+Standalone terminal/TTY, SSH, other remote providers, user desktop sharing,
+arbitrary station-code execution and trusted loader exploitation remain excluded
+from this desktop slice for the reasons in D01/D01r and the threat boundary.
+An absent provider, failed positive, timeout or incomplete observation is
+**inconclusive**, never effective protection. Record applicability and results
+per target; an unreachable public action is distinct from an exercised refusal.
+
+### Refusal, default and recovery review
+
+The [admission refusal audit](#admission-refusals-and-recovery-owners) remains the
+branch inventory. D02 checked native `kiosk_identity`, `admission`, `lock_current`,
+`run_kiosk_check`, all PAM entrypoints and helper `main`/`verify_identity`, including
+their defaults and error returns. Ordinary accounts bypass kiosk checks;
+`systemd-user` retains its lease path; unfamiliar services still receive identity/
+ownership checks. The qualified `su-l` refusal is retained under its existing
+non-desktop owner, not generalized to remote or unknown graphical services.
+
+No desktop predicate may be added to the saved-routing/provisioning readbacks,
+NSS lookup, optional presentation, PAM options/data, helper allocation/fork/exec/
+wait/25-second timeout, lease identity/open/lock, or removal-marker error branches.
+These are configuration, operational or authority results, not evidence of intent.
+Keep foreign/live state, same-handle account authorization and explicit admin
+denial intact. Never turn a PAM error into success or clear foreign state.
+If a proposed fix touches one of these branches, freeze its representative
+fault/restoration control before editing: owned dependency restoration or writer
+completion must permit fresh public entry without manual product-state deletion.
+Wider lifecycle/availability defects retain their existing owners and are not
+closed by this review.
+
+Pair a future local predicate with benign unfamiliar service dispatch, stale/
+empty saved routing and actual dedicated execution, using the delivered D00a2/
+D00a3 bindings only where affected. A discovery outage cannot become a new login
+dependency. Pair an action-level predicate with useful in-app information and
+the permitted ordinary/overlay action; optional content failure must not veto
+the request. Pair a remote predicate with the working ordinary remote positive,
+local dedicated use and owned provider restoration, never global null-password
+changes or an allowlist of PAM layouts. Reuse unchanged lease/lifecycle controls;
+add a new fault case only for a changed failure boundary.
+
+Request-side review covered `RequestWindow._build`, `_result_dismissed`,
+`_show_about`, `_load_users`/account callbacks, `_request_access` →
+`_preferences_saved` → `_agent_prepared` → `_request_done`/`_request_failed`,
+Escape/result/approval logout callers and complete `KioskLogout` fallback.
+The D01 action-owner map names their shared callees. Parent denial and independent
+authentication Cancel preserve the request and grant nothing; service errors
+must not masquerade as approval or a successful desktop defense. No edit to
+these authorization/feature paths is allocated merely to harden desktop entry.
+
+### Qualification allocations before product edits
+
+These are **planned installed slices**, each on `onpc-Ubuntu26.04` and
+`onpc-Fedora44`, with a 20–30 minute budget including its owned restoration.
+They are not registered selectors or completed prerequisites. At the selected
+future consumer, insert its missing slices immediately before it under the
+[prerequisite contract](../Execution-Plans.md#execution-and-delegation), with
+valid briefs and backward Requires links. D02 needs no live prerequisite and
+does not insert or execute later consumers' work. Split a slice further before
+implementation if its safe implementation/qualification cannot fit that budget.
+
+- **Before C07a: Check public desktop selection.** Qualify public chooser access
+  and ordinary chooser cancellation, independent current selection/command/session
+  observation, the ordinary desktop positive and fresh dedicated request result.
+  Reuse `gdm_service_variation.peer_selection`/`observe_attempt`/`execution` only
+  for their engineering observations: their privileged dedicated selection is
+  not a child's chooser action. No alternate-desktop selector is registered yet.
+- **Before C07s: Check desktop attempts from the request session.** Reuse
+  `restricted_station.py` cases 50–52, `onpc_station::restrictions` and their
+  shared entry/results. Qualify the missing Alt+F2 outcome and both-target
+  ordinary-desktop witnesses. `AccessibleUI.kiosk_restrictions` is a complete
+  observed UI-tree/control census with a two-second observation interval, not
+  an already-qualified universal desktop fence. Product reads/actions must use
+  the Application UI API; keep external desktop observations/input at their
+  qualified provider owner. Repair a missing shared binding in this prerequisite,
+  not by replacing public outcomes with a process census or private state.
+- **Before C07: Prepare remote sign-in; connect safely; check ordinary remote
+  desktop use; check the station attempt and recovery.** The four finite slices
+  and their return conditions live in the
+  [remote qualification owner](../TestAutomation/E2E-Building-Blocks.md#remote-login-qualification-gap).
+  Complete them before any provider product edit, not at D03 or final acceptance.
+
+For new bindings, freeze machine-stage deadlines at 120 seconds for connection,
+challenge acquisition, post-input result and each owned cleanup operation.
+Human reading/decision/authentication think time is not a machine-startup test.
+Preserve the existing 1800-second worker envelope as its outer limit; do not
+claim its watchdog is pause-aware or add timer machinery in this review.
+Timeouts remain inconclusive and uncertain input is never replayed. If safe
+cleanup cannot complete, retain the owner and leave the consuming task open.
+
+Every product fix still owns the unchanged
+[short usability history](../TestAutomation/E2E-Building-Blocks.md#short-confinement-usability-history)
+on both targets for its final candidate: Riley/Jamie, 900 seconds daily, zero
+initial grant, 75-second soft-included request, independent zero-grant rejection/
+Cancel endpoints, genuine 975-second approval, exit/reentry and public restoration.
+Reuse its exact binding and 1800-second envelope. Add ordinary desktop login
+when shared admission changes, a shared-overlay request only when that caller
+changes, and affected enforcement controls only when authorization/enforcement
+can change. Keep each fix plus review/build and this gate within 30–60 minutes;
+split independent defects before editing rather than postpone a target's gate.
+
+Affected host owners remain `test_kiosk_login.py`, `test_prepared_kiosk_pam.py`
+and `test_kiosk_rendering.py` linked in D01; only a changed owner receives its
+scoped regressions. Retain installed 267/268 as composition/account engineering
+checks, not selected-desktop acceptance. Reuse the existing About, Preferences,
+feedback and Cancel/Escape bindings for affected actions; no general feature
+campaign, duplicate guard matrix, task/history tests, new registry or proof
+archive is allocated. Effective barriers need qualification, not replacement.
+
+### Independent design review result
+
+Independent Astra xHigh review: **Usability priority: passed. Threat scope:
+passed. Denylist/default access: passed.** Approval is for the conditional
+no-code design above, with no new protective rejection approved. The actionable
+review findings are incorporated: separate ordinary remote desktop qualification
+from the station/recovery slice; qualify public chooser access rather than
+privileged selection; limit the UI-tree census claim and add the missing
+shortcut/ordinary-desktop witnesses; distinguish target-specific unreachable,
+inconclusive and effective results; keep machine deadlines distinct from human
+time and the existing worker limit. Existing availability gaps remain open under
+their owners. D02 performs no product edit, VM/provider operation or live
+acceptance and owns no runtime state needing restoration.
+
 ## Verification scope and evidence limits
 
 The completed v1.3-derived baseline validation accepted Ubuntu and Fedora core

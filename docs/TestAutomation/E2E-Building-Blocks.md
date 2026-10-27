@@ -3735,12 +3735,19 @@ missing slices, not selectors or additional acceptance credit:
 | --- | --- |
 | Prepare isolated remote login inputs | Declare the provider/client packages and compatible versions, public system configuration, TLS/initial-secret input, isolated endpoint and owned restoration through maintained preparation. Verify readiness without changing kiosk credentials, disabling authentication or editing product code. Preserve existing provider configuration and foreign sessions. |
 | Connect to remote sign-in safely | Reuse the guarded attempt/credential envelope for one fixed client → system NLA → redirection → identified remote GDM connection. Bind the VM, client, remote display/session and greeter owner; qualify input-recipient/ambiguity/uncertain-input refusal at the shared boundary, not in every consumer. Local-screen keyboard delivery cannot stand in for client input. |
-| Check remote desktop access | Reuse that connection for the standard Jordan account's real GDM authentication, usable full desktop and one public control result; log out its owned session. Attempt the station with no kiosk password and a full desktop selection if offered, observe the actual refusal or request-only destination, then repeat the ordinary positive and restore. Qualify actual distro PAM behavior and independent remote absence/results, not just a connection/error code. |
+| Check ordinary remote desktop use | Reuse that connection for the standard Jordan account's real GDM authentication, usable full desktop and one public control result through the remote connection; log out only its owned session. Qualify the remote input recipient and independent desktop/result binding before consuming it in a station attempt. A local desktop or successful handshake is insufficient. |
+| Check the station attempt and recovery | Consume the qualified connection and ordinary positive. Attempt the station with no kiosk password and a full desktop selection if publicly offered, observe the actual refusal or usable request-only destination, then repeat the ordinary positive and restore. Qualify actual distro PAM behavior and independent remote absence/results, not just a connection/error code. Run the short local confinement usability history and finish owned provider/session/secret restoration. |
 
 Record exact GRD/GDM/Shell/client revisions, locale/keyboard, selected session and
 public result in the existing catalogue/normal runner output when qualified.
-Define finite connection, authentication, result and cleanup deadlines in the
-shared binding; preserve the existing 1800-second short-usability worker bound.
+The [D02 allocation](../SystemDesign/Kiosk-Confinement.md#qualification-allocations-before-product-edits)
+requires these four installed slices before C07 editing; split connection safety
+further if needed to fit the ordinary budget. They remain planned until inserted
+at the selected consumer with valid briefs and backward dependencies. Freeze
+120-second machine-stage connection, challenge-acquisition, post-input result
+and per-operation cleanup deadlines in the new binding. Human decision time is
+not a machine-startup assertion; preserve the existing 1800-second worker outer
+bound without claiming it is pause-aware.
 New provider capabilities use their own installed briefs and both named targets;
 if a slice exceeds the budget, split it before implementation rather than grow
 C07 or defer qualification to D03. D01r inserts no tasks at a later consumer.

@@ -662,15 +662,15 @@ Bindings: request = approved / denied / cancelled.
 
 C11d (`onpc-Ubuntu26.04`) and C12d (`onpc-Fedora44`) consume the two finite
 local routes below. They are task IDs, not registered selectors. D03 audited
-the current composition; D03a qualified the selection verdict on both targets,
-while the shortcut verdict remains **pending D03b**.
+the current composition; D03a and D03b qualified the selection and shortcut
+verdicts on both targets. D03 still owns the final readiness audit.
 Existing qualification observations and completed C07a/C07s usability stay
 accepted; this map grants no new installed acceptance.
 
 | Existing binding | Finite input and independent required result | Readiness for final acceptance |
 | --- | --- | --- |
 | `check_e2e_public_desktop_selection` → `PublicDesktopSelectionQualification` → `PublicDesktopSelectionJourney` / `onpc_public_desktop_selection::run` | Jordan chooses Ubuntu (`ubuntu.desktop`) or GNOME (`gnome.desktop`) and reaches a usable ordinary Shell desktop. Direct station entry and ordinary chooser → Cancel → station must each yield `request-only`, with actual chooser disposition, selected desktop-file command, station UID/local Wayland session and manager/Kiosk process observations. Riley/Jamie request controls remain usable. An unexposed chooser is a finite no-route result; a chosen alternate desktop is not claimed denied when none was selectable. | Input/result observation qualified by C07a1. D03a qualified the final verdict on both targets: both result stages must be `request-only` after complete restoration and usable reentry. Exposed-desktop observations and safe exit remain intact; ordinary positives and owned cleanup passed. |
-| `check_e2e_station_shortcuts` → `StationShortcutsQualification` → `StationShortcutsJourney` / `onpc_station_shortcuts::run` | For `overview`, `grid`, `run`, `terminal`, send Super, Super+A, Alt+F2, Ctrl+Alt+T once each on Jordan's desktop and once each in the usable Riley/Jamie station. Ordinary outcomes must be overview, app-grid, run and terminal respectively; each station outcome must be `request-only`, with a usable form after each input. | All eight observations qualified by C07s1; Fedora's permanent Ctrl+Alt+T → Ptyxis baseline binding supplies its ordinary positive. The final comparison currently requires station usability but omits the four `request-only` predicates. D03b must add and qualify them on both targets. |
+| `check_e2e_station_shortcuts` → `StationShortcutsQualification` → `StationShortcutsJourney` / `onpc_station_shortcuts::run` | For `overview`, `grid`, `run`, `terminal`, send Super, Super+A, Alt+F2, Ctrl+Alt+T once each on Jordan's desktop and once each in the usable Riley/Jamie station. Ordinary outcomes must be overview, app-grid, run and terminal respectively; each station outcome must be `request-only`, with a usable form after each input. | All eight observations qualified by C07s1; Fedora's permanent Ctrl+Alt+T → Ptyxis baseline binding supplies its ordinary positive. D03b qualified the final comparison on both targets: all four station outcomes must be `request-only`, alongside usable forms and all ordinary positives, after restoration. Normal surface closure, Cancel/fresh entry, exact settings restoration and runner/baseline cleanup passed. |
 
 The [catalogue](E2E-Building-Blocks.md#public-desktop-selection) owns provider
 qualification and [shortcut limits](E2E-Building-Blocks.md#request-session-shortcut-results).

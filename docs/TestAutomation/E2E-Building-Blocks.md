@@ -3972,14 +3972,15 @@ This shortcut qualification supplies no complete-case credit.
 The existing two-second census is not a universal desktop fence. Machine
 observations retain finite deadlines inside the 1800-second worker envelope.
 
-D03 found a final-verdict gap: `StationShortcutsJourney.check_settings` compares
-the four ordinary outcomes and station `usable_request`, but does not require
-the four recorded station outcomes to be `request-only`. Qualification remains
-accepted for its observed scope; a selector pass alone cannot supply that final
-negative. [D03b](../Kiosk-Prompt-Tasks/D03b-shortcut-verdict.md) owns the bounded
-assertion repair and both-target qualification before the
+D03b closed the final-verdict gap in `StationShortcutsJourney.check_settings`.
+After public restoration and fresh usable entry, the eight-result comparison
+requires all four ordinary positives, station `usable_request=True` and
+`outcome == 'request-only'` for every station shortcut. Both-target installed
+qualification passed, including normal surface closure, Cancel/fresh entry,
+exact public settings restoration and runner/baseline cleanup. The
 [local acceptance composition](E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
-is ready. Do not add a new provider or repeat the guard matrix.
+can consume this finite negative verdict; D03 still owns its final readiness
+audit. No new provider or repeated guard matrix was added.
 
 `tools/test-vm --vm NAME reproduce-station-shortcuts` reuses this journey,
 stopping after ordinary Alt+F2 input and before its result observation for

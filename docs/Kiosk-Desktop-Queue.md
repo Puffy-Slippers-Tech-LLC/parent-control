@@ -37,7 +37,7 @@ not general product acceptance. Ordinary tasks take 20–30 minutes; the named
 | [x] | C07s | Prevent desktop launches from the request session | C07a, C07s1 | Close one reviewed desktop-launch boundary and pass both-target kiosk usability before completion | Retained qualified GNOME Kiosk shortcut/action boundaries; both-target complete short usability, public restoration and owned cleanup passed; no product changes |
 | [x] | C07r1 | Prepare remote sign-in on both systems | C07s | Qualify isolated GNOME Remote Desktop system login preparation, readiness and owned restoration on both targets; no product changes or consumer acceptance credit | Both-target repeated isolated readiness, exact file/service restoration, normal kiosk entry/Cancel/return and owned cleanup passed; five file-safety checks passed; no product changes |
 | [x] | D03a | Make desktop selection checks reject a full kiosk desktop | C07s | Require request-only results in both existing public station-selection histories and qualify the verdict on both targets; no product changes | Both-target request-only verdicts, ordinary desktop controls, restoration and owned cleanup passed; listing and links passed; no product changes |
-| [ ] | D03b | [Make shortcut checks reject desktop launch controls](Kiosk-Prompt-Tasks/D03b-shortcut-verdict.md) | C07s | Require request-only results after all four existing station shortcuts and qualify the verdict with ordinary controls on both targets; no product changes | 20–30 min |
+| [x] | D03b | Make shortcut checks reject desktop launch controls | C07s | Require request-only results after all four existing station shortcuts and qualify the verdict with ordinary controls on both targets; no product changes | Both-target eight-result verdicts, ordinary controls, Cancel/fresh entry, settings restoration and owned cleanup passed; listing and links passed; no product changes |
 | [ ] | D03 | [Freeze desktop acceptance bindings](Kiosk-Prompt-Tasks/D03-desktop-acceptance-map.md) | C07s, D03a, D03b | Audit exact registered desktop histories and prior both-target usability; no deferred product gate | Inputs and compositions audited; final negative verdicts await D03a/D03b; no acceptance credit |
 | [ ] | C11d | [Qualify local desktop prevention on Ubuntu](Kiosk-Prompt-Tasks/C11d-local-routes-ubuntu.md) | D03 | Ubuntu: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | 30–60 min; session exception: one local route family, usability and restoration |
 | [ ] | C12d | [Qualify local desktop prevention on Fedora](Kiosk-Prompt-Tasks/C12d-local-routes-fedora.md) | C11d | Fedora: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | 30–60 min; session exception: one local route family, usability and restoration |
@@ -46,10 +46,10 @@ not general product acceptance. Ordinary tasks take 20–30 minutes; the named
 Remote-desktop testing was removed by developer direction. D01r and C07r1
 remain completed historical work; their dedicated automation is retired, and
 they supply no remote-desktop acceptance. D03's composition audit found missing
-final negative verdicts in the two local qualification journeys. D03a qualified
-the desktop-selection verdict on both targets; D03b still owns the shortcut
-verdict before D03 resumes. Completed qualifications and product gates stay
-accepted. The next active task is D03b.
+final negative verdicts in the two local qualification journeys. D03a and D03b
+qualified the desktop-selection and shortcut verdicts on both targets; D03 now
+resumes its final readiness audit. Completed qualifications and product gates stay
+accepted. The next active task is D03.
 
 Order is authoritative; IDs are stable labels. C07a/C07s and C11d/C12d
 carry their desktop assertions here. Standalone terminal/TTY assertions are

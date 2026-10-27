@@ -1,7 +1,7 @@
 # Prevent local full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **D03b — [Make shortcut checks reject desktop launch controls](Kiosk-Prompt-Tasks/D03b-shortcut-verdict.md)**.
+Next task: **D03 — [Freeze desktop acceptance bindings](Kiosk-Prompt-Tasks/D03-desktop-acceptance-map.md)**.
 
 ## Outcome and scope
 

@@ -1058,19 +1058,20 @@ product defect or a reason to reopen completed qualification:
   installed qualification passed, including the ordinary full-desktop positive,
   usable Cancel/fresh entry, exact restoration and owned cleanup.
 - `StationShortcutsJourney.check_settings` compares eight captured results after
-  restoration. It requires the ordinary overview/grid/run/terminal positives and
-  station usability, but omits station `outcome == 'request-only'` for all four.
+  restoration. D03b added station `outcome == 'request-only'` for all four,
+  alongside the ordinary overview/grid/run/terminal positives and station usability.
   `AccessibleUI.shortcut_operation` and `UiObservations` can report a desktop/run
   surface for this qualification binding; a remaining usable request alone cannot
-  establish absence. [D03b](../Kiosk-Prompt-Tasks/D03b-shortcut-verdict.md) owns
-  that finite comparison and both-target installed qualification.
+  establish absence. Both-target installed qualification passed, including all
+  eight results, normal surface closure, Cancel/fresh usable entry, public
+  settings restoration and runner/baseline cleanup.
 
-D03a is complete; D03b remains before unfinished D03. These prerequisites reuse
+D03a and D03b are complete before unfinished D03. These prerequisites reuse
 existing inputs, providers, workers and observations and add no product barrier
 or new general capability.
 D03 must inspect their completed source/catalogue results before freezing final
-readiness; C11d/C12d must not consume a shortcut selector pass as its missing
-negative verdict. There is no remote-desktop prerequisite or acceptance here.
+readiness; the two selectors now include their required final negative verdicts.
+There is no remote-desktop prerequisite or acceptance here.
 
 For a concrete later change, select only affected checks: admission/session edits
 use the D01-linked login/PAM regressions, ordinary desktop selection and short

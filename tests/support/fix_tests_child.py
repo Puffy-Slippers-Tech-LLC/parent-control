@@ -137,7 +137,14 @@ def main(*, conversation_prompt=None):
         print('ONPC-TEST-EVENT ' + json.dumps(dict(kind='collection', nodeids=list(dict.fromkeys(cases)))))
         return 0
     if mode == 'vm-pipeline' and kind == 'test' and '--list' in args:
-        print('    installed::case-a [selected]\n    installed::case-b [selected]')
+        # A complete system selection also lists the separate upgrade inputs.
+        # This finite fixture has only cases 1 and 2, so those requests must
+        # not repeat its base inventory as if they selected upgrade cases.
+        selected_ids = (set(args[args.index('--id') + 1].split(','))
+                        if '--id' in args else {'1', '2'})
+        for numeric_id, case in (('1', 'case-a'), ('2', 'case-b')):
+            if numeric_id in selected_ids:
+                print(f'    installed::{case} [selected]')
         return 0
     test_args = [arg for arg in args if arg not in ('--resume', '--resume-case-only') and not arg.startswith('--resume-case=')]
     category = test_args[1] if kind == 'test' else kind

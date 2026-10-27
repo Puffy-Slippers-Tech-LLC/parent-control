@@ -15,6 +15,11 @@ design/test owners and source routes below.
 Use the provider chosen in D01r and reviewed in D02; inspect its actual authentication/
 session path rather than assuming SSH/GDM PAM behavior. Keep ordinary-account
 remote use working while refusing kiosk desktop access through that provider.
+The [reviewed route](../SystemDesign/Kiosk-Confinement.md#d01r-remote-desktop-route-review)
+is GNOME Remote Desktop system Remote Login over RDP, followed by remote GDM.
+Complete D02's allocations from the [qualification gap](../TestAutomation/E2E-Building-Blocks.md#remote-login-qualification-gap)
+before product editing. The existing vendor password gate may already suffice;
+retain it without duplicate code if the real positive/negative checks pass.
 Do not claim protection for providers outside the reviewed scope. Implement one
 narrow provider boundary; do not replace shared passwordless authentication or
 deny all unfamiliar PAM services. Split independent defects before editing.

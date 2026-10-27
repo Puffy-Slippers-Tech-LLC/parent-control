@@ -20,6 +20,11 @@ is GNOME Remote Desktop system Remote Login over RDP, followed by remote GDM.
 Complete D02's allocations from the [qualification gap](../TestAutomation/E2E-Building-Blocks.md#remote-login-qualification-gap)
 before product editing. The existing vendor password gate may already suffice;
 retain it without duplicate code if the real positive/negative checks pass.
+The [frozen D02 design](../SystemDesign/Kiosk-Confinement.md#d02-minimal-desktop-design-decision)
+allocates four small installed slices: preparation, safe connection/ownership,
+ordinary remote desktop use, then the station attempt and recovery. Insert their
+missing prerequisites at this selected consumer and complete them before editing;
+split a slice further if it cannot fit 20–30 minutes including restoration.
 Do not claim protection for providers outside the reviewed scope. Implement one
 narrow provider boundary; do not replace shared passwordless authentication or
 deny all unfamiliar PAM services. Split independent defects before editing.

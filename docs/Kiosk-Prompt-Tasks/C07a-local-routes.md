@@ -13,7 +13,13 @@ design/test owners and source routes below.
 ## Session boundary and deliverable
 
 Use D02's reviewed local desktop entries and actual GDM/PAM/account/session
-callers. Add only the missing narrow barrier to alternate graphical desktop
+callers. Its [frozen design](../SystemDesign/Kiosk-Confinement.md#d02-minimal-desktop-design-decision)
+establishes no missing barrier yet. At this selected consumer, insert and complete
+the planned public-selection qualification before product editing; saved routing
+or privileged dedicated-session selection cannot establish child reachability.
+Retain the existing mechanism if no escape is demonstrated, with the exact
+target/action disposition and no unexercised alternate-command denial claim.
+Add only a demonstrated missing narrow barrier to alternate graphical desktop
 selection at the actual graphical-session admission boundary. Request-session
 actions that yield a full desktop are extracted to C07s.
 Retain passwordless request-only entry and ordinary-account desktop login.

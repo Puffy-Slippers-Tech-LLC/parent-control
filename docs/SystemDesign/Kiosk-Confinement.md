@@ -795,6 +795,25 @@ session/VM cleanup and baseline restoration passed. No product or automation
 changed, so no new fault boundary, backend review or package build was required.
 Request-session desktop attempts remain with C07s.
 
+#### C07s request-session result
+
+C07s retained `Kiosk=true`, vendor shortcut handling and the existing fixed-action
+and session-shutdown barriers. C07s1's qualified Super, Super-A, Alt+F2 and
+Ctrl+Alt+T results and working ordinary-desktop controls remain applicable on
+both targets: no request-session desktop-launch chain was demonstrated. This
+finite result does not establish a universal desktop fence. No product or
+automation changed, so no new benign/fault boundary, shared-overlay control,
+backend review or package build was required.
+
+`check_e2e_confinement_usability` passed separately for C07s on
+`onpc-Ubuntu26.04` and `onpc-Fedora44`: fresh passwordless usable requests,
+wrong-password rejection and independent authentication Cancel with zero grant,
+genuine approval with the independent expected-grant check, normal exit and
+fresh usable reentry. Public settings/grant restoration and owned session/VM
+cleanup, including baseline restoration, passed on both targets. C11d/C12d
+retain their final finite route-negative acceptance; this result adds no broader
+desktop or terminal/TTY claim.
+
 ### Existing coverage and D02 handoff
 
 Request-action source owners are

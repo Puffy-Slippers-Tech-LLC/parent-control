@@ -4011,8 +4011,10 @@ uses English Shell search, Show Apps state, Run a Command and known terminal
 application/terminal semantics, with account/session and fresh close-recipient
 guards. An absent ordinary positive remains inconclusive. A terminal alone
 establishes no full-desktop launch chain; standalone terminal/TTY acceptance
-retains its remaining-plan owner. C07s still owns its installed usability and
-directly affected controls for its final candidate; this supplies no complete-case credit.
+retains its remaining-plan owner. C07s completed its separate both-target
+installed usability and restoration gate while retaining the existing mechanisms;
+see its [scoped result](../SystemDesign/Kiosk-Confinement.md#c07s-request-session-result).
+This shortcut qualification supplies no complete-case credit.
 The existing two-second census is not a universal desktop fence. Machine
 observations retain finite deadlines inside the 1800-second worker envelope.
 

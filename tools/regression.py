@@ -30,6 +30,7 @@ CATEGORY_NAMES = {
     'source': 'Source and traceability', 'static': 'Static checks',
     'child-node': 'Child Node', 'child-gjs': 'Child GJS',
     'backend': 'Backend prerequisites', 'publish': 'Publishing tests',
+    'publish-deb': 'DEB publishing tests', 'publish-rpm': 'RPM publishing tests',
     'system': 'Installed-system tests', 'e2e': 'Ready E2E scenarios',
     'traceability': 'Traceability', 'coverage': 'Python coverage',
     'check': 'Make check', 'component-all': 'Component checks',
@@ -991,7 +992,7 @@ class Run:
             if item.retry_category == 'system' and self.checkpoint is not None:
                 # The controller announces the remaining resolved inventory.
                 item.total = None
-        if not collect and len(command) > 1 and command[1] in ('publish', 'artifacts', 'fixtures', 'system', 'e2e'):
+        if not collect and len(command) > 1 and command[1] in ('publish', 'publish-deb', 'publish-rpm', 'artifacts', 'fixtures', 'system', 'e2e'):
             # Fixture construction shares artifact admission: two CPU slots,
             # 4 GiB memory and the build I/O threshold, including target images.
             self.wait_for_resources(item, 'artifacts' if command[1] == 'fixtures' else command[1])
@@ -1148,11 +1149,16 @@ class Run:
                               'kind': job.kind, 'state': job.item.state,
                               'elapsed_seconds': job.item.elapsed, 'waiting_seconds': job.item.waiting})
 
+    def publishing_jobs(self, items):
+        from test_commands import PUBLISH_CATEGORIES
+        return [Job(kind, item, self.command(kind), estimate=estimate, key=kind)
+                for kind, item, estimate in zip(PUBLISH_CATEGORIES, items, (360, 120), strict=True)]
+
     def build_jobs(self, publishing, builds):
         # Estimates come from retained complete runs; they only order work.
         # Deferred comparison arguments are resolved on the coordinator after
         # both successful builders have supplied distinct artifact directories.
-        return [*([Job('publish', publishing, self.command('publish'), estimate=360, key='publish')]
+        return [*(self.publishing_jobs(publishing)
                   if publishing is not None else []),
                 Job('artifacts', builds[0], self.command('artifacts', 'build'),
                     estimate=7, key='build-a'),
@@ -1183,7 +1189,7 @@ class Run:
                 for bucket, item in zip(buckets, items, strict=True) if item.nodeids]
 
     def run(self):
-        from test_commands import suite_inventory
+        from test_commands import PUBLISH_CATEGORIES, suite_inventory
         inventory = suite_inventory(('host',))
         self.inputs = source_identity(self.root)
         self.report.write('\nInitial source inputs SHA-256 (informational): ' + self.inputs + '\n')
@@ -1194,15 +1200,14 @@ class Run:
         suites = [(CATEGORY_NAMES[kind], kind, inventory[kind]['args']) for kind in pytest_kinds]
         suite_items = [Category(name) for name, _, _ in suites]
         fixed = [(CATEGORY_NAMES.get(kind, inventory[kind]['description']), kind) for kind in inventory
-                 if kind not in (*pytest_kinds, 'artifacts', 'publish')]
-        fixed.append((CATEGORY_NAMES['publish'], 'publish'))
+                 if kind not in (*pytest_kinds, 'artifacts', *PUBLISH_CATEGORIES)]
         fixed_items = [Category(name, 1) for name, _ in fixed]
+        publishing = [Category(CATEGORY_NAMES[kind], 1) for kind in PUBLISH_CATEGORIES]
         builds = [Category(name, 1) for name in ('Package build A', 'Package build B',
                                                'Package reproducibility')]
         system = Category(CATEGORY_NAMES['system']) if 'system' in self.phases else None
         graphical = Category(CATEGORY_NAMES['e2e']) if 'e2e' in self.phases else None
-        self.categories.extend([*suite_items, *fixed_items[:-1]])
-        self.categories.extend([fixed_items[-1], *builds])
+        self.categories.extend([*suite_items, *fixed_items, *publishing, *builds])
         self.categories.extend(item for item in (system, graphical) if item is not None)
         discovery.state = 'Running'
         discovery.started = time.monotonic()
@@ -1237,8 +1242,8 @@ class Run:
         jobs.extend(unit_jobs)
         jobs.extend(ui_jobs)
         jobs.extend(Job(kind, item, self.command(kind, *inventory[kind]['args']), estimate=1)
-                    for (_, kind), item in zip(fixed, fixed_items) if kind != 'publish')
-        package_jobs = self.build_jobs(fixed_items[-1], builds)
+                    for (_, kind), item in zip(fixed, fixed_items))
+        package_jobs = self.build_jobs(publishing, builds)
         if not self.serial_builds:
             jobs.extend(package_jobs)
         self.host_jobs(jobs)

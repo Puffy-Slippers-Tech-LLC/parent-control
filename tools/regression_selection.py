@@ -162,6 +162,14 @@ class SelectedRun(Run):
                     self.categories[index:index + 1] = builds
                     self.host_jobs(self.build_jobs(None, builds))
                     status = int(any(build.state != 'Passed' for build in builds))
+                elif kind == 'publish':
+                    from test_commands import PUBLISH_CATEGORIES
+                    publishing = [Category(CATEGORY_NAMES[name], 1, host=True)
+                                  for name in PUBLISH_CATEGORIES]
+                    position = self.categories.index(item)
+                    self.categories[position:position + 1] = publishing
+                    self.host_jobs(self.publishing_jobs(publishing))
+                    status = int(any(part.state != 'Passed' for part in publishing))
                 elif kind in ('unit', 'ui'):
                     status = self.run_pytest(kind, item, args)
                 elif kind == CLEANUP_SELECTION:

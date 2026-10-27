@@ -76,7 +76,7 @@ class Checkpoint:
         self.retry_case = None
         self.retry_area = None
         for kind, args in selections:
-            if kind in AGGREGATES:
+            if kind in (*AGGREGATES, 'publish'):
                 expanded = [(name, entry['args']) for name, entry in suite_inventory([kind]).items()]
             else:
                 expanded = [(kind, args)]

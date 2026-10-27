@@ -3,6 +3,9 @@
 
 ### Bug Fixes
 
+### Non Product Changes
+- Added local COPR source-recipe, clean Fedora RPM build and dependency validation to the publishing checks.
+
 ## v1.4 - 2026-10-26
 ### New Features
 - **Language Dialog**: You can search for a language by its English name as well as its localized name.

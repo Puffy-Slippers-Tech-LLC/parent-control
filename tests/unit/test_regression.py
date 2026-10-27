@@ -1251,7 +1251,7 @@ def test_serial_builder_samples_resources_while_running_and_labels_the_observati
     assert item.state == 'Passed'
 
 
-@pytest.mark.parametrize('failure', [None, 'build-a', 'build-b', 'publish'])
+@pytest.mark.parametrize('failure', [None, 'build-a', 'build-b', 'publish-rpm'])
 def test_independent_builds_finish_in_reverse_order_with_host_and_publishing_active(
         report, tmp_path, failure):
     entered = threading.Barrier(4)
@@ -1270,7 +1270,7 @@ def test_independent_builds_finish_in_reverse_order_with_host_and_publishing_act
                 entered.wait(5)
             if key == 'build-a':
                 assert b_validated.wait(5), 'build B could not finish independently'
-            elif key in ('publish', 'host'):
+            elif key in ('publish-deb', 'publish-rpm'):
                 assert a_validated.wait(5), 'builds waited for publishing or host work'
             if key.startswith('build-'):
                 output(f'run-tests: output=/tmp/onpc-test-artifacts-{key}\n'.encode())
@@ -1282,7 +1282,7 @@ def test_independent_builds_finish_in_reverse_order_with_host_and_publishing_act
     run = regression.Run(tmp_path, report, Commands(), host_builds=True, continue_on_errors=True)
     run.dashboard.stream = io.StringIO()
     run.admission = SimpleNamespace(allows=lambda *_: True)
-    publishing = regression.Category('Publishing', 1)
+    publishing = [regression.Category(name, 1) for name in ('DEB publishing', 'RPM publishing')]
     builds = [regression.Category(name, 1) for name in ('A', 'B', 'Comparison')]
     jobs = run.build_jobs(publishing, builds)
     original_complete = run.complete_host
@@ -1299,16 +1299,16 @@ def test_independent_builds_finish_in_reverse_order_with_host_and_publishing_act
     # Use short fake commands, retaining the production graph and deferred
     # comparison lookup. Both real builders normally have identical argv.
     run.command = lambda kind, *args: ['compare', *args[1:]]
-    for job in jobs[:3]:
+    for job in jobs[:4]:
         assert job.requires == ()
         job.command = [job.key]
-    host_item = regression.Category('Host', 1)
-    jobs.append(regression_schedule.Job('ui-layout', host_item, ['host'], estimate=100))
-    run.categories = [publishing, *builds, host_item]
+    run.categories = [*publishing, *builds]
     run.host_jobs(jobs)
     assert completed.index('build-b') < completed.index('build-a')
-    assert completed.index('build-a') < completed.index('publish')
-    assert host_item.state == 'Passed'
+    assert all(completed.index('build-a') < completed.index(kind)
+               for kind in ('publish-deb', 'publish-rpm'))
+    assert publishing[0].state == 'Passed'
+    assert publishing[1].state == ('Failed' if failure == 'publish-rpm' else 'Passed')
     assert builds[2].state == ('Blocked' if failure in ('build-a', 'build-b') else 'Passed')
     assert set(run.artifacts) == {'build-a', 'build-b'} - {failure}
 
@@ -1329,7 +1329,7 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     import test_activity
     monkeypatch.setattr(test_activity, 'record_cleanup', lambda _: None)
     releases, scheduled = {}, []
-    durations = {'Publishing tests': 40, 'Unit — Bucket 1': 12,
+    durations = {'DEB publishing tests': 40, 'Unit — Bucket 1': 12,
                  'UI — Request behavior': 80}
     import regression_unit
     monkeypatch.setitem(regression_unit.ESTIMATES, 'test_core.py', 150)
@@ -1425,14 +1425,15 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     events = [json.loads(line) for line in (report.directory / 'schedule.jsonl').read_text().splitlines()]
     starts = {event['job']: event for event in events if event['event'] == 'start'}
     finishes = {event['job']: event for event in events if event['event'] == 'finish'}
-    assert list(starts)[:3] == ['UI — Request behavior', 'publish', 'Unit — Bucket 1']
+    assert list(starts)[:4] == ['UI — Request behavior', 'publish-deb', 'Unit — Bucket 1', 'publish-rpm']
     component, unit = starts['Private D-Bus components'], starts['Unit — Bucket 1']
     assert unit['branch'] == 3 and component['branch'] == 4
     assert 0 <= component['monotonic'] - unit['monotonic'] <= 5
     preview = starts['UI — Preview smoke']
-    assert preview['branch'] == starts['publish']['branch']
-    assert 0 <= preview['monotonic'] - finishes['publish']['monotonic'] <= (10 if io_burst else 5)
-    assert 'ui-request' in starts['publish']['companions']
+    assert preview['branch'] == starts['publish-deb']['branch']
+    assert 0 <= preview['monotonic'] - finishes['publish-deb']['monotonic'] <= (10 if io_burst else 5)
+    assert 'ui-request' in starts['publish-deb']['companions']
+    assert 'publish-deb' in starts['publish-rpm']['companions']
     assert starts['build-a']['companions']
     assert starts['build-b']['companions']
     assert starts['compare']['monotonic'] >= finishes['build-a']['monotonic']
@@ -1635,7 +1636,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
             elif category == 'artifacts' and ('build' in command or 'prepare' in command):
                 self.builds += 1
                 output(f'run-tests: output=/tmp/onpc-test-artifacts-fake{self.builds}\n'.encode())
-            elif category == 'publish':
+            elif category == 'publish-rpm':
                 return int(fail_publish)
             elif category == 'e2e':
                 assert '--ready' in command and '--scenario' not in command
@@ -1691,7 +1692,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                        for call in control.calls)
         return
     assert len([call for call in control.calls if 'compare' in call]) == 1
-    assert len([call for call in control.calls if 'publish' in call]) == 1
+    assert len([call for call in control.calls if call[1] in ('publish-deb', 'publish-rpm')]) == 2
     package = [call for call in control.calls if 'artifacts' in call and '--for-vm' not in call]
     assert package[-1][-2:] == [run.artifacts['build-a'], run.artifacts['build-b']]
     assert set(package[-1][-2:]) == {'/tmp/onpc-test-artifacts-fake1', '/tmp/onpc-test-artifacts-fake2'}

@@ -322,7 +322,15 @@ It uses the shared SRPM builder, official RPM Release `1` and COPR's supplied
 disposable source-build chroot before invoking the shared builder. This remote
 recipe is separate from local development setup; do not run it on the host.
 Its invocation and failure handling have a local regression using command doubles;
-an actual COPR build remains future qualification.
+the publishing category also executes the real recipe and rebuilds its SRPM in
+a fresh Fedora container, with package lint and runtime dependency resolution.
+This is included in `tools/run-tests publish`, `tools/run-tests host`,
+`make test-all` and `make test-all-verify`; see
+[local publishing tests](Publishing.md#local-publishing-tests).
+`tools/run-tests publish-rpm` runs Fedora validation alone without Debian
+builder prerequisites. The shared runner may overlap it with `publish-deb`
+when resources allow; their snapshots and results are independent.
+An actual COPR build remains separate qualification.
 The [publisher](Publishing.md#independent-channel-gates) configures the repository
 root, this source method and `rpm/oh-no-parent-control.spec.in` as the recipe
 path. It verifies the shared signed product tag and pins that exact commit,

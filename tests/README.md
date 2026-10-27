@@ -1678,8 +1678,8 @@ and actual lease release pass; a case or transition failure stops the suite.
 The command collects current unit/contract, private-D-Bus, UI and fixture runtime
 cases (including cleanup-safety regressions in the unit category);
 runs source/static, child Node/GJS and backend checks; runs the local publishing
-module (source packaging/integrity, clean sbuild with declared tests, and source
-and binary Lintian); builds two fresh artifact
+module (DEB source integrity/sbuild/Lintian and COPR source/Fedora RPM checks);
+builds two fresh artifact
 sets and compares them; then runs the full installed-system selection and every
 E2E variant whose inventory status is `ready`. New cases within these suites and
 newly registered ready variants need no edit to the aggregate. Pending roadmap
@@ -1690,6 +1690,14 @@ the aggregate always requests its full selection.
 Both aggregate targets run the same publishing module through
 `tools/run-tests publish` and [`tools/publishing_checks.py`](../tools/publishing_checks.py).
 It includes current uncommitted source edits and requires no release credentials.
+It includes both Debian source/sbuild/Lintian validation and the real COPR
+source recipe, clean Fedora RPM rebuild, RPM lint and runtime dependency
+resolution. The Fedora check uses private rootless containers and retained
+output, with compilation limited to two jobs and temporary image cleanup by
+exact image ID. `publish-deb` and `publish-rpm` own separate snapshots,
+prerequisites, logs and results. `publish` schedules both with their own resource
+reservations, permitting concurrent execution; each is also independently
+selectable. No VM, shared display or installed product is used.
 It never publishes. `make publish` delivers a release without rerunning local
 publishing tests; see [publishing](../docs/Publishing.md#local-publishing-tests).
 

@@ -284,7 +284,11 @@ make publish
 ```
 
 The test command includes the reusable publishing test module: source checks,
-clean Ubuntu sbuild with declared tests, and Lintian. `make publish` validates the history,
+clean Ubuntu sbuild with declared tests and Lintian, plus the real COPR source
+recipe, clean offline Fedora RPM build, RPM lint and runtime dependency checks.
+`tools/run-tests publish` schedules independent `publish-deb` and `publish-rpm`
+jobs; either can run alone, and the runner can overlap them when resources allow.
+`make publish` validates the history,
 commits pending release-checkout changes, signs and uploads source for the
 prepared product version, and waits for the package to become
 downloadable. It does not rerun the local publishing tests.

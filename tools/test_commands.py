@@ -37,7 +37,9 @@ CATEGORIES = {
     'static': CategorySpec('shell, gjs, or all (default)'),
     'backend': CategorySpec('read-only graphical backend package/API prerequisite check'),
     'source': CategorySpec('established syntax, traceability and source guards'),
-    'publish': CategorySpec('local source packaging, clean sbuild and Lintian; no publication'),
+    'publish': CategorySpec('independent DEB and RPM publishing checks with resource-aware parallel scheduling; no publication', leaf=False),
+    'publish-deb': CategorySpec('local DEB source integrity, clean sbuild and Lintian; no publication'),
+    'publish-rpm': CategorySpec('local COPR recipe, clean Fedora RPM build, lint and dependencies; no publication'),
     'fixture-runtime': CategorySpec('all established fixture runtime pytest cases'),
     'traceability': CategorySpec('stage (default) or final requirement checks', leaf=False),
     'coverage': CategorySpec('unit and private-D-Bus Python coverage in a new private directory', leaf=False),
@@ -57,6 +59,7 @@ CATEGORIES = {
 }
 
 AGGREGATES = ('all', 'all-verify', 'host', 'host-builds', 'vm')
+PUBLISH_CATEGORIES = ('publish-deb', 'publish-rpm')
 PHASES = ('host', 'system', 'e2e')
 COMPLETE = (*PHASES, 'vm')
 HELP_ARGV = (['--help'], ['-h'])
@@ -142,6 +145,8 @@ def suite_inventory(categories=(), *, inventory=None):
                 selected.update(name for name, spec in inventory.items() if inventory_scope(name, spec) == 'vm')
             elif category in inventory:
                 selected.add(category)
+            elif category == 'publish':
+                selected.update(name for name in PUBLISH_CATEGORIES if name in inventory)
             else:
                 raise ValueError(f'unknown or unsupported inventory category: {category}')
     if not selected:
@@ -306,6 +311,10 @@ Complete categories (combine in any order; execute host, then system, then e2e)
   tools/run-tests e2e --vm NAME
   tools/run-tests host system --vm NAME
   tools/run-tests host system e2e --vm NAME    (same as all)
+
+  tools/run-tests publish                     independent DEB/RPM jobs; parallel when resources allow
+  tools/run-tests publish-deb                 DEB prerequisites and results only
+  tools/run-tests publish-rpm                 RPM prerequisites and results only
 
   Each VM retains its report; configured queues retain a combined result summary.
   VM execution automatically records the shared watch layout, including all
@@ -803,10 +812,12 @@ def plan(root, category, argv):
         argv, _ = extract(argv, required=False)
         argv, _ = vm_input_options(category, argv)
         fixture_execution_target(category, argv)
-    if category == 'publish':
+    if category in ('publish', *PUBLISH_CATEGORIES):
         if argv:
             raise ValueError('publishing tests accept no arguments')
-        return [python_file(root, 'tools/publishing_checks.py')], False
+        formats = ('deb', 'rpm') if category == 'publish' else (category.removeprefix('publish-'),)
+        return [python_file(root, 'tools/publishing_checks.py', '--package-format', value)
+                for value in formats], False
     if category == 'source':
         if argv:
             raise ValueError('source checks accept no arguments')

@@ -166,7 +166,7 @@ contract references; the registry owns executable status, not these aliases.
 | Binding | Scope and limit |
 | --- | --- |
 | 267, `verify_session_composition` | Current account/routing, finite PAM and shipped GNOME Kiosk definitions; no execution fence. |
-| 268, account admission | Current account-only routing/refusal/retry/restoration and ordinary-account positives; no authentication, graphical entry or remote-route proof. |
+| 268, account admission | Identity admission, saved-routing tolerance, `su-l` refusal, restoration and ordinary-account positives; no authentication, graphical entry or remote-route proof. |
 | 271, ordinary integration | Current vendor execution, distro readiness and invocation-owned manager cleanup; no private namespace/generation/mask assertions. |
 | 269 | Pending reachable startup/audio input protection with ordinary-use controls. |
 | 289 | Pending real dependency update, retained use, normal exit and fresh-entry history. |
@@ -305,7 +305,7 @@ desktop cleanup; an edit touching these callers must include its affected contro
 
 #### Automation disposition and bounded validation
 
-**D00b residual: empty in the inspected selected consumers.**
+**D00's initial audit found no obsolete executable v1.4 consumer in the selected workers.**
 [test_enforcement.py](../../tests/system/test_enforcement.py) binds 267 to
 `system_kiosk_confinement.verify_session_composition`, 268 to
 `system_kiosk_admission.verify` and 271 to `system_kiosk_scope.verify`.
@@ -381,6 +381,37 @@ editing, keeping each product fix's review/build, both-target usability and
 cleanup together. D00 audits only: it supplies no installed pass, closes no
 other task, and allocates no VM/artifacts. D00b verifies this empty obsolete-
 consumer disposition against D00a's actual changes rather than replaying C03/C04.
+
+#### D00b automation close-out
+
+D00b confirmed the C03/C04 dispositions above against D00a's selected consumers:
+no private runtime/view fixture, import, package-test requirement or executable
+registration remains to remove. Historical package snapshots and foreign-generation
+preservation checks remain necessary migration/ownership controls. Stable
+267/268/271 bindings, retired/pending identities and their qualification limits
+are unchanged; the catalogue still owns unfinished route qualification.
+
+One redundant host check in `test_kiosk_confinement.py` still mirrored the old
+`login`/`sshd` rejection sequence. It was removed under the
+[test scope mandate](../Mandates/Test-Scope-Mandate.md), without a replacement
+test of the installed case. Native service dispatch remains covered by
+`test_prepared_kiosk_pam.py` and installed 268's ordinary-account/`su-l` controls.
+The existing routing-restoration guard now injects failure at the current
+allowed variation and drops the obsolete unrepaired-routing case; it still
+requires exact kiosk/ordinary state restoration. The optional-telemetry mock
+now targets `user_command`, preserving its deadline and unavailable result.
+No product expectations or installed bindings changed.
+
+Host ownership: `tools/run-tests unit 'tests/unit/test_kiosk_confinement.py'
+--timeout 180s -q` passed all 63 remaining checks after repair. The unchanged
+`test_kiosk_login.py`, `test_system_kiosk_admission.py` and
+`test_system_kiosk_scope.py` selections passed another 74 checks in this task.
+Coverage generation and system/E2E host-only listing passed; changed Markdown
+links passed. Resource ownership is unchanged: private pytest state, existing
+module fixtures and descriptor cleanup; no VM, display or external service was
+allocated. No build is required for these non-package inputs. D01 may trust
+D00a's completed both-target usability, recovery and installed 268 results;
+D00b grants no new installed acceptance and leaves no unexplained legacy consumer.
 
 #### D00a2 service-variation prerequisite
 

@@ -1,7 +1,7 @@
 # Prevent full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **D00b — [Close obsolete confinement automation consumers](Kiosk-Prompt-Tasks/D00b-automation-cleanup.md)**.
+Next task: **D01 — [Review full desktop entry routes](Kiosk-Prompt-Tasks/D01-desktop-review.md)**.
 
 ## Outcome and scope
 

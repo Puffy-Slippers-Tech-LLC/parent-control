@@ -71,35 +71,6 @@ def admission_model(monkeypatch):
     return module(ROOT / 'tests/integration/system_kiosk_admission.py')
 
 
-def test_restart_admission_gates_use_controls_and_exact_denials_without_routing_mutation(
-        admission_model, monkeypatch):
-    helper = admission_model
-    monkeypatch.setattr(helper.guest, 'guard', Mock())
-    monkeypatch.setattr(helper.guest, 'enable_diagnostics', Mock())
-    identities = {
-        helper.USERS['kiosk']: SimpleNamespace(pw_uid=41001, pw_shell='/usr/sbin/nologin'),
-        helper.USERS['ordinary']: SimpleNamespace(pw_uid=41002),
-    }
-    monkeypatch.setattr(helper.pwd, 'getpwnam', identities.__getitem__)
-    probe = Mock()
-    mutation = Mock(side_effect=AssertionError('retained routing must stay unchanged'))
-    monkeypatch.setattr(helper, 'probe', probe)
-    monkeypatch.setattr(helper, 'set_routing', mutation)
-    record = Mock()
-    helper.verify_gates(record)
-    assert [call.args for call in probe.call_args_list] == [
-        ('gdm-password', 'ordinary', 0, 'gdm-password.ordinary-before', record),
-        ('login', 'ordinary', 0, 'login.ordinary-before', record),
-        ('sshd', 'ordinary', 0, 'sshd.ordinary-before', record),
-        ('gdm-password', 'kiosk', 0, 'dedicated-before', record),
-        ('login', 'kiosk', 6, 'login.denied', record),
-        ('login', 'ordinary', 0, 'login.ordinary-after', record),
-        ('sshd', 'kiosk', 6, 'sshd.denied', record),
-        ('sshd', 'ordinary', 0, 'sshd.ordinary-after', record),
-    ]
-    mutation.assert_not_called()
-
-
 def test_restart_admission_guest_refusal_precedes_identity_and_pam_workers(
         admission_model, monkeypatch):
     helper = admission_model
@@ -235,8 +206,8 @@ def test_installed_admission_uses_real_service_name_and_ends_denied_transactions
     assert pam.pam_end.call_args.args[1] == status
 
 
-@pytest.mark.parametrize('fault', ['positive', 'denial-worker', 'unrepaired'])
-def test_installed_admission_requires_positive_and_restores_mutation_on_failure(
+@pytest.mark.parametrize('fault', ['positive', 'worker'])
+def test_installed_admission_restores_owned_routing_after_failure(
         admission_model, monkeypatch, fault):
     helper = admission_model
     monkeypatch.setattr(helper.guest, 'guard', Mock())
@@ -265,7 +236,7 @@ def test_installed_admission_requires_positive_and_restores_mutation_on_failure(
         stages.append((service, role, expected, stage))
         if fault == 'positive' and stage == 'dedicated-before':
             raise helper.guest.GuestError('positive-failed')
-        if stage == 'alternate-session.denied' and fault == 'denial-worker':
+        if stage == 'alternate-session.allowed' and fault == 'worker':
             raise helper.guest.GuestError('worker-failed')
 
     monkeypatch.setattr(helper, 'probe', probe)
@@ -276,11 +247,7 @@ def test_installed_admission_requires_positive_and_restores_mutation_on_failure(
         assert not writes
         assert not any(expected == 6 for _, _, expected, _ in stages)
     else:
-        assert stages[:4] == [(service, 'ordinary', 0, service + '.ordinary-before')
-                              for service in helper.SERVICES] + [
-                                  ('gdm-password', 'kiosk', 0, 'dedicated-before')]
-        assert writes == [('ubuntu', 'wayland'), helper.DEDICATED]
-        assert not any(stage.endswith('.retry') for _, _, _, stage in stages)
+        assert writes == [helper.DEDICATED, ('ubuntu', 'wayland'), helper.DEDICATED]
 
 
 @pytest.mark.parametrize('data', [b'', b'x' * 4097])
@@ -377,10 +344,12 @@ def test_optional_service_query_has_short_deadline_and_absorbs_unavailable_telem
     helper = census_model
     account = SimpleNamespace(pw_uid=1007, pw_gid=1007)
     command = Mock(side_effect=failure)
-    monkeypatch.setattr(helper.guest.commands, 'run', command)
+    monkeypatch.setattr(helper, 'user_command', command)
     assert helper.optional_service_state(account, helper.SERVICES['polkit']) == 'unavailable'
-    assert command.call_args.kwargs == {'check': False, 'timeout': 3, 'merge_stderr': False}
-    assert command.call_args.args[0][-1] == helper.SERVICES['polkit']
+    assert command.call_args.kwargs == {'check': False, 'timeout': 3}
+    assert command.call_args.args == (account, [
+        '/usr/bin/systemctl', '--user', 'show', '--value',
+        '--property=ActiveState', helper.SERVICES['polkit']])
 
 
 def test_optional_query_timeout_preserves_core_session_result_and_closes_descriptors(

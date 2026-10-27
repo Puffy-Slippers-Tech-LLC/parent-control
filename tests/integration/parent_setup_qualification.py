@@ -248,6 +248,16 @@ class KioskEntryQualification(ParentJourneyQualification):
         lease._restored_name = name
 
 
+class PublicDesktopSelectionQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from public_desktop_selection import PublicDesktopSelectionJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return PublicDesktopSelectionJourney(context, progress)
+
+
 class KioskServiceVariationQualification(KioskEntryQualification):
     """One real automatic-login variation, followed by normal restored entry."""
 

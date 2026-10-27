@@ -36,6 +36,14 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'gdm-standard-session-open': 'Opening the ordinary account desktop chooser',
+    'gdm-standard-session-select-full': 'Choosing the offered ordinary full desktop',
+    'gdm-standard-session-chosen': 'Observing the ordinary desktop chooser after selection',
+    'gdm-standard-session-cancel': 'Cancelling the ordinary account sign-in choice',
+    'gdm-station-session-open': 'Checking whether normal station entry offers a desktop choice',
+    'gdm-station-session-select-full': 'Choosing a publicly offered station desktop',
+    'gdm-station-session-chosen': 'Observing station entry after the public desktop choice',
+    'gdm-station-full-desktop': 'Checking the station full desktop public controls',
     'child-natural-expiry-observe': 'Observing the active child app or its naturally owned lock',
     'child-natural-expiry-wrong-account-refused': 'Refusing natural-expiry work on the Parent account',
     'child-natural-expiry-activity': 'Using the owned child app while usable time remains',
@@ -959,9 +967,11 @@ class UiObservations:
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
         # Kiosk waits only for the public form, with transport margin.
-        timeout = 390 if (operation in accessible_ui.GREETER_OPERATIONS
-                          or operation in accessible_ui.STATION_BRANCH_OPERATIONS) else (
-            120 if form_diagnostics else 90)
+        timeout = (120 if operation in accessible_ui.GDM_SESSION_OPERATIONS
+                   or operation == 'gdm-station-full-desktop' else
+                   390 if operation in accessible_ui.GREETER_OPERATIONS
+                   or operation in accessible_ui.STATION_BRANCH_OPERATIONS else
+                   120 if form_diagnostics else 90)
         event_trace = operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
                                     'feedback-collection-events')
         if (self.system_prompt is None and not form_diagnostics and not event_trace
@@ -1050,6 +1060,42 @@ class UiObservations:
         return json.dumps({'surface': surface,
             'status': 'acknowledged' if len(records) == 2 else 'uncertain',
             'boot_sha256': self.boot_guard}).encode()
+
+    def observe_gdm_chooser(self, operation, lease):
+        """Consume a fresh GDM focus proof once and independently read the result."""
+        require(operation in accessible_ui.GDM_SESSION_OPERATIONS
+                and not operation.endswith('-chosen'), 'ui:chooser-operation')
+        checked = time.monotonic()
+        result = UiObservations.observe(self, operation)
+        choice = result['session_choice']
+        disposition = choice['disposition']
+        if disposition not in ('chooser-focused', 'choice-focused', 'cancel-focused'):
+            return result
+        with watch_activity.operation('Activating the freshly focused public sign-in control'):
+            lease.guard()
+            require(time.monotonic() - checked < 30, 'ui:chooser-stale-focus')
+            try:
+                lease.source.domain.sendKey(lease.source.api.VIR_KEYCODE_SET_LINUX,
+                                            100, [28], 1, 0)
+            finally:
+                # An uncertain key is never replayed.
+                lease.guard()
+        if disposition == 'chooser-focused':
+            result = UiObservations.observe(self, operation)
+            require(result['session_choice']['disposition'] == 'chooser-opened',
+                    'ui:chooser-not-opened')
+        elif disposition == 'choice-focused':
+            after = UiObservations.observe(self, operation.removesuffix('select-full') + 'chosen')
+            require(after['session_choice']['disposition'] in (
+                'choice-activated', 'no-public-chooser'), 'ui:chooser-choice-not-applied')
+            result['session_choice'] = {**choice, 'disposition': 'choice-activated',
+                'selected': after['session_choice']['selected'],
+                'destination': after['session_choice']['destination']}
+        else:
+            UiObservations.observe(self, 'gdm-returned')
+            result['session_choice'] = {**choice, 'disposition': 'cancelled',
+                                        'destination': 'account-list'}
+        return result
 
     def observe(self, operation, *, child=None):
         require(not getattr(self, 'language_failed', False), 'ui:language-previous-failure')
@@ -1400,6 +1446,25 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if operation in accessible_ui.GDM_SESSION_OPERATIONS:
+            choice = result.get('session_choice')
+            values = {'station', 'ubuntu', 'ubuntu-xorg', 'gnome', 'gnome-xorg'}
+            require(type(choice) is dict and set(choice) == {
+                'recipient', 'disposition', 'choice', 'offered', 'selected', 'destination'}
+                and choice['recipient'] == ('station' if operation.startswith('gdm-station-')
+                                             else 'other-child')
+                and choice['disposition'] in ('chooser-opened', 'chooser-focused',
+                                              'choice-focused', 'choice-activated',
+                                              'cancel-focused', 'cancelled', 'no-public-chooser')
+                and choice['choice'] in values | {None}
+                and choice['selected'] in values | {None}
+                and type(choice['offered']) is list and len(choice['offered']) <= len(values)
+                and all(type(item) is str and item in values for item in choice['offered'])
+                and len(set(choice['offered'])) == len(choice['offered'])
+                and choice['destination'] in ('greeter-controls', 'request-window', 'full-desktop',
+                                              'account-list'),
+                'ui:session-choice-response')
+            expected['session_choice'] = choice
         if operation == 'gdm-station-refused':
             require(result.get('fallback') in ('account-list', 'station-prompt'), 'ui:gdm-refusal-result')
             expected['fallback'] = result['fallback']
@@ -2527,7 +2592,9 @@ class UiObservations:
         elif operation == 'gdm-standard-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')
         elif operation == 'gdm-standard-recipient':
-            require(self.last_operation in ('gdm-standard-focused', 'gdm-product-free-standard-focused'),
+            require(self.last_operation in ('gdm-standard-focused', 'gdm-product-free-standard-focused',
+                                            'gdm-standard-session-select-full',
+                                            'gdm-standard-session-chosen'),
                     'ui:recipient-order')
         elif operation == 'gdm-standard-recipient-rechecked':
             require(self.last_operation == 'gdm-standard-recipient', 'ui:recipient-order')

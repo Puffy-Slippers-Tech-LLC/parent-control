@@ -750,6 +750,21 @@ GDM_SESSION_LABELS = {
     'Ubuntu on Xorg': 'ubuntu-xorg', 'Sign In': 'sign-in',
     'Log In': 'sign-in', 'Cancel': 'cancel',
 }
+GDM_SESSION_OPERATIONS = {
+    'gdm-standard-session-open': (EXISTING_CHILD, 'open'),
+    'gdm-standard-session-select-full': (EXISTING_CHILD, 'select-full'),
+    'gdm-standard-session-chosen': (EXISTING_CHILD, 'chosen'),
+    'gdm-standard-session-cancel': (EXISTING_CHILD, 'cancel'),
+    'gdm-station-session-open': (KIOSK, 'open'),
+    'gdm-station-session-select-full': (KIOSK, 'select-full'),
+    'gdm-station-session-chosen': (KIOSK, 'chosen'),
+}
+GDM_STATION_DESKTOP_OPERATIONS = frozenset({'gdm-station-full-desktop'})
+OPERATIONS |= frozenset(GDM_SESSION_OPERATIONS)
+OPERATIONS |= GDM_STATION_DESKTOP_OPERATIONS
+GREETER_OPERATIONS |= frozenset(GDM_SESSION_OPERATIONS)
+GREETER_OPERATIONS |= GDM_STATION_DESKTOP_OPERATIONS
+GDM_SESSION_CHOICES = frozenset({'station', 'gnome', 'gnome-xorg', 'ubuntu', 'ubuntu-xorg'})
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form',
                               'kiosk-no-child-form', 'kiosk-no-approver-form', 'kiosk-lifecycle-defaults'})
 KIOSK_DIAGNOSTIC_OPERATIONS = frozenset({'kiosk-diagnostic-error',
@@ -987,7 +1002,9 @@ KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_DIAGNOSTIC_OPERATIONS | KIO
 KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPERATIONS) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
     if binding.startswith(('kiosk-', 'chinese-kiosk-', 'jordan-kiosk-')))
-STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry', 'station-initial-entry'})
+STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry', 'station-initial-entry',
+    'gdm-station-session-open', 'gdm-station-session-select-full',
+    'gdm-station-session-chosen', 'gdm-station-full-desktop'})
 INITIAL_KIOSK_OPERATIONS = frozenset('kiosk-initial-' + suffix for suffix in (
     'notice', 'notice-close', 'notice-return', 'language', 'language-cancel', 'form'))
 OPERATIONS |= INITIAL_KIOSK_OPERATIONS | {'station-initial-entry'}
@@ -8716,6 +8733,164 @@ class AccessibleUI:
         """Observe Parent's prompt without reading or authorizing its secret."""
         self.greeter_prompt()
 
+    def gdm_session_snapshot(self, name):
+        """C07a1: one complete English-GDM account/chooser observation.
+
+        These labels are the external provider's semantics, not public IDs.
+        This adapter runs only on the independently bound active greeter bus.
+        It never answers a prompt or changes GDM's saved session routing.
+        """
+        require(name in (EXISTING_CHILD, KIOSK), 'ui:gdm-session-binding')
+        owner, nodes = self.gdm_semantic_nodes(protect_text=True)
+        showing = [node for node in nodes if self.showing(node)]
+        def inside_menu(node):
+            parent = node.get_parent()
+            while parent is not None and parent != owner:
+                if parent.get_role_name() in ('menu', 'menu item', 'radio menu item', 'check menu item'):
+                    return True
+                parent = parent.get_parent()
+            return False
+        require(not self.gdm_semantic_account_rows(
+            owner, [node for node in showing if not inside_menu(node)], tuple(GREETER_IDENTITIES)),
+            'ui:gdm-session-account-list')
+        recipients = [node for node in showing if node.get_role_name() == 'label'
+                      and self.gdm_semantic_name(node) in GREETER_IDENTITIES
+                      and not inside_menu(node)]
+        expected = (KIOSK, KIOSK_USERNAME) if name == KIOSK else (name,)
+        require(len(recipients) == 1 and self.gdm_semantic_name(recipients[0]) in expected,
+                'ui:gdm-session-recipient')
+        fields = [node for node in showing if node.get_role_name() == 'password text']
+        require(not fields if name == KIOSK else len(fields) == 1,
+                'ui:gdm-session-challenge')
+        if fields:
+            require(self.has_state(fields[0], self.api.StateType.SENSITIVE),
+                    'ui:gdm-session-challenge')
+        controls, choices, selected = {}, {}, []
+        if fields:
+            controls['password'] = fields[0]
+        for node in nodes:
+            role = node.get_role_name()
+            label = GDM_SESSION_LABELS.get(self.gdm_semantic_name(node))
+            if (label in ('session-chooser', 'cancel') and node in showing
+                    and role in ('button', 'push button', 'toggle button', 'menu')):
+                require(label not in controls, 'ui:gdm-session-ambiguous')
+                controls[label] = node
+            if label in GDM_SESSION_CHOICES and role in (
+                    'label', 'menu item', 'radio menu item', 'check menu item'):
+                target = node
+                while target is not None and target != owner and target.get_role_name() not in (
+                        'menu item', 'radio menu item', 'check menu item'):
+                    target = target.get_parent()
+                if target is None or target == owner:
+                    continue
+                if node in showing:
+                    require(label not in choices or choices[label] == target,
+                            'ui:gdm-session-ambiguous')
+                    choices[label] = target
+                if (self.has_state(target, self.api.StateType.CHECKED)
+                        or self.has_state(target, self.api.StateType.SELECTED)) and label not in selected:
+                    selected.append(label)
+        require(len(selected) <= 1, 'ui:gdm-session-selection-ambiguous')
+        require(owner.get_process_id() > 0, 'ui:gdm-session-owner')
+        for node in (*controls.values(), *choices.values()):
+            require(node.get_process_id() == owner.get_process_id(), 'ui:gdm-session-owner')
+        return owner, controls, choices, selected[0] if selected else None
+
+    def gdm_session_focus(self, name, key, *, choice=False):
+        """Fresh semantic target and focused-recipient proof for one normal key.
+
+        GNOME 50's menu/button actors expose Component focus but no Action.
+        The owned controller supplies Enter once after this proof, then observes
+        the menu, choice closure or account list independently.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        _owner, controls, choices, _selected = self.gdm_session_snapshot(name)
+        target = (choices if choice else controls).get(key)
+        require(target is not None and self.showing(target)
+                and self.has_state(target, self.api.StateType.SENSITIVE), 'ui:gdm-session-target')
+        component = target.get_component_iface()
+        require(component is not None, 'ui:gdm-focus-unavailable')
+        self.input_uncertain = True
+        require(component.grab_focus(), 'ui:gdm-focus-refused')
+        def focused():
+            self.invalidate_observation()
+            _owner, current_controls, current_choices, _selected = self.gdm_session_snapshot(name)
+            current = (current_choices if choice else current_controls).get(key)
+            require(current == target, 'ui:gdm-stale-focus')
+            return self.has_state(current, self.api.StateType.FOCUSED)
+        self.wait(focused, 'gdm-session-focus', prompt_in_predicate=True)
+        self.input_uncertain = False
+
+    def station_public_destination(self):
+        """Observe request or real Shell controls on the active station's bus."""
+        require(os.getuid() == pwd.getpwnam(KIOSK_USERNAME).pw_uid,
+                'ui:station-desktop-identity')
+        require_active_launch_session()
+        def destination():
+            window = self.snapshot_owned_target('kiosk-request-window', check_prompt=True)
+            desktop = self.shell_desktop_observation(no_prompt=True)
+            require(window is None or desktop is None, 'ui:station-destination-ambiguous')
+            return 'request-window' if window is not None else 'full-desktop' if desktop else None
+        result = self.wait(destination, 'station-public-destination', prompt_in_predicate=True)
+        if result == 'full-desktop':
+            self.standard_shell_desktop(no_prompt=True)
+        require_active_launch_session()
+        return result
+
+    def gdm_session_operation(self, operation):
+        """Public chooser input only; the caller independently observes launch.
+
+        A choice here names an accessible provider label. It cannot establish
+        a selected desktop file, resolved command or successful session launch.
+        A naturally completed passwordless entry is an explicit no-route result.
+        Unknown/ambiguous controls and any station password challenge refuse.
+        """
+        require(operation in GDM_SESSION_OPERATIONS, 'ui:gdm-session-operation')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        name, action = GDM_SESSION_OPERATIONS[operation]
+        result = {'recipient': GREETER_IDENTITIES[name], 'disposition': None,
+                  'choice': None, 'offered': [], 'selected': None,
+                  'destination': 'greeter-controls'}
+        if name == KIOSK and self.branch_owner == 'station':
+            destination = self.station_public_destination()
+            return {**result, 'disposition': 'no-public-chooser',
+                    'destination': destination}
+
+        # Every input resolves its recipient and control afresh. Reading may
+        # reacquire within the stage deadline, but mutations are never retried.
+        _owner, controls, choices, selected = self.gdm_session_snapshot(name)
+        if action == 'open':
+            if not choices:
+                target = controls.get('session-chooser')
+                if target is None and name == KIOSK:
+                    return {**result, 'disposition': 'no-public-chooser'}
+                require(target is not None, 'ui:gdm-session-chooser-missing')
+                self.gdm_session_focus(name, 'session-chooser')
+                return {**result, 'disposition': 'chooser-focused'}
+            return {**result, 'disposition': 'chooser-opened',
+                    'offered': sorted(choices), 'selected': selected}
+        if action == 'select-full':
+            candidates = [label for label in choices if label in ('ubuntu', 'gnome')]
+            require(len(candidates) == 1, 'ui:gdm-full-desktop-choice')
+            choice = candidates[0]
+            offered = sorted(choices)
+            self.gdm_session_focus(name, choice, choice=True)
+            return {**result, 'disposition': 'choice-focused', 'choice': choice,
+                    'offered': offered, 'selected': selected}
+        if action == 'chosen':
+            require(not choices, 'ui:gdm-session-menu-still-open')
+            if name == EXISTING_CHILD:
+                # Closing Shell's menu leaves focus on its menu button.
+                # Refocus the same bound field before the existing two fresh
+                # masked-recipient proofs; this supplies no secret authority.
+                self.gdm_session_focus(name, 'password')
+            return {**result, 'disposition': 'choice-activated', 'selected': selected}
+        require(action == 'cancel' and not choices, 'ui:gdm-session-cancel-menu-open')
+        target = controls.get('cancel')
+        require(target is not None, 'ui:gdm-session-cancel-missing')
+        self.gdm_session_focus(name, 'cancel')
+        return {**result, 'disposition': 'cancel-focused'}
+
     def gdm_child_time_denied(self):
         """GDM06: exact English-GDM expiry explanation on the bound greeter bus.
 
@@ -12683,6 +12858,11 @@ class AccessibleUI:
                 'kiosk-diagnostic-editor': self.kiosk_diagnostic_editor,
                 'kiosk-diagnostic-privacy': self.kiosk_diagnostic_privacy,
             }[operation]()
+        elif operation in GDM_SESSION_OPERATIONS:
+            result['session_choice'] = self.gdm_session_operation(operation)
+        elif operation in GDM_STATION_DESKTOP_OPERATIONS:
+            require(self.branch_owner == 'station', 'ui:station-full-desktop-missing')
+            require(self.station_public_destination() == 'full-desktop', 'ui:station-full-desktop-missing')
         elif operation == 'station-entry-branch':
             result['branch'] = self.station_entry_branch(self.branch_owner)
         elif operation == 'station-default-entry':
@@ -13482,7 +13662,7 @@ def validate_shell_metadata(value):
     return value
 
 
-def greeter_account(*, station_branch=False, station_required=False):
+def greeter_account(*, station_branch=False, station_required=False, timeout=None):
     """Resolve the sole active local greeter via public logind session metadata.
 
     Modern GDM can use a dynamic account instead of the legacy gdm UID. This
@@ -13493,7 +13673,8 @@ def greeter_account(*, station_branch=False, station_required=False):
     # wait. Observe the public greeter within its own finite boot budget.
     require(not station_required or station_branch, 'ui:station-account-binding')
     started = time.monotonic()
-    deadline = started + (90 if station_branch else 300)
+    require(timeout is None or timeout == 120, 'ui:greeter-timeout-binding')
+    deadline = started + (timeout if timeout is not None else 90 if station_branch else 300)
     last_scan = []
 
     def check_deadline(remaining):
@@ -14081,10 +14262,13 @@ def main():
     if sys.argv[1] in STATION_BRANCH_OPERATIONS:
         account, branch_owner = greeter_account(
             station_branch=True,
-            station_required=sys.argv[1] in ('station-default-entry', 'station-initial-entry'))
+            station_required=sys.argv[1] in ('station-default-entry', 'station-initial-entry')
+                or sys.argv[1] in GDM_STATION_DESKTOP_OPERATIONS,
+            timeout=120 if sys.argv[1] in GDM_SESSION_OPERATIONS or
+                sys.argv[1] in GDM_STATION_DESKTOP_OPERATIONS else None)
         greeter, kiosk = branch_owner == 'greeter', branch_owner == 'station'
     else:
-        account = greeter_account() if greeter else pwd.getpwnam(
+        account = greeter_account(timeout=120 if sys.argv[1] in GDM_SESSION_OPERATIONS else None) if greeter else pwd.getpwnam(
             'oh-no-parent-control' if kiosk else
             CHILD_ACCOUNTS[TRANSFER_OPERATIONS[sys.argv[1]][1]] if sys.argv[1] in TRANSFER_OPERATIONS else
             (CHILD_ACCOUNTS[CHILD] if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
@@ -14116,7 +14300,9 @@ def main():
         Atspi.init()
         ui.api.reset()
 
-    ui = AccessibleUI(Atspi, timeout=90 if kiosk else 45, query_errors=(GLib.Error,),
+    ui = AccessibleUI(Atspi, timeout=120 if sys.argv[1] in GDM_SESSION_OPERATIONS or
+        sys.argv[1] in GDM_STATION_DESKTOP_OPERATIONS else 90 if kiosk else 45,
+        query_errors=(GLib.Error,),
         reset_observer=reset_atspi_client if kiosk else None,
         timing=lambda value: print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True),
         dispatch=lambda: GLib.MainContext.default().iteration(False))

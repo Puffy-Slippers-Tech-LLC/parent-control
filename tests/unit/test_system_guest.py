@@ -22,6 +22,12 @@ def test_fedora_installs_only_the_transferred_rpm_after_guard(tmp_path, monkeypa
     monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
     for name in ('before_install', 'enable_diagnostics', 'guard'):
         monkeypatch.setattr(guest, name, Mock())
+    # The installation helper now retains a transaction path and samples guest
+    # diagnostics. Supply private command state without probing this host.
+    monkeypatch.setattr(guest, 'commands', Mock(
+        directory=tmp_path, sequence=1, last_returncode=1))
+    for name in ('sample_install_trust', 'child_trust_inputs_diagnostic'):
+        monkeypatch.setattr(guest, name, Mock())
     run = Mock()
     monkeypatch.setattr(guest, 'run', run)
     guest.install()

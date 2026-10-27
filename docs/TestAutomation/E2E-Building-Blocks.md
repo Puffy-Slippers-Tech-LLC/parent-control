@@ -3928,6 +3928,29 @@ Request, enabled Cancel, 30-minute selection, disabled-limit notice, absent
 mute/custom value. Enabled choices, overlays and authentication retain their
 separate catalogue bindings.
 
+### Graphical service variation
+
+`check_e2e_kiosk_service_variation` dispatches the finite
+[`gdm_service_variation.qualify(transport, lease)`](../../tests/e2e/gdm_service_variation.py)
+operation through `KioskServiceVariationQualification`, then reuses the existing
+REQUEST01/03 normal entry/form/Cancel/return history after restoration.
+Its only provider binding is the real GNOME GDM `gdm-autologin` station route,
+with dedicated `oh-no-parent-control` Wayland routing, on Ubuntu 26.04 and
+Fedora Workstation 44. The
+[admission design owner](../SystemDesign/Kiosk-Confinement.md#d00a2-service-variation-prerequisite)
+records invocation witnesses, execution limits and owned restoration.
+
+Installed qualification passed on `onpc-Ubuntu26.04` and `onpc-Fedora44`, including
+exact settings restoration, the normal public entry/form/Cancel/return history
+and owned runner/VM cleanup. The current caller requires
+`result == 'account-refused'` and `app_execution_qualified == False`.
+This supplies no successful variation execution, prohibited-route control,
+ordinary-account login, full usability history or D00a2 acceptance. The positive
+branch reuses `station-default-entry` / `kiosk-request-form` plus actual logind
+and selected app/session process observations; it remains unqualified until a
+real positive passes. D00a2 must require `app_execution_qualified == True` after
+its product repair. A saved default or GDM command resolution alone is insufficient.
+
 ### Search and standard sign-in contracts
 
 The qualified Ubuntu 26.04 search tuple is Shell `50.1-0ubuntu1.2`,

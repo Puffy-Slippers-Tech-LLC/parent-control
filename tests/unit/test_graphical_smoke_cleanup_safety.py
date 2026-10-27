@@ -963,3 +963,32 @@ def test_credential_worker_cannot_pass_without_authentication_stage(tmp_path):
             smoke.run_backend(tmp_path, Mock(), Mock(), 'host-key', smoke.runner.RunLedger(), {},
                               credentials=Mock())
     module.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['changed-bytes', 'replaced-inode', 'foreign-owner'])
+def test_gdm_variation_restore_preserves_changed_configuration(fault):
+    """An attempt receipt never authorizes overwriting a changed system file."""
+    import gdm_service_variation as variation
+    from pathlib import Path
+    original = {'identity': [1, 2, 0o100644, 0, 0, 1], 'bytes': 'b3JpZ2luYWw='}
+    current = {'identity': list(original['identity']), 'bytes': original['bytes']}
+    if fault == 'changed-bytes':
+        current['bytes'] = 'Y2hhbmdlZA=='
+    elif fault == 'replaced-inode':
+        current['identity'][1] += 1
+    else:
+        current['identity'][3] = 1000
+    with patch.object(variation, 'snapshot', return_value=current), \
+            patch.object(variation.os, 'open') as opened:
+        with pytest.raises(RuntimeError, match='configuration-changed'):
+            variation.replace_owned(Path('/etc/gdm/custom.conf'), original, b'original')
+    opened.assert_not_called()
+
+
+def test_gdm_variation_receipt_collision_never_truncates_existing_file(tmp_path):
+    import gdm_service_variation as variation
+    receipt = tmp_path / 'receipt.json'
+    receipt.write_bytes(b'foreign-receipt')
+    with pytest.raises(FileExistsError):
+        variation.save(receipt, {'run': 'a' * 32}, create=True)
+    assert receipt.read_bytes() == b'foreign-receipt'

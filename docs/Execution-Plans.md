@@ -685,6 +685,13 @@ The checkpoint retains checkout and remote identities across interruption; the
 temporary worktree is removed after its push succeeds. Unchecked local branches
 are left at their existing commits. Every configured destination must finish
 before task completion.
+If a remote branch advances before push, a non-fast-forward rejection triggers
+a checkpointed refetch and merge in the same detached checkout, followed by a
+normal push. Recovery resumes interrupted merges and preserves both histories.
+Any conflicts enter the same unattended resolver before the controller commits
+the merge or retries the push; unresolved conflicts prevent completion.
+At most five push attempts run per invocation; other push failures retain the
+transaction immediately.
 
 This boundary is shared by ordinary-plan launchers, `write-e2e` (including its
 optimization commits), and `fix-tests`. Every committing launcher must use

@@ -2,54 +2,37 @@
 
 Task queue: [Ordered task queue](Kiosk-Prompt-New-Queue.md).
 Next task: **C06a — [Review remaining login routes](Kiosk-Prompt-Tasks/C06a-login-review.md)**.
-Baseline plan: [Full desktop prevention](Kiosk-Desktop-Plan.md).
-Baseline task: D04.
 
 ## Outcome
 
-Improve confinement after the
-[accepted baseline](SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) and
-[full desktop prevention](Kiosk-Desktop-Plan.md) complete.
+Improve confinement while preserving the
+[existing design](SystemDesign/Kiosk-Confinement.md).
 Keep passwordless kiosk use, genuine parent approval and time/app enforcement
 working while closing justified routes available to a smart technical child.
 Own standalone terminal/TTY and SSH access, other exposed actions/consumed inputs,
-compatibility/recovery/lifecycle work and its final acceptance. Desktop tasks
-retain their stable IDs under the desktop owner. No task completes through planning.
+compatibility/recovery/lifecycle work and its final acceptance. Preserve the
+existing local desktop boundary. No task completes through planning.
 
 ## Usability and threat scope
 
-The desktop master's [binding planning requirements](Kiosk-Desktop-Plan.md#binding-planning-requirements),
-[simple implementation rule](Kiosk-Desktop-Plan.md#simple-implementation)
-and [route allocation](Kiosk-Desktop-Plan.md#route-allocation) apply to every row
-here. Residual conflicting source and obsolete v1.4 automation cleanup is first,
-under D00/D00a/D00b; C06a verifies that handoff through D04. This queue adds only
-justified protections to the pinned v1.3 confinement slice, retaining main's
-non-confinement features. Do not recreate the old main/v1.4 subtraction approach.
-The desktop master's [usability stop gate](Kiosk-Desktop-Plan.md#usability-stop-gate)
-sets the shared availability priority. This remaining queue retains its own
-acceptance declarations: each product slice is followed by separate both-target core-use
-renewals before the next product slice. A normal broken/rejected kiosk session
-blocks advancement immediately. Final acceptance may reuse exact applicable
-gate evidence; qualification and customer histories retain their own assertions.
-The desktop queue now owns its bounded usability check inside each product task
-before completion/propagation; its narrower check does not replace this remaining
-plan's wider histories or complete any row here.
-The master's [narrow denylist](Kiosk-Desktop-Plan.md#admission-uses-a-narrow-denylist)
-also binds this queue: unknown/strange configuration preserves passwordless app
-access. Only specifically justified deliberate breach patterns may be rejected;
-uncertainty, failed discovery or missing optional state is not such a pattern.
+Apply the design's [usability and threat boundary](SystemDesign/Kiosk-Confinement.md#usability-priority-and-reasonable-child-effort),
+[admission defaults](SystemDesign/Kiosk-Confinement.md#admission-defaults-and-recovery)
+and [selected source boundary](SystemDesign/Kiosk-Confinement.md#selected-source-boundary).
+Add only justified protections to the pinned v1.3 confinement slice while
+retaining main's non-confinement features. Unknown configuration, failed discovery
+and missing optional state are not deliberate breach patterns.
 
-The desktop master's [inherited baseline requirements](Kiosk-Desktop-Plan.md#inherited-baseline-requirements)
-also apply, including trusted installed loading, genuine parent/admin denial,
-usable service recovery and preservation of main's non-confinement features.
+Each product slice is followed by this queue's separate both-target core-use
+renewals before the next product slice. A broken or rejected normal session
+blocks advancement. The design's
+[bounded usability check](SystemDesign/Kiosk-Confinement.md#bounded-confinement-usability-check)
+does not replace this plan's wider acceptance histories.
 
 ## Simple product and tests
 
 Every task, including implementation, repair, qualification and acceptance,
-inherits the desktop master's [simple implementation](Kiosk-Desktop-Plan.md#simple-implementation)
-and [simple tests](Kiosk-Desktop-Plan.md#simple-tests) rules. Apply the repository
-principle to both product code and test code: prefer the simplest approach that
-meets the required behavior reliably.
+applies the repository principle to product and test code: prefer the simplest
+approach that meets the required behavior reliably.
 
 Start with the demonstrated gap and its existing owner. Reuse an effective
 barrier, supported platform mechanism or existing test before adding code.
@@ -67,27 +50,18 @@ usability gates, complete recovery histories and ownership/cleanup guards.
 
 ## Confinement priority
 
-Full kiosk desktop prevention is the first security priority and belongs only to
-[the desktop plan](Kiosk-Desktop-Plan.md), run by `tools/kiosk-desktop`.
-That owner includes local graphical-session selection and request-session escapes
-yielding a full desktop. Remote-desktop testing is excluded by developer direction
-from both confinement plans; do not recreate its removed tasks or automation.
-C06a verifies its accepted D04 gate before this plan proceeds. Each launcher
-owns its queue, briefs and acceptance; neither implicitly closes the other.
-
-If later work exposes a full-desktop route or invalidates desktop evidence,
-record the affected route/candidate and return condition under the desktop owner.
-Renew the affected desktop history there before claiming combined final readiness.
-Reuse shared mechanisms and matching evidence without duplicating implementation.
+Preserve the [local desktop boundary](SystemDesign/Kiosk-Confinement.md#local-desktop-boundary)
+while improving standalone terminal/TTY, SSH, exposed actions/inputs and recovery.
+Remote-desktop testing is excluded; do not recreate removed provider automation.
+If a concrete change exposes a full-desktop route, record it in the design owner
+and include its affected public histories in that change before claiming readiness.
+Reuse shared mechanisms and qualified operations.
 
 ## Task boundaries
 
-Before closing C06a, require completed desktop D04 and baseline C05f/C05u for
-their declared targets. Trust completed rows under the shared
-[completion policy](Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery);
-do not inspect old reports. An unfinished prerequisite leaves C06a unchecked
-with its owning queue and return condition. Concrete later changes receive
-affected checks within the current task.
+C06a uses the completed C05f/C05u baseline for its declared targets under the
+shared [completion policy](Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
+Concrete later changes receive affected checks within the current task.
 A new namespace is no authorization to bypass an active baseline owner, pending
 Git transaction, live VM lease or uncommitted overlapping source work.
 
@@ -95,14 +69,13 @@ The [C05f baseline handoff](TestAutomation/E2E-Building-Blocks.md#c05f-fedora-ba
 accepts both targets' unchanged complete core histories and separate feature/pause
 results. Standalone terminal/TTY and SSH remain unqualified for C06a/C06; other
 exposed actions and child-controlled consumed inputs remain for C06x/C06i.
-The desktop owner retains the local full-desktop routes,
-and its D04 gate remains required. These coverage gaps are not observed
+These coverage gaps are not observed
 baseline failures. This handoff closes no remaining-plan row or final defense gate.
 
 C06a reviews remaining SSH/terminal/TTY routes. C06x maps exposed actions and
 C06i separately maps child-controlled consumed inputs; C06 independently reviews
 the combined finite design. C07t/C07b and C08a/C08 add only missing justified barriers,
-with targeted tests and normal-use controls. Desktop barriers remain in their plan.
+with targeted tests and normal-use controls. Preserve the design’s local desktop barriers.
 C09 addresses demonstrated confinement-caused availability/recovery/lifecycle
 coupling. Existing effective barriers need verification, not duplicate code.
 General broker/feature projects are outside these rows' scope.
@@ -126,7 +99,7 @@ C10 freezes exact finite selectors, inputs, qualifications, timeouts and restora
 before final consumers; missing independent work becomes a bounded prerequisite
 under [ordinary-plan execution](Execution-Plans.md#execution-and-delegation).
 Keep complete fault/recovery/reentry histories together and preserve queue order.
-Apply the desktop master's finite design/implementation boundary: record complete
+Keep a finite design/implementation boundary: record complete
 affected functions/callers, finite test inputs, bindings and qualification gaps
 before product edits. A task with no demonstrated defect verifies the existing
 boundary; it must not invent restrictions or speculative recovery infrastructure.
@@ -147,9 +120,9 @@ After changes, qualify applicable final candidate histories on both
 | Host variation and optional failures | C11a/a1 and C12a/a1: one unrelated package/layout change, valid PAM/service variation and finite presentation/native-language fallbacks preserve genuine approval. |
 | Required-service and child isolation | C11b/b1 and C12b/b1: bounded recovery, intact policy, healthy-child requests while another integration is unavailable, restored-child use, retained sanitized original cause and real Parent diagnostic download without submission. |
 | Owned state and updates | C11c/c1 and C12c/c1: complete interrupted/stale-state and relevant update/reentry histories, preserving foreign/live sessions, policy and current features. |
-| Remaining login routes | C11t/e and C12t/e: standalone terminal/TTY and SSH access blocked, paired with usable kiosk and ordinary-account positives. Absent service or failed positive is no refusal pass. Full graphical desktop results remain with the desktop plan. |
+| Remaining login routes | C11t/e and C12t/e: standalone terminal/TTY and SSH access blocked, paired with usable kiosk and ordinary-account positives. Absent service or failed positive is no refusal pass. Preserve the existing local graphical desktop boundary. |
 | Exposed actions and inputs | C11g/g1 and C12g/g1: finite deliberate link/chooser/handler/automatic-launch and child-writable consumed-input attempts blocked, with permitted form/approval and trusted-code/lazy-loading controls. |
-| Close-out | C13: matching product/automation/docs, provenance, justified refusals, inspectable both-target evidence and owned restoration; verify separately accepted desktop results still apply and require renewal there if invalidated. |
+| Close-out | C13: matching product/automation/docs, provenance, justified refusals, inspectable both-target evidence and owned restoration; run affected local desktop histories if changes invalidate their applicability. |
 
 Keep customer results separate from engineering probes and fault injection.
 A diagnostic-only screen, denied normal entry, host mapping or historical proof
@@ -202,7 +175,7 @@ retain the active task limit. The generic entry
 `tools/execute-plan --plan 'docs/Kiosk-Session-Confinement-New-Plan.md'`
 shares this owner. A namespace with no retained run needs no checkpoint migration.
 Apply the [common launcher interface](Execution-Plans.md#common-launcher-interface)
-and desktop master's [split lifetime](Kiosk-Desktop-Plan.md#split-lifetime).
+and preserve active owners, checkpoints, pending Git work and VM leases.
 Ordinary execution uses current rows and briefs without a plan-specific migration
 or evidence preflight. Preserve owners, handoffs and pending transactions.
 

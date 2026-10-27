@@ -31,11 +31,11 @@ their explicit blockers; documentation review supplies no completion or live
 qualification.
 
 The [kiosk v1.3 baseline for v1.4](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits)
-completed through C05f. The [desktop plan](../Kiosk-Desktop-Plan.md) owns prevention of
-unrestricted graphical desktop access as the kiosk account; the
+completed through C05f. The [local desktop design](../SystemDesign/Kiosk-Confinement.md#local-desktop-boundary)
+defines the existing graphical session boundary; the
 [remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md) owns the
-other C06–C13 improvements. Both own their targeted tests and add no release
-baseline prerequisites. All three share this plan's operations under the
+other C06–C13 improvements. It owns its targeted tests and adds no release
+baseline prerequisites. The plans share operations under the
 [cross-plan reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) and
 [operation-reuse contract](E2E-Execution-Contracts.md#cross-plan-operation-reuse).
 C04p1/C04p consume tasks 313a/313's fixture and core-effects evidence; C04j owns

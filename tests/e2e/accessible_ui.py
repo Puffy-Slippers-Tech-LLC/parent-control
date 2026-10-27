@@ -8751,7 +8751,7 @@ class AccessibleUI:
         self.greeter_prompt()
 
     def gdm_session_snapshot(self, name):
-        """C07a1: one complete English-GDM account/chooser observation.
+        """One complete English-GDM account/chooser observation.
 
         These labels are the external provider's semantics, not public IDs.
         This adapter runs only on the independently bound active greeter bus.

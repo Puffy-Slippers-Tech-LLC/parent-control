@@ -32,12 +32,11 @@ lifecycle; standalone terminal/TTY; SSH; separate remaining exposed-action
 and consumed-input bindings. Each fault/recovery/reentry history stays complete. Use one
 ordinary-account positive for each remaining route; absent SSH service is no pass.
 
-Trust completed desktop D04 under the shared completion policy and apply
-the master's [confinement priority](../Kiosk-Session-Confinement-New-Plan.md#confinement-priority).
-C11t/C12t retain the standalone terminal/TTY assertions split from C11d/C12d.
-Desktop/local/remote acceptance stays with its owner. A concrete change affecting
-that behavior requires scoped checks, without reopening completed tasks or
-requiring old reports.
+Preserve the [local desktop boundary](../SystemDesign/Kiosk-Confinement.md#local-desktop-boundary)
+and apply the master's [confinement priority](../Kiosk-Session-Confinement-New-Plan.md#confinement-priority).
+C11t/C12t own standalone terminal/TTY assertions. A concrete change affecting
+desktop behavior requires scoped checks without inspecting old reports.
+Remote-desktop testing remains excluded.
 
 This is a composition/readiness audit, not a broad implementation task.
 Missing implementation or provider qualification requires an explicit bounded

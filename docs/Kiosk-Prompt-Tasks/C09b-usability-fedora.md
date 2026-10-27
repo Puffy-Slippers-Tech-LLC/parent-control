@@ -6,7 +6,7 @@ Targets: onpc-Fedora44
 Required tasks: C09bu.
 Estimate: 30–60 min; session exception: complete core customer history and restoration.
 
-Apply the [usability stop gate](../Kiosk-Desktop-Plan.md#usability-stop-gate)
+Apply the [usability stop gate](../SystemDesign/Kiosk-Confinement.md#bounded-confinement-usability-check)
 and the [owning task contract](../Kiosk-Session-Confinement-New-Plan.md#task-execution-contract).
 
 ## Session boundary and deliverable

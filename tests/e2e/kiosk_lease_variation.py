@@ -4,7 +4,7 @@ import system_runner as system
 
 
 def qualify(transport, lease, *, expectation='refusal'):
-    """D00a4q characterizes refusal; D00a must qualify recovery separately.
+    """Qualify the selected refusal or recovery expectation separately.
 
     The caller runs the complete short public history after this returns.
     Engineering callbacks alone never supply public usability acceptance.

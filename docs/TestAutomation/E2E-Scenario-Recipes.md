@@ -660,21 +660,16 @@ Bindings: request = approved / denied / cancelled.
 
 ### Local desktop acceptance composition
 
-C11d (`onpc-Ubuntu26.04`) and C12d (`onpc-Fedora44`) consume the two finite
-local routes below. They are task IDs, not registered selectors. D03 audited
-the current composition and confirmed its registered final comparisons;
-D03a and D03b qualified the selection and shortcut verdicts on both targets.
-C11d/C12d completed their candidate-matching final target runs, including the
-ordinary controls, public restoration and owned cleanup. The
-[D04 close-out](../SystemDesign/Kiosk-Confinement.md#d04-desktop-close-out-and-remaining-plan-handoff)
-records the finite accepted scope and remaining-plan boundary. Existing
-qualification observations and completed C07a/C07s usability stay accepted;
-this map grants no new installed acceptance.
+Use the following finite local routes on `onpc-Ubuntu26.04` and
+`onpc-Fedora44`, preserving the
+[local desktop boundary](../SystemDesign/Kiosk-Confinement.md#local-desktop-boundary).
+The catalogue owns qualified operations; this composition defines assertions
+for affected candidate checks.
 
-| Existing binding | Finite input and independent required result | Readiness for final acceptance |
+| Existing binding | Finite input and independent required result | Required verdict |
 | --- | --- | --- |
-| `check_e2e_public_desktop_selection` → `PublicDesktopSelectionQualification` → `PublicDesktopSelectionJourney` / `onpc_public_desktop_selection::run` | Jordan chooses Ubuntu (`ubuntu.desktop`) or GNOME (`gnome.desktop`) and reaches a usable ordinary Shell desktop. Direct station entry and ordinary chooser → Cancel → station must each yield `request-only`, with actual chooser disposition, selected desktop-file command, station UID/local Wayland session and manager/Kiosk process observations. Riley/Jamie request controls remain usable. An unexposed chooser is a finite no-route result; a chosen alternate desktop is not claimed denied when none was selectable. | Input/result observation qualified by C07a1. D03a qualified the final verdict on both targets: both result stages must be `request-only` after complete restoration and usable reentry. Exposed-desktop observations and safe exit remain intact; ordinary positives and owned cleanup passed. |
-| `check_e2e_station_shortcuts` → `StationShortcutsQualification` → `StationShortcutsJourney` / `onpc_station_shortcuts::run` | For `overview`, `grid`, `run`, `terminal`, send Super, Super+A, Alt+F2, Ctrl+Alt+T once each on Jordan's desktop and once each in the usable Riley/Jamie station. Ordinary outcomes must be overview, app-grid, run and terminal respectively; each station outcome must be `request-only`, with a usable form after each input. | All eight observations qualified by C07s1; Fedora's permanent Ctrl+Alt+T → Ptyxis baseline binding supplies its ordinary positive. D03b qualified the final comparison on both targets: all four station outcomes must be `request-only`, alongside usable forms and all ordinary positives, after restoration. Normal surface closure, Cancel/fresh entry, exact settings restoration and runner/baseline cleanup passed. |
+| `check_e2e_public_desktop_selection` → `PublicDesktopSelectionQualification` → `PublicDesktopSelectionJourney` / `onpc_public_desktop_selection::run` | Jordan chooses Ubuntu (`ubuntu.desktop`) or GNOME (`gnome.desktop`) and reaches a usable ordinary Shell desktop. Direct station entry and ordinary chooser → Cancel → station must each yield `request-only`, with actual chooser disposition, selected desktop-file command, station UID/local Wayland session and manager/Kiosk process observations. Riley/Jamie request controls remain usable. An unexposed chooser is a finite no-route result; a chosen alternate desktop is not claimed denied when none was selectable. | Both result stages must be `request-only` after complete restoration and usable reentry. Preserve exposed-desktop observations, safe exit and ordinary positives. |
+| `check_e2e_station_shortcuts` → `StationShortcutsQualification` → `StationShortcutsJourney` / `onpc_station_shortcuts::run` | For `overview`, `grid`, `run`, `terminal`, send Super, Super+A, Alt+F2, Ctrl+Alt+T once each on Jordan's desktop and once each in the usable Riley/Jamie station. Ordinary outcomes must be overview, app-grid, run and terminal respectively; each station outcome must be `request-only`, with a usable form after each input. | Fedora's permanent Ctrl+Alt+T → Ptyxis baseline binding supplies its ordinary positive. All four station outcomes must be `request-only`, alongside usable forms and all ordinary positives, after restoration. Require normal surface closure, Cancel/fresh entry and exact settings restoration. |
 
 The [catalogue](E2E-Building-Blocks.md#public-desktop-selection) owns provider
 qualification and [shortcut limits](E2E-Building-Blocks.md#request-session-shortcut-results).
@@ -699,9 +694,7 @@ envelope; fixed input roles are Jordan (ordinary `other-child` entry), Riley
 (`fixture-child`) and Jamie (`fixture-parent`). Public setup starts with Riley's
 limits disabled and records settings before enabling them.
 
-The completed C11d/C12d acceptance used the selected target's two route histories
-below. Reuse accepted unchanged results; a concrete later change requires only
-its affected histories under the desktop plan:
+Use the selected target's affected route histories after a concrete change:
 
 ```sh
 tools/run-tests --vm 'onpc-Ubuntu26.04' integration check_e2e_public_desktop_selection
@@ -718,7 +711,7 @@ Do not expand these finite inputs across request outcomes.
 
 #### Controls, reuse and restoration
 
-Reuse C07a/C07s's completed both-target
+Reuse the both-target
 [short confinement usability history](E2E-Building-Blocks.md#short-confinement-usability-history)
 for unchanged applicable product scope: Riley/Jamie, 900 seconds daily, initial
 zero grant, Custom `1.25` Minutes/75 seconds with soft apps included; separate
@@ -742,9 +735,9 @@ Cases 50–52 retain their registered `restricted_station.py` approved/denied/
 cancelled histories and 1800-second bounds. They exercise three shortcuts,
 including repetition after rejection/Cancel, but supply neither Alt+F2 nor the
 ordinary positives or selected-launch evidence above. Reuse unchanged complete
-histories; do not rerun them merely for C11d/C12d labels or add a shortcut ×
+histories; do not rerun unchanged histories merely for task labels or add a shortcut ×
 approval-outcome matrix. Directly affected action/overlay/enforcement controls
-are allocated by the [design owner](../SystemDesign/Kiosk-Confinement.md#d03-desktop-acceptance-audit).
+are allocated by the [design owner](../SystemDesign/Kiosk-Confinement.md#bounded-confinement-usability-check).
 
 ### E2E-017
 

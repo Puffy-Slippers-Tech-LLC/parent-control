@@ -1311,7 +1311,7 @@ reminder, About and pause outcomes remain those in the
 [separate qualification boundary](#feature-and-human-pause-boundaries), rather
 than additional steps inferred from the core pass. No ordinary-use mismatch
 remained in these accepted histories. Alternate
-graphical-session and other deliberate-route gaps remain for D01/C06a review;
+graphical-session behavior retains its route-specific scope; other deliberate routes remain for C06a review;
 no new breach test or escape claim was added. FLOW19/FLOW20 and broader cases
 34/36/44–49 retain their existing pending scope.
 
@@ -1349,7 +1349,7 @@ bindings. No renewal is required.
 The accepted history completed collection, worker/callback shutdown and owned
 baseline restoration, with the guest independently observed off. C05u started
 no VM, worker or helper requiring cleanup. Alternate graphical-session access
-remains for D01/D02; TTY, SSH and exposed child-accessible routes remain for
+retains its separate local desktop composition; TTY, SSH and exposed child-accessible routes remain for
 C06a/C06 review. Remote desktop testing is excluded by the developer. The retained
 routes are unqualified, not observed baseline
 failures or a final confinement claim. Only C05u closes; Fedora remains C05f's
@@ -1389,7 +1389,7 @@ Baseline product, automation and current documentation match this finite scope
 on both targets. C05f started no VM, worker or helper requiring cleanup and
 recovered no historical reports. Only this baseline queue closes. Local alternate
 graphical-session selection and request-session actions yielding a full desktop
-remain unqualified for D01/D02. Remote desktop testing is excluded by the
+retain their separate local desktop composition. Remote desktop testing is excluded by the
 developer, with no remote acceptance claimed. Standalone terminal/TTY and SSH
 remain for C06a/C06, with other exposed
 actions and child-controlled consumed inputs for C06x/C06i. These are concrete
@@ -3939,13 +3939,10 @@ separate catalogue bindings.
 `check_e2e_station_shortcuts` in the guarded installed envelope. It pairs
 Super, Super+A, Alt+F2 and Ctrl+Alt+T on Jordan's ordinary desktop with the
 usable Riley/Jamie request session, normal Cancel and fresh passwordless entry,
-then restores the original public policy. Installed qualification passed on
-`onpc-Ubuntu26.04` and `onpc-Fedora44` in C07s1. Each target passed all eight
-results: ordinary overview, app grid, run dialog and terminal; all four station
-attempts left only the usable request form. Owned surfaces closed normally,
-Cancel and fresh passwordless usable entry passed, original public settings
-were restored, and runner cleanup completed with source/host preservation.
-No desktop-launch chain was demonstrated in these request-session attempts.
+then restores the original public policy. Its qualified scope on
+`onpc-Ubuntu26.04` and `onpc-Fedora44` is eight results: ordinary overview,
+app grid, run dialog and terminal, paired with four request-only station results.
+Normal closure, Cancel/fresh entry and exact policy restoration are required.
 
 Fedora has no stock media-keys `terminal` setting. Its working comparison uses
 the permanent Ctrl+Alt+T → Ptyxis custom binding supplied to fixed test accounts
@@ -3965,24 +3962,17 @@ uses English Shell search, Show Apps state, Run a Command and known terminal
 application/terminal semantics, with account/session and fresh close-recipient
 guards. An absent ordinary positive remains inconclusive. A terminal alone
 establishes no full-desktop launch chain; standalone terminal/TTY acceptance
-retains its remaining-plan owner. C07s completed its separate both-target
-installed usability and restoration gate while retaining the existing mechanisms;
-see its [scoped result](../SystemDesign/Kiosk-Confinement.md#c07s-request-session-result).
+retains its remaining-plan owner. Preserve the
+[request-session boundary](../SystemDesign/Kiosk-Confinement.md#request-session-actions).
 This shortcut qualification supplies no complete-case credit.
 The existing two-second census is not a universal desktop fence. Machine
 observations retain finite deadlines inside the 1800-second worker envelope.
 
-D03b closed the final-verdict gap in `StationShortcutsJourney.check_settings`.
-After public restoration and fresh usable entry, the eight-result comparison
-requires all four ordinary positives, station `usable_request=True` and
-`outcome == 'request-only'` for every station shortcut. Both-target installed
-qualification passed, including normal surface closure, Cancel/fresh entry,
-exact public settings restoration and runner/baseline cleanup. The
-[local acceptance composition](E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
-can consume this finite negative verdict; D03 confirmed both enforcing
-comparisons and complete histories. C11d/C12d subsequently passed their
-candidate-matching runs; the [D04 handoff](../SystemDesign/Kiosk-Confinement.md#d04-desktop-close-out-and-remaining-plan-handoff)
-owns the accepted desktop scope. No new provider or repeated guard matrix was added.
+After public restoration and fresh usable entry,
+`StationShortcutsJourney.check_settings` requires all four ordinary positives,
+station `usable_request=True` and `outcome == 'request-only'` for every
+station shortcut. The [local composition](E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
+uses this finite verdict.
 
 `tools/test-vm --vm NAME reproduce-station-shortcuts` reuses this journey,
 stopping after ordinary Alt+F2 input and before its result observation for
@@ -4014,32 +4004,21 @@ New machine checkpoints are bounded to 120 seconds within the existing
 1800-second worker envelope. No authentication delay, station credential,
 privileged greeter selection or saved-routing mutation manufactures reachability.
 
-Installed qualification passed on `onpc-Ubuntu26.04` and `onpc-Fedora44`,
-including exact saved-routing restoration, public policy restoration, usable
-request Cancel/reentry and owned runner/VM cleanup. Jordan selected and entered
-Ubuntu (`ubuntu.desktop`) or GNOME (`gnome.desktop`), respectively. Both direct
-station entry and ordinary chooser → Cancel → station reached the dedicated
-request session without exposing a public station chooser. Actual selected
-`oh-no-parent-control` manager and Kiosk processes matched the station UID and
-active Wayland session in each attempt. The
-[local design map](../SystemDesign/Kiosk-Confinement.md#c07a1-public-selection-qualification)
-records the target/action result and C07a return condition.
+The qualified scope is Ubuntu 26.04 and Fedora 44: Jordan's Ubuntu
+(`ubuntu.desktop`) or GNOME (`gnome.desktop`) desktop, direct station entry
+and ordinary chooser → Cancel → station. Preserve the
+[selection boundary](../SystemDesign/Kiosk-Confinement.md#graphical-session-selection).
+An unexposed chooser is a target/action no-route disposition, not proof that an
+alternate command was denied. Unknown providers, failed positives and incomplete
+observations remain inconclusive.
 
-An unexposed chooser is a target/action no-route disposition,
-not proof that an alternate command was denied. A full station desktop is a gap
-for C07a; this prerequisite changes no product barrier and supplies no C07a
-acceptance credit. Unknown providers, failed positives and incomplete observations
-remain inconclusive.
-
-D03a qualified the final request-only verdict on both targets.
-`PublicDesktopSelectionUi.observe` still records an exposed station Shell as
-`full-desktop-gap` and preserves its safe exit. After the complete history,
-`PublicDesktopSelectionJourney.validate` requires both `public-direct-result`
-and `public-carry-result` to be `request-only`, following routing/public-policy
-restoration, usable Cancel and fresh entry. Both targets passed this verdict,
-the ordinary full-desktop positive and owned runner/VM cleanup. Candidate
-inputs, commands and finite consumer assertions are in the
-[local acceptance composition](E2E-Scenario-Recipes.md#local-desktop-acceptance-composition).
+`PublicDesktopSelectionUi.observe` records exposed station Shell as
+`full-desktop-gap` and preserves safe exit.
+`PublicDesktopSelectionJourney.validate` requires both
+`public-direct-result` and `public-carry-result` to be `request-only`
+after routing/policy restoration, usable Cancel and fresh entry.
+Candidate inputs and commands belong to the
+[local composition](E2E-Scenario-Recipes.md#local-desktop-acceptance-composition).
 
 ### Graphical service variation
 
@@ -4050,13 +4029,13 @@ REQUEST01/03 normal entry/form/Cancel/return history after restoration.
 Its only provider binding is the real GNOME GDM `gdm-autologin` station route,
 with dedicated `oh-no-parent-control` Wayland routing, on Ubuntu 26.04 and
 Fedora Workstation 44. The
-[admission design owner](../SystemDesign/Kiosk-Confinement.md#d00a2-service-variation-prerequisite)
-records invocation witnesses, execution limits and owned restoration.
+[admission design owner](../SystemDesign/Kiosk-Confinement.md#service-and-routing-boundary)
+defines the service/routing boundary; this binding owns its execution witnesses
+and restoration.
 
-D00a2q qualified the pre-fix account refusal on `onpc-Ubuntu26.04` and
-`onpc-Fedora44`. After D00a2's service-dispatch repair, both targets passed
-actual dedicated app execution, exact settings restoration, normal public
-entry/form/Cancel/return and owned runner/VM cleanup. The caller now requires
+The qualified scope is actual dedicated app execution on Ubuntu 26.04 and
+Fedora 44, with exact settings restoration and public entry/form/Cancel/return.
+The caller requires
 `result == 'session-created'` and `app_execution_qualified == True`.
 The qualified positive reuses `station-default-entry` / `kiosk-request-form`,
 the actual Wayland logind session, the owned app service/process and GNOME 50's
@@ -4083,12 +4062,10 @@ One real AccountsService discovery outage requires successful installed native a
 an observed usable public greeter baseline, exact owned service/mask restoration
 and ordinary-account routing isolation. The same public greeter readiness check
 also separates each restored variation from the next attempt's restart.
-The [design owner](../SystemDesign/Kiosk-Confinement.md#d00a3-routing-qualification-prerequisite)
-records the finite mechanism and limits. D00a3 passed this execution binding on
-`onpc-Ubuntu26.04` and `onpc-Fedora44`: normal and all three varied executions,
-discovery-independent admission, exact restoration, fresh public entry/form/Cancel/return
-and owned cleanup. D00a3q's earlier pre-fix refusal/repair qualification remains
-historical and supplies no product acceptance credit.
+The [design owner](../SystemDesign/Kiosk-Confinement.md#service-and-routing-boundary)
+records the finite mechanism and limits. The qualified scope is normal and
+three varied executions, discovery-independent admission, exact restoration and
+fresh public entry/form/Cancel/return on Ubuntu 26.04 and Fedora 44.
 
 ### Owned sign-in lease variation
 
@@ -4119,13 +4096,11 @@ restored mode; the real lifecycle `barriers` stays excluded through close until
 station admission refuses and ordinary-account admission remains usable; fresh
 station admission succeeds after release. No lease or removal marker is deleted.
 
-D00a4q passed this refusal binding and the complete restored public history on
-`onpc-Ubuntu26.04` and `onpc-Fedora44`, including owned session/VM cleanup.
-The explicit `expectation='recovery'` binding passed on both targets in D00a,
-including the complete short public history and owned session/VM cleanup.
-It verifies writer recovery, retained read-only handles, writer exclusion and
-fresh use after release. Engineering callbacks remain separate from public-use
-acceptance and supply no desktop-defense claim.
+The qualified `expectation='recovery'` scope on Ubuntu 26.04 and Fedora 44
+covers writer recovery, retained read-only handles, writer exclusion and fresh
+use after release, followed by the complete short public history.
+Engineering callbacks are separate from public-use acceptance and supply no
+desktop-defense claim.
 
 ### Reached service-route control
 
@@ -4145,11 +4120,12 @@ effective-UID result. Exact owned tracing resources are removed before the
 positive and normal passwordless station history. Credentials, shell, vendor PAM
 and native module bytes remain unchanged.
 
-The [design owner](../SystemDesign/Kiosk-Confinement.md#d00a2-service-variation-prerequisite)
-records the caller, witness, input guards, restoration and x86_64 tracefs/readelf
-limits. Earlier authentication refusal remains unqualified and stops this route.
+The [design owner](../SystemDesign/Kiosk-Confinement.md#service-and-routing-boundary)
+defines the narrow service refusal. Its engineering witness requires x86_64,
+existing tracefs and readelf on the two named targets. Earlier authentication
+refusal remains unqualified and stops this route.
 This supplies no general terminal/SSH protection, graphical execution positive,
-full usability history or D00a2 acceptance.
+full usability history.
 
 ### Search and standard sign-in contracts
 

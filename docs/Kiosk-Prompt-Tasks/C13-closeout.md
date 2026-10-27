@@ -24,11 +24,10 @@ Concrete later changes require affected checks through a bounded prerequisite
 with the original installed target(s); reconciliation cannot replace a missing
 live pass. Do not reopen completed tasks or rerun unchanged work.
 
-Verify separately accepted desktop D04 evidence remains applicable to the final
-candidate. Desktop implementation and local desktop acceptance remain
-with that plan. Any invalidated desktop history must be renewed under its owner
-before combined final readiness; this row grants no substitute desktop pass.
-Remote-desktop testing is excluded from both plans and receives no acceptance claim.
+Verify that the final candidate preserves the
+[local desktop boundary](../SystemDesign/Kiosk-Confinement.md#local-desktop-boundary).
+Run affected local desktop histories for concrete changes before final readiness.
+Remote-desktop testing is excluded and receives no acceptance claim.
 
 Match actual product, host/system/E2E automation, inventory/coverage, design,
 reliability and proof documentation. Keep historical results historical and

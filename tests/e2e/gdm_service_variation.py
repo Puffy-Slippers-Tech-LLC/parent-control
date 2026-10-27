@@ -704,7 +704,7 @@ def outage(token, *, restore_only=False, positive=False):
 
 
 def qualify_routing(transport, lease, *, expectation='execution'):
-    """Finite D00a3q binding; D00a3 reuses it with expectation='execution'."""
+    """Qualify finite saved-routing variations against the selected expectation."""
     import watch_activity
     from ui_observations import UiObservations
     require(expectation in ('refusal', 'execution'), 'routing-expectation')

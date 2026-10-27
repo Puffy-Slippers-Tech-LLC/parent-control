@@ -1,16 +1,11 @@
 # Remaining kiosk confinement improvements queue
 
 The [master](Kiosk-Session-Confinement-New-Plan.md) owns usability, reasonable-child
-threat scope, finite improvements and final acceptance. The
-[accepted baseline](SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) completed through C05f independently of these
-improvements. C06a first requires completed desktop D04 and baseline C05u/f;
-an unfinished prerequisite keeps it unchecked. Desktop-only rows move to the
-[desktop queue](Kiosk-Desktop-Queue.md). Remaining IDs and assertions are retained.
-
-Apply the master's [confinement priority](Kiosk-Session-Confinement-New-Plan.md#confinement-priority):
-finish `tools/kiosk-desktop` before this plan. This queue owns everything else:
-standalone terminal/TTY and SSH access, other actions/inputs and confinement
-compatibility/recovery/lifecycle work. Neither launcher closes the other's tasks.
+threat scope, finite improvements and final acceptance. Preserve the
+[local desktop boundary](SystemDesign/Kiosk-Confinement.md#local-desktop-boundary)
+while addressing standalone terminal/TTY and SSH access, other actions/inputs
+and confinement compatibility/recovery/lifecycle work. C06a uses the completed
+C05u/C05f baseline; concrete changes receive their own affected checks.
 
 Targeted new confinement tests and normal-use controls belong here. New general
 feature automation stays in the [E2E queue](TestAutomation/E2E-Task-Queue.md).
@@ -24,7 +19,7 @@ add only what a demonstrated behavioral gap requires.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | C06a | [Review remaining login routes](Kiosk-Prompt-Tasks/C06a-login-review.md) | Baseline | Verify accepted desktop/baseline gates and map standalone terminal/TTY and SSH defenses with permitted controls | 20–30 min |
+| [ ] | C06a | [Review remaining login routes](Kiosk-Prompt-Tasks/C06a-login-review.md) | Baseline | Use the baseline and map standalone terminal/TTY and SSH defenses with permitted controls | 20–30 min |
 | [ ] | C06x | [Map exposed launch actions](Kiosk-Prompt-Tasks/C06x-action-review.md) | C06a | Map actual reachable links, choosers, handlers and automatic launches with justified negatives and permitted controls | 20–30 min |
 | [ ] | C06i | [Map child-controlled consumed inputs](Kiosk-Prompt-Tasks/C06i-input-review.md) | C06x | Map actual child-writable startup, settings, environment and search inputs at their real consumers | 20–30 min |
 | [ ] | C06 | [Review the minimal remaining protection design](Kiosk-Prompt-Tasks/C06-protection-review.md) | C06i | Independently review the completed login/action/input maps and allocate finite protection and test boundaries | 20–30 min |
@@ -84,15 +79,14 @@ add only what a demonstrated behavioral gap requires.
 | [ ] | C12e | [Qualify the SSH account boundary on Fedora](Kiosk-Prompt-Tasks/C12e-ssh-fedora.md) | C12t | Fedora: Verify kiosk SSH denial with an enabled service and ordinary-account positive | 20–30 min |
 | [ ] | C12g | [Qualify exposed actions on Fedora](Kiosk-Prompt-Tasks/C12g-exposed-inputs-fedora.md) | C12e | Fedora: Verify finite exposed-launch negatives and permitted public-action controls | 20–30 min |
 | [ ] | C12g1 | [Qualify consumed inputs on Fedora](Kiosk-Prompt-Tasks/C12g1-consumed-inputs-fedora.md) | C12g | Fedora: Verify actual child-controlled consumed inputs and trusted-loading positives | 20–30 min |
-| [ ] | C13a | [Audit final source and automation dispositions](Kiosk-Prompt-Tasks/C13a-source-audit.md) | C12g1 | Verify final release lineage, retained features and closure of conflicting source/test consumers against D00's map | 20–30 min |
+| [ ] | C13a | [Audit final source and automation dispositions](Kiosk-Prompt-Tasks/C13a-source-audit.md) | C12g1 | Verify final release lineage, retained features and closure of conflicting source/test consumers against the confinement design | 20–30 min |
 | [ ] | C13 | [Close matching product, automation and documentation](Kiosk-Prompt-Tasks/C13-closeout.md) | C13a | Audit justified refusals, retained both-platform evidence and matching final documentation | 20–30 min |
 
-Order is authoritative; IDs are stable labels. C06a's external gate is desktop
-D04, which follows accepted baseline C05u/f. Desktop rows C07a/C07s and
-C11d/C12d belong only to their desktop queue. Remote-desktop testing is excluded.
-C07t/C11t/C12t retain the
-standalone terminal/TTY assertions split from those rows. No checkbox closes
-through planning. Remaining protection/recovery tasks own affected finite bindings; C10 verifies their
+Order is authoritative; IDs are stable labels. C06a uses baseline C05u/f.
+Remote-desktop testing is excluded. C07t/C11t/C12t own standalone terminal/TTY
+assertions while preserving the existing local graphical desktop boundary.
+No checkbox closes through planning. Remaining protection/recovery tasks own
+affected finite bindings; C10 verifies their
 qualification and candidate applicability. C11/C12 each retain full per-platform
 histories and restoration, including named longer session exceptions.
 Unexpected independent work uses the selected-consumer prerequisite contract.

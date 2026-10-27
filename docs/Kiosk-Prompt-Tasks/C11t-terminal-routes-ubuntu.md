@@ -16,7 +16,7 @@ runner. No selector is implied by this ID. Run actual child-reachable deliberate
 attempts and observe the prohibited terminal/TTY result blocked, with working
 ordinary-account controls, passwordless kiosk entry and owned restoration.
 
-Retain the standalone assertions split from C11d. Root-planted injections alone
+Retain the standalone terminal/TTY assertions. Root-planted injections alone
 cannot establish child access. Preserve explicit administrator denial; an unusable
 form supplies no positive. Follow failure handling for expected/actual mismatches.
 Retain exact inputs, public results and cleanup. Product repairs require review,

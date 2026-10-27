@@ -14,8 +14,8 @@ design/test owners and source routes below.
 Implement C06's finite exposed-action entries at the actual public action or
 handler boundary. Cover reachable links, chooser actions and automatic launches,
 preserving the request form, genuine approval and retained main features.
-Full desktop-enabling steps remain with the desktop plan. Reuse its barriers;
-record any new desktop gap there without duplicating the implementation here.
+Preserve the local desktop barriers in the confinement design; record newly
+exposed desktop gaps there and include affected checks with the concrete change.
 
 A blocked optional launch must not make core use fail. Retain ordinary-user
 behavior and local UI coverage for the shared overlay. Add matching targeted

@@ -20,7 +20,7 @@ exclude child-controlled inputs at their real consumer boundary.
 
 Consolidate the reviewed dispositions in the existing design owner. Allocate exact
 remaining boundaries to C07t/C07b and C08a/C08. Full graphical desktop routes
-remain with the desktop plan's reviewed map. No new custom loader, global roster,
+remain documented in the confinement design. No new custom loader, global roster,
 private runtime image or continuous library audit. Essential-service faults and
 genuine parent/admin denial are separate from deliberate breaches.
 Apply [simple product and tests](../Kiosk-Session-Confinement-New-Plan.md#simple-product-and-tests):
@@ -31,8 +31,8 @@ machinery against a concrete gap. Keep this rationale in the existing design
 note, without a separate review artifact or checker.
 
 Apply the master's [confinement priority](../Kiosk-Session-Confinement-New-Plan.md#confinement-priority):
-trust completed desktop tasks and return any newly demonstrated
-desktop gap to its owner; this review covers the remaining prohibited results.
+preserve the existing desktop boundary and document newly demonstrated
+desktop gaps with their affected checks; review the remaining prohibited results.
 
 Obtain independent Astra xHigh review with explicit Usability priority and
 Threat scope passed/failed findings, resolving failures before completion.

@@ -16,7 +16,7 @@ runner. No selector is implied by this ID. Run actual child-reachable deliberate
 attempts and observe the prohibited terminal/TTY result blocked, with working
 ordinary-account controls, passwordless kiosk entry and owned restoration.
 
-Retain the standalone assertions split from C12d. Root-planted injections alone
+Retain the standalone terminal/TTY assertions. Root-planted injections alone
 cannot establish child access. Preserve explicit administrator denial; an unusable
 form supplies no positive. Use actual Fedora PAM/SELinux and genuine authentication.
 Follow failure handling; retain exact inputs, public results and cleanup. Shared

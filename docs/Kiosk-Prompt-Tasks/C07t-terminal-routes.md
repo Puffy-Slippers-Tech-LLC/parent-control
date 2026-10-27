@@ -12,7 +12,7 @@ Apply the [remaining-plan task contract](../Kiosk-Session-Confinement-New-Plan.m
 Use C06a/C06's finite standalone terminal/TTY and non-desktop shortcut map and
 actual account/PAM/action callers. Add only missing justified barriers while
 preserving passwordless request-only entry and ordinary-account terminal/TTY
-use. Local full graphical desktop barriers remain in the desktop plan's C07a/C07s.
+use. Preserve the existing local graphical desktop barriers in the confinement design.
 
 Pair every defense with targeted host negatives, normal-use positives and exact
 installed bindings for C11t/C12t. Already effective barriers need proof, not

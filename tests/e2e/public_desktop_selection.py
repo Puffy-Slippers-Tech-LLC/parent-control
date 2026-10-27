@@ -1,4 +1,4 @@
-"""C07a1: finite public GDM desktop choices and their actual launch results."""
+"""Finite public GDM desktop choices and their actual launch results."""
 
 import hashlib
 import json

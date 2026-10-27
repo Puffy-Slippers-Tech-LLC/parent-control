@@ -44,10 +44,10 @@ future acceptance obligations.
 ## Current scope
 
 The completed [kiosk baseline](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) retains existing
-coverage through C05f. The [desktop plan](../Kiosk-Desktop-Plan.md) owns prevention
-of unrestricted graphical desktop access as the kiosk account; the
+coverage through C05f. The [local desktop design](../SystemDesign/Kiosk-Confinement.md#local-desktop-boundary)
+defines the existing graphical session boundary; the
 [remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md) owns the
-other later protections. Each owns its targeted negative/normal-use tests.
+other later protections. It owns its targeted negative/normal-use tests.
 New general feature automation remains in this queue. The
 [reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) assigns outstanding
 shared fixture/core-effects work to 313a/313 and optional feature expansion to

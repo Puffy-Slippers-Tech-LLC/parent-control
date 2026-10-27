@@ -10,7 +10,7 @@ they do not reconstruct the source or inputs used by a historical recording.
 The ledger below preserves historical defense/result claims for particular
 inputs, including mechanisms subsequently removed. It is not a description of
 current defenses or final-candidate acceptance of
-[graphical desktop prevention](Kiosk-Desktop-Plan.md#acceptance) or the
+[local desktop boundary](SystemDesign/Kiosk-Confinement.md#local-desktop-boundary) or the
 [remaining confinement improvements](Kiosk-Session-Confinement-New-Plan.md#acceptance).
 Engineering probes, public journeys and recordings retain their original scope; a source link
 or a passing refusal does not establish usable entry on the replacement design.
@@ -21,10 +21,9 @@ In particular, historical contention refusal in scenario 29 and generation refus
 in scenario 25 cannot qualify normal-use availability. The
 [current dispositions](SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions)
 and [baseline acceptance](SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits) own baseline
-reuse. Unrestricted graphical desktop prevention proof belongs to the
-[desktop plan](Kiosk-Desktop-Plan.md#acceptance); other route/compatibility proof
-belongs to the [remaining confinement plan](Kiosk-Session-Confinement-New-Plan.md#acceptance).
-Both are outside the v1.4 baseline queue. Former R-series work supplies no active
+reuse. The [local desktop design](SystemDesign/Kiosk-Confinement.md#local-desktop-boundary)
+owns current graphical session boundaries; remaining route/compatibility work
+belongs to the [confinement plan](Kiosk-Session-Confinement-New-Plan.md#acceptance). Former R-series work supplies no active
 implementation or acceptance obligation.
 
 C02/C02d/C02e selected GNOME Kiosk and removed the former native/runtime,
@@ -36,12 +35,6 @@ in scenario 34 remains unresolved; a surviving claim or link supplies no missing
 recording, exact inputs or renewed result.
 
 ## Current qualification boundary
-
-The [D04 desktop close-out](SystemDesign/Kiosk-Confinement.md#d04-desktop-close-out-and-remaining-plan-handoff)
-records accepted C11d/C12d local selection and shortcut results on Ubuntu and
-Fedora, with applicable bounded usability, ordinary controls and completed
-restoration. It supplies no SSH/TTY, remote-desktop, other action/input or general
-recovery acceptance. The historical ledger below is unchanged.
 
 | Historical scenarios | Current consumer and remaining proof |
 | --- | --- |

@@ -1,4 +1,4 @@
-"""Launch identity and owned routing restoration for C07a1's public UI result.
+"""Launch identity and owned routing restoration for public desktop selection.
 
 Observation never changes selection. Saved routing is separate cleanup data,
 never evidence of current execution. A missing runtime selection or ambiguous

@@ -15,8 +15,8 @@ Use C06's actual-consumer map for fixed entrypoints, environment/search
 selection and startup/settings inputs the child can really write. Implement
 only missing narrow exclusions. Trusted installed Python/GTK/GI/native libraries
 and lazy loading remain usable.
-Desktop-enabling inputs and their barriers remain with the desktop plan; reuse
-those controls and return any newly exposed full-desktop gap to that owner.
+Preserve the local desktop controls in the confinement design and record any
+newly exposed full-desktop gap there with its affected checks.
 
 Retain relevant group/ACL positives where they prove actual access; unfamiliar
 files, readable scripts or broad mode-bit differences are not sufficient

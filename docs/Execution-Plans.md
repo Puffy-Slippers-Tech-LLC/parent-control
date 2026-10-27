@@ -27,6 +27,17 @@ following columns; IDs are stable labels, never sort keys:
 | [ ] | 002 | [Second task](Example-Tasks/002.md) | 001 | Finite deliverable | 15–30 min |
 ```
 
+When generating or revising tasks, make the title itself a short, plain-language
+explanation of what the task achieves. Use everyday words understandable without
+technical background; keep commands, paths, internal labels and implementation
+details in the brief. For example, use `Check that the child locks when time runs out`
+for a task about expiry enforcement. Use the same title in the queue link,
+master pointer and brief heading, preserving stable task IDs and file paths.
+The shared launcher displays this title directly in its overview and current-task
+summary; there is no separate task explanation field or section. Shared agent
+instructions apply this rule to every execution-plan launcher, including tasks
+inserted as prerequisites during a run.
+
 List dependencies as comma-separated earlier IDs. Every unfinished row links
 to an existing regular Markdown brief in the checkout. Keep scheduling exclusions
 separate. An optional `## Deferred future work` heading ends the active queue;
@@ -465,10 +476,10 @@ checkmark format and remove the old `— complete` suffix. When an old row has
 no recorded elapsed time, show `(duration unavailable)`; never fabricate timing.
 Single-task E2E runs publish the same completed recap as multi-task runs.
 
-Below the current task summary's separator, a bold `Explanation:` header precedes
-the short plain-language purpose. Another separator precedes bold `Last Error:`
-and `Status:` labels, with a blank line between the two fields. The last error
-summary is red, followed by its elapsed age in parentheses, for example `(12m ago)`;
+The current task summary uses the plan's plain-language task title. Its separator
+is followed by bold `Last Error:` and `Status:` labels, with a blank line between
+the two fields. The last error summary is red, followed by its elapsed age in
+parentheses, for example `(12m ago)`;
 with no reported error, show a normal
 `-` and no age. Errors belong only to the current task and retain their original
 timestamp across retries, suspension, observer reconnections and backend restarts.
@@ -500,7 +511,7 @@ evidence about the previous error point, not merely starting an unrelated test.
 
 `fix-tests` uses the same metadata, validation and panel clocks, scoped to each
 round/category. Its controller records each failed run once; repair agents update
-their explanation and investigation/fixing status through the same commentary
+their investigation/fixing status through the same commentary
 protocol. Before corrective verification the controller sets the yellow testing
 status, and a passing selected run sets green while retaining the last error and
 its age. Diagnostic execution alone grants no verified-fix status. Moving to a
@@ -526,7 +537,7 @@ the full bottom-left transcript, excluding command activity such as `Ran …`,
 The descriptive pane follows new messages and has independent wheel scrolling
 and a draggable scrollbar when its retained output exceeds the available space.
 Click the pane to direct Page Up/Page Down to it. Scrolling it leaves the task
-summary, explanation, error/status fields and full transcript in place. New
+summary, error/status fields and full transcript in place. New
 messages preserve a scrolled reading position; reaching the bottom resumes
 following. Reconnection restores the bounded descriptive history, and each new
 agent session starts an empty history. Sessions predating this feature leave

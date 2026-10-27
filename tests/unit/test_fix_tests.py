@@ -495,6 +495,7 @@ def test_shared_agent_instructions_preserve_any_launcher_model(tmp_path, monkeyp
     assert config['agents']['max_concurrent_threads_per_session'] == (3 if mode == 'delegation' else 1)
     instructions = config['developer_instructions']
     assert detached_launcher.SOURCE_DISCOVERY_INSTRUCTIONS in instructions
+    assert detached_launcher.TASK_TITLE_INSTRUCTIONS in instructions
     assert 'On every spawn_agent call, explicitly set fork_turns="none".' in instructions
     assert 'self-contained assignment' in instructions
     assert detached_launcher.BACKEND_REVIEW_INSTRUCTIONS in instructions

@@ -171,6 +171,18 @@ it does not authorize delegation beyond the launcher's existing policy.
 """
 
 
+TASK_TITLE_INSTRUCTIONS = """When creating or revising execution-plan tasks, write the
+task title itself as a short, plain-language explanation of what the task achieves.
+Use everyday words that make sense without technical background; keep commands,
+paths, internal labels and implementation details in the brief. Use the same title
+in the queue, master pointer and brief heading, preserving task IDs and file paths.
+The shared launcher displays that title directly, with no separate Explanation
+section. Do not generate separate task explanation metadata. Follow the title
+contract in docs/Execution-Plans.md#plan-format.
+
+"""
+
+
 BACKEND_REVIEW_INSTRUCTIONS = """For product backend code involving core functionalities,
 AGENTS.md requires an independent code review by the backend_reviewer agent
 (GPT-6 Astra xHigh) before completing the changes. This mandate applies across
@@ -202,7 +214,7 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
             '-c', 'agents.enabled=true',
             '-c', 'developer_instructions=' + json.dumps(
                 GOAL_INSTRUCTIONS + SOURCE_DISCOVERY_INSTRUCTIONS + SUBAGENT_CONTEXT_INSTRUCTIONS
-                + BACKEND_REVIEW_INSTRUCTIONS),
+                + TASK_TITLE_INSTRUCTIONS + BACKEND_REVIEW_INSTRUCTIONS),
             '-c', 'agents.backend_reviewer.description="Mandatory independent review of core backend changes only; no implementation"',
             '-c', 'agents.backend_reviewer.config_file=' + json.dumps(str(Path(__file__).with_name('backend_reviewer.toml'))),
             '--json', '--color', 'never', '--cd', str(root)]

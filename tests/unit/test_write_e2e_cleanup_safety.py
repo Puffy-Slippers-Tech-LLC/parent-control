@@ -310,12 +310,13 @@ def test_task_explanation_is_reused_only_for_same_task_after_launcher_restart(ch
         # Legacy saved information has no clock; the restarted session adds it.
         assert restarted_at <= resumed_info['status_at'] <= time.time()
         assert resumed_info == dict(info, status='Running', status_at=resumed_info['status_at'])
-        assert info['explanation'] in calls(root)[1]['prompt']
-        assert 'Omit explanation unless' in calls(root)[1]['prompt']
+        # Legacy metadata survives restart, but new sessions need no explanation.
+        assert info['explanation'] not in calls(root)[1]['prompt']
     else:
         from launcher_chat import task_info
         assert 'explanation' not in task_info(second, '001')
-        assert 'Include explanation:' in calls(root)[1]['prompt']
+    assert 'Include explanation:' not in calls(root)[1]['prompt']
+    assert 'Do not send a separate task explanation.' in calls(root)[1]['prompt']
 
 
 def finish_answered_run(run, spawned, output=None):

@@ -294,7 +294,7 @@ def test_worker_round_count_and_top_frame(checkout, rounds):
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['category'] for call in calls] == ['unit'] * rounds
     progress = json.loads((run / 'controller.json').read_text())
-    assert [step['lines'][0] for step in progress] == [
+    assert [Text.from_ansi(step['lines'][0]).plain for step in progress] == [
         f'Round {number}: Category: unit (1/1)' for number in range(max(1, rounds - 1), rounds + 1)]
     rendered = Text.from_ansi(output.getvalue()).plain
     assert all(f'Round {number}: Category: unit' in rendered

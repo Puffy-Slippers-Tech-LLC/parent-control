@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.translation_widgets import (
-    localized, set_text, accessible_text, context_for,
+    localized, set_text, accessible_text, context_for, set_portal_uri,
 )
+from .localization import portal_url
 
 import json
 from pathlib import Path
@@ -98,6 +99,7 @@ def _detail_row(icon_name: str | None, label: str, value: str, uri: str | None, 
         # handling pointer clicks, this makes the links reachable by keyboard
         # and exposes their target to assistive technology.
         value_widget = Gtk.LinkButton.new_with_label(uri, value)
+        set_portal_uri(value_widget, uri)
         set_text(value_widget, 'label', value)
         value_widget.set_halign(Gtk.Align.START)
         value_widget.add_css_class("about-link")
@@ -237,6 +239,6 @@ class AboutDialog(Gtk.Window):
         self.set_child(scroller)
 
 
-def open_help() -> None:
+def open_help(owner: Gtk.Window) -> None:
     """Open the product help page in the registered browser."""
-    _launch_uri(branding()["help_url"])
+    _launch_uri(portal_url(branding()["help_url"], context_for(owner).language))

@@ -111,7 +111,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk
 from common.oh_no_parent_control_ui import messages as m
-from common.oh_no_parent_control_ui.translation_widgets import context_for, localized, register_retranslation
+from common.oh_no_parent_control_ui.translation_widgets import context_for, localized, register_retranslation, set_portal_uri
 
 Gtk.init()
 first, second = Gtk.Window(), Gtk.Window()
@@ -120,6 +120,21 @@ first.set_child(left)
 second.set_child(right)
 english, german = context_for(first), context_for(second)
 german.apply('de')
+link = Gtk.LinkButton(label='Privacy')
+base_uri = 'https://tech.puffyslippers.com/oh-no-parent-control/privacy/'
+set_portal_uri(link, base_uri)
+left.append(link)
+english.apply('pt-BR')
+assert link.get_uri() == base_uri.replace('.com/', '.com/pt-BR/')
+left.remove(link)
+right.append(link)
+assert link.get_uri() == base_uri.replace('.com/', '.com/de/')
+german.apply('en')
+assert link.get_uri() == base_uri
+german.apply('de')
+right.remove(link)
+del link
+gc.collect()
 label = localized(Gtk.Label, label=m.SAVE_LINK)
 left.append(label)
 native = label.weak_ref()

@@ -168,6 +168,11 @@ countdown or locks. Isolated previews share disposable language state, never
 product records.
 
 Shared dialogs inherit their owner. User reports/names/paths stay data.
+Portal page links (Help, Website and Privacy) use that owner's resolved language:
+English keeps the unprefixed URL; other languages prefix the path with the
+canonical catalogue ID, such as `/pt-BR/` or `/zh-Hant/`. Open dialog links
+refresh with language changes. Page paths retain trailing slashes, including
+the overview and Help. Feedback API endpoints remain language-neutral.
 Parent's app catalogue selects desktop-entry translations using the parent's
 language. GDM/system-owned UI is not relabeled. The broker supplies a complete
 translated approval message through supported `polkit.message`, including

@@ -4,7 +4,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import GLib, Gtk, Pango
 
-from .localization import load_translations
+from .localization import load_translations, portal_url
 from .languages import language_direction, selected_language
 from .message import Message, JoinedMessage, render
 
@@ -48,6 +48,7 @@ class _Bindings:
 
     def __init__(self, widget):
         self.values = {}
+        self.portal_uri = None
         self.accessible = {}
         self.callback = None
         self.context = None
@@ -164,6 +165,8 @@ def _refresh(widget, _property=None, bindings=None, *, refresh_direction=True):
     bindings.join(context)
     if refresh_direction:
         _refresh_direction(widget, context)
+    if bindings.portal_uri is not None:
+        widget.set_uri(portal_url(bindings.portal_uri, context.language))
     for (kind, key), value in bindings.values.items():
         text = render(value, context.translations)
         if kind == 'property':
@@ -202,6 +205,13 @@ def localized(factory, *args, translation_owner=None, **kwargs):
 
 def set_text(widget, property_name, value):
     widget.set_property(property_name, _bind(widget, 'property', property_name, value))
+
+
+def set_portal_uri(widget, uri):
+    """Keep a link's original English URL across language changes/reparenting."""
+    bindings = _bindings_for(widget)
+    bindings.portal_uri = uri
+    _refresh(widget, bindings=bindings)
 
 
 def accessible_text(widget, properties, values):

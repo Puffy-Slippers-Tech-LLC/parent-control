@@ -1123,7 +1123,8 @@ class RequestWindow(Adw.ApplicationWindow):
             )
             help_item.connect(
                 "clicked",
-                lambda *_args: self._activate_help_menu(help_popover, open_help),
+                lambda *_args: self._activate_help_menu(
+                    help_popover, lambda: open_help(self)),
             )
             menu_actions.append(help_item)
             menu_items["help"] = help_item

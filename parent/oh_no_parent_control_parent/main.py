@@ -544,7 +544,7 @@ class ParentWindow(Adw.ApplicationWindow):
         menu_items = {}
         menu_commands = [
             ("preferences", m.PREFERENCES, self._show_preferences),
-            ("help", m.HELP, open_help),
+            ("help", m.HELP, lambda: open_help(self)),
             ("whats-new", m.WHATS_NEW, self._show_whats_new),
             ("about", m.ABOUT, self._show_about),
         ]

@@ -7,12 +7,26 @@ builtins or change process locale: the broker can serve several users at once.
 import gettext
 from collections.abc import Iterable
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from .languages import selected_language
 
 
 DOMAIN = "oh-no-parent-control"
 LOCALE_DIR = Path(__file__).with_name("locale")
+
+
+def portal_url(uri: str, language: str) -> str:
+    """Localize an English portal page URL using the surface's language."""
+    parts = urlsplit(uri)
+    if (parts.scheme != 'https' or parts.netloc != 'tech.puffyslippers.com'
+            or parts.path.startswith('/api/')):
+        return uri
+    language = selected_language(language, ())
+    path = parts.path.rstrip('/') + '/'
+    if language != 'en':
+        path = f'/{language}{path}'
+    return urlunsplit(parts._replace(path=path))
 
 
 def load_translations(

@@ -10,8 +10,30 @@ class AboutDialogTests(unittest.TestCase):
     def test_help_uses_the_desktop_default_uri_launcher(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
             encoding="utf-8")
-        self.assertIn('_launch_uri(branding()["help_url"])', source)
+        self.assertIn('_launch_uri(portal_url(branding()["help_url"], context_for(owner).language))', source)
         self.assertIn('Gio.AppInfo.launch_default_for_uri(uri, None)', source)
+
+    def test_portal_pages_use_canonical_surface_locale(self):
+        from common.oh_no_parent_control_ui.localization import portal_url
+        from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
+        base = 'https://tech.puffyslippers.com'
+        languages = [(identity, '' if identity == 'en' else '/' + identity)
+                     for identity, _name in SUPPORTED_LANGUAGES]
+        languages.extend([('pt_BR.UTF-8', '/pt-BR'),
+                          ('zh_TW.UTF-8', '/zh-Hant'), ('zz', '')])
+        for language, prefix in languages:
+            for page in ('', 'help', 'privacy', 'version-history',
+                         'compare-gnome', 'coming-next'):
+                path = '/oh-no-parent-control' + ('/' + page if page else '')
+                with self.subTest(language=language, path=path):
+                    expected = base + prefix + path + '/?source=app#notice'
+                    for suffix in ('', '/'):
+                        self.assertEqual(portal_url(base + path + suffix + '?source=app#notice',
+                                                    language), expected)
+        for uri in ('mailto:contact@tech.puffyslippers.com', 'file:///usr/share/LICENSE',
+                    'https://example.com/help',
+                    base + '/api/oh-no-parent-control/feedback'):
+            self.assertEqual(portal_url(uri, 'de'), uri)
 
     def test_website_row_uses_the_small_company_icon(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(

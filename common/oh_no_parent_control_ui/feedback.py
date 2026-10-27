@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.translation_widgets import (
-    localized, set_text, accessible_text, context_for,
+    localized, set_text, accessible_text, context_for, set_portal_uri,
 )
 
 from dataclasses import replace
@@ -272,6 +272,7 @@ class FeedbackDialog(Adw.Window):
             uri=PRIVACY_URL, halign=Gtk.Align.START,
             css_classes=["feedback-privacy-link"],
         )
+        set_portal_uri(privacy_link, PRIVACY_URL)
         privacy_content = Gtk.Box(spacing=6)
         privacy_content.append(_feedback_icon("privacy", 18, "#7650ff"))
         privacy_content.append(localized(Gtk.Label, label=m.PRIVACY, use_underline=False))
@@ -419,6 +420,7 @@ class FeedbackDialog(Adw.Window):
             label=m.VIEW_FULL_PRIVACY_NOTICE,
             halign=Gtk.Align.CENTER,
         )
+        set_portal_uri(portal_link, PRIVACY_URL)
         describe_control(
             portal_link,
             m.VIEW_FULL_PRIVACY_NOTICE,

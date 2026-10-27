@@ -13,6 +13,8 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 
+FIXTURE_CATEGORIES = ('unit', 'ui', 'system', 'e2e')
+
 
 def app_server(args):
     """Expose the existing repair double through the shared conversation protocol."""
@@ -127,7 +129,7 @@ def main(*, conversation_prompt=None):
             print((root / 'inventory.json').read_text())
             return 0
         print(json.dumps({name: {'description': name, 'args': []}
-                          for name in ('unit', 'ui', 'system', 'e2e')}))
+                          for name in FIXTURE_CATEGORIES}))
         return 0
     mode = (root / 'mode').read_text()
     if kind == 'test' and '--collect-only' in args:
@@ -211,7 +213,11 @@ def main(*, conversation_prompt=None):
             from test_checkpoint import Checkpoint
             from vm_selection import vm_config
             options, _ = vm_config.extract_selector(test_args[2:])
-            selections = script.get('checkpoint', [(category, options)])
+            # The combined verification uses this double's advertised inventory,
+            # not the real checkout's additional suites and integration files.
+            selections = script.get('checkpoint',
+                [(name, []) for name in FIXTURE_CATEGORIES] if category == 'all'
+                else [(category, options)])
             try:
                 checkpoint = Checkpoint(root, selections, resume='--resume' in args,
                                         **({} if 'checkpoint' in script else {'binding': ''}))

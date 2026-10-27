@@ -428,6 +428,9 @@ Simplified defaults to on
 and shows the agent's text messages, using the same descriptive transcript
 previously displayed at bottom right. Each message keeps the standard leading
 `•`, a blank line between messages and indented continuation lines.
+Structured session results, including continuation and prerequisite handoffs,
+display their summary and next-session prompt as readable prose in both views;
+the original JSON remains the launcher's orchestration input.
 Prose paragraphs wrap to the current panel width, including after resizing;
 the supervisor retains logical lines and preserves explicit Markdown breaks.
 Non-text activity shows a single line ending in `...`, such as `• Ran tools/run-tests --help...`

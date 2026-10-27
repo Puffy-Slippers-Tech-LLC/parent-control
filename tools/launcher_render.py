@@ -988,7 +988,8 @@ class AgentRenderer:
                     result = None
                 descriptive = result is None
                 if (isinstance(result, dict)
-                        and result.get('status') in ('fixed', 'blocked', 'ready_for_vm', 'task_complete', 'stalled')
+                        and result.get('status') in ('fixed', 'blocked', 'ready_for_vm', 'task_complete',
+                                                    'stalled', 'continue', 'prerequisite_required')
                         and isinstance(result.get('summary'), str)):
                     if self.hide_task_completion and result['status'] in ('task_complete', 'blocked'):
                         # The workflow validates success and owns blocked questions.
@@ -996,7 +997,8 @@ class AgentRenderer:
                         return
                     title = (result['status'].replace('_', ' ').capitalize()
                              if 'handoff' in result else 'Repair ' + result['status'])
-                    style = 'yellow' if result['status'] in ('blocked', 'stalled') else 'green'
+                    style = ('yellow' if result['status'] in (
+                        'blocked', 'stalled', 'continue', 'prerequisite_required') else 'green')
                     text = result['summary']
                     descriptive = True
                     if isinstance(result.get('handoff'), str):

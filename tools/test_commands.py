@@ -1046,6 +1046,7 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
             planned, _ = plan(root, category, options)
             if not has_artifacts(planned[0]):
                 from test_retention import allocate
+                from test_storage import scratch_descriptors
                 from vm_selection import arguments as vm_arguments
                 directory = allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
                 print('run-tests: output=' + directory, flush=True)
@@ -1054,7 +1055,8 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
                                 *vm_preparation_flags(category, options),
                                 '--output', directory,
                                 *vm_arguments()),
-                    cwd=root, env=host.environment(root), check=False).returncode
+                    cwd=root, env=host.environment(root), pass_fds=scratch_descriptors(),
+                    check=False).returncode
                 if status:
                     return status if status > 0 else 128 - status
                 args = prepared_vm_options(category, args, directory)
@@ -1112,8 +1114,10 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
         preparation = qualification_artifact_command(root, category, args)
         if preparation is not None:
             commands.insert(0, preparation)
+        from test_storage import scratch_descriptors
         for command in commands[:-1]:
-            status = subprocess.run(command, env=env, check=False).returncode
+            status = subprocess.run(command, env=env, pass_fds=scratch_descriptors(),
+                                    check=False).returncode
             if status:
                 return status if status > 0 else 128 - status
         if live_refresh_selection(category, args):
@@ -1128,7 +1132,6 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
             from vm_pool import arguments
             commands[-1][3:3] = arguments()
         print('run-tests: validated category starting', file=sys.stderr, flush=True)
-        from test_storage import scratch_descriptors
         return subprocess.run(commands[-1], env=env, pass_fds=scratch_descriptors(),
                               check=False).returncode
     except (ValueError, OSError) as error:

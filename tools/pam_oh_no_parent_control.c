@@ -2,7 +2,7 @@
 
 /* The ordinary-user time/status contract comes from
  * release 188be907c46b1cd0dabae06ac898c43e75beb05e and remains unchanged.
- * Kiosk dispatch checks public routing preferences, not the next executable.
+ * Kiosk dispatch checks account identity, independently of saved routing.
  * The small shared lease preserves existing package-removal ownership only. */
 #include <errno.h>
 #include <fcntl.h>
@@ -170,7 +170,7 @@ kiosk_identity(pam_handle_t *pamh, const char **user, const char **service)
         *service == NULL || **service == '\0')
         return PAM_SERVICE_ERR;
     /* The child-invoked login-shell route is qualified as su-l on both
-     * targets. Unfamiliar graphical names still undergo routing/session checks. */
+     * targets. Unfamiliar graphical names still undergo account/lease checks. */
     if (strcmp(*service, "su-l") == 0)
         return PAM_PERM_DENIED;
     return admission(pamh);
@@ -178,10 +178,10 @@ kiosk_identity(pam_handle_t *pamh, const char **user, const char **service)
 
 static int
 run_kiosk_check(pam_handle_t *pamh, const char *user, const char *service,
-                const char *operation, const char *transport)
+                const char *operation)
 {
-    char *user_env = NULL, *service_env = NULL, *type_env = NULL;
-    char *environment[5] = {NULL, NULL, NULL, NULL, NULL};
+    char *user_env = NULL, *service_env = NULL;
+    char *environment[4] = {NULL, NULL, NULL, NULL};
     char *arguments[] = {(char *) LOGIN_CHECK_PATH, (char *) operation, NULL};
     const void *lease = NULL;
     struct timespec start, now, pause = {0, 10000000};
@@ -190,24 +190,22 @@ run_kiosk_check(pam_handle_t *pamh, const char *user, const char *service,
     if (pam_get_data(pamh, ADMISSION_DATA, &lease) != PAM_SUCCESS || lease == NULL)
         return PAM_SYSTEM_ERR;
     if (asprintf(&user_env, "PAM_USER=%s", user) < 0 ||
-        asprintf(&service_env, "PAM_SERVICE=%s", service) < 0 ||
-        asprintf(&type_env, "XDG_SESSION_TYPE=%s", transport == NULL ? "" : transport) < 0) {
-        free(user_env); free(service_env); free(type_env);
+        asprintf(&service_env, "PAM_SERVICE=%s", service) < 0) {
+        free(user_env); free(service_env);
         return PAM_BUF_ERR;
     }
     environment[0] = user_env;
     environment[1] = service_env;
-    environment[2] = type_env;
-    environment[3] = (char *) "PATH=/usr/sbin:/usr/bin:/sbin:/bin";
+    environment[2] = (char *) "PATH=/usr/sbin:/usr/bin:/sbin:/bin";
     if (clock_gettime(CLOCK_MONOTONIC, &start) != 0) {
-        free(user_env); free(service_env); free(type_env);
+        free(user_env); free(service_env);
         return PAM_SYSTEM_ERR;
     }
     child = fork();
     if (child == 0) {
         int null_fd = open("/dev/null", O_RDWR | O_CLOEXEC);
         /* Keep the same removal lease if the caller aborts while our bounded
-         * helper is still working. Its busctl children close inherited fds. */
+         * identity helper is still working. */
         if (null_fd < 0 || fcntl(*(const int *) lease, F_DUPFD, STDERR_FILENO + 1) < 0 ||
             dup2(null_fd, STDIN_FILENO) < 0 || dup2(null_fd, STDOUT_FILENO) < 0 ||
             dup2(null_fd, STDERR_FILENO) < 0)
@@ -217,7 +215,7 @@ run_kiosk_check(pam_handle_t *pamh, const char *user, const char *service,
         execve(LOGIN_CHECK_PATH, arguments, environment);
         _exit(127);
     }
-    free(user_env); free(service_env); free(type_env);
+    free(user_env); free(service_env);
     if (child < 0)
         return PAM_SYSTEM_ERR;
     for (;;) {
@@ -236,7 +234,7 @@ run_kiosk_check(pam_handle_t *pamh, const char *user, const char *service,
             /* Our unreaped fork child cannot have had its PID reused. */
             kill(child, SIGKILL);
             do { waited = waitpid(child, &status, 0); } while (waited < 0 && errno == EINTR);
-            pam_syslog(pamh, LOG_ERR, "onpc.pam kiosk routing outcome=unavailable reason=timeout");
+            pam_syslog(pamh, LOG_ERR, "onpc.pam kiosk identity outcome=unavailable reason=timeout");
             return PAM_SYSTEM_ERR;
         }
         nanosleep(&pause, NULL);
@@ -256,7 +254,7 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
             return result == PAM_IGNORE ? PAM_SUCCESS : result;
         if (strcmp(service, "systemd-user") == 0)
             return PAM_SUCCESS;
-        result = run_kiosk_check(pamh, user, service, "--kiosk-account", NULL);
+        result = run_kiosk_check(pamh, user, service, "--kiosk-account");
         /* Remember failure too: a previously successful account check cannot
          * authorize session opening after a later failed account check. */
         if (pam_set_data(pamh, ACCOUNT_DATA, (void *) (result == PAM_SUCCESS ? "allowed" : "denied"), NULL) != PAM_SUCCESS)
@@ -358,7 +356,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
     if (strcmp(service, "systemd-user") == 0) return PAM_SUCCESS;
     if (pam_get_data(pamh, ACCOUNT_DATA, &checked) != PAM_SUCCESS || checked == NULL ||
         strcmp(checked, "allowed") != 0) return PAM_SESSION_ERR;
-    result = run_kiosk_check(pamh, user, service, "--kiosk-session", pam_getenv(pamh, "XDG_SESSION_TYPE"));
+    result = run_kiosk_check(pamh, user, service, "--kiosk-session");
     return result == PAM_SUCCESS ? PAM_SUCCESS : PAM_SESSION_ERR;
 }
 

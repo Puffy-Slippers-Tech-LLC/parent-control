@@ -3960,21 +3960,22 @@ GDM command resolution alone is insufficient.
 through `KioskRoutingVariationQualification`, then reuses REQUEST01/03 public
 entry/form/Cancel/return after restoration. GDM peer `SelectSession` independently
 chooses dedicated Wayland with a stale alternate session, empty saved fields or
-stale saved `SessionType=x11`, each from the valid baseline. Pre-fix refusal/repair
-is recorded separately from the normal actual selected-process execution positive.
-Peer acknowledgement and daemon selection identify a refused route; selected
-command resolution is required only when proceeding to the execution positive.
-The same callable's `expectation='execution'` retains those observations for D00a3.
+stale saved `SessionType=x11`, each from the valid baseline. The current binding
+explicitly uses `expectation='execution'` and requires actual dedicated Wayland
+logind, selected-session process and running app observations for every variation.
+An attempt-bound identity diagnostic witnesses the reached account callback;
+saved defaults or command resolution alone supply no execution credit.
 
-One real AccountsService discovery outage uses installed native admission,
+One real AccountsService discovery outage requires successful installed native admission,
 an observed usable public greeter baseline, exact owned service/mask restoration
 and ordinary-account routing isolation. The same public greeter readiness check
 also separates each restored variation from the next attempt's restart.
 The [design owner](../SystemDesign/Kiosk-Confinement.md#d00a3-routing-qualification-prerequisite)
-records the finite mechanism and limits. Installed qualification and cleanup
-passed on `onpc-Ubuntu26.04` and `onpc-Fedora44`: normal actual execution, all three
-pre-fix refusal/repair controls, discovery outage, exact restoration and fresh
-public entry/form/Cancel/return. D00a3q is complete and supplies no D00a3 product credit.
+records the finite mechanism and limits. D00a3 passed this execution binding on
+`onpc-Ubuntu26.04` and `onpc-Fedora44`: normal and all three varied executions,
+discovery-independent admission, exact restoration, fresh public entry/form/Cancel/return
+and owned cleanup. D00a3q's earlier pre-fix refusal/repair qualification remains
+historical and supplies no product acceptance credit.
 
 ### Reached service-route control
 

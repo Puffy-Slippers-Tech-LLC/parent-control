@@ -9,7 +9,6 @@ import fcntl
 import importlib.util
 import json
 import os
-import shlex
 import subprocess
 from types import SimpleNamespace
 
@@ -51,7 +50,8 @@ def routing(monkeypatch):
     spec = importlib.util.spec_from_loader('selected_login', loader=None)
     helper = importlib.util.module_from_spec(spec)
     exec(compile(LOGIN_CHECK.read_bytes(), str(LOGIN_CHECK), 'exec'), helper.__dict__)
-    state = SimpleNamespace(session=helper.SESSION, transport='wayland', calls=[], records=[], fault=None)
+    state = SimpleNamespace(reply='s "oh-no-parent-control"\ns "wayland"\n',
+                            calls=[], records=[], fault=None)
     monkeypatch.setenv('PAM_USER', helper.KIOSK_USER)
     monkeypatch.setenv('PAM_SERVICE', 'gdm-password')
     monkeypatch.setenv('XDG_SESSION_TYPE', 'wayland')
@@ -60,50 +60,47 @@ def routing(monkeypatch):
     monkeypatch.setattr(helper.syslog, 'syslog', lambda level, value: state.records.append(value))
 
     def command(arguments, **options):
-        assert arguments[:4] == ['/usr/bin/busctl', '--system', '--timeout=4', '--allow-interactive-authorization=no']
-        assert options == dict(check=True, capture_output=True, text=True, timeout=5, env=helper.ENVIRONMENT)
         state.calls.append(arguments)
         if state.fault:
             raise state.fault
-        if arguments[4] == 'get-property':
-            return SimpleNamespace(stdout=f's {shlex.quote(state.session)}\ns {shlex.quote(state.transport)}\n')
-        if arguments[8] == 'SetSession':
-            state.session = arguments[10]
-        elif arguments[8] == 'SetSessionType':
-            state.transport = arguments[10]
-        else:
-            pytest.fail('unexpected public mutation')
-        return SimpleNamespace(stdout='')
+        return SimpleNamespace(stdout=state.reply)
 
-    monkeypatch.setattr(helper.subprocess, 'run', command)
+    monkeypatch.setattr(subprocess, 'run', command)
     return helper, state
 
 
 @pytest.mark.parametrize('service', ['gdm-password', 'gdm-autologin', 'adjacent-graphical'])
-def test_public_routing_valid_default_has_no_mutations_or_inventory(routing, monkeypatch, service):
+def test_public_identity_checks_have_no_bus_dependency(routing, monkeypatch, service):
     helper, state = routing
     monkeypatch.setenv('PAM_SERVICE', service)
     assert helper.main(['--kiosk-account']) == helper.main(['--kiosk-session']) == 0
-    assert len(state.calls) == 2
-    assert all(command[4] == 'get-property' for command in state.calls)
-    assert not hasattr(helper, 'verify_confinement')
+    assert state.calls == []
+    assert state.records == [
+        'onpc.pam kiosk identity stage=account outcome=allowed reason=none',
+        'onpc.pam kiosk identity stage=session outcome=allowed reason=none']
 
 
-@pytest.mark.parametrize('session,transport', [('ubuntu', 'wayland'), ('', ''), ('oh-no-parent-control', 'x11')])
-def test_changed_default_is_repaired_and_fresh_attempt_is_usable(routing, session, transport):
+@pytest.mark.parametrize('reply,fault', [
+    ('s "ubuntu"\ns "wayland"\n', None), ('s ""\ns ""\n', None),
+    ('s "oh-no-parent-control"\ns "x11"\n', None), ('malformed routing reply', None),
+    ('', subprocess.TimeoutExpired('private-account', 5)),
+])
+def test_saved_routing_and_discovery_failures_do_not_affect_admission(routing, reply, fault):
     helper, state = routing
-    state.session, state.transport = session, transport
-    assert helper.main(['--kiosk-account']) == 1
-    assert (state.session, state.transport) == (helper.SESSION, 'wayland')
-    assert 'recovery=restored' in state.records[-1]
+    state.reply, state.fault = reply, fault
+    assert helper.main(['--kiosk-account']) == helper.main(['--kiosk-session']) == 0
+    assert state.calls == []
+    assert (state.reply, state.fault) == (reply, fault)
+    state.fault = None
     assert helper.main(['--kiosk-account']) == 0
 
 
 @pytest.mark.parametrize('transport', ['x11', '', 'tty'])
-def test_actual_pam_transport_is_required(routing, monkeypatch, transport):
-    helper, _state = routing
+def test_pam_transport_is_not_an_identity_admission_input(routing, monkeypatch, transport):
+    helper, state = routing
     monkeypatch.setenv('XDG_SESSION_TYPE', transport)
-    assert helper.main(['--kiosk-session']) == 1
+    assert helper.main(['--kiosk-session']) == 0
+    assert state.calls == []
 
 
 @pytest.mark.parametrize('user,service,result', [
@@ -120,16 +117,28 @@ def test_service_dispatch_preserves_ordinary_control_without_bus(routing, monkey
     assert state.calls == []
 
 
-@pytest.mark.parametrize('fault', [OSError('private-account'), subprocess.TimeoutExpired('private-account', 5),
-                                   subprocess.CalledProcessError(1, 'private-account')])
-def test_operational_failure_is_distinct_and_diagnostic_has_no_os_values(routing, fault):
+@pytest.mark.parametrize('fault', [KeyError('private-account'), OSError('private-account'), None])
+def test_invalid_identity_is_unavailable_and_diagnostic_has_no_os_values(routing, monkeypatch, fault):
     helper, state = routing
-    state.fault = fault
-    assert helper.main(['--kiosk-account']) == 2
-    assert 'outcome=unavailable' in state.records[-1]
+    def account(name):
+        assert name == helper.KIOSK_USER
+        if fault is not None:
+            raise fault
+        return SimpleNamespace(pw_uid=0)
+    monkeypatch.setattr(helper.pwd, 'getpwnam', account)
+    assert helper.main(['--kiosk-account']) == helper.main(['--kiosk-session']) == 2
+    assert state.records[-1] == 'onpc.pam kiosk identity stage=session outcome=unavailable reason=account'
     assert 'private-account' not in ''.join(state.records)
-    state.fault = None
+    assert state.calls == []
+    monkeypatch.setattr(helper.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=12345))
     assert helper.main(['--kiosk-account']) == 0
+
+
+def test_identity_check_requires_root(routing, monkeypatch):
+    helper, state = routing
+    monkeypatch.setattr(helper.os, 'geteuid', lambda: 12345)
+    assert helper.main(['--kiosk-account']) == helper.main(['--kiosk-session']) == 2
+    assert state.calls == []
 
 
 @pytest.fixture(scope='module')
@@ -211,7 +220,7 @@ def test_native_account_session_binding_and_exact_environment(native, monkeypatc
     for _arguments, environment in calls:
         assert environment['PAM_USER'] == 'kiosk-canary'
         assert environment['PAM_SERVICE'] == 'gdm-password'
-        assert environment['XDG_SESSION_TYPE'] == ''
+        assert 'XDG_SESSION_TYPE' not in environment
         assert environment['PATH'] == '/usr/sbin:/usr/bin:/sbin:/bin'
         assert 'PYTHONPATH' not in environment
 

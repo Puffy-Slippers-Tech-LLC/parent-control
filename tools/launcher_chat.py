@@ -436,6 +436,8 @@ class AppSession:
             item = dict(item, type='mcp_tool_call')
         elif kind == 'webSearch':
             item = dict(item, type='web_search')
+        elif kind == 'subAgentActivity':
+            item = dict(item, type='sub_agent_activity')
         elif kind in ('reasoning', 'userMessage'):
             return
         else:

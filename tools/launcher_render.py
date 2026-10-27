@@ -1037,6 +1037,11 @@ class AgentRenderer:
             for task in item['items']:
                 self.console.print(Text(('  ✓ ' if task['completed'] else '  ○ ') +
                                         clean(task['text'])))
+        elif category == 'sub_agent_activity':
+            self.heading('Agent activity')
+            self.tree(' '.join(str(value) for value in (
+                item.get('kind'), item.get('agentPath') or item.get('agentThreadId')) if value))
+            self.code(json.dumps(item, ensure_ascii=False), 'json')
         elif category in ('mcp_tool_call', 'web_search'):
             self.heading(('Tool' if category == 'mcp_tool_call' else 'Search') +
                          (' complete' if complete else ' working'))

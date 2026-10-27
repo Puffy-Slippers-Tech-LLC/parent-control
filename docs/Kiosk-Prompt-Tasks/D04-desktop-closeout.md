@@ -2,7 +2,7 @@
 
 Acceptance: reconciliation
 
-Required tasks: C12f.
+Required tasks: C12d.
 Estimate: 20–30 min.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract).
@@ -11,7 +11,7 @@ Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contra
 
 Audit final desktop product/source, affected host/installed automation, bindings,
 design and proof descriptions against the candidate. Require D03's complete
-local and named-provider results on both targets, bounded kiosk-usability and
+local results on both targets, bounded kiosk-usability and
 ordinary-account controls, resolved review findings and owned restoration.
 Trust completed rows; do not inspect their old reports or rerun unchanged checks.
 
@@ -26,6 +26,7 @@ reconciliation cannot push an unqualified fix or expand to general acceptance.
 
 Record a short desktop result and any current blockers for
 the remaining plan's C06a. Desktop closure grants no SSH/TTY, other action/input
-or general recovery acceptance. Check links, both plan structures and maintained
+or general recovery acceptance. Remote-desktop testing is excluded and receives
+no acceptance claim. Check links, both plan structures and maintained
 host consistency. An unresolved required check keeps D04 open. Close only this
 selected row under the shared launcher Git contract.

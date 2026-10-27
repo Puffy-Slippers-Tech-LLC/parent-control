@@ -47,6 +47,20 @@ in the private `.envrc` file; neither uses an environment-variable fallback.
 You can use the same password to log in manually. Do not commit it or put the
 real value in `.envrc.example`.
 
+For Fedora COPR publishing, copy [copr.example](copr.example) to
+`~/.config/copr` only if that file is absent:
+
+```sh
+mkdir -p "$HOME/.config"
+cp -n './config/copr.example' "$HOME/.config/copr"
+chmod 600 "$HOME/.config/copr"
+```
+
+Replace the sample contents with the API Token configuration from Keeper's
+“Fedora / COPR Account” entry, including its expiration date. Keep the credentials
+in the private `~/.config/copr` file; never put real values in `copr.example` or
+version control.
+
 | Task | Command |
 | --- | --- |
 | Refresh dependencies | `./setup.sh --dependencies-only` |

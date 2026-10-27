@@ -72,8 +72,6 @@ prefix_rule(
         "./tools/generate_test_coverage.sh",
         "tools/kiosk-desktop",
         "./tools/kiosk-desktop",
-        "tools/kiosk-prompt",
-        "./tools/kiosk-prompt",
         "tools/kiosk-prompt-new",
         "./tools/kiosk-prompt-new",
         "tools/onpc-diagnostics",

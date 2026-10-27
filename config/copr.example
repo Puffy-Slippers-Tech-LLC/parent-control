@@ -1,0 +1,6 @@
+[copr-cli]
+login =
+username =
+token =
+copr_url = https://copr.fedorainfracloud.org
+# expiration date: 2027-04-25

@@ -90,7 +90,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     parent_language parent_language_isolation parent_privacy parent_rtl parent_save parent_save_trace
     parent_search_launch parent_support parent_website policy policy_legend public_desktop_selection
     read_an_expanded_time_explanation read_overlay_about_and_links read_parent_information_links
-    read_restricted_station_about reminder_fullscreen_preference remote_login_preparation request_choices request_duration
+    read_restricted_station_about reminder_fullscreen_preference request_choices request_duration
     request_exit request_flow retained_app_visits retained_entry retained_parent retained_unlock
     retained_unlock_success review_a_rejected_parent_rule_s_report revocation revoke_cancel
     riley_native_grid save_chooser set_an_allowance_for_a_named_child set_fresh_thirty_minute_allowance

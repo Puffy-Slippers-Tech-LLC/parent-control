@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Fedora44
 
-Required tasks: C11f.
+Required tasks: C11d.
 Estimate: 30–60 min; session exception: one local route family, usability and restoration.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract)

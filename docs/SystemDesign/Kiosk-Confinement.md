@@ -35,7 +35,7 @@ normal-use control. Unfamiliar files, services, package versions or configuratio
 alone supply no justification; an unjustified protective failure is a product bug.
 Genuine parent denial and explicit administrator policy remain authoritative.
 
-Review ordinary session selection, shortcuts, TTY/terminal, SSH, remote desktop,
+Review ordinary session selection, shortcuts, TTY/terminal, SSH,
 exposed links/choosers/handlers and child-writable consumed inputs. Do not assume
 arbitrary kiosk-UID execution, compromised trusted packages/root, expert native
 loader chains or kernel/boot/firmware exploitation. Supported installed code,
@@ -78,8 +78,9 @@ unrelated vendor text remains opaque. Ordinary accounts retain authentication,
 administrator denials and time policy.
 
 Saved preferences and a nologin shell do not attest to GDM's actual next executable.
-Desktop/session-choice, TTY, SSH and remote-desktop routes retain separate
-prevention and public qualification obligations. Account-only probes and host
+Desktop/session-choice, TTY and SSH routes retain separate prevention and public
+qualification obligations. Remote desktop testing was removed from active scope
+by the developer; no remote acceptance is claimed. Account-only probes and host
 composition cannot establish usable passwordless graphical entry.
 
 <a id="c02-activated-session-baseline"></a>
@@ -272,7 +273,7 @@ finite map for both targets; none of the errors below proves a child attack.
 
 | Boundary and current result | Disposition, owner and representative control |
 | --- | --- |
-| [Native `kiosk_identity`](../../tools/pam_oh_no_parent_control.c) and [login helper `main`](../../tools/oh-no-parent-control-login-check) reject the qualified `su-l` route, with no catch-all service-name refusal; missing service is an API error. Native non-kiosk accounts bypass kiosk checks; `systemd-user` keeps a lease without routing work. | **D00a2 completed: service-name allowlist removed; both-target installed checks passed.** Unknown graphical-service naming alone is no deliberate breach predicate. Positive control: the dedicated Wayland app selected through real `gdm-autologin`, with actual execution verified. The qualified child-run `su --login` route below supplies the narrow refusal and same-route ordinary positive. A benign unfamiliar name is a host dispatch control, not a claimed real login. Named terminal/SSH/remote services remain leads for D01/D01r and remaining C06a, not protection claims. Existing account/session authority remains required. |
+| [Native `kiosk_identity`](../../tools/pam_oh_no_parent_control.c) and [login helper `main`](../../tools/oh-no-parent-control-login-check) reject the qualified `su-l` route, with no catch-all service-name refusal; missing service is an API error. Native non-kiosk accounts bypass kiosk checks; `systemd-user` keeps a lease without routing work. | **D00a2 completed: service-name allowlist removed; both-target installed checks passed.** Unknown graphical-service naming alone is no deliberate breach predicate. Positive control: the dedicated Wayland app selected through real `gdm-autologin`, with actual execution verified. The qualified child-run `su --login` route below supplies the narrow refusal and same-route ordinary positive. A benign unfamiliar name is a host dispatch control, not a claimed real login. Named terminal/SSH services remain leads for remaining C06a, not protection claims. Remote desktop testing is excluded from active scope. Existing account/session authority remains required. |
 | Login helper `verify_identity` checks the nonzero reserved NSS identity. Saved session/type and `XDG_SESSION_TYPE` no longer vote on admission; the helper has no bus reader, parser or setter. Native callers no longer forward the unused transport value. | **D00a3 completed.** Stale alternate session, empty fields and saved `SessionType=x11` passed independent dedicated Wayland selection/execution controls on both targets. Actual alternate-desktop prevention remains D01/D02 work. Provisioning still owns initial saved routing; admission does not rewrite preferences. |
 | Missing NSS identity, UID zero or identity lookup error returns unavailable (2), with a closed account diagnostic. Native `run_kiosk_check` retains distinct PAM failure mapping and its 25-second timeout/kill/reap. Routing discovery is no longer invoked. | **D00a3 completed:** host malformed reply and timeout doubles receive no bus invocation; installed real discovery loss permits the native account callback, preserves ordinary-account isolation, restores exact service/mask state and permits fresh public use on both targets. Invalid identity, administrator denial, lifecycle leases and same-handle authority remain barriers; no PAM error is translated to success. |
 | Native `admission`: a missing lease is created read-only/no-follow; an existing lease is opened read-only. New-inode `fstat`/`lstat`/identity/`fchmod`, existing open, shared `flock`, and retained `lock_current` stat/identity/barrier checks can all deny. Native PAM never repairs an existing lease. | **D00a owned lease recovery:** lifecycle `barriers` can repair a safe stale admission mode only after exclusive locking, fresh regular-file/owner/single-link checks and named-inode equality. It changes the locked descriptor to 0600 without replacement. Legacy locks remain strict. Controls: absent/new lease, healthy existing lease, one owned stale-mode case, retained-handle recheck, and release/reentry. Foreign, writable, linked or live state remains protected; transient errors require fresh retry, not an attack claim. |
@@ -685,8 +686,9 @@ callers after completed D00b cleanup. The completed
 [C05u/C05f handoff](../TestAutomation/E2E-Building-Blocks.md#c05f-fedora-baseline-acceptance)
 and D00a's both-target usability/restoration remain accepted; no historical
 reports were reopened. This is a source review, with no product changes or new
-installed defense claim. D01r owns the remote provider; D02 owns independent
-design approval and the final small implementation/qualification allocations.
+installed defense claim. D01r retains historical remote-review context only;
+D02 owns independent design approval and the final small local implementation/
+qualification allocations.
 
 ### Actual local selection and execution boundary
 
@@ -870,168 +872,23 @@ qualification before its product consumer. Freeze one demonstrated defect and
 one enforcement boundary per product task; if no defect is demonstrated, retain
 the existing mechanism and qualify the result. No private runtime, package
 inventory, service-name allowlist or new test of task/history documents is
-justified. Remote provider work stays with D01r; standalone SSH/terminal/TTY and
+justified. Remote desktop testing is excluded; standalone SSH/terminal/TTY and
 other child-controlled inputs stay with their remaining-plan owners. D01 started
 no VM, product process or temporary allocation requiring restoration.
 
 ## D01r remote desktop route review
 
-Select **GNOME Remote Desktop system Remote Login over RDP**, followed by its
-remote GDM greeter, for `onpc-Ubuntu26.04` and `onpc-Fedora44`. This is a source
-review, not provider setup, a working installed positive or a desktop-defense
-pass. D01 and the completed baseline remain accepted without report inspection.
-The [provider catalogue](../TestAutomation/E2E-Building-Blocks.md#remote-login-qualification-gap)
-owns missing bindings; D02 reviews this map alongside the local map above.
+D01r historically reviewed GNOME Remote Desktop system Remote Login over RDP
+and its remote GDM authentication/selected-execution path. The source review
+identified an existing vendor password barrier, with no demonstrated missing
+product barrier. It performed no provider setup or installed acceptance and
+allocated no VM, product process, client or temporary input needing cleanup.
 
-### Provider applicability and child access
-
-The [upstream 50.0 instructions](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/README.md#headless-multi-user-remote-login)
-describe two credentials: system RDP credentials reach a login screen, then
-the selected Linux account authenticates at GDM. The initial credential does
-not grant that account's desktop or parent approval. Review availability is
-established by Ubuntu's [26.04 release package](https://packages.ubuntu.com/resolute/gnome-remote-desktop)
-`50.0-0ubuntu2` and Fedora's [44 release package](https://packages.fedoraproject.org/pkgs/gnome-remote-desktop/gnome-remote-desktop/fedora-44.html)
-`50.0-1.fc44`. The trace below uses upstream 50.0; installed updates, distro
-patches, GDM/Shell, client version, locale and keyboard must be recorded and
-checked in the future qualification. These are available target packages, not
-observed VM versions or broader release qualification.
-
-The child uses an ordinary RDP client from an account/device they control,
-with legitimate access to the system RDP credential, and deliberately supplies
-`oh-no-parent-control` at the remote greeter without a kiosk or administrator
-password. If offered a session chooser, they select the available full GNOME
-desktop rather than the request station. Use the identified station row or
-explicit username entry if no row is offered, without an account-order tour.
-The prohibited result is a usable full desktop as the reserved station
-UID, with desktop launch controls. A remote request-only form is not that result.
-
-Enabling Remote Login is an administrator precondition, not a child capability:
-GDM and the **system** `gnome-remote-desktop.service`, system RDP enablement,
-readable configured TLS key/certificate, valid initial credentials, a reachable
-listener and a compatible redirect-capable client must work. Preparation uses
-the provider's public `grdctl --system` interface and maintained VM routes; do
-not enable anything in this review. Wrong initial credentials, absent service,
-failed TLS/redirect or a blank/unusable desktop supply no kiosk-denial credit.
-
-Exclude this provider's user desktop-sharing and single-user headless modes:
-they attach to a separately established user session and do not exercise this
-fresh system-login path. xrdp, VNC and other providers are outside this single
-provider selection. SSH is separately owned; an SSH PAM result proves nothing
-about this RDP route. An administrator-planted kiosk desktop or changed kiosk
-password is outside the reviewed child-access premise.
-
-### Authentication and selected execution boundary
-
-The actual remote display is not the local greeter transported over SSH:
-
-- [RDP session](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/src/grd-session-rdp.c)
-  `grd_session_rdp_new`/`init_rdp_session` supply the configured credentials to
-  FreeRDP NLA. [Server](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/src/grd-rdp-server.c)
-  `on_session_post_connect` reaches [system daemon](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/src/grd-daemon-system.c)
-  `on_incoming_new_connection` → `serialize_remote_display_properties` → GDM
-  `CreateRemoteDisplay`. Its `on_gdm_remote_display_session_id_changed`,
-  `on_handle_start_handover` and `on_handle_take_client`, with
-  [handover daemon](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/src/grd-daemon-handover.c)
-  `start_handover`, redirect/transfer the connection to the remote session.
-  These credentials and handover checks do not authenticate a desktop account.
-- [GDM remote factory](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-remote-display-factory.c)
-  `handle_create_remote_display` calls `gdm_remote_display_factory_create_display`
-  with no autologin user. [Shell verifier](https://github.com/GNOME/gnome-shell/blob/50.0/js/gdm/util.js)
-  `begin` → `_getDetectedDefaultService`/`_beginVerification` → `_startService`
-  selects `gdm-password` for ordinary password verification and calls
-  `BeginVerificationForUser`/`BeginVerification`. GDM session handlers and
-  `gdm_session_setup_for_user`/`initialize` send that service and account to
-  the worker. The actual installed service must be observed, not inferred.
-- [GDM remote display](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-remote-display.c)
-  `gdm_remote_display_new` marks it non-local and Wayland-capable.
-  [Manager](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-manager.c)
-  `create_user_session_for_display` passes that identity to the login session.
-  Its `are_sessions_compatible` prevents remote reauthentication from simply
-  adopting an existing local kiosk session; local presence is not a desktop pass.
-  `gdm_manager_handle_open_session`'s allowed-user check protects the greeter
-  IPC caller, not a list of accounts permitted to receive desktops.
-- [GDM worker](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-session-worker.c)
-  `gdm_session_worker_initialize_pam` sets `password_is_required` for non-local
-  displays and supplies `PAM_RHOST`. `gdm_session_worker_authenticate_user` and
-  `gdm_session_worker_authorize_user` pass `PAM_DISALLOW_NULL_AUTHTOK` to real
-  authentication/account callbacks; `gdm_session_worker_open_session` opens PAM
-  before `gdm_session_worker_start_session` executes the selected program.
-  Reauthentication still authenticates, but its account error is ignored by
-  the vendor; an account-only barrier must not claim to protect that branch.
-- [GDM session](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-session.c)
-  `get_session_name` prefers current selection over saved preferences;
-  `get_session_command_for_file` requires remote Wayland headless capability
-  and resolves `Exec`. `gdm_session_start_session` wraps the resolved command
-  in `gdm-wayland-session`. Its `set_up_session_environment` runs after PAM
-  opening; do not presume `GDMSESSION` or `DESKTOP_SESSION` is a PAM input.
-  The packaged [station entry](../../data/wayland-sessions/oh-no-parent-control.desktop)
-  already declares `X-GDM-CanRunHeadless=true`; that flag is availability, not
-  an account-specific desktop barrier.
-
-Checkout owners are the [native module](../../tools/pam_oh_no_parent_control.c)
-`kiosk_identity` → `admission`, `pam_sm_acct_mgmt` → `run_kiosk_check`, and
-`pam_sm_open_session`, plus the [login helper](../../tools/oh-no-parent-control-login-check)
-`main`/`verify_identity`. They bind identity and lifecycle ownership, not a
-remote selected command, and deny only the qualified `su-l` service explicitly.
-The [kiosk profile](../../data/pam-configs/oh-no-parent-control-kiosk-only) adds
-required account/session checks; the [time profile](../../data/pam-configs/oh-no-parent-control-session-limits)
-skips only product time authentication for the station, not vendor authentication.
-[Distro verification](../../packaging/distro_pam.py) `verify`/`verify_time_policy`
-and [Fedora configuration](../../packaging/fedora_pam.py) `configure` preserve
-the vendor stack. Neither verifies every vendor authentication shortcut.
-The reviewed [Ubuntu GDM PAM file](https://git.launchpad.net/ubuntu/+source/gdm3/plain/debian/gdm3.gdm-password.pam?id=ca51eed279d9f91f4400451884f888fa74392f5b)
-includes `common-auth`/`common-account`/`common-session`. The upstream
-[Red Hat GDM PAM file](https://github.com/GNOME/gdm/blob/50.0/data/pam-redhat/gdm-password.pam)
-uses `password-auth`/`postlogin` and has an early `pam_selinux_permit` success
-path; verify the effective Fedora stack and caller context before treating the
-null-token flag as an unconditional gate. Preserve vendor/admin authority.
-
-**Disposition: existing vendor password barrier to qualify; no demonstrated
-missing product barrier.** The worker requests rejection of empty passwords,
-but actual distro PAM ordering/success shortcuts must honor it. Do not turn
-the flag, an unfamiliar PAM name, saved routing, `nologin` or an account-only
-probe into a claimed refusal. If the remote login reaches execution, record
-the actual service, selected desktop/command, UID and public result; the
-smallest missing owner would be that demonstrated provider authentication or
-selected-execution boundary. D02 must choose from the observed failure rather
-than pre-authorize a service-name denylist or an invented PAM session variable.
-If the vendor gate works, C07 retains it without duplicate product code.
-
-### Finite checks, restoration and D02 handoff
-
-| History | Required public result and distinguishing observation |
-| --- | --- |
-| Ordinary-account positive | With Jordan (the standard fixture) logged out of other graphical sessions and permitted to use the desktop, connect through the system credential, authenticate Jordan at remote GDM and reach a usable full GNOME desktop. Use one normal desktop launch/control and observe its result through the same remote connection, tied to the remote session and Jordan UID. A local desktop, successful handshake or process census alone is insufficient. Log out only this owned remote session. |
-| Deliberate kiosk attempt | Reconnect through the same working provider, identify the station and attempt login without a kiosk password, selecting a full desktop if publicly offered. Require the specific authentication refusal and no station desktop, or an observed usable request-only destination. If authentication refuses before selection, record that no desktop command was started; do not invent a selected command. Incomplete observation, timeout and generic connection failure are inconclusive. |
-| Permitted use and recovery | After the attempt, repeat the ordinary remote positive and preserve any unrelated local session. Run the existing both-target short confinement usability history for local passwordless entry, genuine approval, rejection/Cancel, exit and fresh request. A transient provider outage is a preparation/recovery failure: restore the owned dependency and repeat public use, never count the outage as protection. |
-
-Use the [short usability binding](../TestAutomation/E2E-Building-Blocks.md#short-confinement-usability-history)
-unchanged. Missing remote transport, remote-GDM ownership/credential delivery
-and remote desktop/result bindings need installed qualification **before C07
-product editing**, with explicit targets and finite deadlines. The catalogue
-separates these small prerequisites; D02 allocates them before that consumer,
-and D03 only audits delivered bindings. C11f/C12f retain the complete provider
-positive/negative acceptance; this review supplies neither selector nor credit.
-
-Existing [admission engineering checks](../../tests/integration/system_kiosk_admission.py)
-`pam_callback`/`verify` use account probes or authentication flags zero, not the
-remote worker/transport. Existing [native/profile host coverage](../../tests/unit/test_prepared_kiosk_pam.py)
-protects account/session binding and ordinary policy; it does not exercise RDP.
-Local [GDM variation](../../tests/e2e/gdm_service_variation.py) explicitly selects
-the dedicated session. [Session control](../../tests/e2e/session_control.py)
-`local_graphical`/`source_session` and the [UI adapter](../../tests/e2e/accessible_ui.py)
-greeter discovery require local `seat0`; local qualification cannot be relabeled
-remote. Reuse shared guards/mechanics, not a second runner. No new test of this
-map, task briefs or historical queue entries is warranted by the test-scope mandate.
-
-Future preparation/attempts must record original service enablement/activity,
-RDP settings, credential/TLS ownership, scoped network changes and created
-remote session/client identities. Restore only their owned changes through
-public provider/system interfaces, preserve foreign sessions/settings, remove
-owned secrets and verify ordinary remote and local kiosk use before final
-restoration to the original enabled/disabled state. Capture no credential values
-in the map or reports. D01r changed no provider state and allocated no VM,
-product process, client or temporary input needing cleanup.
+The developer removed remote desktop testing completely from active scope.
+This historical note and anchor retain the review's context only: no remote
+provider qualification, product edit, acceptance or prerequisite is allocated.
+No remote desktop acceptance or defense is claimed. Local desktop confinement
+work continues independently; separate SSH and terminal/TTY scope is unchanged.
 
 ## D02 minimal desktop design decision
 
@@ -1039,7 +896,9 @@ D02 independently reviewed the D01/D01r maps and complete affected admission,
 request-action and shutdown callers. **Retain existing mechanisms; no new product
 barrier is justified by the evidence currently available.** This approves a
 finite conditional design, not implemented desktop prevention or installed
-qualification. Trust completed baseline/cleanup work without reopening reports.
+qualification. Its historical remote-review findings allocate no active work;
+remote desktop testing was subsequently removed by the developer. Trust completed
+baseline/cleanup work without reopening reports.
 
 ### Frozen implementation boundaries
 
@@ -1048,12 +907,11 @@ qualification. Trust completed baseline/cleanup work without reopening reports.
 | C07a: local GDM alternate desktop selection | **Unproven reachability; no missing barrier established.** First qualify the child's public chooser interval and current selection. If it reaches a full station desktop, fix only that actual selected-launch boundary using a supported vendor mechanism or direct owner fix. Native PAM has no selected-command input; do not invent one from saved routing, service names or session environment. | Tie the public choice to the resolved command, station UID/session and usable desktop result. Pair with the same desktop working for Jordan and dedicated passwordless request entry. Test the ordinary chooser → Cancel → station sequence without artificially delaying authentication or granting the child greeter-process authority. If no alternate route is exposed, record the exact target/action disposition and request-only result; do not claim an alternate executable was blocked. |
 | C07s: request-session shortcuts | **Existing GNOME Kiosk boundary; C07s1 supplied the finite both-target qualification.** Preserve `Kiosk=true` and the vendor shortcut handling. Super, Super-A, Alt+F2 and Ctrl+Alt+T are the finite attempts; add a barrier only for a demonstrated chain to a full station desktop, at that action/launch owner. | The usable request remained without a desktop/run surface after each distinct attempt, with all corresponding ordinary-desktop controls working on both targets. Fedora uses its permanently prepared terminal chord. C07s retains its own installed usability and directly affected controls. A terminal-only result retains its remaining-plan owner. No repeated shortcut matrix across approval outcomes is needed merely to qualify the shared binding. |
 | C07s: information, reports, Preferences and normal exit | **Source-effective fixed-action/shutdown barriers; retain them.** The complete methods/callers in the D01 map omit or guard external handlers/choosers, restrict notification actions, restart only the fixed agent, and shut down the session on app exit. No additional session-admission condition is justified. | Keep readable/dismissible information, useful reports, Preferences and genuine approval. Normal Parent/overlay links and Parent attachments/export remain permitted. Cancel/Escape/result/approved exit must return to GDM, followed by a fresh usable request. Exercise only directly affected controls if an owner changes. |
-| C07: fresh system Remote Login over RDP | **Existing vendor password barrier to qualify; no missing product barrier established.** Use the D01r provider and actual distro authentication/launch path. If its real password requirement suffices, retain it without code. A demonstrated escape permits one fix at its narrow authentication or selected-launch owner. | Working Jordan remote desktop/control → station attempt without a kiosk password → repeat Jordan positive. Bind the remote greeter/session and actual PAM/launch result. Authentication refusal before selection means no command started, not a fabricated selected-command denial. Preserve local passwordless request use and unrelated sessions. |
 
-Standalone terminal/TTY, SSH, other remote providers, user desktop sharing,
+Standalone terminal/TTY, SSH, all remote desktop providers, user desktop sharing,
 arbitrary station-code execution and trusted loader exploitation remain excluded
 from this desktop slice for the reasons in D01/D01r and the threat boundary.
-An absent provider, failed positive, timeout or incomplete observation is
+For the retained local work, a failed positive, timeout or incomplete observation is
 **inconclusive**, never effective protection. Record applicability and results
 per target; an unreachable public action is distinct from an exercised refusal.
 
@@ -1084,10 +942,8 @@ empty saved routing and actual dedicated execution, using the delivered D00a2/
 D00a3 bindings only where affected. A discovery outage cannot become a new login
 dependency. Pair an action-level predicate with useful in-app information and
 the permitted ordinary/overlay action; optional content failure must not veto
-the request. Pair a remote predicate with the working ordinary remote positive,
-local dedicated use and owned provider restoration, never global null-password
-changes or an allowlist of PAM layouts. Reuse unchanged lease/lifecycle controls;
-add a new fault case only for a changed failure boundary.
+the request. Reuse unchanged lease/lifecycle controls; add a new fault case only
+for a changed failure boundary.
 
 Request-side review covered `RequestWindow._build`, `_result_dismissed`,
 `_show_about`, `_load_users`/account callbacks, `_request_access` →
@@ -1102,11 +958,9 @@ these authorization/feature paths is allocated merely to harden desktop entry.
 
 These are finite installed slices, each on `onpc-Ubuntu26.04` and
 `onpc-Fedora44`, with a 20–30 minute budget including its owned restoration.
-Public selection and shortcut results were delivered by C07a1 and C07s1 below;
-remote preparation and repeated exact restoration passed on both targets in C07r1;
-the other remote slices are planned, not registered selectors or completed
-prerequisites. At the selected
-future consumer, insert its missing slices immediately before it under the
+Public selection and shortcut results were delivered by C07a1 and C07s1 below.
+Remote desktop work is excluded and requires no prerequisite. At a selected
+future local consumer, insert its missing slices immediately before it under the
 [prerequisite contract](../Execution-Plans.md#execution-and-delegation), with
 valid briefs and backward Requires links. D02 needs no live prerequisite and
 does not insert or execute later consumers' work. Split a slice further before
@@ -1142,11 +996,6 @@ implementation if its safe implementation/qualification cannot fit that budget.
   qualified provider owner. New missing bindings need their own qualification
   before consumption; do not replace public outcomes with a process census or
   private state.
-- **Before C07: Prepare remote sign-in; connect safely; check ordinary remote
-  desktop use; check the station attempt and recovery.** The four finite slices
-  and their return conditions live in the
-  [remote qualification owner](../TestAutomation/E2E-Building-Blocks.md#remote-login-qualification-gap).
-  Complete them before any provider product edit, not at D03 or final acceptance.
 
 For new bindings, freeze machine-stage deadlines at 120 seconds for connection,
 challenge acquisition, post-input result and each owned cleanup operation.
@@ -1179,15 +1028,59 @@ archive is allocated. Effective barriers need qualification, not replacement.
 
 Independent Astra xHigh review: **Usability priority: passed. Threat scope:
 passed. Denylist/default access: passed.** Approval is for the conditional
-no-code design above, with no new protective rejection approved. The actionable
-review findings are incorporated: separate ordinary remote desktop qualification
-from the station/recovery slice; qualify public chooser access rather than
+no-code design above, with no new protective rejection approved. The retained
+local review findings are incorporated: qualify public chooser access rather than
 privileged selection; limit the UI-tree census claim and add the missing
 shortcut/ordinary-desktop witnesses; distinguish target-specific unreachable,
 inconclusive and effective results; keep machine deadlines distinct from human
-time and the existing worker limit. Existing availability gaps remain open under
+time and the existing worker limit. Historical remote findings impose no active
+qualification or acceptance work. Existing availability gaps remain open under
 their owners. D02 performs no product edit, VM/provider operation or live
 acceptance and owns no runtime state needing restoration.
+
+## D03 desktop acceptance audit
+
+The [local acceptance composition](../TestAutomation/E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
+records current candidate inputs, exact maintained selectors for C11d/C12d,
+finite public outcomes, timeouts and owned restoration. The block catalogue
+continues to own qualified operations; stable installed cases 50–52 remain in
+their inventory and recipe owners. D03 changes no product or executable
+inventory, grants no new installed pass, and trusts completed C07a/C07s's
+both-target usability and cleanup without inspecting historical reports.
+
+Source audit found two missing **final negative verdicts**, not an established
+product defect or a reason to reopen completed qualification:
+
+- `PublicDesktopSelectionUi.observe` records `full-desktop-gap` and safely exits
+  an observed full station desktop. D03a added the final comparison in
+  `PublicDesktopSelectionJourney.validate`: both direct/carry result stages must
+  be `request-only` after the complete history and restoration. Both-target
+  installed qualification passed, including the ordinary full-desktop positive,
+  usable Cancel/fresh entry, exact restoration and owned cleanup.
+- `StationShortcutsJourney.check_settings` compares eight captured results after
+  restoration. It requires the ordinary overview/grid/run/terminal positives and
+  station usability, but omits station `outcome == 'request-only'` for all four.
+  `AccessibleUI.shortcut_operation` and `UiObservations` can report a desktop/run
+  surface for this qualification binding; a remaining usable request alone cannot
+  establish absence. [D03b](../Kiosk-Prompt-Tasks/D03b-shortcut-verdict.md) owns
+  that finite comparison and both-target installed qualification.
+
+D03a is complete; D03b remains before unfinished D03. These prerequisites reuse
+existing inputs, providers, workers and observations and add no product barrier
+or new general capability.
+D03 must inspect their completed source/catalogue results before freezing final
+readiness; C11d/C12d must not consume a shortcut selector pass as its missing
+negative verdict. There is no remote-desktop prerequisite or acceptance here.
+
+For a concrete later change, select only affected checks: admission/session edits
+use the D01-linked login/PAM regressions, ordinary desktop selection and short
+usability; shortcut/action edits use their changed shared operation and matching
+ordinary positive, plus the short usability gate for product edits. Changed
+About, Preferences, feedback or Cancel/Escape callers use their existing named
+bindings in the D01 map. Add shared-overlay/enforcement controls only when their
+caller or authorization/enforcement boundary changes. Reuse unchanged complete
+histories; no tests of briefs/history, guard-matrix copies, new registry or
+coverage regeneration are justified by this documentation-only audit.
 
 ## Verification scope and evidence limits
 

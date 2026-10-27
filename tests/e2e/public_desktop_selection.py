@@ -222,3 +222,13 @@ class PublicDesktopSelectionJourney(InstalledJourney):
         elif stage == 'public-setup-parent-selected':
             require(observed['ui']['settings']['limit_enabled'] is False,
                     'public-desktop:initial-disabled-child')
+
+    def validate(self):
+        matched = super().validate()
+        # Keep exposed-desktop observations and finish safe exit, routing/policy
+        # restoration and usable reentry before rejecting either attempt.
+        results = {step['stage']: step['ui']['result'] for step in self.steps
+                   if step['stage'] in ('public-direct-result', 'public-carry-result')}
+        for stage in ('public-direct-result', 'public-carry-result'):
+            require(results[stage] == 'request-only', 'public-desktop:' + stage + ':request-only')
+        return matched

@@ -1,5 +1,5 @@
 {
-  "concurrency": 1,
+  "concurrency": 2,
   "backup_root": "/Data/virt-manager/backups/onpc",
   "fixture_targets": {
     "onpc-Ubuntu26.04": "ubuntu",

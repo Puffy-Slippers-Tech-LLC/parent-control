@@ -1,4 +1,4 @@
-# Kiosk full desktop prevention queue
+# Kiosk local full desktop prevention queue
 
 The [master](Kiosk-Desktop-Plan.md) owns desktop-only scope, usability, threat
 limits and both-target acceptance. Audit and close residual cleanup first;
@@ -9,7 +9,7 @@ Every row applies the master's [simple implementation](Kiosk-Desktop-Plan.md#sim
 and [simple tests](Kiosk-Desktop-Plan.md#simple-tests): reuse existing mechanisms
 and coverage, add only missing product checks and avoid duplicate runs for task labels.
 
-D00a/C07a/C07s/C07 include both-target installed usability before completion and
+D00a/C07a/C07s include both-target installed usability before completion and
 automatic Git propagation. Their former later usability rows are folded into
 these tasks, not marked done. Keep one small fix per product task; prepare missing
 automation separately before editing. Use the master's bounded confinement check,
@@ -36,18 +36,22 @@ not general product acceptance. Ordinary tasks take 20–30 minutes; the named
 | [x] | C07s1 | Check desktop attempts from the request session | C07a | Qualify the finite request-session shortcuts, missing Alt+F2 result and ordinary-desktop controls on both targets using shared bindings; no product changes or consumer acceptance credit | Both-target eight shortcut results, usable Cancel/fresh entry, public restoration and cleanup passed; Fedora terminal shortcut prepared permanently; no product changes |
 | [x] | C07s | Prevent desktop launches from the request session | C07a, C07s1 | Close one reviewed desktop-launch boundary and pass both-target kiosk usability before completion | Retained qualified GNOME Kiosk shortcut/action boundaries; both-target complete short usability, public restoration and owned cleanup passed; no product changes |
 | [x] | C07r1 | Prepare remote sign-in on both systems | C07s | Qualify isolated GNOME Remote Desktop system login preparation, readiness and owned restoration on both targets; no product changes or consumer acceptance credit | Both-target repeated isolated readiness, exact file/service restoration, normal kiosk entry/Cancel/return and owned cleanup passed; five file-safety checks passed; no product changes |
-| [ ] | C07r2 | [Connect safely to remote sign-in](Kiosk-Prompt-Tasks/C07r2-remote-connection.md) | C07r1 | Qualify the real RDP connection, remote greeter ownership and guarded credential/input delivery on both targets; no product changes or consumer acceptance credit | 20–30 min |
-| [ ] | C07r3 | [Check ordinary remote desktop use](Kiosk-Prompt-Tasks/C07r3-ordinary-remote-desktop.md) | C07r2 | Qualify Jordan's remote authentication, usable desktop, one public control and owned logout on both targets; no product changes or consumer acceptance credit | 20–30 min |
-| [ ] | C07r4 | [Check kiosk remote sign-in and recovery](Kiosk-Prompt-Tasks/C07r4-kiosk-remote-recovery.md) | C07r3 | Qualify the station's real remote attempt, repeated ordinary positive, short local usability and owned restoration on both targets; no product changes or consumer acceptance credit | 20–30 min |
-| [ ] | C07 | [Protect the supported remote-desktop route](Kiosk-Prompt-Tasks/C07-login-routes.md) | C07s, C07r1, C07r2, C07r3, C07r4 | Add the named provider's narrow barrier and pass both-target kiosk usability before completion | 30–60 min; session exception: small confinement fix, review/build and both-target usability |
-| [ ] | D03 | [Freeze desktop acceptance bindings](Kiosk-Prompt-Tasks/D03-desktop-acceptance-map.md) | C07 | Audit exact registered desktop histories and prior both-target usability; no deferred product gate | 20–30 min |
+| [x] | D03a | Make desktop selection checks reject a full kiosk desktop | C07s | Require request-only results in both existing public station-selection histories and qualify the verdict on both targets; no product changes | Both-target request-only verdicts, ordinary desktop controls, restoration and owned cleanup passed; listing and links passed; no product changes |
+| [ ] | D03b | [Make shortcut checks reject desktop launch controls](Kiosk-Prompt-Tasks/D03b-shortcut-verdict.md) | C07s | Require request-only results after all four existing station shortcuts and qualify the verdict with ordinary controls on both targets; no product changes | 20–30 min |
+| [ ] | D03 | [Freeze desktop acceptance bindings](Kiosk-Prompt-Tasks/D03-desktop-acceptance-map.md) | C07s, D03a, D03b | Audit exact registered desktop histories and prior both-target usability; no deferred product gate | Inputs and compositions audited; final negative verdicts await D03a/D03b; no acceptance credit |
 | [ ] | C11d | [Qualify local desktop prevention on Ubuntu](Kiosk-Prompt-Tasks/C11d-local-routes-ubuntu.md) | D03 | Ubuntu: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | 30–60 min; session exception: one local route family, usability and restoration |
-| [ ] | C11f | [Qualify the remote-desktop boundary on Ubuntu](Kiosk-Prompt-Tasks/C11f-remote-desktop-ubuntu.md) | C11d | Ubuntu: Verify named-provider kiosk desktop denial and permitted ordinary-account remote desktop | 20–30 min |
-| [ ] | C12d | [Qualify local desktop prevention on Fedora](Kiosk-Prompt-Tasks/C12d-local-routes-fedora.md) | C11f | Fedora: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | 30–60 min; session exception: one local route family, usability and restoration |
-| [ ] | C12f | [Qualify the remote-desktop boundary on Fedora](Kiosk-Prompt-Tasks/C12f-remote-desktop-fedora.md) | C12d | Fedora: Verify named-provider kiosk desktop denial and permitted ordinary-account remote desktop | 20–30 min |
-| [ ] | D04 | [Close desktop prevention evidence and documentation](Kiosk-Prompt-Tasks/D04-desktop-closeout.md) | C12f | Verify matching desktop product/automation/docs, both-target evidence and completed owned restoration | 20–30 min |
+| [ ] | C12d | [Qualify local desktop prevention on Fedora](Kiosk-Prompt-Tasks/C12d-local-routes-fedora.md) | C11d | Fedora: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | 30–60 min; session exception: one local route family, usability and restoration |
+| [ ] | D04 | [Close desktop prevention evidence and documentation](Kiosk-Prompt-Tasks/D04-desktop-closeout.md) | C12d | Verify matching desktop product/automation/docs, both-target evidence and completed owned restoration | 20–30 min |
 
-Order is authoritative; IDs are stable labels. C07a/C07s/C07 and C11d/f–C12d/f
+Remote-desktop testing was removed by developer direction. D01r and C07r1
+remain completed historical work; their dedicated automation is retired, and
+they supply no remote-desktop acceptance. D03's composition audit found missing
+final negative verdicts in the two local qualification journeys. D03a qualified
+the desktop-selection verdict on both targets; D03b still owns the shortcut
+verdict before D03 resumes. Completed qualifications and product gates stay
+accepted. The next active task is D03b.
+
+Order is authoritative; IDs are stable labels. C07a/C07s and C11d/C12d
 carry their desktop assertions here. Standalone terminal/TTY assertions are
 retained as C07t/C11t/C12t in the [remaining queue](Kiosk-Prompt-New-Queue.md),
 which also owns SSH and other confinement work. Preserve case IDs, acceptance

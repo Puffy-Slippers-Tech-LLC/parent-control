@@ -19,11 +19,6 @@ PACKAGES = (
     'python3-gi=0', 'gir1.2-gtk-4.0=0',
     # The SPICE channel needs the guest daemon and desktop session agent.
     'spice-vdagent=0',
-    # System Remote Login preparation uses grdctl, a FreeRDP 3 client and
-    # attempt-owned OpenSSL TLS inputs. Installed qualification is separate
-    # from these distribution release floors; see Environment.md.
-    'gnome-remote-desktop=50.0-0ubuntu2',
-    'freerdp-x11=3.24.2+dfsg-1ubuntu1', 'openssl=3.5.5-1ubuntu3',
     # The product-free baseline admits only the two exact trusted native
     # witnesses through this distribution-owned file-trust API.
     'fapolicyd=0',
@@ -43,7 +38,6 @@ FEDORA_REMOTE_VERSIONS = {'openldap-servers': '2.6.10', 'openldap-clients': '2.6
                           'sssd-ldap': '2.12.0', 'sssd-client': '2.12.0'}
 FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2',
                    'python3-gobject': '0', 'gtk4': '0', 'spice-vdagent': '0', 'fapolicyd': '0',
-                   'gnome-remote-desktop': '50.0', 'freerdp': '3.24.2', 'openssl': '3.5.5',
                    'ptyxis': '0',
                    'xdg-dbus-proxy': '0', 'rpm': '0', 'python3-rpm': '0', 'man-db': '0',
                    **FEDORA_REMOTE_VERSIONS,

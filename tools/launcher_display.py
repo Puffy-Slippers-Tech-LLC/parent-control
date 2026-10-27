@@ -866,7 +866,8 @@ class TaskDisplay(LauncherDisplay):
         for index, row in enumerate(top):
             row = self.scrollbar_row(row, left_width, index + 1,
                                      self.top_scrollbar, self.top_bottom_button)
-            top[index] = row + self.divider.line(self.dragging in ('top', 'bottom'))
+            # Keep pane base styles scoped to their own text, not the full row.
+            top[index] = Text.assemble(row, self.divider.line(self.dragging in ('top', 'bottom')))
             if index < len(total_rows):
                 top[index] += total_rows[index]
         self.top_height = len(top)
@@ -970,7 +971,8 @@ class TaskDisplay(LauncherDisplay):
             row = (left[index] if self.execution_tabs else
                    self.scrollbar_row(left[index], left_width, len(top) + 2 + index,
                                       self.scrollbar, self.bottom_button))
-            rows.append(row + self.divider.line(self.dragging in ('top', 'bottom')) + right[index])
+            rows.append(Text.assemble(row, self.divider.line(self.dragging in ('top', 'bottom')),
+                                      right[index]))
         if width < 3:
             # Preserve terminal ownership without emitting over-wide rows.
             rows = [Text('')] * height

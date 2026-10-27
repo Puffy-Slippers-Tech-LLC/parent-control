@@ -878,8 +878,6 @@ class TaskDisplay(LauncherDisplay):
                              max(0, available - len(separator) - 1))
         summary = self.from_top('summary', summary_lines, right_width, summary_height)
         self.summary_bottom = len(top) + 1 + summary_height
-        explanation = task_info.get('explanation', 'Preparing the task explanation…'
-                                    if self.input_mode == 'chat' else 'Execution details appear on the left.')
         last_error = Text('Last Error: ')
         last_error.stylize('bold', 0, len('Last Error:'))
         if has_error:
@@ -894,8 +892,7 @@ class TaskDisplay(LauncherDisplay):
         colors = dict(zip(TASK_STATUSES, ('#0098ff', '#0098ff', 'yellow', 'green', '#0098ff')))
         status_line.append(status, style=colors[status])
         status_line.append(f' ({status_age} ago)', style='#0098ff')
-        info_lines = [Text('Explanation:', style='bold'), Text(clean(explanation)),
-                      Text('─'), last_error, Text(''), status_line]
+        info_lines = [last_error, Text(''), status_line]
         lifecycle = {
             'waiting': 'Interrupted. Waiting for your instructions. Ctrl+C again exits.',
             'interrupting': 'Interrupting the current work…',
@@ -904,14 +901,14 @@ class TaskDisplay(LauncherDisplay):
             'finished': 'Session finished. Preparing the next step.',
         }.get(self.chat_state.get('status'))
         if lifecycle:
-            info_lines[2:2] = ['', lifecycle]
+            info_lines[0:0] = [lifecycle, '']
         if self.question:
             notices = ['', self.question.question.get('explanation', '')]
             if self.input_mode == 'chat':
                 notices += [self.question.question['question'],
                                *[f'{i + 1}. {option}' for i, option in enumerate(self.question.question['options'])],
                                'Type a number or your own instructions below.']
-            info_lines[2:2] = notices
+            info_lines[0:0] = notices
 
         logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
         if not self.execution_tabs and self.details and clean(self.details[0]).startswith('VM pipelines | concurrency '):

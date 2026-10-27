@@ -29,6 +29,8 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 
 Briefs contain task-specific deltas. Use this format for new and revised briefs:
 
+- Use the shared [plain-language task title](../Execution-Plans.md#plan-format)
+  in the queue, master pointer and brief heading.
 - Link this contract and the applicable acceptance branch at the top. Those
   links include live prerequisites, failure handling and close-out; do not copy
   their procedures into a second checklist or generic Close out section.

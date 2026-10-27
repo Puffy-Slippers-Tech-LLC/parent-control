@@ -62,14 +62,13 @@ def update_task_info(run, task, value):
 
 def task_info_instructions(run, task):
     info = task_info(run, task)
-    explanation = info.get('explanation')
-    return ("\nThe launcher has a separate reader-facing task panel. In your first commentary, "
+    # Older sessions may retain this field; titles now come from the task queue.
+    info.pop('explanation', None)
+    return ("\nThe launcher displays the task's title directly from the execution plan. "
+            "Do not send a separate task explanation. In your first commentary, "
             "send a single line beginning LAUNCHER_STATUS followed by a JSON object. "
             "Use everyday, non-technical language without commands, paths or error codes. "
-            + ("The task explanation is already saved: " + json.dumps(explanation) +
-               ". Omit explanation unless the task's scope has actually changed. " if explanation else
-               "Include explanation: briefly describe the plain-language purpose of this task. ")
-            + "Use status only with one of these exact values: " + json.dumps(TASK_STATUSES) + ". "
+            "Use status only with one of these exact values: " + json.dumps(TASK_STATUSES) + ". "
             "Use Running while there is no last error. Use Investigating when a new error occurs. "
             "Otherwise keep the retained "
             "status until the facts change. Report Root cause identified, fixing only after identifying "
@@ -88,7 +87,7 @@ def task_info_instructions(run, task):
             "including a recurrence; do not repeat an old error on retries or reconnects. "
             "Omit last_error until an error occurs; never clear it or replace it with a dash after fixing it. "
             "Retained task information: " + json.dumps(info) + ". "
-            "Update status when it changes; never repeat the explanation in progress updates. "
+            "Update status when it changes. "
             "These fields are presentation only, never acceptance evidence, and are independent "
             "of your required final workflow JSON. Developer messages steer the current work; "
             "preserve the original task and acceptance requirements.\n")

@@ -1275,11 +1275,11 @@ native selection and application mouse controls cannot be offered simultaneously
 through this terminal protocol. Non-chat displays also accept m when no blocker
 question is pending; F2 remains available during questions.
 The bottom-right panel shows the current task ID/title, session count/duration,
-session phase and selected model/effort. Below a horizontal separator, the
-plain-language task explanation stays fixed across retries and reconnects unless
-the task scope changes. The agent writes it once rather than repeating it in
-progress output. The shared [panel contract](../docs/Execution-Plans.md#common-launcher-interface)
-owns the bold explanation/error/status labels, separators, task-local error age
+session phase and selected model/effort. Execution-plan task titles follow the
+shared [plain-language title contract](../docs/Execution-Plans.md#plan-format)
+when tasks are generated or revised; no separate task explanation is generated
+or displayed. The shared [panel contract](../docs/Execution-Plans.md#common-launcher-interface)
+owns the bold error/status labels, separators, task-local error age
 and colored status values. These updates are presentation only, never
 acceptance evidence.
 

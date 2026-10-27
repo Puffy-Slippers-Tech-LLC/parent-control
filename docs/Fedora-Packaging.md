@@ -1,6 +1,6 @@
 # Fedora Workstation 44 packaging
 
-This is a development target for local VM testing and future COPR use, not a
+This is a development target with local builds and a COPR publishing channel, not a
 release-qualified platform. The functional acceptance baseline remains Ubuntu
 26.04/GNOME 50. Fedora installation is restricted to Workstation 44, and the RPM
 requires GNOME Shell 50 and Malcontent 0.14 or newer. Fedora 44 supplies
@@ -133,7 +133,7 @@ Local builds are unsigned. With DNF's default
 installing one reports `Warning: skipped OpenPGP checks` for `@commandline`;
 that warning alone does not indicate a transaction failure. No separate signing
 key is required for local development installation. Keep repository signature
-checks enabled. Future COPR builds use COPR's automatic package signing and
+checks enabled. COPR builds use COPR's automatic package signing and
 repository public key; publishing an unsigned standalone RPM would not provide
 that verification. See Fedora's
 [signature-checking design](https://fedoraproject.org/wiki/Changes/Enforcing_signature_checking_by_default).
@@ -313,23 +313,30 @@ Include edited-PAM/integration refusal and logged-in-kiosk removal refusal.
 Keep SELinux enforcing and preserve denial evidence. Source checks and a passing
 package build do not establish these installed behaviors.
 
-## Future COPR publication
+## COPR publication
 
 The committed [.copr/Makefile](../.copr/Makefile) implements COPR's documented
 [SCM `make srpm` method](https://docs.copr.fedorainfracloud.org/user_documentation.html#scm).
-It uses the local SRPM builder and COPR's supplied `outdir`, without uploads or
-credentials. The recipe installs only Python and RPM build tools inside COPR's
+It uses the shared SRPM builder, official RPM Release `1` and COPR's supplied
+`outdir`, without uploads or credentials. The recipe installs only Python and RPM build tools inside COPR's
 disposable source-build chroot before invoking the shared builder. This remote
 recipe is separate from local development setup; do not run it on the host.
 Its invocation and failure handling have a local regression using command doubles;
 an actual COPR build remains future qualification.
-Configure the repository root as the SCM subdirectory, this source
-method and `rpm/oh-no-parent-control.spec.in` as the recipe path. Pin an approved
-commit/tag and restrict chroots to `fedora-44-x86_64`. Uploading a local SRPM is
-an alternative with the same frozen inputs.
+The [publisher](Publishing.md#independent-channel-gates) configures the repository
+root, this source method and `rpm/oh-no-parent-control.spec.in` as the recipe
+path. It verifies the shared signed product tag and pins that exact commit,
+restricting the build to `fedora-44-x86_64` in
+`puffyslipperstechllc/oh-no-parent-control`. It reads API credentials only from
+the caller's private `~/.config/copr`; public monitoring needs no token.
+Each product version has an independent RPM publication gate. Published versions
+are skipped, pending builds are monitored, and uncertain submission results
+never trigger an automatic retry. Completion requires matching repository
+metadata and a verified RPM download as well as a successful build.
 
 Before publishing, complete native/Mock binary validation and Fedora VM
 acceptance, choose the owner/project and packaging release, review the generated
 spec/source fingerprint, and obtain publication authorization. Project creation,
-tokens, webhooks, repository/signing policy and uploads remain future release
-work. Neither `make build` nor this recipe creates a COPR project or release.
+token provisioning and repository/signing policy remain operator setup. The
+publisher does not create projects, edit project settings or configure webhooks.
+Neither `make build` nor this recipe submits a release.

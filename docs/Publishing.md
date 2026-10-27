@@ -84,11 +84,72 @@ in the release checkout and requires its `releases/vX.Y` branch to match that
 entry and `data/app.json`. It does not bump
 the product version: private 1.3 is published as official 1.3. It allocates only
 the unused Debian/PPA revision, ordinarily `1.3+ppa1~ubuntu26.04.1`, which sorts
-above `1.3+local1~ubuntu26.04.1`. Publication supports Debian only; RPM channel
-publishing is not implemented. Running it is the release
-decision: it creates signed source and tags in the public Git repository and
-uploads the signed source package to the configured Launchpad PPA. Editing or
+above `1.3+local1~ubuntu26.04.1`. The DEB channel uploads signed source to the
+Launchpad PPA; the RPM channel submits the shared signed product commit to
+`puffyslipperstechllc/oh-no-parent-control` in COPR for `fedora-44-x86_64`.
+Running it is the release decision: it creates signed source and tags in the
+public Git repository and submits missing channel releases. Editing or
 testing the publishing tool does not authorize a live release.
+
+### Independent channel gates
+
+Before committing, building, signing or submitting, the publisher checks each
+service for the prepared **product version**, for example `v1.4`. Packaging
+revisions do not permit publishing that product again. Each channel decides
+independently:
+
+| Remote state | Action |
+| --- | --- |
+| Published and repository/package verification succeeds | Print `v1.4 deb is already published to Launchpad PPA` or `v1.4 rpm is already published to COPR`; skip submission. |
+| Submitted, queued, building or waiting for repository metadata | Monitor the existing submission without another upload. |
+| No submission or uncertain local submission record | Submit only when both the remote check and local record establish absence. An attempted submission with no visible result remains monitor-only. |
+| Failed, rejected or unreadable status | Report the condition. Never treat it as permission to resubmit. Transient read errors continue polling. |
+
+Both channels get a submission opportunity before polling starts. One pending
+channel does not delay submitting the other, and a terminal failure does not
+hide the other channel's result. A source-preparation failure can still block
+COPR if the shared signed product tag has not been published. Declining the
+main-pause confirmation stops the whole workflow.
+
+Discovery recognizes a verified published product before considering newer
+rebuilds. Otherwise monitoring retains the exact submitted DEB revision or COPR
+build ID. An unrelated newer failure cannot replace the attempt being monitored.
+After submission, unfinished main/release Git bookkeeping resumes separately
+from package preparation, including when publication finished during an
+interruption. It never auto-commits release edits, requires old upload archives,
+or repeats the upload/publication poll. A missing retained Git checkout or a
+local conflict is reported as incomplete local recovery while both public
+channels are still monitored; the journal stays unfinished until that recovery
+succeeds.
+
+COPR uses its SCM `make srpm` method, pinned to the verified signed product
+commit. The remote recipe builds RPM Release `1`; ordinary local `make build`
+keeps its development counter. No local SRPM upload or separate `copr-cli`
+installation is needed. The caller-owned, mode-0600 `~/.config/copr` supplies
+the API login/token only for the single submission request; status reads are
+public and require no credentials. Redirects and automatic authentication retries
+are refused. No project settings or webhooks are changed by the publisher.
+
+`onpc-publish/channels.json` records the DEB and RPM states alongside the legacy
+DEB `state.json`, under the release checkout's private Git directory. COPR's
+submission intent is saved before the POST and its build ID after acceptance.
+An uncertain response never causes an automatic second submission. An
+unidentified source build also blocks submission until its identity is resolved.
+For a lost COPR submission response, public SCM configuration can bind the
+stored exact commit and recipe to a build ID, even if source generation failed
+before COPR learned the package name/version.
+COPR success requires the matching successful build, binary package identity,
+repository primary metadata and a downloaded RPM with matching size/checksum.
+The channel lock is checkout-local; retain one release checkout per version.
+It does not serialize independent clones or third-party clients.
+
+Main receives a `channels-monitor.json` reference in addition to the existing
+DEB handoff. Main and `--status` monitor both channels without uploads or journal
+writes. Historical DEB-only records remain readable and select the same product
+for the COPR check. A channel that has not been submitted is reported as such;
+read-only monitoring cannot submit it. Missing temporary DEB artifacts do not
+prevent public status checks. Fedora acceptance remains required before release;
+channel support does not establish platform qualification.
 
 The publisher highlights the main checkout and asks you to confirm that it is
 clean and development is paused. Keep main paused until the highlighted
@@ -377,7 +438,11 @@ For the full publishing workflow, run `make publish` again in the same release
 checkout on its recorded branch with its original committed inputs after an
 interruption or a repaired local prerequisite. This resumes the
 recorded workflow, including checkout finalization. Preserve the printed `/tmp` evidence
-directories until completion. Missing or altered frozen artifacts stop the run.
+directories until completion. Before submission, missing or altered frozen
+artifacts stop the run. After submission, public monitoring does not need the
+upload archives; local Git handoff/finalization still needs its retained source
+checkout and any recorded main-update candidate. Missing local recovery inputs
+do not authorize a fresh submission.
 If application fixes are committed or history changes before any public push
 was attempted, the next run retains the previous evidence and prepares a fresh
 attempt automatically. A durable `push-started` record prevents this replacement

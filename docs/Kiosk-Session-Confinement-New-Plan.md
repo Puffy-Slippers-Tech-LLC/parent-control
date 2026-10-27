@@ -79,6 +79,10 @@ with targeted tests and normal-use controls. Preserve the design’s local deskt
 C09 addresses demonstrated confinement-caused availability/recovery/lifecycle
 coupling. Existing effective barriers need verification, not duplicate code.
 General broker/feature projects are outside these rows' scope.
+The separate [kiosk usability plan](Kiosk-Usability-Plan.md) prioritizes the
+identified availability defects without adding confinement barriers. Before
+executing overlapping C09 work, reuse its delivered fixes and applicable checks;
+do not run overlapping owners concurrently or silently close either queue.
 C09a owns optional presentation fallback; C09a1 separately owns native-language
 fallback without changing genuine selected-parent authentication. C13a audits
 final source/test dispositions; C13 audits final evidence and documentation.

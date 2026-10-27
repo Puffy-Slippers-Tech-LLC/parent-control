@@ -816,7 +816,8 @@ class AgentRenderer:
                 # to each observer's actual panel width, including after resize.
                 for part_index, part in enumerate(paragraphs[paragraph].split('\n', allow_blank=True)):
                     prefix = '• ' if index == 0 and part_index == 0 and title == 'Agent' else '  '
-                    self.console.print(Text(prefix, style='bright_black') + part, soft_wrap=True)
+                    self.console.print(Text.assemble(Text(prefix, style='bright_black'), part),
+                                       soft_wrap=True)
                 continue
             self.console.print(Text(('• ' if index == 0 and title == 'Agent' else '  '), style='bright_black'),
                                Text.assemble(*(Text(segment.text, style=segment.style)

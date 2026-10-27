@@ -328,7 +328,7 @@ def barriers():
                         descriptor = os.open(path.name, os.O_RDWR | os.O_CREAT | os.O_EXCL |
                                              os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=parent)
                         os.close(descriptor)
-                before = read(path, private=True)[0]
+                before = read(path, private=path != LOCKS[0])[0]
                 with directory(path.parent) as parent:
                     descriptor = os.open(path.name, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK |
                                          os.O_CLOEXEC, dir_fd=parent)
@@ -337,9 +337,19 @@ def barriers():
                 if (info.st_dev, info.st_ino) != (before.st_dev, before.st_ino):
                     raise ValueError('replaced-legacy-lock')
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                info = os.fstat(descriptor)
                 current = path.stat(follow_symlinks=False)
                 if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
                     raise ValueError('replaced-legacy-lock')
+                if path == LOCKS[0]:
+                    # Only the exclusive writer may repair a stale owned mode.
+                    # Revalidate after locking: a live shared lease or changed
+                    # ownership/link state must never be altered by recovery.
+                    if (not stat.S_ISREG(info.st_mode) or info.st_uid != OWNER or
+                            info.st_nlink != 1 or info.st_mode & 0o022):
+                        raise ValueError('unsafe-migration-file')
+                    if stat.S_IMODE(info.st_mode) != 0o600:
+                        os.fchmod(descriptor, 0o600)
                 if path == LOCKS[0] and saved is not None and saved['backend'] == 'selinux':
                     # /run can lack this inode after reboot. Repair its label
                     # before any later lock or account/PAM/policy/live preflight

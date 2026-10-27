@@ -52,7 +52,7 @@ For Fedora COPR publishing, copy [copr.example](copr.example) to
 
 ```sh
 mkdir -p "$HOME/.config"
-cp -n './copr.example' "$HOME/.config/copr"
+cp -n './config/copr.example' "$HOME/.config/copr"
 chmod 600 "$HOME/.config/copr"
 ```
 

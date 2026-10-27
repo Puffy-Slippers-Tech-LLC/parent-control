@@ -261,9 +261,9 @@ class KioskServiceVariationQualification(KioskEntryQualification):
             check_settings(stage, observed)
             if stage == 'setup-detached':
                 observed['service_variation'] = qualify(journey.transport, context.lease)
-                smoke.require(observed['service_variation']['result'] == 'account-refused'
-                    and observed['service_variation']['app_execution_qualified'] is False,
-                    'gdm-variation:unexpected-current-product-result')
+                smoke.require(observed['service_variation']['result'] == 'session-created'
+                    and observed['service_variation']['app_execution_qualified'] is True,
+                    'gdm-variation:app-execution-required')
 
         journey.check_settings = check
         return journey

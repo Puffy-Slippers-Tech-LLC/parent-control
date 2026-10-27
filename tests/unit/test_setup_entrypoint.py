@@ -301,7 +301,9 @@ def test_package_routes_select_native_tools_and_keep_vm_dependencies_optional(tm
                         if line.startswith('BuildRequires:')}
             assert requires <= tokens
         assert {'apt-get', 'apparmor', 'sbuild', 'gir1.2-gtk-4.0'}.isdisjoint(tokens)
-        assert ('podman' in tokens) == (not mode)
+        assert ('podman' in tokens) == (mode != ['--vm-host-only'])
+        if mode != ['--vm-host-only']:
+            assert {'shadow-utils-subid', 'passt', 'slirp4netns', 'fuse-overlayfs'} <= tokens
         if not mode:
             # Fedora splits the daemon and the Python client used by Dogtail.
             assert {'gnome-ponytail-daemon', 'python3-gnome-ponytail-daemon', 'gtk3'} <= tokens

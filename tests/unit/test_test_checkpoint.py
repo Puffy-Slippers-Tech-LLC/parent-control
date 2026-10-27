@@ -155,12 +155,33 @@ def test_failed_resume_checkpoint_sync_keeps_pending_passes_for_retry(tmp_path, 
     assert Checkpoint(tmp_path, [('unit', [])], resume=True).passed('unit') == {'first', 'second'}
 
 
-def test_resume_refuses_changed_selectors_but_can_narrow_categories(tmp_path):
+def test_resume_refuses_changed_selectors_but_can_narrow_categories(tmp_path, monkeypatch):
     checkpoint = Checkpoint(tmp_path, [('unit', ['-k', 'grant']), ('static', ['shell'])])
     checkpoint.finish([SimpleNamespace(retry_category='static', count_overall=True, state='Passed')])
     assert Checkpoint(tmp_path, [('static', ['shell'])], resume=True).complete('static')
     with pytest.raises(ValueError, match='selection differs'):
         Checkpoint(tmp_path, [('unit', ['-k', 'limit'])], resume=True)
+    # A composite publishing request retains each channel's completion, so a
+    # failed RPM job neither discards nor reruns the accepted DEB result.
+    root = tmp_path / 'publishing'
+    publishing = Checkpoint(root, [('publish', [])])
+    publishing.finish([
+        SimpleNamespace(retry_category='publish-deb', count_overall=True, state='Passed'),
+        SimpleNamespace(retry_category='publish-rpm', count_overall=True, state='Failed'),
+    ])
+    resumed = Checkpoint(root, [('publish', [])], resume=True)
+    assert resumed.selected == {'publish-deb', 'publish-rpm'}
+    assert resumed.complete('publish-deb') and not resumed.complete('publish-rpm')
+    assert Checkpoint(root, [('publish-deb', [])], resume=True).complete('publish-deb')
+    calls = []
+    monkeypatch.setattr(regression_selection, 'source_identity', lambda _: 'f' * 64)
+    monkeypatch.setattr(regression, 'Admission', lambda **_: SimpleNamespace(allows=lambda *_: True))
+    def execute(self, command, **kwargs):
+        calls.append(command[1])
+        return 0
+    monkeypatch.setattr(regression.Control, 'run', execute)
+    assert regression.retained_main(root, selections=[('publish', [])], checkpoint=resumed) == 0
+    assert calls == ['publish-rpm']
 
 
 def test_resume_checks_every_repeated_category_selection(tmp_path):

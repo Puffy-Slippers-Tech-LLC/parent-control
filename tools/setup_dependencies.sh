@@ -16,11 +16,13 @@ if [[ $setup_platform == fedora ]]; then
         exit 2
     fi
     # Keep this inventory aligned with rpm/oh-no-parent-control.spec.in.
-    # RPM-only setup stays native; full setup adds the Ubuntu DEB builder.
+    # Development RPM builds stay native; clean publishing checks use Podman.
+    # Full setup also adds the Ubuntu DEB builder.
     rpm_packages=(rpm-build gcc gettext make pam-devel glib2 nodejs python3
                   redhat-rpm-config systemd-rpm-macros tar xz)
     if [[ ${1-} == --rpm-build-tools ]]; then
-        dnf -y install "${rpm_packages[@]}"
+        dnf -y install "${rpm_packages[@]}" podman shadow-utils-subid \
+            passt slirp4netns fuse-overlayfs
         exit 0
     fi
     if [[ ${1-} == --vm-host-only ]]; then

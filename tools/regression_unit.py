@@ -686,6 +686,10 @@ Publishing Make-entrypoint checks copy the dispatcher and configuration into
 tmp_path and synchronously reap Make/Python/stub-runner children. The configured
 disk is never opened; no real tests, VM, shared cache or build is started, so
 publishing_tests retains its compatible unit classification.
+Its independent DEB/RPM failure-propagation check uses in-process builder doubles
+and private result files; it starts no container or package build.
+Publishing scheduler checks reuse private reports, bounded joined threads and
+command doubles; the DEB/RPM overlap adds no live cache, container or VM.
 Baseline --y regressions use process-local input, privilege and VM doubles;
 launcher prompt checks read strings and private report files. No real VM,
 privileged helper, terminal, socket or shared storage is accessed, so existing

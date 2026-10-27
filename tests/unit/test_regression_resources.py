@@ -190,8 +190,10 @@ def test_reviewed_ui_modules_keep_resource_and_pairing_limits(kind):
     assert 'memory headroom' in admission.reason
 
 
-@pytest.mark.parametrize('build', ['publish'])
-@pytest.mark.parametrize('companion', ['unit', 'component', 'ui-request'])
+@pytest.mark.parametrize('build,companion', [
+    ('publish', 'unit'), ('publish', 'component'), ('publish', 'ui-request'),
+    ('publish-deb', 'publish-rpm'),
+])
 def test_build_pairings_are_symmetric_and_still_require_headroom(build, companion):
     state, admission = gate()
     assert not admission.allows(build, [companion])

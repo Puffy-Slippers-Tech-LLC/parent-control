@@ -284,7 +284,10 @@ release commands.
 Local publishing checks run through the aggregate's `tools/run-tests publish` category
 and the same module in `make test-all VM=NAME`. They create a private unsigned source
 snapshot, run source integrity and Lintian checks, and build/test it in clean
-sbuild. They require no publisher credentials and never push or upload.
+sbuild. The same category runs the COPR source recipe, a clean offline Fedora
+RPM rebuild, lint and runtime dependency resolution in private rootless
+containers. See [local publishing tests](Publishing.md#local-publishing-tests).
+They require no publisher credentials and never push or upload.
 
 Manual execution on a configured host needs no administrator approval or
 Polkit dialog; the publisher's explicit main-pause confirmation is required.
@@ -516,7 +519,7 @@ validated legacy `/tmp/onpc-*` bundles remain accepted inputs, not output exampl
 | Complete VM category | `tools/run-tests vm [--vm NAME] [--continue-on-errors]` | System and ready E2E coverage; required package inputs are prepared automatically; independent host runs may overlap |
 | Combined complete categories | `tools/run-tests host vm --vm NAME` | Equals `all`; `vm` expands to `system e2e`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; combined runs reserve both scope locks |
 | Host compatibility alias | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same scope as `host`; `--serial-builds` retains publishing/builds after the host join for a scheduling comparison |
-| Local publishing checks | `tools/run-tests publish` | Shared source/sbuild/Lintian module included in `test-all` and `test-all-verify`; no selectors or publication |
+| Local publishing checks | `tools/run-tests publish` | Independently scheduled `publish-deb` and `publish-rpm` jobs, also selectable alone and included in host/test-all/test-all-verify; no publication |
 | Future fast suite | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
 
 Routine `make check`, `make build`, `make check-release-version`, `make check-unit`,

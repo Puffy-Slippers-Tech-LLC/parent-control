@@ -1,4 +1,4 @@
-"""Publishing test entry points share a local-only pipeline and preserve failures."""
+"""Publishing jobs keep local prerequisites and results independent."""
 import json
 import os
 from pathlib import Path
@@ -67,15 +67,27 @@ def test_snapshot_includes_working_changes_and_prepares_history_without_mutating
     assert (tmp_path / 'again/debian/changelog').read_bytes() == (copied / 'debian/changelog').read_bytes()
 
 
-@pytest.mark.parametrize('failure', [None, 'source', 'sbuild', 'binary'])
-def test_pipeline_runs_source_and_binary_checks_and_retains_failure(tmp_path, monkeypatch, failure):
+@pytest.mark.parametrize('package_format,failure', [
+    ('deb', None), ('deb', 'source'), ('deb', 'sbuild'), ('deb', 'binary'),
+    ('rpm', None), ('rpm', 'rpm'),
+])
+def test_pipeline_runs_source_and_binary_checks_and_retains_failure(tmp_path, monkeypatch, package_format, failure):
     directory = tmp_path / 'attempt'
     directory.mkdir()
     version = '1.1+ppa1~ubuntu26.04.1'
     calls = []
     monkeypatch.setattr(checks.os, 'geteuid', lambda: 1000)
-    monkeypatch.setattr(checks.build, 'check_prerequisites', lambda: None)
-    monkeypatch.setattr(checks.shutil, 'which', lambda *a, **k: '/usr/bin/tool')
+    def prerequisites(selected):
+        assert selected == package_format, 'another format must not gate this job'
+
+    monkeypatch.setattr(checks.build, 'check_prerequisites', lambda: prerequisites('deb'))
+    monkeypatch.setattr(checks.rpm, 'prerequisites', lambda: prerequisites('rpm'))
+    def which(tool, **kwargs):
+        if package_format == 'rpm':
+            assert tool in ('git', 'make'), 'RPM validation must not require Debian tools'
+        return '/usr/bin/tool'
+
+    monkeypatch.setattr(checks.shutil, 'which', which)
     monkeypatch.setattr(checks.tempfile, 'mkdtemp', lambda **k: str(directory))
     monkeypatch.setattr(checks, 'snapshot', lambda root, checkout, log: checkout.mkdir())
 
@@ -103,18 +115,31 @@ def test_pipeline_runs_source_and_binary_checks_and_retains_failure(tmp_path, mo
     monkeypatch.setattr(checks.publish, 'command', command)
     monkeypatch.setattr(checks.source, 'inspect_archive', inspect)
     monkeypatch.setattr(checks.build, 'check_build', build)
+    def rpm_build(root, checkout, directory):
+        calls.append(('rpm',))
+        if failure == 'rpm':
+            raise ValueError('rpm failed')
+        return dict(status='passed')
+
+    monkeypatch.setattr(checks.rpm, 'check_build', rpm_build)
     if failure:
         with pytest.raises(ValueError, match=failure + ' failed'):
-            checks.run(tmp_path)
+            checks.run(tmp_path, package_format=package_format)
     else:
-        checks.run(tmp_path)
+        checks.run(tmp_path, package_format=package_format)
     result = json.loads((directory / 'result.json').read_text())
     assert result['status'] == ('failed' if failure else 'passed')
     names = [call[0] for call in calls]
+    assert result['package_format'] == package_format
+    assert names.count('rpm') == int(package_format == 'rpm')
+    if package_format == 'rpm' and not failure:
+        assert result['rpm']['status'] == 'passed'
     assert not {'dput', 'debsign', 'gpg'} & set(names)
     assert not any(call[:2] == ('git', 'push') for call in calls)
-    assert names.count('lintian') == (1 if failure in ('source', 'sbuild') else 2)
-    assert names.count('sbuild') == (0 if failure == 'source' else 1)
+    assert names.count('lintian') == (0 if package_format == 'rpm' else 1 if failure in ('source', 'sbuild') else 2)
+    assert names.count('sbuild') == (0 if package_format == 'rpm' or failure == 'source' else 1)
+    if package_format == 'rpm':
+        assert not any(name.startswith('dpkg') or name == 'unshare' for name in names)
 
 
 def test_command_keeps_external_tool_scratch_inside_the_owned_attempt(tmp_path, monkeypatch):
@@ -154,9 +179,15 @@ def test_make_entrypoints_dispatch_and_propagate_failure(tmp_path, target, categ
 
 def test_category_dispatch_uses_shared_script_and_rejects_options():
     # The maintained launcher imports these modules from tools/.
-    from test_commands import plan
+    from test_commands import plan, suite_inventory
     commands, safety = plan(ROOT, 'publish', [])
-    assert commands == [['/usr/bin/python3', '-B', str(ROOT / 'tools/publishing_checks.py')]]
+    assert commands == [['/usr/bin/python3', '-B', str(ROOT / 'tools/publishing_checks.py'),
+                         '--package-format', value] for value in ('deb', 'rpm')]
+    for category, command in zip(('publish-deb', 'publish-rpm'), commands, strict=True):
+        assert plan(ROOT, category, []) == ([command], False)
+    assert list(suite_inventory(('publish',))) == ['publish-deb', 'publish-rpm']
+    previous = {'publish': {'scope': 'host', 'args': []}}
+    assert suite_inventory(('publish',), inventory=previous) == previous
     assert not safety
     with pytest.raises(ValueError, match='no arguments'):
         plan(ROOT, 'publish', ['--skip-build'])

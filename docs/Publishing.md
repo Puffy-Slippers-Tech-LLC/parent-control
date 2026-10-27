@@ -284,12 +284,20 @@ Setup/account provisioning is separate from routine publishing.
 `make test-all` and its compatibility alias `make test-all-verify` use metadata-only
 VM checks with no whole-image scans. They invoke the
 same [`tools/publishing_checks.py`](../tools/publishing_checks.py) utility through
-`tools/run-tests publish`. It takes no selectors and performs no signing,
-pushes, uploads or Launchpad requests. It needs no publisher credentials.
+`tools/run-tests publish`. `tools/run-tests host` includes both jobs too.
+`publish` schedules independent `publish-deb` and `publish-rpm` jobs through the
+runner's resource admission, allowing them to run concurrently when CPU, memory
+and I/O headroom permit. Either can also run alone, for example
+`tools/run-tests publish-rpm`. Each owns its prerequisites, source snapshot,
+logs, result and resume state. Neither depends on the other's result or tools:
+RPM needs Podman and no Debian builder; DEB needs sbuild/Lintian and no Podman.
+Normal runner stop-on-error and cancellation rules still apply.
+These commands take no arguments and perform no signing,
+pushes, uploads or publication API requests. It needs no publisher credentials.
 
-The utility checks host build prerequisites and version consistency, then freezes
-the `PACKAGE_SOURCE_FILES` allowlist in the Makefile into a private
-`/tmp/onpc-test-publish-*` snapshot. This includes product code, runtime assets,
+Each job checks its host build prerequisites and version consistency, then freezes
+the `PACKAGE_SOURCE_FILES` allowlist in the Makefile into a private snapshot in
+the shared test storage. This includes product code, runtime assets,
 licenses, Debian metadata and required build helpers. It excludes development
 docs, `tests/`, previews, agent configuration and internal tools. Uncommitted
 product edits are included; unrelated edits and their whitespace do not block
@@ -298,6 +306,27 @@ The snapshot uses the same private metadata preparation as `make updateversion`,
 including an undated next-version draft. After a release it retains the existing
 official metadata. The real checkout is unchanged. Publication still requires
 dated release history and allocates the unused PPA revision from remote history.
+
+Fedora validation runs the actual `.copr/Makefile` with its SCM helper inputs in
+a disposable rootless Fedora 44 container. A separate fresh Fedora environment
+installs Mock's standard `@buildsys-build` group and resolves `BuildRequires`
+from that SRPM. It rebuilds the SRPM as an unprivileged user with network access
+disabled and `%check` enabled, then checks the resulting RPMs with `rpmlint`.
+Lint exceptions match only the existing custom PAM module, administrator-only
+launcher mode, interpreter-invoked lifecycle files, independent trust-measured
+copies and named dynamic/integration library dependencies. Other lint errors
+fail; warnings remain in the retained log.
+DNF resolves and downloads the product's runtime dependency closure into an
+empty disposable root without installing the product or running scriptlets.
+Missing dependencies, failed builds, lint errors and missing artifacts fail the
+publishing category. Logs, source artifacts and RPMs use the same retained run;
+the attempt's temporary builder image is removed by its exact image ID.
+This requires rootless Podman (`./setup.sh --rpm-build-tools`) and network access
+for Fedora images and dependency resolution. The prepared development builder
+is not used, so its installed packages cannot mask missing build dependencies.
+COPR uses Mock and may generate sources on a newer Fedora builder host; this
+local check reduces cloud build failures but does not qualify the remote service,
+project credentials, signing, repository publication or installed VM behavior.
 
 It builds unsigned source, verifies upload manifests and archive contents against
 the snapshot, runs source Lintian, builds that DSC in clean resolute/amd64 `sbuild`

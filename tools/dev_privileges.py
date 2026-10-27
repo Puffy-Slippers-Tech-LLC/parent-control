@@ -25,11 +25,14 @@ def check(program):
         result = subprocess.run(['/usr/bin/pkcheck', '--action-id', PROGRAMS[program],
                                  '--process', subject],
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL, timeout=15, check=False)
+                                stderr=subprocess.PIPE, timeout=15, check=False)
     except subprocess.TimeoutExpired as error:
         raise ValueError('noninteractive authorization check timed out') from error
     if result.returncode:
-        raise ValueError(f'noninteractive authorization unavailable (status={result.returncode}); refresh ./setup.sh --test-tools-only from an active local administrator session')
+        detail = result.stderr[:2048].decode('utf-8', errors='replace').strip()
+        raise ValueError(f'noninteractive authorization unavailable (status={result.returncode}); '
+                         f'{detail or "no error detail"}; refresh ./setup.sh --test-tools-only '
+                         'from an active local administrator session')
 
 
 def launch(program, argv):

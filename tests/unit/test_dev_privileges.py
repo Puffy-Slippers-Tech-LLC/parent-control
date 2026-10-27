@@ -20,7 +20,7 @@ def test_noninteractive_permission_preflight_gates_pkexec(monkeypatch, returncod
     program = '/usr/local/libexec/onpc-' + name
     monkeypatch.setattr(os, 'geteuid', lambda: 1000)
     monkeypatch.setattr(Path, 'lstat', lambda _: SimpleNamespace(st_mode=stat.S_IFREG | 0o755, st_uid=0))
-    check = Mock(return_value=SimpleNamespace(returncode=returncode))
+    check = Mock(return_value=SimpleNamespace(returncode=returncode, stderr=b'Not authorized.\n'))
     execute = Mock()
     chdir = Mock()
     monkeypatch.setattr(os, 'chdir', chdir)

@@ -40,7 +40,7 @@ not general product acceptance. Ordinary tasks take 20–30 minutes; the named
 | [x] | D03b | Make shortcut checks reject desktop launch controls | C07s | Require request-only results after all four existing station shortcuts and qualify the verdict with ordinary controls on both targets; no product changes | Both-target eight-result verdicts, ordinary controls, Cancel/fresh entry, settings restoration and owned cleanup passed; listing and links passed; no product changes |
 | [x] | D03 | Freeze desktop acceptance bindings | C07s, D03a, D03b | Audit exact registered desktop histories and prior both-target usability; no deferred product gate | Registered enforcing verdicts, finite compositions and prior both-target usability audited; runner listings, links, plan metadata and owned cleanup passed; no installed acceptance claimed |
 | [x] | C11d | Qualify local desktop prevention on Ubuntu | D03 | Ubuntu: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | Ubuntu candidate-matching selection and eight shortcut results passed; ordinary controls, usable Cancel/fresh entry, exact routing/policy restoration and owned cleanup passed; unchanged C07a/C07s usability reused; no product changes |
-| [ ] | C12d | [Qualify local desktop prevention on Fedora](Kiosk-Prompt-Tasks/C12d-local-routes-fedora.md) | C11d | Fedora: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | 30–60 min; session exception: one local route family, usability and restoration |
+| [x] | C12d | Qualify local desktop prevention on Fedora | C11d | Fedora: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | Fedora candidate-matching selection and eight shortcut results passed; ordinary controls, passwordless Cancel/reentry, exact routing/policy restoration and owned cleanup passed; unchanged C07a/C07s usability reused; 61 helper guards passed; no product changes |
 | [ ] | D04 | [Close desktop prevention evidence and documentation](Kiosk-Prompt-Tasks/D04-desktop-closeout.md) | C12d | Verify matching desktop product/automation/docs, both-target evidence and completed owned restoration | 20–30 min |
 
 Remote-desktop testing was removed by developer direction. D01r and C07r1
@@ -50,7 +50,7 @@ final negative verdicts in the two local qualification journeys. D03a and D03b
 qualified the desktop-selection and shortcut verdicts on both targets; D03
 confirmed the registered comparisons and froze the finite final-acceptance map.
 Completed qualifications and product gates stay accepted. The next active task
-is C12d.
+is D04.
 
 Order is authoritative; IDs are stable labels. C07a/C07s and C11d/C12d
 carry their desktop assertions here. Standalone terminal/TTY assertions are

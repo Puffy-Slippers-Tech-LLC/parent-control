@@ -819,6 +819,8 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
     # This controller test owns scheduling/results. Real option and input
     # validation is exercised by the focused launcher tests against ROOT.
     monkeypatch.setattr(test_commands, 'validate_one', lambda *_: None)
+    expand = test_commands.execution_selections
+    monkeypatch.setattr(test_commands, 'execution_selections', lambda root, groups: expand(ROOT, groups))
     monkeypatch.setattr(test_commands, '_main', lambda argv, **kwargs: hosts.append(argv) or 0)
     monkeypatch.setattr(test_commands, 'qualification_artifact_command',
                         lambda *args: pytest.fail('batch must not allocate VM-owned inputs'))
@@ -846,7 +848,7 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
                 assert free_started.wait(5)
             elif name == 'guest-1':
                 free_started.set()
-            assert command[5:] == (requested if 'system' in requested else ['system', 'e2e'])
+            assert command[5:] == (requested if 'system' in requested else ['system', 'integration', 'e2e'])
             time.sleep(.02)
             if name == 'guest-0' and failed_guest:
                 handoff = tmp_path / 'guest-failure.json'
@@ -872,9 +874,9 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
     if failed_guest:
         handoff = json.loads((evidence / 'failure.json').read_text())
         if handoff_fault:
-            assert handoff['categories'] == ['system', 'e2e']
+            assert handoff['categories'] == ['system', 'integration', 'e2e']
             assert handoff['failures'] == [dict(category=kind, case='', vm='guest-0')
-                                          for kind in ('system', 'e2e')]
+                                          for kind in ('system', 'integration', 'e2e')]
         else:
             assert handoff['categories'] == ['e2e']
             assert handoff['failures'] == [dict(category='e2e', case='E2E-004/terminal', vm='guest-0')]

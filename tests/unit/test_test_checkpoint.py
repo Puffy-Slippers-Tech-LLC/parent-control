@@ -182,6 +182,30 @@ def test_resume_refuses_changed_selectors_but_can_narrow_categories(tmp_path, mo
     monkeypatch.setattr(regression.Control, 'run', execute)
     assert regression.retained_main(root, selections=[('publish', [])], checkpoint=resumed) == 0
     assert calls == ['publish-rpm']
+    # Atomic integration checks commit only after the entire guarded command
+    # returns successfully, including its cleanup. A sibling failure retains
+    # the earlier check without marking the category complete.
+    integration = [('integration', ['check_first']), ('integration', ['check_second'])]
+    root = tmp_path / 'integration'
+    checkpoint = Checkpoint(root, integration)
+    calls.clear()
+    def execute_check(self, command, **kwargs):
+        calls.append(command[3])
+        return 7 if command[3] == 'check_second' else 0
+    monkeypatch.setattr(regression.Control, 'run', execute_check)
+    assert regression.retained_main(root, selections=integration, checkpoint=checkpoint) == 1
+    resumed = Checkpoint(root, integration, resume=True)
+    assert resumed.passed('integration') == {'check_first'}
+    assert not resumed.complete('integration')
+    assert calls == ['check_first', 'check_second']
+    calls.clear()
+    def retry_check(self, command, **kwargs):
+        calls.append(command[3])
+        return 0
+    monkeypatch.setattr(regression.Control, 'run', retry_check)
+    assert regression.retained_main(root, selections=integration, checkpoint=resumed) == 0
+    assert calls == ['check_second']
+    assert Checkpoint(root, integration, resume=True).complete('integration')
 
 
 def test_resume_checks_every_repeated_category_selection(tmp_path):
@@ -800,7 +824,10 @@ def test_grouped_system_filter_keeps_unknown_and_incompatible_ids_for_controller
     monkeypatch.setenv(VARIABLE, vm_name())
     # The synthetic target deliberately excludes RPM-only histories.
     monkeypatch.setattr(vm_config.VMConfig, 'require_package_format', lambda _: 'deb')
-    monkeypatch.setattr(system_runner, 'collect_area_cases', RECOVERY_INVENTORIES.__getitem__)
+    inventories = {**RECOVERY_INVENTORIES, 'package': (
+        *RECOVERY_INVENTORIES['package'], system_runner.PREVIOUS_POLICY_CASE,
+        system_runner.TRUSTED_FIXTURES_CASE)}
+    monkeypatch.setattr(system_runner, 'collect_area_cases', inventories.__getitem__)
     selections = [('system', ['--area', 'authorization']), ('system', [])]
     checkpoint = Checkpoint(tmp_path, selections)
     checkpoint.event('system', dict(kind='finished', nodeid=unknown), set())
@@ -850,6 +877,26 @@ def test_grouped_system_upgrade_resume_preserves_installation_predecessors(
     resumed = regression.Run.resume_command(SimpleNamespace(root=ROOT, checkpoint=checkpoint), item, command)
     assert resumed[:-1] == command
     assert json.loads(resumed[-1].split('=', 1)[1]) == sorted(predecessors)
+    # The default category owns three attempts. A case retry must select its
+    # own isolated upgrade rather than fail in, or certify, an earlier sibling.
+    inventories['package'] = (*inventories['package'], system_runner.PREVIOUS_POLICY_CASE,
+                              system_runner.TRUSTED_FIXTURES_CASE)
+    checkpoint = Checkpoint(tmp_path / 'aggregate', [('system', [])])
+    case = 'trusted-fixtures::' + system_runner.TRUSTED_FIXTURES_CASE
+    checkpoint.retry('system', case)
+    with closing(regression.Report(tmp_path)) as report:
+        run = regression.Run(ROOT, report, regression.Control(), host_only=True)
+        run.checkpoint = checkpoint
+        sibling = regression.Category('Current', retry_category='system', selection_args=())
+        assert run.resume_category(sibling)
+        assert sibling.done == 0 and not sibling.count_overall
+        args = ('--id', '288', '--upgrade-inputs')
+        selected = regression.Category('Upgrade', retry_category='system', selection_args=args)
+        assert not run.resume_category(selected)
+        command = run.command('system', *args)
+        scoped = run.resume_command(selected, command)
+        assert scoped[:len(command)] == command
+        assert json.loads(scoped[-1].partition('=')[2]) == []
     assert set(item.resumed_nodeids) == predecessors
     assert system_runner.resume_selection(selection, predecessors, fresh_install=True) == selection
 
@@ -892,7 +939,10 @@ def test_vm_queue_preserves_resume_and_first_failure_policy():
     from vm_test_queue import split
     host, guests = split(ROOT, ['--resume', '--stop-on-error', 'host', 'vm'])
     assert host == ['--resume', '--stop-on-error', 'host']
-    assert guests == ['--resume', '--stop-on-error', 'system', 'e2e']
+    assert guests == ['--resume', '--stop-on-error', 'system', 'integration', 'e2e']
+    assert split(ROOT, ['all', '--continue-on-errors']) == (
+        ['host', '--continue-on-errors'],
+        ['system', 'integration', 'e2e', '--continue-on-errors'])
 
 
 def test_fresh_vm_queue_resets_queued_progress_even_when_host_fails(tmp_path, monkeypatch):
@@ -902,7 +952,9 @@ def test_fresh_vm_queue_resets_queued_progress_even_when_host_fails(tmp_path, mo
     monkeypatch.setenv(BATCH, json.dumps(dict(vms=['guest'], concurrency=1)))
     monkeypatch.setattr(queue.vm_config, 'registry', lambda: {'guest': vm})
     monkeypatch.setattr(test_commands, '_main', lambda *_, **__: 1)
-    selection = [('system', []), ('e2e', [])]
+    expand = test_commands.execution_selections
+    monkeypatch.setattr(test_commands, 'execution_selections', lambda root, groups: expand(ROOT, groups))
+    selection = [('system', []), ('integration', []), ('e2e', [])]
     previous = Checkpoint(tmp_path, selection, binding='guest')
     previous.event('e2e', dict(kind='finished', nodeid='old-pass'), set())
     previous.save()

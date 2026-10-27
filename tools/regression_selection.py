@@ -7,7 +7,7 @@ from regression import CATEGORY_NAMES, Category, Run
 from regression_inputs import identity as source_identity
 from regression_ui import selected_options, serial_options
 from test_launcher import pytest_command, timeout_value
-from test_commands import CATEGORIES
+from test_commands import CATEGORIES, execution_selections
 
 
 CLEANUP_SELECTION = '__cleanup_prerequisites__'
@@ -22,6 +22,7 @@ def e2e_case_ids(root, args):
 
 class SelectedRun(Run):
     def __init__(self, root, report, control, selections, *, stop_on_error=False):
+        selections = execution_selections(root, selections)
         includes_vm = any(kind in ('system', 'e2e', 'integration') for kind, _ in selections)
         super().__init__(root, report, control, host_only=not includes_vm,
                          scope='selected categories only', continue_on_errors=not stop_on_error)
@@ -47,6 +48,8 @@ class SelectedRun(Run):
                             host=kind not in ('system', 'e2e', 'integration'),
                             phase='cleanup' if kind == CLEANUP_SELECTION else 'host')
             item.selection_args = tuple(args)
+            if kind == 'integration':
+                item.name += ' — ' + args[0]
             if kind == 'e2e' and events:
                 item.nodeids = e2e_case_ids(root, args)
                 item.total = len(item.nodeids)

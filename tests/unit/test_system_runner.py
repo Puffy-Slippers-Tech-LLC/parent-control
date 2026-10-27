@@ -32,6 +32,20 @@ import system_case_ids
 def test_numeric_system_registry_covers_current_parameter_variants_without_vm_operations():
     inventories = {area: runner.collect_area_cases(area) for area in runner.AREA_SOURCES}
     system_case_ids.validate_inventory(inventories)
+    # Aggregate selection must cover all applicable bound cases, including
+    # histories that cannot share the ordinary current-package attempt.
+    import test_commands
+    from tests.support.paths import ROOT
+    groups = test_commands.execution_selections(ROOT, [('system', [])])
+    for package_format in ('deb', 'rpm'):
+        ordinary = runner.resolve_selection(inventories=inventories,
+                                             target_package_format=package_format)
+        attempts = [ordinary, *(runner.resolve_selection(
+            recording_ids=args[1], fresh_install=True, inventories=inventories,
+            target_package_format=package_format) for _, args in groups[1:])]
+        covered = {(item.area, item.case_id) for attempt in attempts
+                   for item in attempt.executions if not item.prerequisite}
+        assert covered == {(area, case) for area, cases in ordinary.available.items() for case in cases}
     identities = [system_case_ids.identity_for_case(area, case)
                   for area, cases in inventories.items() for case in cases]
     assert set(identities) <= set(system_case_ids.CASES)

@@ -1546,7 +1546,7 @@ def test_vm_aggregate_uses_one_suite_and_retains_progress_and_final_failure(
     if graphical is not None:
         assert ready == cases and graphical.nodeids == tuple(cases)
     # System failure refuses any subsequent E2E suite even in continue mode.
-    refused = category == 'system' and continue_on_errors and failure in ('case', 'suite-cleanup')
+    refused = category == 'system' and continue_on_errors and failure in ('case', 'suite-cleanup', 'incomplete')
     with pytest.raises(ValueError, match='subsequent VM attempts refused') if refused else nullcontext():
         run.vm_tests(system, graphical, ready)
     assert len(calls) == 2  # One read-only inventory and one complete suite.
@@ -1568,10 +1568,14 @@ def test_vm_aggregate_uses_one_suite_and_retains_progress_and_final_failure(
 def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         report, tmp_path, monkeypatch, fail_unit, fail_publish, scope):
     host_builds = scope.startswith('host-builds')
-    phases = (('host', 'system', 'e2e') if scope in ('all', 'all-future-category') else
+    phases = (('host', 'system', 'integration', 'e2e') if scope in ('all', 'all-future-category') else
               ('host',) if host_builds else tuple(scope.split()))
+    from tests.support.paths import ROOT
+    expand = test_commands.execution_selections
+    monkeypatch.setattr(test_commands, 'execution_selections', lambda root, groups: [
+        (kind, args) for kind, args in expand(ROOT, groups)
+        if kind != 'integration' or args == ['check_graphical_worker']])
     if scope == 'all-future-category':
-        import test_commands
         monkeypatch.setitem(test_commands.CATEGORIES, 'ui-future-suite',
                             test_commands.CategorySpec('New implemented suite'))
     includes_host = 'host' in phases
@@ -1623,9 +1627,8 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
             elif category in ('unit', 'component', 'ui', 'fixture-runtime', 'system'):
                 nodes = (ui_ids if category == 'ui' else safety_ids if safety else
                          unit_ids if category == 'unit' else ('one', 'two'))
-                if category != 'system':
-                    event('collection', total=len(nodes),
-                          **({'nodeids': nodes} if category in ('unit', 'ui') else {}))
+                event('collection', total=len(nodes),
+                      **({'nodeids': nodes} if category in ('unit', 'ui') else {}))
                 failed = category == 'unit' and fail_unit
                 if failed:
                     event('failure', nodeid=nodes[0], detail='test assertion failed')
@@ -1668,12 +1671,15 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         assert executed_kinds == set(suite_inventory())
     if not includes_host:
         executed = [call for call in control.calls if '--list' not in call]
-        assert [call[1] for call in executed] == ['artifacts', *phases]
+        expected = ['artifacts', *(kind for kind, _ in expand(ROOT,
+                    [(kind, []) for kind in phases]))]
+        assert [call[1] for call in executed] == expected
         assert 'prepare' in executed[0]
         assert '--for-vm' in executed[0]
         assert all(item.state == 'Passed' for item in run.categories)
         assert control.builds == 1
-        assert all(run.artifacts['build-a'] in call for call in executed[1:])
+        assert all(run.artifacts['build-a'] in call for call in executed[1:]
+                   if '--upgrade-inputs' not in call)
         return
     expected_failure = int(fail_unit or fail_publish)
     assert [item.state for item in run.categories].count('Failed') == expected_failure
@@ -1703,7 +1709,8 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
     assert len(preparation) == 1
     assert preparation[0][-2:] == ['--candidate', run.artifacts['build-a']]
     assert all(run.artifacts['build-vm'] in call for call in control.calls
-               if call[1] in ('system', 'e2e') and '--list' not in call)
+               if call[1] in ('system', 'e2e') and '--list' not in call
+               and '--upgrade-inputs' not in call)
     e2e = [call for call in control.calls if 'e2e' in call and '--list' not in call]
     assert len(e2e) == int('e2e' in phases)
     if e2e:
@@ -1712,12 +1719,15 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
     # The full installed selection shares one setup/installation, not one
     # invocation per area or per collected functional test.
     system = [call for call in control.calls if 'system' in call and '--list' not in call]
-    assert len(system) == int('system' in phases)
+    assert len(system) == 3 * int('system' in phases)
     if system:
         assert '--area' not in system[0] and '--test' not in system[0]
+        assert [call[3:6] for call in system[1:]] == [
+            ['--id', '287', '--upgrade-inputs'], ['--id', '288', '--upgrade-inputs']]
     executed = [call[1] for call in control.calls if '--list' not in call]
     first_vm = next(index for index, kind in enumerate(executed) if kind in ('system', 'e2e'))
-    assert executed[first_vm:] == [kind for kind in phases if kind != 'host']
+    assert executed[first_vm:] == [kind for kind, _ in test_commands.execution_selections(
+        ROOT, [(kind, []) for kind in phases if kind != 'host'])]
     for call in control.calls:
         assert '--skip-backing-verification' not in call
 

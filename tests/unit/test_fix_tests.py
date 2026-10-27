@@ -748,7 +748,7 @@ def test_successful_exploration_does_not_echo_sensitive_command_output():
 def test_granular_inventory_order_excludes_every_duplicate_helper():
     inventory = test_commands.suite_inventory()
     assert list(inventory)[:2] == ['unit', 'ui']
-    assert list(inventory)[-2:] == ['system', 'e2e']
+    assert list(inventory)[-3:] == ['system', 'integration', 'e2e']
     helpers = {kind for kind, spec in test_commands.CATEGORIES.items()
                if not spec.leaf or not spec.implemented}
     assert set(inventory).isdisjoint(helpers)
@@ -767,7 +767,7 @@ def test_future_categories_follow_readiness_without_a_second_allowlist(monkeypat
     }.items():
         monkeypatch.setitem(test_commands.CATEGORIES, name, spec)
     inventory = test_commands.suite_inventory()
-    assert list(inventory)[-3:] == ['future-suite', 'system', 'e2e']
+    assert list(inventory)[-4:] == ['future-suite', 'system', 'integration', 'e2e']
     assert not {'future-composite', 'future-help', 'future-pending'} & inventory.keys()
     monkeypatch.setitem(test_commands.CATEGORIES, 'future-pending',
                         test_commands.CategorySpec('Now implemented'))

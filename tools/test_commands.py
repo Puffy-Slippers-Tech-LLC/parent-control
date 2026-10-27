@@ -47,20 +47,20 @@ CATEGORIES = {
     'component-all': CategorySpec('the current make check-component aggregate', leaf=False),
     'fixtures': CategorySpec('build, verify PATH; native-runtime also supports prepare; --kind native-runtime --target ubuntu|fedora; generated build output', leaf=False),
     'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
-    'integration': CategorySpec('installed dispatcher for check_* basenames; --list lists bindings; no script arguments', leaf=False, scope='vm'),
-    'system': CategorySpec('sequential tests per VM; stable numeric --id N[,N...] or --area/--test selectors; optional --artifacts (otherwise prepare each VM\'s declared package format); --previous-artifacts, --list', scope='vm'),
+    'integration': CategorySpec('runnable guarded check_* tests; optional basename; --list includes scheduling exclusions', scope='vm'),
+    'system': CategorySpec('current-package suite plus separate 287/288 upgrades by default; --id N[,N...] or --area/--test focuses selection; optional --artifacts; --previous-artifacts, --list', scope='vm'),
     'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm'),
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
     'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
     'all-verify': CategorySpec('compatibility alias for all; metadata-only VM verification; --continue-on-errors disables stop on first error', leaf=False),
     'host': CategorySpec('all host tests, publishing and two reproducibility builds in four branches; no VM; host + vm = all', leaf=False),
-    'vm': CategorySpec('all VM tests: system and e2e; no host suites; host + vm = all', leaf=False, scope='vm'),
+    'vm': CategorySpec('all VM tests: system, integration and e2e; no host suites; host + vm = all', leaf=False, scope='vm'),
     'host-builds': CategorySpec('compatibility alias for host; optional --serial-builds for scheduling comparison', leaf=False),
 }
 
 AGGREGATES = ('all', 'all-verify', 'host', 'host-builds', 'vm')
 PUBLISH_CATEGORIES = ('publish-deb', 'publish-rpm')
-PHASES = ('host', 'system', 'e2e')
+PHASES = ('host', 'system', 'integration', 'e2e')
 COMPLETE = (*PHASES, 'vm')
 HELP_ARGV = (['--help'], ['-h'])
 INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
@@ -126,8 +126,8 @@ def suite_inventory(categories=(), *, inventory=None):
         from regression_ui import HOST_ARGS
         leaves = {kind: spec for kind, spec in CATEGORIES.items() if spec.leaf and spec.implemented}
         order = [*(kind for kind in ('unit', 'ui') if kind in leaves),
-                 *(kind for kind in leaves if kind not in ('unit', 'ui', 'system', 'e2e')),
-                 *(kind for kind in ('system', 'e2e') if kind in leaves)]
+                 *(kind for kind in leaves if kind not in ('unit', 'ui', 'system', 'integration', 'e2e')),
+                 *(kind for kind in ('system', 'integration', 'e2e') if kind in leaves)]
         inventory = {kind: {'description': leaves[kind].description,
                             'scope': leaves[kind].scope,
                             'args': list(HOST_ARGS) if kind == 'ui' else []}
@@ -160,6 +160,26 @@ def inventory_scope(name, spec):
     if scope not in ('host', 'vm'):
         raise ValueError('test inventory scope must be host or vm')
     return scope
+
+
+def execution_selections(root, selections):
+    """Expand complete leaves; focused routes retain their original guards."""
+    result = []
+    for kind, args in selections:
+        if kind == 'system' and not args:
+            result.extend((kind, options) for options in (
+                [], ['--id', '287', '--upgrade-inputs'],
+                ['--id', '288', '--upgrade-inputs']))
+        elif kind == 'integration' and not args:
+            import runpy
+            listing = runpy.run_path(str(root / 'tests/integration/integration_inventory.py'))
+            names = listing['runnable'](root / 'tests/integration')
+            if not names:
+                raise ValueError('integration inventory contains no runnable checks')
+            result.extend((kind, [name]) for name in names)
+        else:
+            result.append((kind, list(args)))
+    return result
 
 
 def repair_inventory(root, requested, *, inventory=None):
@@ -294,15 +314,16 @@ Inspection
   --stop-on-error  leading option: cancel selected work at the first reported
                    failure, preserving parallel scheduling and owned cleanup
 
-Complete categories (combine in any order; execute host, then system, then e2e)
+Complete categories (combine in any order; execute host, system, integration, e2e)
   host         all host/dev-machine work in four balanced branches, including
                publishing, two package builds and reproducibility; no VM
   system       installed-system VM tests, sequential
+  integration  runnable guarded integration checks, sequential
   e2e          ready GUI-driven VM scenarios, sequential
-  vm           all VM work: system + e2e; no host suites
+  vm           all VM work: system + integration + e2e; no host suites
 
   all = host + vm
-  vm = system + e2e
+  vm = system + integration + e2e
 
   tools/run-tests host
   tools/run-tests vm --vm NAME
@@ -310,7 +331,7 @@ Complete categories (combine in any order; execute host, then system, then e2e)
   tools/run-tests system e2e --vm NAME
   tools/run-tests e2e --vm NAME
   tools/run-tests host system --vm NAME
-  tools/run-tests host system e2e --vm NAME    (same as all)
+  tools/run-tests host system integration e2e --vm NAME    (same as all)
 
   tools/run-tests publish                     independent DEB/RPM jobs; parallel when resources allow
   tools/run-tests publish-deb                 DEB prerequisites and results only
@@ -322,12 +343,15 @@ Complete categories (combine in any order; execute host, then system, then e2e)
   Latest category-ID-VMs.webm files live in output/test-runs/recordings/.
   VM names follow numeric config IDs; no timestamp, age or size rotation.
   system --id N[,N...] selects persistent IDs shown by system --list.
+  Bare system also runs 287 and 288 as separate upgrade-input attempts.
+  integration --list shows scheduling exclusions and their reasons; a focused
+  basename keeps its existing guarded launch and input preparation route.
   Narrowed combined categories share one report and reuse host's package artifacts.
   Without host, VM categories prepare verified package inputs (reuse or build).
   Focused system --area AREA --test CASE also prepares inputs per VM when
   --artifacts is omitted. Each VM must declare package_format (deb or rpm) in
   config/test-vm.json; there is no default. Configured concurrency still applies.
-  After host and e2e, only system remains.
+  After host and e2e, system and integration remain.
   Separate host and vm runs may execute in parallel, with independent locks,
   sessions and cancellation. Combined host/VM runs reserve both scopes.
 

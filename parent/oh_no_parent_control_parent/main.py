@@ -404,6 +404,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._has_running_soft_blocked_apps = False
         self._app_catalog = None
         self._app_catalog_uid = None
+        self._app_catalogs = {}
         self._apps_loading = False
         self._apps_load_uid = None
         self._apps_load_generation = 0
@@ -1631,8 +1632,9 @@ class ParentWindow(Adw.ApplicationWindow):
             self._show_error(error)
             return False
         self._applied_language = language
+        self._app_catalogs.clear()
         if getattr(self, "_app_catalog", None) is not None or getattr(self, "_apps_loading", False):
-            # Reload the one shared catalogue after changing the parent's language.
+            # Reload catalogues after changing the parent's language.
             # Supersede any response started with the previous language.
             self._apps_loading = False
             self._ensure_apps_load(self._selected_uid())
@@ -1852,6 +1854,10 @@ class ParentWindow(Adw.ApplicationWindow):
         self._users_loaded_once = True
         GLib.idle_add(self._try_auto_whats_new)
         self._users = loaded
+        self._app_catalogs = {
+            uid: self._app_catalogs[uid] for uid, _name, _icon in loaded
+            if uid in self._app_catalogs
+        }
         LOG.info("parent.007", count=len(self._users))
         selected = next((index for index, user in enumerate(self._users)
                          if user[0] == previous_uid), 0)
@@ -1917,7 +1923,8 @@ class ParentWindow(Adw.ApplicationWindow):
     def _ensure_apps_load(self, uid):
         if uid is None:
             return
-        if self._apps_loading and self._apps_load_uid == uid:
+        if self._apps_load_uid == uid and (
+                self._apps_loading or uid in self._app_catalogs):
             return
         self._apps_load_generation += 1
         self._cancel_apps_paint()
@@ -1931,6 +1938,13 @@ class ParentWindow(Adw.ApplicationWindow):
         self._catalog_building = False
         self._pending_catalog_apps = []
         self._clear_catalog_rows()
+        if uid in self._app_catalogs:
+            self._apps_loading = False
+            self._app_catalog = self._app_catalogs[uid]
+            self._app_catalog_uid = uid
+            self._update_apps_loading_ui()
+            self._maybe_populate_app_table()
+            return
         self._update_apps_loading_ui()
         LOG.info("parent.009")
         self._run(
@@ -1943,6 +1957,7 @@ class ParentWindow(Adw.ApplicationWindow):
         if generation != self._apps_load_generation or uid != self._selected_uid():
             return
         self._apps_loading = False
+        self._app_catalogs[uid] = applications
         self._app_catalog = applications
         self._app_catalog_uid = uid
         LOG.info("parent.010", app_count=len(applications))

@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **LIFE04 fixture update; PARENT15 retained-editor save; PARENT02 catalogue refresh**. First scheduled consumer: [E2E-020, case 110](../E2E-Scenario-Recipes.md#e2e-020).
+Deliver **LIFE04 fixture update; PARENT15 retained-editor save; LIFE01/PARENT02 catalogue refresh**. First scheduled consumer: [E2E-020, case 110](../E2E-Scenario-Recipes.md#e2e-020).
 Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries), [related block contracts](../E2E-Building-Blocks.md#app-grid-search-and-parent-launch) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
@@ -27,16 +27,16 @@ an installable old/new fixture package. Preserve the open editor's public
 draft/owner through the command and reuse PARENT15's normal Save; do not add
 a new packaging framework or copy the completed product-upgrade history.
 
-After Save, reuse PARENT02 to select Riley and then Jordan in the same Parent
-window. Await Jordan's fully loaded App Limits and read the updated row/rule.
-Bind that finite refresh composition in the shared helper; selecting Jordan
-again without changing selection is a no-op. No app restart, desktop switch or
-edit to Riley's settings is required. Follow the shared
+After Save, reuse LIFE01 to reopen Parent and PARENT02 to select Jordan.
+Await Jordan's fully loaded App Limits and read the updated row/rule.
+Bind that finite refresh composition in the shared helper; switching children
+reuses cached catalogues. No desktop switch or edit to Riley's settings is
+required. Follow the shared
 [supporting-operation contract](../E2E-Execution-Contracts.md#supporting-operations-and-observations).
 
 ## Live VM acceptance
 
-On the VM, set a nondefault unsaved match draft, update the fixture through the shared administrator SSH package helper and Save from that still-open editor. Select Riley and back to Jordan through PARENT02 in the same Parent window, then independently read the loaded public app row and expected rule; save-time target resolution does not refresh existing rows. Preserve owned cleanup; no autosave pause or saved-preference probe.
+On the VM, set a nondefault unsaved match draft, update the fixture through the shared administrator SSH package helper and Save from that still-open editor. Reopen Parent through LIFE01 and select Jordan through PARENT02, then independently read the loaded public app row and expected rule; save-time target resolution does not refresh existing rows. Preserve owned cleanup; no autosave pause or saved-preference probe.
 
 Planned qualification selector (not registered; implement before use):
 

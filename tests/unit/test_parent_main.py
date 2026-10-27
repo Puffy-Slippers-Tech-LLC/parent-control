@@ -67,6 +67,7 @@ class ParentWindowHarness:
 
     def __init__(self):
         self._users = []
+        self._app_catalogs = {}
         self._users_loaded_once = False
         self._users_loading = True
         self._account = FakeDropDown(self)
@@ -1170,18 +1171,22 @@ class ParentWindowTests(unittest.TestCase):
         window._applied_language = "en"
         window._apps_loading = True
         window._app_catalog = None
+        window._app_catalogs = {1001: [{"id": "one.desktop"}], 1002: []}
         window._selected_uid = lambda: 1001
         window._ensure_apps_load = mock.Mock()
         with mock.patch("parent.oh_no_parent_control_parent.main.context_for") as context:
             self.assertTrue(ParentWindow._apply_language(window, "de"))
             context.return_value.apply.assert_called_once_with("de")
         self.assertFalse(window._apps_loading)
+        self.assertEqual(window._app_catalogs, {})
         window._ensure_apps_load.assert_called_once_with(1001)
         window._ensure_apps_load.reset_mock()
+        window._app_catalogs[1001] = []
         with mock.patch("parent.oh_no_parent_control_parent.main.context_for") as context:
             self.assertTrue(ParentWindow._apply_language(window, "de"))
             context.assert_not_called()
         window._ensure_apps_load.assert_not_called()
+        self.assertEqual(window._app_catalogs, {1001: []})
 
     def test_revoke_confirmation_constrains_and_word_wraps_its_warning(self):
         source = inspect.getsource(ParentWindow._show_revoke_dialog)
@@ -1354,6 +1359,7 @@ class ParentWindowTests(unittest.TestCase):
             (1001, "Existing child", ""), (1002, "Other child", ""),
         ])
         window._users = [(1002, "Other child", ""), (1001, "Existing child", "")]
+        window._app_catalogs = {1001: [], 1002: [{"id": "removed.desktop"}]}
         window.selected_index = 0
         window.load_count = 0
 
@@ -1362,6 +1368,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(window.selected_index, 0)
         self.assertEqual(window.load_count, 1)
         self.assertEqual(window.apps_load_uids[-1], 1001)
+        self.assertEqual(window._app_catalogs, {1001: []})
 
     def test_account_refresh_is_bounded_and_coalesces_overlapping_loads(self):
         window = type("WindowHarness", (), {})()
@@ -1576,6 +1583,112 @@ class ParentWindowTests(unittest.TestCase):
         )
         self.assertEqual(CATALOG_ROW_BATCH_SIZE, 8)
 
+    def app_catalog_window(self):
+        window = type("WindowHarness", (), {
+            name: getattr(ParentWindow, name) for name in (
+                "_ensure_apps_load", "_apps_loaded", "_apps_failed",
+            )
+        })()
+        window._app_catalogs = {}
+        window._apps_load_uid = None
+        window._apps_load_generation = 0
+        window._apps_loading = False
+        window._selected_uid = lambda: window.selected_uid
+        window._cancel_apps_paint = mock.Mock()
+        window._clear_catalog_rows = mock.Mock()
+        window._update_apps_loading_ui = mock.Mock()
+        window._maybe_populate_app_table = mock.Mock()
+        window._show_error = mock.Mock()
+        window._client = mock.Mock()
+        window._run = mock.Mock()
+        return window
+
+    def test_switching_children_reuses_each_loaded_catalog_including_empty_lists(self):
+        window = self.app_catalog_window()
+        catalogs = {1001: [{"id": "one.desktop"}], 1002: []}
+        for uid, apps in catalogs.items():
+            window.selected_uid = uid
+            window._ensure_apps_load(uid)
+            operation, success, _failure = window._run.call_args.args
+            operation()
+            window._client.list_apps.assert_called_with(uid)
+            success(apps)
+            self.assertIs(window._app_catalog, apps)
+
+        window._run.reset_mock()
+        window._maybe_populate_app_table.reset_mock()
+        for uid in (1001, 1002):
+            window.selected_uid = uid
+            window._ensure_apps_load(uid)
+            self.assertIs(window._app_catalog, catalogs[uid])
+            self.assertEqual(window._app_catalog_uid, uid)
+            self.assertFalse(window._apps_loading)
+        window._run.assert_not_called()
+        self.assertEqual(window._maybe_populate_app_table.call_count, 2)
+
+    def test_failed_app_catalog_load_is_retried_after_switching_children(self):
+        window = self.app_catalog_window()
+        window.selected_uid = 1001
+        window._ensure_apps_load(1001)
+        failure = window._run.call_args.args[2]
+        failure(RuntimeError("unavailable"))
+        self.assertNotIn(1001, window._app_catalogs)
+        window._show_error.assert_called_once()
+        window.selected_uid = 1002
+        window._ensure_apps_load(1002)
+        window._run.call_args.args[1]([])
+        window.selected_uid = 1001
+        window._ensure_apps_load(1001)
+        self.assertTrue(window._apps_loading)
+        self.assertEqual(window._run.call_count, 3)
+
+    def test_late_catalog_reply_cannot_replace_a_reselected_childs_list(self):
+        window = self.app_catalog_window()
+        window.selected_uid = 1001
+        window._ensure_apps_load(1001)
+        _operation, old_success, old_failure = window._run.call_args.args
+        window.selected_uid = 1002
+        window._ensure_apps_load(1002)
+        window._run.call_args.args[1]([])
+        window.selected_uid = 1001
+        window._ensure_apps_load(1001)
+        apps = [{"id": "current.desktop"}]
+        window._run.call_args.args[1](apps)
+
+        old_success([{"id": "stale.desktop"}])
+        old_failure(RuntimeError("late failure"))
+
+        self.assertIs(window._app_catalog, apps)
+        self.assertIs(window._app_catalogs[1001], apps)
+        self.assertFalse(window._apps_loading)
+        window._show_error.assert_not_called()
+
+    def test_language_change_reloads_all_children_and_rejects_old_language_reply(self):
+        window = self.app_catalog_window()
+        window._applied_language = "en"
+        window._app_catalogs[1002] = [{"id": "two.desktop", "name": "English"}]
+        window.selected_uid = 1001
+        window._ensure_apps_load(1001)
+        old_success = window._run.call_args.args[1]
+
+        with mock.patch("parent.oh_no_parent_control_parent.main.context_for"):
+            self.assertTrue(ParentWindow._apply_language(window, "de"))
+        self.assertEqual(window._app_catalogs, {})
+        old_success([{"id": "one.desktop", "name": "English"}])
+        self.assertIsNone(window._app_catalog)
+        self.assertTrue(window._apps_loading)
+        apps = [{"id": "one.desktop", "name": "Deutsch"}]
+        window._run.call_args.args[1](apps)
+        self.assertIs(window._app_catalogs[1001], apps)
+
+        window.selected_uid = 1002
+        window._ensure_apps_load(1002)
+        operation = window._run.call_args.args[0]
+        operation()
+        window._client.list_apps.assert_called_once_with(1002)
+        self.assertTrue(window._apps_loading)
+        self.assertEqual(window._run.call_count, 3)
+
     def test_app_catalog_is_cached_until_the_app_limits_tab_is_shown(self):
         window = type("WindowHarness", (), {
             "_apps_loaded": ParentWindow._apps_loaded,
@@ -1590,6 +1703,7 @@ class ParentWindowTests(unittest.TestCase):
         window._apps_table_ready = False
         window._preferences = {"apps": {}}
         window._app_catalog = None
+        window._app_catalogs = {}
         window.catalog_sets = 0
         window.ui_updates = 0
         window._set_catalog = lambda _apps: setattr(

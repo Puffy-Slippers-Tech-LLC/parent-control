@@ -278,11 +278,14 @@ Revoke is available when idle with positive total remaining time or running
 soft-blocked apps, including zero-time locked desktops. Revocation leaves daily
 allowance intact.
 
-App Limits loads on child selection, builds rows in batches and reveals a fully
-prepared table after a GTK frame. The loading mask remains fixed to the viewport.
-Unlike account discovery, the catalogue does not periodically refresh:
-reselection/reopening is required for added/removed launchers. Broker save-time
-target resolution still uses current state. Search combines independent
+App Limits caches each child's loaded catalogue for the window's lifetime and
+reuses it when switching children, rebuilding rows with freshly loaded policies.
+Rows build in batches and reveal a fully prepared table after a GTK frame. The
+loading mask remains fixed to the viewport. Unlike account discovery, catalogues
+do not periodically refresh: reopen Parent for added/removed launchers. Changing
+Parent's language invalidates all cached catalogues; removed accounts lose their
+cached lists. Failed loads are retried on reselection. Broker save-time target
+resolution still uses current state. Search combines independent
 multi-category match/access filters. Access changes autosave; match editing has
 Save, Cancel and immediate Reset to Default.
 

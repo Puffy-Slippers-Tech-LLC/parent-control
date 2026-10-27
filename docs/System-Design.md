@@ -165,9 +165,10 @@ in [Broker transactions](SystemDesign/Broker.md#authorization-and-grant-transact
 The Parent App serializes its automatic saves. Allowance editing is enabled only
 while screen-time control is on. Its remaining-time explanation always shows
 both daily and grant balances, including zero values. Child discovery refreshes
-while Parent stays open; the app catalogue instead loads on child selection and
-needs reselection or a new Parent window to display newly installed/removed
-launchers. Saving policy still resolves current targets at the broker.
+while Parent stays open; app catalogues load once per child and are reused when
+switching children. Reopen Parent to display newly installed/removed launchers.
+Changing Parent's language also invalidates the cached catalogues. Saving policy
+still resolves current targets at the broker.
 Saved custom wildcard rules restore in the UI; an explicit precise override
 for an app with a suggested wildcard currently redisplays that default on
 preference reload, including failed-save recovery, and can be overwritten by a

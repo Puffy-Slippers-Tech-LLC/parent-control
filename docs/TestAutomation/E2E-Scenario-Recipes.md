@@ -925,7 +925,7 @@ Bindings: change = update / remove.
 
 1. FLOW16(usable time) → PARENT10 → PARENT16(Hard Blocked) → PARENT13 → UI16(match draft covering the declared updated target).
 2. LIFE04(app update/remove through shared administrator SSH commands); Parent's editor stays open.
-3. PARENT15(save in the still-open editor) → PARENT02(Riley, then Jordan in the same Parent window) → await Jordan's loaded App Limits. Update: PARENT12 → C → FLOW08. Remove: UI13(app absent) → LIFE04(reinstall) → the same PARENT02 refresh → PARENT12 → UI12(retained rule) → C → FLOW08. The supporting package command needs no foreground change or editor-reactivation step. Selecting the already-selected child does not reload its catalogue; no Parent restart is needed for this journey.
+3. PARENT15(save in the still-open editor) → LIFE01(Parent) → PARENT02(Jordan) → await Jordan's loaded App Limits. Update: PARENT12 → C → FLOW08. Remove: UI13(app absent) → LIFE04(reinstall) → LIFE01(Parent) → PARENT02(Jordan) → PARENT12 → UI12(retained rule) → C → FLOW08. The supporting package command needs no foreground change or editor-reactivation step. Reopen Parent only after saving the retained draft; switching children reuses cached catalogues.
 
 ### E2E-021
 

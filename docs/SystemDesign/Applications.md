@@ -40,8 +40,10 @@ an inherited choice and replaces the old ID on the next save; the broker repeats
 the association at commit to handle intervening updates. This keeps the existing
 preference format.
 
-Parent's catalogue is a child-selection snapshot. A new window or reselection
-refreshes rows; periodic enforcement/account refreshes do not refresh that UI.
+Parent caches each child's catalogue for the window's lifetime. Reopen Parent
+to refresh added or removed launchers; switching children reuses cached lists.
+Changing Parent's language also invalidates the cache. See the
+[frontend catalogue lifecycle](Frontends.md#parent-controls-and-shared-information).
 
 ## Running application identity
 

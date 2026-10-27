@@ -1736,10 +1736,10 @@ these blocks, not copies of them.
 INFO02 validates each command's output without an intervening desktop UI check;
 the complete command-help case owns one final public desktop result.
 
-E2E-020 refreshes the catalogue through PARENT02's other-child/target-child
-selection in the same Parent window after Save, then reads the loaded catalogue.
-This finite composition remains unqualified; existing selection callables do not
-qualify refresh. LIFE01 is needed only when restart is a tested boundary.
+E2E-020 refreshes the catalogue after Save through LIFE01(Parent), then PARENT02
+selects the target child before reading the loaded catalogue. Switching children
+reuses cached lists. This finite composition remains unqualified; existing
+selection and reopen callables do not qualify the complete refresh journey.
 Await fresh public results within deadlines, accounting for observation latency.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |

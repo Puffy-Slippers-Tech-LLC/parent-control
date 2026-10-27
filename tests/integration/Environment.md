@@ -80,6 +80,11 @@ bypass any VM, ownership, lease or validation check.
 Both modes then build the current package as the invoking administrator, prepare
 the current online app snapshot through the same implementation as
 `tools/prepare-appsnapshot`, and restore `onpc_baseline`. The VM finishes off.
+If the checkout version advances between package construction and app capture,
+preparation rebuilds from the current checkout, with at most three build attempts.
+The package/version guard still runs before any guest installation. Standalone
+app preparation uses the same retry policy when building; `--overwrite false`
+still reuses an existing fresh snapshot without building.
 One exclusive per-VM controller lock covers the complete sequence, including
 package building and the final restore. Nested controllers duplicate the held
 lock descriptor in-process; ending one stage cannot release the outer lease.

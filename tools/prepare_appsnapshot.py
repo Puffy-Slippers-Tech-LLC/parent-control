@@ -99,14 +99,22 @@ def main(argv=None):
                 if control.stopped.is_set():
                     return 130
             args.overwrite = 'true'
-            with test_retention.Store(test_activity.retention_path(root)).session() as run:
-                directory, status = build_artifacts(root, package_format, control, environment)
-                if status:
-                    return status
-                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
-                    '--retention-run=' + run, '--unattended', 'appsnapshot',
-                    '--overwrite', args.overwrite, '--artifacts', directory, *vm_arguments()],
-                    cwd=root, env=environment, cooperative=True)
+            for attempt in range(3):
+                with test_retention.Store(test_activity.retention_path(root)).session() as run:
+                    directory, status = build_artifacts(root, package_format, control, environment)
+                    if status:
+                        return status
+                    status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
+                        '--retention-run=' + run, '--unattended', 'appsnapshot',
+                        '--overwrite', args.overwrite, '--artifacts', directory, *vm_arguments()],
+                        cwd=root, env=environment, cooperative=True)
+                if status != 7:
+                    break
+                if control.stopped.is_set():
+                    return 130
+                if attempt < 2:
+                    print('prepare-appsnapshot: checkout version changed during package preparation; '
+                          'rebuilding the current app package.', flush=True)
             if status:
                 return status
             return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,

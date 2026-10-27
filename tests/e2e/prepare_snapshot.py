@@ -236,6 +236,11 @@ def main(argv=None):
         return prepare(args.artifacts, args.expected_uuid,
                        overwrite=args.overwrite == 'true')
     except (ValueError, RuntimeError, OSError) as error:
+        if str(error) == 'suite:package-version-changed':
+            # No guest lease has been acquired. The public launcher may safely
+            # rebuild inputs after a concurrent checkout version update.
+            print('prepare-appsnapshot: checkout version changed; rebuild required', file=sys.stderr)
+            return 7
         if system.error_category(error) == 'unexpected-failure-or-interruption':
             system.log('exception-type=' + type(error).__name__)
         print('prepare-appsnapshot: ' + system.error_category(error), file=sys.stderr)

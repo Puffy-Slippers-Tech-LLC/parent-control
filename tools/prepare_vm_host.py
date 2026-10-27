@@ -120,15 +120,27 @@ def prepare(mode, assume_yes, vm, caller):
                 capture.revalidate(off=True)
                 capture.verify_snapshot()
                 package_format = system_runner.package_format(capture.state['guest'])
-                with built_artifacts(package_format, caller) as artifacts:
-                    with test_retention.Store(privileged_state(caller.pw_uid)).session(
-                            guard=lambda: idle(vm)):
-                        # This is the implementation used by prepare-appsnapshot.
-                        # Its normal online cleanup restores the off baseline.
-                        status = prepare_snapshot.prepare(artifacts, source.uuid,
-                                                          overwrite=True)
-                        if status:
-                            return status
+                for attempt in range(3):
+                    try:
+                        with built_artifacts(package_format, caller) as artifacts:
+                            with test_retention.Store(privileged_state(caller.pw_uid)).session(
+                                    guard=lambda: idle(vm)):
+                                # A preview/version update can advance the checkout
+                                # after the worker freezes its package inputs. The
+                                # shared preflight refuses before acquiring a guest;
+                                # rebuild rather than abandon this prepared baseline.
+                                status = prepare_snapshot.prepare(artifacts, source.uuid,
+                                                                  overwrite=True)
+                                if status:
+                                    return status
+                        break
+                    except baseline.CaptureError as error:
+                        if str(error) != 'suite:package-version-changed':
+                            raise
+                        if attempt == 2:
+                            raise baseline.CaptureError('build:checkout-version-keeps-changing') from error
+                        print('prepare-vm: checkout version changed during package preparation; '
+                              'rebuilding the current app package.', flush=True)
                 idle(vm)
                 capture.revalidate(off=True)
                 capture.verify_snapshot()

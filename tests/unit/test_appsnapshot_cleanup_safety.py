@@ -1016,14 +1016,14 @@ def test_online_guest_rebind_replaces_marker_and_key_and_retires_payload(tmp_pat
 
 
 @pytest.mark.parametrize('argv, results, calls', [([], [3, 0, 0, 0], 4),
-    (['--overwrite'], [3, 0, 0, 0], 4), (['--overwrite', 'true'], [3, 0, 0, 0], 4),
+    (['--overwrite'], [3, 0, 0, 0], 4), (['--overwrite', 'true'], [3, 0, 7, 0, 0, 0], 6),
     (['--overwrite', 'false'], [3, 0, 0, 0], 4)])
 def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, results, calls):
     control, cleanup, allocation = launch
     control.run.side_effect = results
     assert launcher.main([*argv, *VM_ARGS, '--y']) == 0
     cleanup.assert_called_once()
-    allocation.assert_called_once()
+    assert allocation.call_count == (2 if calls == 6 else 1)
     assert control.run.call_count == calls
     build = control.run.call_args_list[-3].args[0]
     assert build == ['/usr/bin/python3', '-B',

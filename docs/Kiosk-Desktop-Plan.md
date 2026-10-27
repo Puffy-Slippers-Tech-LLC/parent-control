@@ -1,7 +1,9 @@
 # Prevent local full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **D04 — [Close desktop prevention evidence and documentation](Kiosk-Prompt-Tasks/D04-desktop-closeout.md)**.
+Next task: none.
+
+Desktop close-out: [accepted local results and remaining-plan handoff](SystemDesign/Kiosk-Confinement.md#d04-desktop-close-out-and-remaining-plan-handoff).
 
 ## Outcome and scope
 

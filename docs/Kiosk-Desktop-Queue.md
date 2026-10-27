@@ -41,7 +41,7 @@ not general product acceptance. Ordinary tasks take 20–30 minutes; the named
 | [x] | D03 | Freeze desktop acceptance bindings | C07s, D03a, D03b | Audit exact registered desktop histories and prior both-target usability; no deferred product gate | Registered enforcing verdicts, finite compositions and prior both-target usability audited; runner listings, links, plan metadata and owned cleanup passed; no installed acceptance claimed |
 | [x] | C11d | Qualify local desktop prevention on Ubuntu | D03 | Ubuntu: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | Ubuntu candidate-matching selection and eight shortcut results passed; ordinary controls, usable Cancel/fresh entry, exact routing/policy restoration and owned cleanup passed; unchanged C07a/C07s usability reused; no product changes |
 | [x] | C12d | Qualify local desktop prevention on Fedora | C11d | Fedora: Verify finite local desktop attacks, normal kiosk use and affected recovery controls | Fedora candidate-matching selection and eight shortcut results passed; ordinary controls, passwordless Cancel/reentry, exact routing/policy restoration and owned cleanup passed; unchanged C07a/C07s usability reused; 61 helper guards passed; no product changes |
-| [ ] | D04 | [Close desktop prevention evidence and documentation](Kiosk-Prompt-Tasks/D04-desktop-closeout.md) | C12d | Verify matching desktop product/automation/docs, both-target evidence and completed owned restoration | 20–30 min |
+| [x] | D04 | Close desktop prevention evidence and documentation | C12d | Verify matching desktop product/automation/docs, both-target evidence and completed owned restoration | Source/bindings/docs reconciled; accepted both-target desktop results, usability, controls and restoration retained; links, both plan checks, runner listings and owned cleanup passed; no product changes |
 
 Remote-desktop testing was removed by developer direction. D01r and C07r1
 remain completed historical work; their dedicated automation is retired, and
@@ -49,8 +49,10 @@ they supply no remote-desktop acceptance. D03's composition audit found missing
 final negative verdicts in the two local qualification journeys. D03a and D03b
 qualified the desktop-selection and shortcut verdicts on both targets; D03
 confirmed the registered comparisons and froze the finite final-acceptance map.
-Completed qualifications and product gates stay accepted. The next active task
-is D04.
+Completed qualifications and product gates stay accepted. D04 closes this queue;
+the [desktop handoff](SystemDesign/Kiosk-Confinement.md#d04-desktop-close-out-and-remaining-plan-handoff)
+records no current desktop blocker for remaining-plan C06a and grants no other
+route or general recovery acceptance.
 
 Order is authoritative; IDs are stable labels. C07a/C07s and C11d/C12d
 carry their desktop assertions here. Standalone terminal/TTY assertions are

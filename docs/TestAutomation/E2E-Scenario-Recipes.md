@@ -664,9 +664,12 @@ C11d (`onpc-Ubuntu26.04`) and C12d (`onpc-Fedora44`) consume the two finite
 local routes below. They are task IDs, not registered selectors. D03 audited
 the current composition and confirmed its registered final comparisons;
 D03a and D03b qualified the selection and shortcut verdicts on both targets.
-These exact bindings are ready for the candidate-matching final target runs.
-Existing qualification observations and completed C07a/C07s usability stay
-accepted; this map grants no new installed acceptance.
+C11d/C12d completed their candidate-matching final target runs, including the
+ordinary controls, public restoration and owned cleanup. The
+[D04 close-out](../SystemDesign/Kiosk-Confinement.md#d04-desktop-close-out-and-remaining-plan-handoff)
+records the finite accepted scope and remaining-plan boundary. Existing
+qualification observations and completed C07a/C07s usability stay accepted;
+this map grants no new installed acceptance.
 
 | Existing binding | Finite input and independent required result | Readiness for final acceptance |
 | --- | --- | --- |
@@ -696,8 +699,9 @@ envelope; fixed input roles are Jordan (ordinary `other-child` entry), Riley
 (`fixture-child`) and Jamie (`fixture-parent`). Public setup starts with Riley's
 limits disabled and records settings before enabling them.
 
-With D03a/D03b complete and D03's readiness audit closed, run only the selected
-target's two route histories for final acceptance:
+The completed C11d/C12d acceptance used the selected target's two route histories
+below. Reuse accepted unchanged results; a concrete later change requires only
+its affected histories under the desktop plan:
 
 ```sh
 tools/run-tests --vm 'onpc-Ubuntu26.04' integration check_e2e_public_desktop_selection

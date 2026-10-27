@@ -1085,6 +1085,40 @@ caller or authorization/enforcement boundary changes. Reuse unchanged complete
 histories; no tests of briefs/history, guard-matrix copies, new registry or
 coverage regeneration are justified by this documentation-only audit.
 
+## D04 desktop close-out and remaining-plan handoff
+
+The [desktop queue](../Kiosk-Desktop-Queue.md) accepts C11d/C12d's
+candidate-matching local results and completed restoration. D04 reconciles the
+current source, registered bindings and documentation; it does not renew those
+installed checks or inspect old reports.
+
+| Target | Accepted finite desktop result |
+| --- | --- |
+| `onpc-Ubuntu26.04` (C11d) | Direct station entry and ordinary chooser → Cancel → station yielded request-only sessions; Jordan's Ubuntu desktop positive passed. All four station shortcuts remained request-only with the four ordinary positives. |
+| `onpc-Fedora44` (C12d) | The same two station-selection histories and eight shortcut results passed, paired with Jordan's GNOME desktop and the prepared terminal shortcut. |
+
+The [composition](../TestAutomation/E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
+binds these results to package-source inputs and installed-snapshot checks.
+Both targets restored exact saved routing and public policy, demonstrated usable
+Cancel/fresh passwordless entry, and completed runner/baseline cleanup. Unchanged
+C07a/C07s bounded approval, rejection, authentication Cancel and reentry histories
+remain accepted. D02's independent review findings are resolved; D03a/D03b's
+qualified final comparisons remain registered and enforcing.
+
+The selected public GNOME session, app shutdown, vendor agent and current shared
+form still match the [release-derived source boundary](#selected-source-boundary).
+No product repair, new refusal or obsolete executable consumer was found in this
+close-out. An unexposed station chooser proves only the tested no-route result,
+not denial of a selected alternate executable; no universal desktop fence is
+claimed. Historical failures and proof limits remain historical.
+
+There is no current desktop blocker for remaining-plan C06a. Its
+[login review](../Kiosk-Prompt-Tasks/C06a-login-review.md) retains standalone
+terminal/TTY and SSH work; exposed actions/inputs and general recovery retain
+their own owners. Remote-desktop testing remains excluded. This result closes
+no remaining-plan task and broadens no release-support claim. A later concrete
+change receives its affected histories under the desktop owner's return condition.
+
 ## Verification scope and evidence limits
 
 The completed v1.3-derived baseline validation accepted Ubuntu and Fedora core

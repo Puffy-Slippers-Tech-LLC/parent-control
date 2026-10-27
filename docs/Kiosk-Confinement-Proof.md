@@ -37,6 +37,12 @@ recording, exact inputs or renewed result.
 
 ## Current qualification boundary
 
+The [D04 desktop close-out](SystemDesign/Kiosk-Confinement.md#d04-desktop-close-out-and-remaining-plan-handoff)
+records accepted C11d/C12d local selection and shortcut results on Ubuntu and
+Fedora, with applicable bounded usability, ordinary controls and completed
+restoration. It supplies no SSH/TTY, remote-desktop, other action/input or general
+recovery acceptance. The historical ledger below is unchanged.
+
 | Historical scenarios | Current consumer and remaining proof |
 | --- | --- |
 | 1–4, 23, 31 | Account/routing checks survive in 268; ordinary integration in 271. They do not prove authentication, complete SSH/remote-desktop login or graphical session callbacks. Private namespace case 270 is retired. C04f qualifies the bounded public entry/approval operation below; deliberate-route results remain C06–C10 work. |

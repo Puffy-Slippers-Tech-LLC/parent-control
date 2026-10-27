@@ -3980,8 +3980,9 @@ qualification passed, including normal surface closure, Cancel/fresh entry,
 exact public settings restoration and runner/baseline cleanup. The
 [local acceptance composition](E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
 can consume this finite negative verdict; D03 confirmed both enforcing
-comparisons and the complete histories are ready for C11d/C12d's
-candidate-matching runs. No new provider or repeated guard matrix was added.
+comparisons and complete histories. C11d/C12d subsequently passed their
+candidate-matching runs; the [D04 handoff](../SystemDesign/Kiosk-Confinement.md#d04-desktop-close-out-and-remaining-plan-handoff)
+owns the accepted desktop scope. No new provider or repeated guard matrix was added.
 
 `tools/test-vm --vm NAME reproduce-station-shortcuts` reuses this journey,
 stopping after ordinary Alt+F2 input and before its result observation for

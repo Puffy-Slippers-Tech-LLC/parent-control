@@ -19,6 +19,9 @@ prerequisite keeps C06a unchecked until its owning launcher completes it.
 Never execute or close desktop rows here.
 Finish any prior owner/Git/resource transaction before starting new work.
 This review supplies no new-plan acceptance by inheritance.
+The [D04 desktop handoff](../SystemDesign/Kiosk-Confinement.md#d04-desktop-close-out-and-remaining-plan-handoff)
+records both-target local acceptance and completed restoration, with no current
+desktop blocker; preserve its finite scope and return condition.
 
 Start from the current source and completed prerequisites. Inspect
 standalone terminal/TTY paths, non-desktop shortcuts and SSH, including whether

@@ -1075,17 +1075,16 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                               'remaining': len(records), 'model': spec.model, 'effort': spec.effort}))
             return 0
         from vm_selection import execution_selection, execution_binding, check_binding, save_binding, VARIABLE, BATCH
-        if not args.stop and (spec.vm or args.vm):
-            execution_selection(args.vm)
-        else:
-            os.environ.pop(VARIABLE, None)
-            os.environ.pop(BATCH, None)
-        binding = execution_binding()
+        binding = None
         initial = {}
         initial_info = {}
         initial_remaining = 0
         def attach(selected):
-            check_binding(selected, binding, stopping=args.stop)
+            # Omitted selection reconnects to the existing owner, whose queue
+            # remains authoritative even when registry defaults have changed.
+            if args.vm is not None:
+                execution_selection(args.vm)
+                check_binding(selected, execution_binding(), stopping=args.stop)
             if args.tasks is not None:
                 budget = TaskBudget(selected)
                 limit = budget.set_limit(args.tasks)
@@ -1097,7 +1096,13 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                     warn_remaining(limit, remaining + budget.read()['completed'], label=spec.name)
                 print(f"{spec.name}: limits now tasks={limit if limit is not None else 'all'}", flush=True)
         def command(selected, owner):
-            nonlocal initial_remaining
+            nonlocal initial_remaining, binding
+            if spec.vm or args.vm:
+                execution_selection(args.vm)
+            else:
+                os.environ.pop(VARIABLE, None)
+                os.environ.pop(BATCH, None)
+            binding = execution_binding()
             previous = launcher.current_run(selected.parent)
             saved = (json.loads((previous / 'checkpoint.json').read_text())
                      if previous is not None and (previous / 'checkpoint.json').exists() else {})

@@ -594,32 +594,9 @@ generates missing SSH host keys, enables SSH and checks public-key
 authentication configuration. Repeats with matching packages skip APT refresh
 and installation. Failed prerequisites prevent a new success record.
 
-System Remote Login dependencies use that same baseline inventory and
-`guest_test_dependencies.verify_installed` read-only package check. The declared
-release floors below accept newer maintenance/security versions; they do not
-claim installed RDP compatibility qualification.
-
-| Dependency | Ubuntu 26.04 package floor | Fedora 44 package floor |
-| --- | --- | --- |
-| GNOME Remote Desktop system provider and `grdctl` | [`gnome-remote-desktop` 50.0-0ubuntu2](https://packages.ubuntu.com/resolute/gnome-remote-desktop) | [`gnome-remote-desktop` 50.0-1.fc44](https://packages.fedoraproject.org/pkgs/gnome-remote-desktop/gnome-remote-desktop/fedora-44.html) |
-| FreeRDP 3 client | [`freerdp-x11` 3.24.2+dfsg-1ubuntu1](https://packages.ubuntu.com/freerdp-x11) | [`freerdp` 3.24.2-1.fc44](https://packages.fedoraproject.org/pkgs/freerdp/freerdp/fedora-44.html) |
-| TLS generation tool | [`openssl` 3.5.5-1ubuntu3](https://packages.ubuntu.com/resolute/utils/openssl) | [`openssl` 3.5.5-1.fc44](https://packages.fedoraproject.org/pkgs/openssl/openssl/fedora-44.html) |
-
-Ubuntu's `freerdp3-x11` is transitional; the inventory names `freerdp-x11`
-directly. Fedora package verification compares upstream versions independently
-of RPM release counters. Package presence supplies reusable dependencies only.
-The owned readiness attempt must record actual provider/client versions, verify
-the public `grdctl --system` interface and redirect-capable client, and qualify
-its isolated listener and exact restoration before claiming preparation ready.
-The [upstream system Remote Login route](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/README.md#headless-multi-user-remote-login)
-uses GDM and the system service. TLS files, initial credentials, provider
-configuration/service changes and network changes remain attempt-owned and are
-restored afterward. The baseline declares no credentials, TLS material, listener
-or enabled Remote Login prerequisite. Missing packages require baseline refresh;
-consumer tests never install or repair them. The
-[remote readiness catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#remote-login-qualification-gap)
-owns the both-target readiness qualification and its limits; actual RDP connection
-qualification is separate.
+Remote desktop testing is excluded from active scope. It requires no provider
+dependency or readiness workflow. Separate SSH and LDAP/NSS
+account-testing dependencies remain unchanged.
 
 Account preparation is repeatable: existing test accounts retain their UIDs and
 homes, and absent administrator-group memberships need no removal. Each run

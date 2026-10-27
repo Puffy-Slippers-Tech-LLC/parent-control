@@ -69,8 +69,9 @@ usability gates, complete recovery histories and ownership/cleanup guards.
 
 Full kiosk desktop prevention is the first security priority and belongs only to
 [the desktop plan](Kiosk-Desktop-Plan.md), run by `tools/kiosk-desktop`.
-That owner includes local graphical-session selection, request-session escapes
-yielding a full desktop and the named supported remote-desktop provider.
+That owner includes local graphical-session selection and request-session escapes
+yielding a full desktop. Remote-desktop testing is excluded by developer direction
+from both confinement plans; do not recreate its removed tasks or automation.
 C06a verifies its accepted D04 gate before this plan proceeds. Each launcher
 owns its queue, briefs and acceptance; neither implicitly closes the other.
 
@@ -94,8 +95,8 @@ The [C05f baseline handoff](TestAutomation/E2E-Building-Blocks.md#c05f-fedora-ba
 accepts both targets' unchanged complete core histories and separate feature/pause
 results. Standalone terminal/TTY and SSH remain unqualified for C06a/C06; other
 exposed actions and child-controlled consumed inputs remain for C06x/C06i.
-The desktop owner retains all full-desktop routes, including its named remote
-provider, and its D04 gate remains required. These coverage gaps are not observed
+The desktop owner retains the local full-desktop routes,
+and its D04 gate remains required. These coverage gaps are not observed
 baseline failures. This handoff closes no remaining-plan row or final defense gate.
 
 C06a reviews remaining SSH/terminal/TTY routes. C06x maps exposed actions and

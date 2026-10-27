@@ -1435,7 +1435,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                                   not kiosk_feedback_confinement)),
             'smoke:kiosk-notification-prerequisites')
     require((type(kiosk_entry) is bool or kiosk_entry in (
-            'service-variation', 'service-route', 'remote-preparation',
+            'service-variation', 'service-route',
             'routing-variation', 'lease-variation',
             'public-desktop-selection', 'station-shortcuts')) and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
@@ -1644,8 +1644,6 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                if kiosk_entry == 'service-variation'
                                else 'installed-kiosk-service-route-qualification'
                                if kiosk_entry == 'service-route'
-                               else 'installed-remote-login-preparation-qualification'
-                               if kiosk_entry == 'remote-preparation'
                                else 'installed-kiosk-routing-variation-qualification'
                                if kiosk_entry == 'routing-variation'
                                else 'installed-kiosk-lease-variation-qualification'
@@ -2096,15 +2094,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_entry:
                     from parent_setup_qualification import (KioskEntryQualification,
                         KioskServiceVariationQualification, KioskServiceRouteQualification,
-                        RemoteLoginPreparationQualification,
                         KioskRoutingVariationQualification, KioskLeaseVariationQualification,
                         PublicDesktopSelectionQualification, StationShortcutsQualification)
                     qualification_class = (StationShortcutsQualification
                         if kiosk_entry == 'station-shortcuts' else PublicDesktopSelectionQualification
                         if kiosk_entry == 'public-desktop-selection' else KioskServiceVariationQualification
                         if kiosk_entry == 'service-variation' else KioskServiceRouteQualification
-                        if kiosk_entry == 'service-route' else RemoteLoginPreparationQualification
-                        if kiosk_entry == 'remote-preparation' else KioskRoutingVariationQualification
+                        if kiosk_entry == 'service-route' else KioskRoutingVariationQualification
                         if kiosk_entry == 'routing-variation' else KioskLeaseVariationQualification
                         if kiosk_entry == 'lease-variation' else KioskEntryQualification)
                 if kiosk_eligible_choices:

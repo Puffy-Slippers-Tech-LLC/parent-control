@@ -22,14 +22,15 @@ This review supplies no new-plan acceptance by inheritance.
 
 Start from the current source and completed prerequisites. Inspect
 standalone terminal/TTY paths, non-desktop shortcuts and SSH, including whether
-each invokes the expected PAM stack. Full graphical desktop/session selection
-and named remote-desktop work remain solely with the desktop plan. Record any
+each invokes the expected PAM stack. Local full graphical desktop/session selection
+remains solely with the desktop plan. Remote-desktop testing is excluded from
+both plans. Record any
 new desktop gap or invalidated evidence under that owner's return condition.
 
 For each route record actual child access, deliberate action, prohibited result,
 smallest enforcement owner, normal-use positive, negative and restoration.
-Keep ordinary-account authentication/remote access and kiosk passwordless entry
-working. A disabled or absent remote service cannot prove blocked kiosk access.
+Keep ordinary-account authentication/SSH access and kiosk passwordless entry
+working. A disabled or absent SSH service cannot prove blocked kiosk access.
 
 Write this finite map in the confinement design owner for C07t/C07b.
 Record already effective defenses without inventing extra code work. Unknown

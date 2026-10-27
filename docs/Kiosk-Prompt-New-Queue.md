@@ -88,8 +88,9 @@ add only what a demonstrated behavioral gap requires.
 | [ ] | C13 | [Close matching product, automation and documentation](Kiosk-Prompt-Tasks/C13-closeout.md) | C13a | Audit justified refusals, retained both-platform evidence and matching final documentation | 20–30 min |
 
 Order is authoritative; IDs are stable labels. C06a's external gate is desktop
-D04, which follows accepted baseline C05u/f. Desktop rows C07a/C07s/C07 and
-C11d/f–C12d/f belong only to their desktop queue. C07t/C11t/C12t retain the
+D04, which follows accepted baseline C05u/f. Desktop rows C07a/C07s and
+C11d/C12d belong only to their desktop queue. Remote-desktop testing is excluded.
+C07t/C11t/C12t retain the
 standalone terminal/TTY assertions split from those rows. No checkbox closes
 through planning. Remaining protection/recovery tasks own affected finite bindings; C10 verifies their
 qualification and candidate applicability. C11/C12 each retain full per-platform

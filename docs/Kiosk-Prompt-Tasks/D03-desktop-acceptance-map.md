@@ -2,16 +2,16 @@
 
 Acceptance: host
 
-Required tasks: C07.
+Required tasks: C07s.
 Estimate: 20–30 min.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract).
 
 ## Session boundary and deliverable
 
-Verify the exact registered local and named-provider desktop histories supplied
-by C07a/C07s/C07 in existing scenario recipes, block catalogue and installed-case
-owners. For C11d/f and C12d/f record candidate inputs, commands/selectors, finite
+Verify the exact registered local desktop histories supplied
+by C07a/C07s in existing scenario recipes, block catalogue and installed-case
+owners. For C11d and C12d record candidate inputs, commands/selectors, finite
 values, independent public assertions, explicit timeouts, operation qualification,
 owned restoration. A planned selector is not implemented. Trust completed
 both-target usability inside each product task; this audit cannot defer a missing
@@ -24,8 +24,8 @@ Reuse completed baseline/feature/shared-overlay checks for unchanged behavior;
 do not add general product acceptance. Keep each final installed task within one
 small route family and its direct controls. Split independent routes before its
 consumer if the finite map cannot fit the 30–60 minute exception.
-Remote bindings require an enabled named provider,
-ordinary-account remote desktop, kiosk desktop denial and usable kiosk entry.
+Remote-desktop testing is excluded from this plan; do not recreate its removed
+tasks, qualification bindings or acceptance requirements.
 Apply [simple tests](../Kiosk-Desktop-Plan.md#simple-tests) to the compositions:
 keep only steps needed for these outcomes, navigation and safe input. Reuse
 shared qualification and applicable complete histories; task labels create no

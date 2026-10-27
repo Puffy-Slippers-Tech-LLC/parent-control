@@ -1,7 +1,7 @@
-# Prevent full desktop access through the kiosk account
+# Prevent local full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **C07r2 — [Connect safely to remote sign-in](Kiosk-Prompt-Tasks/C07r2-remote-connection.md)**.
+Next task: **D03 — [Freeze desktop acceptance bindings](Kiosk-Prompt-Tasks/D03-desktop-acceptance-map.md)**.
 
 ## Outcome and scope
 
@@ -12,9 +12,11 @@ desktop access. Cleanup of conflicting unfinished confinement and its obsolete
 automation is the first work. Desktop prevention follows cleanup and accepted
 baseline use.
 
-Own local graphical-session selection, reachable request-session escapes that
-yield a full desktop, and one named supported remote-desktop provider. Review
-actual child access and the prohibited result before adding a barrier.
+Own local graphical-session selection and reachable request-session escapes that
+yield a full desktop. Remote-desktop testing is excluded by developer direction;
+its unfinished tasks and dedicated automation are removed, with no remote
+acceptance claim. Completed source-review and preparation rows remain historical.
+Review actual child access and the prohibited result before adding a barrier.
 
 Reliability work here is limited to admission, startup, exit/reentry and recovery
 failures caused by kiosk confinement or its direct consumers. Preserve the
@@ -45,7 +47,7 @@ historical. A task cannot relax them to obtain a pass.
 | Usability first | Passwordless sign-in, a usable request/approval journey and safe reentry take priority. Preserve existing time/app enforcement; desktop work uses the bounded checks below, not a general feature campaign. |
 | Unexpected machine configuration | Unrelated packages, valid service/PAM variation and optional resources cannot veto normal use. |
 | Justified protection failures | Every protective refusal needs actual child access, a deliberate breach action, a prohibited result and a working normal-use control. Essential outages need recovery; parent/admin denial remains authoritative. |
-| Reasonable-child coverage | Allocate ordinary desktop/session, terminal, TTY, SSH, remote-desktop and exposed-launch attempts to the route owners below. |
+| Reasonable-child coverage | Allocate ordinary local desktop/session, terminal, TTY, SSH and exposed-launch attempts to the route owners below. Remote-desktop testing is excluded. |
 | Bounded threat | Exclude very low-level professional/world-class attacks, arbitrary kiosk-code execution premises and unnecessary Python/native-loader hardening. |
 | Selected source | Derive only kiosk session confinement from `releases/v1.3`, pinned at `188be907c46b1cd0dabae06ac898c43e75beb05e`, then add justified protections. Never derive it by subtracting restrictions from main/v1.4 confinement. |
 | Feature preservation | Retain main's non-confinement kiosk features, authorization, time/app behavior and unrelated code. Do not restore the whole v1.3 kiosk tree. |
@@ -91,7 +93,7 @@ suffice; add no framework, registry, proof archive or checker for this plan.
 | --- | --- |
 | Local graphical desktop selection | D01/D02, C07a, C11d/C12d |
 | Request-session actions yielding a full desktop | D01/D02, C07s, C11d/C12d |
-| One named supported remote-desktop provider | D01r/D02, C07, C11f/C12f |
+| Remote-desktop providers | Excluded from testing; historical review/preparation supplies no remote acceptance claim. |
 | Standalone terminal/TTY and SSH | Remaining C06a/C06, C07t/C07b, C11t/e and C12t/e |
 | Other exposed launches and child-controlled inputs | Remaining C06x/C06i/C06, C08a/C08, C11g/g1 and C12g/g1 |
 
@@ -107,8 +109,8 @@ even if its negative security test passes. Unexpected configuration alone is
 never evidence of an intentional breach.
 
 For this desktop queue, **the product-changing task itself must pass installed
-usability on both Ubuntu and Fedora before it completes**. D00a, C07a, C07s and
-C07 declare `Acceptance: installed` and both targets. The shared launcher pushes
+usability on both Ubuntu and Fedora before it completes**. D00a, C07a and C07s
+declare `Acceptance: installed` and both targets. The shared launcher pushes
 and propagates completed tasks, so later acceptance rows cannot supply a missing
 check after a product commit. Apply this rule to every product repair or inserted
 product prerequisite too, including repairs found in single-target acceptance.
@@ -275,14 +277,14 @@ not reopen a prerequisite.
 New namespaces never bypass an active owner, Git transaction, VM lease or
 overlapping uncommitted work.
 
-D01 maps local routes; D01r maps one named remote provider. D02 independently
-reviews the combined minimal design. C07a owns graphical-session admission;
-C07s owns desktop-enabling actions inside the request session;
-C07 owns the named remote-desktop route. Existing effective barriers need proof,
+D01 maps local routes; D01r's remote source review remains historical only.
+D02 independently reviewed the minimal design. C07a owns graphical-session admission;
+C07s owns desktop-enabling actions inside the request session.
+Existing effective barriers need proof,
 not duplicate code. D00 and D02 identify exact usable bindings and missing small
 qualification prerequisites before their product consumers. D03 audits the final
 route map, timeouts, controls and restoration; it cannot postpone those prerequisites.
-C11d/f and C12d/f preserve their stable desktop case identities and targets.
+C11d and C12d preserve their stable local desktop case identities and targets.
 D04 closes only this desktop scope.
 
 Each implementation task owns **one concrete defect and one enforcement or
@@ -316,9 +318,8 @@ baseline receipts grant no post-change desktop-defense pass.
 
 | Owner | Required result |
 | --- | --- |
-| D00a / C07a / C07s / C07 | Before each product task completes: both-target bounded confinement usability, directly affected benign/fault controls, required review/build and owned restoration. No product change may rely on a later acceptance row. |
+| D00a / C07a / C07s | Before each product task completes: both-target bounded confinement usability, directly affected benign/fault controls, required review/build and owned restoration. No product change may rely on a later acceptance row. |
 | C11d / C12d | Precisely mapped local graphical-session and request-session desktop attempts fail to yield a full kiosk desktop. Pair each distinct route with its normal-use and recovery controls and the bounded confinement usability result. Ordinary-account desktop login remains usable. Add only directly affected shared-overlay or enforcement controls. |
-| C11f / C12f | The named supported remote provider admits an ordinary-account desktop and blocks the kiosk-account desktop; normal kiosk entry still works. An absent service or failed positive is no denial pass. |
 | D04 | Candidate-matching desktop results, justified refusals, affected regression controls, provenance and owned restoration are inspectable for both targets. |
 
 Use public actions/results for customer acceptance. Engineering probes, root

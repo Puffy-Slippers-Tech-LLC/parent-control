@@ -141,13 +141,14 @@ Fresh state uses `CacheUser`; already visible/saved state avoids it. Retained hi
 state first uses owned visibility migration at AccountsService start-pre.
 Optional icon failures cannot veto routing.
 
-The bounded isolated-Python login helper checks routing in account/session callbacks
-and Wayland at session opening. The native module bounds/reaps the child. Repair
-of wrong routing denies that attempt; valid routing is not mutated.
+The bounded isolated-Python login helper verifies the reserved account identity;
+saved session preferences and routing discovery do not vote on admission. The
+native module bounds/reaps the child and rejects the qualified `su-l` route.
+Other service names still undergo the account and lease checks.
 
-Native PAM admits the kiosk only for `gdm-password` and `systemd-user`;
-GDM session opening also requires successful account authorization on the same
-handle. Both hold shared no-follow root-owned admission leases through teardown;
+Native PAM session opening requires successful account authorization on the same
+handle, except for the user-manager callback. Both hold shared no-follow
+root-owned admission leases through teardown;
 exclusive lifecycle/removal, unsafe state or a barrier denies admission. Ordinary
 accounts launch no routing helper. The account stack exempts `systemd-user`,
 kiosk and administrators from Malcontent; other accounts skip it only when public
@@ -229,6 +230,10 @@ records and a finite capture receipt. Only recorded original/generated/previous/
 removal PAM states are accepted; unrelated edits remain untouched and stop work.
 Live admissions, kiosk processes and retained executors prevent retirement without
 being signalled. Locks/private legacy generations remain until reboot, never swept.
+The lifecycle writer may repair safe stale admission-lease permissions to 0600
+only after exclusive acquisition and fresh owner, type, single-link and named-inode
+checks. It changes the locked descriptor, preserving live/foreign state and strict
+legacy-lock validation; native PAM never repairs an existing lease.
 
 1. Verify reserved account, non-administrative UID/home and exact legacy inputs.
    Capture only configuration/backend-policy bytes into private rollback storage.

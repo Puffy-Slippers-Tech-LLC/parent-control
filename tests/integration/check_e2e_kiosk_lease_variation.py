@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify owned stale-lease refusal and restored short public usability."""
+"""Qualify owned stale-lease recovery and restored short public usability."""
 import sys
 from check_graphical_smoke import main as smoke
 from tools.test_storage import named_input

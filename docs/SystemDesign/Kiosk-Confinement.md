@@ -275,7 +275,7 @@ finite map for both targets; none of the errors below proves a child attack.
 | [Native `kiosk_identity`](../../tools/pam_oh_no_parent_control.c) and [login helper `main`](../../tools/oh-no-parent-control-login-check) reject the qualified `su-l` route, with no catch-all service-name refusal; missing service is an API error. Native non-kiosk accounts bypass kiosk checks; `systemd-user` keeps a lease without routing work. | **D00a2 completed: service-name allowlist removed; both-target installed checks passed.** Unknown graphical-service naming alone is no deliberate breach predicate. Positive control: the dedicated Wayland app selected through real `gdm-autologin`, with actual execution verified. The qualified child-run `su --login` route below supplies the narrow refusal and same-route ordinary positive. A benign unfamiliar name is a host dispatch control, not a claimed real login. Named terminal/SSH/remote services remain leads for D01/D01r and remaining C06a, not protection claims. Existing account/session authority remains required. |
 | Login helper `verify_identity` checks the nonzero reserved NSS identity. Saved session/type and `XDG_SESSION_TYPE` no longer vote on admission; the helper has no bus reader, parser or setter. Native callers no longer forward the unused transport value. | **D00a3 completed.** Stale alternate session, empty fields and saved `SessionType=x11` passed independent dedicated Wayland selection/execution controls on both targets. Actual alternate-desktop prevention remains D01/D02 work. Provisioning still owns initial saved routing; admission does not rewrite preferences. |
 | Missing NSS identity, UID zero or identity lookup error returns unavailable (2), with a closed account diagnostic. Native `run_kiosk_check` retains distinct PAM failure mapping and its 25-second timeout/kill/reap. Routing discovery is no longer invoked. | **D00a3 completed:** host malformed reply and timeout doubles receive no bus invocation; installed real discovery loss permits the native account callback, preserves ordinary-account isolation, restores exact service/mask state and permits fresh public use on both targets. Invalid identity, administrator denial, lifecycle leases and same-handle authority remain barriers; no PAM error is translated to success. |
-| Native `admission`: a missing lease is created read-only/no-follow; an existing lease is opened read-only. New-inode `fstat`/`lstat`/identity/`fchmod`, existing open, shared `flock`, and retained `lock_current` stat/identity/barrier checks can all deny. Existing mode other than 0600, changed inode/link/type/owner, or inaccessible barrier state is never repaired. | **D00a residual: owned lease recovery.** Separate a stale but proven owned inode/mode or transient I/O fault from foreign/replaced state. No mode bit, failed stat or missing state demonstrates child control. Keep no-follow/inode ownership and foreign/live preservation; repair only proven owned state through its writer. Controls: absent/new lease, healthy existing lease, one owned stale-mode case, retained-handle recheck, and release/reentry. Do not unlink a live or foreign inode. |
+| Native `admission`: a missing lease is created read-only/no-follow; an existing lease is opened read-only. New-inode `fstat`/`lstat`/identity/`fchmod`, existing open, shared `flock`, and retained `lock_current` stat/identity/barrier checks can all deny. Native PAM never repairs an existing lease. | **D00a owned lease recovery:** lifecycle `barriers` can repair a safe stale admission mode only after exclusive locking, fresh regular-file/owner/single-link checks and named-inode equality. It changes the locked descriptor to 0600 without replacement. Legacy locks remain strict. Controls: absent/new lease, healthy existing lease, one owned stale-mode case, retained-handle recheck, and release/reentry. Foreign, writable, linked or live state remains protected; transient errors require fresh retry, not an attack claim. |
 | Shared-lock contention and an existing removal marker deny immediately. `lock_current` also rechecks the marker on existing handles. | **Preserve actual lifecycle ownership**, not an attack claim. An active exclusive configuration/removal writer must exclude admission; a live admission must exclude removal through teardown. A failed read, orphaned owned marker or accidental contention is not evidence of an active authorized operation. D00a's lease/recovery slice must distinguish these and demonstrate fresh use after the owner finishes; wider interrupted-state histories remain with remaining C09c. |
 | Native PAM user/service/data errors, wrong options, absent successful account binding, allocation/clock/fork/exec/wait failure or abnormal helper exit fail the attempt. Session maps failure to `PAM_SESSION_ERR`; `pam_set_data` failure releases a newly held lease. | Preserve API/identity and same-handle authority, bounded child cleanup and no fabricated grant. These are operational failures, not desktop-defense passes. D00a changes only directly affected recovery paths; reuse host timeout/fresh-retry and handle-binding controls, then public entry after restoration. Ordinary authentication/time enforcement and explicit vendor/admin denial stay authoritative. |
 | [Provisioning](../../tools/provision.py) `kiosk_account`, `cache_kiosk`, `provision_accounts_service` and `provision_configuration` reject foreign UID/home/admin identity, unsafe ownership, wrong object/visibility/limit/routing readbacks, missing templates or invalid broker configuration. `provision_icon` alone catches optional artwork errors. | Retain identity/configuration authority and optional icon isolation. A service/parse/readback failure during owned configure can leave quarantine; it is availability work, not attack success. D00a owns a demonstrated direct admission-cleanup conflict; do not add provisioning to every login or a host inventory. Keep fresh unsaved and retained hidden-account recovery distinct; opaque AccountsService metadata and a missing/custom icon must remain usable. |
@@ -572,7 +572,7 @@ engineering controls. The complete existing short public history follows exact
 restoration. D00a4q passed the finite refusal controls, complete short public
 history and owned cleanup on `onpc-Ubuntu26.04` and `onpc-Fedora44`, without
 product changes or D00a acceptance credit. The separate `recovery` expectation
-remains unqualified until D00a runs it on the repaired candidate.
+is selected by D00a for the repaired candidate; its installed result is recorded below.
 Fedora's vendor `systemd-user` account stack can return at its sufficient
 `pam_unix` entry before the shared module. Its installed retained-handle control
 therefore acquires/rechecks at the actual session include; a successful account
@@ -588,6 +588,36 @@ configuration/rollback paths. Do not adopt or delete it based on absence of a
 live lock. Valid interrupted marker-plus-state recovery stays with the existing
 configuration writer; broader interrupted-state recovery remains C09c. Transient
 read/lock faults remain bounded engineering/fresh-retry controls, not attack claims.
+
+#### D00a owned lease repair
+
+The only product change is admission-mode recovery in lifecycle `barriers`.
+Its initial read retains the ordinary safe-file checks for the admission lease;
+the legacy leases still require mode 0600. After exclusive acquisition it reads
+fresh descriptor metadata, checks the named inode and revalidates type, owner,
+single link and absence of group/other write access before changing the same
+descriptor to 0600. A live shared handle prevents repair until release. Native
+PAM, its read-only Fedora descriptors, removal markers and lifecycle labels are
+unchanged. No inode, installed record or historical evidence is removed.
+
+Three focused product regressions cover live-handle exclusion followed by
+same-inode recovery, and post-lock hardlink/replacement preservation. They use
+private pytest paths and close their own descriptors; resource ownership remains
+within the existing package-configuration module. No task-history or test-tool
+tests are added. Independent Astra xHigh review found no actionable issues.
+All 498 selected package-configuration and native PAM checks and the DEB/RPM
+build passed. On both `onpc-Ubuntu26.04` and `onpc-Fedora44`, the repaired
+candidate passed the `recovery` lease matrix, complete short public history,
+ordinary-account login and installed admission case 268. Same-inode repair,
+retained read-only handles, writer exclusion, fresh admission after release,
+public settings restoration and owned session/VM cleanup passed.
+
+The residual source dispositions are now explicit: D00a2 removed service-name
+rejection; D00a3 removed saved-routing/discovery admission; D00a repairs this owned
+lease conflict. Historical migration remains the necessary restoration owner.
+Marker provenance, wider interrupted lifecycle/expiry recovery, locale/agent and
+shared-service gaps retain the owners in the refusal map. None selects a legacy
+confinement fallback or becomes unexplained cleanup work for D00b.
 
 #### D00a prerequisite allocation
 
@@ -606,8 +636,8 @@ claimed. The [ordered queue](../Kiosk-Desktop-Queue.md) now allocates:
 | D00a2 | Remove unjustified service-name rejection; verify actual dedicated graphical execution through the affected service, a reached prohibited-route control and ordinary-account login, with same-candidate both-target public usability. |
 | D00a3q | Completed: both-target normal execution, three saved-routing refusal/repair controls, transient discovery loss, exact restoration, fresh public use and owned cleanup passed; no product changes or consumer acceptance credit. |
 | D00a3 | Completed: saved-routing/discovery admission dependency removed; both-target preference execution, discovery loss/restoration, complete public usability and installed admission passed, with invalid identity/authority barriers retained. |
-| D00a4q | Qualify the finite installed lease variation, active writer exclusion, exact fixture restoration and fresh public use on both targets before product edits; no product changes or consumer acceptance credit. |
-| D00a | Resolve owned lease/recovery at native `admission`/`lock_current` and lifecycle `barriers`, preserving live/foreign state, read-only Fedora leases and active writer exclusion. Include stale-mode, retained-handle and release/reentry controls with both-target usability. |
+| D00a4q | Completed: finite installed lease refusal, active writer exclusion, exact fixture restoration and complete short public history passed on both targets before product edits; no consumer acceptance credit. |
+| D00a | Completed: lifecycle writer repairs the safe stale lease on the same inode, preserving native read-only leases and live/foreign state. Both-target recovery, retained-handle/exclusion controls, complete short public history, installed 268 and owned cleanup passed; independent review, affected host checks and build passed. |
 
 Historical migration capture/rollback remains necessary; broader provisioning,
 expiry provenance, locale/agent and shared-service defects retain the explicit

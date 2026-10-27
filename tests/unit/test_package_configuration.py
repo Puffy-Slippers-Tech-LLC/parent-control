@@ -718,6 +718,81 @@ def test_prepared_lifecycle_invalid_state_does_not_create_admission_inode(tmp_pa
     assert machine.loaded and machine.expires is None
 
 
+def test_prepared_lifecycle_stale_admission_recovers_only_after_live_lease_release(tmp_path, monkeypatch):
+    import fcntl
+    import os
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
+    migration = machine.migration
+    lock = migration.LOCKS[0]
+    lock.chmod(0o640)
+    before = lock.stat()
+    state = migration.STATE.read_bytes()
+    pam = {name: (migration.PAM / name).read_bytes() for name in migration.SERVICES}
+    held = os.open(lock, os.O_RDONLY)
+    try:
+        fcntl.flock(held, fcntl.LOCK_SH)
+        with pytest.raises(BlockingIOError):
+            migration.prepare()
+        assert lock.stat().st_mode & 0o7777 == 0o640
+        assert migration.STATE.read_bytes() == state
+        assert {name: (migration.PAM / name).read_bytes() for name in migration.SERVICES} == pam
+        assert machine.loaded and machine.expires is None
+    finally:
+        os.close(held)
+    migration.prepare()
+    after = lock.stat()
+    assert (after.st_dev, after.st_ino) == (before.st_dev, before.st_ino)
+    assert after.st_mode & 0o7777 == 0o600
+    assert not machine.loaded and machine.expires == 1
+    held = os.open(lock, os.O_RDONLY)
+    try:
+        fcntl.flock(held, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    finally:
+        os.close(held)
+
+
+@pytest.mark.parametrize('change', ['linked', 'replaced'])
+def test_prepared_lifecycle_rechecks_locked_stale_admission_before_repair(tmp_path, monkeypatch, change):
+    import fcntl
+    import os
+    machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
+    migration = machine.migration
+    lock = migration.LOCKS[0]
+    lock.chmod(0o640)
+    before = lock.stat()
+    state = migration.STATE.read_bytes()
+    preserved = tmp_path / 'preserved-admission'
+    native_flock = fcntl.flock
+    changed = False
+
+    def change_after_lock(descriptor, operation):
+        nonlocal changed
+        native_flock(descriptor, operation)
+        info = os.fstat(descriptor)
+        if not changed and (info.st_dev, info.st_ino) == (before.st_dev, before.st_ino):
+            changed = True
+            if change == 'linked':
+                os.link(lock, preserved)
+            else:
+                lock.rename(preserved)
+                lock.write_bytes(b'foreign replacement\n')
+                lock.chmod(0o640)
+
+    monkeypatch.setattr(migration.fcntl, 'flock', change_after_lock)
+    with pytest.raises(ValueError, match='unsafe-migration-file' if change == 'linked' else 'replaced-legacy-lock'):
+        migration.prepare()
+    assert changed
+    retained = preserved.stat()
+    assert (retained.st_dev, retained.st_ino) == (before.st_dev, before.st_ino)
+    assert retained.st_mode & 0o7777 == 0o640
+    assert lock.stat().st_mode & 0o7777 == 0o640
+    assert preserved.read_bytes() == b''
+    if change == 'replaced':
+        assert lock.read_bytes() == b'foreign replacement\n'
+    assert migration.STATE.read_bytes() == state
+    assert machine.loaded and machine.expires is None
+
+
 def test_prepared_lifecycle_failed_readiness_and_misuse_retain_recovery(tmp_path, monkeypatch):
     machine = prepared_lifecycle_machine(tmp_path, monkeypatch)
     migration = machine.migration

@@ -438,7 +438,7 @@ class KioskLeaseVariationQualification(ConfinementUsabilityQualification):
             check_settings(stage, observed)
             if stage == 'setup-detached':
                 self.result['lease_variation'] = qualify(
-                    journey.transport, context.lease, expectation='refusal')
+                    journey.transport, context.lease, expectation='recovery')
                 observed['lease_variation'] = self.result['lease_variation']
 
         journey.check_settings = check

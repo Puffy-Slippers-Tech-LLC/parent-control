@@ -590,7 +590,11 @@ def test_system_case_retry_selects_its_required_history_without_crediting_omissi
 
     monkeypatch.setenv(VARIABLE, vm_name())
     monkeypatch.setattr(vm_config.VMConfig, 'require_package_format', lambda _: 'deb')
-    inventories = {**RECOVERY_INVENTORIES, 'authorization': ('test_a', 'test_b')}
+    # Bare system checkpoints also resolve the separate upgrade attempts.
+    inventories = {**RECOVERY_INVENTORIES, 'authorization': ('test_a', 'test_b'),
+                   'package': (*RECOVERY_INVENTORIES['package'],
+                               system_runner.PREVIOUS_POLICY_CASE,
+                               system_runner.TRUSTED_FIXTURES_CASE)}
     monkeypatch.setattr(system_runner, 'collect_area_cases', inventories.__getitem__)
     plan = system_runner.resolve_selection(inventories=inventories, target_package_format='deb')
     retry = ('rollback::test_aborted_cleanup_rollback_retry' if history else 'authorization::test_b')

@@ -306,7 +306,7 @@ class KioskRoutingVariationQualification(KioskEntryQualification):
             check_settings(stage, observed)
             if stage == 'setup-detached':
                 self.result['routing_variation'] = qualify_routing(
-                    journey.transport, context.lease)
+                    journey.transport, context.lease, expectation='execution')
                 observed['routing_variation'] = self.result['routing_variation']
 
         journey.check_settings = check
@@ -314,7 +314,7 @@ class KioskRoutingVariationQualification(KioskEntryQualification):
 
     def execute(self, lease, guestfs):
         super().execute(lease, guestfs)
-        # Preserve refusals as evidence and complete public recovery before
+        # Preserve actual outcomes and complete public recovery before
         # evaluating the shared operation's full qualification verdict.
         smoke.require(self.result['routing_variation'].get('qualified') is True,
                       'gdm-routing:' + self.result['routing_variation']['result'])

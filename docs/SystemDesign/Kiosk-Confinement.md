@@ -53,7 +53,7 @@ time.
 account with `/usr/sbin/nologin`, a recorded numeric UID and owned home.
 Public AccountsService properties select the dedicated Wayland session and
 visible/saved classification. The station cannot change its own metadata through
-Polkit. Routing is verified; optional artwork cannot veto it.
+Polkit. Provisioning verifies initial routing; optional artwork cannot veto it.
 
 Fresh creation starts with no expiry and a locked password. After UID publication,
 configuration journals original expiry and quarantines the account before deleting
@@ -65,7 +65,7 @@ Successful native/distro PAM readiness permits expiry restoration, subject to th
 The [native PAM module](../../tools/pam_oh_no_parent_control.c) checks actual service
 and account. The qualified child-run `su-l` route is denied; unfamiliar service
 names use the existing account/session checks. GDM account/session checks
-require dedicated routing and Wayland; repair still denies the current attempt.
+validate the reserved identity without consulting saved routing or session type.
 Missing/unsafe state and contention deny entry. Shared root-owned no-follow
 admission leases persist through PAM teardown, excluding exclusive lifecycle
 writers but not competing logins. They require read access only because GDM and
@@ -94,7 +94,7 @@ Isolated Python entrypoints run the shared form and notifications; the vendor
 authentication agent retains its public systemd identity. App exit/failure requests
 session shutdown. Reading, choosing language and authenticating have no idle deadline.
 
-Native PAM owns account/session routing, ordinary time/runtime-cap behavior and
+Native PAM owns account/session admission, ordinary time/runtime-cap behavior and
 the lifetime lease. There is no private mount image, role dispatcher,
 required-material inventory or preparation-service admission path. Fixed native
 Wellbeing and package-diagnostic wrappers remain feature helpers: ordinary users
@@ -264,7 +264,7 @@ owned upgrade/rollback/post-erase cleanup, not a selectable legacy fallback.
 
 Trace: shared distro PAM → native `pam_sm_acct_mgmt`/`pam_sm_open_session` →
 `kiosk_identity`/`admission`/`run_kiosk_check` → login helper
-`main`/`verify_session`/`read_session`. Session opening also requires a successful
+`main`/`verify_identity`. Session opening also requires a successful
 account check on that handle; `pam_sm_close_session` retains the lease until
 `pam_end`. Provisioning/configuration is a separate writer, not a login repair
 daemon. These complete functions and their callers establish the following
@@ -273,8 +273,8 @@ finite map for both targets; none of the errors below proves a child attack.
 | Boundary and current result | Disposition, owner and representative control |
 | --- | --- |
 | [Native `kiosk_identity`](../../tools/pam_oh_no_parent_control.c) and [login helper `main`](../../tools/oh-no-parent-control-login-check) reject the qualified `su-l` route, with no catch-all service-name refusal; missing service is an API error. Native non-kiosk accounts bypass kiosk checks; `systemd-user` keeps a lease without routing work. | **D00a2 completed: service-name allowlist removed; both-target installed checks passed.** Unknown graphical-service naming alone is no deliberate breach predicate. Positive control: the dedicated Wayland app selected through real `gdm-autologin`, with actual execution verified. The qualified child-run `su --login` route below supplies the narrow refusal and same-route ordinary positive. A benign unfamiliar name is a host dispatch control, not a claimed real login. Named terminal/SSH/remote services remain leads for D01/D01r and remaining C06a, not protection claims. Existing account/session authority remains required. |
-| Login helper `verify_session` repairs a saved session/type mismatch, then returns denial even after successful readback. Account stage uses the saved type; session stage uses `XDG_SESSION_TYPE`. Empty/unrecognized values also deny. Saved defaults do not attest to the selected executable. | **D00a residual: routing/retry boundary.** `Session=ubuntu`, empty saved fields, or stale `SessionType=x11` with an actual dedicated Wayland launch are availability controls, not attacks. Keep the actual alternate-desktop attempt separate for D01/D02. Prefer safe owned repair or removing the avoidable dependency; prove usable entry after recovery without a rejection loop or manual state deletion. Missing transport alone supplies no attack evidence. |
-| `read_session` parse failure, missing NSS account, UID zero, bus error or timeout returns unavailable (2); repair setter/readback errors return denial (1). Native `run_kiosk_check` maps them to PAM errors. Each bus call is bounded at 4/5 seconds and the native child at 25 seconds, with reap on timeout. | **D00a residual: routing-service availability**, separate from routing drift if it needs an independent fix. Preserve foreign/invalid identity barriers. Malformed or temporarily unavailable routing discovery must not become an attack verdict or a kiosk password requirement. Cover one malformed reply and one transient service failure with restoration and fresh public use. Preserve original sanitized cause; do not mechanically translate errors to PAM success. |
+| Login helper `verify_identity` checks the nonzero reserved NSS identity. Saved session/type and `XDG_SESSION_TYPE` no longer vote on admission; the helper has no bus reader, parser or setter. Native callers no longer forward the unused transport value. | **D00a3 completed.** Stale alternate session, empty fields and saved `SessionType=x11` passed independent dedicated Wayland selection/execution controls on both targets. Actual alternate-desktop prevention remains D01/D02 work. Provisioning still owns initial saved routing; admission does not rewrite preferences. |
+| Missing NSS identity, UID zero or identity lookup error returns unavailable (2), with a closed account diagnostic. Native `run_kiosk_check` retains distinct PAM failure mapping and its 25-second timeout/kill/reap. Routing discovery is no longer invoked. | **D00a3 completed:** host malformed reply and timeout doubles receive no bus invocation; installed real discovery loss permits the native account callback, preserves ordinary-account isolation, restores exact service/mask state and permits fresh public use on both targets. Invalid identity, administrator denial, lifecycle leases and same-handle authority remain barriers; no PAM error is translated to success. |
 | Native `admission`: a missing lease is created read-only/no-follow; an existing lease is opened read-only. New-inode `fstat`/`lstat`/identity/`fchmod`, existing open, shared `flock`, and retained `lock_current` stat/identity/barrier checks can all deny. Existing mode other than 0600, changed inode/link/type/owner, or inaccessible barrier state is never repaired. | **D00a residual: owned lease recovery.** Separate a stale but proven owned inode/mode or transient I/O fault from foreign/replaced state. No mode bit, failed stat or missing state demonstrates child control. Keep no-follow/inode ownership and foreign/live preservation; repair only proven owned state through its writer. Controls: absent/new lease, healthy existing lease, one owned stale-mode case, retained-handle recheck, and release/reentry. Do not unlink a live or foreign inode. |
 | Shared-lock contention and an existing removal marker deny immediately. `lock_current` also rechecks the marker on existing handles. | **Preserve actual lifecycle ownership**, not an attack claim. An active exclusive configuration/removal writer must exclude admission; a live admission must exclude removal through teardown. A failed read, orphaned owned marker or accidental contention is not evidence of an active authorized operation. D00a's lease/recovery slice must distinguish these and demonstrate fresh use after the owner finishes; wider interrupted-state histories remain with remaining C09c. |
 | Native PAM user/service/data errors, wrong options, absent successful account binding, allocation/clock/fork/exec/wait failure or abnormal helper exit fail the attempt. Session maps failure to `PAM_SESSION_ERR`; `pam_set_data` failure releases a newly held lease. | Preserve API/identity and same-handle authority, bounded child cleanup and no fabricated grant. These are operational failures, not desktop-defense passes. D00a changes only directly affected recovery paths; reuse host timeout/fresh-retry and handle-binding controls, then public entry after restoration. Ordinary authentication/time enforcement and explicit vendor/admin denial stay authoritative. |
@@ -500,44 +500,43 @@ complete usability results are recorded above.
 
 #### D00a3 routing qualification prerequisite
 
-`system_kiosk_admission.verify` retains real alternate-session and `x11` saved
-preferences through account-only callbacks, expecting refusal/repair/retry;
-that account-only history supplies no graphical execution observation.
-The service-only `gdm_service_variation.qualify` uses dedicated saved routing
-and observes the actual Wayland session, app and selected GNOME-session process.
-Saved-routing variation needs independent session selection: simply omitting
-the dedicated setup would let the saved preference select another session.
+Before D00a3, `system_kiosk_admission.verify` expected refusal/repair/retry for
+alternate-session and `x11` saved preferences through account-only callbacks.
+That history supplied no graphical execution observation. D00a3q qualified
+the finite pre-fix refusal/repair and discovery-loss controls on both targets,
+including exact restoration and fresh public entry; it supplied no consumer
+acceptance credit. No separate essential-service recovery defect was established.
 
-D00a3q implements
+The current
 [`gdm_service_variation.qualify_routing(transport, lease)`](../../tests/e2e/gdm_service_variation.py)
-through `KioskRoutingVariationQualification` and the listed installed selector
-`check_e2e_kiosk_routing_variation`. GDM's greeter peer `SelectSession` selects
-the dedicated session independently of the saved alternate/empty/`x11` values,
-then invokes the real `gdm-password` route without answering any prompt.
-Exact input readback and the attempt-bound installed helper's refusal/repair
-diagnostic distinguish a reached saved-routing check from an earlier failure.
-The peer acknowledgement and daemon selection identify a refused route before
-selected-command resolution; an absent later resolution is not an execution
-claim. Refused variations receive no execution credit. The normal dedicated positive
-uses the existing Wayland logind, running app-service/process and selected
-GNOME-session process observations, tying GDM's opened session ID to logind;
-D00a3 reuses them with `expectation='execution'`.
+binding uses `expectation='execution'` through `KioskRoutingVariationQualification`
+and `check_e2e_kiosk_routing_variation`. GDM's greeter peer `SelectSession`
+selects the dedicated session independently of saved alternate/empty/`x11`
+values, then invokes real `gdm-password` without answering a prompt. Exact
+input readback and the attempt-bound identity diagnostic establish the reached
+account check. Every variation requires actual Wayland logind, running app
+service/process and selected GNOME-session process observations, tying GDM's
+opened session ID to logind; saved defaults and command resolution alone earn
+no execution credit. A usable public greeter separates restored attempts.
+Actual AccountsService discovery loss must permit native account admission;
+exact owned service/mask, routing and ordinary-account restoration precede
+fresh public entry/form/Cancel/return. Changed or foreign state refuses cleanup.
 
-The separate discovery control temporarily stops AccountsService under an
-exclusively created runtime mask, invokes the installed native account callback,
-and requires the helper's unavailable diagnostic. Restoration checks the exact
-owned mask, service configuration, saved routing and ordinary-account isolation;
-changed or foreign entries refuse restoration. The existing public station-list
-observation establishes a usable greeter before each variation and discovery loss,
-separately from the preceding display-manager restoration. This prevents the next
-variation from immediately restarting a greeter still starting up. The caller
-then runs the existing fresh public station entry/form/Cancel/return history.
-Installed qualification and owned cleanup passed on `onpc-Ubuntu26.04` and
-`onpc-Fedora44`: normal dedicated execution, all three pre-fix refusal/repair
-controls, actual discovery loss, exact restoration and fresh public use.
-No separate product recovery defect was established.
-No product admission or package consumer changes are included;
-malformed replies and D00a3's full product acceptance remain with D00a3.
+D00a3 removes `busctl`, `read_session` and `verify_session` from the packaged
+helper, retaining `verify_identity` and its native bounded caller. The helper
+remains a used package input for NSS identity validation; no package removal or
+new routing supervisor is needed. The installed binding now requires execution
+for every preference variation and successful native admission during the outage,
+with an attempt-bound identity diagnostic. The short confinement history also
+checks genuine approval, rejection, Cancel, reentry and ordinary graphical use.
+
+The final candidate passed installed admission 268, the routing binding above
+and `check_e2e_confinement_usability` on `onpc-Ubuntu26.04` and `onpc-Fedora44`,
+including public restoration and owned runner/VM cleanup. Host checks covered
+malformed replies/timeouts without bus access, invalid identity, same-handle
+authority, administrator denial, lifecycle exclusion and bounded child cleanup.
+Independent Astra xHigh backend review found no actionable issues; 286 focused
+product/ownership checks, 445 existing launcher checks and DEB/RPM builds passed.
 
 #### D00a prerequisite allocation
 
@@ -555,7 +554,7 @@ claimed. The [ordered queue](../Kiosk-Desktop-Queue.md) now allocates:
 | D00a2r | Qualify one actual child-invoked prohibited service route and its account-refusal witness, ordinary-account positive and owned restoration on both targets before the service-dispatch product edit; no product changes or consumer acceptance credit. |
 | D00a2 | Remove unjustified service-name rejection; verify actual dedicated graphical execution through the affected service, a reached prohibited-route control and ordinary-account login, with same-candidate both-target public usability. |
 | D00a3q | Completed: both-target normal execution, three saved-routing refusal/repair controls, transient discovery loss, exact restoration, fresh public use and owned cleanup passed; no product changes or consumer acceptance credit. |
-| D00a3 | Remove the avoidable saved-routing/discovery admission dependency, including drift, malformed-reply and transient discovery controls. Keep invalid identity/authority barriers and prove restored public use on both targets. |
+| D00a3 | Completed: saved-routing/discovery admission dependency removed; both-target preference execution, discovery loss/restoration, complete public usability and installed admission passed, with invalid identity/authority barriers retained. |
 | D00a | Resolve owned lease/recovery at native `admission`/`lock_current` and lifecycle `barriers`, preserving live/foreign state, read-only Fedora leases and active writer exclusion. Include stale-mode, retained-handle and release/reentry controls with both-target usability. |
 
 Historical migration capture/rollback remains necessary; broader provisioning,

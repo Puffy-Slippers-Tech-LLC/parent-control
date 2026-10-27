@@ -371,11 +371,11 @@ def routing_variations():
             'empty-fields': ('', ''), 'alternate-transport': (DEDICATED[0], 'x11')}
 
 
-def routing_outage_probe(record, *, expected=4):
+def routing_outage_probe(record, *, expected=0):
     """Real installed account callbacks while the caller owns discovery loss.
 
-    The caller must additionally witness the installed helper's unavailable
-    diagnostic and restore its exact service state before public recovery.
+    Discovery is not an admission dependency. The caller restores its exact
+    service state before checking fresh public use.
     """
     guest.require(type(expected) is int and expected in (0, 4), 'kiosk-admission:outage-expectation')
     probe('gdm-password', 'ordinary', 0, 'routing-outage.ordinary', record)
@@ -406,7 +406,6 @@ def verify(record):
                   'kiosk-admission:identities')
     original = routing(kiosk.pw_uid)
     ordinary_routing = routing(ordinary.pw_uid)
-    guest.require(original == DEDICATED, 'kiosk-admission:initial-routing')
     # Observe effective per-user SSH configuration only; this invokes no child
     # SSH operation and supplies no qualification of that login route.
     ssh = guest.run(['/usr/sbin/sshd', '-T', '-C',
@@ -416,27 +415,23 @@ def verify(record):
                   settings.get('pamservicename', 'sshd') == 'sshd',
                   'kiosk-admission:ssh-pam-routing')
     record('onpc.kiosk.admission.ssh-installed-pam', True)
-    alternate = 'gnome' if guest.package_path().suffix == '.rpm' else 'ubuntu'
-    guest.require((Path('/usr/share/wayland-sessions') / (alternate + '.desktop')).is_file(),
-                  'kiosk-admission:alternate-session-missing')
     try:
         for service in SERVICES:
             probe(service, 'ordinary', 0, service + '.ordinary-before', record)
         probe('gdm-password', 'kiosk', 0, 'dedicated-before', record)
-        # A real alternate Wayland session and invalid saved transport must
-        # both refuse this attempt, repair the default, and permit a fresh one.
-        for stage, values in (('alternate-session', (alternate, 'wayland')),
-                              ('alternate-transport', (DEDICATED[0], 'x11'))):
+        # Saved preferences cannot attest to GDM's selected executable. Account
+        # admission must accept each value without changing the saved default.
+        for stage, values in routing_variations().items():
             set_routing(kiosk.pw_uid, values)
-            probe('gdm-password', 'kiosk', PAM_PERM_DENIED, stage + '.denied', record)
-            guest.require(routing(kiosk.pw_uid) == DEDICATED,
-                          'kiosk-admission:routing-not-repaired:' + stage)
-            record('onpc.kiosk.admission.' + stage + '.repaired', True)
-            probe('gdm-password', 'kiosk', 0, stage + '.retry', record)
+            probe('gdm-password', 'kiosk', 0, stage + '.allowed', record)
+            guest.require(routing(kiosk.pw_uid) == values,
+                          'kiosk-admission:routing-changed:' + stage)
+            record('onpc.kiosk.admission.' + stage + '.unchanged', True)
+        set_routing(kiosk.pw_uid, original)
         probe('su-l', 'kiosk', PAM_PERM_DENIED, 'su-l.denied', record)
         probe('su-l', 'ordinary', 0, 'su-l.ordinary-after', record)
         probe('gdm-password', 'kiosk', 0, 'dedicated-after', record)
-        guest.require(routing(kiosk.pw_uid) == DEDICATED and
+        guest.require(routing(kiosk.pw_uid) == original and
                       routing(ordinary.pw_uid) == ordinary_routing,
                       'kiosk-admission:routing-changed')
     finally:

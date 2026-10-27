@@ -757,10 +757,15 @@ def test_fixture_qualification_freezes_after_package_before_privilege(
         monkeypatch.setattr(commands, 'host_only_request', lambda argv: True)
         monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
         monkeypatch.setattr(commands.os, 'chdir', Mock())
-        monkeypatch.setattr(commands.subprocess, 'run',
-                            lambda command, **kwargs: SimpleNamespace(returncode=execute(command, **kwargs)))
         import test_storage
-        monkeypatch.setattr(test_storage, 'scratch_descriptors', lambda: ())
+        descriptors = (71, 72)
+        monkeypatch.setattr(test_storage, 'scratch_descriptors', lambda: descriptors)
+
+        def run(command, **kwargs):
+            assert kwargs['pass_fds'] == descriptors
+            return SimpleNamespace(returncode=execute(command, **kwargs))
+
+        monkeypatch.setattr(commands.subprocess, 'run', run)
         assert commands._main(['integration', 'check_fixture_provisioning']) == (
             {'package': 7, 'fixture': 2, 'malformed': 2, 'duplicate': 2}.get(failure, 0))
     if failure == 'package':

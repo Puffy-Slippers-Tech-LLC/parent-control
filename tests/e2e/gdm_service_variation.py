@@ -436,11 +436,12 @@ def attempt(token, *, routing_variation=None):
         result = observe_attempt(guest, state)
         messages = [row['MESSAGE'] for row in journal(guest, state)
                     if type(row.get('MESSAGE')) is str
-                    and row['MESSAGE'].startswith('onpc.pam kiosk routing stage=account ')]
+                    and row['MESSAGE'].startswith(('onpc.pam kiosk routing stage=account ',
+                                                   'onpc.pam kiosk identity stage=account '))]
         expected = 'onpc.pam kiosk routing stage=account outcome=denied recovery=restored reason=routing'
-        allowed = 'onpc.pam kiosk routing stage=account outcome=allowed recovery=none reason=none'
+        allowed = 'onpc.pam kiosk identity stage=account outcome=allowed reason=none'
         require(messages == [expected] if result['result'] == 'account-refused' else
-                messages in ([], [allowed]), 'routing-admission-witness')
+                messages == [allowed], 'routing-admission-witness')
         # Only this witnessed product repair may change the expected cleanup
         # value; an unexplained or foreign routing change is never adopted.
         current = api.routing(user)
@@ -530,12 +531,13 @@ def restore(token, *, routing=False):
         # repair. Adopt only this attempt's exact denied/restored witness.
         messages = [row.get('MESSAGE') for row in journal(guest, state)
                     if type(row.get('MESSAGE')) is str and
-                    row['MESSAGE'].startswith('onpc.pam kiosk routing stage=account ')]
+                    row['MESSAGE'].startswith(('onpc.pam kiosk routing stage=account ',
+                                              'onpc.pam kiosk identity stage=account '))]
         repaired = messages == ['onpc.pam kiosk routing stage=account outcome=denied '
                                 'recovery=restored reason=routing']
         selected = (state.get('independent_selection', {}).get('selection_acknowledged') is True
-                    and messages in ([], ['onpc.pam kiosk routing stage=account outcome=allowed '
-                                         'recovery=none reason=none']))
+                    and messages == ['onpc.pam kiosk identity stage=account outcome=allowed '
+                                     'reason=none'])
         require(state['routing_input'] != DEDICATED and api.routing(state['user']) == DEDICATED
                 and (repaired or selected), 'restore-unwitnessed-routing')
         state['routing_expected'] = DEDICATED
@@ -688,8 +690,10 @@ def outage(token, *, restore_only=False, positive=False):
                          expected=0 if positive else 4)
     messages = [row.get('MESSAGE') for row in journal(guest, state)
                 if type(row.get('MESSAGE')) is str and
-                row['MESSAGE'].startswith('onpc.pam kiosk routing stage=account ')]
-    require(messages == [] if positive else messages == [
+                row['MESSAGE'].startswith(('onpc.pam kiosk routing stage=account ',
+                                          'onpc.pam kiosk identity stage=account '))]
+    require(messages == ['onpc.pam kiosk identity stage=account outcome=allowed reason=none']
+            if positive else messages == [
             'onpc.pam kiosk routing stage=account outcome=unavailable '
             'recovery=none reason=account-service'], 'outage-helper-outcome')
     require(mask_identity() == state['mask'] and unit() == state['unit_expected'],
@@ -699,7 +703,7 @@ def outage(token, *, restore_only=False, positive=False):
             'app_execution_qualified': False}
 
 
-def qualify_routing(transport, lease, *, expectation='refusal'):
+def qualify_routing(transport, lease, *, expectation='execution'):
     """Finite D00a3q binding; D00a3 reuses it with expectation='execution'."""
     import watch_activity
     from ui_observations import UiObservations

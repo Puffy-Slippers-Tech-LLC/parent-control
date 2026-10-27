@@ -1,70 +1,35 @@
 #!/usr/bin/python3 -I
-"""Kiosk service/routing helper using public account session properties."""
+"""Kiosk service and account identity checks, independent of saved routing."""
 import os
 import pwd
-import shlex
-import subprocess
 import sys
 import syslog
 
 KIOSK_USER = 'oh-no-parent-control'
-SESSION = 'oh-no-parent-control'
-BUS = 'org.freedesktop.Accounts'
-INTERFACE = 'org.freedesktop.Accounts.User'
-ENVIRONMENT = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
 
 
-def busctl(*arguments):
-    return subprocess.run(
-        ['/usr/bin/busctl', '--system', '--timeout=4',
-         '--allow-interactive-authorization=no', *arguments],
-        check=True, capture_output=True, text=True, timeout=5,
-        env=ENVIRONMENT).stdout
-
-
-def read_session(path):
-    values = shlex.split(busctl('get-property', BUS, path, INTERFACE, 'Session', 'SessionType'))
-    if len(values) != 4 or values[0] != 's' or values[2] != 's':
-        raise ValueError('invalid session properties')
-    return values[1], values[3]
-
-
-def record(stage, outcome, recovery='none', reason='none'):
+def record(stage, outcome, reason='none'):
     # Closed categories only; never include account names, bus/exception text.
     syslog.syslog(syslog.LOG_INFO if outcome == 'allowed' else syslog.LOG_WARNING,
-                  f'onpc.pam kiosk routing stage={stage} outcome={outcome} '
-                  f'recovery={recovery} reason={reason}')
+                  f'onpc.pam kiosk identity stage={stage} outcome={outcome} '
+                  f'reason={reason}')
 
 
-def verify_session(stage):
-    """Check public defaults and actual transport; not GDM's selected exec.
+def verify_identity(stage):
+    """Saved session defaults cannot attest to GDM's selected executable.
 
-    A saved default can lag session selection. C06a owns remaining ordinary
-    desktop/login-route closure; the historical GDM PreSession hook is not used.
+    Keep account identity authority without a routing-service admission vote.
+    Actual desktop/session-route protection has its own enforcement boundary.
     """
     try:
         account = pwd.getpwnam(KIOSK_USER)
         if account.pw_uid == 0:
             raise ValueError('invalid station identity')
-        path = f'/org/freedesktop/Accounts/User{account.pw_uid}'
-        session, saved_type = read_session(path)
-    except (KeyError, OSError, ValueError, subprocess.SubprocessError):
-        record(stage, 'unavailable', reason='account-service')
+    except (KeyError, OSError, ValueError):
+        record(stage, 'unavailable', reason='account')
         return 2
-    transport = os.environ.get('XDG_SESSION_TYPE', '') if stage == 'session' else saved_type
-    if session == SESSION and transport == 'wayland':
-        record(stage, 'allowed')
-        return 0
-    recovery = 'failed'
-    try:
-        busctl('call', BUS, path, INTERFACE, 'SetSession', 's', SESSION)
-        busctl('call', BUS, path, INTERFACE, 'SetSessionType', 's', 'wayland')
-        if read_session(path) == (SESSION, 'wayland'):
-            recovery = 'restored'
-    except (OSError, ValueError, subprocess.SubprocessError):
-        pass
-    record(stage, 'denied', recovery, 'routing')
-    return 1
+    record(stage, 'allowed')
+    return 0
 
 
 def main(arguments=None):
@@ -85,7 +50,7 @@ def main(arguments=None):
         return 0
     if os.geteuid() != 0:
         return 2
-    return verify_session('account' if arguments == ['--kiosk-account'] else 'session')
+    return verify_identity('account' if arguments == ['--kiosk-account'] else 'session')
 
 
 if __name__ == '__main__':

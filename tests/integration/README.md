@@ -527,6 +527,52 @@ The runner refuses the pending history before collecting cases or preparing
 inputs. Renew the complete history through a registered current composition
 before consuming it.
 
+## Aggregate scheduling
+
+`tools/run-tests vm` and `all` include current-package system tests, two separate
+upgrade histories (287 policy preservation and 288 trusted native fixtures),
+runnable integration checks and ready E2E cases. Bare `system` has the same three
+system attempts; explicit selectors keep their existing scope. Each upgrade uses
+the existing `--id N --upgrade-inputs` route and its independent preparation,
+restore, failure reporting, resume prerequisites and cleanup. History 289 remains
+pending and is never selected. Other pending/retired system IDs and pending E2E
+variants remain excluded by their inventories; package-format-specific histories
+retain their target filtering.
+
+Bare `integration` runs the regular `check_*.py` bindings through the existing
+guarded per-check launcher, including named input preparation and fixture
+selection. It never calls script bodies inside the coordinator. The
+[binding inventory](integration_inventory.py) owns scheduling exclusions and
+exposes their reasons in `tools/run-tests integration --list`:
+
+- `check_test_recovery`, `check_graphical_recovery`, `check_system_recovery`,
+  `check_tmp_storage`, `check_tmp_storage_cleanup`, `check_storage_migration` and
+  `check_retained_runs_cleanup` are operational recovery, inventory or maintenance
+  commands. They stay explicitly callable, outside test scheduling. Required
+  owned recovery still runs through the normal execution preflight.
+- `check_parent_about` and `check_parent_access` use dormant fixture envelopes
+  that are not qualified for clean captures. They remain outside aggregates
+  until their preparation route is qualified; ready customer cases retain their
+  independent coverage.
+- `check_e2e_mate_prompt`, `check_e2e_toggle` and
+  `check_e2e_read_an_expanded_time_explanation` duplicate the actual qualification
+  calls in `check_e2e_auth_prompt`, `check_e2e_parent_save` and
+  `check_e2e_time_explanation`, respectively. Only the latter routes are scheduled.
+- `check_graphical_transport` requires the Ubuntu host's libvirtd AppArmor
+  profile, and `check_package_notice` requires host-native APT/dpkg (Ubuntu or
+  Debian). They are excluded on Fedora hosts, independently of the selected VM;
+  listing includes that applicability reason.
+
+Other standalone qualifications retain distinct assertions or preparation,
+fault/refusal or process/privilege boundaries; readiness of a related customer
+case alone does not establish equivalent coverage. Fixture refresh qualification
+is a finite test of maintenance behavior; it is distinct from invoking a
+maintenance operation. No excluded test-tool UI tests or task-history tests are
+recreated. Integration passes are checkpointed per check only after successful
+exit and cleanup; failures and interruptions replay that check, while completed
+checks are retained. A failed guarded VM attempt stops subsequent attempts even
+when independent host tests were allowed to continue after errors.
+
 ## Running the current installed suite
 
 Cases have permanent numeric IDs shown by `tools/run-tests system --list`.

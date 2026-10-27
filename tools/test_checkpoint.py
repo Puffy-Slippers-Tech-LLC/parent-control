@@ -70,7 +70,7 @@ def resume_arguments(root, argv):
 
 class Checkpoint:
     def __init__(self, root, selections, *, resume=False, namespace='run-tests', binding=None):
-        from test_commands import CATEGORIES, suite_inventory, AGGREGATES
+        from test_commands import CATEGORIES, suite_inventory, AGGREGATES, execution_selections
         from vm_selection import VARIABLE, BATCH
         groups = {}
         self.retry_case = None
@@ -80,7 +80,7 @@ class Checkpoint:
                 expanded = [(name, entry['args']) for name, entry in suite_inventory([kind]).items()]
             else:
                 expanded = [(kind, args)]
-            for name, options in expanded:
+            for name, options in execution_selections(root, expanded):
                 groups.setdefault(name, []).append(list(options))
         # Repeated category groups are valid selections. Retain every group's
         # selectors instead of silently binding resume to only the last one.

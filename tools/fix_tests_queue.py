@@ -303,13 +303,17 @@ def case_inventory(root, category, options):
     """Use the runner's original order and selectors, including lifecycle phases."""
     if category == 'system':
         from vm_selection import selected
-        command = [str(root / 'tools/run-tests'), 'system', *options, '--vm', selected().name, '--list']
-        result = subprocess.run(command, cwd=root, env=launcher.environment(),
-                                capture_output=True, text=True, check=True,
-                                pass_fds=(*launcher.scratch_descriptors(), *repair_descriptors()))
+        from test_commands import execution_selections
         import re
-        cases = [match[1] for line in result.stdout.splitlines()
-                 if (match := re.fullmatch(r'    (\S+::\S+) \[selected\](?: \[system-\d+\])?', line))]
+        cases = []
+        for _, arguments in execution_selections(root, [('system', list(options))]):
+            command = [str(root / 'tools/run-tests'), 'system', *arguments,
+                       '--vm', selected().name, '--list']
+            result = subprocess.run(command, cwd=root, env=launcher.environment(),
+                                    capture_output=True, text=True, check=True,
+                                    pass_fds=(*launcher.scratch_descriptors(), *repair_descriptors()))
+            cases.extend(match[1] for line in result.stdout.splitlines()
+                         if (match := re.fullmatch(r'    (\S+::\S+) \[selected\](?: \[system-\d+\])?', line)))
     elif category == 'e2e':
         import runpy
         runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))

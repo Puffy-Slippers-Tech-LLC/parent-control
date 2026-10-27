@@ -1705,6 +1705,26 @@ def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
     assert safety is False
     listing = runpy.run_path(str(ROOT / 'tests/integration/integration_inventory.py'))
     assert 'check_fixture_snapshots' in {item['name'] for item in listing['inventory']()}
+    scheduled = listing['runnable']()
+    assert scheduled and len(scheduled) == len(set(scheduled))
+    assert set(scheduled).isdisjoint(listing['EXCLUDED'])
+    assert set(scheduled).isdisjoint({
+        'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery',
+        'check_tmp_storage', 'check_tmp_storage_cleanup', 'check_storage_migration',
+        'check_retained_runs_cleanup'})
+    assert {'check_fixture_snapshots', 'check_fixture_live_refresh',
+            'check_graphical_worker'} <= set(scheduled)
+    ubuntu = set(listing['runnable'](host_os='ubuntu'))
+    fedora = set(listing['runnable'](host_os='fedora'))
+    assert ubuntu - fedora == {'check_package_notice', 'check_graphical_transport'}
+    assert fedora <= ubuntu
+    assert all(item['excluded_reason'] for item in listing['inventory'](host_os='fedora')
+               if item['name'] in ubuntu - fedora)
+    assert commands.execution_selections(ROOT, [('integration', [])]) == [
+        ('integration', [name]) for name in scheduled]
+    assert commands.execution_selections(ROOT, [('system', [])]) == [
+        ('system', []), ('system', ['--id', '287', '--upgrade-inputs']),
+        ('system', ['--id', '288', '--upgrade-inputs'])]
     dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
     with pytest.raises(ValueError, match='list-does-not-select-test'):
         dispatcher['selection'](ROOT, ['integration', '--list', 'check_fixture_snapshots'])
@@ -1718,10 +1738,10 @@ def test_help_prints_complete_categories_and_combinations(capsys, argv):
     assert text.startswith('Usage: tools/run-tests')
     assert 'host and e2e' in text
     assert 'all = host + vm' in text
-    assert 'vm = system + e2e' in text
+    assert 'vm = system + integration + e2e' in text
     assert 'tools/run-tests vm --vm NAME' in text
     assert 'tools/run-tests system e2e' in text
-    assert 'tools/run-tests host system e2e' in text
+    assert 'tools/run-tests host system integration e2e' in text
     assert 'two package builds and reproducibility' in text
     assert not text.lstrip().startswith('{')
 
@@ -1852,7 +1872,7 @@ def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, deta
     execute = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    phases = tuple(kind for kind in ('host', 'system', 'e2e')
+    phases = tuple(kind for kind in ('host', 'system', 'integration', 'e2e')
                    if kind in argv or (kind != 'host' and 'vm' in argv))
     for flag in ([], ['--continue-on-errors']):
         commands.validate(ROOT, [*argv, *flag, *VM_ARGS])

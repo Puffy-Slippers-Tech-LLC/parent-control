@@ -805,13 +805,13 @@ class Run:
         self.checkpoint = None
         self.continue_on_errors = continue_on_errors
         self.phases = phases if phases is not None else (
-            ('host',) if host_only or host_builds else ('host', 'system', 'e2e'))
+            ('host',) if host_only or host_builds else ('host', 'system', 'integration', 'e2e'))
         self.serial_builds = serial_builds
-        self.includes_vm = any(kind in self.phases for kind in ('system', 'e2e'))
+        self.includes_vm = any(kind in self.phases for kind in ('system', 'integration', 'e2e'))
         self.verification_mode = ('not applicable; host-only run' if not self.includes_vm else
                                   'metadata-only; image contents are not scanned')
         self.report.write('\nScope: ' + (scope or ('complete regression' if
-                          self.phases == ('host', 'system', 'e2e') else ' + '.join(self.phases))) + '\n')
+                          self.phases == ('host', 'system', 'integration', 'e2e') else ' + '.join(self.phases))) + '\n')
         if scope is None:
             self.report.write('\nBuild scheduling: ' + ('after host join (serial comparison)' if serial_builds else
                               'qualified host companions') + '\n')
@@ -824,6 +824,18 @@ class Run:
         self.sequence = 0
         self.inputs = None
         self.admission = Admission(observe=self.observe_resources)
+        self.vm_extras = []
+
+    def prepare_vm_selections(self):
+        from test_commands import execution_selections
+        for kind, args in execution_selections(self.root, [(kind, []) for kind in self.phases
+                                                         if kind in ('system', 'integration')]):
+            if not args:  # The ordinary current-package system suite.
+                continue
+            item = Category(CATEGORY_NAMES[kind] + ' — ' + ' '.join(args),
+                            None if kind == 'system' else 1,
+                            retry_category=kind, selection_args=tuple(args))
+            self.vm_extras.append((kind, args, item))
 
     def observe_resources(self, sample):
         self.report.resources({**sample, 'running_categories': [item.name for item in self.categories
@@ -841,6 +853,29 @@ class Run:
 
     def resume_category(self, item, kind=None):
         kind = kind or item.retry_category
+        if self.checkpoint is not None and self.checkpoint.retry_case and item.selection_args is not None:
+            retry = self.checkpoint.retry_case
+            if kind == 'system':
+                selected, _ = self.system_resume_cases(item.selection_args)
+                omit = retry not in selected
+            elif kind == 'integration':
+                groups = self.checkpoint.entry(kind)['args']
+                groups = groups if groups and isinstance(groups[0], list) else [groups]
+                if retry not in {args[0] for args in groups if args}:
+                    raise ValueError('case retry is outside the selected integration inventory')
+                omit = retry != item.selection_args[0]
+            else:
+                omit = False
+            if omit:
+                # A focused retry omits sibling attempts without saving passes
+                # or counting unexecuted work as coverage.
+                item.total, item.done, item.state, item.count_overall = 0, 0, 'Passed', False
+                return True
+        if kind == 'integration' and self.checkpoint is not None and item.selection_args:
+            if item.selection_args[0] not in self.checkpoint.passed(kind):
+                return False
+            item.done, item.state = 1, 'Passed'
+            return True
         # Builders must provide fresh validated paths for dependent commands.
         if self.checkpoint is None or kind == 'artifacts' or not self.checkpoint.complete(kind):
             return False
@@ -917,6 +952,8 @@ class Run:
         groups = self.checkpoint.entry('system')['args']
         groups = groups if groups and isinstance(groups[0], list) else [groups]
         siblings = set().union(*(identities(options) for options in groups))
+        if self.checkpoint.retry_case and self.checkpoint.retry_case not in siblings:
+            raise ValueError('case retry is outside the selected system inventory')
         # A checkpoint pools repeated categories. Remove only known sibling
         # passes; unknown IDs still reach the controller's inventory guard.
         passed = self.checkpoint.passed('system') - (siblings - selected)
@@ -1018,7 +1055,16 @@ class Run:
             status = self.control.run(command, cwd=self.root, env=self.command_environment(command),
                                       output=execution.output, cooperative=True,
                                       tick=tick)
-            return execution.finish(status)
+            result = execution.finish(status)
+            if item.retry_category == 'integration' and item.selection_args:
+                case = item.selection_args[0]
+                passed = item.state == 'Passed'
+                if self.checkpoint is not None:
+                    self.checkpoint.event('integration',
+                        dict(kind='finished' if passed else 'failure', nodeid=case), set())
+                if not passed:
+                    item.failed_nodeids = (case,)
+            return result
         finally:
             execution.close()
 
@@ -1190,6 +1236,7 @@ class Run:
 
     def run(self):
         from test_commands import PUBLISH_CATEGORIES, suite_inventory
+        self.prepare_vm_selections()
         inventory = suite_inventory(('host',))
         self.inputs = source_identity(self.root)
         self.report.write('\nInitial source inputs SHA-256 (informational): ' + self.inputs + '\n')
@@ -1206,9 +1253,13 @@ class Run:
         builds = [Category(name, 1) for name in ('Package build A', 'Package build B',
                                                'Package reproducibility')]
         system = Category(CATEGORY_NAMES['system']) if 'system' in self.phases else None
+        if system is not None:
+            system.selection_args = ()
         graphical = Category(CATEGORY_NAMES['e2e']) if 'e2e' in self.phases else None
         self.categories.extend([*suite_items, *fixed_items, *publishing, *builds])
-        self.categories.extend(item for item in (system, graphical) if item is not None)
+        self.categories.extend([*(item for item in (system,) if item is not None),
+                                *(item for _, _, item in self.vm_extras),
+                                *(item for item in (graphical,) if item is not None)])
         discovery.state = 'Running'
         discovery.started = time.monotonic()
         self.dashboard.draw(force=True)
@@ -1268,7 +1319,7 @@ class Run:
         if not self.includes_vm:
             return
         if any(job.item.state != 'Passed' for job in package_jobs):
-            for item in (system, graphical):
+            for item in (system, *(item for _, _, item in self.vm_extras), graphical):
                 if item is not None:
                     item.state, item.wait_reason = 'Blocked', 'package qualification failed'
             self.report.snapshot(self.categories)
@@ -1280,13 +1331,17 @@ class Run:
         discovery = self.categories[0]
         build = Category('Package input preparation', 1, count_overall=False)
         system = Category(CATEGORY_NAMES['system']) if 'system' in self.phases else None
+        if system is not None:
+            system.selection_args = ()
         graphical = Category(CATEGORY_NAMES['e2e']) if 'e2e' in self.phases else None
-        self.categories.extend([build, *(item for item in (system, graphical) if item is not None)])
+        self.categories.extend([build, *(item for item in (system,) if item is not None),
+                                *(item for _, _, item in self.vm_extras),
+                                *(item for item in (graphical,) if item is not None)])
         discovery.state, discovery.started = 'Running', time.monotonic()
         ready = self.discover_vm(system, graphical)
         if self.control.stopped.is_set():
             return
-        if system is None and not ready:
+        if system is None and not ready and not self.vm_extras:
             # Successful collection is not customer coverage. No executable
             # consumer needs package inputs or privileged VM prerequisites.
             self.categories.remove(build)
@@ -1297,6 +1352,9 @@ class Run:
         authorization()
         discovery.done, discovery.state = 1, 'Passed'
         discovery.stop_timer()
+        if system is None and not ready:
+            self.categories.remove(build)
+            return self.vm_tests(system, graphical, ready)
         self.host_jobs([Job('artifacts', build, self.command('artifacts', 'prepare', '--for-vm'), key='build-a')])
         if self.control.stopped.is_set() or build.state != 'Passed':
             return
@@ -1364,8 +1422,15 @@ class Run:
             status, _ = self.execute(system, self.command('system', '--artifacts', artifacts), events=True)
             if self.control.stopped.is_set():
                 return
-            if status:
+            if status or system.state != 'Passed':
                 raise ValueError('installed-system attempt failed; subsequent VM attempts refused')
+        for kind, args, item in self.vm_extras:
+            self.dashboard.controller_category = (kind, self.phases.index(kind) + 1, len(self.phases))
+            status, _ = self.execute(item, self.command(kind, *args), events=kind == 'system')
+            if self.control.stopped.is_set():
+                return
+            if status or item.state != 'Passed':
+                raise ValueError('guarded VM check failed; subsequent VM attempts refused')
         if graphical is not None and ready:
             self.dashboard.controller_category = ('e2e', self.phases.index('e2e') + 1, len(self.phases))
             # One dispatcher invocation keeps prerequisite checks and the VM

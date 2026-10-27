@@ -21,11 +21,11 @@ import launcher_reload
 
 
 def split(root, argv):
-    from test_commands import execution_arguments, selections, AGGREGATES
+    from test_commands import execution_arguments, selections, AGGREGATES, PHASES
     args, stop = execution_arguments(argv or ['all'])
     selected = selections(root, args)
     if len(selected) == 1 and selected[0][0] in AGGREGATES:
-        selected = [('host', []), ('system', []), ('e2e', [])]
+        selected = [(kind, []) for kind in PHASES]
     host = [(kind, options) for kind, options in selected if kind not in ('system', 'e2e', 'integration')]
     guests = [(kind, options) for kind, options in selected if kind in ('system', 'e2e', 'integration')]
     def flatten(groups):
@@ -35,7 +35,7 @@ def split(root, argv):
                   *[arg for arg in argv if arg.startswith('--resume-case=')],
                   *(['--stop-on-error'] if stop else []),
                   *(value for kind, options in groups for value in (kind, *options))]
-        if '--continue-on-errors' in args and all(kind in ('host', 'system', 'e2e') and not options
+        if '--continue-on-errors' in args and all(kind in PHASES and not options
                                                 for kind, options in groups):
             result.append('--continue-on-errors')
         return result
@@ -180,7 +180,7 @@ def run(root, argv, *, reloading=False):
                 if (result['status'] if isinstance(result, dict) else result) != 0:
                     if not vm_categories:
                         vm_categories.extend(kind for kind, _ in guest_selection
-                                             if kind in ('system', 'e2e'))
+                                             if kind in ('system', 'integration', 'e2e'))
                     for category in dict.fromkeys(vm_categories):
                         if not any(item['category'] == category for item in vm_failures):
                             vm_failures.append(dict(category=category, case='', vm=vm.name))

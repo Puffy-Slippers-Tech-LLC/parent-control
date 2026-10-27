@@ -471,7 +471,7 @@ data. Codex restarts do not change Polkit authentication policy.
 Use `tools/run-tests --help` for usage and the `all` composition, or
 `tools/run-tests --list` for the ordered granular JSON inventory with explicit
 argument arrays and a `host` or `vm` scope. The disjoint partition is
-`host + vm = all`, with `vm = system + e2e`. This partition is shared by `all` and `tools/fix-tests`;
+`host + vm = all`, with `vm = system + integration + e2e`. This partition is shared by `all` and `tools/fix-tests`;
 composites, instrumentation and diagnostics are listed separately in `--help`.
 Paths are relative to
 the checkout. Quote globs and parametrized pytest IDs so Codex sees a literal
@@ -516,8 +516,8 @@ validated legacy `/tmp/onpc-*` bundles remain accepted inputs, not output exampl
 | Scripted E2E implementation | `tools/write-e2e --vm NAME [--tasks N]` / `tools/write-e2e --vm NAME --stop` | The [launcher policy](../tests/README.md#scripted-e2e-implementation) owns fresh serial model selection, promotion/advice, the shared task limit, built-in per-task session caps and resumable close-out. Launcher-owned staging, commit and `git push` after every accepted task; every three completed close-outs adds a resumable Sol High lessons/composition audit with a refactor commit and push. Explicit literal paths exclude unrelated work and output artifacts; existing grants, safe session-boundary stop and guarded owned cancellation/cleanup apply. |
 | Execution plans | `tools/execute-plan --plan PATH [--tasks N] [--stop] [--check]` | The [shared plan contract](Execution-Plans.md) owns format, task budgets and safe resumption. Zero/negative task limits mean all remaining; oversized limits warn and finish with the queue. Each task owns its checks. The driver completes owned cleanup and Git close-out, then advances to the next unchecked row without collecting archives or rechecking old reports; `--check` makes no Git changes. Ownership, permissions and operation-specific mandates apply. |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
-| Complete VM category | `tools/run-tests vm [--vm NAME] [--continue-on-errors]` | System and ready E2E coverage; required package inputs are prepared automatically; independent host runs may overlap |
-| Combined complete categories | `tools/run-tests host vm --vm NAME` | Equals `all`; `vm` expands to `system e2e`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; combined runs reserve both scope locks |
+| Complete VM category | `tools/run-tests vm [--vm NAME] [--continue-on-errors]` | System, runnable integration and ready E2E coverage; required inputs are prepared automatically; independent host runs may overlap |
+| Combined complete categories | `tools/run-tests host vm --vm NAME` | Equals `all`; `vm` expands to `system integration e2e`; any subset/order is accepted, scheduled host first, then sequential system, integration and E2E; one report and shared package inputs; combined runs reserve both scope locks |
 | Host compatibility alias | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same scope as `host`; `--serial-builds` retains publishing/builds after the host join for a scheduling comparison |
 | Local publishing checks | `tools/run-tests publish` | Independently scheduled `publish-deb` and `publish-rpm` jobs, also selectable alone and included in host/test-all/test-all-verify; no publication |
 | Future fast suite | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |

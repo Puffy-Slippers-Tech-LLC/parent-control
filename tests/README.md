@@ -63,7 +63,8 @@ the `all` aggregate breaks down into separately runnable pieces. `tools/run-test
 prints the ordered JSON granular inventory. Each entry has a `description`, a
 `scope` of `host` or `vm`, and
 an explicit `args` array; executing each entry with those arguments covers the
-same suites as `all`. It starts with unit and UI and ends with system and E2E.
+same suites as `all`. It starts with unit and UI and ends with system,
+integration and E2E.
 Raw test output remains in the linked report streams.
 
 Readiness and leaf/composite status are registered with each command in
@@ -73,7 +74,7 @@ implemented. Display names and retry handoffs do not require a second registry.
 
 The inventory excludes composite aliases (`host`, `vm`, `all`, `check`,
 `component-all`), focused/instrumented repetitions (`traceability`, `coverage`),
-fixture-building helpers and named integration/recovery operations. These remain
+fixture-building helpers and operational recovery/maintenance commands. These remain
 available in the separate helper section of `--help`. Traceability is included
 in source checks; package artifacts include the fixture payload. Bare
 `tools/run-tests artifacts` now performs two fresh builds and their
@@ -83,10 +84,10 @@ select the aggregate's non-live scope; the shared launcher applies that same
 host-only boundary to focused UI commands. Owned cleanup and required package
 inputs still run wherever the selected suite needs them.
 
-The complete partition is **host + vm = all**, with **vm = system + e2e**.
+The complete partition is **host + vm = all**, with **vm = system + integration + e2e**.
 Every implemented leaf belongs to exactly one of these scopes. Combine these
 categories in one invocation; execution always orders host first, then system,
-then E2E. For example:
+integration and E2E. For example:
 
 ```sh
 tools/run-tests host
@@ -96,6 +97,7 @@ tools/run-tests system --vm NAME e2e
 tools/run-tests e2e --vm NAME
 tools/run-tests host system --vm NAME
 tools/run-tests host system e2e --vm NAME
+tools/run-tests host system integration e2e --vm NAME
 ```
 
 `host` includes discovery, unit (including cleanup regressions), component, UI,
@@ -106,11 +108,21 @@ It uses the complete aggregate's existing four-branch scheduling and stops at
 If unfinished prior work requires VM recovery, `host` refuses and preserves the
 evidence rather than touching the VM.
 
-`vm` runs system tests and ready E2E scenarios, preparing their required package
+`vm` runs system tests, runnable integration checks and ready E2E scenarios, preparing their required package
 inputs without running host test suites. Separate `host` and `vm` invocations
 may run in parallel. Each scope has its own activity lock, session discovery,
 attachment, cancellation and retained results; combined selections reserve both
 locks. Narrower categories use their owning scope's lock.
+
+Bare `system` includes the current-package suite and separate genuine upgrade
+attempts for histories 287 and 288, each through `system --id N --upgrade-inputs`.
+Focused selectors retain their original meaning. Bare `integration` expands the
+[installed binding inventory](integration/integration_inventory.py) into guarded
+per-check launches. `integration --list` includes exclusion reasons; operational
+cleanup/recovery/maintenance and unqualified envelopes never enter its test list.
+See the [installed scheduling contract](integration/README.md#aggregate-scheduling)
+for duplicate and applicability decisions. Every check retains its own input
+preparation, failure result and owned cleanup; a failure refuses later VM attempts.
 
 For routine Codex validation, preserve the scope justified by the change:
 prefer `tools/run-tests ui` for UI-only checks and `tools/run-tests unit` for
@@ -271,7 +283,7 @@ exclusively at runtime so incomplete checkouts fail safely. Validate partition
 coverage and compatible overlap for the changed scope using the maintained
 launcher, without expanding validation to unrelated host categories.
 
-`system` and `e2e` remain sequential within each VM. VM tests default to every
+`system`, `integration` and `e2e` remain sequential within each VM. VM tests default to every
 entry in `config/test-vm.json` whose `enabled` equals the string `"true"`.
 Its positive integer `concurrency` limits active guests: 1 is serial, 2 permits
 two simultaneous guests. Free slots refill until every enabled VM executes,
@@ -348,8 +360,9 @@ other valid passes; malformed state and unsafe files still refuse execution.
 
 Preparation, ownership recovery and validated package inputs still run. System
 upgrade and removal/repair lifecycle cases replay their state-changing predecessors when
-needed to reach the failed phase. Commands without case events remain one atomic
-test operation and resume at their category boundary. Small private checkpoints
+needed to reach the failed phase. Each integration check is atomic: it is retained
+only after its command and owned cleanup succeed, and failed/interrupted checks
+run again. Other commands without case events resume at their category boundary. Small private checkpoints
 use the shared storage/state route; retained reports keep their normal lifetime.
 
 ### Scripted repair loop

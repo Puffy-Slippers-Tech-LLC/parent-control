@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Required tasks: D00a1, D00a2q.
+Required tasks: D00a1, D00a2q, D00a2r.
 Estimate: 30–60 min; session exception: one admission fix, review/build and both-target usability.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract),
@@ -13,8 +13,13 @@ and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acce
 ## Session boundary and deliverable
 
 D00a1 supplies the short complete public gate. D00a2q supplies the real graphical
-service-variation binding and its target-specific qualification; resume this
-product fix only after that prerequisite passes. No product source changed and
+service-variation binding and its target-specific qualification. D00a2r supplies
+the qualified reached prohibited-route control through
+`su_service_route.qualify(transport, lease)` and
+`check_e2e_kiosk_service_route` on both targets. It requires the real child-run
+`su-l` native account refusal, same-route ordinary positive and restored normal
+station entry; reuse that binding for the affected control after this product
+edit. No product source changed and
 neither target has received D00a2 acceptance. Resolve only the
 [audit's service-name allowlist](../SystemDesign/Kiosk-Confinement.md#admission-refusals-and-recovery-owners)
 in [native PAM](../../tools/pam_oh_no_parent_control.c) `kiosk_identity`,

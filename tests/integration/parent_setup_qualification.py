@@ -269,6 +269,31 @@ class KioskServiceVariationQualification(KioskEntryQualification):
         return journey
 
 
+class KioskServiceRouteQualification(KioskEntryQualification):
+    """Real child-run su attempt, then public station restoration before verdict."""
+
+    def journey(self, context, progress):
+        from su_service_route import qualify
+        journey = KioskEntryQualification.journey(context, progress)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage == 'setup-detached':
+                self.result['service_route'] = qualify(journey.transport, context.lease)
+                observed['service_route'] = self.result['service_route']
+
+        journey.check_settings = check
+        return journey
+
+    def execute(self, lease, guestfs):
+        super().execute(lease, guestfs)
+        # An earlier vendor authentication denial is useful evidence, never a
+        # native account-gate pass. Finish normal entry/Cancel/return first.
+        smoke.require(self.result['service_route'].get('qualified') is True,
+                      'su-route:' + self.result['service_route']['result'])
+
+
 class KioskPreferencesConfinementQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

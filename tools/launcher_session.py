@@ -78,7 +78,7 @@ class SessionPanel(LauncherDisplay):
                 if plain == '• Turn complete':
                     continue
                 nontext = re.match(r'^• (?:Ran |Explored$|(?:Tool|Search) (?:working|complete)$|'
-                                   r'File changes —|Plan$|Agent error$)', plain)
+                                   r'File changes —|Plan$|Agent error$|Agent activity$)', plain)
                 if nontext and text.get_style_at_offset(self.console, 2).bold:
                     heading = text
                     prose = unknown = False

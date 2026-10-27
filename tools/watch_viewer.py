@@ -458,7 +458,7 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
 
 def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=None,
                 discovery=None, sources=None, application_id=APPLICATION_ID,
-                tick_interval=33, window_size=(1400, 900)):
+                tick_interval=33, window_size=(1400, 900), viewer_only=False):
     import gi
     gi.require_version('Gtk', '4.0')
     gi.require_version('Gdk', '4.0')
@@ -505,10 +505,13 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             set_automation_id(self.window, 'watch-window')
             self.window.set_icon_name(APPLICATION_ID)
             self.window.set_default_size(*window_size)
-            header = Gtk.HeaderBar()
-            add_identified_window_controls(header, 'watch-window-controls')
-            header.pack_start(Gtk.Image(icon_name=APPLICATION_ID, pixel_size=32))
-            self.window.set_titlebar(header)
+            if viewer_only:
+                self.window.set_decorated(False)
+            else:
+                header = Gtk.HeaderBar()
+                add_identified_window_controls(header, 'watch-window-controls')
+                header.pack_start(Gtk.Image(icon_name=APPLICATION_ID, pixel_size=32))
+                self.window.set_titlebar(header)
             body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             self.checkout_pages = Gtk.Stack(hexpand=True, vexpand=True,
                                            hhomogeneous=False, vhomogeneous=False)
@@ -524,7 +527,8 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                                              hexpand=True, vexpand=True)
             set_automation_id(self.terminal_waiting, 'watch-terminal-waiting')
             self.pane.set_start_child(self.terminal_grid)
-            self.pane.set_end_child(self.checkout_pages)
+            if not viewer_only:
+                self.pane.set_end_child(self.checkout_pages)
             self.pane.add_tick_callback(self.initial_columns)
             self.add_scope('all', 'watch-all-')
             self.checkout_bar = Gtk.Box(spacing=2)
@@ -549,7 +553,9 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             footer.append(self.resource_status)
             body.append(self.pane)
             body.append(footer)
-            self.window.set_child(body)
+            # Record the same right-hand viewer at full size, independently of
+            # the desktop window and its terminal/checkout/resource controls.
+            self.window.set_child(self.checkout_pages if viewer_only else body)
             initial = checkouts if checkouts is not None else {ROOT: ROOT.name}
             for index, (root, label) in enumerate(initial.items()):
                 options = ((sources or {}).get(root) or

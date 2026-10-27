@@ -1,4 +1,4 @@
-"""Private, input-free rendering of the real watch window into one WebM stream.
+"""Private, input-free rendering of the watch viewer into one WebM stream.
 
 The runner owns retained paths and case publication. This child owns only its
 explicit compositor and encoder. Its inherited SOCK_SEQPACKET control endpoint
@@ -339,7 +339,7 @@ def render(control, root, output, *, compositor=None, sources=None, vm_names=Non
         sources = {checkout: dict(options, vm_names=vm_names) for checkout, options in sources.items()}
     app = application(checkouts={root: root.name}, sources=sources,
                       application_id='org.onpc.WatchRecording',
-                      tick_interval=200, window_size=(WIDTH, HEIGHT))
+                      tick_interval=200, window_size=(WIDTH, HEIGHT), viewer_only=True)
     encoder = Encoder(output)
     control.setblocking(False)
 

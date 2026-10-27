@@ -3687,6 +3687,7 @@ Generic pointer, image, positional and graphical-reattachment routes remain reti
 | Chinese MATE agent | Ubuntu 26.04, MATE `1.26.1-6`, `zh_CN.utf8`, `xkb/us`: `mate_prompt(language='zh-Hans')`, `kiosk_mate_approval`, `check_e2e_chinese_native_auth`. Actual Chinese controls, Jamie/Jordan/75-second/soft-included context, fresh same-challenge recipient guards, real approval, Chinese result, GDM return and retained Chinese on fresh entry. [Exact scope](#chinese-language-preparation-and-desktop-language-setup). | Fixed Chinese AUTH01/02 and REQUEST11/12 ready; other tuples/history separate. |
 | Shell desktop/search/lock | Ubuntu 26.04 English-GDM baseline: Shell `50.1-0ubuntu1.2`, `en_US.UTF-8`, `xkb/us` for fresh Parent/standard prompt-free desktop, prepared gcr return and stated search bindings. `standard_shell_desktop(no_prompt=True)`, `shell_search_snapshot`, `check_e2e_fresh_desktop`, `check_e2e_shell_search_results` and `check_e2e_shell_search` retain [search scope](#search-and-standard-sign-in-contracts). Parent lock/reveal and challenge observation also have Shell `50.1-0ubuntu1.3` scope; [recipient proof](#parent-lock-recipient-qualification) is separate. Child unlock/restriction uses its [exact Ubuntu/Fedora tuples](#successful-child-unlock-and-retained-gdm-reauthentication-qualification) and [denial scope](#retained-child-time-restriction-and-greeter-return-qualification). | Fresh DESK01 Parent/standard, stated child DESK01/05–08 success/native restriction and Parent SEARCH01–06/standard SEARCH01/03/04 ready only as scoped. Product DESK12/REQUEST13/PANEL01–03 use the product API. Session/power/connectivity use system helpers; other retained/lock bindings pending. |
 | GDM | `onpc_gdm::sign_in_challenge`/`check_e2e_challenges` qualify distinct Parent challenges on pinned Ubuntu 26.04 English-GDM/baseline keyboard. Intended account, two fresh recipient proofs, one secret delivery and independent desktop/denial remain mandatory. [Fresh success](#fresh-child-success-qualification), [zero-time return](#fresh-child-time-denial-and-return-qualification), [retained success](#successful-child-unlock-and-retained-gdm-reauthentication-qualification) and [retained denial](#retained-child-time-restriction-and-greeter-return-qualification) retain their exact tuples. GDM proof never authorizes lock-screen input. | Stated GDM01–03/05–09 entry bindings ready; GDM04/wrong-account tours are harness safety; other recipients pending. |
+| GNOME Remote Desktop system Remote Login | **Pending; no remote binding or installed qualification.** D01r selected RDP → remote GDM → fresh Wayland login on Ubuntu 26.04/Fedora 44, with upstream 50.0 source review only. System RDP credentials and Linux account authentication are separate. Local GDM/DESK qualifications and account-only PAM probes do not transfer. [Finite gaps and return condition](#remote-login-qualification-gap); [source and attack map](../SystemDesign/Kiosk-Confinement.md#d01r-remote-desktop-route-review). | D02 design; C07 product consumer; C11f/C12f final provider acceptance. No all-provider, desktop-sharing or single-user headless claim. |
 | Graphical VT6 | Refuses before image/secret/input access. Serial proof cannot authorize graphical credentials. | No current customer requirement; dedicated adapter needed for any future binding. |
 | MATE agent | `mate_prompt`, `mate_prompt_refusals`, `kiosk_mate_cancel`, `mate_prompt.PLAN`/`check_e2e_auth_prompt`: Ubuntu 26.04, `1.26.1-6`, actual `en_US.UTF-8`, `[["xkb", "us"]]` (system fallback when kiosk per-user list empty). Bind service PID, sole live dialog, displayed parent/child/75-second/apps, sole empty masked focused field and enabled Cancel. Reacquire same challenge before one input; missing displayed context refuses. [Approval](#kiosk-approval-qualification) and [rejection](#kiosk-rejection-qualification) independently cover fixed password/result/exit branches. | Fixed REQUEST09/AUTH01 proof/Cancel, AUTH02 correct-password/rejection and REQUEST11/12 exits ready. Other tuples/secret routes pending. |
 | Shell agent | `shell_prompt_owner`, `shell_prompt`, `shell_prompt_refusals`, `overlay_shell_cancel_ready`, `overlay_prompt.PLAN`/`check_e2e_overlay_prompt`: Ubuntu 26.04 Shell `50.1-0ubuntu1.2`, `en_US.UTF-8`, `xkb/us`, displayed parent/child/75-second/soft-app context, empty masked recipient, same-challenge proof and normal Cancel/unchanged form. [Approval/automatic return](#overlay-approval-and-automatic-return-qualification) and [rejection/fresh Cancel](#overlay-rejection-and-cancel-qualification) also cover `50.1-0ubuntu1.3`, same locale/keyboard. | Fixed AUTH01/REQUEST09, AUTH02 approval/rejection and REQUEST11/12 automatic return ready; immediate exit/other bindings separate. |
@@ -3712,6 +3713,48 @@ independent intended-Parent list/focus/prompt/Escape-return cycles. Installed
 uses product-free operations at every graphical stage and requires authenticated
 serial input, command output, logout-before-return and unchanged-boot continuity.
 A future consumer needs its own scoped provider prerequisite.
+
+### Remote login qualification gap
+
+D01r's [remote map](../SystemDesign/Kiosk-Confinement.md#d01r-remote-desktop-route-review)
+selects one provider available on both `onpc-Ubuntu26.04` and `onpc-Fedora44`.
+Its ordinary-account positive and station attempt are **planned**, not working
+bindings. No installed selector is registered in the inspected integration/E2E
+inventories for this provider. In particular, `session_control.local_graphical`
+and `source_session` bind local `seat0`; `AccessibleUI`'s local greeter discovery
+cannot identify the new remote greeter. `standard_shell_desktop` can supply
+shared observation mechanics only after remote owner/session binding is
+implemented and qualified. `system_kiosk_admission.pam_callback` passes flags
+zero and provides no remote password-required proof.
+
+D02 must allocate bounded installed prerequisites before C07 product editing,
+with explicit targets and the ordinary 20–30 minute size limit. These are finite
+missing slices, not selectors or additional acceptance credit:
+
+| Missing slice | Deliverable and qualification boundary |
+| --- | --- |
+| Prepare isolated remote login inputs | Declare the provider/client packages and compatible versions, public system configuration, TLS/initial-secret input, isolated endpoint and owned restoration through maintained preparation. Verify readiness without changing kiosk credentials, disabling authentication or editing product code. Preserve existing provider configuration and foreign sessions. |
+| Connect to remote sign-in safely | Reuse the guarded attempt/credential envelope for one fixed client → system NLA → redirection → identified remote GDM connection. Bind the VM, client, remote display/session and greeter owner; qualify input-recipient/ambiguity/uncertain-input refusal at the shared boundary, not in every consumer. Local-screen keyboard delivery cannot stand in for client input. |
+| Check remote desktop access | Reuse that connection for the standard Jordan account's real GDM authentication, usable full desktop and one public control result; log out its owned session. Attempt the station with no kiosk password and a full desktop selection if offered, observe the actual refusal or request-only destination, then repeat the ordinary positive and restore. Qualify actual distro PAM behavior and independent remote absence/results, not just a connection/error code. |
+
+Record exact GRD/GDM/Shell/client revisions, locale/keyboard, selected session and
+public result in the existing catalogue/normal runner output when qualified.
+Define finite connection, authentication, result and cleanup deadlines in the
+shared binding; preserve the existing 1800-second short-usability worker bound.
+New provider capabilities use their own installed briefs and both named targets;
+if a slice exceeds the budget, split it before implementation rather than grow
+C07 or defer qualification to D03. D01r inserts no tasks at a later consumer.
+
+The vendor remote password requirement is a candidate existing barrier. No
+product fix is justified until the real stack and reachable station attempt
+show a missing boundary. Successful qualification, including ordinary remote
+use, local passwordless request use and owned restoration, is the return
+condition. An absent service, failed positive, missing observation or timeout is
+not denial. Retained remote reconnection is outside this fresh-login binding;
+local/remote session reuse is constrained by the reviewed GDM compatibility
+check. Any later assertion about another branch needs its own justified scope.
+Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md): add missing
+product/provider checks only, with no tests of briefs, this map or old task history.
 
 ### Product-free Parent entry and command context
 

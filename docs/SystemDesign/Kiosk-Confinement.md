@@ -808,6 +808,165 @@ justified. Remote provider work stays with D01r; standalone SSH/terminal/TTY and
 other child-controlled inputs stay with their remaining-plan owners. D01 started
 no VM, product process or temporary allocation requiring restoration.
 
+## D01r remote desktop route review
+
+Select **GNOME Remote Desktop system Remote Login over RDP**, followed by its
+remote GDM greeter, for `onpc-Ubuntu26.04` and `onpc-Fedora44`. This is a source
+review, not provider setup, a working installed positive or a desktop-defense
+pass. D01 and the completed baseline remain accepted without report inspection.
+The [provider catalogue](../TestAutomation/E2E-Building-Blocks.md#remote-login-qualification-gap)
+owns missing bindings; D02 reviews this map alongside the local map above.
+
+### Provider applicability and child access
+
+The [upstream 50.0 instructions](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/README.md#headless-multi-user-remote-login)
+describe two credentials: system RDP credentials reach a login screen, then
+the selected Linux account authenticates at GDM. The initial credential does
+not grant that account's desktop or parent approval. Review availability is
+established by Ubuntu's [26.04 release package](https://packages.ubuntu.com/resolute/gnome-remote-desktop)
+`50.0-0ubuntu2` and Fedora's [44 release package](https://packages.fedoraproject.org/pkgs/gnome-remote-desktop/gnome-remote-desktop/fedora-44.html)
+`50.0-1.fc44`. The trace below uses upstream 50.0; installed updates, distro
+patches, GDM/Shell, client version, locale and keyboard must be recorded and
+checked in the future qualification. These are available target packages, not
+observed VM versions or broader release qualification.
+
+The child uses an ordinary RDP client from an account/device they control,
+with legitimate access to the system RDP credential, and deliberately supplies
+`oh-no-parent-control` at the remote greeter without a kiosk or administrator
+password. If offered a session chooser, they select the available full GNOME
+desktop rather than the request station. Use the identified station row or
+explicit username entry if no row is offered, without an account-order tour.
+The prohibited result is a usable full desktop as the reserved station
+UID, with desktop launch controls. A remote request-only form is not that result.
+
+Enabling Remote Login is an administrator precondition, not a child capability:
+GDM and the **system** `gnome-remote-desktop.service`, system RDP enablement,
+readable configured TLS key/certificate, valid initial credentials, a reachable
+listener and a compatible redirect-capable client must work. Preparation uses
+the provider's public `grdctl --system` interface and maintained VM routes; do
+not enable anything in this review. Wrong initial credentials, absent service,
+failed TLS/redirect or a blank/unusable desktop supply no kiosk-denial credit.
+
+Exclude this provider's user desktop-sharing and single-user headless modes:
+they attach to a separately established user session and do not exercise this
+fresh system-login path. xrdp, VNC and other providers are outside this single
+provider selection. SSH is separately owned; an SSH PAM result proves nothing
+about this RDP route. An administrator-planted kiosk desktop or changed kiosk
+password is outside the reviewed child-access premise.
+
+### Authentication and selected execution boundary
+
+The actual remote display is not the local greeter transported over SSH:
+
+- [RDP session](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/src/grd-session-rdp.c)
+  `grd_session_rdp_new`/`init_rdp_session` supply the configured credentials to
+  FreeRDP NLA. [Server](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/src/grd-rdp-server.c)
+  `on_session_post_connect` reaches [system daemon](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/src/grd-daemon-system.c)
+  `on_incoming_new_connection` → `serialize_remote_display_properties` → GDM
+  `CreateRemoteDisplay`. Its `on_gdm_remote_display_session_id_changed`,
+  `on_handle_start_handover` and `on_handle_take_client`, with
+  [handover daemon](https://github.com/GNOME/gnome-remote-desktop/blob/50.0/src/grd-daemon-handover.c)
+  `start_handover`, redirect/transfer the connection to the remote session.
+  These credentials and handover checks do not authenticate a desktop account.
+- [GDM remote factory](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-remote-display-factory.c)
+  `handle_create_remote_display` calls `gdm_remote_display_factory_create_display`
+  with no autologin user. [Shell verifier](https://github.com/GNOME/gnome-shell/blob/50.0/js/gdm/util.js)
+  `begin` → `_getDetectedDefaultService`/`_beginVerification` → `_startService`
+  selects `gdm-password` for ordinary password verification and calls
+  `BeginVerificationForUser`/`BeginVerification`. GDM session handlers and
+  `gdm_session_setup_for_user`/`initialize` send that service and account to
+  the worker. The actual installed service must be observed, not inferred.
+- [GDM remote display](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-remote-display.c)
+  `gdm_remote_display_new` marks it non-local and Wayland-capable.
+  [Manager](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-manager.c)
+  `create_user_session_for_display` passes that identity to the login session.
+  Its `are_sessions_compatible` prevents remote reauthentication from simply
+  adopting an existing local kiosk session; local presence is not a desktop pass.
+  `gdm_manager_handle_open_session`'s allowed-user check protects the greeter
+  IPC caller, not a list of accounts permitted to receive desktops.
+- [GDM worker](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-session-worker.c)
+  `gdm_session_worker_initialize_pam` sets `password_is_required` for non-local
+  displays and supplies `PAM_RHOST`. `gdm_session_worker_authenticate_user` and
+  `gdm_session_worker_authorize_user` pass `PAM_DISALLOW_NULL_AUTHTOK` to real
+  authentication/account callbacks; `gdm_session_worker_open_session` opens PAM
+  before `gdm_session_worker_start_session` executes the selected program.
+  Reauthentication still authenticates, but its account error is ignored by
+  the vendor; an account-only barrier must not claim to protect that branch.
+- [GDM session](https://github.com/GNOME/gdm/blob/50.0/daemon/gdm-session.c)
+  `get_session_name` prefers current selection over saved preferences;
+  `get_session_command_for_file` requires remote Wayland headless capability
+  and resolves `Exec`. `gdm_session_start_session` wraps the resolved command
+  in `gdm-wayland-session`. Its `set_up_session_environment` runs after PAM
+  opening; do not presume `GDMSESSION` or `DESKTOP_SESSION` is a PAM input.
+  The packaged [station entry](../../data/wayland-sessions/oh-no-parent-control.desktop)
+  already declares `X-GDM-CanRunHeadless=true`; that flag is availability, not
+  an account-specific desktop barrier.
+
+Checkout owners are the [native module](../../tools/pam_oh_no_parent_control.c)
+`kiosk_identity` → `admission`, `pam_sm_acct_mgmt` → `run_kiosk_check`, and
+`pam_sm_open_session`, plus the [login helper](../../tools/oh-no-parent-control-login-check)
+`main`/`verify_identity`. They bind identity and lifecycle ownership, not a
+remote selected command, and deny only the qualified `su-l` service explicitly.
+The [kiosk profile](../../data/pam-configs/oh-no-parent-control-kiosk-only) adds
+required account/session checks; the [time profile](../../data/pam-configs/oh-no-parent-control-session-limits)
+skips only product time authentication for the station, not vendor authentication.
+[Distro verification](../../packaging/distro_pam.py) `verify`/`verify_time_policy`
+and [Fedora configuration](../../packaging/fedora_pam.py) `configure` preserve
+the vendor stack. Neither verifies every vendor authentication shortcut.
+The reviewed [Ubuntu GDM PAM file](https://git.launchpad.net/ubuntu/+source/gdm3/plain/debian/gdm3.gdm-password.pam?id=ca51eed279d9f91f4400451884f888fa74392f5b)
+includes `common-auth`/`common-account`/`common-session`. The upstream
+[Red Hat GDM PAM file](https://github.com/GNOME/gdm/blob/50.0/data/pam-redhat/gdm-password.pam)
+uses `password-auth`/`postlogin` and has an early `pam_selinux_permit` success
+path; verify the effective Fedora stack and caller context before treating the
+null-token flag as an unconditional gate. Preserve vendor/admin authority.
+
+**Disposition: existing vendor password barrier to qualify; no demonstrated
+missing product barrier.** The worker requests rejection of empty passwords,
+but actual distro PAM ordering/success shortcuts must honor it. Do not turn
+the flag, an unfamiliar PAM name, saved routing, `nologin` or an account-only
+probe into a claimed refusal. If the remote login reaches execution, record
+the actual service, selected desktop/command, UID and public result; the
+smallest missing owner would be that demonstrated provider authentication or
+selected-execution boundary. D02 must choose from the observed failure rather
+than pre-authorize a service-name denylist or an invented PAM session variable.
+If the vendor gate works, C07 retains it without duplicate product code.
+
+### Finite checks, restoration and D02 handoff
+
+| History | Required public result and distinguishing observation |
+| --- | --- |
+| Ordinary-account positive | With Jordan (the standard fixture) logged out of other graphical sessions and permitted to use the desktop, connect through the system credential, authenticate Jordan at remote GDM and reach a usable full GNOME desktop. Use one normal desktop launch/control and observe its result through the same remote connection, tied to the remote session and Jordan UID. A local desktop, successful handshake or process census alone is insufficient. Log out only this owned remote session. |
+| Deliberate kiosk attempt | Reconnect through the same working provider, identify the station and attempt login without a kiosk password, selecting a full desktop if publicly offered. Require the specific authentication refusal and no station desktop, or an observed usable request-only destination. If authentication refuses before selection, record that no desktop command was started; do not invent a selected command. Incomplete observation, timeout and generic connection failure are inconclusive. |
+| Permitted use and recovery | After the attempt, repeat the ordinary remote positive and preserve any unrelated local session. Run the existing both-target short confinement usability history for local passwordless entry, genuine approval, rejection/Cancel, exit and fresh request. A transient provider outage is a preparation/recovery failure: restore the owned dependency and repeat public use, never count the outage as protection. |
+
+Use the [short usability binding](../TestAutomation/E2E-Building-Blocks.md#short-confinement-usability-history)
+unchanged. Missing remote transport, remote-GDM ownership/credential delivery
+and remote desktop/result bindings need installed qualification **before C07
+product editing**, with explicit targets and finite deadlines. The catalogue
+separates these small prerequisites; D02 allocates them before that consumer,
+and D03 only audits delivered bindings. C11f/C12f retain the complete provider
+positive/negative acceptance; this review supplies neither selector nor credit.
+
+Existing [admission engineering checks](../../tests/integration/system_kiosk_admission.py)
+`pam_callback`/`verify` use account probes or authentication flags zero, not the
+remote worker/transport. Existing [native/profile host coverage](../../tests/unit/test_prepared_kiosk_pam.py)
+protects account/session binding and ordinary policy; it does not exercise RDP.
+Local [GDM variation](../../tests/e2e/gdm_service_variation.py) explicitly selects
+the dedicated session. [Session control](../../tests/e2e/session_control.py)
+`local_graphical`/`source_session` and the [UI adapter](../../tests/e2e/accessible_ui.py)
+greeter discovery require local `seat0`; local qualification cannot be relabeled
+remote. Reuse shared guards/mechanics, not a second runner. No new test of this
+map, task briefs or historical queue entries is warranted by the test-scope mandate.
+
+Future preparation/attempts must record original service enablement/activity,
+RDP settings, credential/TLS ownership, scoped network changes and created
+remote session/client identities. Restore only their owned changes through
+public provider/system interfaces, preserve foreign sessions/settings, remove
+owned secrets and verify ordinary remote and local kiosk use before final
+restoration to the original enabled/disabled state. Capture no credential values
+in the map or reports. D01r changed no provider state and allocated no VM,
+product process, client or temporary input needing cleanup.
+
 ## Verification scope and evidence limits
 
 The completed v1.3-derived baseline validation accepted Ubuntu and Fedora core

@@ -16,7 +16,9 @@ Use D03's exact registered remote-desktop map for Ubuntu; verify the candidate a
 required operation qualifications before invoking the maintained installed runner.
 No selector is implied merely by this task ID.
 
-Use the exact supported provider and qualified route from D03. Demonstrate
+Use D03's delivered bindings for the
+[selected GNOME Remote Desktop system Remote Login route](../SystemDesign/Kiosk-Confinement.md#d01r-remote-desktop-route-review);
+local GDM qualification supplies no remote credit. Demonstrate
 an ordinary-account remote session working, the deliberate kiosk-account desktop
 attempt being blocked, and normal kiosk entry still working. Service absence or
 provider failure is not a passed refusal. Report the provider scope without

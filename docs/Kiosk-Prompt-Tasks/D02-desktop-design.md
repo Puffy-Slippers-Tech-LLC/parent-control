@@ -12,6 +12,12 @@ Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contra
 Review D01/D01r's finite full-desktop maps against complete affected functions,
 callers and shared state. Allocate graphical-session admission to C07a,
 request-session desktop escapes to C07s and the named remote provider to C07.
+Use the [remote source/attack map](../SystemDesign/Kiosk-Confinement.md#d01r-remote-desktop-route-review)
+and [missing remote qualifications](../TestAutomation/E2E-Building-Blocks.md#remote-login-qualification-gap).
+The selected provider is GNOME Remote Desktop system Remote Login over RDP;
+its vendor password requirement remains unqualified on the actual product PAM
+stacks. Allocate the finite preparation, remote connection and public-result
+prerequisites before C07 editing; no new product barrier is yet justified.
 Each barrier needs a
 deliberate-child negative and working request-only/ordinary-account controls.
 Existing working barriers need verification, not new infrastructure.

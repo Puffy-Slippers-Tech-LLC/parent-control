@@ -323,27 +323,27 @@ def execution(token):
             and b'/usr/bin/oh-no-parent-control' in arguments
             and (app / 'cgroup').read_text().strip() == '0::' + service['ControlGroup']
             and Path(executable).stat().st_uid == 0, 'app-process')
-    selected = []
-    for process in Path('/proc').iterdir():
-        if not process.name.isdecimal():
-            continue
-        try:
-            if process.stat().st_uid != account.pw_uid:
-                continue
-            args = (process / 'cmdline').read_bytes().split(b'\0')
-            if not (b'--session=oh-no-parent-control' in args or any(
-                    args[index:index + 2] == [b'--session', b'oh-no-parent-control']
-                    for index in range(len(args) - 1))):
-                continue
-            exe = os.readlink(process / 'exe')
-            require(Path(exe).name in ('gnome-session', 'gnome-session-binary')
-                    and process_identity(process)[2] == (str(account.pw_uid),) * 4,
-                    'selected-session-process')
-            selected.append({'pid': int(process.name), 'executable': exe,
-                             'session': 'oh-no-parent-control'})
-        except (FileNotFoundError, ProcessLookupError):
-            continue
-    require(selected and len(selected) <= 2 and user_unit(account, unit) == service
+    # GNOME 50 runs its selected session in this user-manager service. GDM's
+    # wrapper also carries --session in its child argv; a process-name scan
+    # mistakes that wrapper for an unexpected session executable.
+    manager_unit = 'gnome-session-manager@oh-no-parent-control.service'
+    manager = user_unit(account, manager_unit)
+    require(manager['ActiveState'] == 'active' and manager['MainPID'].isdecimal()
+            and int(manager['MainPID']) > 1, 'selected-session-service')
+    process = Path('/proc') / manager['MainPID']
+    manager_before = process_identity(process)
+    exe = os.readlink(process / 'exe')
+    args = (process / 'cmdline').read_bytes().split(b'\0')
+    require(Path(exe).name == 'gnome-session-service' and Path(exe).stat().st_uid == 0
+            and manager_before[2] == (str(account.pw_uid),) * 4
+            and b'--session=oh-no-parent-control' in args
+            and (process / 'cgroup').read_text().strip() == '0::' + manager['ControlGroup'],
+            'selected-session-process')
+    selected = [{'pid': int(manager['MainPID']), 'executable': exe,
+                 'session': 'oh-no-parent-control'}]
+    require(user_unit(account, manager_unit) == manager
+            and process_identity(process) == manager_before
+            and user_unit(account, unit) == service
             and process_identity(app) == before
             and station_sessions(guest, account.pw_uid) == sessions, 'execution-changed')
     return {'session': {key.lower(): value for key, value in sessions[0][1].items()

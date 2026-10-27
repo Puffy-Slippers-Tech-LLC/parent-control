@@ -3940,16 +3940,18 @@ Fedora Workstation 44. The
 [admission design owner](../SystemDesign/Kiosk-Confinement.md#d00a2-service-variation-prerequisite)
 records invocation witnesses, execution limits and owned restoration.
 
-Installed qualification passed on `onpc-Ubuntu26.04` and `onpc-Fedora44`, including
-exact settings restoration, the normal public entry/form/Cancel/return history
-and owned runner/VM cleanup. The current caller requires
-`result == 'account-refused'` and `app_execution_qualified == False`.
-This supplies no successful variation execution, prohibited-route control,
-ordinary-account login, full usability history or D00a2 acceptance. The positive
-branch reuses `station-default-entry` / `kiosk-request-form` plus actual logind
-and selected app/session process observations; it remains unqualified until a
-real positive passes. D00a2 must require `app_execution_qualified == True` after
-its product repair. A saved default or GDM command resolution alone is insufficient.
+D00a2q qualified the pre-fix account refusal on `onpc-Ubuntu26.04` and
+`onpc-Fedora44`. After D00a2's service-dispatch repair, both targets passed
+actual dedicated app execution, exact settings restoration, normal public
+entry/form/Cancel/return and owned runner/VM cleanup. The caller now requires
+`result == 'session-created'` and `app_execution_qualified == True`.
+The qualified positive reuses `station-default-entry` / `kiosk-request-form`,
+the actual Wayland logind session, the owned app service/process and GNOME 50's
+`gnome-session-manager@oh-no-parent-control.service` process. GDM's wrapper
+arguments alone do not identify the selected session executable.
+This slice supplies no general desktop/terminal/SSH protection or complete
+usability history; those checks retain their own bindings. A saved default or
+GDM command resolution alone is insufficient.
 
 ### Reached service-route control
 

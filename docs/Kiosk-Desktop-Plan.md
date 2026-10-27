@@ -1,7 +1,7 @@
 # Prevent full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **D00a2 — [Remove service-name admission rejection](Kiosk-Prompt-Tasks/D00a2-service-dispatch.md)**.
+Next task: **D00a3 — [Remove saved-routing admission dependence](Kiosk-Prompt-Tasks/D00a3-routing-admission.md)**.
 
 ## Outcome and scope
 

@@ -79,8 +79,10 @@ def routing(monkeypatch):
     return helper, state
 
 
-def test_public_routing_valid_default_has_no_mutations_or_inventory(routing):
+@pytest.mark.parametrize('service', ['gdm-password', 'gdm-autologin', 'adjacent-graphical'])
+def test_public_routing_valid_default_has_no_mutations_or_inventory(routing, monkeypatch, service):
     helper, state = routing
+    monkeypatch.setenv('PAM_SERVICE', service)
     assert helper.main(['--kiosk-account']) == helper.main(['--kiosk-session']) == 0
     assert len(state.calls) == 2
     assert all(command[4] == 'get-property' for command in state.calls)
@@ -106,9 +108,9 @@ def test_actual_pam_transport_is_required(routing, monkeypatch, transport):
 
 @pytest.mark.parametrize('user,service,result', [
     ('ordinary', 'sshd', 0), ('oh-no-parent-control', 'gdm-password', 0),
-    ('oh-no-parent-control', 'systemd-user', 0), ('oh-no-parent-control', 'login', 1),
-    ('oh-no-parent-control', 'sshd', 1), ('oh-no-parent-control', 'xrdp-sesman', 1),
-    ('oh-no-parent-control', 'gdm-autologin', 1),
+    ('oh-no-parent-control', 'systemd-user', 0), ('oh-no-parent-control', 'su-l', 1),
+    ('ordinary', 'su-l', 0), ('oh-no-parent-control', 'gdm-autologin', 0),
+    ('oh-no-parent-control', 'adjacent-graphical', 0), ('oh-no-parent-control', '', 2),
 ])
 def test_service_dispatch_preserves_ordinary_control_without_bus(routing, monkeypatch, user, service, result):
     helper, state = routing
@@ -234,16 +236,21 @@ def test_later_failed_account_check_revokes_handle_session_binding(native):
 
 
 @pytest.mark.parametrize('user,service,allowed', [
-    ('kiosk-canary', 'systemd-user', True), ('kiosk-canary', 'login', False),
-    ('kiosk-canary', 'sshd', False), ('kiosk-canary', 'xrdp-sesman', False),
-    ('kiosk-canary', 'gdm-autologin', False), ('ordinary', 'sshd', True),
+    ('kiosk-canary', 'systemd-user', True), ('kiosk-canary', 'su-l', False),
+    ('kiosk-canary', 'gdm-autologin', True), ('kiosk-canary', 'adjacent-graphical', True),
+    ('ordinary', 'su-l', True), ('ordinary', 'sshd', True),
     ('ordinary', 'polkit-1', True), ('root', 'sudo', True),
 ])
 def test_native_service_scope_and_ordinary_user_control(native, user, service, allowed):
     with native.transaction(user=user, service=service) as handle:
         assert (native.pam.pam_acct_mgmt(handle, 0) == 0) is allowed
         assert (native.pam.pam_open_session(handle, 0) == 0) is allowed
-    assert native.calls() == []
+    calls = native.calls()
+    if user == 'kiosk-canary' and allowed and service != 'systemd-user':
+        assert [call[0] for call in calls] == [['--kiosk-account'], ['--kiosk-session']]
+        assert all(environment['PAM_SERVICE'] == service for _arguments, environment in calls)
+    else:
+        assert calls == []
     assert (native.directory / 'admission').exists() is (user == 'kiosk-canary' and allowed)
 
 

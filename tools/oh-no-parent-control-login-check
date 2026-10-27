@@ -74,9 +74,11 @@ def main(arguments=None):
     if os.environ.get('PAM_USER', '') != KIOSK_USER:
         return 0 if not arguments else 1
     service = os.environ.get('PAM_SERVICE', '')
+    if not service:
+        return 2
     if service == 'systemd-user':
         return 0 if not arguments else 1
-    if service != 'gdm-password':
+    if service == 'su-l':
         record('service', 'denied', reason='service')
         return 1
     if not arguments:

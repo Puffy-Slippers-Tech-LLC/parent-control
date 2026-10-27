@@ -169,7 +169,9 @@ kiosk_identity(pam_handle_t *pamh, const char **user, const char **service)
     if (pam_get_item(pamh, PAM_SERVICE, (const void **) service) != PAM_SUCCESS ||
         *service == NULL || **service == '\0')
         return PAM_SERVICE_ERR;
-    if (strcmp(*service, "gdm-password") != 0 && strcmp(*service, "systemd-user") != 0)
+    /* The child-invoked login-shell route is qualified as su-l on both
+     * targets. Unfamiliar graphical names still undergo routing/session checks. */
+    if (strcmp(*service, "su-l") == 0)
         return PAM_PERM_DENIED;
     return admission(pamh);
 }

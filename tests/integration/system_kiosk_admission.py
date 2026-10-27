@@ -15,7 +15,7 @@ import sys
 import system_guest as guest
 
 
-SERVICES = ('gdm-password', 'login', 'sshd')
+SERVICES = ('gdm-password', 'login', 'sshd', 'su-l')
 USERS = {'ordinary': 'onpc-parent-jamie', 'other': 'onpc-child-jordan',
          'kiosk': 'oh-no-parent-control'}
 INTERFACE = 'org.freedesktop.Accounts.User'
@@ -372,9 +372,10 @@ def verify_gates(record):
     for service in SERVICES:
         probe(service, 'ordinary', 0, service + '.ordinary-before', record)
     probe('gdm-password', 'kiosk', 0, 'dedicated-before', record)
-    for service in ('login', 'sshd'):
-        probe(service, 'kiosk', PAM_PERM_DENIED, service + '.denied', record)
-        probe(service, 'ordinary', 0, service + '.ordinary-after', record)
+    # The actual child-invoked su-l route is qualified separately. These
+    # callbacks protect its native predicate, not terminal/SSH execution.
+    probe('su-l', 'kiosk', PAM_PERM_DENIED, 'su-l.denied', record)
+    probe('su-l', 'ordinary', 0, 'su-l.ordinary-after', record)
 
 
 def verify(record):
@@ -386,8 +387,8 @@ def verify(record):
     original = routing(kiosk.pw_uid)
     ordinary_routing = routing(ordinary.pw_uid)
     guest.require(original == DEDICATED, 'kiosk-admission:initial-routing')
-    # Establish that the installed daemon actually uses the tested PAM service,
-    # including effective per-user Match configuration, without starting SSH.
+    # Observe effective per-user SSH configuration only; this invokes no child
+    # SSH operation and supplies no qualification of that login route.
     ssh = guest.run(['/usr/sbin/sshd', '-T', '-C',
                      'user=' + kiosk.pw_name + ',host=localhost,addr=127.0.0.1'])
     settings = dict(line.split(' ', 1) for line in ssh.splitlines() if ' ' in line)
@@ -412,9 +413,8 @@ def verify(record):
                           'kiosk-admission:routing-not-repaired:' + stage)
             record('onpc.kiosk.admission.' + stage + '.repaired', True)
             probe('gdm-password', 'kiosk', 0, stage + '.retry', record)
-        for service in ('login', 'sshd'):
-            probe(service, 'kiosk', PAM_PERM_DENIED, service + '.denied', record)
-            probe(service, 'ordinary', 0, service + '.ordinary-after', record)
+        probe('su-l', 'kiosk', PAM_PERM_DENIED, 'su-l.denied', record)
+        probe('su-l', 'ordinary', 0, 'su-l.ordinary-after', record)
         probe('gdm-password', 'kiosk', 0, 'dedicated-after', record)
         guest.require(routing(kiosk.pw_uid) == DEDICATED and
                       routing(ordinary.pw_uid) == ordinary_routing,
@@ -441,4 +441,19 @@ if __name__ == '__main__':
     else:
         guest.require(len(sys.argv) == 4 and sys.argv[1] == 'pam-account',
                       'kiosk-admission:arguments')
-        print(json.dumps(pam_account(sys.argv[2], sys.argv[3]), sort_keys=True))
+        original_uids = os.getresuid()
+        try:
+            if sys.argv[2] == 'su-l':
+                guest.guard()
+                caller = pwd.getpwnam(USERS['other'])
+                guest.require(caller.pw_uid > 0, 'kiosk-admission:caller-identity')
+                # Match setuid su's child real UID, retaining effective/saved root.
+                # Fedora's vendor stack otherwise short-circuits account checks
+                # for a root real UID before reaching the product module.
+                os.setresuid(caller.pw_uid, 0, 0)
+                guest.require(os.getresuid() == (caller.pw_uid, 0, 0),
+                              'kiosk-admission:caller-credentials')
+            result = pam_account(sys.argv[2], sys.argv[3])
+        finally:
+            os.setresuid(*original_uids)
+        print(json.dumps(result, sort_keys=True))

@@ -1092,7 +1092,8 @@ def test_upgrade_checkpoint_retains_the_complete_indivisible_history(monkeypatch
         *INVENTORIES['package'], 'test_previous_package_policy_preservation')}
     monkeypatch.setattr(system_runner, 'collect_area_cases', lambda area: inventories[area])
     options = ['--id', '287', '--upgrade-inputs']
-    checkpoint = SimpleNamespace(entry=lambda _: {'args': options}, passed=lambda _: set())
+    checkpoint = SimpleNamespace(entry=lambda _: {'args': options}, passed=lambda _: set(),
+                                 retry_case=None)
     selected, passed = regression.Run.system_resume_cases(
         SimpleNamespace(root=ROOT, checkpoint=checkpoint), options)
     assert selected == {phase + '::test_previous_package_policy_preservation'

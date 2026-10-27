@@ -205,6 +205,23 @@ def test_interrupted_writes_resume_without_duplicate_merge_or_lost_work(trees, b
     with pytest.raises(OSError, match='after Git write'):
         propagation.propagate(f.root, f.run, {}, commit, git=git)
     saved = json.loads((f.run / 'checkpoint.json').read_text())
+    resume_run = f.run
+    if boundary == 'remote-push':
+        def interrupt_push(root, *args, **kwargs):
+            result = f.git(root, *args, **kwargs)
+            if args[:1] == ('push',) and result.returncode == 0:
+                raise OSError('interrupted after recovered push')
+            return result
+        with pytest.raises(OSError, match='after recovered push'):
+            propagation.propagate(f.root, f.run, saved, commit, git=interrupt_push)
+        saved = json.loads((f.run / 'checkpoint.json').read_text())
+        # Restarted launchers carry the checkpoint into a fresh allocation;
+        # the old allocation and its temporary checkout can have expired.
+        target, = saved['worktree_propagation']['targets']
+        assert target['phase'] == 'push'
+        f.git(f.root, 'worktree', 'remove', target['path'])
+        resume_run = f.run / 'retry'
+        resume_run.mkdir()
     if boundary == 'merge':
         # Other work can advance the source while this transaction is retained.
         f.change(f.root, 'shared', 'later source task\n')
@@ -212,7 +229,7 @@ def test_interrupted_writes_resume_without_duplicate_merge_or_lost_work(trees, b
     def resolve(root, phase, details):
         assert phase == 'restore'
         assert (root / 'unstaged').read_text() == 'active destination work\n'
-    propagation.propagate(f.root, f.run, saved, commit, git=f.git, resolve=resolve)
+    propagation.propagate(f.root, resume_run, saved, commit, git=f.git, resolve=resolve)
     assert f.git(f.root, 'rev-parse', 'HEAD').stdout == source_head
     if remote_only:
         head = f.git(f.root, 'rev-parse', 'refs/remotes/origin/worktree').stdout.strip()
@@ -224,6 +241,9 @@ def test_interrupted_writes_resume_without_duplicate_merge_or_lost_work(trees, b
             assert head == commit
         target, = saved['worktree_propagation']['targets']
         assert target['phase'] == 'done' and not Path(target['path']).exists()
+        if boundary == 'remote-push':
+            assert Path(target['path']).parent == resume_run
+            assert head == target['merged_head']
     else:
         assert f.git(f.other, 'rev-parse', 'HEAD').stdout.strip() == commit
         assert f.git(f.other, 'rev-parse', '@{upstream}').stdout.strip() == commit

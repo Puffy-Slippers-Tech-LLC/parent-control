@@ -140,20 +140,45 @@ def _prepare_remote(git, root, run, target, save):
         target.update(upstream_commit=_run(git, root, 'rev-parse', '--verify', 'FETCH_HEAD'),
                       phase='remote-checkout')
         save()
+    if not os.path.lexists(target['path']) and target['phase'] != 'remote-remove':
+        if target['phase'] != 'remote-checkout':
+            # Restart copies the checkpoint, not the old run's bulk output.
+            # Only a finished merge with no saved active work is reproducible.
+            if (target['phase'] not in ('push', 'drop') or target.get('stash')
+                    or target.get('active') or target.get('restored_active')
+                    or not target.get('merged_head')):
+                raise ValueError('remote propagation checkout is missing during '
+                                 + target['phase'] + '; preserve the retained transaction '
+                                 'and recover its unfinished work before retrying')
+            target.update(resume_phase=target['phase'], checkout_commit=target['merged_head'],
+                          phase='remote-checkout')
+            target.pop('checkout_identity', None)
+        # Never recreate an expired allocation or adopt a replacement checkout.
+        target['path'] = str((run / ('remote-worktree-' + uuid.uuid4().hex)).resolve())
+        save()
     if target['phase'] == 'remote-checkout':
         destination = Path(target['path'])
+        checkout_commit = target.get('checkout_commit', target['upstream_commit'])
         if not os.path.lexists(destination):
-            _run(git, root, 'worktree', 'add', '--detach', str(destination), target['upstream_commit'])
+            # A successful push may be the only remaining reference to this
+            # exact merge after old worktrees expire and Git collects objects.
+            if git(root, 'cat-file', '-e', checkout_commit + '^{commit}', check=False).returncode:
+                _run(git, root, 'fetch', target['remote'], target['remote_ref'])
+            _run(git, root, 'worktree', 'add', '--detach', str(destination), checkout_commit)
         # Also authenticate an add that finished just before interruption.
         _identity(git, destination, target)
         _idle(git, destination)
-        _expect_head(git, destination, target['upstream_commit'], 'remote checkout', exact=True)
+        _expect_head(git, destination, checkout_commit, 'remote checkout', exact=True)
         if git(destination, 'status', '--porcelain', '--untracked-files=all').stdout:
             raise ValueError('remote propagation checkout contains unexpected active work')
         info = destination.stat()
-        target.update(phase='merge', head=target['upstream_commit'], stash=None, active={},
-                      upstream=target['remote'] + '/' + target['remote_ref'].removeprefix('refs/heads/'),
-                      checkout_identity=[info.st_dev, info.st_ino])
+        if 'resume_phase' in target:
+            target['phase'] = target.pop('resume_phase')
+            target.pop('checkout_commit')
+        else:
+            target.update(phase='merge', head=target['upstream_commit'], stash=None, active={},
+                          upstream=target['remote'] + '/' + target['remote_ref'].removeprefix('refs/heads/'))
+        target['checkout_identity'] = [info.st_dev, info.st_ino]
         save()
 
 

@@ -685,6 +685,12 @@ The checkpoint retains checkout and remote identities across interruption; the
 temporary worktree is removed after its push succeeds. Unchecked local branches
 are left at their existing commits. Every configured destination must finish
 before task completion.
+If an older run's temporary checkout expires while close-out awaits a push or
+stash retirement, recovery recreates the exact recorded merge commit in the
+current run and resumes that phase. Remote identity checks and normal push-race
+handling still apply; task acceptance and the completion commit are retained.
+A missing checkout with unfinished merge work or saved active edits refuses
+with a recovery diagnostic rather than adopting or discarding that work.
 If a remote branch advances before push, a non-fast-forward rejection triggers
 a checkpointed refetch and merge in the same detached checkout, followed by a
 normal push. Recovery resumes interrupted merges and preserves both histories.

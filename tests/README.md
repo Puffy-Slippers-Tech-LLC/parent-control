@@ -1728,7 +1728,10 @@ This is development/test tooling only; package update activation is **none**.
 ### VM watch recordings
 
 `tools/run-tests` automatically records system and E2E execution through the
-same GTK layout, read-only VM feeds and filtered SSH terminals as `tools/watch`.
+same right-side GTK viewer, read-only VM feeds and filtered SSH terminals as
+`tools/watch`. The recording includes the viewer tabs, VM panels, SSH output
+and progress footer at full frame size; it excludes the left runner terminal,
+window header and bottom checkout/resource controls.
 One private renderer/encoder belongs to the runner, including its concurrent VM
 queue. For `fix-tests` VM queues, the parent repair launcher owns that controller
 through all worker retries and owned cleanup; nested runners inherit its verified

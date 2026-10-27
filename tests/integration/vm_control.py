@@ -416,6 +416,7 @@ def main(argv=None):
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',
                                           'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                                           'reproduce-kiosk-preferences',
+                                          'reproduce-station-shortcuts',
                                           'reproduce-baseline-app-effects',
                                           'reproduce-baseline-auth-pause',
                                           'reproduce-baseline-restoration',
@@ -525,6 +526,7 @@ def main(argv=None):
                 raise
         elif args.action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval',
                              'reproduce-kiosk-preferences',
+                             'reproduce-station-shortcuts',
                              'reproduce-baseline-app-effects',
                              'reproduce-baseline-auth-pause',
                              'reproduce-lock-denial', 'reproduce-retained-entry',
@@ -547,6 +549,7 @@ def main(argv=None):
             from vm_probe import reproduce_natural_expiry
             from vm_probe import reproduce_kiosk_entry, reproduce_kiosk_approval, reproduce_kiosk_preferences
             from vm_probe import reproduce_kiosk_refusal
+            from vm_probe import reproduce_station_shortcuts
             from vm_probe import reproduce_baseline_app_effects
             from vm_probe import reproduce_baseline_auth_pause
             resume(lease)
@@ -554,6 +557,7 @@ def main(argv=None):
              'reproduce-kiosk-entry': reproduce_kiosk_entry,
              'reproduce-kiosk-refusal': reproduce_kiosk_refusal,
              'reproduce-kiosk-preferences': reproduce_kiosk_preferences,
+             'reproduce-station-shortcuts': reproduce_station_shortcuts,
              'reproduce-kiosk-approval': reproduce_kiosk_approval,
              'reproduce-baseline-app-effects': reproduce_baseline_app_effects,
              'reproduce-baseline-auth-pause': reproduce_baseline_auth_pause,

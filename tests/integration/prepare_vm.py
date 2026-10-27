@@ -132,7 +132,9 @@ def snapshot_source_projection(relative, contents):
 
 
 def fixture_boundary(marker):
-    validate_marker(marker)
+    # Layout classification also runs before refreshing an old baseline.
+    # Current dependency readiness is checked separately by capture inspection.
+    validate_marker(marker, current_dependencies=False)
     return 'clean' if marker['schema_version'] == CLEAN_MARKER_VERSION else 'legacy'
 
 
@@ -639,6 +641,34 @@ def disable_screensaver(username: str, *, runner: Runner) -> None:
         raise PreparationError("verify:screensaver", "idle blanking remains enabled")
 
 
+def configure_terminal_shortcut(username: str, *, runner: Runner, os_id: str) -> None:
+    """Give fixed Fedora desktops the same Ctrl+Alt+T control as Ubuntu."""
+    if os_id != 'fedora':
+        return
+    runner.run(['test', '-x', '/usr/bin/ptyxis'])
+    settings = ['runuser', '--user', username, '--', 'dbus-run-session', '--', 'gsettings']
+    schema = 'org.gnome.settings-daemon.plugins.media-keys'
+    path = '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/onpc-terminal/'
+    custom = schema + '.custom-keybinding:' + path
+    # Change only this declared baseline binding; retain other custom shortcuts.
+    for key, value in (('name', "'Terminal'"), ('command', "'/usr/bin/ptyxis --new-window'"),
+                       ('binding', "'<Control><Alt>t'")):
+        if runner.run([*settings, 'get', custom, key]).stdout.strip() != value:
+            runner.run([*settings, 'set', custom, key, value])
+        if runner.run([*settings, 'get', custom, key]).stdout.strip() != value:
+            raise PreparationError('verify:terminal-shortcut', 'terminal shortcut differs')
+    current = runner.run([*settings, 'get', schema, 'custom-keybindings']).stdout.strip()
+    paths = [] if current == '@as []' else ast.literal_eval(current)
+    if not isinstance(paths, list) or any(not isinstance(item, str) for item in paths):
+        raise PreparationError('verify:terminal-shortcut', 'custom shortcut list is malformed')
+    if path not in paths:
+        paths.append(path)
+        runner.run([*settings, 'set', schema, 'custom-keybindings', repr(paths)])
+    observed = runner.run([*settings, 'get', schema, 'custom-keybindings']).stdout.strip()
+    if ast.literal_eval(observed) != paths:
+        raise PreparationError('verify:terminal-shortcut', 'terminal shortcut is not enabled')
+
+
 def reconcile_accounts(
     existing: dict[str, ExistingAccount | None],
     password: str,
@@ -732,6 +762,7 @@ def reconcile_accounts(
         seen_uids.add(uid)
         suppress_initial_setup(identity.username, runner=runner, os_id=os_id)
         disable_screensaver(identity.username, runner=runner)
+        configure_terminal_shortcut(identity.username, runner=runner, os_id=os_id)
         print(f"prepare-vm: {identity.label} first-login welcome suppression verified", file=sys.stderr)
         verified[identity.username] = {"uid": uid, "role": identity.role}
         print(f"prepare-vm: {identity.label} verified", file=sys.stderr)
@@ -763,7 +794,7 @@ def marker_document(
     return document
 
 
-def validate_marker(document: dict[str, object], *, os_id=None) -> None:
+def validate_marker(document: dict[str, object], *, os_id=None, current_dependencies=True) -> None:
     if set(document) != {"schema_version", "purpose", "guest", "preparation_script_sha256", "accounts", "test_dependencies"}:
         raise PreparationError("marker:schema", "preparation record has unexpected fields")
     if type(document['schema_version']) is not int or document["schema_version"] not in (MARKER_VERSION, 3, CLEAN_MARKER_VERSION) or document["purpose"] != MARKER_PURPOSE:
@@ -782,7 +813,11 @@ def validate_marker(document: dict[str, object], *, os_id=None) -> None:
             (platform == 'ubuntu' and guest['version' if explicit else 'ubuntu_version'] != UBUNTU_VERSION) or
             (platform == 'fedora' and (guest['os_id'], guest['version']) != ('fedora', '44'))):
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
-    if document['test_dependencies'] != guest_tools.versions(platform):
+    dependencies = document['test_dependencies']
+    if (not isinstance(dependencies, dict)
+            or any(not isinstance(key, str) or not isinstance(value, str)
+                   for key, value in dependencies.items())
+            or current_dependencies and dependencies != guest_tools.versions(platform)):
         raise PreparationError('marker:dependencies', 'prepared guest tool inventory is incompatible')
     if not isinstance(guest["machine_id"], str) or not re.fullmatch(r"[0-9a-f]{32}", guest["machine_id"]):
         raise PreparationError("marker:schema", "preparation record machine identity is invalid")

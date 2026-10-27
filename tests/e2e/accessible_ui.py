@@ -1033,6 +1033,23 @@ KIOSK_RESTRICTION_OPERATIONS = frozenset({
 })
 OPERATIONS |= KIOSK_RESTRICTION_OPERATIONS
 KIOSK_SESSION_OPERATIONS |= KIOSK_RESTRICTION_OPERATIONS
+SHORTCUT_ROUTES = ('overview', 'grid', 'run', 'terminal')
+SHORTCUT_BINDINGS = {
+    f'{account}-shortcut-{route}-{phase}': (account, route, phase)
+    for account in ('standard', 'kiosk') for route in SHORTCUT_ROUTES
+    for phase in (('ready', 'read', 'close-ready', 'closed') if account == 'standard'
+                  else ('ready', 'read'))
+}
+SHORTCUT_RESTRICTIONS = {
+    f'kiosk-restriction-{route}-{phase}': ('restriction', route, phase)
+    for route in SHORTCUT_ROUTES for phase in ('ready', 'read')
+}
+SHORTCUT_OPERATIONS = frozenset(SHORTCUT_BINDINGS) | frozenset(SHORTCUT_RESTRICTIONS)
+OPERATIONS |= SHORTCUT_BINDINGS.keys() | SHORTCUT_RESTRICTIONS.keys()
+STANDARD_OPERATIONS |= {op for op, (account, _, _) in SHORTCUT_BINDINGS.items()
+                        if account == 'standard'}
+KIOSK_SESSION_OPERATIONS |= SHORTCUT_RESTRICTIONS.keys() | {
+    op for op, (account, _, _) in SHORTCUT_BINDINGS.items() if account == 'kiosk'}
 KIOSK_ABOUT_OPERATIONS = frozenset({'kiosk-about-open', 'kiosk-about-read',
                                    'kiosk-about-close-ready', 'kiosk-about-closed'})
 OPERATIONS |= KIOSK_ABOUT_OPERATIONS | {'parent-kiosk-about-refused'}
@@ -11714,6 +11731,193 @@ class AccessibleUI:
         target = self.kiosk_exit_target(overlay=overlay, child=child)
         self._invoke_target(target)
 
+    def shortcut_provider_snapshot(self, *, closing=False):
+        """Finite English Shell/terminal provider results; no input or geometry.
+
+        Shell exposes no usable IDs here. Bind its direct application owner,
+        then its public search, Show Apps toggle or Run a Command dialog.
+        Terminal results require a known application and a public terminal
+        descendant, never a process/window title or a successful key delivery.
+        These exact bindings still require installed target qualification.
+        """
+        desktop = self.api.get_desktop(0)
+        require(desktop is not None, 'ui:incomplete-tree')
+        edges, facts = {}, {}
+        nodes = list(self.nodes(desktop, strict=True, protect_text=True,
+                                snapshot=edges, facts=facts))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:incomplete-tree')
+        applications = [node for node in edges[desktop]
+                        if facts[node]['role'] == 'application']
+        shells = [node for node in applications
+                  if facts[node]['name'].casefold() in GDM_SEMANTIC_APPLICATION_NAMES]
+        require(len(shells) <= 1, 'ui:shortcut-shell-ambiguous')
+        shell = shells[0] if shells else None
+        scope = [] if shell is None else self.snapshot_scope(nodes, edges, shell)
+        # GNOME 50 exposes an unnamed dialog with a labelled descendant,
+        # rather than putting "Run a Command" on the dialog itself.
+        runs = [node for node in scope if facts[node]['showing']
+                and facts[node]['role'] == 'dialog'
+                and (facts[node]['name'] in ('Run a Command', 'Run Command')
+                     or any(facts[child]['showing'] and facts[child]['role'] == 'label'
+                            and facts[child]['name'] in ('Run a Command', 'Run Command')
+                            for child in self.snapshot_scope(nodes, edges, node)))]
+        require(len(runs) <= 1, 'ui:shortcut-run-ambiguous')
+        run = runs[0] if runs else None
+        run_scope = [] if run is None else self.snapshot_scope(nodes, edges, run)
+        fields = [node for node in scope if facts[node]['showing']
+                  and facts[node]['role'] in ('text', 'entry')
+                  and self.has_state(node, self.api.StateType.EDITABLE)
+                  and self.has_state(node, self.api.StateType.SENSITIVE)]
+        run_fields = [node for node in fields if node in run_scope]
+        search = [node for node in fields if node not in run_scope]
+        require(len(search) <= 1 and len(run_fields) <= 1, 'ui:shortcut-field-ambiguous')
+        require(run is None or len(run_fields) == 1, 'ui:shortcut-run-unusable')
+        grid = any(facts[node]['showing'] and facts[node]['role'] == 'toggle button'
+                   and facts[node]['name'] in ('Show Apps', 'Show Applications')
+                   and (self.has_state(node, self.api.StateType.CHECKED)
+                        or self.has_state(node, self.api.StateType.PRESSED)) for node in scope)
+        terminal_names = {'gnome-terminal-server', 'gnome-terminal', 'org.gnome.terminal',
+                          'ptyxis', 'org.gnome.ptyxis', 'kgx', 'org.gnome.console'}
+        terminals = []
+        for application in applications:
+            if (facts[application]['name'].casefold() not in terminal_names
+                    and facts[application]['identity'].casefold() not in terminal_names):
+                continue
+            owned = self.snapshot_scope(nodes, edges, application)
+            windows = [node for node in owned if facts[node]['showing']
+                       and facts[node]['role'] in ('frame', 'window')]
+            for window in windows:
+                if any(facts[node]['showing'] and facts[node]['role'] == 'terminal'
+                       for node in self.snapshot_scope(nodes, edges, window)):
+                    require(window.get_process_id() == application.get_process_id() > 0,
+                            'ui:shortcut-terminal-owner')
+                    terminals.append(window)
+        require(len(terminals) <= 1, 'ui:shortcut-terminal-ambiguous')
+        self.handle_system_prompt(observation=(nodes, edges, facts), nonsecret_surface=run)
+        overview = False
+        if shell is not None:
+            result = subprocess.run([
+                '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
+                '--object-path', '/org/gnome/Shell',
+                '--method', 'org.freedesktop.DBus.Properties.Get',
+                'org.gnome.Shell', 'OverviewActive',
+            ], stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True, timeout=3)
+            overview = {'(<true>,)': True, '(<false>,)': False}.get(result.stdout.strip())
+            require(type(overview) is bool, 'ui:shortcut-overview-state')
+        require(not overview or bool(search), 'ui:shortcut-overview-unusable')
+        require(sum((bool(run), bool(terminals), overview)) <= 1,
+                'ui:shortcut-surface-ambiguous')
+        if closing and run is not None:
+            require(self.has_state(run_fields[0], self.api.StateType.FOCUSED),
+                    'ui:shortcut-run-recipient')
+        if closing and terminals:
+            require(self.has_state(terminals[0], self.api.StateType.ACTIVE)
+                    or any(self.has_state(node, self.api.StateType.FOCUSED)
+                           for node in self.snapshot_scope(nodes, edges, terminals[0])
+                           if facts[node]['role'] == 'terminal'),
+                    'ui:shortcut-terminal-recipient')
+        # OverviewActive is Shell's public compositor-input ownership proof;
+        # app-grid keyboard ownership does not require focusing its search box.
+        outcome = ('run' if run else 'terminal' if terminals else
+                   'app-grid' if overview and grid else 'overview' if overview else
+                   'desktop-exposed' if shell is not None else 'request-only')
+        target = (run if run else terminals[0] if terminals else
+                  search[0] if overview else shell)
+        source = None
+        if target is not None:
+            pid, bus, path = target.get_process_id(), target.bus, target.path
+            require(type(pid) is int and pid > 0 and type(bus) is str
+                    and bus.startswith(':') and type(path) is str and path.startswith('/'),
+                    'ui:shortcut-provider-endpoint')
+            source = hashlib.sha256((str(pid) + bus + path).encode()).hexdigest()
+        return outcome, source, shell
+
+    @staticmethod
+    def terminal_shortcut_configured():
+        """Read current GNOME bindings; never install or configure a positive."""
+        from gi.repository import Gio
+        source = Gio.SettingsSchemaSource.get_default()
+        schema = source.lookup('org.gnome.settings-daemon.plugins.media-keys', True)
+        require(schema is not None, 'ui:shortcut-settings-unavailable')
+        settings = Gio.Settings.new_full(schema, None, None)
+        def matches(binding):
+            modifiers = {part.casefold() for part in re.findall(r'<([^>]+)>', binding)}
+            return (re.sub(r'<[^>]+>', '', binding).casefold() == 't'
+                    and modifiers in ({'primary', 'alt'}, {'control', 'alt'}, {'ctrl', 'alt'}))
+        bindings = settings.get_strv('terminal') if schema.has_key('terminal') else []
+        if schema.has_key('custom-keybindings'):
+            custom_schema = source.lookup(
+                'org.gnome.settings-daemon.plugins.media-keys.custom-keybinding', True)
+            require(custom_schema is not None, 'ui:shortcut-settings-unavailable')
+            paths = settings.get_strv('custom-keybindings')
+            require(len(paths) <= 128, 'ui:shortcut-settings-bound')
+            for path in paths:
+                require(re.fullmatch(r'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/[A-Za-z0-9_-]+/', path),
+                        'ui:shortcut-settings-path')
+                custom = Gio.Settings.new_full(custom_schema, None, path)
+                if custom.get_string('command').strip():
+                    bindings.append(custom.get_string('binding'))
+        return any(matches(binding) for binding in bindings)
+
+    def shortcut_operation(self, operation):
+        account, route, phase = {**SHORTCUT_BINDINGS, **SHORTCUT_RESTRICTIONS}[operation]
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require_active_launch_session()
+        if account == 'restriction':
+            # Preserve the stable consumer's complete control audit and initial
+            # disabled-form expectation. Qualification uses the enabled form.
+            self.kiosk_restrictions(stable_seconds=2 if phase == 'read' else 0)
+        usable = False
+        if account == 'kiosk':
+            form = self.kiosk_request_form(enabled=True)
+            require(form['request_enabled'] and form['cancel_enabled'], 'ui:shortcut-request-unusable')
+            usable = True
+            self.invalidate_observation()
+        if account == 'standard' and phase == 'ready':
+            self.standard_shell_desktop(no_prompt=True)
+            if route == 'overview':
+                # Fresh GNOME sessions may start in Overview. Establish the
+                # ordinary desktop once before testing the first shortcut.
+                self.prepare_launch_desktop()
+            self.invalidate_observation()
+        started = time.monotonic()
+        def observe():
+            self.invalidate_observation()
+            value = self.shortcut_provider_snapshot(closing=phase == 'close-ready')
+            # Read-only settling never replays input. A missing ordinary
+            # positive remains inconclusive after this finite observation.
+            if phase == 'read' and account != 'restriction' and time.monotonic() - started < 2 and value[0] in (
+                    'desktop-exposed', 'request-only'):
+                return None
+            if phase == 'closed' and value[0] != 'desktop-exposed':
+                return None
+            return value
+        outcome, endpoint, shell = self.wait(observe, 'shortcut-provider',
+                                             prompt_in_predicate=True)
+        if phase == 'ready':
+            require(outcome == ('desktop-exposed' if account == 'standard' else 'request-only'),
+                    'ui:shortcut-entry-surface')
+            outcome = 'desktop-ready' if account == 'standard' else 'request-only'
+        elif phase == 'closed':
+            require(account == 'standard' and outcome == 'desktop-exposed',
+                    'ui:shortcut-not-closed')
+            outcome = 'closed'
+        elif phase == 'close-ready':
+            require(outcome in ('overview', 'app-grid', 'run', 'terminal', 'desktop-exposed'),
+                    'ui:shortcut-close-surface')
+            if outcome == 'desktop-exposed':
+                outcome = 'no-result'
+        elif account == 'restriction':
+            require(outcome == 'request-only', 'ui:station-forbidden-surface')
+        elif account == 'standard' and outcome == 'desktop-exposed':
+            outcome = 'no-result'
+        return {'route': route, 'outcome': outcome, 'usable_request': usable,
+                'source': endpoint,
+                'provider': self._shell_provider_metadata(shell) if shell is not None else None,
+                'terminal_binding': self.terminal_shortcut_configured()
+                    if account == 'standard' and route == 'terminal' else None}
+
     def kiosk_restrictions(self, *, stable_seconds=2, prepared=False):
         """Complete public station-tree exclusion, anchored by owned form IDs.
 
@@ -12819,7 +13023,9 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation in TRANSFER_OPERATIONS:
+        if operation in SHORTCUT_OPERATIONS:
+            result['shortcut'] = self.shortcut_operation(operation)
+        elif operation in TRANSFER_OPERATIONS:
             value = self.transfer_choices(operation)
             if value is not None:
                 result['request'] = value

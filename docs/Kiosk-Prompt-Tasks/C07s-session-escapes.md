@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Required tasks: C07a.
+Required tasks: C07a, C07s1.
 Estimate: 30–60 min; session exception: one small confinement fix, review/build and both-target usability.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract).
@@ -12,12 +12,16 @@ Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contra
 
 Extract request-session desktop escapes from C07a. Use D01/D02's finite
 action/launch map to close one demonstrated route to a full kiosk desktop.
+C07s1 supplies the qualified shared shortcut/results and working ordinary
+desktop controls on both targets, including Fedora's permanently prepared
+terminal shortcut. Reuse its [exact scope and limits](../TestAutomation/E2E-Building-Blocks.md#request-session-shortcut-results);
+its checks give no C07s acceptance credit.
 Follow the [frozen design and qualification allocation](../SystemDesign/Kiosk-Confinement.md#d02-minimal-desktop-design-decision):
-at this selected consumer, insert and complete any missing shortcut/result
-qualification before product editing. Existing action barriers remain effective
-in source; add no restriction without a demonstrated escape. The observed
-UI-tree census is not a qualified desktop fence; require the missing Alt+F2
-outcome and ordinary-desktop witnesses on both targets through shared bindings.
+insert and complete any independently missing qualification before product
+editing. Existing action barriers remain effective in source; add no restriction
+without a demonstrated escape. C07s1 observed only a usable request after each
+of the four shortcuts, with working ordinary-desktop witnesses on both targets;
+that finite result is not a universal desktop fence.
 C07a owns graphical-session admission; standalone terminal/TTY,
 SSH and other exposed-action results retain their remaining-plan owners.
 

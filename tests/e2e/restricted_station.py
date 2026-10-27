@@ -17,7 +17,7 @@ UNAPPROVED_ENTRY = {
 }
 ENTRY = {
     **UNAPPROVED_ENTRY,
-    **{f'restriction-{route}-{phase}': 'ui:kiosk-restriction-' + phase
+    **{f'restriction-{route}-{phase}': f'ui:kiosk-restriction-{route}-{phase}'
        for route in ('overview', 'grid', 'terminal') for phase in ('ready', 'read')},
 }
 REQUEST = {

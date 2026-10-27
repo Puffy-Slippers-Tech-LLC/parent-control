@@ -3978,6 +3978,49 @@ Request, enabled Cancel, 30-minute selection, disabled-limit notice, absent
 mute/custom value. Enabled choices, overlays and authentication retain their
 separate catalogue bindings.
 
+### Request-session shortcut results
+
+`station_shortcuts.StationShortcutsJourney` /
+`onpc_station_shortcuts::run` registers
+`check_e2e_station_shortcuts` in the guarded installed envelope. It pairs
+Super, Super+A, Alt+F2 and Ctrl+Alt+T on Jordan's ordinary desktop with the
+usable Riley/Jamie request session, normal Cancel and fresh passwordless entry,
+then restores the original public policy. Installed qualification passed on
+`onpc-Ubuntu26.04` and `onpc-Fedora44` in C07s1. Each target passed all eight
+results: ordinary overview, app grid, run dialog and terminal; all four station
+attempts left only the usable request form. Owned surfaces closed normally,
+Cancel and fresh passwordless usable entry passed, original public settings
+were restored, and runner cleanup completed with source/host preservation.
+No desktop-launch chain was demonstrated in these request-session attempts.
+
+Fedora has no stock media-keys `terminal` setting. Its working comparison uses
+the permanent Ctrl+Alt+T → Ptyxis custom binding supplied to fixed test accounts
+by [baseline preparation](../../tests/integration/Environment.md#reusable-preparation-ownership).
+Ubuntu retains its existing terminal binding. Qualification reads and exercises
+the prepared controls; it does not configure them during the comparison.
+The shared adapter recognizes GNOME's unnamed Run dialog by its public
+`Run a Command` descendant label and focused editable field, then observes its
+normal closure before the next shortcut.
+Observed ordinary tuples were Ubuntu Shell `50.1-0ubuntu1.4` and Fedora Shell
+`0:50.6-1.fc44`, both `en_US.UTF-8` with `xkb/us`.
+
+The shared input is `onpc_station::shortcut`; its readiness and independent
+result use `AccessibleUI.shortcut_operation` through `UiObservations`.
+Product form reads use the Application UI API. The finite external adapter
+uses English Shell search, Show Apps state, Run a Command and known terminal
+application/terminal semantics, with account/session and fresh close-recipient
+guards. An absent ordinary positive remains inconclusive. A terminal alone
+establishes no full-desktop launch chain; standalone terminal/TTY acceptance
+retains its remaining-plan owner. C07s still owns its installed usability and
+directly affected controls for its final candidate; this supplies no complete-case credit.
+The existing two-second census is not a universal desktop fence. Machine
+observations retain finite deadlines inside the 1800-second worker envelope.
+
+`tools/test-vm --vm NAME reproduce-station-shortcuts` reuses this journey,
+stopping after ordinary Alt+F2 input and before its result observation for
+engineering diagnosis. It retains the owned scene after worker cleanup; finish
+with `tools/test-vm --vm NAME stop`. It grants no installed acceptance.
+
 ### Public desktop selection
 
 `check_e2e_public_desktop_selection` dispatches

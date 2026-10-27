@@ -785,6 +785,8 @@ class InstalledJourney:
                 observed['desktop_preparation'] = session_control.observe(
                     self.transport, 'parent-continuous-activity')
             reply = {'observed': stage}
+            if 'shortcut' in observed.get('ui', {}):
+                reply['shortcut_outcome'] = observed['ui']['shortcut']['outcome']
             if tag == 'ui:gdm-child-denied-return-state':
                 reply['gdm_return_state'] = observed['ui']['return_state']
             if tag[3:] in accessible_ui.LOCK_RECIPIENT_OPERATIONS and tag.startswith('ui:'):

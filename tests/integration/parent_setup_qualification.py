@@ -258,6 +258,16 @@ class PublicDesktopSelectionQualification(KioskEntryQualification):
         return PublicDesktopSelectionJourney(context, progress)
 
 
+class StationShortcutsQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from station_shortcuts import StationShortcutsJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return StationShortcutsJourney(context, progress)
+
+
 class KioskServiceVariationQualification(KioskEntryQualification):
     """One real automatic-login variation, followed by normal restored entry."""
 

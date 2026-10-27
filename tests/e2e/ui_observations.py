@@ -36,6 +36,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Observing the bound desktop shortcut and its public result'
+       for operation in accessible_ui.SHORTCUT_OPERATIONS},
     'gdm-standard-session-open': 'Opening the ordinary account desktop chooser',
     'gdm-standard-session-select-full': 'Choosing the offered ordinary full desktop',
     'gdm-standard-session-chosen': 'Observing the ordinary desktop chooser after selection',
@@ -1446,6 +1448,41 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if operation in accessible_ui.SHORTCUT_OPERATIONS:
+            account, route, phase = {**accessible_ui.SHORTCUT_BINDINGS,
+                                      **accessible_ui.SHORTCUT_RESTRICTIONS}[operation]
+            value = result.get('shortcut')
+            require(type(value) is dict and set(value) == {
+                'route', 'outcome', 'usable_request', 'source', 'provider', 'terminal_binding'}
+                and value['route'] == route and value['outcome'] in (
+                    'desktop-ready', 'overview', 'app-grid', 'run', 'terminal', 'no-result',
+                    'request-only', 'desktop-exposed', 'closed')
+                and type(value['usable_request']) is bool
+                and value['usable_request'] is (account == 'kiosk')
+                and (value['source'] is None or type(value['source']) is str
+                     and re.fullmatch(r'[0-9a-f]{64}', value['source']))
+                and (type(value['terminal_binding']) is bool if account == 'standard'
+                     and route == 'terminal' else value['terminal_binding'] is None),
+                'ui:shortcut-response')
+            if value['provider'] is not None:
+                accessible_ui.validate_shell_metadata(value['provider'])
+            if account == 'standard':
+                base = 'standard-shortcut-' + route
+                if phase == 'read':
+                    require(self.last_operation == base + '-ready', 'ui:shortcut-order')
+                    self.shortcut_result = dict(value)
+                elif phase == 'close-ready':
+                    previous = getattr(self, 'shortcut_result', None)
+                    require(self.last_operation == base + '-read'
+                            and previous is not None and value == previous,
+                            'ui:shortcut-close-recipient')
+                elif phase == 'closed':
+                    require(self.last_operation == base + '-close-ready'
+                            and value['outcome'] == 'closed', 'ui:shortcut-order')
+            elif phase == 'read':
+                require(self.last_operation == operation.removesuffix('-read') + '-ready',
+                        'ui:shortcut-order')
+            expected['shortcut'] = value
         if operation in accessible_ui.GDM_SESSION_OPERATIONS:
             choice = result.get('session_choice')
             values = {'station', 'ubuntu', 'ubuntu-xorg', 'gnome', 'gnome-xorg'}

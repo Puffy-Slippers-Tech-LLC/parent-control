@@ -8515,8 +8515,9 @@ class AccessibleUI:
             },
         }
 
-    def gdm_semantic_rows(self, expected, *, excluded=(), pending_child_prompt=False):
-        """Return declared fixture rows from one complete account-list snapshot."""
+    def gdm_semantic_rows(self, expected, *, excluded=(), pending_child_prompt=False,
+                          pending_missing=False):
+        """Return declared rows; optionally leave absent rows pending, never ambiguity."""
         require(type(expected) is tuple and expected
                 and len(set(expected)) == len(expected)
                 and set(expected) <= {PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD, KIOSK}
@@ -8527,6 +8528,7 @@ class AccessibleUI:
                 'ui:gdm-account-binding')
         require(type(pending_child_prompt) is bool and (not pending_child_prompt
                 or expected == (PARENT, KIOSK, CHILD) and not excluded), 'ui:gdm-account-binding')
+        require(type(pending_missing) is bool, 'ui:gdm-account-binding')
         owner, nodes = self.gdm_semantic_nodes(protect_text=True)
         showing = [node for node in nodes if self.showing(node)]
         fields = [node for node in showing if node.get_role_name() == 'password text']
@@ -8554,21 +8556,23 @@ class AccessibleUI:
         rows = {name: self.gdm_semantic_account_rows(
             owner, showing, bindings[name]) for name in identities}
         expected_rows = {name: rows[name] for name in expected}
-        complete = (all(len(matches) == 1 for matches in expected_rows.values())
-                    and len({matches[0] for matches in expected_rows.values()})
-                    == len(expected_rows))
+        present = [matches[0] for matches in expected_rows.values() if matches]
+        unambiguous = (all(len(matches) <= 1 for matches in expected_rows.values())
+                       and len(set(present)) == len(present))
         if excluded:
-            complete = complete and all(not rows[name] for name in excluded)
+            unambiguous = unambiguous and all(not rows[name] for name in excluded)
+        complete = unambiguous and len(present) == len(expected_rows)
         if not complete and not self.gdm_row_diagnostic_emitted:
             print(json.dumps(self.gdm_semantic_row_diagnostic(owner), sort_keys=True),
                   file=sys.stderr, flush=True)
             self.gdm_row_diagnostic_emitted = True
-        require(complete, 'ui:gdm-account-cardinality')
-        result = {name: matches[0] for name, matches in expected_rows.items()}
-        for row in result.values():
+        require(complete or pending_missing and unambiguous, 'ui:gdm-account-cardinality')
+        for row in present:
             require(self.has_state(row, self.api.StateType.SENSITIVE),
                     'ui:gdm-account-unavailable')
-        return owner, result
+        if not complete:
+            return None
+        return owner, {name: matches[0] for name, matches in expected_rows.items()}
 
     def gdm_nonsecret_account(self, name):
         require(name in (PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD, KIOSK),
@@ -8578,7 +8582,10 @@ class AccessibleUI:
         # Station entry must also work when every parent is locked, hidden or
         # differently named. Its own usable row is the required destination.
         expected = (KIOSK,) if name == KIOSK else tuple(dict.fromkeys((PARENT, KIOSK, name)))
-        _owner, rows = self.gdm_semantic_rows(expected)
+        # A new greeter can expose its owner before its account rows. Reacquire
+        # only complete reads; focus/input remains outside this bounded wait.
+        _owner, rows = self.wait(
+            lambda: self.gdm_semantic_rows(expected, pending_missing=True), 'gdm-account-list')
         return rows[name]
 
     def gdm_product_free_account(self, name=PARENT):

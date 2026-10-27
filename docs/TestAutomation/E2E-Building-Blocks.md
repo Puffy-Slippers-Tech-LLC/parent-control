@@ -3953,6 +3953,29 @@ This slice supplies no general desktop/terminal/SSH protection or complete
 usability history; those checks retain their own bindings. A saved default or
 GDM command resolution alone is insufficient.
 
+### Saved-routing variation and recovery
+
+`check_e2e_kiosk_routing_variation` dispatches
+[`gdm_service_variation.qualify_routing(transport, lease)`](../../tests/e2e/gdm_service_variation.py)
+through `KioskRoutingVariationQualification`, then reuses REQUEST01/03 public
+entry/form/Cancel/return after restoration. GDM peer `SelectSession` independently
+chooses dedicated Wayland with a stale alternate session, empty saved fields or
+stale saved `SessionType=x11`, each from the valid baseline. Pre-fix refusal/repair
+is recorded separately from the normal actual selected-process execution positive.
+Peer acknowledgement and daemon selection identify a refused route; selected
+command resolution is required only when proceeding to the execution positive.
+The same callable's `expectation='execution'` retains those observations for D00a3.
+
+One real AccountsService discovery outage uses installed native admission,
+an observed usable public greeter baseline, exact owned service/mask restoration
+and ordinary-account routing isolation. The same public greeter readiness check
+also separates each restored variation from the next attempt's restart.
+The [design owner](../SystemDesign/Kiosk-Confinement.md#d00a3-routing-qualification-prerequisite)
+records the finite mechanism and limits. Installed qualification and cleanup
+passed on `onpc-Ubuntu26.04` and `onpc-Fedora44`: normal actual execution, all three
+pre-fix refusal/repair controls, discovery outage, exact restoration and fresh
+public entry/form/Cancel/return. D00a3q is complete and supplies no D00a3 product credit.
+
 ### Reached service-route control
 
 `check_e2e_kiosk_service_route` dispatches

@@ -498,6 +498,47 @@ only this reached service-route control. D00a2 retained the same native refusal
 and ordinary positive on its repaired candidate; its separate graphical and
 complete usability results are recorded above.
 
+#### D00a3 routing qualification prerequisite
+
+`system_kiosk_admission.verify` retains real alternate-session and `x11` saved
+preferences through account-only callbacks, expecting refusal/repair/retry;
+that account-only history supplies no graphical execution observation.
+The service-only `gdm_service_variation.qualify` uses dedicated saved routing
+and observes the actual Wayland session, app and selected GNOME-session process.
+Saved-routing variation needs independent session selection: simply omitting
+the dedicated setup would let the saved preference select another session.
+
+D00a3q implements
+[`gdm_service_variation.qualify_routing(transport, lease)`](../../tests/e2e/gdm_service_variation.py)
+through `KioskRoutingVariationQualification` and the listed installed selector
+`check_e2e_kiosk_routing_variation`. GDM's greeter peer `SelectSession` selects
+the dedicated session independently of the saved alternate/empty/`x11` values,
+then invokes the real `gdm-password` route without answering any prompt.
+Exact input readback and the attempt-bound installed helper's refusal/repair
+diagnostic distinguish a reached saved-routing check from an earlier failure.
+The peer acknowledgement and daemon selection identify a refused route before
+selected-command resolution; an absent later resolution is not an execution
+claim. Refused variations receive no execution credit. The normal dedicated positive
+uses the existing Wayland logind, running app-service/process and selected
+GNOME-session process observations, tying GDM's opened session ID to logind;
+D00a3 reuses them with `expectation='execution'`.
+
+The separate discovery control temporarily stops AccountsService under an
+exclusively created runtime mask, invokes the installed native account callback,
+and requires the helper's unavailable diagnostic. Restoration checks the exact
+owned mask, service configuration, saved routing and ordinary-account isolation;
+changed or foreign entries refuse restoration. The existing public station-list
+observation establishes a usable greeter before each variation and discovery loss,
+separately from the preceding display-manager restoration. This prevents the next
+variation from immediately restarting a greeter still starting up. The caller
+then runs the existing fresh public station entry/form/Cancel/return history.
+Installed qualification and owned cleanup passed on `onpc-Ubuntu26.04` and
+`onpc-Fedora44`: normal dedicated execution, all three pre-fix refusal/repair
+controls, actual discovery loss, exact restoration and fresh public use.
+No separate product recovery defect was established.
+No product admission or package consumer changes are included;
+malformed replies and D00a3's full product acceptance remain with D00a3.
+
 #### D00a prerequisite allocation
 
 D00a's source inspection confirmed the service allowlist in native
@@ -513,6 +554,7 @@ claimed. The [ordered queue](../Kiosk-Desktop-Queue.md) now allocates:
 | D00a2q | Qualify the real graphical service-variation binding, independent selected-session/result observations and owned restoration on both targets before the service-dispatch product edit; no consumer acceptance credit. |
 | D00a2r | Qualify one actual child-invoked prohibited service route and its account-refusal witness, ordinary-account positive and owned restoration on both targets before the service-dispatch product edit; no product changes or consumer acceptance credit. |
 | D00a2 | Remove unjustified service-name rejection; verify actual dedicated graphical execution through the affected service, a reached prohibited-route control and ordinary-account login, with same-candidate both-target public usability. |
+| D00a3q | Completed: both-target normal execution, three saved-routing refusal/repair controls, transient discovery loss, exact restoration, fresh public use and owned cleanup passed; no product changes or consumer acceptance credit. |
 | D00a3 | Remove the avoidable saved-routing/discovery admission dependency, including drift, malformed-reply and transient discovery controls. Keep invalid identity/authority barriers and prove restored public use on both targets. |
 | D00a | Resolve owned lease/recovery at native `admission`/`lock_current` and lifecycle `barriers`, preserving live/foreign state, read-only Fedora leases and active writer exclusion. Include stale-mode, retained-handle and release/reentry controls with both-target usability. |
 

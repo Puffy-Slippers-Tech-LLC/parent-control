@@ -362,6 +362,26 @@ def set_routing(uid, values):
     guest.require(routing(uid) == values, 'kiosk-admission:routing-write')
 
 
+def routing_variations():
+    """Finite one-input controls, each interpreted from dedicated Wayland."""
+    alternate = 'gnome' if guest.package_path().suffix == '.rpm' else 'ubuntu'
+    guest.require((Path('/usr/share/wayland-sessions') / (alternate + '.desktop')).is_file(),
+                  'kiosk-admission:alternate-session-missing')
+    return {'normal': DEDICATED, 'alternate-session': (alternate, DEDICATED[1]),
+            'empty-fields': ('', ''), 'alternate-transport': (DEDICATED[0], 'x11')}
+
+
+def routing_outage_probe(record, *, expected=4):
+    """Real installed account callbacks while the caller owns discovery loss.
+
+    The caller must additionally witness the installed helper's unavailable
+    diagnostic and restore its exact service state before public recovery.
+    """
+    guest.require(type(expected) is int and expected in (0, 4), 'kiosk-admission:outage-expectation')
+    probe('gdm-password', 'ordinary', 0, 'routing-outage.ordinary', record)
+    probe('gdm-password', 'kiosk', expected, 'routing-outage.station', record)
+
+
 def verify_gates(record):
     """Observe installed account gates without changing retained routing state."""
     guest.guard()

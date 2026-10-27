@@ -1434,7 +1434,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             (not kiosk_notification_wellbeing or (kiosk_eligible_choices and
                                                   not kiosk_feedback_confinement)),
             'smoke:kiosk-notification-prerequisites')
-    require(type(kiosk_entry) is bool and (not kiosk_entry or (
+    require((type(kiosk_entry) is bool or kiosk_entry == 'service-variation') and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
@@ -1633,7 +1633,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = (f'installed-parent-{information_link}-qualification' if information_link != 'license'
                                else 'installed-license-viewer-provider-qualification')
         if kiosk_entry:
-            result['scope'] = 'installed-kiosk-entry-qualification'
+            result['scope'] = ('installed-kiosk-service-variation-qualification'
+                               if kiosk_entry == 'service-variation'
+                               else 'installed-kiosk-entry-qualification')
         if kiosk_eligible_choices:
             result['scope'] = 'installed-kiosk-eligible-choices-qualification'
         if kiosk_feedback_confinement:
@@ -2077,8 +2079,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import UnrelatedRebootQualification
                     qualification_class = UnrelatedRebootQualification
                 if kiosk_entry:
-                    from parent_setup_qualification import KioskEntryQualification
-                    qualification_class = KioskEntryQualification
+                    from parent_setup_qualification import (KioskEntryQualification,
+                        KioskServiceVariationQualification)
+                    qualification_class = (KioskServiceVariationQualification
+                        if kiosk_entry == 'service-variation' else KioskEntryQualification)
                 if kiosk_eligible_choices:
                     from parent_setup_qualification import KioskEligibleChoicesQualification
                     qualification_class = KioskEligibleChoicesQualification

@@ -381,6 +381,52 @@ cleanup together. D00 audits only: it supplies no installed pass, closes no
 other task, and allocates no VM/artifacts. D00b verifies this empty obsolete-
 consumer disposition against D00a's actual changes rather than replaying C03/C04.
 
+#### D00a2 service-variation prerequisite
+
+D00a2q supplies the finite
+[`gdm_service_variation.qualify(transport, lease)`](../../tests/e2e/gdm_service_variation.py)
+binding through `KioskServiceVariationQualification` and the registered installed
+selector `check_e2e_kiosk_service_variation`. It runs before the existing
+`KioskEntryJourney` worker reattaches, in the same guarded installed attempt.
+
+The binding uses AccountsService to enable automatic login for the station and
+request `oh-no-parent-control` / `wayland`. It saves the prior automatic account,
+routing and exact GDM/PAM configuration. Temporary GDM debug and an optional
+`pam_warn` account observation expose the real vendor `gdm-autologin` invocation;
+no authentication or product admission gate is replaced or bypassed. One display
+manager restart supplies the invocation. Journal boot/cursor boundaries, the real
+`/usr/libexec/gdm-session-worker`, its station/service initialization and its
+same-PID account callback/refusal distinguish refusal from missing setup.
+GDM command resolution of `oh-no-parent-control.desktop` is recorded separately:
+it is neither saved-default evidence nor proof that the selected app executed.
+The observed manager executable is `/usr/sbin/gdm3` on Ubuntu and `/usr/bin/gdm`
+on Fedora; both invoke `/usr/libexec/gdm-session-worker` for the PAM operation.
+
+On an actual positive, the same binding requires the shared public
+`station-default-entry` and `kiosk-request-form` observations, a real
+`gdm-autologin` Wayland logind session, the dedicated session process and the
+owned running app service/process. That positive branch remains **unqualified**
+until a real positive passes; it supplies no D00a2 execution credit now.
+The caller must require `app_execution_qualified == True` after the product fix,
+rather than reuse D00a2q's current-refusal assertion.
+
+Restoration checks owned identities/bytes before writes, restores the original
+automatic account, routing, PAM bytes and GDM bytes/owner/mode after
+AccountsService's keyfile serialization, and restarts the display manager.
+The existing public normal-entry/form/Cancel/GDM-return history then verifies
+restoration before runner/VM cleanup. Changed or foreign configuration refuses
+restoration instead of being overwritten.
+
+Installed qualification passed on `onpc-Ubuntu26.04` and `onpc-Fedora44`:
+both returned `account-refused` from the witnessed real `gdm-autologin` operation,
+resolved the dedicated desktop file, restored all owned settings, and passed
+normal public entry/form/Cancel/return plus runner/VM cleanup. App execution
+through this variation remains unqualified on both targets. No product source
+changed and neither target has received D00a2 acceptance. Retain its reached prohibited-route/
+benign controls, independent backend review, build, ordinary-account login and
+exact-candidate both-target short usability gate. A pre-fix refusal is not a
+usable-session or defense pass.
+
 #### D00a prerequisite allocation
 
 D00a's source inspection confirmed the service allowlist in native
@@ -393,6 +439,7 @@ claimed. The [ordered queue](../Kiosk-Desktop-Queue.md) now allocates:
 | Owner | Remaining finite deliverable |
 | --- | --- |
 | D00a1 | Completed: short public history qualified on both targets with restoration and runner cleanup. The wider completed baseline stays accepted. |
+| D00a2q | Qualify the real graphical service-variation binding, independent selected-session/result observations and owned restoration on both targets before the service-dispatch product edit; no consumer acceptance credit. |
 | D00a2 | Remove unjustified service-name rejection; verify actual dedicated graphical execution through the affected service, a reached prohibited-route control and ordinary-account login, with same-candidate both-target public usability. |
 | D00a3 | Remove the avoidable saved-routing/discovery admission dependency, including drift, malformed-reply and transient discovery controls. Keep invalid identity/authority barriers and prove restored public use on both targets. |
 | D00a | Resolve owned lease/recovery at native `admission`/`lock_current` and lifecycle `barriers`, preserving live/foreign state, read-only Fedora leases and active writer exclusion. Include stale-mode, retained-handle and release/reentry controls with both-target usability. |

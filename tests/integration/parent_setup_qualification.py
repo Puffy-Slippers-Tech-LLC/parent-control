@@ -248,6 +248,27 @@ class KioskEntryQualification(ParentJourneyQualification):
         lease._restored_name = name
 
 
+class KioskServiceVariationQualification(KioskEntryQualification):
+    """One real automatic-login variation, followed by normal restored entry."""
+
+    @staticmethod
+    def journey(context, progress):
+        from gdm_service_variation import qualify
+        journey = KioskEntryQualification.journey(context, progress)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage == 'setup-detached':
+                observed['service_variation'] = qualify(journey.transport, context.lease)
+                smoke.require(observed['service_variation']['result'] == 'account-refused'
+                    and observed['service_variation']['app_execution_qualified'] is False,
+                    'gdm-variation:unexpected-current-product-result')
+
+        journey.check_settings = check
+        return journey
+
+
 class KioskPreferencesConfinementQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

@@ -413,8 +413,10 @@ normal gray text; only `[on]`/`[off]` is a blue, underlined, clickable link.
 Simplified defaults to on
 and shows the agent's text messages, using the same descriptive transcript
 previously displayed at bottom right. Each message keeps the standard leading
-`•`, a blank line between messages and indented continuation lines. Non-text
-activity shows a single line ending in `...`, such as `• Ran tools/run-tests --help...`
+`•`, a blank line between messages and indented continuation lines.
+Prose paragraphs wrap to the current panel width, including after resizing;
+the supervisor retains logical lines and preserves explicit Markdown breaks.
+Non-text activity shows a single line ending in `...`, such as `• Ran tools/run-tests --help...`
 or `• Explored Search tests...`, with the full view's verb and content colors.
 Consecutive non-text events replace that line in place; a text message keeps the
 preceding activity line in history and starts a new message. Activity previews

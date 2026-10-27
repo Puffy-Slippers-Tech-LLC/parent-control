@@ -17,6 +17,7 @@ from urllib.error import HTTPError, URLError
 import pytest
 
 from tools import publish
+from tools.publishing import channels
 from tests.support.paths import ROOT
 
 
@@ -235,7 +236,8 @@ def execution(tmp_path, monkeypatch):
     (directory / 'source').mkdir()
     state = dict(phase='prepared', version='1.1+ppa1~ubuntu26.04.1', product='1.1',
                  revision='frozen', base='base', source_tag='v1.1+ppa1_ubuntu26.04.1',
-                 product_tag='v1.1', branch='releases/v1.1', directory=str(directory))
+                 product_tag='v1.1', branch='releases/v1.1', directory=str(directory),
+                 checkout=str(ROOT), main_update={'phase': 'pending', 'checkout': str(ROOT)})
     state_path = tmp_path / 'state.json'
     publish.save(state_path, state)
     calls = []
@@ -267,35 +269,118 @@ def execution(tmp_path, monkeypatch):
     monkeypatch.setattr(publish, 'archive_preflight', lambda: None)
     monkeypatch.setattr(publish, 'sources', lambda version=None: [])
     monkeypatch.setattr(publish, 'wait_for_publication', wait)
-    monkeypatch.setattr(publish, 'update_main_checkout', lambda *args: calls.append(('main-update',)))
+    def update_main(root, current_state, current_path):
+        calls.append(('main-update',))
+        current_state['main_update']['phase'] = 'complete'
+        publish.save(current_path, current_state)
+
+    monkeypatch.setattr(publish, 'confirm_main_update', lambda root, base, update: update)
+    monkeypatch.setattr(publish, 'update_main_checkout', update_main)
     monkeypatch.setattr(publish, 'finish_checkout', lambda *args: calls.append(('finish',)))
     return state, state_path, calls
 
 
-def test_full_workflow_publishes_without_local_tests(execution):
+def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkeypatch):
     state, path, calls = execution
-    publish.execute(ROOT, state, path)
-    assert state['phase'] == 'complete'
+    root = tmp_path / 'checkout'
+    state['checkout'] = str(root)
+    (root / 'data').mkdir(parents=True)
+    (root / 'docs').mkdir()
+    (root / 'data/app.json').write_text('{"version": "1.1"}')
+    (root / publish.HISTORY).write_text(NOTES)
+    monkeypatch.setattr(publish, 'journal_directory', lambda root: path.parent)
+    original = publish.command
+
+    def command(*args, **kwargs):
+        if args[:3] == ('git', 'branch', '--show-current'):
+            return state['branch']
+        return original(*args, **kwargs)
+
+    def source_history(version=None):
+        if any(call[0] == 'dput' for call in calls):
+            return [dict(source_package_version=state['version'], distro_series_link=publish.SERIES)]
+        return []
+
+    def submit(revision, authorization):
+        recorded = json.loads(path.with_name('channels.json').read_text())
+        assert recorded['rpm']['phase'] == 'upload-started'
+        assert any(call[0] == 'dput' for call in calls)
+        assert ('wait',) not in calls
+        calls.append(('copr-submit',))
+        return dict(id=123, ownername=channels.copr.OWNER, projectname=channels.copr.PROJECT)
+
+    monkeypatch.setattr(publish, 'command', command)
+    monkeypatch.setattr(publish, 'sources', source_history)
+    def public_check(*args, **kwargs):
+        calls.append(('public-check',))
+        return {'version': state['version']}
+
+    monkeypatch.setattr(publish, 'published_binary', public_check)
+    monkeypatch.setattr(publish, 'publish', lambda root, wait=True: publish.execute(root, state, path, wait=wait))
+    monkeypatch.setattr(channels, 'pin_source', lambda *a: 'a' * 40)
+    monkeypatch.setattr(channels.copr, 'credentials', lambda: 'private test credential')
+    monkeypatch.setattr(channels.copr, 'submit', submit)
+    monkeypatch.setattr(channels.copr, 'status', lambda product, record:
+                        ('published', 'verified') if ('copr-submit',) in calls else ('absent', 'not submitted'))
+    channels.run(root, publish)
+    assert json.loads(path.read_text())['phase'] == 'complete'
     commands = [call[0] for call in calls]
     assert commands.index('dpkg-buildpackage') < commands.index('debsign')
     assert not {'make', 'lintian', 'sbuild', 'dpkg-checkbuilddeps'} & set(commands)
     assert not any('--check-only' in call for call in calls)
     push = next(i for i, call in enumerate(calls) if call[:2] == ('git', 'push'))
     upload = next(i for i, call in enumerate(calls) if call[0] == 'dput' and '--check-only' not in call)
-    assert commands.index('debsign') < push < upload < commands.index('wait') < commands.index('finish')
-    assert upload < commands.index('main-update') < commands.index('wait')
+    assert commands.index('debsign') < push < upload < commands.index('public-check') < commands.index('finish')
+    assert upload < commands.index('main-update') < commands.index('public-check')
+    assert upload < commands.index('copr-submit') < commands.index('public-check')
+    assert ('wait',) not in calls  # No second poll through the legacy publisher.
     assert '--atomic' in calls[push]
     assert 'HEAD:refs/heads/releases/v1.1' in calls[push]
     assert not any('HEAD:refs/heads/main' in call for call in calls)
+    before = list(calls)
+    channels.run(root, publish)
+    assert all(call[:2] == ('git', 'symbolic-ref') or call == ('public-check',) for call in calls[len(before):])
 
 
 @pytest.mark.parametrize('phase', ['upload-started', 'published'])
-def test_resume_never_reuploads_or_rebuilds_an_attempted_upload(execution, phase):
+def test_resume_never_reuploads_or_rebuilds_an_attempted_upload(execution, phase, tmp_path, monkeypatch):
     state, path, calls = execution
     state['phase'] = phase
-    publish.execute(ROOT, state, path)
+    root = tmp_path / 'checkout'
+    (root / 'data').mkdir(parents=True)
+    (root / 'docs').mkdir()
+    (root / 'data/app.json').write_text('{"version": "1.1"}')
+    (root / publish.HISTORY).write_text(NOTES)
+    main_phase = 'complete' if phase == 'upload-started' else 'pending'
+    state.update(checkout=str(root), main_update={'phase': main_phase, 'checkout': str(root)})
+    publish.save(path, state)
+    monkeypatch.setattr(publish, 'journal_directory', lambda root: path.parent)
+    original = publish.command
+    monkeypatch.setattr(publish, 'command', lambda *args, **kwargs:
+                        state['branch'] if args[:3] == ('git', 'branch', '--show-current')
+                        else original(*args, **kwargs))
+    monkeypatch.setattr(publish, 'sources', lambda version=None: [dict(
+        source_package_version=state['version'], distro_series_link=publish.SERIES)])
+    checks = []
+
+    def check(version, *, progress):
+        checks.append(version)
+        if phase == 'upload-started' and len(checks) == 1:
+            progress['detail'] = 'queued'
+            return None
+        return {'version': version}
+
+    monkeypatch.setattr(publish, 'published_binary', check)
+    monkeypatch.setattr(channels.copr, 'status', lambda *a: ('published', 'verified'))
+    monkeypatch.setattr(publish, 'publish', lambda *a, **k: pytest.fail('re-entered full publisher'))
+    monkeypatch.setattr(publish, 'verify_frozen', lambda *a: pytest.fail('required old upload archives'))
+    if main_phase == 'complete':
+        monkeypatch.setattr(publish, 'confirm_main_update', lambda *a: pytest.fail('repeated completed main pause'))
+    channels.run(root, publish)
     assert not any(call[0] in ('dput', 'dpkg-buildpackage', 'debsign', 'lintian') for call in calls)
-    assert state['phase'] == 'complete'
+    assert ('wait',) not in calls
+    assert json.loads(path.read_text())['phase'] == 'complete'
+    assert calls.count(('main-update',)) == (0 if main_phase == 'complete' else 1)
 
 
 def test_source_integrity_failure_prevents_all_remote_mutations(execution, monkeypatch):
@@ -358,10 +443,81 @@ def launchpad(monkeypatch):
     return version, source, build, binary
 
 
-def test_success_requires_exact_downloadable_indexed_package(launchpad):
-    version, _, _, _ = launchpad
+@pytest.fixture
+def copr_service(monkeypatch):
+    copr = channels.copr
+    repository = 'https://download.copr.fedorainfracloud.org/results/test/project/fedora-44-x86_64/'
+    build = dict(id=10, ownername=copr.OWNER, projectname=copr.PROJECT, state='succeeded',
+                 chroots=[copr.CHROOT], source_package={'name': publish.release.PACKAGE, 'version': '1.1-1'})
+    listing = [build]
+    payload = b'published RPM fixture'
+    primary = (f'<metadata xmlns="http://linux.duke.edu/metadata/common"><package>'
+               f'<name>{publish.release.PACKAGE}</name><arch>x86_64</arch><version ver="1.1" rel="1.fc44"/>'
+               f'<location href="00000010-{publish.release.PACKAGE}/package.rpm"/>'
+               f'<checksum type="sha256">{hashlib.sha256(payload).hexdigest()}</checksum>'
+               f'<size package="{len(payload)}"/></package></metadata>').encode()
+    packed = gzip.compress(primary)
+    repomd = (f'<repomd xmlns="http://linux.duke.edu/metadata/repo"><data type="primary">'
+              f'<location href="repodata/primary.xml.gz"/><checksum type="sha256">'
+              f'{hashlib.sha256(packed).hexdigest()}</checksum></data></repomd>').encode()
+    responses = {repository + 'repodata/repomd.xml': repomd,
+                 repository + 'repodata/primary.xml.gz': packed,
+                 repository + f'00000010-{publish.release.PACKAGE}/package.rpm': payload}
+
+    def api(endpoint, **params):
+        if endpoint == '/project':
+            return dict(ownername=copr.OWNER, name=copr.PROJECT, chroot_repos={copr.CHROOT: repository})
+        if endpoint.startswith('/build/built-packages/'):
+            return {copr.CHROOT: {'packages': [dict(name=publish.release.PACKAGE, version='1.1', arch='x86_64')]}}
+        if endpoint.startswith('/build/source-build-config/'):
+            return {'source_type': 'scm', 'source_dict': dict(
+                type='git', clone_url=copr.GIT_URL, committish='a' * 40, subdirectory='',
+                spec='rpm/oh-no-parent-control.spec.in', srpm_build_method='make_srpm')}
+        pytest.fail('unexpected COPR API operation: ' + endpoint)
+
+    monkeypatch.setattr(copr, 'api', api)
+    monkeypatch.setattr(copr, 'builds', lambda: listing)
+    monkeypatch.setattr(copr, 'read', lambda url, **kwargs: responses[url])
+    return build, listing, responses
+
+
+def test_success_requires_exact_downloadable_indexed_package(launchpad, copr_service, monkeypatch):
+    version, old_source, _, _ = launchpad
     result = publish.published_binary(version)
     assert result['version'] == version and result['sha256']
+    build, listing, _ = copr_service
+    record = {'build_id': build['id']}
+    listing.append(dict(build, id=11, state='failed'))
+    assert channels.copr.status('1.1', record)[0] == 'published'
+    assert record['build_id'] == 10
+    build['state'] = 'running'
+    assert channels.copr.status('1.1', record)[0] == 'pending'
+    assert record['build_id'] == 10  # A later failed rebuild cannot retarget this attempt.
+    newer = version.replace('+ppa1', '+ppa2')
+    monkeypatch.setattr(publish, 'sources', lambda version=None: [old_source, dict(
+        old_source, source_package_version=newer)])
+    original = publish.published_binary
+
+    def check(candidate, *, progress):
+        if candidate == newer:
+            raise ValueError('newer build failed')
+        return original(candidate, progress=progress)
+
+    monkeypatch.setattr(publish, 'published_binary', check)
+    deb_record = {'phase': 'upload-started', 'version': version}
+    assert channels.deb_status('1.1', deb_record, publish)[0] == 'published'
+    assert deb_record['published_version'] == version
+    # Without a verified publication, continue following the exact submitted
+    # revision even when a later same-product source exists and failed.
+    def pending(candidate, *, progress):
+        if candidate == newer:
+            raise ValueError('newer build failed')
+        progress['detail'] = 'queued'
+        return None
+
+    monkeypatch.setattr(publish, 'published_binary', pending)
+    assert channels.deb_status('1.1', deb_record, publish) == ('pending', 'queued')
+    assert deb_record['version'] == version
 
 
 @pytest.mark.parametrize('gate,reason', [
@@ -399,7 +555,7 @@ def test_success_is_not_claimed_while_any_publication_gate_is_pending(launchpad,
     assert reason in progress['detail']
 
 
-def test_terminal_launchpad_failure_and_binary_tampering_are_errors(launchpad, monkeypatch):
+def test_terminal_launchpad_failure_and_binary_tampering_are_errors(launchpad, monkeypatch, copr_service):
     version, _, build, _ = launchpad
     build['buildstate'] = 'Failed to build'
     with pytest.raises(ValueError, match='Failed to build'):
@@ -410,6 +566,23 @@ def test_terminal_launchpad_failure_and_binary_tampering_are_errors(launchpad, m
                         if url.endswith('Packages.gz') else b'corrupt')
     with pytest.raises(ValueError, match='does not match'):
         publish.published_binary(version)
+    copr_build, listing, responses = copr_service
+    # Recover a lost POST response even when source generation failed before
+    # COPR learned the package's name/version. Never submit it again.
+    copr_build.update(state='failed', source_package={})
+    record = {'phase': 'upload-started', 'revision': 'a' * 40}
+    with pytest.raises(ValueError, match='build 10 failed'):
+        channels.copr.status('1.1', record)
+    assert record['build_id'] == 10
+    listing.clear()
+    with pytest.raises(ValueError, match='HTTP 403'):
+        channels.copr.status('1.1', {'phase': 'rejected', 'revision': 'a' * 40, 'http_status': 403})
+    copr_build.update(state='succeeded', source_package={'name': publish.release.PACKAGE, 'version': '1.1-1'})
+    listing.append(copr_build)
+    rpm_url = next(url for url in responses if url.endswith('.rpm'))
+    responses[rpm_url] = b'corrupt RPM'
+    with pytest.raises(ValueError, match='RPM checksum mismatch'):
+        channels.copr.status('1.1', {'build_id': 10})
 
 
 def test_polling_recovers_transient_network_errors_without_upload(tmp_path, monkeypatch, capsys):
@@ -505,11 +678,11 @@ def test_public_reads_require_cache_revalidation(monkeypatch):
 def test_main_colors_errors_and_success_and_restores_environment(monkeypatch, capsys):
     monkeypatch.setenv('APT_PACKAGE_PRIVATE_KEY_PASSPHRASE', 'secret')
 
-    def fail():
+    def fail(*args, **kwargs):
         assert 'APT_PACKAGE_PRIVATE_KEY_PASSPHRASE' not in os.environ
         raise ValueError('release failed')
 
-    monkeypatch.setattr(publish, 'publish', fail)
+    monkeypatch.setattr(channels, 'run', fail)
     assert publish.main([]) == 1
     assert '\033[31m' in capsys.readouterr().err
     assert os.environ['APT_PACKAGE_PRIVATE_KEY_PASSPHRASE'] == 'secret'
@@ -671,12 +844,12 @@ def test_status_without_any_release_fails_without_creating_journal(repository, m
 def test_status_cli_never_dispatches_publisher(monkeypatch, capsys, interrupted):
     calls = []
 
-    def monitor():
+    def monitor(*args):
         calls.append('status')
         if interrupted:
             raise KeyboardInterrupt
 
-    monkeypatch.setattr(publish, 'publication_status', monitor)
+    monkeypatch.setattr(channels, 'monitor_status', monitor)
     monkeypatch.setattr(publish, 'publish', lambda: pytest.fail('publisher called'))
     assert publish.main(['--status']) == (130 if interrupted else 0)
     assert calls == ['status']

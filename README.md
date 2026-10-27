@@ -47,7 +47,7 @@ in the private `.envrc` file; neither uses an environment-variable fallback.
 You can use the same password to log in manually. Do not commit it or put the
 real value in `.envrc.example`.
 
-For Fedora COPR publishing, copy [copr.example](copr.example) to
+For Fedora COPR publishing, copy [copr.example](config/copr.example) to
 `~/.config/copr` only if that file is absent:
 
 ```sh
@@ -132,7 +132,7 @@ current version using the same selection.
 Run tests separately. See [Publishing](docs/Publishing.md) for private upgrade
 testing and publication without another product-version bump, and
 [Fedora packaging](docs/Fedora-Packaging.md) for prerequisites, focused commands,
-local VM qualification and the future COPR recipe.
+local VM qualification and the COPR publishing channel.
 
 | Task | Command |
 | --- | --- |

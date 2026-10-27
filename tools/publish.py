@@ -160,12 +160,12 @@ def journal_directory(root):
 
 
 @contextmanager
-def locked(root, *, attach=False):
+def locked(root, *, attach=False, name='lock'):
     directory = journal_directory(root)
     directory.mkdir(mode=0o700, exist_ok=True)
     if directory.is_symlink() or directory.stat().st_uid != os.getuid():
         raise ValueError('unsafe publishing journal directory')
-    fd = os.open(directory / 'lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    fd = os.open(directory / name, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'w') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -547,6 +547,15 @@ def reconcile_main_monitor(state, state_path):
                 return
         save(path, {'version': version, 'phase': state['phase'],
                     'journal': str(state_path.resolve())})
+        # The dual-channel coordinator creates its journal before source work.
+        # Publish its reference before MAIN UPDATED so a reader on main sees
+        # both channels even while COPR submission has yet to start.
+        channels_path = state_path.with_name('channels.json')
+        if channels_path.exists():
+            channels = json.loads(channels_path.read_text(encoding='utf-8'))
+            if channels.get('product') == state['product']:
+                save(target_state.with_name('channels-monitor.json'),
+                     dict(channels, journal=str(channels_path.resolve())))
 
 
 def inspect_source(checkout, log):
@@ -716,7 +725,7 @@ def publication_version_key(version):
     return tuple(int(part) for part in match.groups())
 
 
-def publication_status(root=ROOT):
+def publication_status(root=ROOT, *, wait=True):
     """Read one release snapshot and monitor it without local or remote writes.
 
     The publisher atomically replaces the journal. Readers need no writer lock,
@@ -767,8 +776,10 @@ def publication_status(root=ROOT):
         version = state.get('version')
         publication_version_key(version)
         say('monitoring the recorded release; checkout changes do not affect status checks')
-    wait_for_publication({'version': version})
-    say(f'published {version} for resolute/amd64', success=True)
+    if wait:
+        wait_for_publication({'version': version})
+        say(f'published {version} for resolute/amd64', success=True)
+    return version
 
 
 def finish_checkout(root, state, log):
@@ -785,7 +796,35 @@ def finish_checkout(root, state, log):
     command('git', 'fetch', '--tags', 'origin', cwd=root, log=log)
 
 
-def execute(root, state, state_path):
+def resume_delivery(root, state, state_path, *, published=False, confirmed=False):
+    """Finish recorded Git bookkeeping without re-entering package submission."""
+    if (state.get('checkout') != str(root)
+            or publishing_branch(root, state['product']) != state.get('branch')):
+        raise ValueError('release recovery belongs to a different checkout or branch')
+    if state['phase'] == 'complete':
+        return
+    if state['phase'] not in ('upload-started', 'published'):
+        raise ValueError('release recovery requires a recorded submission')
+    directory = Path(state['directory'])
+    if not directory.is_dir():
+        raise ValueError('release recovery directory is missing; restore the retained Git checkout and journal')
+    if state['main_update']['phase'] != 'complete':
+        if not confirmed:
+            state['main_update'] = confirm_main_update(root, state['base'], state['main_update'])
+            save(state_path, state)
+        update_main_checkout(root, state, state_path)
+        highlight('MAIN UPDATED: cherry-pick and synchronization with origin/main completed. '
+                  'You can resume main development. Publication monitoring continues.', success=True)
+    if published:
+        state['phase'] = 'published'
+        save(state_path, state)
+        finish_checkout(root, state, directory / 'release.log')
+        state['phase'] = 'complete'
+        save(state_path, state)
+        save(directory / 'release.json', state)
+
+
+def execute(root, state, state_path, *, wait=True):
     if publishing_branch(root, state['product']) != state['branch']:
         raise ValueError('publishing branch changed; restore the recorded release branch')
     directory = Path(state['directory'])
@@ -843,18 +882,17 @@ def execute(root, state, state_path):
         except (ValueError, subprocess.TimeoutExpired):
             say('upload result uncertain; checking Launchpad without repeating the upload', error=True)
     if state['phase'] in ('upload-started', 'published'):
-        update_main_checkout(root, state, state_path)
-        highlight('MAIN UPDATED: cherry-pick and synchronization with origin/main completed. '
-                  'You can resume main development. Publication monitoring continues.', success=True)
+        resume_delivery(root, state, state_path, confirmed=True)
+    if not wait:
+        return
     if state['phase'] == 'upload-started':
         wait_for_publication(state, state_path)
     if state['phase'] == 'published':
-        finish_checkout(root, state, log)
-        advance('complete')
+        resume_delivery(root, state, state_path, published=True)
     say(f'published {state["version"]} for resolute/amd64; report: {directory / "release.json"}', success=True)
 
 
-def publish(root=ROOT):
+def publish(root=ROOT, *, wait=True):
     if command('git', 'branch', '--show-current', cwd=root) == 'main':
         publication_status(root)
         return
@@ -890,7 +928,10 @@ def publish(root=ROOT):
                 state['main_update'] = confirm_main_update(root, state['base'], state.get('main_update'))
                 save(state_path, state)
                 say(f'resuming {state["version"]} at {state["phase"]}')
-                execute(root, state, state_path)
+                if wait:
+                    execute(root, state, state_path)
+                else:
+                    execute(root, state, state_path, wait=False)
                 return
         product, notes = history_entry(history, current)
         publishing_branch(root, product)
@@ -901,7 +942,10 @@ def publish(root=ROOT):
         state['main_update'] = main_update
         save(state_path, state)
         save(directory / 'release.json', state)
-        execute(root, state, state_path)
+        if wait:
+            execute(root, state, state_path)
+        else:
+            execute(root, state, state_path, wait=False)
 
 
 class PublisherParser(argparse.ArgumentParser):
@@ -920,10 +964,8 @@ def main(argv=None):
     try:
         os.environ.clear()
         os.environ.update(safe_env)
-        if args.status:
-            publication_status()
-        else:
-            publish()
+        from tools.publishing import channels
+        channels.run(ROOT, sys.modules[__name__], status=args.status)
     except ValueError as error:
         say(str(error), error=True)
         return 1

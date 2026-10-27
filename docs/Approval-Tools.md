@@ -269,8 +269,10 @@ On main, or alongside a running publisher in the same release checkout,
 `make publish` connects to read-only publication monitoring instead.
 It validates `docs/VersionHistory.md`, commits pending release-checkout changes,
 signs, pushes
-the source to that release branch and tags, uploads to Launchpad, and verifies
-binary publication. It asks for confirmation of a development pause before
+the source to that release branch and tags, submits missing DEB/RPM releases to
+Launchpad/COPR through independent product-version gates, and verifies binary
+repository publication. Pending or uncertain submissions are monitored without
+resubmission. It asks for confirmation of a development pause before
 directly merging committed release changes into main, then automatically
 cherry-picking and pushing release metadata to main. Its
 checkout-local publishing lock does not participate in development/build/test

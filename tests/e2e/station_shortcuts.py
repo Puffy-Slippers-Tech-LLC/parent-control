@@ -79,3 +79,5 @@ class StationShortcutsJourney(InstalledJourney):
                 station = self.shortcut_results[f'kiosk-shortcut-{route}-read']
                 require(station['usable_request'] is True,
                         'station-shortcuts:request-unusable:' + route)
+                require(station['outcome'] == 'request-only',
+                        'station-shortcuts:desktop-launch-controls-exposed:' + route)

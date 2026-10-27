@@ -106,6 +106,8 @@ def test_plan_adapter_shares_master_ownership_and_common_controls(
     monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
     monkeypatch.setattr(vm_selection, 'execution_selection', lambda selector: selections.append(selector))
     monkeypatch.setattr(vm_selection, 'execution_binding', lambda: None)
+    retained_binding = {'vm': {'concurrency': 1, 'vms': ['original-guest']}}
+    workflow.launcher.atomic(rig.run / 'vm.json', retained_binding)
     def follow(run, *, view, **_kwargs):
         assert isinstance(view, ExecutionPlanView)
         assert view.plan == (str(rig.root), rig.plan.path)
@@ -129,7 +131,8 @@ def test_plan_adapter_shares_master_ownership_and_common_controls(
     monkeypatch.setattr(workflow.launcher, 'select', select)
     controls = ['--stop'] if action == 'stop' else ['--tasks', '0']
     assert invoke('--plan', rig.plan.path, *controls) == 0
-    assert selections == ([] if action == 'stop' or not _spec.vm else [None])
+    assert selections == []
+    assert json.loads((rig.run / 'vm.json').read_text()) == retained_binding
     assert TaskBudget(rig.run).read()['tasks'] == (1 if action == 'stop' else None)
 
 

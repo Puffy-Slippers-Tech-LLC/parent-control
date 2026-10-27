@@ -206,7 +206,10 @@ queue/checkpoint, then reuse that screen when the backend starts. Ctrl+C retains
 signal-based cancellation during startup; chat input starts when the owner is ready.
 Closing an observer terminal detaches. Repeating the command reconnects to
 the same owner and retained checkpoint; model defaults do not change an active
-run. Attachment and `--stop` use the master's stable checkout-relative path and
+run. On attachment, `--reload` or `--stop`, omitted `--vm` preserves that owner's VM queue
+and concurrency; fresh execution uses the current configured defaults. An explicit
+`--vm` must match the active run's binding.
+Attachment and `--stop` use the master's stable checkout-relative path and
 remain available while its contents or queue are incomplete; `--check` and fresh
 execution still validate the plan. A fresh plan run automatically resumes unfinished work, including accepted
 Git close-out and interrupted validation. It allows five more task implementation

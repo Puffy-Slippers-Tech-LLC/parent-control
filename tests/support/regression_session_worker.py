@@ -21,6 +21,9 @@ import vm_pool
 if not (Path(sys.argv[1]) / 'recover-host').exists():
     test_recovery.before_run = lambda root, argv, **kwargs: 0
 test_commands.selections = lambda root, argv: [(argv[0], argv[1:])]
+# Keep real checkpoint bookkeeping, but do not discover installed-test histories
+# in this empty synthetic checkout. This double never executes those histories.
+test_commands.execution_selections = lambda root, selections: selections
 # This harmless process tests detached ownership only. The separate recording
 # UI tests exercise the real private compositor, encoder and publication.
 vm_recording.recording = lambda *args, **kwargs: nullcontext(None)

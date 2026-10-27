@@ -662,8 +662,9 @@ Bindings: request = approved / denied / cancelled.
 
 C11d (`onpc-Ubuntu26.04`) and C12d (`onpc-Fedora44`) consume the two finite
 local routes below. They are task IDs, not registered selectors. D03 audited
-the current composition; D03a and D03b qualified the selection and shortcut
-verdicts on both targets. D03 still owns the final readiness audit.
+the current composition and confirmed its registered final comparisons;
+D03a and D03b qualified the selection and shortcut verdicts on both targets.
+These exact bindings are ready for the candidate-matching final target runs.
 Existing qualification observations and completed C07a/C07s usability stay
 accepted; this map grants no new installed acceptance.
 
@@ -695,8 +696,8 @@ envelope; fixed input roles are Jordan (ordinary `other-child` entry), Riley
 (`fixture-child`) and Jamie (`fixture-parent`). Public setup starts with Riley's
 limits disabled and records settings before enabling them.
 
-After D03a/D03b pass and D03 freezes readiness, run only the selected target's
-two route histories for final acceptance:
+With D03a/D03b complete and D03's readiness audit closed, run only the selected
+target's two route histories for final acceptance:
 
 ```sh
 tools/run-tests --vm 'onpc-Ubuntu26.04' integration check_e2e_public_desktop_selection

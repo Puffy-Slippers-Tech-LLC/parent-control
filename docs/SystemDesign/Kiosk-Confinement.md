@@ -1066,12 +1066,14 @@ product defect or a reason to reopen completed qualification:
   eight results, normal surface closure, Cancel/fresh usable entry, public
   settings restoration and runner/baseline cleanup.
 
-D03a and D03b are complete before unfinished D03. These prerequisites reuse
+D03's final source/catalogue audit confirmed both enforcing comparisons and
+their registered wrappers, shared observations and complete restoration histories.
+D03a and D03b's completed both-target qualifications make these exact bindings
+ready for C11d/C12d, subject to the candidate checks in the recipe. They reuse
 existing inputs, providers, workers and observations and add no product barrier
-or new general capability.
-D03 must inspect their completed source/catalogue results before freezing final
-readiness; the two selectors now include their required final negative verdicts.
-There is no remote-desktop prerequisite or acceptance here.
+or new general capability. No independent implementation or qualification gap
+remains in this finite composition. Final target acceptance still belongs to
+C11d/C12d; there is no remote-desktop prerequisite or acceptance here.
 
 For a concrete later change, select only affected checks: admission/session edits
 use the D01-linked login/PAM regressions, ordinary desktop selection and short

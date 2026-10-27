@@ -126,7 +126,11 @@ class Output:
             seen_vm = False
             for line in details[1:]:
                 if clean(line).startswith('VM: '):
-                    if seen_vm and spaced[-1]:
+                    # Removing Overall can leave its blank row beside the
+                    # queue's separator. Keep one blank between VM sections.
+                    while spaced and not clean(spaced[-1]).strip():
+                        spaced.pop()
+                    if seen_vm:
                         spaced.append('')
                     seen_vm = True
                 spaced.append(line)

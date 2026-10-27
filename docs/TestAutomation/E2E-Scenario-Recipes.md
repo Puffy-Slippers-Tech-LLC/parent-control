@@ -658,6 +658,89 @@ Bindings: request = approved / denied / cancelled.
 2. FLOW04(entry=open) → REQUEST09 → AUTH02(outcome) → REQUEST11. Repeat restrictions if form remains.
 3. REQUEST12(cancel or automatic) → GDM01.
 
+### Local desktop acceptance composition
+
+C11d (`onpc-Ubuntu26.04`) and C12d (`onpc-Fedora44`) consume the two finite
+local routes below. They are task IDs, not registered selectors. D03 audited
+the current composition; D03a qualified the selection verdict on both targets,
+while the shortcut verdict remains **pending D03b**.
+Existing qualification observations and completed C07a/C07s usability stay
+accepted; this map grants no new installed acceptance.
+
+| Existing binding | Finite input and independent required result | Readiness for final acceptance |
+| --- | --- | --- |
+| `check_e2e_public_desktop_selection` → `PublicDesktopSelectionQualification` → `PublicDesktopSelectionJourney` / `onpc_public_desktop_selection::run` | Jordan chooses Ubuntu (`ubuntu.desktop`) or GNOME (`gnome.desktop`) and reaches a usable ordinary Shell desktop. Direct station entry and ordinary chooser → Cancel → station must each yield `request-only`, with actual chooser disposition, selected desktop-file command, station UID/local Wayland session and manager/Kiosk process observations. Riley/Jamie request controls remain usable. An unexposed chooser is a finite no-route result; a chosen alternate desktop is not claimed denied when none was selectable. | Input/result observation qualified by C07a1. D03a qualified the final verdict on both targets: both result stages must be `request-only` after complete restoration and usable reentry. Exposed-desktop observations and safe exit remain intact; ordinary positives and owned cleanup passed. |
+| `check_e2e_station_shortcuts` → `StationShortcutsQualification` → `StationShortcutsJourney` / `onpc_station_shortcuts::run` | For `overview`, `grid`, `run`, `terminal`, send Super, Super+A, Alt+F2, Ctrl+Alt+T once each on Jordan's desktop and once each in the usable Riley/Jamie station. Ordinary outcomes must be overview, app-grid, run and terminal respectively; each station outcome must be `request-only`, with a usable form after each input. | All eight observations qualified by C07s1; Fedora's permanent Ctrl+Alt+T → Ptyxis baseline binding supplies its ordinary positive. The final comparison currently requires station usability but omits the four `request-only` predicates. D03b must add and qualify them on both targets. |
+
+The [catalogue](E2E-Building-Blocks.md#public-desktop-selection) owns provider
+qualification and [shortcut limits](E2E-Building-Blocks.md#request-session-shortcut-results).
+Use product Application UI API results and the qualified external GDM/Shell
+adapters, with their account, fresh recipient and single-use input guards.
+Missing positives, unknown providers, timeouts, incomplete observations and
+cleanup failures grant no defense pass. No remote provider, terminal/TTY
+campaign or arbitrary-code execution claim belongs to this composition.
+
+#### Candidate inputs and commands
+
+Each integration wrapper uses `named_input(package_source=True)`: the selected
+VM name and current package-source digest select its shared named bundle.
+The maintained runner prepares missing inputs or verifies an existing bundle;
+Ubuntu requires DEB and Fedora RPM. It independently verifies the installed
+app-snapshot package and frozen recipe against the candidate, rejecting stale
+inputs. Do not substitute an old report, saved preference or arbitrary artifact
+override. See the [input dispatch](../../tools/test_commands.py) and
+[installed snapshot checks](../../tests/integration/parent_setup_qualification.py).
+Credentials and qualified native fixture preparation use the existing guarded
+envelope; fixed input roles are Jordan (ordinary `other-child` entry), Riley
+(`fixture-child`) and Jamie (`fixture-parent`). Public setup starts with Riley's
+limits disabled and records settings before enabling them.
+
+After D03a/D03b pass and D03 freezes readiness, run only the selected target's
+two route histories for final acceptance:
+
+```sh
+tools/run-tests --vm 'onpc-Ubuntu26.04' integration check_e2e_public_desktop_selection
+tools/run-tests --vm 'onpc-Ubuntu26.04' integration check_e2e_station_shortcuts
+tools/run-tests --vm 'onpc-Fedora44' integration check_e2e_public_desktop_selection
+tools/run-tests --vm 'onpc-Fedora44' integration check_e2e_station_shortcuts
+```
+
+Each journey retains its explicit 1800-second worker limit. Chooser,
+full-destination and independent launch checkpoints use 120-second deadlines;
+other existing UI/entry deadlines remain unchanged. The outer watchdog is not
+pause-aware; human decisions are not a new startup-performance assertion.
+Do not expand these finite inputs across request outcomes.
+
+#### Controls, reuse and restoration
+
+Reuse C07a/C07s's completed both-target
+[short confinement usability history](E2E-Building-Blocks.md#short-confinement-usability-history)
+for unchanged applicable product scope: Riley/Jamie, 900 seconds daily, initial
+zero grant, Custom `1.25` Minutes/75 seconds with soft apps included; separate
+wrong-password and authentication Cancel zero-grant results; genuine approval
+with independent 975-second expected-grant/elapsed-time check; normal exit and
+fresh usable entry. Its registered selector is
+`check_e2e_confinement_usability`, through `ConfinementUsabilityQualification`
+and `ConfinementUsabilityJourney` / `onpc_confinement_usability::run`, with the
+same 1800-second worker bound. If a concrete product change invalidates that
+reuse, its own both-target installed prerequisite must run this selector before
+completion; a later final task cannot supply a missing product gate.
+
+Selection restores exact owned saved routing with current-value/boot/account
+guards. Both route histories restore public policy and demonstrate Cancel and
+fresh usable passwordless entry. The short history additionally restores grants
+through public revoke/Confirm, zero allowance and limits off. Runner cleanup
+restores the baseline and persistent VM configuration, leaves the owned guest
+off and releases its lease. A restoration failure keeps the task open.
+
+Cases 50–52 retain their registered `restricted_station.py` approved/denied/
+cancelled histories and 1800-second bounds. They exercise three shortcuts,
+including repetition after rejection/Cancel, but supply neither Alt+F2 nor the
+ordinary positives or selected-launch evidence above. Reuse unchanged complete
+histories; do not rerun them merely for C11d/C12d labels or add a shortcut ×
+approval-outcome matrix. Directly affected action/overlay/enforcement controls
+are allocated by the [design owner](../SystemDesign/Kiosk-Confinement.md#d03-desktop-acceptance-audit).
+
 ### E2E-017
 
 Implementation status belongs to the scenario inventory.

@@ -1038,6 +1038,50 @@ qualification or acceptance work. Existing availability gaps remain open under
 their owners. D02 performs no product edit, VM/provider operation or live
 acceptance and owns no runtime state needing restoration.
 
+## D03 desktop acceptance audit
+
+The [local acceptance composition](../TestAutomation/E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
+records current candidate inputs, exact maintained selectors for C11d/C12d,
+finite public outcomes, timeouts and owned restoration. The block catalogue
+continues to own qualified operations; stable installed cases 50–52 remain in
+their inventory and recipe owners. D03 changes no product or executable
+inventory, grants no new installed pass, and trusts completed C07a/C07s's
+both-target usability and cleanup without inspecting historical reports.
+
+Source audit found two missing **final negative verdicts**, not an established
+product defect or a reason to reopen completed qualification:
+
+- `PublicDesktopSelectionUi.observe` records `full-desktop-gap` and safely exits
+  an observed full station desktop. D03a added the final comparison in
+  `PublicDesktopSelectionJourney.validate`: both direct/carry result stages must
+  be `request-only` after the complete history and restoration. Both-target
+  installed qualification passed, including the ordinary full-desktop positive,
+  usable Cancel/fresh entry, exact restoration and owned cleanup.
+- `StationShortcutsJourney.check_settings` compares eight captured results after
+  restoration. It requires the ordinary overview/grid/run/terminal positives and
+  station usability, but omits station `outcome == 'request-only'` for all four.
+  `AccessibleUI.shortcut_operation` and `UiObservations` can report a desktop/run
+  surface for this qualification binding; a remaining usable request alone cannot
+  establish absence. [D03b](../Kiosk-Prompt-Tasks/D03b-shortcut-verdict.md) owns
+  that finite comparison and both-target installed qualification.
+
+D03a is complete; D03b remains before unfinished D03. These prerequisites reuse
+existing inputs, providers, workers and observations and add no product barrier
+or new general capability.
+D03 must inspect their completed source/catalogue results before freezing final
+readiness; C11d/C12d must not consume a shortcut selector pass as its missing
+negative verdict. There is no remote-desktop prerequisite or acceptance here.
+
+For a concrete later change, select only affected checks: admission/session edits
+use the D01-linked login/PAM regressions, ordinary desktop selection and short
+usability; shortcut/action edits use their changed shared operation and matching
+ordinary positive, plus the short usability gate for product edits. Changed
+About, Preferences, feedback or Cancel/Escape callers use their existing named
+bindings in the D01 map. Add shared-overlay/enforcement controls only when their
+caller or authorization/enforcement boundary changes. Reuse unchanged complete
+histories; no tests of briefs/history, guard-matrix copies, new registry or
+coverage regeneration are justified by this documentation-only audit.
+
 ## Verification scope and evidence limits
 
 The completed v1.3-derived baseline validation accepted Ubuntu and Fedora core

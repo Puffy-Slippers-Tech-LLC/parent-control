@@ -2,7 +2,7 @@
 
 Acceptance: host
 
-Required tasks: C07s.
+Required tasks: C07s, D03a, D03b.
 Estimate: 20–30 min.
 
 Apply the [desktop task contract](../Kiosk-Desktop-Plan.md#task-execution-contract).
@@ -38,3 +38,19 @@ Product repairs require a small both-target installed prerequisite before editin
 this host-only map task cannot commit a product change.
 Run host consistency/link checks and inspect runner listing. Refresh generated
 coverage only if inventories changed. No installed acceptance is claimed here.
+
+## Current handoff
+
+The [design audit](../SystemDesign/Kiosk-Confinement.md#d03-desktop-acceptance-audit)
+and [existing recipe owner](../TestAutomation/E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
+now record the finite local compositions, inputs, commands, controls, bounds and
+restoration. D03a now requires both desktop-selection results to be request-only
+after restoration and passed both-target installed qualification and cleanup.
+The shortcut journey's final request-only verdict remains with D03b before D03
+can freeze readiness. This is a test-composition gap, not an observed product
+failure; do not reopen C07a/C07s or restore excluded coverage.
+
+After both prerequisites pass, inspect the affected final comparisons and
+catalogue readiness notes, finish this audit's host listing/link checks, then
+check D03 and advance to C11d. No VM or product resources were acquired by this
+audit; retain this brief while D03 remains unfinished.

@@ -3972,6 +3972,15 @@ This shortcut qualification supplies no complete-case credit.
 The existing two-second census is not a universal desktop fence. Machine
 observations retain finite deadlines inside the 1800-second worker envelope.
 
+D03 found a final-verdict gap: `StationShortcutsJourney.check_settings` compares
+the four ordinary outcomes and station `usable_request`, but does not require
+the four recorded station outcomes to be `request-only`. Qualification remains
+accepted for its observed scope; a selector pass alone cannot supply that final
+negative. [D03b](../Kiosk-Prompt-Tasks/D03b-shortcut-verdict.md) owns the bounded
+assertion repair and both-target qualification before the
+[local acceptance composition](E2E-Scenario-Recipes.md#local-desktop-acceptance-composition)
+is ready. Do not add a new provider or repeat the guard matrix.
+
 `tools/test-vm --vm NAME reproduce-station-shortcuts` reuses this journey,
 stopping after ordinary Alt+F2 input and before its result observation for
 engineering diagnosis. It retains the owned scene after worker cleanup; finish
@@ -4018,6 +4027,16 @@ not proof that an alternate command was denied. A full station desktop is a gap
 for C07a; this prerequisite changes no product barrier and supplies no C07a
 acceptance credit. Unknown providers, failed positives and incomplete observations
 remain inconclusive.
+
+D03a qualified the final request-only verdict on both targets.
+`PublicDesktopSelectionUi.observe` still records an exposed station Shell as
+`full-desktop-gap` and preserves its safe exit. After the complete history,
+`PublicDesktopSelectionJourney.validate` requires both `public-direct-result`
+and `public-carry-result` to be `request-only`, following routing/public-policy
+restoration, usable Cancel and fresh entry. Both targets passed this verdict,
+the ordinary full-desktop positive and owned runner/VM cleanup. Candidate
+inputs, commands and finite consumer assertions are in the
+[local acceptance composition](E2E-Scenario-Recipes.md#local-desktop-acceptance-composition).
 
 ### Graphical service variation
 

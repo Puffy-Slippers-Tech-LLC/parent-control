@@ -314,6 +314,25 @@ class KioskServiceRouteQualification(KioskEntryQualification):
                       'su-route:' + self.result['service_route']['result'])
 
 
+class RemoteLoginPreparationQualification(KioskEntryQualification):
+    """Prepare the isolated system Remote Login provider and restore its state."""
+
+    def journey(self, context, progress):
+        from remote_login_preparation import qualify
+        journey = KioskEntryQualification.journey(context, progress)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage == 'setup-detached':
+                self.result['remote_login_preparation'] = qualify(
+                    journey.transport, context.lease)
+                observed['remote_login_preparation'] = self.result['remote_login_preparation']
+
+        journey.check_settings = check
+        return journey
+
+
 class KioskRoutingVariationQualification(KioskEntryQualification):
     """Finite saved-routing controls, then normal restored public entry."""
 

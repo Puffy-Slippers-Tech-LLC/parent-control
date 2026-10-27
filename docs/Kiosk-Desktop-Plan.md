@@ -1,7 +1,7 @@
 # Prevent full desktop access through the kiosk account
 
 Task queue: [Ordered task queue](Kiosk-Desktop-Queue.md).
-Next task: **C07 — [Protect the supported remote-desktop route](Kiosk-Prompt-Tasks/C07-login-routes.md)**.
+Next task: **C07r2 — [Connect safely to remote sign-in](Kiosk-Prompt-Tasks/C07r2-remote-connection.md)**.
 
 ## Outcome and scope
 

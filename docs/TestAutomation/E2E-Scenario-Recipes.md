@@ -2448,6 +2448,12 @@ refused integration change; public kiosk approvals and independent Parent time
 readback establish usable requests. This does not expand the customer scenario
 inventory or qualify unrelated extension failures.
 
+The [missing-scenery history](E2E-Building-Blocks.md#requests-with-missing-optional-scenery)
+owns the representative optional-artwork fault, genuine approval with independent
+time readback, exact image restoration and usable fresh reentry. It is installed
+engineering coverage on both declared targets, without adding a customer scenario
+or presentation acceptance matrix.
+
 No pixel/layout/scale/style pass gate, generic GDM password test, website
 filtering, unrelated networking test, remote device management or unsupported
 copied-program guarantee is added. A missing feature, public route, observation,

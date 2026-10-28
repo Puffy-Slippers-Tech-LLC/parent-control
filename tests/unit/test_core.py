@@ -17,6 +17,7 @@ from oh_no_parent_control.preferences import (
     PreferencesError, default_preferences, validate_preferences, PreferenceStore, FORMAT_VERSION,
 )
 from oh_no_parent_control.execution_policy import ExecutionPolicyError
+from oh_no_parent_control.extension_manager import ChildExtensionUnavailable
 
 
 from tests.support.broker import (
@@ -528,6 +529,57 @@ class CoreTests(unittest.TestCase):
             make_broker(
                 preferences=preferences, extensions=FailingExtensions(),
             ).refresh_enabled_extensions()
+
+    def test_unavailable_child_activation_preserves_policy_requests_and_startup_retry(self):
+        class UnavailableExtensions(Extensions):
+            unavailable = True
+
+            def set_enabled(self, uid, enabled, *, recover_global_switch=False):
+                super().set_enabled(uid, enabled, recover_global_switch=recover_global_switch)
+                if uid == 1001 and self.unavailable:
+                    raise ChildExtensionUnavailable("child home is unavailable") from RuntimeError(
+                        "/home/private-child private@example.test")
+
+        accounts, preferences, extensions = Accounts(), Preferences(), UnavailableExtensions()
+        for uid in (1001, 1002):
+            value = preferences.load(uid)
+            preferences.save(uid, {**value, "parent_control_enabled": True})
+        saved = {uid: preferences.load(uid) for uid in (1001, 1002)}
+        live = (accounts.filter, accounts.limit_type, accounts.daily_limit,
+                accounts.daily_schedule, accounts.extension)
+        broker = make_broker(accounts=accounts, preferences=preferences, extensions=extensions)
+
+        with self.assertLogs("onpc", "ERROR") as logs:
+            self.assertEqual(broker.refresh_enabled_extensions(), (1002,))
+        self.assertTrue(any("extension refresh outcome=failed" in line for line in logs.output))
+        self.assertTrue(any("error_type=RuntimeError" in line for line in logs.output))
+        self.assertNotIn("private-child", "\n".join(logs.output))
+        self.assertNotIn("private@example.test", "\n".join(logs.output))
+        self.assertEqual({uid: preferences.load(uid) for uid in saved}, saved)
+        self.assertEqual((accounts.filter, accounts.limit_type, accounts.daily_limit,
+                          accounts.daily_schedule, accounts.extension), live)
+        self.assertEqual(accounts.events, [])
+        self.assertIn(1001, {user.uid for user in broker.list_managed_users(991)})
+
+        # Integration-dependent writes still refuse before changing policy.
+        with self.assertRaises(BackendFailure):
+            broker.set_parent_control(1003, 1001, False, 60)
+        self.assertEqual(preferences.load(1001), saved[1001])
+        self.assertEqual((accounts.filter, accounts.limit_type, accounts.daily_limit,
+                          accounts.daily_schedule, accounts.extension), live)
+
+        # Activation unavailability cannot veto requests with usable authoritative backends.
+        for uid in (1002, 1001):
+            _correlation, outcome, duration = broker.request_own_access(
+                uid, ":1.42", 1003, 300, True)
+            self.assertEqual(outcome, "approved")
+            self.assertGreaterEqual(duration, 300)
+        calls = list(extensions.calls)
+        extensions.unavailable = False
+        restarted = make_broker(accounts=accounts, preferences=preferences, extensions=extensions)
+        self.assertEqual(restarted.refresh_enabled_extensions(), (1001, 1002))
+        self.assertEqual(extensions.calls[len(calls):], [(1001, True), (1002, True)])
+        self.assertEqual(preferences.load(1001), saved[1001])
 
     def test_preference_transition_does_not_request_startup_switch_recovery(self):
         extensions = Extensions()

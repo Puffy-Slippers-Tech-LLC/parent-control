@@ -11,6 +11,7 @@ from common.oh_no_parent_control_ui.diagnostic_report import LANGUAGE_IDS, MAX_L
 import gettext
 from .grant_diagnostics import GrantDiagnostics
 from .execution_policy import ExecutionPolicyError
+from .extension_manager import ChildExtensionUnavailable
 import re
 import threading
 import time
@@ -306,7 +307,7 @@ class Broker:
             user.uid for user in self._accounts.list_users() if self._eligible(config, user))
 
     def refresh_enabled_extensions(self) -> tuple[int, ...]:
-        """Reassert extension activation for every enabled managed child."""
+        """Reassert enabled children; retry unavailable child integrations at startup."""
         config = self._load_config()
         if self._preferences is None or self._extensions is None:
             raise BackendFailure("extension management is unavailable")
@@ -324,7 +325,15 @@ class Broker:
                 if preferences["parent_control_enabled"]:
                     # A live user bus notifies an existing Shell immediately;
                     # otherwise the setting is durable for the next session.
-                    self._extensions.set_enabled(user.uid, True, recover_global_switch=True)
+                    try:
+                        self._extensions.set_enabled(user.uid, True, recover_global_switch=True)
+                    except ChildExtensionUnavailable as error:
+                        # This failure cannot replace saved policy or affect a
+                        # different child's request. Shared failures still stop
+                        # readiness, and direct activation still refuses.
+                        LOG.error("core.001", error_type=error_code(error.__cause__ or error))
+                        record_exception(error)
+                        continue
                     refreshed.append(user.uid)
             except Exception as error:
                 LOG.error("core.001", error_type=error_code(error))

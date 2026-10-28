@@ -122,14 +122,17 @@ sub enter_kiosk_mate_password {
         my $baseline = ($journey->{prefix} // '') eq 'baseline-journey-kiosk-rejection' && $reject
             || (($journey->{prefix} // '') eq 'baseline-journey-kiosk-first'
                 || ($journey->{prefix} // '') eq 'baseline-journey-kiosk-final') && $long_request;
+        my $isolation = !$reject && !$chinese && !$long_request
+            && ($journey->{prefix} // '') =~ /\Achild-isolation-(?:healthy|unavailable|restored)\z/
+            && ($journey->{stage_prefix} // '') eq substr($journey->{prefix}, length('child-isolation-')) . '-';
         die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
             substr($journey->{prefix}, length('baseline-journey-')) . '-');
         my $binding = $chinese ? substr($wrong, 8) . '-approval' : $reject ? 'rejection' : 'approval';
-        my $id = ($baseline ? $journey->{stage_prefix} : '')
+        my $id = ($baseline || $isolation ? $journey->{stage_prefix} : '')
             . 'kiosk-mate-' . ($chinese || $long_request ? $wrong : $binding);
         die 'secret:challenge' unless (@_ == 1 || $reject || $chinese || $long_request)
             && ref($journey) eq 'onpc_journey'
-            && ($baseline || $usability || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
+            && ($baseline || $isolation || $usability || ($long_request ? (($journey->{prefix} // '') eq 'baseline-app-effects'
                 || ($journey->{prefix} // '') eq 'active-grant-disable-engineering'
                 || ($journey->{prefix} // '') eq 'active-grant-disable-public') :
                 ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding

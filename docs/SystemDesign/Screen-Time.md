@@ -190,7 +190,10 @@ retain their refusal while the global switch is disabled, so a later failed
 preference transaction cannot leave a global switch change behind. Individual extension choices
 are preserved; this also resumes other individually enabled extensions. A
 failed activation restores the switch and original lists, verifies rollback,
-and remains an error. Broker startup still requires successful activation.
+and remains an error. Startup isolates failed child account/home validation and
+retains its diagnostics without changing saved controls or live enforcement;
+shared extension dependencies still gate readiness. A broker restart retries
+enabled children after the unavailable integration is restored.
 
 ## Grant arithmetic and usage identities
 

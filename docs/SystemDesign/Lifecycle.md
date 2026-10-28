@@ -30,8 +30,11 @@ GNOME Shell 50. Fedora's separate packaging target admits Workstation 44/GNOME 5
 
 Construction reconciles current AccountsService filters into fapolicyd, reasserts
 the packaged extension for preference-enabled eligible children, and attempts
-stale live-session runtime-cap cleanup before registering D-Bus. Nonrecoverable
-policy or extension-activation failure blocks readiness. Cap cleanup is best-effort.
+stale live-session runtime-cap cleanup before registering D-Bus. Shared policy
+or extension-dependency failures block readiness. Failed child account/home
+validation retains its sanitized diagnostic and leaves that child's
+saved controls and live enforcement unchanged while other children continue.
+Cap cleanup is best-effort.
 [Isolated app-rule omissions](Applications.md#live-filter-and-execution-rules)
 permit remaining policy and publish warnings; storage/backend activation failures
 remain fatal. Readiness therefore does not certify every saved app rule.
@@ -178,10 +181,13 @@ outages require safe retry/exit with original diagnostics and no unauthorized
 grant/unrestricted desktop. Recovery never replays approval; a new request requires
 fresh authentication under [Broker lifetime rules](Broker.md#request-lifetime-and-effect-admission).
 
-Current global extension refresh can block a healthy kiosk request when another
-enabled child's home is unavailable. Aggregate policy reconciliation precedes that
-refresh, but there is no per-account activation isolation or qualified automatic
-recovery. This remains an availability gap.
+Aggregate policy reconciliation precedes per-account extension refresh. An
+unavailable child's home does not prevent healthy-child kiosk use
+or block requests whose authoritative dependencies remain usable. Operations
+requiring that integration still refuse. Restoring the dependency and restarting
+the broker retries activation for every enabled child; no approval is replayed.
+Other activation, command, schema and verification failures retain their startup
+refusal.
 
 ### Machine work and human pauses
 

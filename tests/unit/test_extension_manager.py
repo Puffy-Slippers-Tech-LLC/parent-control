@@ -9,7 +9,8 @@ from unittest import mock
 from common.oh_no_parent_control_ui.diagnostic_events import decode
 
 from oh_no_parent_control.extension_manager import (
-    DISABLE_ALL_KEY, DISABLED_KEY, ENABLED_KEY, UUID, ExtensionManager, _load_error_fields,
+    DISABLE_ALL_KEY, DISABLED_KEY, ENABLED_KEY, UUID, ChildExtensionUnavailable,
+    ExtensionManager, _load_error_fields,
 )
 
 
@@ -378,6 +379,39 @@ class ExtensionManagerTests(unittest.TestCase):
             (installation / "extension.js").unlink()
             with self.assertRaisesRegex(RuntimeError, "payload is unavailable"):
                 manager._verify_installation()
+
+    def test_missing_home_refuses_activation_and_retries_after_restoration(self):
+        account = SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name="child",
+                                  pw_dir="unused")
+        state = GnomeRecoveryState()
+        state.values[DISABLE_ALL_KEY] = False
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / "home"
+            manager = ExtensionManager(runtime_root=Path(directory) / "missing-runtime")
+            with (
+                mock.patch.object(manager, "_account", return_value=(account, home)),
+                mock.patch.object(manager, "_verify_installation"),
+                mock.patch.object(manager, "_shell_is_available", return_value=False),
+                mock.patch.object(manager, "_run_command", side_effect=state.run),
+            ):
+                with self.assertRaisesRegex(ChildExtensionUnavailable, "home directory is unavailable") as failure:
+                    manager.set_enabled(account.pw_uid, True, recover_global_switch=True)
+                self.assertIsInstance(failure.exception.__cause__, RuntimeError)
+                self.assertIn("unsafe ownership", failure.exception.__cause__.args[0])
+                self.assertEqual(state.commands, [])
+                home.mkdir()
+                manager.set_enabled(account.pw_uid, True, recover_global_switch=True)
+        self.assertIn(UUID, state.values[ENABLED_KEY])
+        self.assertNotIn(UUID, state.values[DISABLED_KEY])
+
+    def test_shared_payload_failure_is_not_isolated_by_an_unavailable_child(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manager = ExtensionManager(installation=Path(directory) / "missing-payload")
+            with mock.patch.object(manager, "_account") as account:
+                with self.assertRaisesRegex(RuntimeError, "payload is unavailable") as failure:
+                    manager.set_enabled(1001, True, recover_global_switch=True)
+            self.assertNotIsInstance(failure.exception, ChildExtensionUnavailable)
+            account.assert_not_called()
 
     def test_enable_clears_explicit_disable_and_verifies_both_lists(self):
         account = SimpleNamespace(

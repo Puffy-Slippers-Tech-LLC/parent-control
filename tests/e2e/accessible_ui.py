@@ -658,6 +658,7 @@ NAMED_CUSTOM_CHILDREN = {'child': CHILD, 'existing': EXISTING_CHILD}
 NAMED_CUSTOM_OPERATIONS |= frozenset(CATALOGUE_ROW_OPERATIONS)
 NAMED_TIME_OPERATIONS = frozenset({
     'time-explanation-setup-thirty-read', 'time-explanation-read',
+    'time-explanation-reach-read', 'time-explanation-positive-read',
     'time-explanation-config-wrong-child', 'time-explanation-config-wrong-state',
 })
 NAMED_CHILD_OPERATIONS = NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS | ALLOWANCE_KEYBOARD_OPERATIONS.keys()
@@ -805,6 +806,7 @@ KIOSK_ACCOUNT_REQUESTS = {
     'multiple-first-parent': ('fixture-child', 'fixture-parent'),
     'multiple-other-parent': ('fixture-child', 'other-fixture-parent'),
     'multiple-other-child': ('existing-fixture-child', 'other-fixture-parent'),
+    'multiple-isolation-child': ('existing-fixture-child', 'fixture-parent'),
     'multiple-other-first-parent': ('existing-fixture-child', 'fixture-parent'),
     'kiosk-child-select': ('fixture-child', 'other-fixture-parent'),
     'kiosk-approver-select': ('fixture-child', 'fixture-parent'),
@@ -894,6 +896,14 @@ CHINESE_VALID_BINDINGS = {
 CHINESE_VALID_REQUESTS = {operation: KIOSK_VALID_REQUESTS[binding]
                           for operation, binding in CHINESE_VALID_BINDINGS.items()
                           if binding in KIOSK_VALID_REQUESTS}
+JORDAN_VALID_BINDINGS = {
+    'jordan-' + suffix: 'kiosk-valid-' + suffix for suffix in
+    ('custom-open', 'fraction-read', 'fraction-soft-select', 'fraction-soft-read')}
+JORDAN_VALID_BINDINGS['jordan-fraction-estimate-refresh'] = 'kiosk-valid-fraction-soft-read'
+JORDAN_VALID_REQUESTS = {operation: KIOSK_VALID_REQUESTS[binding]
+                       for operation, binding in JORDAN_VALID_BINDINGS.items()
+                       if binding in KIOSK_VALID_REQUESTS}
+KIOSK_VALID_OPERATIONS |= frozenset(JORDAN_VALID_BINDINGS)
 OVERLAY_VALID_REQUESTS = {
     operation.replace('kiosk-', 'overlay-', 1): value
     for operation, value in KIOSK_VALID_REQUESTS.items() if operation.startswith('kiosk-valid-')
@@ -941,6 +951,11 @@ LONG_MATE_ORDER = tuple('kiosk-long-mate-' + suffix for suffix in
 LONG_MATE_REQUEST = dict(child='fixture-child', approver='fixture-parent',
                          duration_seconds=600, allow_soft=True)
 MATE_APPROVAL_OPERATIONS |= frozenset(LONG_MATE_ORDER)
+JORDAN_MATE_ORDER = tuple('jordan-mate-' + suffix for suffix in
+                         ('open', 'qualified', 'rechecked', 'submit-success'))
+JORDAN_MATE_REQUEST = dict(child='existing-fixture-child', approver='fixture-parent',
+                          duration_seconds=75, allow_soft=True)
+MATE_APPROVAL_OPERATIONS |= frozenset(JORDAN_MATE_ORDER)
 CHINESE_MATE_ORDER = tuple('chinese-mate-' + suffix for suffix in
                            ('open', 'qualified', 'rechecked', 'submit-success'))
 MATE_APPROVAL_OPERATIONS |= frozenset(CHINESE_MATE_ORDER)
@@ -6374,7 +6389,7 @@ class AccessibleUI:
                 child, initial_enabled=initial, minutes=minutes, final_enabled=final)
         if operation in ('time-explanation-reach-read', 'time-explanation-reach-reread',
                          'time-explanation-zero-reread'):
-            return self.reach_time_explanation(CHILD)
+            return self.reach_time_explanation(child)
         if operation in ('time-explanation-reach-wrong-child',
                          'time-explanation-config-wrong-child',
                          'time-explanation-config-wrong-state'):
@@ -10298,10 +10313,12 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         overlay = operation in OVERLAY_VALID_OPERATIONS
         chinese = operation in CHINESE_VALID_BINDINGS
+        jordan = operation in JORDAN_VALID_BINDINGS
         require(operation in KIOSK_VALID_OPERATIONS or overlay or chinese, 'ui:kiosk-valid-binding')
-        child = EXISTING_CHILD if chinese else CHILD
+        child = EXISTING_CHILD if chinese or jordan else CHILD
         language = 'zh-Hans' if chinese else 'en'
-        action = (CHINESE_VALID_BINDINGS[operation] if chinese else
+        action = (JORDAN_VALID_BINDINGS[operation] if jordan else
+                  CHINESE_VALID_BINDINGS[operation] if chinese else
                   operation.replace('overlay-', 'kiosk-', 1) if overlay else operation)
         if action == 'kiosk-valid-custom-open':
             self._invoke_target(self.kiosk_valid_target('kiosk-duration-custom', child=child, overlay=overlay))
@@ -10310,7 +10327,8 @@ class AccessibleUI:
                                                      child=child, overlay=overlay),
                       'kiosk-custom-open')
             return None
-        seconds, custom, soft = (CHINESE_VALID_REQUESTS if chinese else
+        seconds, custom, soft = (JORDAN_VALID_REQUESTS if jordan else
+                                CHINESE_VALID_REQUESTS if chinese else
                                 OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation]
         if operation in ('kiosk-long-included-duration-select', 'overlay-long-approver-select'):
             before = self.kiosk_request_form(enabled=True,
@@ -10342,24 +10360,26 @@ class AccessibleUI:
             value = self._kiosk_valid_choice('kiosk-valid-fraction-soft-read')
             require(value['request'] == before, 'ui:kiosk-retry-final')
             return value
-        if operation == 'overlay-fraction-estimate-refresh':
+        if operation in ('overlay-fraction-estimate-refresh', 'jordan-fraction-estimate-refresh'):
             # Reading a cached label does not date its calculation. Equivalent
             # decimal edits invoke the public changed handler, invalidate any
             # old response, and leave the complete requested choices intact.
             before = self.kiosk_request_form(enabled=True,
                 expected_selection=('approver', 'fixture-parent'),
-                duration_seconds=seconds, custom_text=custom, overlay=True)
-            require(before['child'] == 'fixture-child' and before['allow_soft'] is True,
+                duration_seconds=seconds, custom_text=custom, overlay=overlay)
+            require(before['child'] == CHILD_IDENTITIES[child]
+                    and before['approver'] == 'fixture-parent' and before['allow_soft'] is True,
                     'ui:overlay-refresh-choice')
             start = time.monotonic_ns()
-            self.set_text('kiosk-custom-duration', '1.250')
+            self.set_text('kiosk-custom-duration', '1.250', child=child)
             intermediate = self.kiosk_request_form(enabled=True,
                 expected_selection=('approver', 'fixture-parent'),
-                duration_seconds=seconds, custom_text='1.250', overlay=True)
+                duration_seconds=seconds, custom_text='1.250', overlay=overlay)
             require(intermediate == {**before, 'custom_text': '1.250'},
                     'ui:overlay-refresh-intermediate')
-            self.set_text('kiosk-custom-duration', custom)
-            value = self._kiosk_valid_choice('overlay-valid-fraction-soft-read')
+            self.set_text('kiosk-custom-duration', custom, child=child)
+            value = self._kiosk_valid_choice('overlay-valid-fraction-soft-read' if overlay
+                                            else 'jordan-fraction-soft-read')
             require(value['request'] == before, 'ui:overlay-refresh-final')
             end = time.monotonic_ns()
             require(0 < start <= end and end - start <= 45_000_000_000,
@@ -10534,10 +10554,12 @@ class AccessibleUI:
         require(language in ('en', 'zh-Hans') and (language == 'en' or binding is None),
                 'ui:mate-language-binding')
         require(request is None or (binding is None and language == 'en'
-                and type(request) is dict and request == LONG_MATE_REQUEST
+                and type(request) is dict and request in (LONG_MATE_REQUEST, JORDAN_MATE_REQUEST)
                 and type(request.get('duration_seconds')) is int
                 and request.get('allow_soft') is True), 'ui:mate-request-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
+        if request == JORDAN_MATE_REQUEST:
+            child = EXISTING_CHILD
         if observation is None:
             self.invalidate_observation()
             observation = self.read_snapshot(protect_text=True)
@@ -10579,7 +10601,9 @@ class AccessibleUI:
                 'ui:mate-recipient-context-missing')
         # The native catalogues keep the complete request in one multiline
         # label. Check every sentence, including the explicit soft-app choice.
-        message = (f'Grant {CHILD} access?\nRequested time: 10 minutes.\n'
+        message = (f'Grant {child} access?\nRequested time: 1 minute, 15 seconds.\n'
+                   'Allow soft blocked apps for this grant.' if request == JORDAN_MATE_REQUEST else
+                   f'Grant {CHILD} access?\nRequested time: 10 minutes.\n'
                    'Allow soft blocked apps for this grant.' if request is not None else
                    f'Grant {child} access?\nRequested time: 30 minutes.' if binding else
                    f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
@@ -10755,12 +10779,15 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         chinese = operation in CHINESE_MATE_ORDER
         long_request = operation in LONG_MATE_ORDER
+        jordan = operation in JORDAN_MATE_ORDER
         paused = operation in PAUSE_MATE_ORDER
         language = 'zh-Hans' if chinese else 'en'
-        action = (operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else
+        action = (operation.replace('jordan-mate-', 'kiosk-mate-', 1) if jordan else
+                  operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else
                   operation.replace('kiosk-long-mate-', 'kiosk-mate-', 1) if long_request else
                   operation.replace('kiosk-pause-mate-', 'kiosk-mate-', 1) if paused else operation)
-        options = ({'language': language} if chinese else
+        options = ({'request': dict(JORDAN_MATE_REQUEST)} if jordan else
+                   {'language': language} if chinese else
                    {'request': dict(LONG_MATE_REQUEST)} if long_request else {})
         pid = self.mate_agent_pid()
         opening = action in ('kiosk-mate-open', 'kiosk-mate-rejection-open')
@@ -10768,11 +10795,12 @@ class AccessibleUI:
                                    'kiosk-mate-submit-immediate')
         try:
             if opening:
-                self.kiosk_valid_choice('chinese-fraction-soft-read' if chinese else
+                self.kiosk_valid_choice('jordan-fraction-soft-read' if jordan else
+                    'chinese-fraction-soft-read' if chinese else
                     'kiosk-long-request-soft-read' if long_request else 'kiosk-valid-fraction-soft-read')
                 require(self.mate_prompt(pid, **options) is None, 'ui:mate-already-open')
                 self._invoke_target(self.kiosk_valid_target('kiosk-request-submit',
-                    **({'child': EXISTING_CHILD} if chinese else {})))
+                    **({'child': EXISTING_CHILD} if chinese or jordan else {})))
                 pid, challenge = self.wait_mate_prompt(**options)
             else:
                 challenge = (self.wait_filled_mate_prompt(pid, **options) if submitting else
@@ -10818,7 +10846,8 @@ class AccessibleUI:
                         'duration_seconds': 75, 'allow_soft': True, 'rejected_proofs': rejected}
             return {'challenge_id': identity,
                     **({'provider': self.mate_provider_metadata(pid)} if paused else {}),
-                    **({'request': dict(LONG_MATE_REQUEST)} if long_request else {})}
+                    **({'request': dict(JORDAN_MATE_REQUEST if jordan else LONG_MATE_REQUEST)}
+                       if long_request or jordan else {})}
         except BaseException:
             self.input_uncertain = True
             raise

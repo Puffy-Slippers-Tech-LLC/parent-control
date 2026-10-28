@@ -57,6 +57,7 @@ use onpc_baseline_app_effects ();
 use onpc_active_grant_disable ();
 use onpc_baseline_journey ();
 use onpc_confinement_usability ();
+use onpc_child_isolation ();
 use onpc_feedback_read ();
 use onpc_feedback_privacy ();
 use onpc_feedback_states ();
@@ -817,6 +818,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_baseline_journey::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{child_isolation}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_child_isolation::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{confinement_usability}) {

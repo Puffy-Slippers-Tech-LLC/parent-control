@@ -22,6 +22,10 @@ LOG = get_logger("extension-manager")
 LOAD_ASSETS = {"indicatorLogic.mjs": "indicator-logic", "diagnosticEvents.mjs": "diagnostic-events"}
 
 
+class ChildExtensionUnavailable(RuntimeError):
+    """A child-local dependency prevents activation without changing policy."""
+
+
 def _load_error_fields(info):
     """Project untrusted Shell details; never return paths or error text."""
     states = {1: "active", 2: "inactive", 3: "error", 4: "out-of-date",
@@ -477,11 +481,15 @@ class ExtensionManager:
     def set_enabled(self, uid: int, enabled: bool, *,
                     recover_global_switch: bool = False) -> None:
         LOG.info("extension-manager.006", enabled=enabled)
-        account, home = self._account(uid)
-        if home.is_symlink() or not home.is_dir() or home.stat().st_uid != uid:
-            raise RuntimeError("child home directory has unsafe ownership")
+        # Shared payload failure must not be hidden by a child's unavailable home.
         if enabled:
             self._verify_installation()
+        try:
+            account, home = self._account(uid)
+            if home.is_symlink() or not home.is_dir() or home.stat().st_uid != uid:
+                raise RuntimeError("child home directory has unsafe ownership")
+        except (OSError, RuntimeError) as error:
+            raise ChildExtensionUnavailable("child home directory is unavailable") from error
 
         old_enabled = self._list(account, ENABLED_KEY)
         old_disabled = self._list(account, DISABLED_KEY)

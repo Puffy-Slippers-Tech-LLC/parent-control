@@ -490,6 +490,43 @@ class LocaleDiscoveryAuthQualification(BasicLocaleAuthQualification):
     discovery_failure = True
 
 
+class ChildIsolationQualification(KioskEntryQualification):
+    """One missing child home with healthy and restored genuine requests."""
+
+    fault = None
+
+    def journey(self, context, progress):
+        from app_snapshot import snapshot_name
+        from child_isolation import ChildIsolationJourney
+        from child_isolation_fault import ChildIsolationFault
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        journey = ChildIsolationJourney(context, progress)
+        self.fault = ChildIsolationFault(journey, context.lease)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage == 'setup-greeter':
+                observed['child_isolation'] = self.fault.install()
+            elif stage == 'unavailable-greeter':
+                observed['child_isolation'] = self.fault.restore()
+            elif stage in ('restored-new-estimate', 'reentry-usable'):
+                smoke.require(self.fault.restored, 'child-isolation:request-before-restoration')
+
+        journey.check_settings = check
+        return journey
+
+    def execute(self, lease, guestfs):
+        try:
+            super().execute(lease, guestfs)
+            smoke.require(self.fault is not None and self.fault.restored,
+                          'child-isolation:history-incomplete')
+        finally:
+            if self.fault is not None:
+                self.fault.restore()
+
+
 class KioskLeaseVariationQualification(ConfinementUsabilityQualification):
     """Owned lease controls followed by the complete short public history."""
 

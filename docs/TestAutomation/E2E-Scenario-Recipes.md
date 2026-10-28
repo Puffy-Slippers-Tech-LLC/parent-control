@@ -2433,6 +2433,13 @@ owners. Status-read/activation failures, authentication-agent failures and
 authorization beyond the available interfaces retain their engineering owners;
 seeing a successful window cannot establish those failure or security contracts.
 
+The [child home isolation history](E2E-Building-Blocks.md#child-home-isolation-history)
+owns the finite unavailable-home, healthy-child request and restored-child request
+check. Its engineering probes preserve authoritative policy and diagnose the
+refused integration change; public kiosk approvals and independent Parent time
+readback establish usable requests. This does not expand the customer scenario
+inventory or qualify unrelated extension failures.
+
 No pixel/layout/scale/style pass gate, generic GDM password test, website
 filtering, unrelated networking test, remote device management or unsupported
 copied-program guarantee is added. A missing feature, public route, observation,

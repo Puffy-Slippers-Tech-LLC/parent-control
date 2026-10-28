@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U02 — [Keep healthy children able to request time](Kiosk-Usability-Tasks/U02-child-isolation.md)**.
+Next task: **U03 — [Allow entry after brief admission contention](Kiosk-Usability-Tasks/U03-admission-recovery.md)**.
 
 ## Outcome and scope
 

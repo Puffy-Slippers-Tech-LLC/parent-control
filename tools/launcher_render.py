@@ -966,6 +966,7 @@ class AgentRenderer:
             self.code(event.get('message', event.get('error', event)))
             return
         if kind not in ('item.started', 'item.updated', 'item.completed'):
+            self.heading('Agent activity')
             self.code(json.dumps(event, ensure_ascii=False), 'json')
             return
         item = event['item']
@@ -1053,4 +1054,5 @@ class AgentRenderer:
                     if item.get(field) is not None:
                         self.code(json.dumps(item[field], ensure_ascii=False, indent=2), 'json')
         else:
+            self.heading('Agent activity')
             self.code(json.dumps(event, ensure_ascii=False), 'json')

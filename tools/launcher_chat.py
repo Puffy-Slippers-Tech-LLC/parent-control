@@ -442,6 +442,7 @@ class AppSession:
             return
         else:
             if complete:
+                self.renderer.heading('Agent activity')
                 self.renderer.code(json.dumps(item, ensure_ascii=False), 'json')
             return
         self.renderer.event({'type': 'item.completed' if complete else 'item.started', 'item': item})

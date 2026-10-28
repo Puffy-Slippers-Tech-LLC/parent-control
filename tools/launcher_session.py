@@ -1,5 +1,6 @@
 """Embeddable launcher transcript and prompt, independent of dashboard layout."""
 
+import json
 import re
 import time
 
@@ -74,6 +75,21 @@ class SessionPanel(LauncherDisplay):
         for line in source:
             text = Text.from_ansi(line)
             plain = text.plain
+            # Older supervisors emitted unknown items (including sleep) as
+            # bare JSON. Recognize them even after prose when reloading logs.
+            item = None
+            if plain.startswith('{'):
+                try:
+                    item = json.loads(plain)
+                except ValueError:
+                    pass
+            if (isinstance(item, dict) and isinstance(item.get('type'), str)
+                    and isinstance(item.get('id'), str)):
+                heading = None
+                prose = detail_pending = False
+                unknown = True
+                preview(Text('• ', style='bright_black') + text)
+                continue
             if plain.startswith('• '):
                 if plain == '• Turn complete':
                     continue

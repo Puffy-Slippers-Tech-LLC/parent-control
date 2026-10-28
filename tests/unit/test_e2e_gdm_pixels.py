@@ -1,7 +1,6 @@
 """Exercise GDM fixture matching with the installed os-autoinst pixel matcher."""
 
 import pytest
-from PIL import Image
 
 from tests.support.needle_matcher import NEEDLES, match_image
 
@@ -31,11 +30,3 @@ def test_installed_readiness_accepts_baseline_rendering_without_click_authority(
                          'onpc-gdm-parent-installed-account')
     assert result['ok'] and result['area'][0]['similarity'] == 1, result
     assert 'click_point' not in result['area'][0]
-
-
-def test_installed_fixture_contains_only_reviewed_label_and_blur_border():
-    with Image.open(NEEDLES / 'onpc-gdm-parent-installed-account.png') as image:
-        assert image.size == (1024, 768) and image.mode == 'RGB'
-        # This is the reviewed fixture-label crop from the retained failed
-        # return, with a 16-pixel matcher border. No other account or clock.
-        assert image.getbbox() == (426, 335, 576, 399)

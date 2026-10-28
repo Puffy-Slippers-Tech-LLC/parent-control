@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U03 — [Allow entry after brief admission contention](Kiosk-Usability-Tasks/U03-admission-recovery.md)**.
+Next task: **U03a — [Restore entry after stale owned admission state](Kiosk-Usability-Tasks/U03a-stale-admission.md)**.
 
 ## Outcome and scope
 

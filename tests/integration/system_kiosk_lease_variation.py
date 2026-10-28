@@ -13,9 +13,10 @@ import signal
 import stat
 import subprocess
 import sys
+import time
 
 import system_guest as guest
-from system_kiosk_admission import held_account, probe, root_uids
+from system_kiosk_admission import held_account, pam_account, probe, root_uids
 from system_kiosk_confinement import (caller_identity, lifecycle_event,
     pam_caller_command, wait_kiosk_inactive)
 
@@ -183,6 +184,150 @@ def retained_worker(service):
     event({'end': ended})
 
 
+def contention_worker():
+    """Time one real installed native account attempt in the distro context."""
+    guest.guard()
+    root_uids(os.getpid())
+    started = time.monotonic()
+    event({'attempt': True, 'pid': os.getpid()})
+    result = pam_account('gdm-password', 'kiosk')
+    event({'result': result, 'elapsed': time.monotonic() - started})
+
+
+@contextmanager
+def contention_attempt():
+    """Bound a directly owned native worker, including exceptional cleanup."""
+    with ExitStack() as stack:
+        command = ['/usr/bin/python3', '-B']
+        if guest.package_path().suffix == '.rpm':
+            command = stack.enter_context(pam_caller_command(guest.PAYLOAD, 'gdm-password'))
+        child = subprocess.Popen([*command, str(Path(__file__).resolve()), 'contention-worker'],
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, close_fds=True)
+        pidfd = None
+        try:
+            pidfd = os.pidfd_open(child.pid)
+            poll = select.poll()
+            poll.register(child.stdout.fileno(), select.POLLIN | select.POLLHUP)
+            require(bool(poll.poll(15000)), 'contention-worker-start-timeout')
+            require(lifecycle_event(child.stdout.fileno()) ==
+                    {'attempt': True, 'pid': child.pid}, 'contention-worker-start')
+            root_uids(child.pid)
+            yield child, poll
+        finally:
+            try:
+                try:
+                    child.wait(timeout=4)
+                except subprocess.TimeoutExpired:
+                    if pidfd is None:
+                        child.kill()  # Direct, unreaped child only.
+                    else:
+                        try:
+                            signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    child.wait(timeout=4)
+            finally:
+                child.stdout.close()
+                if pidfd is not None:
+                    os.close(pidfd)
+
+
+def contention_result(child, expected, stage, record):
+    raw, _ = child.communicate(timeout=4)
+    require(child.returncode == 0 and 0 < len(raw) <= 4096, 'contention-worker-result')
+    result = json.loads(raw)
+    record(stage, result)
+    require(type(result) is dict and result.get('result') == {'account': expected, 'end': 0}
+            and type(result.get('elapsed')) in (int, float), 'contention-outcome:' + stage)
+    return result['elapsed']
+
+
+def wait_contention(child, poll, baseline):
+    """Witness native retry sleep with its actual read-only admission fd.
+
+    A startup event alone could precede PAM initialization. The native module
+    opens this inode before retrying flock with nanosleep; the held exclusive
+    writer prevents acquisition throughout this observation.
+    """
+    process = Path('/proc') / str(child.pid)
+    deadline = time.monotonic() + 1
+    while time.monotonic() < deadline:
+        require(child.poll() is None, 'contention-worker-premature-exit')
+        for entry in (process / 'fd').iterdir():
+            try:
+                opened = entry.stat()
+                if identity(opened) != baseline:
+                    continue
+                fields = dict(line.split(':', 1) for line in
+                              (process / 'fdinfo' / entry.name).read_text().splitlines())
+                require(int(fields['flags'].strip(), 8) & os.O_ACCMODE == os.O_RDONLY,
+                        'contention-worker-readonly')
+                if (process / 'wchan').read_text().strip() == 'hrtimer_nanosleep':
+                    return
+            except FileNotFoundError:
+                continue  # This directly owned worker may close unrelated fds.
+        require(not poll.poll(5), 'contention-returned-before-retry')
+    raise guest.GuestError('kiosk-lease:contention-retry-not-observed')
+
+
+def contention():
+    """One transient writer history; persistent refusal and ordinary control."""
+    guest.guard()
+    guest.enable_diagnostics()
+    account = pwd.getpwnam('oh-no-parent-control')
+    wait_kiosk_inactive(account)
+    owner = lifecycle()
+    owner.account(owner.uid())
+    require(not os.path.lexists(DISABLED), 'existing-removal-marker')
+    require(not os.path.lexists(LOCK), 'absent-precondition')
+    results = []
+
+    def record(stage, value):
+        item = {'stage': stage, 'value': value}
+        results.append(item)
+        print(json.dumps(item, sort_keys=True), file=sys.stderr, flush=True)
+
+    probe('gdm-password', 'kiosk', 0, 'contention.healthy', record)
+    fd = os.open(LOCK, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        baseline = identity(os.fstat(fd))
+        require(stat.S_ISREG(baseline[5]) and baseline[2:5] == (0, 0, 1)
+                and stat.S_IMODE(baseline[5]) == 0o600, 'lease-identity')
+        current(fd, baseline)
+        # Keep the attempt alive across release of the actual installed writer.
+        with ExitStack() as attempt:
+            with owner.barriers():
+                current(fd, baseline)
+                child, poll = attempt.enter_context(contention_attempt())
+                wait_contention(child, poll, baseline)
+                blocked = time.monotonic()
+                require(not poll.poll(350) and child.poll() is None,
+                        'transient-admitted-before-release')
+                current(fd, baseline)
+                record('transient.blocked', {'writer_held': True,
+                    'seconds': time.monotonic() - blocked, 'same_inode': True,
+                    'native_retry_sleep': True, 'readonly': True})
+            elapsed = contention_result(child, 0, 'transient.released', record)
+            require(0.35 <= elapsed < 3, 'transient-deadline')
+        current(fd, baseline)
+        with owner.barriers():
+            current(fd, baseline)
+            with contention_attempt() as (child, _poll):
+                elapsed = contention_result(child, 6, 'persistent.refused', record)
+                require(1.5 <= elapsed < 3, 'persistent-deadline')
+            # The real writer remains held through both observations.
+            probe('gdm-password', 'ordinary', 0, 'persistent.ordinary', record)
+            current(fd, baseline)
+        probe('gdm-password', 'kiosk', 0, 'contention.fresh', record)
+        current(fd, baseline)
+        require(not os.path.lexists(DISABLED), 'unexpected-removal-marker')
+    finally:
+        os.close(fd)
+    wait_kiosk_inactive(account)
+    return {'qualified': True, 'expectation': 'contention', 'restored': True,
+            'controls': results, 'public_acceptance': False}
+
+
 @contextmanager
 def retained(service, record):
     with ExitStack() as stack:
@@ -311,7 +456,11 @@ def engineering(expectation):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3 and sys.argv[1] == 'retained':
+    if sys.argv[1:] == ['contention-worker']:
+        contention_worker()
+    elif sys.argv[1:] == ['contention']:
+        event(contention())
+    elif len(sys.argv) == 3 and sys.argv[1] == 'retained':
         retained_worker(sys.argv[2])
     elif len(sys.argv) == 3 and sys.argv[1] == 'engineering':
         event(engineering(sys.argv[2]))

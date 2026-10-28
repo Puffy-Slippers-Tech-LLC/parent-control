@@ -3,6 +3,7 @@
 
 ### Bug Fixes
 - **Kiosk**: Fixed time requests failing before parent approval when system language discovery is unavailable.
+- **Kiosk**: Fixed sign-in being rejected when brief maintenance activity temporarily delays entry.
 
 ### Non Product Changes
 - Added local COPR source-recipe, clean Fedora RPM build and dependency validation to the publishing checks.

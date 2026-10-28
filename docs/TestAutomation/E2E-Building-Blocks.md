@@ -4137,6 +4137,18 @@ use after release, followed by the complete short public history.
 Engineering callbacks are separate from public-use acceptance and supply no
 desktop-defense claim.
 
+`check_e2e_kiosk_admission_contention` selects the separate
+`expectation='contention'` history through `KioskAdmissionContentionQualification`.
+It holds the installed lifecycle writer's barrier, observes the native worker's
+matching read-only descriptor and retry sleep, and requires no admission until
+release. The same attempt must then succeed within the bounded wait. A persistent
+writer must refuse by the deadline while ordinary-account admission stays usable;
+fresh kiosk admission follows release. The inode and mode remain unchanged,
+without stale-state repair. The same short public history then checks ordinary
+graphical login, passwordless requests, denial/Cancel, genuine approval and usable
+reentry. This contention history and public-use control passed on Ubuntu 26.04
+and Fedora 44, including collection and owned cleanup.
+
 ### Reached service-route control
 
 `check_e2e_kiosk_service_route` dispatches

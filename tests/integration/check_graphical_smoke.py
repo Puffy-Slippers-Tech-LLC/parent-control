@@ -1438,7 +1438,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:kiosk-notification-prerequisites')
     require((type(kiosk_entry) is bool or kiosk_entry in (
             'service-variation', 'service-route',
-            'routing-variation', 'lease-variation',
+            'routing-variation', 'lease-variation', 'admission-contention',
             'public-desktop-selection', 'station-shortcuts')) and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
@@ -1650,6 +1650,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                if kiosk_entry == 'routing-variation'
                                else 'installed-kiosk-lease-variation-qualification'
                                if kiosk_entry == 'lease-variation'
+                               else 'installed-kiosk-admission-contention-qualification'
+                               if kiosk_entry == 'admission-contention'
                                else 'installed-kiosk-entry-qualification')
         if kiosk_eligible_choices:
             result['scope'] = 'installed-kiosk-eligible-choices-qualification'
@@ -2103,6 +2105,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import (KioskEntryQualification,
                         KioskServiceVariationQualification, KioskServiceRouteQualification,
                         KioskRoutingVariationQualification, KioskLeaseVariationQualification,
+                        KioskAdmissionContentionQualification,
                         PublicDesktopSelectionQualification, StationShortcutsQualification)
                     qualification_class = (StationShortcutsQualification
                         if kiosk_entry == 'station-shortcuts' else PublicDesktopSelectionQualification
@@ -2110,7 +2113,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         if kiosk_entry == 'service-variation' else KioskServiceRouteQualification
                         if kiosk_entry == 'service-route' else KioskRoutingVariationQualification
                         if kiosk_entry == 'routing-variation' else KioskLeaseVariationQualification
-                        if kiosk_entry == 'lease-variation' else KioskEntryQualification)
+                        if kiosk_entry == 'lease-variation' else KioskAdmissionContentionQualification
+                        if kiosk_entry == 'admission-contention' else KioskEntryQualification)
                 if kiosk_eligible_choices:
                     from parent_setup_qualification import KioskEligibleChoicesQualification
                     qualification_class = KioskEligibleChoicesQualification

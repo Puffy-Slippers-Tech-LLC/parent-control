@@ -43,6 +43,9 @@
 #ifndef KIOSK_LOGIN_TIMEOUT_SECONDS
 #define KIOSK_LOGIN_TIMEOUT_SECONDS 25
 #endif
+#ifndef KIOSK_ADMISSION_TIMEOUT_SECONDS
+#define KIOSK_ADMISSION_TIMEOUT_SECONDS 2
+#endif
 #define ADMISSION_DATA "oh-no-parent-control.kiosk-admission"
 #define ACCOUNT_DATA "oh-no-parent-control.kiosk-account-checked"
 #define RUNTIME_MAX_DATA "systemd.runtime_max_sec"
@@ -84,6 +87,34 @@ release_admission(pam_handle_t *pamh, void *data, int status)
     (void) status;
     close(*(int *) data);
     free(data);
+}
+
+static int
+acquire_admission(pam_handle_t *pamh, int fd)
+{
+    struct timespec start, now, pause = {0, 20000000};
+    if (flock(fd, LOCK_SH | LOCK_NB) == 0)
+        return 1;
+    if (errno != EWOULDBLOCK && errno != EAGAIN)
+        return admission_check_failed(pamh, "shared-lock", errno);
+    if (clock_gettime(CLOCK_MONOTONIC, &start) != 0)
+        return admission_check_failed(pamh, "shared-lock-clock", errno);
+    for (;;) {
+        /* Retry only contention, using the same open inode. Check the fixed
+         * deadline after interrupted sleeps too; signals cannot extend it. */
+        if (nanosleep(&pause, NULL) != 0 && errno != EINTR)
+            return admission_check_failed(pamh, "shared-lock-wait", errno);
+        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+            return admission_check_failed(pamh, "shared-lock-clock", errno);
+        if (now.tv_sec - start.tv_sec > KIOSK_ADMISSION_TIMEOUT_SECONDS ||
+            (now.tv_sec - start.tv_sec == KIOSK_ADMISSION_TIMEOUT_SECONDS &&
+             now.tv_nsec >= start.tv_nsec))
+            return admission_check_failed(pamh, "shared-lock-timeout", ETIMEDOUT);
+        if (flock(fd, LOCK_SH | LOCK_NB) == 0)
+            return 1;
+        if (errno != EWOULDBLOCK && errno != EAGAIN)
+            return admission_check_failed(pamh, "shared-lock", errno);
+    }
 }
 
 static int
@@ -140,10 +171,8 @@ admission(pam_handle_t *pamh)
             goto denied;
         }
     }
-    if (flock(*fd, LOCK_SH | LOCK_NB) != 0) {
-        admission_check_failed(pamh, "shared-lock", errno);
+    if (!acquire_admission(pamh, *fd))
         goto denied;
-    }
     if (!lock_current(pamh, *fd))
         goto denied;
     result = pam_set_data(pamh, ADMISSION_DATA, fd, release_admission);

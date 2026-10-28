@@ -81,7 +81,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     feedback_read feedback_rejection feedback_reset feedback_states file_chooser files format
     fresh_child_allowed fresh_desktop gdm_navigation gdm_recipient
     give_repeated_public_operations_distinct_stages independent_network_management kiosk_approval
-    kiosk_approved_flow kiosk_eligible_choices kiosk_entry kiosk_feedback_confinement kiosk_fixtures
+    kiosk_admission_contention kiosk_approved_flow kiosk_eligible_choices kiosk_entry kiosk_feedback_confinement kiosk_fixtures
     kiosk_language kiosk_language_restoration kiosk_lease_variation kiosk_multiple kiosk_no_child kiosk_notification_wellbeing
     kiosk_preferences_confinement kiosk_rejection kiosk_reminder_binding kiosk_routing_variation kiosk_service_route kiosk_service_variation kiosk_valid_duration
     license_viewer locale_discovery_auth lock_recipient lock_surface match_editor match_save_cancel mate_prompt

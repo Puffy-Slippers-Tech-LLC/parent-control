@@ -66,7 +66,7 @@ The [native PAM module](../../tools/pam_oh_no_parent_control.c) checks actual se
 and account. The qualified child-run `su-l` route is denied; unfamiliar service
 names use the existing account/session checks. GDM account/session checks
 validate the reserved identity without consulting saved routing or session type.
-Missing/unsafe state and contention deny entry. Shared root-owned no-follow
+Missing/unsafe state and persistent contention deny entry. Shared root-owned no-follow
 admission leases persist through PAM teardown, excluding exclusive lifecycle
 writers but not competing logins. They require read access only because GDM and
 user-manager SELinux write authority can differ.
@@ -269,6 +269,11 @@ Native admission opens shared leases read-only and no-follow, retains them throu
 `pam_end`, and rechecks inode, ownership, mode and removal barriers. Fedora GDM
 and user-manager SELinux contexts differ; shared descriptors need no write access.
 Active lifecycle writers exclude admission, and live admissions exclude writers.
+Fresh admission retries a busy shared lock for at most two seconds on the same
+read-only descriptor. Only lock contention is retried; other lock failures deny
+entry. After acquisition, the existing inode, ownership, mode and removal-barrier
+checks still apply. A writer that stays active through the deadline denies entry;
+no stale state is removed or adopted by this wait.
 
 Lifecycle `barriers` can repair a safe stale admission mode only after exclusive
 locking, fresh regular-file/owner/single-link checks and named-inode equality.

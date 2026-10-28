@@ -1079,6 +1079,8 @@ from regression_ui import Bucket
 # compiler children forward scratch leases and are bounded and waited. They use
 # only private PAM stacks, lock/marker files and process-local
 # account/authselect/bus doubles.
+# Transient admission checks join their single private writer thread before
+# closing its lock descriptor or ending PAM; no shared resource is acquired.
 # Native helpers and compiler children are bounded and waited; no host PAM,
 # account, service, bus, display or shared cache is changed. Distro transaction
 # and rollback fixtures keep their owned files under tmp_path. Compatible unit

@@ -4,12 +4,14 @@ No host account, PAM configuration, bus, service or privilege transition is used
 Module-scoped compiler outputs and all helper children stay within pytest scratch.
 """
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 import ctypes
 import fcntl
 import importlib.util
 import json
 import os
 import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -152,6 +154,7 @@ def compiled(tmp_path_factory):
                     f'-DKIOSK_ADMISSION_LOCK="{directory / "admission"}"',
                     f'-DKIOSK_ADMISSION_DISABLED="{directory / "removing"}"',
                     f'-DKIOSK_ADMISSION_LOCK_OWNER={os.getuid()}', '-DKIOSK_LOGIN_TIMEOUT_SECONDS=1',
+                    '-DKIOSK_ADMISSION_TIMEOUT_SECONDS=1',
                     '-o', str(module), str(PAM_MODULE), '-lpam'],
                    check=True, capture_output=True, text=True, timeout=30, pass_fds=scratch_descriptors())
     subprocess.run([*common, '-o', str(runtime), str(ROOT / 'tests/support/pam_runtime_fixture.c'), '-lpam'],
@@ -292,8 +295,70 @@ def test_removal_exclusion_spans_close_until_pam_end_and_releases(native, servic
     with path.open('rb') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with native.transaction(service=service) as handle:
+            start = time.monotonic()
             assert native.pam.pam_acct_mgmt(handle, 0) != 0
+            assert 0.9 <= time.monotonic() - start < 2
+            start = time.monotonic()
             assert native.pam.pam_open_session(handle, 0) != 0
+            assert 0.9 <= time.monotonic() - start < 2
+        # A busy kiosk lifecycle must not delay or deny ordinary account PAM.
+        calls = native.calls()
+        with native.transaction(user='ordinary') as handle:
+            assert native.pam.pam_acct_mgmt(handle, 0) == native.pam.pam_open_session(handle, 0) == 0
+        assert native.calls() == calls
+        assert (path.stat().st_dev, path.stat().st_ino) == (identity.st_dev, identity.st_ino)
+
+
+@pytest.mark.parametrize('change', [None, 'replace', 'mode', 'marker'])
+def test_native_waits_for_transient_writer_then_checks_same_lease(native, change):
+    path = native.directory / 'admission'
+    path.touch(mode=0o600)
+    before = path.stat()
+    original = native.directory / 'original'
+    marker = native.directory / 'removing'
+    with path.open('rb') as owner, native.transaction() as handle:
+        fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        def release_writer():
+            try:
+                time.sleep(0.15)
+                if change == 'replace':
+                    path.rename(original)
+                    path.touch(mode=0o600)
+                elif change == 'mode':
+                    path.chmod(0o640)
+                elif change == 'marker':
+                    marker.write_text('removing\n')
+            finally:
+                fcntl.flock(owner, fcntl.LOCK_UN)
+
+        # The private writer thread is joined before touching its descriptor,
+        # ending PAM or leaving this test's private module fixture.
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(release_writer)
+            start = time.monotonic()
+            result = native.pam.pam_acct_mgmt(handle, 0)
+            elapsed = time.monotonic() - start
+            future.result(timeout=5)
+        assert 0.1 <= elapsed < 1
+        assert (result == 0) is (change is None)
+        if change is None:
+            assert native.pam.pam_open_session(handle, 0) == 0
+            assert [call[0] for call in native.calls()] == [['--kiosk-account'], ['--kiosk-session']]
+            # The recovered login retains its shared lease through PAM end.
+            with path.open('rb') as competitor:
+                with pytest.raises(BlockingIOError):
+                    fcntl.flock(competitor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        else:
+            assert native.calls() == []
+    if change == 'replace':
+        assert (original.stat().st_dev, original.stat().st_ino) == (before.st_dev, before.st_ino)
+        original.unlink()
+    else:
+        after = path.stat()
+        assert (after.st_dev, after.st_ino) == (before.st_dev, before.st_ino)
+        assert after.st_mode & 0o7777 == (0o640 if change == 'mode' else 0o600)
+        assert marker.exists() is (change == 'marker')
 
 
 @pytest.mark.parametrize('change', ['replace', 'symlink', 'hardlink', 'mode', 'marker'])

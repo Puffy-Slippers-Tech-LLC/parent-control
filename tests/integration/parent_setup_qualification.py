@@ -530,6 +530,8 @@ class ChildIsolationQualification(KioskEntryQualification):
 class KioskLeaseVariationQualification(ConfinementUsabilityQualification):
     """Owned lease controls followed by the complete short public history."""
 
+    lease_expectation = 'recovery'
+
     def journey(self, context, progress):
         from kiosk_lease_variation import qualify
         journey = ConfinementUsabilityQualification.journey(context, progress)
@@ -539,7 +541,7 @@ class KioskLeaseVariationQualification(ConfinementUsabilityQualification):
             check_settings(stage, observed)
             if stage == 'setup-detached':
                 self.result['lease_variation'] = qualify(
-                    journey.transport, context.lease, expectation='recovery')
+                    journey.transport, context.lease, expectation=self.lease_expectation)
                 observed['lease_variation'] = self.result['lease_variation']
 
         journey.check_settings = check
@@ -551,6 +553,12 @@ class KioskLeaseVariationQualification(ConfinementUsabilityQualification):
         super().execute(lease, guestfs)
         smoke.require(self.result['lease_variation'].get('qualified') is True,
                       'kiosk-lease:qualification-incomplete')
+
+
+class KioskAdmissionContentionQualification(KioskLeaseVariationQualification):
+    """Brief installed writer contention followed by usable public reentry."""
+
+    lease_expectation = 'contention'
 
 
 class BaselineJourneyQualification(KioskEntryQualification):

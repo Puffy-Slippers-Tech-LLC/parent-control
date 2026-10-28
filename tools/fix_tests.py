@@ -922,15 +922,17 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         def run_requested(requested, options, description, *, vm=None):
             display_cases = None
             completed_categories = [kind for kind in inventory if checkpoint is not None and checkpoint.complete(kind)]
-            if parent is not None and requested in ('system', 'e2e') and (focused or probe):
+            if parent is not None and requested in ('system', 'integration', 'e2e') and (focused or probe):
                 from fix_tests_queue import case_inventory, case_totals, publish_case_progress
                 from test_checkpoint import Checkpoint
                 from vm_selection import selected
                 original = inventory[requested]['args']
-                display_cases = case_inventory(root, requested, original)
+                saved = Checkpoint(root, [(requested, original)], resume=True, binding=selected().name,
+                                   recover_missing=resuming)
+                display_cases = (case_inventory(root, requested, original)
+                                 if requested in ('system', 'e2e') else None)
                 if display_cases:
                     totals = case_totals(root, inventory, requested, display_cases)
-                    saved = Checkpoint(root, [(requested, original)], resume=True, binding=selected().name)
                     publish_case_progress(root, run, requested, display_cases, retry_case,
                                           saved.passed(requested) - {retry_case},
                                           totals=totals, round_number=round_number,
@@ -1423,7 +1425,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         from test_checkpoint import Checkpoint
         category, case, vm = target
         saved = Checkpoint(root, [(category, inventory[category]['args'])],
-                           resume=True, binding=vm)
+                           resume=True, binding=vm,
+                           recover_missing=resuming and bool(vm)
+                           and category in ('system', 'integration', 'e2e'))
         return True if case in saved.passed(category) else None
 
     def close_verified(*, category=None):

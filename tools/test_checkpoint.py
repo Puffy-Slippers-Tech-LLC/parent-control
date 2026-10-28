@@ -148,7 +148,8 @@ def resume_arguments(root, argv):
 
 
 class Checkpoint:
-    def __init__(self, root, selections, *, resume=False, namespace='run-tests', binding=None):
+    def __init__(self, root, selections, *, resume=False, namespace='run-tests', binding=None,
+                 recover_missing=False):
         from test_commands import CATEGORIES, suite_inventory, AGGREGATES, execution_selections
         from vm_selection import VARIABLE, BATCH
         groups = {}
@@ -172,6 +173,9 @@ class Checkpoint:
             return CATEGORIES[kind].scope if kind in CATEGORIES else 'host'
         host = [(kind, args) for kind, args in logical.items() if scope(kind) == 'host']
         vm = [(kind, args) for kind, args in logical.items() if scope(kind) == 'vm']
+        if recover_missing and (not resume or namespace != 'run-tests' or host
+                                or len(logical) != 1 or not binding):
+            raise ValueError('missing-category recovery requires one bound VM category on resume')
         if namespace == 'run-tests' and host and vm:
             self.children = [Checkpoint(root, groups, resume=resume, namespace=namespace, binding=binding)
                              for groups in (host, vm)]
@@ -199,8 +203,8 @@ class Checkpoint:
                     private(os.fstat(stream.fileno()), regular=True)
                     if os.fstat(stream.fileno()).st_size > 16 * 1024 * 1024:
                         raise ValueError('resume checkpoint is oversized')
-                    state = json.load(stream) if resume or namespace == 'run-tests-family' else None
-            if (resume or namespace == 'run-tests-family') and state is not None:
+                    state = json.load(stream) if resume or namespace in ('run-tests', 'run-tests-family') else None
+            if state is not None:
                 if (not isinstance(state, dict) or state.get('version') != 1
                         or not isinstance(state.get('categories'), dict)
                         or any(not isinstance(entry, dict) or not isinstance(entry.get('args'), list)
@@ -225,9 +229,26 @@ class Checkpoint:
                 # Only fully validated state can identify a different selection.
                 # Repair launchers may replay that selection from scratch, but
                 # malformed progress must retain its refusal and evidence.
-                if resume and any(kind not in state['categories'] or state['categories'][kind]['args'] != args
+                if resume and any((kind not in state['categories'] and not recover_missing)
+                       or (kind in state['categories'] and state['categories'][kind]['args'] != args)
                        for kind, args in logical.items()):
                     raise ValueError(RESUME_SELECTION_MISMATCH)
+                if namespace == 'run-tests':
+                    if not resume:
+                        # Attempt/round metadata belongs to the execution being
+                        # reset, unlike other categories' retained case passes.
+                        state = dict(version=1, categories=state['categories'])
+                    for kind, args in logical.items():
+                        if not resume or kind not in state['categories']:
+                            # Reset only requested categories. A diagnostic in
+                            # another suite must not erase this suite's passes.
+                            state['categories'][kind] = dict(args=args, passed=[], complete=False)
+                            state.pop('queue_attempt', None)
+                            self.dirty = True
+                            if resume:
+                                print(f'fix-tests: missing {kind} runner checkpoint; replaying '
+                                      'unfinished work without saved passes; other categories retained.',
+                                      flush=True)
                 if namespace == 'run-tests-family':
                     claims = state.get('queue_claims', {})
                     if (not isinstance(claims, dict) or any(not isinstance(key, str)

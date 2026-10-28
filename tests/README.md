@@ -351,7 +351,8 @@ conflicts with `--continue-on-errors`.
 failed or interrupted category and cases. It can also accompany the original
 categories and selectors, for example `tools/run-tests --resume --stop-on-error
 unit 'tests/unit/test_core.py' -q`. A new execution without `--resume` resets the
-checkpoint and starts that selection from the beginning. Attachment to a live
+checkpoint for the selected categories and starts that selection from the beginning;
+other categories in the same scope retain their progress. Attachment to a live
 owner keeps that owner's options; inspection never changes checkpoints.
 
 Resumed category, bucket and overall counters include retained passes and keep
@@ -522,6 +523,12 @@ once without saved passes. Only a validated checkpoint selection mismatch
 permits this replay; invalid or unsafe state still stops with the runner's error.
 VM and mixed requests retain the mismatch refusal because they can span
 additional checkpoint stores that have not yet been validated.
+For an explicit repair resume on one bound VM category, a fully validated runner
+checkpoint missing that category can recreate it with the original selectors and
+zero saved passes, preserving all other categories and pending repairs. Existing
+category selectors must still match. This recovers older checkpoints replaced by
+another suite; it cannot recover passes no longer present in saved state. Normal
+execution then replays only work without retained completion credit.
 `--rounds X` defaults to 1, running only round 1.
 With X >= 2, it repeats verification X-1 times, labeled rounds 2 through X
 in the top frame. Each verification round runs `run-tests all`; failures trigger

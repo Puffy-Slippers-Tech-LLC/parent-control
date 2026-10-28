@@ -482,7 +482,7 @@ def run_family_cases(root, category, options, execute, gate, *, inventory,
     original = [arg for arg in options if arg != '--resume']
     queue = FamilyCases(parent_run(gate.run) or gate.run, vm.family, category, original, round_number)
     checkpoint = Checkpoint(root, [(category, original)], resume='--resume' in options,
-                            binding=vm.name)
+                            binding=vm.name, recover_missing='--resume' in options)
     generation = None
     while True:
         with gate.source():

@@ -866,10 +866,13 @@ def test_repair_replays_original_selection_after_another_run_replaces_checkpoint
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     tests = [call for call in calls if call['kind'] == 'test']
     original = ['--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()]
+    changed_selectors = replacement[0][0] == 'unit'
     assert [call['args'] for call in tests] == [
-        original, ['--resume', *original[:-2], '--resume-case=failed-case', '--resume-case-only', *original[-2:]], original]
+        original, ['--resume', *original[:-2], '--resume-case=failed-case', '--resume-case-only', *original[-2:]],
+        original if changed_selectors else ['--resume', *original]]
     assert len([call for call in calls if call['kind'] == 'agent']) == 1
-    assert 'replaying the requested category from the start with its original selectors' in output.getvalue()
+    assert ('replaying the requested category from the start with its original selectors'
+            in output.getvalue()) == changed_selectors
     from test_checkpoint import Checkpoint
     checkpoint = Checkpoint(root, [('unit', ['-k', 'selected', '-q'])], resume=True)
     assert checkpoint.passed('unit') == {'earlier-pass', 'failed-case'}

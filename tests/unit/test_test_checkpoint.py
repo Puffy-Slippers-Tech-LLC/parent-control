@@ -235,7 +235,7 @@ def test_changed_selection_does_not_mask_invalid_saved_progress(tmp_path, invali
 
 @pytest.mark.parametrize('replacement', ['symlink', 'hardlink', 'mode', 'malformed'])
 def test_checkpoint_refuses_unsafe_or_malformed_state(tmp_path, replacement):
-    checkpoint = Checkpoint(tmp_path, [('unit', [])])
+    checkpoint = Checkpoint(tmp_path, [('e2e', [])], binding='guest-one')
     path = checkpoint.store.path / checkpoint.name
     if replacement == 'symlink':
         path.rename(path.with_name('original'))
@@ -247,7 +247,8 @@ def test_checkpoint_refuses_unsafe_or_malformed_state(tmp_path, replacement):
     else:
         path.write_text('{')
     with pytest.raises((ValueError, OSError)):
-        Checkpoint(tmp_path, [('unit', [])], resume=True)
+        Checkpoint(tmp_path, [('integration', ['check_first'])], resume=True,
+                   binding='guest-one', recover_missing=True)
 
 
 def test_host_and_vm_checkpoints_are_independent_and_combined_retry_can_narrow(tmp_path, monkeypatch):
@@ -259,6 +260,25 @@ def test_host_and_vm_checkpoints_are_independent_and_combined_retry_can_narrow(t
     checkpoint.finish([])
     assert Checkpoint(tmp_path, [('unit', [])], resume=True).passed('unit') == {'host-pass'}
     assert Checkpoint(tmp_path, [('e2e', [])], resume=True).passed('e2e') == {'guest-pass'}
+    # A repair resume may restore a missing VM category with zero credit,
+    # preserving a different suite's checkpoint. Existing selectors stay strict.
+    recovered = Checkpoint(tmp_path, [('integration', ['check_first'])], resume=True,
+                           binding='guest-one', recover_missing=True)
+    assert not recovered.passed('integration') and not recovered.complete('integration')
+    recovered.event('integration', dict(kind='finished', nodeid='check_first'), set())
+    recovered.state['queue_attempt'] = 'old-attempt'
+    recovered.save()
+    assert Checkpoint(tmp_path, [('e2e', [])], resume=True).passed('e2e') == {'guest-pass'}
+    original = (recovered.store.path / recovered.name).read_bytes()
+    with pytest.raises(ValueError, match='selection differs'):
+        Checkpoint(tmp_path, [('integration', ['check_second'])], resume=True,
+                   binding='guest-one', recover_missing=True)
+    assert (recovered.store.path / recovered.name).read_bytes() == original
+    # Fresh execution resets its own category, without erasing the other one.
+    fresh = Checkpoint(tmp_path, [('e2e', [])])
+    assert not fresh.passed('e2e') and 'queue_attempt' not in fresh.state
+    assert Checkpoint(tmp_path, [('integration', ['check_first'])], resume=True).passed(
+        'integration') == {'check_first'}
     monkeypatch.setenv(VARIABLE, 'guest-two')
     assert Checkpoint(tmp_path, [('e2e', [])], resume=True).passed('e2e') == set()
 

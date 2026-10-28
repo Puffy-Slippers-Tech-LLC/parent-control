@@ -52,8 +52,13 @@ def isolated_vm_pool(request, monkeypatch):
         return
     tmp_path = request.getfixturevalue('tmp_path')
     import vm_pool
+    from tools import host_disk
     monkeypatch.setattr(vm_pool, 'RUNTIME', tmp_path / 'vm-pool')
+    monkeypatch.setattr(host_disk.vm_pool, 'RUNTIME', tmp_path / 'vm-pool')
     monkeypatch.delenv(vm_pool.VARIABLE, raising=False)
+    monkeypatch.delenv(host_disk.VARIABLE, raising=False)
+    # Exercise the real FIFO algorithm privately, without privileged helpers.
+    monkeypatch.setattr(host_disk, '_reserve', host_disk._host)
 
 from tools.regression_events import (pytest_collection_finish, pytest_collectreport,
                                      pytest_runtest_logreport, pytest_sessionfinish,

@@ -316,6 +316,14 @@ to retain an investigation reservation between commands. One request chain owns
 one VM at a time; batches use independent workers. Checkout-local activity and
 retained results do not constitute a VM reservation.
 
+Expensive disk stages additionally share the host-wide
+[FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).
+Package builds, guest product transactions, snapshot creation/restoration and
+VM disaster-recovery copies run one at a time across users and checkouts.
+Other work retains its existing parallel scheduling and resource admission.
+The portable COPR RPM backend remains independent of local development helpers;
+its host-facing Make, artifact and publishing callers own disk admission.
+
 `host-builds` remains a compatibility alias for `host`. Its `--serial-builds`
 option runs publishing/builds after the host join for scheduling comparisons.
 

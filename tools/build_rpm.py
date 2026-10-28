@@ -90,7 +90,8 @@ def native_fedora44():
                 and re.search(r'^VERSION_ID=[\"\']?44[\"\']?$', release_file, re.MULTILINE))
 
 
-def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm'):
+def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm',
+          inherited_fds=(), inherited_environment=None):
     if mode not in ('rpm', 'srpm', 'rpm-source'):
         raise ValueError('invalid RPM build mode')
     with tempfile.TemporaryDirectory(prefix='onpc-rpm-', dir=scratch_directory()) as temporary:
@@ -98,7 +99,8 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm'):
         # The caller's environment must not change an identical RPM's header,
         # scripts or payload timestamps. Containers receive this explicitly.
         epoch = metadata(root, release)[1]
-        environment = os.environ | {'SOURCE_DATE_EPOCH': str(epoch)}
+        environment = dict(os.environ if inherited_environment is None else inherited_environment)
+        environment['SOURCE_DATE_EPOCH'] = str(epoch)
         output.mkdir(parents=True, exist_ok=True)
         for artifact in (archive, identity, spec):
             export(artifact, output)
@@ -121,7 +123,7 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm'):
                     subprocess.run(arguments, cwd=top, check=True,
                                    stdout=stream, stderr=subprocess.STDOUT,
                                    env=environment,
-                                   pass_fds=scratch_descriptors())
+                                   pass_fds=(*scratch_descriptors(), *inherited_fds))
             finally:
                 export(log, output)
             if mock:
@@ -132,7 +134,7 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm'):
                     subprocess.run(['mock', '--root', 'fedora-44-x86_64', '--rebuild', str(srpm),
                                     '--resultdir', str(result)], cwd=top, check=True,
                                    env=environment,
-                                   pass_fds=scratch_descriptors())
+                                   pass_fds=(*scratch_descriptors(), *inherited_fds))
                 finally:
                     # Retain the builder's normal evidence even when it fails.
                     for log in result.glob('*.log'):

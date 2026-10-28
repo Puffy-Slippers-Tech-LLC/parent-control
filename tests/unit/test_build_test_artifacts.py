@@ -261,7 +261,7 @@ def test_rpm_build_uses_frozen_source_and_records_exact_artifact(tmp_path, monke
     monkeypatch.setattr(artifacts.package_inputs, 'digest', lambda *_: 'digest')
     monkeypatch.setattr(artifacts, '_metadata', lambda *_: metadata)
     calls = []
-    def rpm(source, output):
+    def rpm(source, output, **_lifetime):
         assert source != ROOT and (source / 'README.md').read_bytes() == (ROOT / 'README.md').read_bytes()
         calls.append(source)
         output.mkdir()

@@ -65,10 +65,11 @@ def _log(stage: str, outcome: str, **fields: str) -> None:
 
 def _run(command: list[str], *, cwd: Path | None = None, environment: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     from tools.test_storage import scratch_descriptors
+    from tools import host_disk
     try:
-        return subprocess.run(command, cwd=cwd, env=environment, check=True, text=True,
+        return subprocess.run(command, cwd=cwd, env=host_disk.environment(environment), check=True, text=True,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                              pass_fds=scratch_descriptors())
+                              pass_fds=(*scratch_descriptors(), *host_disk.descriptors()))
     except (OSError, subprocess.CalledProcessError) as error:
         if isinstance(error, subprocess.CalledProcessError):
             diagnostic = ((error.stdout or "") + "\n" + (error.stderr or "")).strip().splitlines()
@@ -232,11 +233,13 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
             if package_format == 'rpm':
                 # Keep the caller's rootless build image/storage identity. The
                 # maintained builder freezes inputs and disables networking.
-                from tools.build_rpm import build as build_rpm
+                from tools.build_package import build_rpm
                 build_rpm(source_copy, package_output)
                 packages = sorted(package_output.glob('oh-no-parent-control-[0-9]*.x86_64.rpm'))
             else:
-                _run(metadata["build_inputs"]["package_command"], cwd=source_copy, environment=environment)
+                from tools import host_disk
+                with host_disk.operation('Building the test DEB package'):
+                    _run(metadata["build_inputs"]["package_command"], cwd=source_copy, environment=environment)
                 packages = sorted(temporary.glob("oh-no-parent-control_*.deb"))
                 package_output.mkdir()
         if len(packages) != 1:

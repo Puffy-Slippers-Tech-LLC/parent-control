@@ -110,9 +110,9 @@ def test_both_formats_overlap_and_share_one_frozen_generation(tmp_path, monkeypa
         (output / f'package.{name}').write_text(name)
 
     monkeypatch.setattr(build_package, 'build',
-                        lambda root, architecture, destination: backend('deb', root, destination))
+                        lambda root, architecture, destination, **_cancel: backend('deb', root, destination))
     monkeypatch.setattr(build_rpm, 'build',
-                        lambda root, output, release: backend('rpm', root, output))
+                        lambda root, output, release, **_lifetime: backend('rpm', root, output))
     if failure:
         with pytest.raises(ValueError, match=f'{failure}: injected backend failure'):
             build_package.build_both(checkout, 'amd64', '0.1.dev')

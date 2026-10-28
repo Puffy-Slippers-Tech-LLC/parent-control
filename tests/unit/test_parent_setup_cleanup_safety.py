@@ -296,7 +296,8 @@ def test_snapshot_attachment_checks_frozen_installed_identity_before_restore(
            f'<memory snapshot="{memory}"/><state>{state}</state>'
            f'<creationTime>{created}</creationTime>{domain}</domainsnapshot>')
     snapshot = lease.source.domain.snapshotLookupByName.return_value
-    snapshot.getXMLDesc.side_effect = [xml, xml + ' ' if changed == 'race' else xml]
+    # Offline restore rechecks the frozen XML again after disk admission.
+    snapshot.getXMLDesc.side_effect = [xml, xml + ' ' if changed == 'race' else xml, xml]
     if changed == 'guard':
         lease.guard.side_effect = RuntimeError('lost owner')
     accepted = (changed is None or changed == 'age' and mode == 'offline'

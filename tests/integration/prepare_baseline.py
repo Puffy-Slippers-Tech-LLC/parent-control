@@ -44,6 +44,7 @@ import prepare_vm as guest_contract
 from watch_activity import observed
 from baseline_messages import SNAPSHOT, help_message, mode_message
 from tests.fixtures.native_trust import ForeignTrustMetadataError
+from tools import host_disk
 
 
 URI = guest_contract.vm_config.URI
@@ -449,7 +450,11 @@ class LibvirtSource:
         require(self.baseline() == expected_xml, 'snapshot:changed')
         name = ET.fromstring(expected_xml).findtext('name')
         snapshot = self.domain.snapshotLookupByName(name, 0)
-        self.domain.revertToSnapshot(snapshot, 0)
+        with host_disk.operation('Restoring the VM baseline'):
+            current, off = self.snapshot()
+            require(off and current == recorded_layout(layout), 'snapshot:source-changed')
+            require(self.baseline() == expected_xml, 'snapshot:changed')
+            self.domain.revertToSnapshot(snapshot, 0)
         current, off = self.snapshot()
         require(off and current == recorded_layout(layout), 'snapshot:source-changed')
 
@@ -466,8 +471,12 @@ class LibvirtSource:
         ET.SubElement(disks, "disk", name=layout["target"], snapshot="internal")
         # Offline snapshot: libvirt records the inactive domain XML and stores
         # disk state inside the current QCOW2, with no conversion or overlay.
-        self.domain.snapshotCreateXML(ET.tostring(root, encoding="unicode"),
-                                      self.api.VIR_DOMAIN_SNAPSHOT_CREATE_ATOMIC)
+        with host_disk.operation('Creating the VM baseline snapshot'):
+            current, off = self.snapshot()
+            require(off and current == recorded_layout(layout), 'snapshot:source-changed')
+            require(self.baseline() is None, 'snapshot:already-exists')
+            self.domain.snapshotCreateXML(ET.tostring(root, encoding="unicode"),
+                                          self.api.VIR_DOMAIN_SNAPSHOT_CREATE_ATOMIC)
 
     @observed('Deleting all versioned app snapshots')
     def delete_app_snapshots(self, layout):
@@ -476,9 +485,10 @@ class LibvirtSource:
         for snapshot in self.domain.listAllSnapshots(0):
             if re.fullmatch(r'onpc-v?[0-9]+(?:\.[0-9]+)*', snapshot.getName()) is None:
                 continue
-            current, off = self.snapshot()
-            require(off and current == recorded_layout(layout), 'snapshot:source-changed')
-            snapshot.delete(0)  # Delete this snapshot only, never its children.
+            with host_disk.operation('Deleting a versioned app snapshot'):
+                current, off = self.snapshot()
+                require(off and current == recorded_layout(layout), 'snapshot:source-changed')
+                snapshot.delete(0)  # Delete this snapshot only, never its children.
 
     @observed('Deleting the VM baseline snapshot')
     def delete_baseline(self, layout):
@@ -489,7 +499,10 @@ class LibvirtSource:
         require(len(matches) <= 1, "snapshot:ambiguous-baseline")
         for snapshot in matches:
             # No revert, metadata-only deletion, or recursive child deletion.
-            snapshot.delete(0)
+            with host_disk.operation('Deleting the VM baseline snapshot'):
+                current, off = self.snapshot()
+                require(off and current == recorded_layout(layout), 'snapshot:source-changed')
+                snapshot.delete(0)
 
 
 def snapshot_proof(xml, layout, description):

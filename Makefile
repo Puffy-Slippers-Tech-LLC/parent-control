@@ -222,13 +222,13 @@ build: check-release-version
 
 .PHONY: build-rpm srpm rpm-source
 build-rpm:
-	@$(PYTHON) -B tools/build_rpm.py --release "$(RPM_RELEASE)"
+	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format rpm --rpm-release "$(RPM_RELEASE)"
 
 srpm:
-	@$(PYTHON) -B tools/build_rpm.py --srpm --release "$(RPM_RELEASE)"
+	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format srpm --rpm-release "$(RPM_RELEASE)"
 
 rpm-source:
-	@$(PYTHON) -B tools/build_rpm.py --sources-only --release "$(RPM_RELEASE)"
+	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format rpm-source --rpm-release "$(RPM_RELEASE)"
 
 # Called in a private manifest-selected source copy by build_package.py.
 .PHONY: _build-package

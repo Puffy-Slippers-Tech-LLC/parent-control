@@ -240,6 +240,8 @@ class KioskEntryQualification(ParentJourneyQualification):
             lease.online_pending = True
             return
         with lease.snapshot_status('Restoring', name):
+            lease.guard(off=True)
+            smoke.require(snap.getXMLDesc(0) == xml, 'setup:installed-snapshot-changed')
             lease.source.domain.revertToSnapshot(
                 snap, lease.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
         lease.source.connection.defineXML(lease.test_xml)

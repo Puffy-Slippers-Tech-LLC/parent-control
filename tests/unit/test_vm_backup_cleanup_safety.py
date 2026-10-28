@@ -258,15 +258,18 @@ def test_backup_restores_deleted_domain_disks_and_rebinds_baseline(backup_rig):
     original = {str(path): path.read_bytes() for path in (rig.top, rig.anchor)}
     old_state = recovery.read_json(rig.directory / 'phase.json')
     # Simulate lost host disks/libvirt definitions; preserve the offline archive.
-    rig.top.unlink()
-    rig.anchor.unlink()
-    for path in rig.directory.iterdir():
-        if path.name != '.lock':
-            path.unlink()
-    rig.connection.present = False
-    rig.domain.snapshots.clear()
-    rig.domain.current = None
-    restore(rig)
+    # Pin the deleted inodes until recreation. Filesystems may otherwise reuse
+    # them immediately, defeating this case's changed-identity precondition.
+    with rig.top.open('rb'), rig.anchor.open('rb'):
+        rig.top.unlink()
+        rig.anchor.unlink()
+        for path in rig.directory.iterdir():
+            if path.name != '.lock':
+                path.unlink()
+        rig.connection.present = False
+        rig.domain.snapshots.clear()
+        rig.domain.current = None
+        restore(rig)
     assert all(Path(path).read_bytes() == value for path, value in original.items())
     state = recovery.read_json(rig.directory / 'phase.json')
     assert state['source']['chain'] != old_state['source']['chain']

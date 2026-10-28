@@ -111,6 +111,12 @@ def stamp(path):
 
 
 def copy_file(source, destination, *, expected=None, guard=lambda: None, created=lambda path: None):
+    from tools import host_disk
+    with host_disk.operation('Copying a VM disaster recovery file'):
+        return _copy_file(source, destination, expected=expected, guard=guard, created=created)
+
+
+def _copy_file(source, destination, *, expected=None, guard=lambda: None, created=lambda path: None):
     """Copy a descriptor-pinned regular file, preserving sparse QCOW2 holes.
 
     Exclusive creation and no reflinks give the generation independent bytes.

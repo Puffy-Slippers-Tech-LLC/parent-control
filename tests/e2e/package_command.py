@@ -12,6 +12,7 @@ import re
 from private_artifacts import require
 import session_control
 from watch_activity import operation
+from vm_transport import package_operation
 from installation_observations import (UNRELATED_PACKAGE, UNRELATED_SCRIPTS,
     UNRELATED_ARGV, unrelated_observation)
 
@@ -331,8 +332,12 @@ class PackageCommand:
                 nonlocal received
                 received += len(chunk)
                 require(received <= LIMIT, 'package:output-bound')
-            raw = self.transport.call(['/usr/bin/python3', '-I', '-', *arguments],
-                input=guest_source(), timeout=660, check=False, on_output=bound)
+            with package_operation(self.transport, 'Guest package transaction: ' + binding,
+                                   lease=getattr(self.verified, 'lease', None)):
+                self.transport.guard(self.identity)
+                self.verified.recheck()
+                raw = self.transport.call(['/usr/bin/python3', '-I', '-', *arguments],
+                    input=guest_source(), timeout=660, check=False, on_output=bound)
             status = self.transport.commands.last_returncode
             self.receipt = (raw, status)
         return {'submitted': True}

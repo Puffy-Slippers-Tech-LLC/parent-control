@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -104,7 +104,9 @@ def test_independent_readback_requires_actual_success_and_final_notice(monkeypat
         result = item.read_result()
         assert result['notice'] == command.NOTICE and result['completion'] == command.COMPLETE
         assert result['exit_status'] == 0
-        item.transport.guard.assert_called_once_with(item.identity)
+        # Admission can wait behind another VM: ownership is checked both
+        # after that wait and during the independent result readback.
+        assert item.transport.guard.call_args_list == [call(item.identity), call(item.identity)]
 
 
 def test_qualification_refuses_wrong_inputs_then_submits_once(monkeypatch):

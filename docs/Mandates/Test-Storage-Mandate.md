@@ -150,8 +150,9 @@ authorizes ordinary producers to allocate under an independent root.
 
 ## Disaster recovery archives
 
-The [central VM pool](VM-Mandate.MD#central-vm-checkout) keeps only its small
-UUID lock files and reservation receipts in the VM host's `/run/onpc-vm-pool/`.
+The [central VM pool](VM-Mandate.MD#central-vm-checkout) and
+[host disk queue](VM-Mandate.MD#host-disk-queue) keep only small UUID locks,
+reservation receipts and FIFO ticket locks in the VM host's `/run/onpc-vm-pool/`.
 These are host-wide operational bookkeeping, independent of test checkouts and
 retention. No test payload, log, report or evidence belongs there. Unit tests
 inject private lock roots in their normal test scratch.

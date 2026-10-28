@@ -350,6 +350,11 @@ from regression_resources import HOST_WORKERS
 # VM operations are doubles; no live service or additional cleanup owner exists.
 # Restore-bootstrap refusals retain these private disk/metadata/journal fixtures.
 # Interrupted-backup ownership checks likewise use only private journals/doubles.
+# Host disk tickets use the shared pytest fixture's private pool root, without
+# a privileged keeper or host queue. Backup restoration pins two private image
+# descriptors within a bounded context; both close before fixture teardown.
+# Existing compatible unit/cleanup classifications remain valid; no shared
+# path, process, socket, display, service or additional cleanup owner is added.
 # e2e_watch's borrowed-feed checks add only observer/context doubles, retaining
 # its compatible classification without a collector, socket or child process.
 # Failed installed-setup collection uses parent_setup's existing private attempt

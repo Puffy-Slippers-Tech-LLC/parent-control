@@ -170,6 +170,44 @@ its journals/locks to make room. A self-conflicting controller refusal is an
 infrastructure error to diagnose, never a product assertion or a reason to clear
 ownership.
 
+### Host disk queue
+
+The shared [disk admission helper](../../tools/host_disk.py) serializes expensive
+disk operations across all participating VMs, users and checkouts on the host.
+Actual snapshot creation/restoration, guest product package transactions, host
+package builds and disaster-recovery file copies use this same queue. VM
+reservations remain independent; other work on a reserved VM can proceed while
+another VM owns the disk slot. Manual virt-manager actions remain outside this
+advisory coordination.
+
+Root-owned tickets under `/run/onpc-vm-pool/disk/` establish strict FIFO order at
+admission. Pending operations wait without expiring or stealing a live ticket.
+Kernel locks and inherited command descriptors retain the slot until its last
+owned command finishes. Cancelled or crashed requests are retired only after
+the kernel proves their ticket unowned. Queue records are ephemeral coordination;
+the existing durable journals, recovery and identity guards remain authoritative.
+
+Nonroot builders use the existing privileged test dispatcher as a lifetime
+keeper; their build commands still run as the original user. No separate service
+or host product installation is involved. Setup refreshes that dispatcher through
+`./setup.sh --test-tools-only`; missing admission infrastructure fails explicitly.
+
+Acquire VM checkout, activity, controller and archive ownership before disk
+admission. Hold the slot only across the finite disk operation, never while
+requesting another VM or waiting for a child controller that needs those locks.
+In-process nested work borrows its slot. Spawned commands must inherit both
+`host_disk.descriptors()` and `host_disk.environment()` so nested builders borrow
+the same lifetime instead of queuing behind their parent. Independent parallel
+builders each request their own ticket; cancellation prevents pending builders
+from entering. Keep existing command timeouts, private-input filtering and watch
+observation, and revalidate ownership and operation inputs after queue admission.
+
+Guest package operations retain admission through owned shutdown when SSH
+completion is uncertain. Simultaneous abrupt controller and SSH death can still
+leave guest work running after the host descriptor disappears; inherited host
+descriptors do not prove remote completion. The recorded VM ownership and
+recovery routes remain necessary in that case.
+
 ## VM observation mandate
 
 - Every VM operation, experiment, qualification, setup, maintenance and test must

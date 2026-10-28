@@ -286,10 +286,15 @@ def reconcile_clean(g, script_digest=None):
         previous = json.loads(g.read_file(RECORD))
     if previous and previous.get('purpose') == PURPOSE:
         plan = _retirement_plan(g, script_digest)
+        removed = False
         for path in plan['files']:
             if _present(g, path):
                 g.rm(path)
-                g.sync()
+                removed = True
+        # The durable plan permits interrupted subsets; no per-file checkpoint
+        # is consumed. Persist all removals before replacing the legacy record.
+        if removed:
+            g.sync()
     else:
         require(previous is None or (type(previous) is dict and set(previous) == {'purpose', 'files', 'pending'}
                 and previous['purpose'] == CLEAN_PURPOSE and previous['pending'] is None

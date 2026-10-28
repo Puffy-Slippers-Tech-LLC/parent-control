@@ -3,7 +3,7 @@
 
 import io
 import hashlib
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import os
 from pathlib import Path
 import re
@@ -24,6 +24,32 @@ value=pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
 assert re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\n',value)
 print(hashlib.sha256(value.encode()).hexdigest())
 '''
+
+
+@contextmanager
+def package_operation(transport, label, *, lease=None):
+    """Keep admission through owned shutdown when SSH completion is uncertain."""
+    from tools.host_disk import operation
+    with operation(label):
+        try:
+            yield
+            status = transport.commands.last_returncode
+            if type(status) is int and (status == 255 or status < 0):
+                raise Error('package:transport-completion-uncertain')
+        except BaseException as error:
+            status = getattr(transport.commands, 'last_returncode', None)
+            if status is None or (type(status) is int and (status == 255 or status < 0)):
+                owner = lease if lease is not None else getattr(transport, 'lease', None)
+                if owner is None:
+                    error.add_note('package:owned-shutdown-unavailable')
+                else:
+                    try:
+                        owner.stop()
+                    except BaseException as cleanup:
+                        error.add_note('package:owned-shutdown-failed:' + type(cleanup).__name__)
+                    finally:
+                        transport.commands.last_returncode = status
+            raise
 
 
 @contextmanager
@@ -118,6 +144,7 @@ class Transport:
         self.config = config
         self.commands = commands or Commands()
         self.guard = guard
+        self.lease = lease
         if lease is not None:
             lease.shutdown_request = self.poweroff
 
@@ -134,10 +161,15 @@ class Transport:
         require(on_output is None or on_stream is None, 'transport:ambiguous-output-callback')
         from watch_activity import operation, remote_command
         selection = remote_command(argv, input is not None)
+        package = any(value == '/var/tmp/onpc-system-input/system_guest.py'
+                      and index + 1 < len(argv) and argv[index + 1] in (
+                          'install', 'install-previous', 'upgrade', 'install-setup', 'install-suite')
+                      for index, value in enumerate(argv))
         with operation(selection[0], priority=1):
-            return self._call(argv, input=input, timeout=timeout, check=check,
-                              attempts=attempts, on_output=on_output, on_stream=on_stream,
-                              selection=selection, diagnostic_stdout=diagnostic_stdout)
+            with package_operation(self, 'Installing the guest product package') if package else nullcontext():
+                return self._call(argv, input=input, timeout=timeout, check=check,
+                                  attempts=attempts, on_output=on_output, on_stream=on_stream,
+                                  selection=selection, diagnostic_stdout=diagnostic_stdout)
 
     def _call(self, argv, *, input, timeout, check, attempts, on_output, on_stream, selection,
               diagnostic_stdout):

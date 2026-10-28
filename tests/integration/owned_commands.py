@@ -83,6 +83,16 @@ class Commands:
 
     def _run(self, args, *, timeout, check, input, merge_stderr, on_output, terminal, watch,
              diagnostic_stdout, pass_fds):
+        # Guest payloads have no host queue. Host children retain and borrow
+        # their controller's admitted slot through the existing owned command.
+        try:
+            from tools import host_disk
+        except ModuleNotFoundError:
+            host_disk = None
+        disk_fds = host_disk.descriptors() if host_disk is not None else ()
+        environment = host_disk.environment() if disk_fds else None
+        if terminal:
+            environment = {**(os.environ if environment is None else environment), 'TERM': 'xterm-256color'}
         require(not terminal or input is None, 'command:terminal-input-unsupported')
         self.sequence += 1
         sequence = self.sequence
@@ -126,9 +136,9 @@ class Commands:
             child = subprocess.Popen(args, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
                                      stdout=slave if terminal else output,
                                      stderr=slave if terminal else subprocess.STDOUT if merge_stderr else errors,
-                                     pass_fds=tuple(dict.fromkeys((*pass_fds, *self.controller_fds,
+                                     pass_fds=tuple(dict.fromkeys((*pass_fds, *disk_fds, *self.controller_fds,
                                          *(() if self.lock_fd is None else (self.lock_fd,))))),
-                                     **({'env': {**os.environ, 'TERM': 'xterm-256color'}} if terminal else {}))
+                                     **({'env': environment} if environment is not None else {}))
             try:
                 pidfd = os.pidfd_open(child.pid)
             except BaseException as error:

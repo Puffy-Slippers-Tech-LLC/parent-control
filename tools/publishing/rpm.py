@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 
-from tools import build_rpm, package_inputs, test_storage
+from tools import build_rpm, package_inputs, test_storage, host_disk
 
 
 # These are SCM source-generation inputs, not shipped product sources. Keep
@@ -111,10 +111,11 @@ def check_build(root, checkout, directory):
         if stage != 'cleanup':
             report['stage'] = stage
         (attempt / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
-        with (attempt / (stage + '.log')).open('w') as log:
+        with host_disk.operation('COPR package validation: ' + stage), (attempt / (stage + '.log')).open('w') as log:
             result = subprocess.run(arguments, cwd=attempt, stdin=subprocess.DEVNULL,
                                     stdout=log, stderr=subprocess.STDOUT, check=False,
-                                    timeout=3600, pass_fds=test_storage.scratch_descriptors())
+                                    timeout=3600, env=host_disk.environment(),
+                                    pass_fds=(*test_storage.scratch_descriptors(), *host_disk.descriptors()))
         if result.returncode:
             raise ValueError(f'local COPR {stage} failed; read {log.name}')
 

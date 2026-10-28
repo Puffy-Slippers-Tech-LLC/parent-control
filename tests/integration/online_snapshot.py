@@ -242,6 +242,9 @@ def restore(lease, record, *, maintenance=False):
     lease.save('start-requested')
     started = time.monotonic()
     with lease.snapshot_status('Restoring', lease.installed_name):
+        lease.guard()
+        system.require(snap.getXMLDesc(0) == lease.installed_xml,
+                       'suite:snapshot-metadata-changed')
         lease.source.domain.revertToSnapshot(snap,
             lease.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
         # Persist the restored instance before progress teardown, logging,

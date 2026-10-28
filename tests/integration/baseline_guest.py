@@ -195,11 +195,16 @@ def recover_source_staging(g):
             regular(g, path, 0, 0, 0o600)
             require(relative == record['pending'] or g.checksum('sha256', path) == digest,
                     'guest:source-staging-substituted')
+    removed = False
     for relative in record['files']:
         path = STAGE + '/checkout/' + relative
         if g.exists(path):
             g.rm(path)
-            g.sync()
+            removed = True
+    # The durable receipt accepts any subset already absent after interruption.
+    # Persist the completed retirement once, after the full ownership audit.
+    if removed:
+        g.sync()
 
 
 def prepare_source_retirement(g):
@@ -251,11 +256,14 @@ def prepare_source_retirement(g):
             directory(g, str(Path(path).parent))
             regular(g, path, 0, 0, 0o600)
             require(g.checksum('sha256', path) == digest, 'guest:source-retirement-substituted')
+    removed = False
     for relative in plan['files']:
         path = STAGE + '/checkout/' + relative
         if g.exists(path):
             g.rm(path)
-            g.sync()
+            removed = True
+    if removed:
+        g.sync()
 
 
 def verify_clean_sources(g):

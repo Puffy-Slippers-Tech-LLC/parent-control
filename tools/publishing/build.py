@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from tools import host_disk
 
 
 CONFIG = """# Managed per-attempt PPA validation settings.
@@ -122,9 +123,10 @@ def check_build(root):
     print(f'test-publish: clean binary build evidence: {attempt}', flush=True)
     print('test-publish: resolving dependencies, then building without network or skipped tests', flush=True)
     try:
-        with (attempt / 'build.log').open('x') as log:
-            result = subprocess.run(command(dsc, output), cwd=output, env=env,
-                                    stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=False)
+        with host_disk.operation('Building the clean DEB package'), (attempt / 'build.log').open('x') as log:
+            result = subprocess.run(command(dsc, output), cwd=output, env=host_disk.environment(env),
+                                    pass_fds=host_disk.descriptors(), stdin=subprocess.DEVNULL,
+                                    stdout=log, stderr=subprocess.STDOUT, check=False)
         report['exit_code'] = result.returncode
         report['status'] = 'failed'
         if result.returncode != 0:

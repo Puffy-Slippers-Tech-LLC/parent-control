@@ -100,8 +100,9 @@ class Bundle:
     def module(self, name, caller, *, optional=False):
         if name.split('.')[0] in EXTERNAL:
             return
-        # Commands intentionally tolerates the absence of the host spectator.
-        if name == 'watch_activity' and caller == 'tests/integration/owned_commands.py':
+        # Guest commands intentionally omit host observation and disk admission.
+        if (name in ('watch_activity', 'tools', 'tools.host_disk')
+                and caller == 'tests/integration/owned_commands.py'):
             return
         if name in self.modules:
             self.dependencies[caller].add(self.modules[name])

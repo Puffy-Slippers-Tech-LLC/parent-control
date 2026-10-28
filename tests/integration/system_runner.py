@@ -909,10 +909,19 @@ class Lease:
 
     @contextmanager
     def snapshot_status(self, action, name):
+        from tools.host_disk import operation as disk_operation
         progress = getattr(self, 'watch_progress', None) or watch_progress
         label = f'{action} snapshot "{name}"'
         with operation(label), progress.snapshot_operation(label) if progress is not None else nullcontext():
-            yield
+            # Metadata-only fingerprint publication also uses this footer,
+            # before an isolated VM attempt exists. Its own capture guards
+            # apply; only actual disk transitions need admission here.
+            if action in ('Restoring', 'Taking', 'Deleting'):
+                with disk_operation(label):
+                    self.guard()
+                    yield
+            else:
+                yield
 
     def restore(self):
         # snapshot revert defaults to its saved shutoff state; never pass RUNNING.
@@ -920,6 +929,8 @@ class Lease:
         snap = self.source.domain.snapshotLookupByName(self.capture.state['proof']['name'], 0)
         require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
         with self.snapshot_status('Restoring', self.capture.state['proof']['name']):
+            self.guard(off=True)
+            require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
             self.source.domain.revertToSnapshot(snap, 0)
         self.refresh_domain()
         self.view.run = None
@@ -1005,6 +1016,7 @@ class Lease:
         snap = self.source.domain.snapshotLookupByName(self.capture.state['proof']['name'], 0)
         require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
         with self.snapshot_status('Restoring', self.capture.state['proof']['name']):
+            require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
             self.source.domain.revertToSnapshot(snap, self.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
         self.refresh_domain()
         self.view.run = None
@@ -1056,6 +1068,7 @@ class Lease:
         self.guard(off=True)
         if name in self.source.domain.snapshotListNames(0):
             with self.snapshot_status('Deleting', name):
+                self.guard(off=True)
                 self.source.domain.snapshotLookupByName(name, 0).delete(0)
 
     def release(self):
@@ -2104,11 +2117,19 @@ def run_pytest(vm, run, phase, selection):
     """Forward only registered test events; raw SSH output stays private."""
     from system_progress import Progress
     previous = getattr(vm.commands, 'progress', None)
-    vm.commands.progress = Progress(phase, phase_executions(selection, phase), watch=watch_progress)
+    executions = phase_executions(selection, phase)
+    vm.commands.progress = Progress(phase, executions, watch=watch_progress)
+    # These histories invoke native package transactions inside pytest, beyond
+    # the transport's explicit system_guest install/upgrade entry points. Keep
+    # each finite invocation together; its guest threads share the admission.
+    package_history = any(item.area == 'removal' or item.case_id == FIRST_CONFIGURE_CASE
+                          or item.case_id.startswith(PAM_CASE + '[') for item in executions)
+    from vm_transport import package_operation
     try:
-        return vm.call(pytest_command(run, phase, selection),
-                       timeout=2400 if phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE) or any(phase in history.phases
-                                           for history in REMOVAL_HISTORIES) else 900)
+        with package_operation(vm, 'Guest package lifecycle: ' + phase) if package_history else nullcontext():
+            return vm.call(pytest_command(run, phase, selection),
+                           timeout=2400 if phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE) or any(phase in history.phases
+                                               for history in REMOVAL_HISTORIES) else 900)
     finally:
         vm.commands.progress.close()
         vm.commands.progress = previous

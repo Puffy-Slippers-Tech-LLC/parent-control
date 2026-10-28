@@ -3,21 +3,29 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import threading
 
 if __package__:
-    from . import deb_builder, package_inputs
+    from . import deb_builder, package_inputs, host_disk
     from .test_storage import scratch_directory, scratch_descriptors
 else:
     import deb_builder
     import package_inputs
+    import host_disk
     from test_storage import scratch_directory, scratch_descriptors
 
 
-def build(root: Path, architecture: str, *, destination: Path | None = None) -> None:
+def build(root: Path, architecture: str, *, destination: Path | None = None, stopped=None) -> None:
+    with host_disk.operation('Building the DEB package', stopped=stopped):
+        return _build(root, architecture, destination=destination)
+
+
+def _build(root: Path, architecture: str, *, destination: Path | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix='onpc-package-', dir=scratch_directory()) as temporary:
         source = Path(temporary) / 'source'
         source.mkdir()
@@ -27,7 +35,8 @@ def build(root: Path, architecture: str, *, destination: Path | None = None) -> 
                      else deb_builder.command(source, Path(temporary), architecture))
         subprocess.run(
             arguments, cwd=source, check=True,
-            pass_fds=scratch_descriptors())
+            env=host_disk.environment(),
+            pass_fds=(*scratch_descriptors(), *host_disk.descriptors()))
         output = destination or root / 'output/deb'
         output.mkdir(parents=True, exist_ok=True)
         for artifact in (source / 'output/deb').iterdir():
@@ -35,11 +44,18 @@ def build(root: Path, architecture: str, *, destination: Path | None = None) -> 
     print(f'SUCCESS: build artifacts are in {output}', flush=True)
 
 
-def build_both(root: Path, architecture: str, release: str) -> None:
+def build_rpm(root: Path, output: Path, *, release='0.1.dev', mode='rpm', stopped=None):
     if __package__:
-        from .build_rpm import build as build_rpm
+        from .build_rpm import build as backend
     else:
-        from build_rpm import build as build_rpm
+        from build_rpm import build as backend
+    with host_disk.operation('Building the RPM package', stopped=stopped):
+        return backend(root, output, release=release, mode=mode,
+                       inherited_fds=host_disk.descriptors(),
+                       inherited_environment=host_disk.environment())
+
+
+def build_both(root: Path, architecture: str, release: str) -> None:
     # One snapshot gives both packages the same checkout generation. Each
     # backend receives its own copy and output tree; dpkg cleanup cannot race
     # RPM staging. Initialize the scratch lease before starting worker threads.
@@ -48,16 +64,25 @@ def build_both(root: Path, architecture: str, release: str) -> None:
         frozen.mkdir()
         package_inputs.copy(root, frozen)
         failures = []
-        with ThreadPoolExecutor(max_workers=2) as pool:
+        stopped = threading.Event()
+        # A wrapped caller may already own the disk slot. Its inner backends
+        # borrow that context serially, rather than racing under one receipt.
+        with ThreadPoolExecutor(max_workers=1 if host_disk.descriptors() else 2) as pool:
             jobs = {
-                'deb': pool.submit(build, frozen, architecture, destination=root / 'output/deb'),
-                'rpm': pool.submit(build_rpm, frozen, root / 'output/rpm', release=release),
+                'deb': pool.submit(copy_context().run, build, frozen, architecture,
+                                   destination=root / 'output/deb', stopped=stopped),
+                'rpm': pool.submit(copy_context().run, build_rpm, frozen, root / 'output/rpm',
+                                   release=release, stopped=stopped),
             }
-            for name, job in jobs.items():
-                try:
-                    job.result()
-                except (OSError, ValueError, subprocess.CalledProcessError) as error:
-                    failures.append(f'{name}: {error}')
+            try:
+                for name, job in jobs.items():
+                    try:
+                        job.result()
+                    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+                        failures.append(f'{name}: {error}')
+            except BaseException:
+                stopped.set()
+                raise
         if failures:
             raise ValueError('; '.join(failures))
 
@@ -75,7 +100,6 @@ if __name__ == '__main__':
         elif arguments.format == 'deb':
             build(root, arguments.architecture)
         else:
-            from build_rpm import build as build_rpm
             build_rpm(root, root / 'output/rpm', release=arguments.rpm_release,
                       mode=arguments.format)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:

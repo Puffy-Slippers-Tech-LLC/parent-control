@@ -67,6 +67,7 @@ class SuiteLease(system.Lease):
         ET.SubElement(root, 'name').text = self.installed_name
         ET.SubElement(root, 'memory', snapshot='internal' if online else 'no')
         with self.snapshot_status('Taking', self.installed_name):
+            self.guard(off=not online)
             snap = self.source.domain.snapshotCreateXML(ET.tostring(root, encoding='unicode'), 0)
         self.installed_xml = snap.getXMLDesc(0)
         if self.installed_inputs is not None:
@@ -94,6 +95,9 @@ class SuiteLease(system.Lease):
             description = ET.SubElement(root, 'description')
         description.text = inputs
         with self.snapshot_status('Recording inputs for', name):
+            self.capture.vm_ownership.check_owner()
+            self.capture.revalidate()
+            system.require(current.getXMLDesc(0) == xml, 'suite:snapshot-metadata-changed')
             snap = self.source.domain.snapshotCreateXML(
                 ET.tostring(root, encoding='unicode'),
                 self.source.api.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE)
@@ -193,6 +197,8 @@ class SuiteLease(system.Lease):
         # FORCE permits replacing QEMU when the saved XML differs. The saved
         # The baseline is off; prepare the test configuration before boot.
         with self.snapshot_status('Restoring', name):
+            self.guard()
+            system.require(snap.getXMLDesc(0) == expected, 'suite:snapshot-metadata-changed')
             self.source.domain.revertToSnapshot(snap, self.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
         self.view.run = None
         self.view.domain_id = None

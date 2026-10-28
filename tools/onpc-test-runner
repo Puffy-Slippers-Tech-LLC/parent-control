@@ -74,6 +74,8 @@ def confined_file(root, relative):
 
 
 def selection(root, argv, *, allow_missing_artifacts=False):
+    if argv == ['disk']:
+        return ['/usr/bin/python3', '-B', str(confined_file(root, 'tools/host_disk.py'))]
     sys.path.insert(0, str(root / 'tests/integration'))
     try:
         import vm_config
@@ -456,7 +458,7 @@ def run(root, argv, caller):
     sys.path.insert(0, str(root / 'tools'))
     import vm_pool
     argv = vm_pool.consume(argv)
-    if argv[:1] == ['pool']:
+    if argv[:1] in (['pool'], ['disk']):
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
         if vm_pool.VARIABLE in os.environ:
             environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]

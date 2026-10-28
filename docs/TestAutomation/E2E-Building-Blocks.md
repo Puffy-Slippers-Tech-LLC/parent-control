@@ -4231,6 +4231,8 @@ background polling and error dialogs are not part of this request-only history.
 The shared approval oracle checks the resulting time against the requested
 extension and elapsed time, rejecting a duplicate grant. Failure restoration and
 the outer VM cleanup retain their existing owners; no approval is replayed.
+This finite outage/recovery history passed on Ubuntu 26.04 and Fedora 44,
+including owned cleanup. No product change was needed; this closes only usability U07.
 
 ### Requests with missing optional scenery
 

@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U09 — [Close the scoped usability repairs](Kiosk-Usability-Tasks/U09-closeout.md)**.
+Next task: none.
 
 ## Outcome and scope
 
@@ -92,6 +92,41 @@ results, not a new proof archive or acceptance framework.
 An unresolved defect in a row's selected recovery path keeps that row unchecked,
 with its concrete blocker and return condition. A limitation outside that finite
 path may be recorded without expanding the task or claiming it was repaired.
+
+## Delivered results and remaining limits
+
+U01–U08 completed their selected histories on Ubuntu 26.04 and Fedora 44,
+including owned cleanup. The queue retains their accepted results:
+
+- U01/U01a delivered [native authentication fallback](SystemDesign/Localization.md#native-authentication-fallback)
+  for basic-only locales and failed discovery, preserving genuine approval and
+  the saved language. Their separate [test bindings](TestAutomation/E2E-Building-Blocks.md#short-confinement-usability-history)
+  retain denial/Cancel, independent time readback and restored request use.
+- U02 delivered [per-child activation isolation](SystemDesign/Lifecycle.md#compatibility-and-recovery-boundary).
+  The [child-home history](TestAutomation/E2E-Building-Blocks.md#child-home-isolation-history)
+  verified healthy-child requests during the outage and restored-child requests
+  after restoring the home and restarting the broker.
+- U03 delivered the bounded admission-contention wait. U03a verified existing
+  same-inode stale-mode repair; their distinct [lease histories](TestAutomation/E2E-Building-Blocks.md#owned-sign-in-lease-variation)
+  retain writer exclusion and restored public use.
+- U04–U08 verified existing product recovery without further product changes:
+  [helper restoration](TestAutomation/E2E-Building-Blocks.md#temporary-identity-helper-recovery),
+  [configuration retry](TestAutomation/E2E-Building-Blocks.md#interrupted-configuration-recovery),
+  [update activation](TestAutomation/E2E-Building-Blocks.md#entry-after-a-relevant-update),
+  [broker restoration](TestAutomation/E2E-Building-Blocks.md#requests-after-a-temporary-broker-outage)
+  and [optional-scenery fallback](TestAutomation/E2E-Building-Blocks.md#requests-with-missing-optional-scenery).
+  Scoped test-binding and comparison repairs preserve those finite histories.
+
+Entry alone does not establish a usable request. Essential-service or identity
+failures can still require safe refusal and exit; U07's unavailable/no-grant
+result is distinct from its fresh authenticated approval after restoration.
+Persistent writer contention and unsafe, foreign or live state retain the
+[admission limits](SystemDesign/Kiosk-Confinement.md#lease-and-lifecycle-boundary).
+The concurrent administrator-expiry [provenance gap](SystemDesign/Lifecycle.md#kiosk-provisioning-and-selected-session)
+remains unresolved outside U05's controlled interruption. These finite results
+do not qualify arbitrary faults, general confinement, other queues or a release.
+U09 reconciled the current owners and registered bindings; no further work or
+owned resources remain in this queue.
 
 ## Execution and ownership
 

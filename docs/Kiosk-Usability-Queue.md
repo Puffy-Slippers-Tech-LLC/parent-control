@@ -19,7 +19,11 @@ under the master's [sizing boundary](Kiosk-Usability-Plan.md#task-sizing).
 | [x] | U06 | Keep entry working after a relevant update | U05 | One supported update touching changed kiosk integration, with correct activation and fresh entry | Both targets passed genuine prior-release update, activation, approval/time readback, reentry and cleanup; shared test binding repaired, focused host/source checks passed. No product change needed. |
 | [x] | U07 | Recover requests after a temporary service outage | U06 | One broker outage, safe unavailable state and recovery without repeating approval | Both targets passed outage/no-grant, safe exit, restored genuine approval/time readback and cleanup; credential binding repaired, 195 focused host checks and source checks passed. No product change needed. |
 | [x] | U08 | Keep requests usable when presentation resources fail | U07 | One demonstrated optional presentation dependency cannot veto entry or approval | Both targets passed missing-scenery entry, genuine approval/time readback, exact artwork restoration, usable reentry and cleanup; 193 focused host checks and source checks passed. Test binding and stale-balance comparison repaired. No product change needed. |
-| [ ] | U09 | [Close the scoped usability repairs](Kiosk-Usability-Tasks/U09-closeout.md) | U08 | Reconcile delivered fixes and remaining limits without a general acceptance rerun | 15–30 min |
+| [x] | U09 | Close the scoped usability repairs | U08 | Reconcile delivered fixes and remaining limits without a general acceptance rerun | Reconciled current design/test owners and all ten registered fault bindings; Markdown links and scoped diff passed; no owned resources remain. |
+
+The master's [delivered results and remaining limits](Kiosk-Usability-Plan.md#delivered-results-and-remaining-limits)
+distinguish usable restored requests from operational refusal and retain the
+unresolved administrator-expiry limitation. No general acceptance rerun was added.
 
 Use the shared completion policy: short results and normal failure diagnostics
 are enough. No automatic report archive, historical-proof renewal or cross-queue

@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U08 — [Keep requests usable when presentation resources fail](Kiosk-Usability-Tasks/U08-optional-presentation.md)**.
+Next task: **U09 — [Close the scoped usability repairs](Kiosk-Usability-Tasks/U09-closeout.md)**.
 
 ## Outcome and scope
 

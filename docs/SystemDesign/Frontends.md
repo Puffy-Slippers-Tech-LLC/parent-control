@@ -355,6 +355,8 @@ Production extension changes require package activation and session renewal.
 Package staging precomputes fixed lava RGBA treatments with a version/dimension/
 source-digest bound cache and exact-length decoding. Missing/damaged/stale caches
 fall back to the original calculation, including edited checkout previews.
+Missing or unreadable optional clear-scenery artwork retains the original static
+background and leaves requests available.
 
 ## Lightning audio
 

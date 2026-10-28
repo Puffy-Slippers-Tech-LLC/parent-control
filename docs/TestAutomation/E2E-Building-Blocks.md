@@ -3341,6 +3341,8 @@ acceptance. Their removal from customer recipes does not delete the obligations:
  repeated entry under ambient variation, genuine essential-service recovery,
  useful original causes, safe exit/retry and preservation of foreign/live
  sessions. Unknown valid ambient content alone must not force reboot/refusal.
+ The [missing-scenery history](#requests-with-missing-optional-scenery) verifies
+ one existing optional-artwork fallback through genuine approval and restoration.
  Retired mask/view/generation workers supply no current executable acceptance.
 - Diagnostics/transport verify sanitization, retention, export metadata, frozen
  drafts/bytes, privacy, idempotency and actual provider receipts under separately
@@ -4229,6 +4231,24 @@ background polling and error dialogs are not part of this request-only history.
 The shared approval oracle checks the resulting time against the requested
 extension and elapsed time, rejecting a duplicate grant. Failure restoration and
 the outer VM cleanup retain their existing owners; no approval is replayed.
+
+### Requests with missing optional scenery
+
+`check_e2e_kiosk_optional_artwork` dispatches
+[`KioskOptionalArtworkJourney`](../../tests/e2e/kiosk_optional_artwork.py) through
+`KioskOptionalArtworkQualification` and
+`onpc_confinement_usability::optional_artwork`. Qualified on
+`onpc-Ubuntu26.04` and `onpc-Fedora44`, it temporarily hides only the installed
+clear-scenery image while the station is inactive. The existing loader and static
+background fallback leave fresh passwordless entry and the complete request usable.
+One genuine 75-second approval is independently checked in Parent against the
+975-second estimate and elapsed time. The
+[owned fault helper](../../tests/e2e/optional_artwork_fault.py) restores the exact
+image before fresh usable reentry and normal exit; the runner completes VM cleanup.
+Reentry checks the current usable form, without comparing its new estimate to a
+stale pre-approval balance. This finite engineering qualification adds no
+screenshot/style matrix or complete customer-case acceptance. No product change
+was needed.
 
 ### Reached service-route control
 

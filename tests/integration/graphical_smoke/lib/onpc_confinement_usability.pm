@@ -48,4 +48,32 @@ sub run {
         restore-allowance restore-disabled restore-saved restore-settings restore-balance);
     $journey->finish();
 }
+
+sub service_recovery {
+    onpc_progress::operation('Recovering a request after one owned broker outage');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'kiosk-service-recovery:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'kiosk-service-recovery', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('parent-selected', onpc_parent::open_for_child(
+        $journey, 'gdm', 'fresh', 'new', 'child'));
+    $journey->seen($_) for qw(limit-enabled save-enabled allowance-15-select
+        allowance-15-read time-explanation-read setup-parent-closed
+        switch-user gdm-switched);
+    onpc_gdm::enter_station($journey, '');
+    $journey->seen($_) for qw(request-form child-selected approver-selected selections-read
+        kiosk-diagnostic-error kiosk-diagnostic-exit outage-returned);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'outage-parent');
+    onpc_parent::named_management($journey, 'outage-supplied', 'child');
+    $journey->seen($_) for qw(outage-balance outage-switch outage-greeter);
+    onpc_request_flow::prepare($journey, 'new', 'new', 'default',
+        'fixture-child', 'fixture-parent', 75, 1, 'compact');
+    onpc_request_flow::approve($journey, 'fixture-child', 'fixture-parent', 75, 1, 'automatic');
+    parent_return($journey, 'approved');
+    $journey->seen('approved-balance');
+    $journey->finish();
+}
 1;

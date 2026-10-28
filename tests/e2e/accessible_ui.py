@@ -769,7 +769,8 @@ GDM_SESSION_CHOICES = frozenset({'station', 'gnome', 'gnome-xorg', 'ubuntu', 'ub
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form',
                               'kiosk-no-child-form', 'kiosk-no-approver-form', 'kiosk-lifecycle-defaults'})
 KIOSK_DIAGNOSTIC_OPERATIONS = frozenset({'kiosk-diagnostic-error',
-    'kiosk-diagnostic-report', 'kiosk-diagnostic-editor', 'kiosk-diagnostic-privacy'})
+    'kiosk-diagnostic-report', 'kiosk-diagnostic-editor', 'kiosk-diagnostic-privacy',
+    'kiosk-diagnostic-exit'})
 OPERATIONS |= KIOSK_DIAGNOSTIC_OPERATIONS
 KIOSK_REMINDER_OPERATIONS = frozenset({'kiosk-reminder-preview', 'kiosk-reminder-preview-cancel'})
 OPERATIONS |= KIOSK_REMINDER_OPERATIONS
@@ -10168,6 +10169,23 @@ class AccessibleUI:
         self.kiosk_diagnostic_source = value['source']
         return value
 
+    def kiosk_diagnostic_exit(self):
+        """Dismiss one known unavailable result through its normal safe exit."""
+        observation, root, source = self.kiosk_diagnostic_surface()
+        require(source == getattr(self, 'expected_kiosk_diagnostic_source', None),
+                'ui:kiosk-diagnostic-owner')
+        title = self.snapshot_owned_target('kiosk-result-title', root=root, observation=observation)
+        require(title is not None and title.get_name() == 'Request unavailable',
+                'ui:kiosk-diagnostic-error')
+        self.set_value('kiosk-report-toggle', False)
+        observation, root, current = self.kiosk_diagnostic_surface()
+        toggle = self.snapshot_owned_target('kiosk-report-toggle', root=root, observation=observation)
+        action = self.snapshot_owned_target('kiosk-result-action', root=root, observation=observation)
+        require(current == source and toggle is not None and toggle.getValue() is False
+                and action is not None, 'ui:kiosk-diagnostic-exit')
+        self._invoke_target(action)
+        return {'source': source, 'exit_initiated': True, 'reported': False}
+
     def kiosk_diagnostic_report(self):
         observation, root, source = self.kiosk_diagnostic_surface()
         require(source == getattr(self, 'expected_kiosk_diagnostic_source', None) or
@@ -13114,6 +13132,7 @@ class AccessibleUI:
                 'kiosk-diagnostic-report': self.kiosk_diagnostic_report,
                 'kiosk-diagnostic-editor': self.kiosk_diagnostic_editor,
                 'kiosk-diagnostic-privacy': self.kiosk_diagnostic_privacy,
+                'kiosk-diagnostic-exit': self.kiosk_diagnostic_exit,
             }[operation]()
         elif operation in GDM_SESSION_OPERATIONS:
             result['session_choice'] = self.gdm_session_operation(operation)

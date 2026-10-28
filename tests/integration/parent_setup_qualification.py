@@ -381,6 +381,16 @@ class KioskNotificationWellbeingQualification(KioskEntryQualification):
         return KioskNotificationWellbeingJourney(context, progress)
 
 
+class KioskServiceRecoveryQualification(KioskFeedbackConfinementQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_service_recovery import KioskServiceRecoveryJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskServiceRecoveryJourney(context, progress)
+
+
 class KioskValidDurationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

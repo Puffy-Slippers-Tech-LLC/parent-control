@@ -4212,6 +4212,24 @@ uses its normal public close action before continuing; note content and links
 are outside this check. Both targets passed the complete history, collection
 and owned cleanup. No product change was needed; this closes only usability U06.
 
+### Requests after a temporary broker outage
+
+`check_e2e_kiosk_service_recovery` runs
+[`KioskServiceRecoveryJourney`](../../tests/e2e/kiosk_service_recovery.py) through
+`KioskServiceRecoveryQualification` and the existing confinement-usability worker.
+It reuses the attempt-owned runtime mask/stop/restore in
+[`system_kiosk_feedback`](../../tests/integration/system_kiosk_feedback.py).
+One submission from the ready form must show sanitized Request unavailable
+feedback, retain the error-report choice and leave the child's grant empty while
+the broker is stopped. The normal result action returns safely to GDM without
+sending a report. Owned service restoration precedes an independent public Parent
+zero-grant read, fresh station entry and one genuine 75-second approval. The setup
+Parent window is closed before the fault and reopened for the time read; its
+background polling and error dialogs are not part of this request-only history.
+The shared approval oracle checks the resulting time against the requested
+extension and elapsed time, rejecting a duplicate grant. Failure restoration and
+the outer VM cleanup retain their existing owners; no approval is replayed.
+
 ### Reached service-route control
 
 `check_e2e_kiosk_service_route` dispatches

@@ -6,6 +6,7 @@ service invocation, boot or attempt rather than stopping a replacement service.
 """
 import json
 import os
+import pwd
 from pathlib import Path
 import re
 import stat
@@ -137,8 +138,30 @@ def feedback_census():
     return {'census': value}
 
 
+def no_grant():
+    """Engineering observation while this attempt still owns the stopped broker."""
+    from system_assertions import session_limits
+    marker = guest.guard()
+    value = read_record(marker)
+    info = MASK.lstat()
+    guest.require(value['state'] == 'stopped' and stat.S_ISLNK(info.st_mode) and
+                  [info.st_dev, info.st_ino] == value['mask'] and
+                  info.st_uid == info.st_gid == 0 and os.readlink(MASK) == '/dev/null' and
+                  service()['ActiveState'] == 'inactive', 'kiosk-feedback:fault-not-owned')
+    account = pwd.getpwnam('onpc-child-riley')
+    baseline = json.loads(guest.BASELINE.read_bytes())
+    guest.require(baseline['accounts'].get(account.pw_name) ==
+                  {'uid': account.pw_uid, 'role': 'standard'},
+                  'kiosk-feedback:child-identity')
+    _, _, extension = session_limits(account.pw_uid)
+    guest.require(type(extension) is list and len(extension) == 2 and extension[1] == 0,
+                  'kiosk-feedback:unexpected-grant')
+    return {'broker_unavailable': True, 'no_grant': True}
+
+
 if __name__ == '__main__':
-    actions = {'begin': begin, 'restore': restore, 'census': feedback_census}
+    actions = {'begin': begin, 'restore': restore, 'census': feedback_census,
+               'no-grant': no_grant}
     guest.require(len(sys.argv) == 2 and sys.argv[1] in actions,
                   'kiosk-feedback:arguments')
     print(json.dumps(actions[sys.argv[1]](), sort_keys=True))

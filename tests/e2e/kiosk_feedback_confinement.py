@@ -14,11 +14,8 @@ PLAN = replace(CHOICES_PLAN, worker_mode='kiosk_feedback_confinement',
     phases={**CHOICES_PLAN.phases, **{stage: 'step-2' for stage in EXTRA}})
 
 
-class KioskFeedbackConfinementJourney(InstalledJourney):
-    def __init__(self, context, progress):
-        super().__init__(context, progress, PLAN)
-        self.fault_pending = False
-
+class BrokerOutage:
+    """Shared attempt-owned fault transport; callers own sequence and assertions."""
     def engineering(self, action):
         self.context.lease.guard()
         result = self.transport.call(['env',
@@ -33,6 +30,12 @@ class KioskFeedbackConfinementJourney(InstalledJourney):
             require(value == {'broker_restored': True}, 'kiosk-feedback:recovery-response')
             self.fault_pending = False
             return value
+
+
+class KioskFeedbackConfinementJourney(BrokerOutage, InstalledJourney):
+    def __init__(self, context, progress):
+        super().__init__(context, progress, PLAN)
+        self.fault_pending = False
 
     def check_request(self, stage, observed):
         super().check_request(stage, observed)

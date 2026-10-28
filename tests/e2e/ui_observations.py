@@ -52,6 +52,7 @@ OPERATION_LABELS = {
     'child-natural-expiry-lock-ready': 'Checking the naturally locked input recipient',
     'child-natural-expiry-lock-result': 'Reading the owned lock after harmless normal input',
     'kiosk-diagnostic-error': 'Observing a real kiosk request failure under the owned engineering fault',
+    'kiosk-diagnostic-exit': 'Leaving the unavailable request safely without submission or replay',
     'kiosk-diagnostic-report': 'Opening the kiosk error report through its public dismissal action',
     'kiosk-diagnostic-editor': 'Editing the real kiosk report and waiting for diagnostics without Send',
     'kiosk-diagnostic-privacy': 'Reading confined in-app privacy and preserving the unsent kiosk report',
@@ -1410,6 +1411,7 @@ class UiObservations:
                 'ui:natural-expiry-lock-order')
         if operation in accessible_ui.KIOSK_DIAGNOSTIC_OPERATIONS - {'kiosk-diagnostic-error'}:
             previous = {'kiosk-diagnostic-report': 'kiosk-diagnostic-error',
+                        'kiosk-diagnostic-exit': 'kiosk-diagnostic-error',
                         'kiosk-diagnostic-editor': 'kiosk-diagnostic-report',
                         'kiosk-diagnostic-privacy': 'kiosk-diagnostic-editor'}
             require(self.last_operation == previous[operation] and
@@ -1887,6 +1889,7 @@ class UiObservations:
             expected['reminder'] = value
         if operation in accessible_ui.KIOSK_DIAGNOSTIC_OPERATIONS:
             fields = {'kiosk-diagnostic-error': {'error_shown': True, 'report_default': True},
+                      'kiosk-diagnostic-exit': {'exit_initiated': True, 'reported': False},
                       'kiosk-diagnostic-report': {'report_open': True},
                       'kiosk-diagnostic-editor': {'editor_usable': True,
                                                   'diagnostics_ready': True, 'sent': False},
@@ -1902,6 +1905,7 @@ class UiObservations:
                 self.kiosk_diagnostic_source = value['source']
             else:
                 previous = {'kiosk-diagnostic-report': 'kiosk-diagnostic-error',
+                            'kiosk-diagnostic-exit': 'kiosk-diagnostic-error',
                             'kiosk-diagnostic-editor': 'kiosk-diagnostic-report',
                             'kiosk-diagnostic-privacy': 'kiosk-diagnostic-editor'}
                 require(self.last_operation == previous[operation] and

@@ -444,8 +444,12 @@ def verify_gates(record):
     kiosk, ordinary = (pwd.getpwnam(USERS[role]) for role in ('kiosk', 'ordinary'))
     guest.require(kiosk.pw_uid != ordinary.pw_uid and kiosk.pw_shell == '/usr/sbin/nologin',
                   'kiosk-admission:identities')
+    # su-l's ordinary positive follows the kiosk refusal below. Each probe has
+    # a fresh PAM handle; the post-refusal control also detects collateral
+    # denial, so no duplicate ordinary-before probe is needed.
     for service in SERVICES:
-        probe(service, 'ordinary', 0, service + '.ordinary-before', record)
+        if service != 'su-l':
+            probe(service, 'ordinary', 0, service + '.ordinary-before', record)
     probe('gdm-password', 'kiosk', 0, 'dedicated-before', record)
     # The actual child-invoked su-l route is qualified separately. These
     # callbacks protect its native predicate, not terminal/SSH execution.
@@ -471,20 +475,23 @@ def verify(record):
                   'kiosk-admission:ssh-pam-routing')
     record('onpc.kiosk.admission.ssh-installed-pam', True)
     try:
-        for service in SERVICES:
-            probe(service, 'ordinary', 0, service + '.ordinary-before', record)
-        probe('gdm-password', 'kiosk', 0, 'dedicated-before', record)
+        verify_gates(record)
         # Saved preferences cannot attest to GDM's selected executable. Account
         # admission must accept each value without changing the saved default.
         for stage, values in routing_variations().items():
+            # The first cell is the prepared dedicated routing. When it is
+            # already selected, verify_gates just observed its real admission;
+            # avoid two no-op setters and another identical PAM worker.
+            if stage == 'normal' and values == original:
+                guest.require(routing(kiosk.pw_uid) == original,
+                              'kiosk-admission:routing-changed:' + stage)
+                continue
             set_routing(kiosk.pw_uid, values)
             probe('gdm-password', 'kiosk', 0, stage + '.allowed', record)
             guest.require(routing(kiosk.pw_uid) == values,
                           'kiosk-admission:routing-changed:' + stage)
             record('onpc.kiosk.admission.' + stage + '.unchanged', True)
         set_routing(kiosk.pw_uid, original)
-        probe('su-l', 'kiosk', PAM_PERM_DENIED, 'su-l.denied', record)
-        probe('su-l', 'ordinary', 0, 'su-l.ordinary-after', record)
         probe('gdm-password', 'kiosk', 0, 'dedicated-after', record)
         guest.require(routing(kiosk.pw_uid) == original and
                       routing(ordinary.pw_uid) == ordinary_routing,

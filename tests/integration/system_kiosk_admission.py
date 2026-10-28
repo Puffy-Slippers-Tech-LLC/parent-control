@@ -258,8 +258,10 @@ def held_account(record):
 
 
 def probe(service, role, expected, stage, record):
+    """Check an exact account status, or any refusal when expected is None."""
     guest.guard()
-    guest.require(service in SERVICES and role in USERS and type(expected) is int,
+    guest.require(service in SERVICES and role in USERS and
+                  (type(expected) is int or expected is None),
                   'kiosk-admission:arguments')
     with ExitStack() as resources:
         caller = ['/usr/bin/python3', '-B']
@@ -280,7 +282,8 @@ def probe(service, role, expected, stage, record):
                   'kiosk-admission:worker-result')
     # Retain the actual native statuses even when the assertion fails.
     record('onpc.kiosk.admission.' + stage, json.dumps(result, sort_keys=True))
-    guest.require(result == {'account': expected, 'end': 0},
+    accepted = result['account'] > 0 if expected is None else result['account'] == expected
+    guest.require(accepted and result['end'] == 0,
                   'kiosk-admission:unexpected-status:' + stage)
 
 

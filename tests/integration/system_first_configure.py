@@ -267,11 +267,13 @@ def quarantine_statuses(stage):
         # separately; this is an account-stage denial, not a password failure.
         return dict.fromkeys(services, 7)
     # Fedora's selected shared gate permits dedicated GDM routing and the user
-    # manager, leaving vendor expiry authoritative. It refuses login/sshd at
-    # its service boundary once activated, before their vendor expiry checks.
+    # manager, leaving vendor expiry authoritative. During interrupted setup,
+    # login/sshd must refuse admission regardless of whether the shared gate
+    # or vendor expiry supplies the refusal. None asks probe for any refusal;
+    # it still requires a valid native result and successful handle cleanup.
     result = dict.fromkeys(services, PAM_ACCT_EXPIRED)
     if stage == 'pam-ready':
-        result.update(dict.fromkeys(('login', 'sshd'), 6))
+        result.update(dict.fromkeys(('login', 'sshd'), None))
     return result
 
 

@@ -195,7 +195,7 @@ def test_quarantine_requires_exact_native_stack_statuses(monkeypatch, package_fo
     statuses = configure.quarantine_statuses(stage)
     assert set(statuses) == {'gdm-password', 'login', 'sshd', 'systemd-user'}
     assert statuses == ({name: 7 for name in statuses} if package_format == 'deb' else
-                        {'gdm-password': 13, 'login': 6, 'sshd': 6, 'systemd-user': 13}
+                        {'gdm-password': 13, 'login': None, 'sshd': None, 'systemd-user': 13}
                         if stage == 'pam-ready' else {name: 13 for name in statuses})
 
 

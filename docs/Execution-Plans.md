@@ -531,8 +531,9 @@ retry, even if an earlier candidate passed that point.
 These fields are presentation only and never acceptance evidence. Conversation
 lifecycle notices and developer questions appear separately from the status value.
 Valid `LAUNCHER_STATUS` metadata is omitted from the general transcript and
-descriptive output. Natural-language text following its JSON object is preserved
-in both outputs, including when it follows on the same line.
+descriptive output, including when it follows prose on the same line or appears
+among multiple message lines. Natural-language text before and after its JSON
+object is preserved in both outputs; invalid metadata remains visible.
 Below `Status:`, a horizontal separator introduces the latest agent session's
 descriptive output. This duplicates the agent's natural-language messages from
 the full bottom-left transcript, excluding command activity such as `Ran …`,

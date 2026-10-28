@@ -111,16 +111,25 @@ def status_update(run, task, text):
 
 
 def task_message(run, task, text):
-    """Consume valid status commentary, preserving following prose or invalid input."""
-    if text.startswith(STATUS_PREFIX):
-        payload = text[len(STATUS_PREFIX):].lstrip()
+    """Consume valid status commentary wherever it appears, preserving prose."""
+    parts = []
+    cursor = search = 0
+    while (start := text.find(STATUS_PREFIX, search)) != -1:
+        search = start + len(STATUS_PREFIX)
+        if start and not text[start - 1].isspace():
+            continue
+        payload = text[search:].lstrip()
         try:
             _, end = json.JSONDecoder().raw_decode(payload)
             status_update(run, task, payload[:end])
         except (ValueError, TypeError):
-            return text
-        return payload[end:].lstrip()
-    return text
+            continue
+        parts.append(text[cursor:start])
+        cursor = search = len(text) - len(payload) + end
+    if not parts:
+        return text
+    parts.append(text[cursor:])
+    return ''.join(parts).strip()
 
 
 def read_state(run):

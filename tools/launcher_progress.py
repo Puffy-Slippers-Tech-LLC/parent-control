@@ -157,15 +157,26 @@ def case_frame(steps, lines, current):
     steps[-1]['lines'][0] = completed_text(
         re.sub(r'Overall - [^|]+', overall + ' ', summary).rstrip()
         if ' | Overall - ' in summary else summary + ' | ' + overall)
+    # The main suite and separate upgrade attempts share a category name.
+    # Their selected-case counts belong to one summary, not to each attempt.
+    pattern = re.compile(r'^(.*?)\[([^]]+)\] (' + re.escape(item.name) + r'(?=[: ]).*)$')
+    rows = {index: match for index, line in enumerate(lines)
+            if (match := pattern.match(Dashboard.ANSI.sub('', line)))}
+    priority = ('✗', 'Running', 'Waiting', 'Pending', '✓')
+    representative = min(rows.values(), key=lambda match:
+                         priority.index(match[2]) if match[2] in priority else len(priority),
+                         default=None)
     result = []
-    for line in lines:
+    for index, line in enumerate(lines):
         plain = Dashboard.ANSI.sub('', line)
         if plain.startswith('Overall - '):
             line = completed_text(overall)
         else:
-            prefix, marker, row = plain.partition('[')
-            label, separator, tail = row.partition('] ')
-            if marker and separator and tail.startswith(item.name):
+            if index in rows:
+                if index != next(iter(rows)):
+                    continue
+                prefix = rows[index][1]
+                label, tail = representative[2], representative[3]
                 item.state = ('Failed' if label == '✗' else 'Passed' if done == total else
                               'Pending' if label in ('Pending', 'Waiting') else 'Running')
                 item.wait_reason = ''

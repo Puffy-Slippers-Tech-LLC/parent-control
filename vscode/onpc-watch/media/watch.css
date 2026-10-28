@@ -67,7 +67,10 @@ nav button[aria-pressed="true"] {
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
 }
 footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 4px 8px; border-top: 1px solid var(--vscode-panel-border); }
-#resources { flex: 1; min-width: 0; white-space: pre-wrap; font-family: var(--vscode-editor-font-family); font-size: .9em; }
+#resources { display: flex; flex: 1; flex-wrap: wrap; gap: 6px 16px; min-width: 0; font-family: var(--vscode-editor-font-family); font-size: .9em; }
+.resource { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.percentage { width: 4ch; white-space: pre; text-align: right; }
+.resource-chart { width: 70px; height: 22px; border-radius: 3px; }
 #restart { border: 0; padding: 4px 8px; background: var(--vscode-button-secondaryBackground); }
 @container (max-width: 650px) {
     #grid { grid-template-columns: minmax(0, 1fr); }

@@ -1,5 +1,6 @@
 """One desktop watcher for launcher output, host UI workers and all test VMs."""
 
+from collections import deque
 from contextlib import redirect_stderr, redirect_stdout
 import os
 from pathlib import Path
@@ -20,6 +21,8 @@ class ResourceUsage:
         self.previous_cpu = self.previous_disks = None
         self.last = None
         self.label = ''
+        self.history = deque(maxlen=60)
+        self.charts = []
 
     def text(self):
         now = self.clock()
@@ -53,13 +56,14 @@ class ResourceUsage:
                 # Whole physical devices only: exclude partitions, loop devices
                 # and stacked virtual mappings of the same underlying disks.
                 if (self.block / fields[2] / 'device').exists():
-                    disks[tuple(fields[:3])] = int(fields[6]), int(fields[10])
+                    disks[tuple(fields[:3])] = int(fields[12])
             if self.previous_disks is not None and interval > 0:
-                # Match Resources' Drive Activity: max(read time, write time)
-                # per interval, capped at 100%. Summarize with the busiest disk.
-                activity = [max(0, read - self.previous_disks[key][0],
-                                write - self.previous_disks[key][1]) / (interval * 10)
-                            for key, (read, write) in disks.items() if key in self.previous_disks]
+                # Use elapsed I/O busy time (iostat %util), rather than summed
+                # request times, which double-count concurrent I/O. A busy
+                # device is not necessarily at its throughput limit on NVMe.
+                activity = [(busy - self.previous_disks[key]) / (interval * 10)
+                            for key, busy in disks.items()
+                            if key in self.previous_disks and busy >= self.previous_disks[key]]
                 if activity:
                     disk = max(activity)
             self.previous_disks = disks
@@ -67,7 +71,25 @@ class ResourceUsage:
             self.previous_disks = None
         def percentage(value):
             return f'{max(0, min(100, value)):3.0f}%' if value is not None else '   —'
-        self.label = f'CPU: {percentage(cpu)} | Memory: {percentage(memory)} | Disk: {percentage(disk)}'
+        self.history.append((now, cpu, memory, disk))
+        self.charts = []
+        for index, (name, value) in enumerate(zip(('CPU', 'Memory', 'Disk'), (cpu, memory, disk)), 1):
+            segments, segment, previous = [], [], None
+            for sample in self.history:
+                stamp, reading = sample[0], sample[index]
+                if stamp < now - 59:
+                    continue
+                if reading is None or (previous is not None and stamp - previous > 2.5):
+                    if segment:
+                        segments.append(segment)
+                        segment = []
+                if reading is not None:
+                    segment.append(((stamp - now + 59) / 59, 1 - max(0, min(100, reading)) / 100))
+                previous = stamp
+            if segment:
+                segments.append(segment)
+            self.charts.append(dict(label=name, text=percentage(value), segments=segments))
+        self.label = ' | '.join(f'{chart["label"]}: {chart["text"]}' for chart in self.charts)
         return self.label
 
 
@@ -540,13 +562,23 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             all_tab.connect('toggled', self.select_checkout, 'all')
             self.checkout_bar.append(all_tab)
             self.resources = ResourceUsage()
-            self.resource_status = Gtk.Label(xalign=1,
-                                             hexpand=True, margin_start=12, margin_end=8)
+            self.resource_status = Gtk.Box(spacing=12, halign=Gtk.Align.END,
+                                           hexpand=True, margin_start=12, margin_end=8)
             self.resource_status.add_css_class('monospace')
-            self.resource_status.set_width_chars(len('CPU: 100% | Memory: 100% | Disk: 100%'))
             set_automation_id(self.resource_status, 'watch-resource-status')
             self.resource_status.set_tooltip_text(
-                'Host CPU and memory usage; highest physical disk read/write activity (Resources style).')
+                'Last minute of host CPU and memory usage; busiest physical disk by I/O busy time '
+                '(iostat %util). Graphs use a fixed 0–100% scale and history stays in memory only. '
+                'Busy time does not measure the throughput limit of an NVMe drive.')
+            self.resource_widgets = []
+            self.resource_sample = None
+            for index in range(3):
+                label = Gtk.Label()
+                chart = Gtk.DrawingArea(content_width=70, content_height=22, valign=Gtk.Align.CENTER)
+                chart.set_draw_func(self.draw_resource, index)
+                self.resource_status.append(label)
+                self.resource_status.append(chart)
+                self.resource_widgets.append((label, chart))
             self.refresh_resources()
             footer = Gtk.Box(spacing=8)
             footer.append(self.checkout_bar)
@@ -811,12 +843,33 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 scope['bodies'][selected].append(self.cells[shown[0]][0])
 
         def refresh_resources(self):
-            resource_text = self.resources.text()
-            if self.resource_status.get_text() != resource_text:
-                markup = resource_text
-                for name in ('CPU', 'Memory', 'Disk'):
-                    markup = markup.replace(name + ':', f'<b>{name}:</b>')
-                self.resource_status.set_markup(markup)
+            self.resources.text()
+            if self.resource_sample == self.resources.last:
+                return
+            self.resource_sample = self.resources.last
+            for (label, chart), data in zip(self.resource_widgets, self.resources.charts):
+                label.set_markup(f'<b>{data["label"]}:</b> {data["text"]}')
+                chart.queue_draw()
+
+        def draw_resource(self, _area, context, width, height, index):
+            color = ((.20, .55, .90), (.60, .40, .85), (1, .50, .10))[index]
+            context.set_source_rgba(*color, .08)
+            context.paint()
+            for segment in self.resources.charts[index]['segments']:
+                points = [(1 + x * (width - 2), 1 + y * (height - 2)) for x, y in segment]
+                context.move_to(points[0][0], height - 1)
+                for x, y in points:
+                    context.line_to(x, y)
+                context.line_to(points[-1][0], height - 1)
+                context.close_path()
+                context.set_source_rgba(*color, .30)
+                context.fill()
+                context.move_to(*points[0])
+                for point in points[1:]:
+                    context.line_to(*point)
+                context.set_source_rgb(*color)
+                context.set_line_width(1)
+                context.stroke()
 
         def tick(self):
             self.refresh_resources()

@@ -227,7 +227,8 @@ class Viewer:
         return dict(scope=scope, selected=selected, entries=values,
                     runs=self.run_status(),
                     checkouts=[dict(id=str(root), label=branch) for root, branch in self.roots.items()],
-                    resources=self.resources.text())
+                    resources=self.resources.text(), resource_sample=self.resources.last,
+                    resource_charts=self.resources.charts)
 
 
 def main():

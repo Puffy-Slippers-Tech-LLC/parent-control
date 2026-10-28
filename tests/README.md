@@ -2544,11 +2544,16 @@ snapshots appear only when `tools/watch` is launched from that checkout. Launch
 names update after Git branch switches; checkout paths identify separate tabs
 even when labels match.
 The footer's right-aligned resource line refreshes every second with host CPU,
-memory and disk activity percentages. Fixed-width percentage fields keep labels
-and separators stationary as values change; labels are bold and values use normal
-weight. Disk follows Resources' Drive Activity
-calculation (the greater of read and write time over the sample interval),
-showing the busiest physical disk and excluding partitions and virtual mappings.
+memory and disk busy percentages. Each percentage has a small filled graph of
+the last minute on a fixed 0–100% scale, reusing the same samples. History stays
+in memory only, starts fresh when the watcher reopens, and leaves gaps during
+sampling pauses. Fixed-width percentage fields keep labels stationary as values
+change; labels are bold and values use normal weight.
+**Disk** uses the kernel's elapsed I/O busy-time counter over the
+sample interval, matching `iostat %util`, and shows the busiest physical disk,
+excluding partitions and virtual mappings. Concurrent requests do not add their
+individual durations to this percentage. It measures activity, not the fraction
+of maximum throughput; a busy NVMe drive may still have performance headroom.
 Unavailable measurements show a dash until a valid sample is available.
 The left terminal follows active VM `fix-tests`, then host `fix-tests` output before `run-tests`,
 using VS Code Light+ colors, wrapping and vertical scrollback. The left panel

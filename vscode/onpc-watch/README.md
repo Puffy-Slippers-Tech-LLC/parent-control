@@ -22,6 +22,16 @@ only. Start tests through the usual launchers; the viewer also works alongside
 `make watch`. Select an idle VM tab to wait for its next run. The Reconnect button
 restarts only this tab's reader.
 
+The footer shows CPU, Memory and Disk percentages beside small filled history
+graphs. They reuse the once-per-second samples, show the last minute on a fixed
+0–100% scale, and retain history only in memory. Closing and reopening Watch or
+reconnecting its reader starts fresh; pauses leave gaps rather than joined curves.
+
+**Disk** reports the busiest physical disk's elapsed I/O busy time, matching
+`iostat %util`. It avoids adding overlapping request durations. This measures
+activity rather than maximum throughput; 100% busy does not necessarily mean an
+NVMe drive is saturated.
+
 The extension runs the selected trusted checkout's `tools/watch_webview.py` with
 system Python. That adapter reuses the desktop watcher's existing discovery,
 authenticated feeds and scope selection. Frames travel over private stdio,

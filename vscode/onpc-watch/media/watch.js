@@ -15,6 +15,7 @@
     let state = { scope: 'all', selected: saved?.selected || 'all' };
     let split = Number.isFinite(saved?.split) ? saved.split : 30;
     let pending = Promise.resolve();
+    let resourceSample;
 
     function persist() {
         vscode.setState({ ...state, split });
@@ -189,6 +190,52 @@
         });
     }
 
+    function resourceCharts(snapshot) {
+        if (resourceSample === snapshot.resource_sample) return;
+        resourceSample = snapshot.resource_sample;
+        resources.setAttribute('aria-label', snapshot.resources);
+        if (!resources.children.length) {
+            for (const name of ['CPU', 'Memory', 'Disk']) {
+                const group = element('span', 'resource', resources);
+                group.title = `${name}: last minute, fixed 0–100% scale. History stays in memory only.` +
+                    (name === 'Disk' ? ' Busiest physical disk (iostat %util); NVMe busy time is not throughput saturation.' : '');
+                element('strong', '', group).textContent = `${name}:`;
+                element('span', 'percentage', group);
+                const canvas = element('canvas', 'resource-chart', group);
+                canvas.width = 140;
+                canvas.height = 44;
+                canvas.setAttribute('aria-hidden', 'true');
+            }
+        }
+        const colors = ['52, 140, 230', '153, 102, 217', '255, 128, 26'];
+        snapshot.resource_charts.forEach((data, index) => {
+            const group = resources.children[index];
+            group.querySelector('.percentage').textContent = data.text;
+            const canvas = group.querySelector('canvas');
+            const context = canvas.getContext('2d');
+            const { width, height } = canvas;
+            context.clearRect(0, 0, width, height);
+            context.fillStyle = `rgba(${colors[index]}, .08)`;
+            context.fillRect(0, 0, width, height);
+            for (const segment of data.segments) {
+                const points = segment.map(([x, y]) => [2 + x * (width - 4), 2 + y * (height - 4)]);
+                context.beginPath();
+                context.moveTo(points[0][0], height - 2);
+                for (const point of points) context.lineTo(...point);
+                context.lineTo(points[points.length - 1][0], height - 2);
+                context.closePath();
+                context.fillStyle = `rgba(${colors[index]}, .3)`;
+                context.fill();
+                context.beginPath();
+                context.moveTo(...points[0]);
+                for (const point of points.slice(1)) context.lineTo(...point);
+                context.strokeStyle = `rgb(${colors[index]})`;
+                context.lineWidth = 2;
+                context.stroke();
+            }
+        });
+    }
+
     async function render(snapshot) {
         state = { scope: snapshot.scope, selected: snapshot.selected };
         persist();
@@ -196,7 +243,7 @@
         tabs(viewers, [{ id: 'all', label: 'All', active: true }, ...snapshot.entries.map(entry =>
             ({ id: entry.id, label: entry.label, active: entry.locked }))],
             state.selected, selected => select(state.scope, selected));
-        resources.textContent = snapshot.resources;
+        resourceCharts(snapshot);
         const shown = snapshot.entries.filter(entry => state.selected === 'all' ? entry.active : entry.id === state.selected);
         const ids = new Set(shown.map(entry => entry.id));
         for (const [id, view] of cards) {

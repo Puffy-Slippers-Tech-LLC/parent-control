@@ -826,6 +826,12 @@ sub run {
         onpc_child_isolation::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{kiosk_optional_artwork}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_confinement_usability::optional_artwork(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{kiosk_service_recovery}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

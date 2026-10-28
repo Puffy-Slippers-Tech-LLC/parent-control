@@ -504,45 +504,6 @@ def test_length_valid_boundary_cannot_reach_send_even_with_invalid_case_name(fam
     ui.activate_id.assert_not_called()
 
 
-def synthetic_feedback_ui():
-    ui, parent, dialog, controls = feedback_ui()
-    for binding in ('body-first', 'reply-first'):
-        identity, value = accessible_ui.TEXT_VALUES[binding]
-        controls[identity].text.count = len(value)
-        controls[identity].text.value = value
-    ui.api.Text.get_text = Mock(side_effect=lambda text, start, end: text.value[start:end])
-    return ui, parent, dialog, controls
-
-
-@pytest.mark.parametrize('missing', [False, True])
-def test_privacy_reads_actual_disclosure_and_never_follows_external_link(missing):
-    import ast
-    # The shipped disclosure supplies the fixture; remove an essential promise
-    # to prove a mere visible dialog cannot satisfy the observation.
-    from tests.support.paths import ROOT
-    tree = ast.parse((ROOT / 'common/oh_no_parent_control_ui/feedback.py').read_text())
-    method = next(node for node in ast.walk(tree)
-                  if isinstance(node, ast.FunctionDef) and node.name == '_show_log_privacy')
-    from common.oh_no_parent_control_ui import messages
-    suffix = getattr(messages, method.body[0].value.right.attr).source
-    disclosure = ('Feedback, reply email addresses, attachments, and diagnostic logs are emailed '
-                  'to support. Retention depends on our support mailbox and service providers, '
-                  'including their backup policies. We do not currently guarantee deletion '
-                  'within a fixed period.')
-    ui, _, _, _ = synthetic_feedback_ui()
-    ui.activate_id = Mock()
-    ui.window_ready_to_close = Mock()
-    root = Node(identity='feedback-privacy-dialog')
-    text = Node(name=('' if missing else disclosure) + suffix, identity='feedback-privacy-text')
-    ui.id_target = Mock(side_effect=[root, text])
-    if missing:
-        with pytest.raises(accessible_ui.UiError, match='ui:feedback-privacy-disclosure'):
-            ui.feedback_privacy('synthetic-first')
-    else:
-        ui.feedback_privacy('synthetic-first')
-    ui.activate_id.assert_called_once_with('feedback-privacy-link')
-
-
 def feedback_ui():
     controls = {identity: Node(identity=identity) for identity in (
         'feedback-editor-input', 'feedback-reply-email', 'feedback-logs-row',

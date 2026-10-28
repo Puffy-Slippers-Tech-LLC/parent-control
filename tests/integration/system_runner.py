@@ -1676,6 +1676,23 @@ def kiosk_activation_host_inputs_unchanged(recorded):
     current = dict(kiosk_activation_host_inputs())
     for source in recorded.keys() - current.keys():
         current[source] = hashlib.sha256(read(ROOT, source)).hexdigest()
+    if current != recorded:
+        # Report the comparison that actually refused entry, without rereading
+        # moving inputs or exposing file contents or arbitrary manifest paths.
+        changed = current.keys() | recorded.keys()
+        changed = {source for source in changed
+                   if current.get(source) != recorded.get(source)}
+        details = {
+            'activation_sources': {
+                source: {'recorded_sha256': recorded.get(source),
+                         'current_sha256': current.get(source)}
+                for source in KIOSK_ACTIVATION_HOST_INPUTS if source in changed
+            },
+            'additional_source_count': len(changed - set(KIOSK_ACTIVATION_HOST_INPUTS)),
+        }
+        log('kiosk-activation:host-input-diff ' + json.dumps(details, sort_keys=True))
+    else:
+        log(f'kiosk-activation:host-inputs-verified files={len(current)}')
     return current == recorded
 
 

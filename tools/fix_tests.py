@@ -235,6 +235,8 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'edits and deletions; use an empty list when no files changed. Never include '
             'unrelated work or output artifacts. '
             'Set verification_case to null when the failure already identifies a case. '
+            'If the handoff supplies attempted_case for a preparation failure, preserve '
+            'that exact case and its prerequisites; a different case cannot verify it. '
             'For a failure without a case ID, choose exactly one existing case that exercises '
             'the failed operation and the correction, within the original category/selectors, '
             'and return its runner case ID as verification_case. Explain that causal choice '
@@ -886,7 +888,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if not cases:
                 raise ValueError('case inventory unavailable for bounded verification')
             recent = latest_attempt or {}
-            candidates = [repaired.get('verification_case'),
+            attempted = repaired.get('attempted_case')
+            if attempted and attempted not in cases:
+                raise ValueError('retained attempted case is outside the original verification selection')
+            candidates = [attempted, repaired.get('verification_case'),
                           recent.get('case') if recent.get('category') == category else None]
             position = run / 'case-progress.json'
             if position.exists():
@@ -1114,6 +1119,18 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         nonlocal verifying_fix, restart_continuation, repair_context
         commits.begin(failure_key, inventory[failure_key[0]]['args'])
         entry = commits.state['repairs'][commits.key(failure_key)]
+        queued = commits.state.get('queued_failure', {}).get('failure', {})
+        attempted = queued.get('attempted_case')
+        if (not failure_key[1] and isinstance(attempted, dict)
+                and attempted.get('category') == failure_key[0]
+                and attempted.get('vm') == failure_key[2] and attempted.get('case')):
+            entry['attempted_case'] = attempted['case']
+            commits.save()
+        if entry.get('attempted_case'):
+            prompt += ('\nRequired preparation verification case: ' + entry['attempted_case']
+                       + '. Preserve its installation prerequisites. A previous diagnostic '
+                         'using another case does not verify this path; the exact case still '
+                         'requires launcher-owned execution.\n')
         failure_prompt = prompt
         replay = entry.get('pending_response')
         diagnostic = previous is not None and previous.get('status') == 'diagnostic_ready'

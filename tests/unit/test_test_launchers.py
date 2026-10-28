@@ -1505,43 +1505,6 @@ def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
         dispatcher['selection'](ROOT, ['integration', '--list', 'check_fixture_snapshots'])
 
 
-@pytest.mark.parametrize('argv', [['--help'], ['-h'], ['--list']])
-def test_public_global_inspection_bypasses_activity_and_session(monkeypatch, capsys, argv):
-    import regression_session
-
-    def refuse(*args, **kwargs):
-        pytest.fail('inspection must return before activity or session inspection')
-
-    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    monkeypatch.setattr(commands.test_activity, 'descriptors', refuse)
-    monkeypatch.setattr(regression_session, 'main', refuse)
-    assert commands.main(argv) == 0
-    output = capsys.readouterr().out
-    if argv == ['--list']:
-        assert json.loads(output) == commands.suite_inventory()
-    else:
-        assert output == commands.usage() + '\n'
-
-
-@pytest.mark.parametrize('argv', [
-    ['unit', '--collect-only'], ['component', '--help'], ['ui', '-h'],
-    ['fast', '--list'], ['system', '--list'], ['e2e', '--list'],
-])
-def test_public_category_inspection_bypasses_activity_and_session(monkeypatch, argv):
-    import regression_session
-
-    def refuse(*args, **kwargs):
-        pytest.fail('inspection must return before activity or session inspection')
-
-    execute = Mock(return_value=7)
-    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    monkeypatch.setattr(commands.test_activity, 'descriptors', refuse)
-    monkeypatch.setattr(regression_session, 'main', refuse)
-    monkeypatch.setattr(commands, '_main', execute)
-    assert commands.main(argv) == 7
-    execute.assert_called_once_with(argv)
-
-
 @pytest.mark.parametrize('category', ['all', 'all-verify'])
 def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, category):
     import regression

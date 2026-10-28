@@ -105,6 +105,8 @@ class ParentJourneyQualification(smoke.Qualification):
     observation_only = False
 
     upgrade_assets = False
+    package_only = False
+    system_product_free = False
     fixture_subsets = ('native',)
     fixture_caller = None
     worker_timeout = 1800
@@ -135,13 +137,15 @@ class ParentJourneyQualification(smoke.Qualification):
             host_key = smoke.runner.bootstrap(
                 self.commands, lease, self.directory, guestfs,
                 observation_only=self.observation_only,
-                **({'e2e_product_free': True} if product_free else
+                **({'system_product_free': True} if self.system_product_free else
+                   {'e2e_product_free': True} if product_free else
                    {'e2e_installed': True} if getattr(self, 'fixture_selection', None) is not None else {}))
             lease.guard(off=True)
             lease.save('isolated')
             self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets,
                                                 upgrade=self.upgrade_assets,
-                **({'package_only': True} if getattr(self, 'fixture_selection', None) is not None else {}))
+                **({'package_only': True} if self.package_only or
+                   getattr(self, 'fixture_selection', None) is not None else {}))
             self.result['provenance'] = self.verified.inputs
             if self.upgrade_assets:
                 self.result['upgrade_inputs'] = self.verified.upgrade_inputs

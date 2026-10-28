@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U06 — [Keep entry working after a relevant update](Kiosk-Usability-Tasks/U06-update-reentry.md)**.
+Next task: **U07 — [Recover requests after a temporary service outage](Kiosk-Usability-Tasks/U07-service-recovery.md)**.
 
 ## Outcome and scope
 

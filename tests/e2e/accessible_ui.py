@@ -1379,6 +1379,7 @@ def owned_surface_id(identity):
         ('reminder-', 'language-dialog'),
         ('preset-', 'language-dialog'),
         ('language-', 'language-dialog'),
+        ('whats-new-', 'whats-new-dialog'),
         ('feedback-full-privacy-', 'feedback-privacy-dialog'),
         ('feedback-privacy-', 'feedback-privacy-dialog'),
         ('feedback-success-', 'feedback-success-dialog'),
@@ -1453,7 +1454,7 @@ def owned_applications(identity):
         return (KIOSK_APPLICATION, CHILD_APPLICATION)
     if identity.startswith('preview-viewer-'):
         return ('com.puffyslippers.ScreenPreview',)
-    if identity.startswith(('language-', 'about-', 'feedback-', 'startup-error-', 'error-report-',
+    if identity.startswith(('language-', 'whats-new-', 'about-', 'feedback-', 'startup-error-', 'error-report-',
                             'update-required-')):
         return PRODUCT_APPLICATIONS
     return ()
@@ -2828,6 +2829,26 @@ class AccessibleUI:
         """Scope shared language IDs to the requested frontend application."""
         with self.language_scope(surface):
             self._complete_language_setup(surface)
+            self.complete_startup_notes(surface)
+
+    def complete_startup_notes(self, surface):
+        """Dismiss only the requested frontend's observed release-note modal."""
+        require(surface in ('parent', 'kiosk'), 'ui:startup-note-surface')
+        window_id = 'parent-window' if surface == 'parent' else 'kiosk-request-window'
+        observation = self.read_snapshot()
+        dialog = self.snapshot_owned_target('whats-new-dialog', observation=observation,
+                                            check_prompt=True)
+        if dialog is None:
+            return
+        metadata = dialog.surface_metadata
+        require(metadata.get('parent_id') == window_id
+                and metadata.get('application_id') in self.owned_applications(window_id),
+                'ui:startup-note-owner')
+        print('ui:startup-release-notes=observed', file=sys.stderr, flush=True)
+        self.close_id('whats-new-dialog')
+        self.wait(lambda: self.absent_id('whats-new-dialog', within=window_id),
+                  'startup-note-closed')
+        print('ui:startup-release-notes=closed', file=sys.stderr, flush=True)
 
     def initial_kiosk_child(self, observation, window, *, notice=False, child=EXISTING_CHILD):
         """Bind the selected child's public ID without completing language setup."""
@@ -6814,6 +6835,7 @@ class AccessibleUI:
     def open_child_picker(self, child, *, opened=False):
         """Select the declared account UID through the shared API."""
         require(child in CHILD_IDENTITIES and type(opened) is bool, 'ui:child-binding')
+        self.complete_startup_notes('parent')
         uid = (self.fixture_uids[child] if self.fixture_uids is not None
                else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
         if child == NEW_CHILD:

@@ -261,8 +261,8 @@ def verify_updated(record):
     rules = guest.execution_rule_state()
     guest.verify_reboot_gate()
     retirement = guest.verify_upgrade_admission_receipt(boot())
-    guest.require(retirement == 'pre-reboot-removal-refused',
-                  'previous-upgrade:prelease-transition-not-observed')
+    guest.require(retirement == 'legacy-integration-retired-current-pam-verified',
+                  'previous-upgrade:integration-transition-not-observed')
     guest.require(guest.execution_rule_state() == rules,
                   'previous-upgrade:diagnostics-changed-rules')
     remaining = verify_preserved(state, record)

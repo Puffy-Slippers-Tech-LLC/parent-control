@@ -676,25 +676,19 @@ def upgrade():
 
 
 def verify_upgrade_admission_receipt(boot):
-    """Require actual old-worker retirement protection before upgrade reboot."""
+    """Verify the current integration and retirement of obsolete owned state."""
     guard()
-    saved = json.loads(KIOSK_CONFINEMENT_STATE.read_text())
-    require(saved.get('schema') == 1 and saved.get('admission_protocol') == 1,
-            'upgrade-admission-receipt-invalid')
-    receipt = saved.get('prelease_upgrade_boot_id')
-    if receipt is None:
-        return 'not-required-current-protocol'
-    require(isinstance(receipt, str) and re.fullmatch(
-        r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', receipt),
-        'upgrade-admission-boot-invalid')
-    if receipt != boot:
-        return 'previously-retired'
-    output = commands.run([
-        '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'check-remove'],
-        check=False, timeout=30, merge_stderr=True)
-    require(commands.last_returncode != 0 and b'legacy-pam-reboot-required' in output,
-            'upgrade-prelease-removal-not-refused')
-    return 'pre-reboot-removal-refused'
+    require(boot == Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+            'upgrade-integration-boot-changed')
+    for name in ('kiosk-confinement.json', 'kiosk-confinement-removing',
+                 'legacy-kiosk-policy.json', 'legacy-kiosk-policy'):
+        require(not os.path.lexists(KIOSK_CONFINEMENT_STATE.parent / name),
+                'upgrade-legacy-state-retained')
+    require(not os.path.lexists('/usr/libexec/oh-no-parent-control-kiosk-confinement-integration'),
+            'upgrade-retired-helper-retained')
+    distribution = 'fedora' if package_path().suffix == '.rpm' else 'ubuntu'
+    run(['/usr/libexec/oh-no-parent-control-distro-pam', '--distribution', distribution, 'verify'])
+    return 'legacy-integration-retired-current-pam-verified'
 
 
 def installed_group(path):

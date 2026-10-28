@@ -706,6 +706,14 @@ the recovered test marks only that pinned report seen, preserving its bytes.
 Unrelated reports and unknown modal guards remain unchanged. Ubuntu 26.04 and
 Fedora 44 passed the complete history and owned cleanup without product changes.
 
+`check_e2e_kiosk_update_reentry` reuses the genuine prior/current package inputs,
+guarded installation/reboot helpers and the same short public usability history.
+It starts from the product-free baseline, installs and activates the prior
+release, updates through `make install`, then observes the candidate's required
+reboot before public approval/time readback and fresh entry. Ordinary fixture
+account identities/groups remain unchanged. Both targets passed with owned
+cleanup; see the [finite binding](../../docs/TestAutomation/E2E-Building-Blocks.md#entry-after-a-relevant-update).
+
 `package` → `test_first_configuration_interruption_retry` starts from the
 verified product-free baseline in its own attempt. Its `first-configure` phase
 owns fresh installation, failures after visibility publication and after current
@@ -1045,8 +1053,9 @@ custom request choices and a real Polkit-approved fixed request for twelve
 additional hours.
 The grant's exact issuance/duration must survive; its remaining wall-clock time
 must decrease across update/reboot, following [grant arithmetic](../../docs/SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
-Before reboot, policy activation returns the exact reboot-required refusal and
-the legacy admission receipt refuses removal. After reboot, public policy/time
+Before reboot, policy activation returns the exact reboot-required refusal;
+current distro PAM verification and absence of retired legacy integration
+state/helper replace the removed private admission-receipt assertion. After reboot, public policy/time
 queries, session preparation, hard-app denial, approved soft-app execution,
 unrelated-user execution and saved identity/policy preservation must pass.
 The exact declared kiosk-shell change from the pinned releases' `/bin/bash` to

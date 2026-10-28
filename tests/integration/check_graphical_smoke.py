@@ -1290,9 +1290,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(package_upgrade) is bool and not (package_upgrade and any((
         product_free_entry, package_authority, package_install, customer_reboot,
         chinese_language_assets, desktop_language, upgrade_assets))), 'smoke:package-upgrade-prerequisites')
-    dual_packages = upgrade_assets or package_upgrade or chinese_kiosk_lifecycle
+    dual_packages = (upgrade_assets or package_upgrade or chinese_kiosk_lifecycle
+                     or kiosk_entry == 'update-reentry')
     product_free_entry = (product_free_entry or package_authority or package_install
-                          or customer_reboot or chinese_language_assets or desktop_language or dual_packages
+                          or customer_reboot or chinese_language_assets or desktop_language
+                          or (dual_packages and kiosk_entry != 'update-reentry')
                           or chinese_current_install or restart_notice or unrelated_reboot_request)
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
@@ -1439,7 +1441,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require((type(kiosk_entry) is bool or kiosk_entry in (
             'service-variation', 'service-route',
             'routing-variation', 'lease-variation', 'admission-contention', 'identity-helper',
-            'configuration-recovery',
+            'configuration-recovery', 'update-reentry',
             'public-desktop-selection', 'station-shortcuts')) and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
@@ -1657,6 +1659,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                if kiosk_entry == 'identity-helper'
                                else 'installed-kiosk-configuration-recovery-qualification'
                                if kiosk_entry == 'configuration-recovery'
+                               else 'installed-kiosk-update-reentry-qualification'
+                               if kiosk_entry == 'update-reentry'
                                else 'installed-kiosk-entry-qualification')
         if kiosk_eligible_choices:
             result['scope'] = 'installed-kiosk-eligible-choices-qualification'
@@ -1916,7 +1920,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     staged = directory / 'assets'
                     result['source_preflight'] = stage_qualification_assets(
                         assets, staged, commands, dual_packages=dual_packages,
-                        package_only=parent_setup or fixture_selection is not None)
+                        package_only=parent_setup or fixture_selection is not None
+                                     or kiosk_entry == 'update-reentry')
                 if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
@@ -1925,7 +1930,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
                     installed_setup.stage(directory, staged, result['inputs_sha256'],
-                        **({'package_only': True} if parent_setup or fixture_selection is not None else {}))
+                        **({'package_only': True} if parent_setup or fixture_selection is not None
+                            or kiosk_entry == 'update-reentry' else {}),
+                        **({'upgrade': True} if kiosk_entry == 'update-reentry' else {}))
                     staged = directory / 'input'
                 else:
                     (directory / 'input').mkdir(mode=0o700)
@@ -2107,13 +2114,15 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import UnrelatedRebootQualification
                     qualification_class = UnrelatedRebootQualification
                 if kiosk_entry:
+                    from kiosk_update_reentry_qualification import KioskUpdateReentryQualification
                     from parent_setup_qualification import (KioskEntryQualification,
                         KioskServiceVariationQualification, KioskServiceRouteQualification,
                         KioskRoutingVariationQualification, KioskLeaseVariationQualification,
                         KioskAdmissionContentionQualification, KioskIdentityHelperQualification,
                         KioskConfigurationRecoveryQualification,
                         PublicDesktopSelectionQualification, StationShortcutsQualification)
-                    qualification_class = (StationShortcutsQualification
+                    qualification_class = (KioskUpdateReentryQualification
+                        if kiosk_entry == 'update-reentry' else StationShortcutsQualification
                         if kiosk_entry == 'station-shortcuts' else PublicDesktopSelectionQualification
                         if kiosk_entry == 'public-desktop-selection' else KioskServiceVariationQualification
                         if kiosk_entry == 'service-variation' else KioskServiceRouteQualification

@@ -38,7 +38,8 @@ def snapshot_inputs(bundle):
         frozen={bundle.sources[target]: data for target, data in bundle.files.items()})
 
 
-def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_only=False):
+def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_only=False,
+          upgrade=False):
     """Bind the existing installed payload and fixed helper bytes before bootstrap."""
     destination = directory / 'input'
     require(not destination.exists(), 'setup:input-exists')
@@ -66,6 +67,22 @@ def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_
         assets.rename(destination)
     else:
         shutil.copytree(assets, destination)
+    if upgrade:
+        from build_test_artifacts import verify_upgrade
+        require(not snapshot, 'setup:upgrade-scope')
+        pair = verify_upgrade(destination, staged=True, repository=system.ROOT,
+                              package_only=package_only)
+        previous = pair['packages']['previous']
+        package = next(name for name in ('package.deb', 'package.rpm')
+                       if (destination / name).is_file())
+        target = destination / ('previous-' + package)
+        require(not target.exists() and not (destination / 'previous-inputs.json').exists(),
+                'setup:previous-input-exists')
+        shutil.copyfile(destination / 'previous' / package, target)
+        target.chmod(0o600)
+        (destination / 'previous-inputs.json').write_bytes(system.baseline.encode({
+            'sha256': previous['sha256'], 'source': pair['sources']['previous']}))
+        (destination / 'previous-inputs.json').chmod(0o600)
     files = bundle.stage(destination)
     identity = {'schema_version': 1, 'scope': 'e2e-installed-setup',
                 'selection': selection, 'files': files}

@@ -58,10 +58,14 @@ def test_guard_is_rechecked_before_make_package_install(monkeypatch):
     run.assert_not_called()
 
 
-def test_make_installs_only_the_exact_transferred_debian_artifact(monkeypatch):
+def test_make_installs_only_the_exact_transferred_debian_artifact(monkeypatch, tmp_path):
     for name in ('before_install', 'enable_diagnostics', 'guard'):
         monkeypatch.setattr(guest, name, Mock())
     monkeypatch.setattr(guest.os, 'environ', {})
+    monkeypatch.setattr(guest, 'commands', Mock(
+        directory=tmp_path, sequence=1, last_returncode=1))
+    for name in ('sample_install_trust', 'child_trust_inputs_diagnostic'):
+        monkeypatch.setattr(guest, name, Mock())
     run = Mock()
     monkeypatch.setattr(guest, 'run', run)
     guest.install()

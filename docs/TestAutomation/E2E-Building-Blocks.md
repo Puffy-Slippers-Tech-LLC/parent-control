@@ -4193,6 +4193,25 @@ reports and unknown modal refusal remain intact. The administrator expiry
 remains unresolved. Ubuntu 26.04 and Fedora 44 passed the complete history and
 owned cleanup. Existing product recovery needed no change.
 
+### Entry after a relevant update
+
+`check_e2e_kiosk_update_reentry` binds the maintained genuine Ubuntu v1.2/Fedora
+v1.3 prior packages and current candidate through `stage_upgrade_assets` and
+`InstalledSetup`. The existing guarded `system_guest` installation/update
+commands use the frozen `make install` recipe; shared `Transport.reboot`
+independently observes both required boot changes. No installed snapshot replaces
+this history. The update verifies current distro PAM and retired legacy-state
+absence, preserving ordinary fixture account identities and groups.
+
+[`KioskUpdateReentryQualification`](../../tests/integration/kiosk_update_reentry_qualification.py)
+then runs the unchanged [short public history](#short-confinement-usability-history):
+passwordless entry, denial/Cancel without a grant, genuine approval with independent
+time readback, exit/reentry and public restoration. Shared startup navigation
+recognizes the existing release-note surface, verifies its frontend owner and
+uses its normal public close action before continuing; note content and links
+are outside this check. Both targets passed the complete history, collection
+and owned cleanup. No product change was needed; this closes only usability U06.
+
 ### Reached service-route control
 
 `check_e2e_kiosk_service_route` dispatches

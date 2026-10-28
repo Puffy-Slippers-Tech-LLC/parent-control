@@ -78,7 +78,7 @@ def collect_counts(root):
     integrations = [item for item in inventory['inventory'](root / 'tests/integration')
                     if item['name'] not in inventory['EXCLUDED']]
     rows.append(('Integration qualification', len(integrations),
-                 'Checks installed-runner prerequisites, safety guards and integration building blocks.'))
+                 'Checks installed product behavior and essential shared safety boundaries.'))
     return rows
 
 

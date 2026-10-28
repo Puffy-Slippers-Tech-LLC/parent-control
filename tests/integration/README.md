@@ -569,6 +569,13 @@ rows record past results, not commands to recreate or rerun. Regressions belong
 to the affected product consumers or focused critical-boundary checks under the
 [test scope mandate](../../docs/Mandates/Test-Scope-Mandate.md).
 
+Standalone text replacement, single-bold formatting and Shell search-result
+observation also have no separate entry points. Feedback journeys retain text
+editing and full formatting coverage through `check_e2e_feedback_formats` and
+the other feedback checks. `check_e2e_shell_search` retains both administrator
+Parent search launch and standard-account unavailability, replacing the separate
+Parent launch wrapper. Shared helpers and input guards remain available.
+
 Retained non-product qualifications protect credential recipients, execution and
 evidence integrity, resource ownership or concrete unsafe privileged changes.
 Fixture refresh qualification

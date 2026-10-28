@@ -1630,6 +1630,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     retained_pending = None
     retained_waiting = []
     retained_evidence = {}
+    retained_sources = {}
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
         with lock(legacy / 'owner') as owner:
@@ -1656,6 +1657,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                     path = child / 'checkpoint.json'
                     if path.exists():
                         retained_pipelines[child.name] = json.loads(path.read_text())
+        if previous is not None:
             pending = previous / 'repair-pending.json'
             if pending.exists():
                 retained_pending = json.loads(pending.read_text())
@@ -1681,6 +1683,16 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                     if entry.get('pending_response'):
                         entry['pending_response'].pop('turn', None)
         if previous is not None:
+            from fix_tests_queue import resumed_source_owner
+            sources = dict(retained_pipelines)
+            if retained_git is not None:
+                sources['.'] = retained_git
+            if retained_pending is not None:
+                sources.setdefault(retained_pending['run'], {})
+            for ticket, state in sources.items():
+                source = resumed_source_owner(root, previous, ticket, state)
+                if source is not None:
+                    retained_sources[ticket] = source
             (retained_git, retained_pipelines), retained_evidence = resume_failure_context(
                 previous, run, [retained_git, retained_pipelines])
         selected_model, _ = initial_model(model, effort)
@@ -1696,6 +1708,9 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     def started(run):
         # The new run is registered before writing payloads. Publish copies
         # before checkpoints that point to them; never copy old conversations.
+        for ticket, source in retained_sources.items():
+            child = private_directory(run / ticket)
+            atomic(child / 'repair-source-resume.json', source)
         for relative, evidence in retained_evidence.items():
             path = private_directory((run / relative).parent) / relative.name
             atomic(path, evidence)

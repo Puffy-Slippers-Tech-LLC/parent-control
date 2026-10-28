@@ -376,6 +376,20 @@ def test_failed_push_resumes_before_remaining_tests_without_duplicate_commit(che
     assert 'completion push failed' in output.getvalue()
     accepted = json.loads((run / 'checkpoint.json').read_text())
     assert accepted['pending'] and accepted['commit_intent']
+    from fix_tests_queue import resumed_source_owner, source_directory
+    fence = source_directory(root) / 'repair-source-pending.json'
+    original_owner = {'run': str(run)}
+    assert json.loads(fence.read_text()) == original_owner
+    # A legacy interrupted resume copied ownership without transferring its
+    # source fence. Recover only identical repairs with the original identity.
+    stranded = fix_tests.private_directory(run.parent / 'stranded')
+    fix_tests.atomic(stranded / 'repair-pending.json', {'run': '.'})
+    copied = dict(accepted, controller_restart={'run': str(run)})
+    assert resumed_source_owner(root, stranded, '.', copied) == original_owner
+    assert resumed_source_owner(root, stranded, '.', dict(copied, repairs={})) is None
+    # A second interruption must carry the handoff without needing old reports.
+    fix_tests.atomic(stranded / 'repair-source-resume.json', original_owner)
+    assert resumed_source_owner(root, stranded, '.', {}) == original_owner
     before = (root / 'calls').read_text()
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root, capture_output=True,
                           text=True, check=True, timeout=10).stdout
@@ -383,6 +397,8 @@ def test_failed_push_resumes_before_remaining_tests_without_duplicate_commit(che
     resumed, started = fix_tests.select(root, categories=('unit',), resume=True)
     output = io.StringIO()
     assert started and fix_tests.follow(resumed, output) == 0, output.getvalue()
+    assert json.loads((resumed / 'repair-source-resume.json').read_text()) == original_owner
+    assert not fence.exists()
     after = (root / 'calls').read_text()
     assert after.startswith(before)
     remaining, = [json.loads(line) for line in after[len(before):].splitlines()]

@@ -640,6 +640,12 @@ recovers pending repairs and accepted Git close-out before tests. An active run
 still reattaches regardless of `--resume`; a fresh allocation starts only after
 its owner and owned cleanup release their locks. Lock files remain in place;
 kernel locks, rather than file existence, determine ownership.
+Explicit resume carries the retained writer identity into the new allocation.
+Only that FIFO writer, holding the exclusive checkout source lease, transfers
+the source fence; readers and unrelated runs still refuse admission. Repeated
+resumes preserve this handoff even if the prior worker never acquired its lease.
+Older stranded copies require the original restart identity and identical repair
+ownership records; a dirty file or a passed diagnostic alone cannot release the fence.
 
 Use `tools/fix-tests --resume` without repeating the original arguments to
 restore the saved selection and VM queue. Its startup line lists retained passed

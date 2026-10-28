@@ -43,6 +43,42 @@ def source_directory(root):
     return launcher.private_directory(directory('state', root=root) / 'fix-tests-source')
 
 
+def resumed_source_owner(root, previous, ticket, saved):
+    """Bind an explicit resume to its retained writer before retention rotates.
+
+    This records permission to transfer, not a transfer itself. Admission still
+    needs the FIFO ticket and the exclusive kernel source lease.
+    """
+    child = previous / ticket
+    coordinator = RepairCoordinator(previous, source=source_directory(root))
+    with coordinator.state() as (_, owner):
+        pending = coordinator.source / 'repair-source-pending.json'
+        if owner != ticket or not pending.exists():
+            return None
+        source_owner = json.loads(pending.read_text())['run']
+        candidates = [str(child.resolve())]
+        inherited = child / 'repair-source-resume.json'
+        if inherited.exists():
+            candidates.append(json.loads(inherited.read_text())['run'])
+        if source_owner in candidates:
+            return {'run': source_owner}
+        # Older launchers copied checkpoints without carrying the source fence.
+        # Recover only the exact retained repair named by their restart record;
+        # a matching filename or dirty checkout alone supplies no ownership.
+        origin = saved.get('controller_restart', {}).get('run')
+        if origin == source_owner:
+            original = Path(origin)
+            workflow = original.parent if ticket == '.' else original.parent.parent
+            if workflow == previous.parent and (ticket == '.' or original.name == ticket):
+                state = json.loads((original / 'checkpoint.json').read_text())
+                original_run = original if ticket == '.' else original.parent
+                original_pending = json.loads((original_run / 'repair-pending.json').read_text())
+                if (saved.get('repairs') and saved['repairs'] == state.get('repairs')
+                        and original_pending['run'] == ticket):
+                    return {'run': source_owner}
+        return None
+
+
 def finish_startup(run, *, root=None):
     """The spawning reader protects imports until the worker can enter the gate."""
     inherited = os.environ.pop(STARTUP_SOURCE, None)
@@ -122,11 +158,19 @@ class RepairCoordinator:
             source_owner = json.loads(pending.read_text())['run'] if pending.exists() else None
             ticket_path = str((self.run / ticket).resolve())
             if source_owner is not None and (source_owner != ticket_path or not writer):
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
-                raise ValueError('another unfinished repair retains unverified checkout edits; resume that repair first')
+                inherited = self.run / ticket / 'repair-source-resume.json'
+                try:
+                    resumed = json.loads(inherited.read_text()) if writer and inherited.exists() else None
+                    if resumed != {'run': source_owner}:
+                        raise ValueError('another unfinished repair retains unverified checkout edits; resume that repair first')
+                except BaseException:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+                    raise
             if writer:
-                launcher.atomic(pending, {'run': ticket_path})
+                # Publish local recovery ownership first: a crash must never
+                # leave a shared fence with no retained ticket to resume.
                 launcher.atomic(self.run / 'repair-pending.json', {'run': ticket})
+                launcher.atomic(pending, {'run': ticket_path})
             return True
 
     def finish(self, ticket, *, changed=False, unfinished=False):

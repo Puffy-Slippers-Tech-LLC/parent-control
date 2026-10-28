@@ -774,7 +774,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          fixture_selection=None, transfer_qualification=False):
     require((type(confinement_usability) is bool
              or confinement_usability in ('basic-locales', 'locale-discovery-failure',
-                                         'child-isolation', 'service-recovery'))
+                                         'child-isolation', 'service-recovery', 'optional-artwork'))
         and (not confinement_usability or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and parent_entry is None and approval_flow is None
@@ -1826,6 +1826,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if confinement_usability == 'child-isolation'
                 else 'installed-kiosk-service-recovery-qualification'
                 if confinement_usability == 'service-recovery'
+                else 'installed-kiosk-optional-artwork-qualification'
+                if confinement_usability == 'optional-artwork'
                 else 'installed-confinement-usability-qualification')
         if auth_result:
             result['scope'] = 'installed-auth-result-qualification'
@@ -2371,7 +2373,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if confinement_usability:
                     from parent_setup_qualification import (ConfinementUsabilityQualification,
                         BasicLocaleAuthQualification, LocaleDiscoveryAuthQualification,
-                        ChildIsolationQualification, KioskServiceRecoveryQualification)
+                        ChildIsolationQualification, KioskServiceRecoveryQualification,
+                        KioskOptionalArtworkQualification)
                     qualification_class = (BasicLocaleAuthQualification
                         if confinement_usability == 'basic-locales'
                         else LocaleDiscoveryAuthQualification
@@ -2380,6 +2383,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         if confinement_usability == 'child-isolation'
                         else KioskServiceRecoveryQualification
                         if confinement_usability == 'service-recovery'
+                        else KioskOptionalArtworkQualification
+                        if confinement_usability == 'optional-artwork'
                         else ConfinementUsabilityQualification)
                 if kiosk_rejection:
                     from parent_setup_qualification import KioskRejectionQualification

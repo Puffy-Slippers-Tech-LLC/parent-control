@@ -137,7 +137,8 @@ sub enter_kiosk_mate_password {
                 || ($journey->{prefix} // '') eq 'active-grant-disable-public') :
                 ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
                 || ($journey->{prefix} // '') eq 'kiosk-approval-flow'
-                || (!$reject && ($journey->{prefix} // '') eq 'kiosk-service-recovery'
+                || (!$reject && (($journey->{prefix} // '') eq 'kiosk-service-recovery'
+                    || ($journey->{prefix} // '') eq 'kiosk-optional-artwork')
                     && ($journey->{stage_prefix} // '') eq '')
                 || (!$reject && ($journey->{prefix} // '') eq 'baseline-auth-pause')
                 || (!$reject && (($journey->{prefix} // '') eq 'package-removal'

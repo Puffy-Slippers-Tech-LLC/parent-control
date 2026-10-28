@@ -499,6 +499,45 @@ class BasicLocaleAuthQualification(ConfinementUsabilityQualification):
                 self.fault.restore()
 
 
+class KioskOptionalArtworkQualification(KioskEntryQualification):
+    """One missing optional image, real approval and restored request entry."""
+
+    fault = None
+
+    def journey(self, context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_optional_artwork import KioskOptionalArtworkJourney
+        from optional_artwork_fault import OptionalArtworkFault
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        journey = KioskOptionalArtworkJourney(context, progress)
+        self.fault = OptionalArtworkFault(journey, context.lease)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage == 'gdm-switched':
+                observed['optional_artwork'] = self.fault.install()
+            elif stage == 'new-estimate':
+                observed['optional_artwork'] = self.fault.call('observe')
+            elif stage == 'approved-balance':
+                observed['optional_artwork'] = self.fault.restore()
+            elif stage == 'reentry-open-estimate':
+                smoke.require(self.fault.restored, 'optional-artwork:normal-reentry-before-restoration')
+
+        journey.check_settings = check
+        return journey
+
+    def execute(self, lease, guestfs):
+        try:
+            super().execute(lease, guestfs)
+            smoke.require(self.fault is not None and self.fault.restored,
+                          'optional-artwork:history-incomplete')
+        finally:
+            if self.fault is not None:
+                self.fault.restore()
+
+
 class LocaleDiscoveryAuthQualification(BasicLocaleAuthQualification):
     """One failed locale command with real approval and normal request reentry."""
 

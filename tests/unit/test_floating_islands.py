@@ -74,6 +74,9 @@ def test_elapsed_time_is_independent_of_frame_rate_or_hidden_window():
 
 
 def test_missing_artwork_preserves_static_scene_and_lightning_origins():
-    layers = FloatingIslands(None, None)
+    # The ordinary background remains available when only the clear scenery
+    # resource is missing. Keep its static rendering and lightning origins.
+    layers = FloatingIslands(object(), None)
+    assert not layers.ready
     assert all(layers.offset(index, 10) == 0 for index in range(6))
     layers.draw(None, (0, 0, 1920, 1080), 10)

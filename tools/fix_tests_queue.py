@@ -578,9 +578,9 @@ def pipeline_heading(name, state, steps, question, saved, *, blocker=None, stopp
             status = 'Verifying'
         else:
             status = 'Running'
-    color = ('90' if status.startswith('Queued on ') else
+    color = ('90' if status == 'Queued on VM slot' else
              '38;2;0;152;255' if status == 'Running' else
-             '38;2;255;165;0' if status in ('Repairing', 'Verifying', 'Save fix', 'Waiting for controller reload') else
+             '38;2;255;165;0' if status.startswith('Queued on ') or status in ('Repairing', 'Verifying', 'Save fix', 'Waiting for controller reload') else
              '32' if status == 'Complete' else '31')
     return f'VM: {name} (\033[1;{color}m{status}\033[0m)'
 

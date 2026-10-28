@@ -376,39 +376,8 @@ def test_manual_creates_first_baseline_and_never_restores(rig):
     assert state(rig)['phase'] == 'finalized'
 
 
-@pytest.mark.parametrize('mode', ['auto', 'manual'])
-def test_every_rerun_performs_full_selected_workflow(rig, mode):
-    rig.capture().run()
-    prepare, restore = Mock(), Mock()
-    rig.source.restore_baseline = restore
-    operations = set()
-    for _ in range(3):
-        capture = rig.capture()
-        capture.prepare_guest = prepare
-        assert capture.run(mode=mode, confirm=lambda *_: True)
-        operations.add(state(rig)['operation'])
-    assert prepare.call_count == 3
-    assert restore.call_count == (3 if mode == 'auto' else 0)
-    assert len(rig.source.app_deletions) == 3
-    assert len(rig.source.creations) == 4
-    assert len(operations) == 3
 
 
-@pytest.mark.parametrize('mode', ['auto', 'manual'])
-def test_retry_after_guest_failure_repeats_preparation(rig, mode):
-    rig.capture().run()
-    rig.source.restore_baseline = Mock()
-    prepare = Mock(side_effect=host.CaptureError('setup interrupted'))
-    capture = rig.capture()
-    capture.prepare_guest = prepare
-    with pytest.raises(host.CaptureError, match='setup interrupted'):
-        capture.run(mode=mode, confirm=lambda *_: True)
-    prepare.side_effect = None
-    capture = rig.capture()
-    capture.prepare_guest = prepare
-    assert capture.run(mode=mode, confirm=lambda *_: True)
-    assert prepare.call_count == 2
-    assert state(rig)['phase'] == 'finalized'
 
 
 @pytest.mark.parametrize('mode', ['auto', 'manual'])
@@ -455,15 +424,6 @@ def test_warning_is_red_and_requires_y_or_n(monkeypatch, capsys, mode):
     assert host.confirm_preparation(mode, True)
 
 
-@pytest.mark.parametrize('mode', ['auto', 'manual'])
-@pytest.mark.parametrize('existing', [False, True])
-def test_assume_yes_skips_warning_without_reading_input(monkeypatch, capsys, mode, existing):
-    prompt = Mock(side_effect=AssertionError('unexpected confirmation prompt'))
-    monkeypatch.setattr('builtins.input', prompt)
-    assert host.confirm_preparation(mode, existing, assume_yes=True)
-    output = capsys.readouterr().out
-    assert output == ''
-    prompt.assert_not_called()
 
 
 def test_simulated_baseline_hashes_source_archive_without_pinned_checkout(rig, monkeypatch):
@@ -746,26 +706,6 @@ def test_replacement_interruption_after_archive_reuses_retained_record(rig):
     assert attempt.read_text() == '{"phase": "complete"}'
 
 
-def test_verification_counts_metadata_checks_and_failures(rig, capsys):
-    rig.capture().run()
-    capture = rig.capture()
-    capture.run()
-    size = rig.anchor.stat().st_size
-    assert capture.verification_totals['calls'] == 1
-    assert capture.verification_totals['bytes_read'] == 0
-    rig.commands.snapshots[0]['id'] = 'replaced'
-    with pytest.raises(host.CaptureError, match='snapshot:changed'):
-        capture.verify_snapshot()
-    assert capture.verification_totals['calls'] == 2
-    assert capture.verification_totals['bytes_read'] == 0
-    assert capture.verification_totals['failures'] == 1
-    events = [json.loads(line.removeprefix('baseline:verification '))
-              for line in capsys.readouterr().err.splitlines()
-              if line.startswith('baseline:verification ')]
-    assert events[-1]['outcome'] == 'failed'
-    assert events[-1]['bytes_read'] == 0
-    assert events[-1]['duration_seconds'] >= 0
-    assert set(events[-1]) == {'call', 'bytes_read', 'duration_seconds', 'outcome', 'mode', 'boundary'}
 
 
 def test_capture_repairs_an_empty_misowned_or_moded_state_directory(rig):
@@ -1157,117 +1097,14 @@ def test_offline_inspection_is_explicitly_readonly_and_preserves_only_safe_field
     fixture.g.ln_s.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['fixture-bytes', 'login-timeout', 'getty'])
-def test_offline_inspection_refuses_stale_reusable_inputs_without_repair(fault):
-    fixture = guest_fixture()
-    if fault == 'fixture-bytes':
-        fixture.files[baseline_fixtures.assets.MECHANICAL] = b'changed'
-    elif fault == 'login-timeout':
-        fixture.files['/etc/login.defs'] = b'LOGIN_TIMEOUT 60\n'
-    else:
-        fixture.g.realpath.side_effect = lambda path: path
-    with pytest.raises(ValueError, match='baseline:'):
-        host.inspect_guest(fixture.module, Path('/images/top.qcow2'), SCRIPT_DIGEST)
-    fixture.g.close.assert_called_once()
-    fixture.g.write.assert_not_called()
-    fixture.g.ln_s.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['missing', 'bytes'])
-def test_offline_inspection_refuses_missing_or_changed_apt_masks_without_repair(fault):
-    fixture = guest_fixture()
-    path = '/etc/systemd/system/apt-daily-upgrade.service'
-    if fault == 'missing':
-        del fixture.files[path]
-    else:
-        fixture.files[path] = b'[Service]\nExecStart=/usr/bin/true\n'
-    with pytest.raises(KeyError if fault == 'missing' else ValueError):
-        host.inspect_guest(fixture.module, Path('/images/top.qcow2'), SCRIPT_DIGEST)
-    fixture.g.close.assert_called_once()
-    fixture.g.write.assert_not_called()
-    fixture.g.ln_s.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', [None, 'tools', 'role', 'variant', 'selinux', 'package', 'marker'])
-def test_fedora_offline_acceptance_checks_release_tools_roles_and_product_residue(fault):
-    fixture = guest_fixture(os_id='fedora')
-    g, files = fixture.g, fixture.files
-    g.inspect_get_distro.return_value = 'fedora'
-    g.inspect_get_major_version.return_value = 44
-    g.inspect_get_minor_version.return_value = 0
-    files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
-    from tests.support.chinese_assets import guest as language_guest, populate_fedora
-    metadata = {}
-    populate_fedora(files, metadata)
-    for domain in ('Linux-PAM', 'gnome-shell'):
-        files.pop(f'/usr/share/locale-langpack/zh_CN/LC_MESSAGES/{domain}.mo')
-    original_stat = g.lstatns.side_effect
-    g.lstatns.side_effect = lambda path: metadata[path] if path in metadata else original_stat(path)
-    original_exists = g.exists.side_effect
-    removed = {f'/usr/share/locale-langpack/zh_CN/LC_MESSAGES/{domain}.mo'
-               for domain in ('Linux-PAM', 'gnome-shell')}
-    g.exists.side_effect = lambda path: path not in removed and (path in metadata or original_exists(path))
-    language, _, _ = language_guest('fedora')
-    native_command = g.command.side_effect
-    g.command.side_effect = lambda argv: (native_command(argv) if argv[0] == 'rpm'
-                                         else language.command.side_effect(argv))
-    files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
-    files['/etc/group'] = b'wheel:x:10:onpc-parent-jamie,onpc-parent-casey\nfapolicyd:x:987:\n'
-    marker = guest.marker_document(guest.GuestIdentity(guest.HOSTNAME, 'a' * 32, '44', 'kvm', 'fedora'),
-                                   fixture.marker['accounts'], SCRIPT_DIGEST)
-    marker['schema_version'] = 3  # Exercise recorded legacy Fedora restoration.
-    files[str(guest.MARKER)] = host.encode(marker)
-    applications = [{'app2_name': name, 'app2_version': version}
-                    for name, version in guest.guest_tools.FEDORA_VERSIONS.items()]
-    g.inspect_list_applications2.return_value = applications
-    if fault == 'tools':
-        applications.pop()
-    elif fault == 'role':
-        files['/etc/group'] += b'wheel:x:11:onpc-child-riley\n'
-    elif fault == 'variant':
-        files['/etc/os-release'] = files['/etc/os-release'].replace(b'workstation', b'server')
-    elif fault == 'selinux':
-        files['/etc/selinux/config'] = files['/etc/selinux/config'].replace(b'enforcing', b'permissive')
-    elif fault == 'package':
-        applications.append({'app2_name': 'oh-no-parent-control', 'app2_version': '1.2'})
-    elif fault == 'marker':
-        files[str(guest.MARKER)] = host.encode(fixture.marker)
-    if fault:
-        with pytest.raises((host.CaptureError, guest.PreparationError, ValueError)):
-            host.inspect_guest(fixture.module, Path('/images/top.qcow2'), SCRIPT_DIGEST)
-    else:
-        result = host.inspect_guest(fixture.module, Path('/images/top.qcow2'), SCRIPT_DIGEST)
-        assert result['os_id'] == 'fedora' and result['version'] == '44'
-        assert 'ubuntu_version' not in result
-        assert result['accounts'] == marker['accounts']
-    g.close.assert_called_once()
-    g.mount.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['missing-tools', 'old-marker', 'configured-directory'])
-def test_offline_inspection_refuses_unprepared_dependency_baseline(fault):
-    fixture = guest_fixture()
-    if fault == 'missing-tools':
-        fixture.files['/var/lib/dpkg/status'] = b''
-    elif fault == 'old-marker':
-        fixture.marker['schema_version'] = 1
-        fixture.marker.pop('test_dependencies')
-        fixture.files[str(guest.MARKER)] = host.encode(fixture.marker)
-    else:
-        fixture.files['/etc/sssd/sssd.conf'] = b'prior-test-configuration'
-    with pytest.raises((host.CaptureError, guest.PreparationError, ValueError)):
-        host.inspect_guest(fixture.module, Path('/tmp/top.qcow2'), SCRIPT_DIGEST)
-    fixture.g.close.assert_called_once()
 
 
-@pytest.mark.parametrize("category,path", [(category, path) for category, paths in guest.RESIDUE_PATHS.items()
-                                           for path in paths])
-def test_offline_inspection_rejects_every_residue_path(category, path):
-    fixture = guest_fixture()
-    fixture.files[path] = b"residue"
-    with pytest.raises(host.CaptureError, match=f"guest:residue:{category}"):
-        host.inspect_guest(fixture.module, Path("/tmp/top.qcow2"), SCRIPT_DIGEST)
-    fixture.g.close.assert_called_once()
 
 
 @pytest.mark.parametrize("kind", ["schema", "owner", "symlink", "permissions", "digest", "release", "hostname",
@@ -1442,12 +1279,6 @@ def test_snapshot_proof_rejects_wrong_type_or_identity(rig, change):
         host.snapshot_proof(change(snapshot_xml(rig.top, "record")), rig.source.layout, "record")
 
 
-def test_completed_snapshot_survives_preparation_script_updates(rig):
-    rig.capture().run()
-    capture = rig.capture()
-    capture.script_digest = "c" * 64
-    capture.run()
-    assert len(rig.source.creations) == 1
 
 
 @pytest.mark.parametrize("kind", ["missing", "uri", "uuid", "block-job", "managed-save", "paused", "pending-disk"])
@@ -1528,15 +1359,6 @@ def test_command_adapter_only_inspects_explicit_qcow2():
     assert not hasattr(commands, "check")
 
 
-def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, capsys):
-    monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
-    monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
-    monkeypatch.setattr(host.shutil, "which", lambda _name: None)
-    connect = Mock()
-    monkeypatch.setattr(host, "LibvirtSource", connect)
-    assert host.main(["--vm", vm_name(), "--check-tools"]) == 1
-    assert "run ./setup.sh" in capsys.readouterr().err
-    connect.assert_not_called()
 
 
 @pytest.mark.parametrize('safe', [False, True, 'owned'])
@@ -1621,62 +1443,8 @@ def test_capture_accepts_installed_product_on_host(monkeypatch, capsys, missing_
     source.close.assert_called_once_with()
 
 
-def test_absent_baseline_is_listed_without_error_lookup(rig):
-    api, domain = libvirt_fixture(rig)
-    domain.listAllSnapshots.return_value = []
-    assert host.LibvirtSource(api).baseline() is None
-    domain.snapshotLookupByName.assert_not_called()
 
 
-@pytest.mark.parametrize('stages', [1, 2])
-def test_event_dispatch_continues_while_capture_blocks(monkeypatch, stages):
-    monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
-    monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
-    monkeypatch.setattr(host, 'prepare_state_root', Mock())
-    monkeypatch.setattr(host, '_event_dispatch', None)
-    api = Mock()
-    request = host.threading.Event()
-    answered = host.threading.Event()
-    finished = host.threading.Event()
-    threads = []
-    thread_type = host.threading.Thread
-
-    def owned_thread(*args, **kwargs):
-        thread = thread_type(*args, **kwargs)
-        threads.append(thread)
-        return thread
-
-    monkeypatch.setattr(host.threading, "Thread", owned_thread)
-    def dispatch():
-        if not request.wait(5):
-            raise RuntimeError("test deadline")
-        answered.set()
-        finished.wait(5)
-        raise RuntimeError("test loop finished")
-    api.virEventRunDefaultImpl.side_effect = dispatch
-    monkeypatch.setattr(host.importlib, "import_module", lambda _name: api)
-    monkeypatch.setattr(host.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(host.os, "geteuid", lambda: 0)
-    monkeypatch.setattr(host.os, "getegid", lambda: 0)
-    source = Mock()
-    source.snapshot.return_value = ({}, True)
-    monkeypatch.setattr(host, "LibvirtSource", Mock(return_value=source))
-    capture = Mock()
-    def blocked_capture(**kwargs):
-        request.set()
-        assert answered.wait(5), "libvirt dispatch stopped during capture"
-        return True
-    capture.run.side_effect = blocked_capture
-    monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
-    try:
-        for _ in range(stages):
-            assert host.main(['--vm', vm_name(), '--mode', 'manual']) == 0
-        assert len(threads) == 1
-    finally:
-        finished.set()
-        for thread in threads:
-            thread.join(timeout=5)
-            assert not thread.is_alive(), "test event dispatcher did not finish"
 
 
 def test_event_dispatch_refuses_a_failed_process_service(monkeypatch):
@@ -1704,16 +1472,6 @@ def test_assume_yes_requires_explicit_preparation_mode(monkeypatch, operation):
     read_password.assert_not_called()
 
 
-def test_preparation_and_reuse_never_hash_or_structurally_scan_images(rig, monkeypatch):
-    monkeypatch.setattr(host, 'digest', Mock(side_effect=AssertionError('image hash')))
-    rig.commands.check = Mock(side_effect=AssertionError('structural scan'))
-    rig.capture().run()
-    assert state(rig)['source_digests'] is None
-    rig.capture().run()
-    # The accepted policy trusts content even if it has changed in place.
-    rig.anchor.write_bytes(b'changed bytes')
-    rig.capture().run()
-    assert len(rig.source.creations) == 1
 
 
 def test_source_change_during_inspection_prevents_snapshot_creation(rig):

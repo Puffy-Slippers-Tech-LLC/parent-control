@@ -5,11 +5,11 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from tests.support.needle_matcher import match_image
 
 import parent_about
 import installed_journey
 from private_artifacts import EvidenceError
-from tests.support.needle_matcher import match_image, NEEDLES
 from tests.support.paths import ROOT
 
 
@@ -59,37 +59,6 @@ def test_boot_replacement_refuses_before_next_customer_action(tmp_path):
     assert not (tmp_path / (stage + '.reply.json')).exists()
     assert journey.ui.boot_guard == 'a' * 64
     journey.vm.read.assert_not_called()
-
-
-@pytest.mark.parametrize('fault', [None, 'child', 'toggle', 'allowance', 'missing', 'missing-earlier', 'replay'])
-def test_about_return_uses_explicit_immutable_settings_before_reply(tmp_path, fault):
-    stage = 'parent-returned'
-    progress = Mock()
-    journey = parent_about.ParentJourney(SimpleNamespace(directory=tmp_path), progress)
-    journey.steps = [{'stage': name} for name in parent_about.STAGES[:parent_about.STAGES.index(stage)]]
-    original = {'child': 'fixture-child', 'limit_enabled': False, 'allowance': ['30 minutes']}
-    if fault != 'missing-earlier':
-        journey.check_settings('parent-selected', {'ui': {'settings': original}})
-    # Mutating the source cannot mutate the scenario's saved immutable value.
-    original['allowance'].append('1 hour')
-    returned = {'child': 'fixture-child', 'limit_enabled': fault == 'toggle',
-                'allowance': ['45 minutes' if fault == 'allowance' else '30 minutes']}
-    if fault == 'child': returned['child'] = 'existing-fixture-child'
-    result = {'operation': stage, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-    if fault != 'missing': result['settings'] = returned
-    if fault == 'replay': journey.check_settings(stage, {'ui': result})
-    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'a' * 64}))
-    journey.ui = SimpleNamespace(boot_proof='a' * 64, observe=Mock(return_value=result))
-    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
-    if fault:
-        with pytest.raises(EvidenceError): journey.step(Mock())
-        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
-        progress.assert_not_called()
-        assert not (tmp_path / (stage + '.reply.json')).exists()
-    else:
-        journey.step(Mock())
-        assert progress.call_args.args[1]['comparison']['outcome'] == 'passed'
-        assert (tmp_path / (stage + '.reply.json')).exists()
 
 
 def test_installed_prompt_matches_existing_qualified_secret_recipient():

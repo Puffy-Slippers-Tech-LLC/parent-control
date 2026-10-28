@@ -386,7 +386,6 @@ fixture_provision
 fixture_execution fixture_handoff
 fixture_producer fixture_bundle
 e2e_natural_expiry
-kiosk_reminder_journey
 overlay_reminder
 overlay_reminder_journey
 package_lifecycle

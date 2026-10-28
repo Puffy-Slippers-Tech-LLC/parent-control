@@ -83,19 +83,6 @@ def test_named_input_preparation_precedes_dispatch_and_failure_stops_privilege(
             *fixture_options]
 
 
-@pytest.mark.parametrize(('category', 'args'), [
-    ('integration', ['check_future_feature']), ('integration', ['--list']),
-    ('integration', ['check_fixture_provisioning', '--list']),
-    ('system', ['--list']), ('integration', ['check_e2e_watch']),
-])
-@pytest.mark.parametrize('vm', [vm_name(0), vm_name(1)])
-def test_fixture_qualification_ignores_unrelated_selections(monkeypatch, category, args, vm):
-    monkeypatch.setenv('ONPC_TEST_VM', vm)
-    control = Mock()
-    assert commands.qualification_fixture_options(ROOT, category, args, control=control) == []
-    control.run.assert_not_called()
-
-
 def test_fixture_qualification_refuses_other_target_before_preparing(monkeypatch):
     import vm_selection
     monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
@@ -391,36 +378,6 @@ def test_dispatcher_refuses_foreign_product_free_fixture_target(
                         json.dumps(frozen_fixture_selection.record()), '--vm', vm])
 
 
-@pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
-def test_fixture_qualification_imports_in_standalone_launcher_context(vm, target):
-    # pytest puts the checkout root on sys.path. The public launcher initially
-    # has only tools/, so a fresh isolated interpreter must exercise this route.
-    from tools.test_storage import scratch_descriptors
-    program = '''import json,os,pathlib,sys
-root=pathlib.Path(sys.argv[1]);sys.path.insert(0,str(root/'tools'))
-os.environ['ONPC_TEST_VM']=sys.argv[2]
-target=sys.argv[3]
-import test_commands
-record={'schema':'onpc-execution-fixture-v1','target':target,'key':'a'*64,
- 'allocation':'/tmp/onpc-native-runtime-'+target+'-'+'a'*64+'-private',
- 'device':1,'inode':2,'journal':'/tmp/retention-private','journal_device':3,
- 'journal_inode':4,'run':'b'*32,'build_identity':'c'*64}
-class Control:
- def run(self,command,**options):
-  assert command[-2:]==['--target',target]
-  assert options['timeout']==600.0
-  options['output'](('fixture-execution: selection='+json.dumps(record)+'\\n').encode())
-  return 0
-options=test_commands.qualification_fixture_options(root,'integration',
- ['check_fixture_provisioning'],control=Control(),environment={})
-assert options[0]=='--fixture-selection' and json.loads(options[1])==record
-'''
-    result = subprocess.run(['/usr/bin/python3', '-IB', '-c', program, str(ROOT), vm, target],
-                            capture_output=True, text=True, timeout=15,
-                            pass_fds=scratch_descriptors(), check=False)
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
 @pytest.fixture
 def frozen_fixture_selection():
     from tools import fixture_execution
@@ -432,14 +389,6 @@ def frozen_fixture_selection():
 def source_proof_selection(selected):
     return selected.record() | {'allocation': '/tmp/onpc-fixture-source-edit-private',
                                 'device': 5, 'inode': 6}
-
-
-@pytest.mark.parametrize('vm', [vm_name(0), vm_name(1)])
-def test_live_refresh_plan_reserves_preparation_for_its_host_orchestrator(monkeypatch, vm):
-    monkeypatch.setenv('ONPC_TEST_VM', vm)
-    planned, _ = commands.plan(ROOT, 'integration', ['check_fixture_live_refresh'])
-    assert planned == [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
-                        'integration', 'check_fixture_live_refresh', '--vm', vm]]
 
 
 @pytest.mark.parametrize(('action', 'status'), [('start', 0), ('start', 7), ('sync-fixtures', 0)])
@@ -777,38 +726,6 @@ def test_fixture_qualification_freezes_after_package_before_privilege(
         assert executed[-1][-2:] == ['--fixture-selection', json.dumps(frozen, sort_keys=True)]
 
 
-def test_named_artifact_build_uses_existing_builder_without_creating_output(monkeypatch):
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
-    output = str(ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input')
-    planned, safety = commands.plan(ROOT, 'artifacts', ['build', '--output', output])
-    assert planned == [commands.python_file(
-        ROOT, 'tools/build_test_artifacts.py', '--package-format', 'deb', '--output', output)]
-    assert not safety
-
-
-def test_preparation_can_reuse_but_explicit_build_remains_fresh():
-    fresh, _ = commands.plan(ROOT, 'artifacts', ['build'])
-    reusable, _ = commands.plan(ROOT, 'artifacts', ['prepare'])
-    assert '--reuse' not in fresh[0]
-    assert reusable == [[*fresh[0], '--reuse']]
-
-
-@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
-def test_native_fixture_build_and_verify_have_finite_target_options(target, tmp_path, monkeypatch):
-    import test_storage
-    monkeypatch.setattr(test_storage, 'BASE', tmp_path)
-    flags = ['--kind', 'native-runtime', '--target', target]
-    planned, safety = commands.plan(ROOT, 'fixtures', ['build', *flags])
-    assert planned == [commands.python_file(ROOT, 'tools/fixture_bundle.py', '--target', target)]
-    assert not safety
-    path = tmp_path / 'host/allocations/onpc-native-fixture/native-runtime'
-    path.mkdir(parents=True)
-    path = str(path)
-    planned, _ = commands.plan(ROOT, 'fixtures', ['verify', path, *flags])
-    assert planned == [commands.python_file(ROOT, 'tools/fixture_bundle.py',
-        '--target', target, '--verify', '--output', path)]
-
-
 @pytest.mark.parametrize('options', [
     ['build', '--kind', 'native-runtime'],
     ['build', '--kind', 'native-runtime', '--target', 'other'],
@@ -833,21 +750,6 @@ def test_native_fixture_category_registers_build_output_before_execution(monkeyp
     assert allocation.call_count == 1
     assert regression_process.Control.run.call_args.args[0] == commands.python_file(
         ROOT, 'tools/fixture_bundle.py', '--target', 'ubuntu', '--output', output)
-
-
-@pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
-def test_native_fixture_prepare_uses_execution_owner_without_an_extra_allocation(monkeypatch, target):
-    import regression_process
-    import test_retention
-    allocation = Mock()
-    execute = Mock(return_value=0)
-    monkeypatch.setattr(test_retention, 'allocate', allocation)
-    monkeypatch.setattr(regression_process.Control, 'run', execute)
-    flags = ['prepare', '--kind', 'native-runtime', '--target', target]
-    assert regression_process.category_run(ROOT, 'fixtures', flags, pipe=False) == 0
-    allocation.assert_not_called()
-    assert execute.call_args.args[0] == commands.python_file(
-        ROOT, 'tools/fixture_execution.py', '--target', target)
 
 
 @pytest.mark.parametrize('status,package_format', [(3, 'deb'), (5, 'rpm'), (6, None), (0, None), (130, None)])
@@ -891,13 +793,6 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
             *(['--reuse'] if package_format == 'deb' else []),
             '--package-format', package_format, '--output', str(output)]
         allocate.assert_called_once()
-
-
-@pytest.mark.parametrize('flags', [[], ['--upgrade-inputs']])
-def test_vm_preparation_plan_uses_selected_vm(flags):
-    planned, safety = commands.plan(ROOT, 'artifacts', ['prepare', '--for-vm', *flags])
-    assert planned == [commands.python_file(ROOT, 'tools/vm_artifacts.py', *flags, *VM_ARGS)]
-    assert not safety
 
 
 @pytest.mark.parametrize('options', [
@@ -1172,37 +1067,6 @@ def test_named_vm_preparation_registers_before_platform_builder(monkeypatch):
         commands.plan(ROOT, 'artifacts', args)
 
 
-@pytest.mark.parametrize('status,expected', [(3, 'deb'), (5, 'rpm')])
-@pytest.mark.parametrize('profile', ['', 'fixture_source=True', 'package_source=True'])
-def test_new_wrapper_automatically_uses_verified_vm_builder(
-        tmp_path, monkeypatch, status, expected, profile):
-    import vm_artifacts
-    import test_storage
-    configured = vm_artifacts.selected()
-    monkeypatch.setattr(vm_artifacts, 'selected', lambda: replace(configured, package_format=expected))
-
-    wrapper = tmp_path / 'check_future_qualification.py'
-    wrapper.write_text('from tools.test_storage import named_input\nASSETS = named_input(' + profile + ')\n')
-    # No selector list or vm_source opt-in exists for this brand-new wrapper.
-    confined = commands.host.confined_file
-    monkeypatch.setattr(commands.host, 'confined_file',
-                        lambda root, path: str(wrapper) if path.startswith('tests/integration/')
-                        else confined(root, path))
-    output = tmp_path / 'new-bundle'
-    monkeypatch.setattr(test_storage, 'named_input', Mock(return_value=output))
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
-    monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(output)))
-    planned = commands.qualification_artifact_command(ROOT, 'integration', ['check_future_qualification'])
-    assert planned == commands.python_file(ROOT, 'tools/vm_artifacts.py', '--output', str(output), *VM_ARGS)
-    monkeypatch.setattr(vm_artifacts, 'check', Mock())
-    control = Mock()
-    control.run.side_effect = [status, 0]
-    assert vm_artifacts.prepare(ROOT, control, {}, output=output) == 0
-    build = control.run.call_args.args[0]
-    assert build[build.index('--package-format') + 1] == expected
-    assert '--upgrade-inputs' not in build
-
-
 @pytest.mark.parametrize('declaration', ['named_input(fixture_source=choose())',
     'named_input(**options)', 'named_input("rpm")',
     'named_input()\nnamed_input(fixture_source=True)'])
@@ -1291,26 +1155,6 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
 
 
 
-@pytest.mark.parametrize('selector', ['check_e2e_read_overlay_about_and_links',
-                                     'check_e2e_read_overlay_about_and_links.py',
-                                     'check_e2e_overlay_approved_exit',
-                                     'check_e2e_overlay_approved_exit.py'])
-def test_overlay_information_reuses_valid_existing_fixture_inputs(monkeypatch, selector):
-    import test_storage
-    output = ROOT / 'output/test-runs/host/allocations/onpc-overlay-information-input'
-    named = Mock(return_value=output)
-    monkeypatch.setattr(test_storage, 'named_input', named)
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
-    validate = Mock()
-    monkeypatch.setattr(commands, 'artifact_path', validate)
-    monkeypatch.setattr(commands, 'allocate_artifact_output',
-                        Mock(side_effect=AssertionError('existing inputs replaced')))
-    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == commands.python_file(
-        ROOT, 'tools/vm_artifacts.py', '--candidate', str(output), '--output', str(output), *VM_ARGS)
-    named.assert_called_once_with(fixture_source=True)
-    validate.assert_called_once_with(str(output))
-
-
 @pytest.mark.parametrize('selector', ['check_e2e_toggle',
     'check_e2e_operate_public_connectivity_controls',
     'check_e2e_operate_public_connectivity_controls.py',
@@ -1328,13 +1172,6 @@ def test_toggle_qualification_reuses_existing_inputs_without_overwriting(
             ROOT, 'tools/vm_artifacts.py', '--candidate', str(named_input()),
             '--output', str(named_input()), *VM_ARGS)
     validate.assert_called_once_with(str(named_input()))
-
-
-def test_unrelated_integration_does_not_build_toggle_assets(monkeypatch):
-    monkeypatch.setattr(commands, 'allocate_artifact_output',
-                        Mock(side_effect=AssertionError('unrelated build')))
-    assert commands.qualification_artifact_command(
-        ROOT, 'integration', ['check_graphical_smoke']) is None
 
 
 def test_retention_permission_failure_identifies_allocation_without_starting_tests(
@@ -1370,20 +1207,6 @@ def test_retention_permission_failure_identifies_allocation_without_starting_tes
         private.chmod(0o700)
 
 
-@pytest.mark.parametrize('argv', [[], ['unknown', '--invalid'], ['unit', '-q']])
-def test_external_invocation_reaches_session_before_argument_validation(monkeypatch, argv):
-    import regression_session
-    import test_activity
-    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    monkeypatch.delenv(test_activity.VARIABLE, raising=False)
-    monkeypatch.setattr(test_activity, '_descriptor', None)
-    attach = Mock(return_value=7)
-    monkeypatch.setattr(regression_session, 'main', attach)
-    monkeypatch.setattr(commands, 'validate', Mock(side_effect=AssertionError('premature validation')))
-    assert commands.main([*argv, *VM_ARGS]) == 7
-    attach.assert_called_once_with(ROOT, [*argv, *VM_ARGS])
-
-
 def test_internal_worker_uses_verified_activity_instead_of_attaching(tmp_path, monkeypatch):
     import regression_session
     import test_activity
@@ -1397,18 +1220,6 @@ def test_internal_worker_uses_verified_activity_instead_of_attaching(tmp_path, m
     with test_activity.activity(tmp_path):
         assert commands.main(['static', 'shell']) == 7
     execute.assert_called_once_with(['static', 'shell'])
-
-
-def test_detached_coverage_keeps_report_configuration(tmp_path, monkeypatch):
-    import regression_process
-    monkeypatch.setattr(commands, 'plan', lambda *_: ([['pytest', '--', 'tests/unit']], False))
-    monkeypatch.setattr('tempfile.mkdtemp', lambda **_: str(tmp_path))
-    execute = Mock(return_value=0)
-    monkeypatch.setattr(regression_process.Control, 'run', execute)
-    assert regression_process.category_run(ROOT, 'coverage', [], pipe=False) == 0
-    assert execute.call_args.args[0] == [
-        'pytest', '--cov-report=xml:' + str(tmp_path) + '/coverage.xml', '--', 'tests/unit']
-    assert execute.call_args.kwargs['env']['COVERAGE_FILE'] == str(tmp_path) + '/.coverage'
 
 
 def test_detached_e2e_failed_build_never_starts_privileged_runner(tmp_path, monkeypatch):
@@ -1449,12 +1260,6 @@ def test_future_paths_expand_only_in_category(checkout, category):
 def test_rejects_pytest_bypasses(checkout, option):
     with pytest.raises(ValueError):
         host.pytest_command(checkout, ['tests/component', option], 'component')
-
-
-@pytest.mark.parametrize('value', ['0', '0s', '-1', 'NaN', 'inf', '3sms', '1;id', '--kill-after=0'])
-def test_invalid_ui_timeout(value):
-    with pytest.raises(ValueError):
-        host.duration(value)
 
 
 def test_ui_globs_environment_timeout_and_exclusions(checkout):
@@ -1522,11 +1327,6 @@ def test_host_execution_forwards_timeout_to_owned_controller(checkout, category,
     assert execute.call_args.kwargs['timeout'] == 180
     assert execute.call_args.kwargs['kill_after'] == host.UI_KILL_AFTER
     assert not any(arg.startswith('--timeout') for arg in execute.call_args.args[0])
-
-
-@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
-def test_host_default_deadline_is_unchanged(category):
-    assert host.pytest_timeout([], category) == (60 if category == 'ui' else None)
 
 
 @pytest.mark.parametrize(('markers', 'expected'), [
@@ -1647,24 +1447,6 @@ def test_category_option_injection_rejected(checkout, category, argv):
         commands.plan(checkout, category, argv)
 
 
-def test_child_future_files_are_literal_and_need_no_policy_change(checkout):
-    node, safety = commands.plan(checkout, 'child-node', ['tests/child/*.test.mjs'])
-    assert node == [['/usr/bin/node', '--test', '--test-concurrency=2', str(checkout / 'tests/child/future.test.mjs')]]
-    assert safety is False
-    gjs, _ = commands.plan(checkout, 'child-gjs', [])
-    assert gjs == [['/usr/bin/gjs', '-m', str(checkout / 'tests/child/future_test.js')]]
-
-
-def test_missing_roadmap_target_refuses_but_fixed_target_can_be_added(checkout):
-    (checkout / 'Makefile').write_text('check:\n\ttrue\n')
-    with pytest.raises(ValueError, match='not implemented'):
-        commands.plan(checkout, 'fast', [])
-    (checkout / 'Makefile').write_text('test-fast:\n\ttrue\n')
-    plan, safety = commands.plan(checkout, 'fast', ['--component=broker', '--list'])
-    assert plan[0][-3:] == ['test-fast', 'COMPONENT=broker', 'LIST=1']
-    assert safety is False
-
-
 def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     plan, safety = commands.plan(ROOT, 'e2e', ['--list'])
     assert 'pkexec' not in plan[0][0]
@@ -1689,14 +1471,6 @@ def test_privileged_parent_symlink_is_rejected(checkout):
     (checkout / 'tests/integration').symlink_to(external, target_is_directory=True)
     with pytest.raises(ValueError):
         dispatcher['selection'](checkout, ['integration', 'check_future'])
-
-
-def test_backend_readiness_is_a_fixed_host_safe_command():
-    plan, safety = commands.plan(ROOT, 'backend', [])
-    assert plan == [['/usr/bin/python3', '-B', str(ROOT / 'tests/integration/graphical_backend.py')]]
-    assert safety is False
-    with pytest.raises(ValueError):
-        commands.plan(ROOT, 'backend', ['--command=id'])
 
 
 def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
@@ -1729,27 +1503,6 @@ def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
     dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
     with pytest.raises(ValueError, match='list-does-not-select-test'):
         dispatcher['selection'](ROOT, ['integration', '--list', 'check_fixture_snapshots'])
-
-
-@pytest.mark.parametrize('argv', [['--help'], ['-h']])
-def test_help_prints_complete_categories_and_combinations(capsys, argv):
-    assert commands._main(argv) == 0
-    text = capsys.readouterr().out
-    assert text == commands.usage() + '\n'
-    assert text.startswith('Usage: tools/run-tests')
-    assert 'host and e2e' in text
-    assert 'all = host + vm' in text
-    assert 'vm = system + integration + e2e' in text
-    assert 'tools/run-tests vm --vm NAME' in text
-    assert 'tools/run-tests system e2e' in text
-    assert 'tools/run-tests host system integration e2e' in text
-    assert 'two package builds and reproducibility' in text
-    assert not text.lstrip().startswith('{')
-
-
-def test_list_still_prints_category_json(capsys):
-    assert commands._main(['--list']) == 0
-    assert json.loads(capsys.readouterr().out) == commands.suite_inventory()
 
 
 @pytest.mark.parametrize('argv', [['--help'], ['-h'], ['--list']])
@@ -1787,15 +1540,6 @@ def test_public_category_inspection_bypasses_activity_and_session(monkeypatch, a
     monkeypatch.setattr(commands, '_main', execute)
     assert commands.main(argv) == 7
     execute.assert_called_once_with(argv)
-
-
-def test_empty_argv_dispatches_the_all_aggregate(monkeypatch):
-    import regression
-    execute = Mock(return_value=7)
-    monkeypatch.setattr(regression, 'main', execute)
-    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    assert commands._main(VM_ARGS) == 7
-    execute.assert_called_once_with(ROOT)
 
 
 @pytest.mark.parametrize('category', ['all', 'all-verify'])

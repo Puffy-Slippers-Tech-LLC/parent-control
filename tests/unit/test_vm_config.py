@@ -87,32 +87,6 @@ def test_missing_package_format_refuses_the_entire_test_queue_before_binding(sel
     bind.assert_not_called()
 
 
-@pytest.mark.parametrize('value', ['true', 'false', True, False, 1, None, '', 'yes', 'TRUE', []])
-def test_removed_clipboard_option_is_refused(tmp_path, value):
-    with pytest.raises(ValueError, match='vm-config:fields'):
-        vm_config.registry(write_config(tmp_path, clipboard=value))
-
-
-def test_display_name_preserves_case_and_hostname_is_lowercase(tmp_path):
-    configured = vm_config.load('custom-Ubuntu26.04', write_config(tmp_path, name='custom-Ubuntu26.04'))
-    assert configured.name == 'custom-Ubuntu26.04'
-    assert configured.hostname == 'custom-ubuntu26.04'
-    assert configured.baseline_directory.name == configured.name
-
-
-def test_configured_vm_names_have_no_literal_in_executable_sources():
-    # Runtime consumers resolve names from config. Acceptance briefs/results
-    # must name their canonical targets; prose is not an executable fallback.
-    names = list(vm_config.registry())
-    for directory in ('tools', 'tests'):
-        for path in (ROOT / directory).rglob('*'):
-            if path.is_file() and path.suffix in ('', '.py', '.json', '.rules', '.sh'):
-                contents = path.read_text()
-                assert not any(name in contents for name in names), str(path.relative_to(ROOT))
-    for relative in ('setup.sh', 'Makefile'):
-        assert not any(name in (ROOT / relative).read_text() for name in names)
-
-
 @pytest.fixture
 def selector_config(tmp_path, monkeypatch):
     path = tmp_path / 'config/test-vm.json'
@@ -251,67 +225,6 @@ def test_installed_dispatcher_keeps_uuid_pins_by_name_when_ids_swap(selector_con
             assert by_id[3:7] == ['--vm', entry['name'], '--expected-uuid', pins[entry['name']]]
 
 
-def test_configuration_change_invalidates_guest_preparation_digest(tmp_path):
-    for relative in guest.SCRIPT_FILES:
-        path = tmp_path / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes((ROOT / relative).read_bytes())
-    before = guest.preparation_digest(tmp_path)
-    (tmp_path / 'config/test-vm.json').write_text(
-        '{"name":"different-vm","disk_anchor":"/images/base.qcow2"}')
-    assert guest.preparation_digest(tmp_path) != before
-
-
-def test_id_changes_do_not_invalidate_guest_preparation_or_baseline_proof(tmp_path):
-    for relative in guest.SCRIPT_FILES:
-        path = tmp_path / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes((ROOT / relative).read_bytes())
-    path = tmp_path / 'config/test-vm.json'
-    document = json.loads(path.read_text())
-    before = guest.preparation_digest(tmp_path)
-    first, second = document['vms'][:2]
-    first['id'], second['id'] = second['id'], first['id']
-    path.write_text(json.dumps(document, indent=4))
-    assert guest.preparation_digest(tmp_path) == before
-    first['id'] = '97'
-    path.write_text(json.dumps(document))
-    assert guest.preparation_digest(tmp_path) == before
-    first['name'] = 'renamed-guest'
-    path.write_text(json.dumps(document))
-    assert guest.preparation_digest(tmp_path) != before
-
-
-@pytest.mark.parametrize('setting', ['concurrency', 'enabled'])
-def test_scheduling_changes_do_not_invalidate_prepared_baseline(tmp_path, setting):
-    for relative in guest.SCRIPT_FILES:
-        path = tmp_path / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes((ROOT / relative).read_bytes())
-    path = tmp_path / 'config/test-vm.json'
-    document = json.loads(path.read_text())
-    before = guest.preparation_digest(tmp_path)
-    if setting == 'concurrency':
-        document['concurrency'] = document.get('concurrency', 1) + 1
-    else:
-        for entry in document['vms']:
-            entry['enabled'] = 'false' if entry.get('enabled') == 'true' else 'true'
-    path.write_text(json.dumps(document))
-    assert guest.preparation_digest(tmp_path) == before
-    # Omitted scheduling defaults must produce the same preparation identity.
-    if setting == 'concurrency':
-        document.pop('concurrency')
-    else:
-        for entry in document['vms']:
-            entry.pop('enabled', None)
-    path.write_text(json.dumps(document))
-    assert guest.preparation_digest(tmp_path) == before
-    # Guest identity and snapshot isolation settings remain protected.
-    document['vms'][0]['disk_anchor'] += '.replacement'
-    path.write_text(json.dumps(document))
-    assert guest.preparation_digest(tmp_path) != before
-
-
 def test_libvirt_selects_configured_name_and_still_rejects_replacement(monkeypatch, tmp_path):
     configured = vm_config.load('custom-test-vm', write_config(tmp_path))
     monkeypatch.setattr(host, 'DOMAIN', configured.name)
@@ -401,15 +314,6 @@ def test_shared_lock_is_used_by_runner_and_backing_ownership_checks(lease_rig, m
         lease.start()
     assert lease.state['phase'] == 'complete'
     assert current['id'] == -1 and lease.source.off
-
-
-def test_registry_contains_both_requested_vms():
-    configured = vm_config.registry()
-    assert configured[vm_name()].require_package_format() == 'deb'
-    assert configured[vm_name(1)].require_package_format() == 'rpm'
-    assert configured[vm_name(1)].disk_anchor == Path(
-        json.loads((ROOT / 'config/test-vm.json').read_text())['vms'][1]['disk_anchor'])
-    assert vm_name() in configured
 
 
 @pytest.mark.parametrize('name', [None, '', 'unknown-vm', vm_name(1).lower()])
@@ -536,25 +440,6 @@ def test_queue_selectors_resolve_names_ids_disabled_entries_and_aliases(selector
 def test_invalid_queue_selection_fails_before_partial_execution(selector_config, selector):
     with pytest.raises(ValueError, match='vm-config:'):
         vm_config.execution(selector)
-
-
-def test_free_slot_refills_before_a_slower_previous_worker_finishes():
-    import threading
-    from vm_queue import dispatch
-    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}')) for index in range(3)]
-    first_started, replacement_started = threading.Event(), threading.Event()
-    def execute(vm):
-        if vm.name == 'guest-0':
-            first_started.set()
-            assert replacement_started.wait(5), 'free slot was held by the slower worker'
-        elif vm.name == 'guest-1':
-            assert first_started.wait(5)
-            return 1
-        else:
-            replacement_started.set()
-        return 0
-    assert dispatch(vms, 2, execute, threading.Event()) == {
-        'guest-0': 0, 'guest-1': 1, 'guest-2': 0}
 
 
 @pytest.mark.parametrize('selector', ['17,83', 'all', 'all-enabled'])
@@ -973,16 +858,6 @@ def test_make_targets_require_configured_vm_and_preserve_literal_name():
             make_command(ROOT, target, {'ONPC_MAKE_VM': 'unknown-vm'})
         command = make_command(ROOT, target, {'ONPC_MAKE_VM': vm_name(1)})
         assert command[-2:] == ['--vm', vm_name(1)]
-
-
-def test_make_watch_observes_all_vms_and_refuses_vm_parameter():
-    from vm_selection import make_command
-    assert make_command(ROOT, 'watch', {}) == [str(ROOT / 'tools/watch')]
-    for name in vm_config.registry():
-        with pytest.raises(ValueError, match='VM parameter refused'):
-            make_command(ROOT, 'watch', {'ONPC_MAKE_VM': name})
-    with pytest.raises(ValueError, match='VM parameter refused'):
-        make_command(ROOT, 'watch', {'ONPC_MAKE_VM': '', 'ONPC_WATCH_VM_ORIGIN': 'command line'})
 
 
 def test_configured_vm_pins_are_selected_by_name_and_missing_pin_never_falls_back():

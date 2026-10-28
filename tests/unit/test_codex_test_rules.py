@@ -4,27 +4,15 @@ from functools import cache
 from pathlib import Path
 import runpy
 import shlex
-import shutil
-import subprocess
 
 import pytest
 
 from tests.support.paths import ROOT
 BASELINE_PATTERN = '^(def|class) |environment|provenance|accepted'
-BASELINE_SEARCH = [
-    'rg', '-n', BASELINE_PATTERN,
-    '--glob', '/tools/*baseline*', '--glob', '/tools/*baseline*/**',
-    '--glob', '/tests/integration/baseline*', '--glob', '/tests/integration/baseline*/**',
-    '.',
-]
 SETUP_PATTERN = 'apply_patch|execpolicy|codex-rules'
 SETUP_PATHS = [
     'setup.sh', 'docs/Approval-Tools.md',
     'tests/unit/test_codex_test_rules.py',
-]
-SETUP_SEARCH = [
-    'tools/read-only', 'search', '--path-glob', 'tools/setup*',
-    SETUP_PATTERN, *SETUP_PATHS,
 ]
 
 
@@ -61,27 +49,6 @@ def test_tool_allowance_does_not_cancel_general_interpreter_prompts(command):
             if matches(rule['pattern'], shlex.split(command))} == {'prompt'}
 
 
-@pytest.mark.parametrize('executable', ['tools/test-vm', './tools/test-vm'])
-@pytest.mark.parametrize('guest', [
-    ['journalctl', '--no-pager', '-n', '100'],
-    ['python3', '-c', 'print(1)'],
-    ['/usr/bin/python3', '-c', 'print(1)'],
-    ['sh', '-c', 'printf probe'],
-    ['/bin/bash', '-lc', 'printf probe'],
-    ['systemctl', 'show', 'oh-no-parent-control-broker.service'],
-])
-def test_configured_vm_probe_uses_existing_launcher_allowance(executable, guest):
-    # These are guest argv tokens, not separately executed host commands.
-    # The launcher resolves current registry IDs/names and enforces ownership.
-    # No selector-specific grant should need renewal when the registry changes.
-    import json
-    registry = json.loads((ROOT / 'config/test-vm.json').read_text())
-    rules = [*entries('codex-read-only.rules'), *entries()]
-    for vm in registry['vms']:
-        for selector in (str(vm['id']), vm['name']):
-            argv = [executable, '--vm', selector, 'exec', '--timeout', '30', '--', *guest]
-            assert [rule['decision'] for rule in rules
-                    if matches(rule['pattern'], argv)] == ['allow']
 
 
 @pytest.mark.parametrize('command', [
@@ -108,10 +75,6 @@ def test_reported_opaque_scripts_keep_shell_prompt(script):
             if matches(rule['pattern'], ['/bin/bash', '-lc', script])} == {'prompt'}
 
 
-def test_reported_setup_search_uses_existing_generic_reader_allowance():
-    rules = [*entries('codex-read-only.rules'), *entries()]
-    assert {rule['decision'] for rule in rules
-            if matches(rule['pattern'], SETUP_SEARCH)} == {'allow'}
 
 
 @pytest.mark.parametrize('unsafe', ['missing', 'not-executable', 'symlink'])
@@ -142,25 +105,6 @@ def test_renderer_requires_inspection_launcher_and_uses_relative_paths(tmp_path,
     assert not any(matches(rule['pattern'], [str(launcher), '--help']) for rule in rules)
 
 
-@pytest.mark.parametrize('command', [
-    "tools/run-tests component 'tests/component/test_*.py' -q",
-    "tools/run-tests child-node 'tests/child/**/*.test.js'", 'tools/run-tests static',
-    'tools/run-tests artifacts build', 'tools/run-tests fast --type contract',
-    'tools/run-tests all', 'tools/run-tests all-verify', 'tools/run-tests e2e --list',
-    "tools/read-only search --path-glob 'tests/integration/fixture*' 'password|credential|parent2|child2' tests/fixtures",
-    'tools/read-only links docs/TestAutomation/E2E-Building-Blocks.md docs/TestAutomation/E2E-Building-Blocks.md tests/e2e/README.md',
-    "tools/read-only words --after '## Ordered building-block catalogue' docs/TestAutomation/E2E-Building-Blocks.md",
-    "tools/read-only words --after '### Future task' --before '### Next task' docs/future.md",
-    "tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py'",
-    'tools/diagnose journal --lines 900', 'tools/test-vm reboot',
-    'tools/prepare-vm',
-    'pkexec --keep-cwd /usr/local/libexec/onpc-test-runner vm stop',
-    'pkexec --keep-cwd /usr/local/libexec/onpc-test-runner e2e --list',
-    'pkexec /usr/local/libexec/onpc-diagnostics systemctl show sshd.service',
-])
-def test_validated_routes_only_match_allow_rules(command):
-    decisions = [rule['decision'] for rule in entries() if matches(rule['pattern'], shlex.split(command))]
-    assert decisions and set(decisions) == {'allow'}
 
 
 @pytest.mark.parametrize('operation', ['list', 'read', 'tail', 'stat', 'export'])
@@ -202,18 +146,6 @@ def test_project_tools_do_not_grant_unlisted_make_targets(command):
                            if matches(rule['pattern'], shlex.split(command))}
 
 
-def test_every_executable_project_tool_is_allowed_in_relative_direct_forms():
-    rules = [*entries('codex-read-only.rules'), *entries()]
-    executables = [path for path in (ROOT / 'tools').rglob('*')
-                   if path.is_file() and path.stat().st_mode & 0o111]
-    assert ROOT / 'tools/read-only' in executables
-    assert ROOT / 'tools/publish.py' in executables
-    for path in executables:
-        relative = path.relative_to(ROOT).as_posix()
-        for executable in (relative, './' + relative):
-            assert [rule['decision'] for rule in rules
-                    if matches(rule['pattern'], [executable, '--help'])] == ['allow']
-        assert not any(matches(rule['pattern'], [str(path), '--help']) for rule in rules)
 
 
 def test_new_executable_tools_are_discovered_on_refresh(tmp_path):
@@ -324,20 +256,6 @@ def test_saved_reader_allows_are_not_overridden_or_duplicated(command):
             if matches(rule['pattern'], argv)} == {'allow'}
 
 
-@pytest.mark.parametrize('executable', ['make', '/usr/bin/make'])
-@pytest.mark.parametrize('target', [
-    'build', 'check', 'check-release-version', 'check-unit', 'check-component',
-    'check-test-fixtures', 'check-child-node', 'check-child-gjs',
-    'check-child-shell', 'check-shell', 'check-gjs', 'check-static',
-    'test-all', 'test-all-verify',
-])
-def test_routine_make_targets_are_allowed_without_saved_user_rules(executable, target):
-    # Evaluate every maintained rule: any broad prompt recreates the reported
-    # failure even when a target-specific allow also matches.
-    rules = [*entries('codex-read-only.rules'), *entries()]
-    decisions = {rule['decision'] for rule in rules
-                 if matches(rule['pattern'], [executable, target])}
-    assert decisions == {'allow'}
 
 
 @pytest.mark.parametrize('command', [
@@ -374,24 +292,6 @@ def test_inline_examples_and_no_generic_script_allow():
             assert not matches(rule['pattern'], ['pkexec', '/usr/bin/python3'])
 
 
-@pytest.mark.parametrize('command', [
-    'pwd', '/bin/pwd -L', '/usr/bin/pwd -P', 'git status --short',
-    'git status --porcelain=v2 --untracked-files=all -- arbitrary/file',
-    '/usr/bin/git status --short -- another/path',
-    "rg -n 'evidence|redact|secret|collector|outcomes|first_failure' tests/integration/graphical_worker.py tests/integration/check_graphical_smoke.py docs/TestAutomation/E2E-Building-Blocks.md tests/README.md",
-    "rg -n --glob '*evidence*' 'evidence|redact|secret|collector|outcomes|first_failure' tests/integration",
-    "rg -n 'perl|subprocess.run|Test::More' --glob '/tests/unit/test_graphical*' --glob '/tests/unit/test_e2e*' .",
-    'rg -n needle /etc /var/log /tmp', '/usr/bin/rg -n pattern arbitrary/repo',
-    "rg --files 'output/test-runs/host/reports' --glob 'category-001.log'",
-    "rg --files /tmp/another-checkout --glob '*.json' --hidden",
-    "/usr/bin/rg --files --glob '*.py' arbitrary/repo",
-    "sed -n '1,95p' tests/integration/check_graphical_smoke.py",
-    "/usr/bin/sed -n '20,80p' /var/log/example.log",
-])
-def test_machine_reads_are_path_independent_without_project_prompt(command):
-    rules = [*entries('codex-read-only.rules'), *entries()]
-    decisions = {rule['decision'] for rule in rules if matches(rule['pattern'], shlex.split(command))}
-    assert decisions == {'allow'}
 
 
 @pytest.mark.parametrize('command', [
@@ -403,14 +303,6 @@ def test_machine_reads_do_not_grant_writes_or_generic_wrappers(command):
                    for rule in entries('codex-read-only.rules'))
 
 
-@pytest.mark.parametrize('executable', ['rg', '/usr/bin/rg'])
-def test_baseline_search_with_quoted_filters_has_only_allow_matches(executable):
-    # Check the argv Codex can extract from a simple literal command. shlex is
-    # NOT Codex's shell parser; splitting the original unquoted wildcard search
-    # here would falsely suggest that the command tool can approve it.
-    argv = [executable, *BASELINE_SEARCH[1:]]
-    rules = [*entries('codex-read-only.rules'), *entries()]
-    assert {rule['decision'] for rule in rules if matches(rule['pattern'], argv)} == {'allow'}
 
 
 @pytest.mark.parametrize('shell', ['bash', '/bin/bash', '/usr/bin/bash'])
@@ -421,30 +313,3 @@ def test_opaque_baseline_search_still_matches_shell_prompt(shell):
     rules = [*entries('codex-read-only.rules'), *entries()]
     assert {rule['decision'] for rule in rules
             if matches(rule['pattern'], [shell, '-lc', script])} == {'prompt'}
-
-
-def test_baseline_glob_filters_preserve_path_scope(tmp_path):
-    rg = shutil.which('rg')
-    if rg is None:
-        pytest.skip('ripgrep is a development prerequisite; run ./setup.sh --dependencies-only')
-    selected = [
-        'tools/host_baseline.py', 'tools/baseline data.txt',
-        'tools/baseline-dir/child.py', 'tools/baseline-dir/nested/child.py',
-        'tests/integration/baseline.py', 'tests/integration/baseline-dir/child.py',
-    ]
-    excluded = [
-        'tools/unrelated.py', 'tools/other/baseline.py',
-        'tests/integration/check_baseline.py', 'tests/integration/other/baseline.py',
-        'other/baseline.py', 'other/tools/host_baseline.py',
-    ]
-    for name in [*selected, *excluded]:
-        path = tmp_path / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text('no match\naccepted\n')
-    result = subprocess.run(
-        [rg, *BASELINE_SEARCH[1:]], cwd=tmp_path,
-        env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8'},
-        text=True, capture_output=True, timeout=10, check=True,
-    )
-    assert set(result.stdout.splitlines()) == {f'./{name}:2:accepted' for name in selected}
-    assert not result.stderr

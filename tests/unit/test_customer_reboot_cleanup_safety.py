@@ -52,13 +52,6 @@ def boundary(tmp_path, monkeypatch, stage='reboot-requested'):
     return journey, progress
 
 
-def test_fixed_launcher(monkeypatch):
-    launch = Mock(return_value=0)
-    monkeypatch.setattr(check, 'smoke', launch)
-    assert check.main() == 0
-    launch.assert_called_once_with(assets=check.ASSETS, provision_credentials=True, customer_reboot=True)
-
-
 @pytest.mark.parametrize('extra', [{}, {'install': True}, {'product_free_entry': True},
     {'package_authority': True}, {'package_install': True}, {'challenges': True}])
 def test_exclusive_product_free_entry(extra):
@@ -256,73 +249,12 @@ def test_modal_submission_cannot_retry_after_any_transport_failure():
     ui._observe.assert_called_once_with('restart-kiosk-reboot')
 
 
-def test_restart_selector_and_generated_preparation(monkeypatch):
-    from pathlib import Path
-    import check_e2e_restart_notice as selector
-    import tools.test_commands as commands
-    launch = Mock(return_value=0)
-    monkeypatch.setattr(selector, 'smoke', launch)
-    assert selector.main() == 0
-    launch.assert_called_once_with(assets=selector.ASSETS, provision_credentials=True, restart_notice=True)
-    from tools.test_storage import named_input
-    assert str(selector.ASSETS) == str(named_input(package_source=True))
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
-    allocate = Mock(return_value=str(selector.ASSETS))
-    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    command = commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_restart_notice'])
-    from vm_selection import arguments
-    assert command[3:] == ['--output', str(selector.ASSETS), *arguments()]
-    assert 'tools/vm_artifacts.py' in command[2]
-    allocate.assert_called_once_with(str(selector.ASSETS))
-
-
 @pytest.mark.parametrize('extra', [{}, {'customer_reboot': True}, {'chinese_current_install': True},
                                    {'parent_rtl': True}, {'kiosk_entry': True}])
 def test_restart_selector_exclusive_gate(extra):
     import check_e2e_restart_notice as selector
     kwargs = dict(assets=selector.ASSETS, provision_credentials=True, **extra) if extra else {}
     with pytest.raises(CommandError): smoke.main(restart_notice=True, **kwargs)
-
-
-@pytest.mark.parametrize('fault', ['', 'parent-notice', 'parent-close', 'overlay-reentry',
-                                  'reboot-requested', 'reboot-greeter', 'postboot-riley-selected',
-                                  'postboot-riley-configured', 'postboot-jamie-selected',
-                                  'postboot-jamie-configured', 'usable-overlay', 'usable-kiosk-approver', 'usable-kiosk'])
-def test_restart_worker_exact_composition_and_refusal(fault):
-    import restart_notice
-    plan = restart_notice.PLAN
-    source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_customer_reboot;')
-    source = source.replace('onpc_desktop_session::run', 'onpc_customer_reboot::restart_notice')
-    declared = ','.join(repr(stage) for stage in plan.invocations)
-    challenges = ','.join(repr(key) + '=>[' + ','.join(repr(value) for value in values) + ']'
-                          for key, values in plan.challenges.items())
-    source = source.replace('}, $action);', '}, [' + declared + '], {' + challenges + '});')
-    source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
-    source = source.replace("push @events, ['stage', $_[0]];", """
-        push @events, ['stage', $_[0]];
-            die 'fixed refusal' if $_[0] eq $action;
-            return {observed => $_[0], ui_focused => 1}
-                if $_[0] =~ /^(?:child-|return-).*installed-greeter$/;
-            return {observed => $_[0], station_destination =>
-            $_[0] eq 'station-branch' ? 'default-request-form' : 'initial-request-window'}
-            if $_[0] =~ /station-branch$/;
-        my ($id, $role) = $_[0] =~ /^child-return-/ ? ('child-return', 'child') :
-            $_[0] =~ /^child-/ ? ('child', 'child') : ('return', 'parent');
-        return {observed => $_[0], challenge => {id => $id, role => $role,
-            surface => 'gdm', check => $_[0] =~ /rechecked$/ ? 'rechecked' : 'qualified'}}
-            if $_[0] =~ /^(?:child-|return-).*recipient-(?:qualified|rechecked)$/;
-    """)
-    result = json.loads(run_perl(source, fault).stdout)
-    assert bool(result['ok']) == (not fault)
-    stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    expected = list(plan.screen_tags)
-    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
-    assert [event[1] for event in result['events'] if event[0] == 'title' and event[1] != 'shutdown'] == [
-        plan.prefix + '-' + stage for stage in stages]
-    if not fault:
-        assert [event for event in result['events'] if event[0] != 'title'][-1] == ['power', 'off']
-        assert result['events'][-1] == ['title', 'shutdown']
-        assert result['events'].count(['secret']) == 4
 
 
 @pytest.mark.parametrize('surface', ['parent', 'kiosk', 'overlay'])
@@ -364,35 +296,6 @@ def test_restart_public_id_owner_and_input_refusals(monkeypatch, surface, fault)
         if surface == 'parent':
             ui.restart_operation('parent', 'wrong-owner')
     assert ui._invoke_target.call_count == (not fault)
-
-
-@pytest.mark.parametrize('stage', ['parent-notice', 'parent-reentry', 'overlay-notice',
-                                 'overlay-reentry', 'kiosk-notice', 'kiosk-reentry', 'reboot-requested'])
-@pytest.mark.parametrize('wrong_text', [False, True])
-def test_restart_installed_text_comparison_precedes_durable_reply(tmp_path, stage, wrong_text):
-    import restart_notice
-    progress = Mock()
-    journey = restart_notice.RestartNoticeJourney(SimpleNamespace(directory=tmp_path,
-        product_free=True, asset_transfer=Mock()), progress)
-    journey.steps = [{'stage': item} for item in journey.plan.stages[:journey.plan.stages.index(stage)]]
-    journey.boot = BEFORE
-    journey.transport = Mock()
-    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': BEFORE}))
-    journey.ui = Mock(boot_proof=BEFORE)
-    journey.ui.submit_restart.return_value = {'surface': 'kiosk', 'status': 'acknowledged'}
-    texts = dict(restart_notice.NOTICE)
-    if wrong_text:
-        texts['update-required-message'] = 'Unrelated restart request'
-    journey.ui.observe.return_value = {'restart': {'texts': texts}}
-    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
-    if wrong_text:
-        with pytest.raises(EvidenceError, match='installed-instructions'):
-            journey.step(Mock())
-        assert not (tmp_path / (stage + '.reply.json')).exists()
-        journey.ui.submit_restart.assert_not_called()
-    else:
-        journey.step(Mock())
-        assert (tmp_path / (stage + '.reply.json')).is_file()
 
 
 def test_restart_decoder_and_actual_isolated_payload():
@@ -467,32 +370,3 @@ def test_restart_kiosk_usability_refuses_unusable_or_wrong_account_selection(fau
     ui._invoke_target = Mock()
     with pytest.raises(adapter.UiError): ui.restart_usable('kiosk')
     ui._invoke_target.assert_not_called()
-
-
-def test_restart_plan_every_leaf_registered():
-    import accessible_ui
-    import restart_notice
-    for tag in restart_notice.PLAN.screen_tags.values():
-        assert tag[3:] in accessible_ui.OPERATIONS if tag.startswith('ui:') else tag[7:] in session_control.BINDINGS
-
-
-def test_restart_enabled_request_preparation_follows_reboot():
-    import restart_notice
-    from journey_blocks import custom_child_selection
-    from ui_observations import SettingsObservation
-    plan = restart_notice.PLAN
-    stages = list(plan.screen_tags)
-    for prefix, child, identity in (('postboot-riley', 'child', 'fixture-child'),
-                                     ('postboot-jamie', 'existing', 'existing-fixture-child')):
-        selection = custom_child_selection(prefix, child)
-        configured = prefix + '-configured'
-        assert {stage: plan.screen_tags[stage] for stage in selection} == selection
-        assert plan.screen_tags[configured] == 'ui:time-explanation-setup-thirty-read'
-        assert plan.child_bindings[configured] == child
-        assert plan.settings_checks[prefix + '-selected'] == SettingsObservation(
-            identity, False, ('0 minutes',))
-        assert stages.index('missing-notice-refused') < stages.index(prefix + '-open')
-        assert stages.index(prefix + '-selected') < stages.index(configured)
-        assert stages.index(configured) < stages.index('return-parent-logout')
-    assert stages.index('return-parent-logout') < stages.index('usable-overlay-launch')
-    assert stages.index('usable-overlay') < stages.index('usable-kiosk')

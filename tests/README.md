@@ -539,7 +539,11 @@ Without categories verification uses the full regression aggregate.
 Categories, rounds and model options apply to new runs; attaching keeps the active run's options.
 Host-only repair runs keep their own workflow owner and output under
 `output/test-runs/host/fix-tests-host/`; VM-containing runs use the existing
-`output/test-runs/host/fix-tests/`. Separate host and VM repair runs may overlap.
+`output/test-runs/host/fix-tests/`. Separate host and VM test runs may overlap,
+but their repair workers share one checkout source lease. A repair waits for
+active checks and their cleanup; new checks wait while it edits, verifies and
+closes out. A stopped repair keeps unverified edits fenced until its original
+run resumes. Each run retains its own FIFO queue and case budgets.
 Attach with the same scope. Bare `tools/fix-tests --stop` cancels active host
 and VM repair runs in the current checkout, requesting both cancellations before
 waiting for owned cleanup. Categories or `--vm` narrow cancellation, for example

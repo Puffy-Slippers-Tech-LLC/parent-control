@@ -567,8 +567,8 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     selected = json.loads(requested)
     from fix_tests_queue import parent_run, RepairCoordinator, RepairGate, finish_startup, RECOVERY_ONLY, retain_owner
     parent = parent_run(run)
-    repair_gate = RepairGate(run)
-    finish_startup(run)
+    repair_gate = RepairGate(run, root=root)
+    finish_startup(run, root=root)
     retain_owner(owner)
     if parent is not None:
         import threading
@@ -594,9 +594,12 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 # admission. An empty ticket can precede begin() after a crash.
                 path = run / 'checkpoint.json'
                 retained = json.loads(path.read_text()) if path.exists() else {}
-                if parent is not None and RepairCoordinator.recovery_state(retained) != 'complete':
+                retained_state = RepairCoordinator.recovery_state(retained)
+                with repair_gate.coordinator.state() as (waiting, pending_owner):
+                    queued = repair_gate.ticket in waiting or pending_owner == repair_gate.ticket
+                if retained_state != 'complete' or queued:
                     repair_gate.acquire()
-                elif repair_gate.fd is not None:
+                if retained_state == 'complete' and repair_gate.fd is not None:
                     repair_gate.release()
                     if os.environ.get(RECOVERY_ONLY):
                         status = 0
@@ -673,7 +676,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     from fix_tests_queue import RepairCoordinator, RepairGate, parent_run, repair_descriptors, RECOVERY_ONLY
     parent = parent_run(run)
     budget = TaskBudget(parent or run)
-    repair_gate = repair_gate or RepairGate(run)
+    repair_gate = repair_gate or RepairGate(run, root=root)
     recovery_only = bool(os.environ.get(RECOVERY_ONLY))
     retained_failure = None
     from fix_tests_git import RepairCommits
@@ -946,8 +949,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
         recovered = False
         def recover():
-            if parent is not None:
-                repair_gate.acquire()
+            repair_gate.acquire()
             result = execute('recovery')
             if result == 0 and not recovery_only and not commits.state['repairs']:
                 repair_gate.release()  # Recovery changed no source; let queued repairs drain.
@@ -1081,8 +1083,6 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             return failure
 
     def refresh_failure(category, failure):
-        if parent is None:
-            return failure
         while True:
             commits.state['queued_failure'] = dict(category=category, failure=failure)
             commits.save()
@@ -1449,7 +1449,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             raise ValueError('resume round exceeds --rounds; retain the original round count')
         rounds = int(rounds)
         commits = RepairCommits(root, run)
-        retained_failure = saved_failure() if parent is not None else None
+        retained_failure = saved_failure()
         if reloading:
             retained_failure = None  # The live loop continuation already owns this operation.
         if retained_failure is not None and retained_failure['category'] in completed:

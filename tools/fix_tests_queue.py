@@ -9,7 +9,7 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 
 import detached_launcher as launcher
 import launcher_reload
@@ -38,13 +38,22 @@ def parent_run(run):
     return Path(json.loads(path.read_text())['parent']) if path.exists() else None
 
 
-def finish_startup(run):
+def source_directory(root):
+    from test_storage import directory
+    return launcher.private_directory(directory('state', root=root) / 'fix-tests-source')
+
+
+def finish_startup(run, *, root=None):
     """The spawning reader protects imports until the worker can enter the gate."""
     inherited = os.environ.pop(STARTUP_SOURCE, None)
     if inherited is not None:
         fd = int(inherited)
-        actual, expected = os.fstat(fd), (parent_run(run) / 'repair-owner').stat()
-        if (actual.st_dev, actual.st_ino) != (expected.st_dev, expected.st_ino):
+        actual = os.fstat(fd)
+        paths = [(parent_run(run) or run) / 'repair-owner']
+        if root is not None:
+            paths.insert(0, source_directory(root) / 'repair-owner')
+        if not any(path.exists() and (actual.st_dev, actual.st_ino) ==
+                   (path.stat().st_dev, path.stat().st_ino) for path in paths):
             raise ValueError('inherited source lease identity changed')
         os.close(fd)
 
@@ -54,10 +63,12 @@ class RepairCoordinator:
 
     Processes may call this coordinator independently; none keeps a private
     scheduling decision. Kernel source leases still outlive their controllers.
-    The existing files remain the restart journal, with no additional protocol.
+    Per-run queues retain restart state; the checkout lease fences their shared
+    source bytes, including edits retained by a stopped writer.
     """
-    def __init__(self, run):
+    def __init__(self, run, *, source=None):
         self.run = run
+        self.source = source if source is not None else run
 
     @staticmethod
     def recovery_state(saved):
@@ -69,8 +80,12 @@ class RepairCoordinator:
 
     @contextmanager
     def state(self):
-        with launcher.lock(self.run / 'repair-queue-gate') as gate:
+        with ExitStack() as locks:
+            gate = locks.enter_context(launcher.lock(self.run / 'repair-queue-gate'))
             fcntl.flock(gate, fcntl.LOCK_EX)
+            if self.source != self.run:
+                shared = locks.enter_context(launcher.lock(self.source / 'repair-queue-gate'))
+                fcntl.flock(shared, fcntl.LOCK_EX)
             path = self.run / 'repair-queue.json'
             waiting = json.loads(path.read_text()) if path.exists() else []
             pending = self.run / 'repair-pending.json'
@@ -78,7 +93,7 @@ class RepairCoordinator:
             yield waiting, owner
 
     def generation(self):
-        path = self.run / 'repair-generation.json'
+        path = self.source / 'repair-generation.json'
         return json.loads(path.read_text()) if path.exists() else 0
 
     def enqueue(self, ticket):
@@ -101,7 +116,16 @@ class RepairCoordinator:
                 fcntl.flock(descriptor, (fcntl.LOCK_EX if writer else fcntl.LOCK_SH) | fcntl.LOCK_NB)
             except BlockingIOError:
                 return False  # Active cases or their supervisors still own cleanup.
+            # Independent host and VM queues still read and edit one checkout.
+            # Retain the source fence even if its writer stopped before cleanup.
+            pending = self.source / 'repair-source-pending.json'
+            source_owner = json.loads(pending.read_text())['run'] if pending.exists() else None
+            ticket_path = str((self.run / ticket).resolve())
+            if source_owner is not None and (source_owner != ticket_path or not writer):
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+                raise ValueError('another unfinished repair retains unverified checkout edits; resume that repair first')
             if writer:
+                launcher.atomic(pending, {'run': ticket_path})
                 launcher.atomic(self.run / 'repair-pending.json', {'run': ticket})
             return True
 
@@ -109,11 +133,16 @@ class RepairCoordinator:
         with self.state() as (waiting, owner):
             if owner is not None and owner != ticket:
                 raise ValueError('case repair ownership changed before release')
+            pending = self.source / 'repair-source-pending.json'
+            source_owner = json.loads(pending.read_text())['run'] if pending.exists() else None
+            if source_owner is not None and source_owner != str((self.run / ticket).resolve()):
+                raise ValueError('checkout repair ownership changed before release')
             if changed:
-                launcher.atomic(self.run / 'repair-generation.json', self.generation() + 1)
+                launcher.atomic(self.source / 'repair-generation.json', self.generation() + 1)
             if not unfinished:
                 # Clear the fence before removing its ticket. An interruption
                 # between writes still blocks admission until restart drains it.
+                pending.unlink(missing_ok=True)
                 (self.run / 'repair-pending.json').unlink(missing_ok=True)
                 if ticket in waiting:
                     launcher.atomic(self.run / 'repair-queue.json', [name for name in waiting if name != ticket])
@@ -199,23 +228,34 @@ class RepairCoordinator:
 
 class RepairGate:
     """Worker-owned descriptors; scheduling belongs to RepairCoordinator."""
-    def __init__(self, run, *, stopped=lambda: False):
+    def __init__(self, run, *, root=None, stopped=lambda: False):
         self.run = run
         self.parent = parent_run(run)
-        self.coordinator = RepairCoordinator(self.parent) if self.parent is not None else None
+        self.coordinator = RepairCoordinator(self.parent or run,
+            source=source_directory(root) if root is not None else None)
+        self.ticket = run.name if self.parent is not None else '.'
         self.fd = None
         self.stopped = stopped
         self.last_generation = None
         inherited = os.environ.pop(STARTUP_REPAIR, None)
         lease = run / 'repair-lease.json'
-        if self.parent is not None and (inherited is not None or lease.exists()):
+        if inherited is not None or lease.exists():
             saved = (dict(pid=os.getpid(), fds=[int(inherited)]) if inherited is not None else
                      json.loads(lease.read_text()))
             if saved['pid'] == os.getpid():
                 self.fd, = saved['fds']
-                actual, expected = os.fstat(self.fd), (self.parent / 'repair-owner').stat()
-                if (actual.st_dev, actual.st_ino) != (expected.st_dev, expected.st_ino):
-                    raise ValueError('inherited repair lease identity changed')
+                actual = os.fstat(self.fd)
+                path = self.coordinator.source / 'repair-owner'
+                if not path.exists() or (actual.st_dev, actual.st_ino) != (path.stat().st_dev, path.stat().st_ino):
+                    # Upgrade a live reload from the former per-run source lock.
+                    legacy = (self.parent or run) / 'repair-owner'
+                    if not legacy.exists() or (actual.st_dev, actual.st_ino) != (legacy.stat().st_dev, legacy.stat().st_ino):
+                        raise ValueError('inherited repair lease identity changed')
+                    with launcher.lock(path) as replacement:
+                        self._admit(replacement, writer=True)
+                        os.close(self.fd)
+                        self.fd = os.dup(replacement)
+                    launcher.atomic(lease, dict(pid=os.getpid(), fds=[self.fd]))
                 os.set_inheritable(self.fd, False)
                 _repair_descriptors.add(self.fd)
 
@@ -227,13 +267,14 @@ class RepairGate:
             self.fd = None
 
     def generation(self):
-        return self.coordinator.generation() if self.coordinator is not None else 0
+        return self.coordinator.generation()
 
     def acquire(self):
-        if self.parent is None or self.fd is not None:
+        if self.fd is not None:
             return False
         self.enqueue()
-        fd = os.open(self.parent / 'repair-owner', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        with launcher.lock(self.coordinator.source / 'repair-owner') as opened:
+            fd = os.dup(opened)
         try:
             self._admit(fd, writer=True)
             self.fd = fd
@@ -245,15 +286,15 @@ class RepairGate:
             raise
 
     def enqueue(self):
-        self.coordinator.enqueue(self.run.name)
+        self.coordinator.enqueue(self.ticket)
 
     def case_result(self, status):
         """Report failure before giving up this case's source lease."""
-        if status and self.coordinator is not None:
-            self.coordinator.enqueue(self.run.name)
+        if status:
+            self.coordinator.enqueue(self.ticket)
 
     def _check_stop(self):
-        if self.stopped() or (self.run / 'cancel').exists() or (self.parent / 'cancel').exists():
+        if self.stopped() or (self.run / 'cancel').exists() or ((self.parent or self.run) / 'cancel').exists():
             raise launcher.Stopped()
         if launcher_reload.pending():
             getattr(self, 'on_reload', launcher_reload.check)()
@@ -264,7 +305,7 @@ class RepairGate:
         try:
             while True:
                 self._check_stop()
-                if self.coordinator.admit(self.run.name, fd, writer=writer):
+                if self.coordinator.admit(self.ticket, fd, writer=writer):
                     return
                 if previous is None:
                     previous = read_progress(self.run)
@@ -279,10 +320,10 @@ class RepairGate:
     @contextmanager
     def source(self):
         """A waiting writer stops new cases; active readers finish normally."""
-        if self.parent is None or self.fd is not None:
+        if self.fd is not None:
             yield None
             return
-        with launcher.lock(self.parent / 'repair-owner') as source:
+        with launcher.lock(self.coordinator.source / 'repair-owner') as source:
             self._admit(source, writer=False)
             _source_descriptors.add(source)
             try:
@@ -292,7 +333,7 @@ class RepairGate:
 
     def release(self, *, changed=False, unfinished=False):
         if self.fd is not None:
-            self.coordinator.finish(self.run.name, changed=changed, unfinished=unfinished)
+            self.coordinator.finish(self.ticket, changed=changed, unfinished=unfinished)
             _repair_descriptors.discard(self.fd)
             (self.run / 'repair-lease.json').unlink(missing_ok=True)
             os.close(self.fd)
@@ -680,7 +721,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                     publish()
             from contextlib import ExitStack
             with ExitStack() as startup:
-                gate = RepairGate(child, stopped=control.stopped.is_set)
+                gate = RepairGate(child, root=root, stopped=control.stopped.is_set)
                 # A retained writer enters its exclusive gate in the worker.
                 # Everyone else inherits a reader across initial imports.
                 if not recovery:

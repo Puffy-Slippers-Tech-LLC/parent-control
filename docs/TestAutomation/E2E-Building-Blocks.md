@@ -4149,6 +4149,27 @@ graphical login, passwordless requests, denial/Cancel, genuine approval and usab
 reentry. This contention history and public-use control passed on Ubuntu 26.04
 and Fedora 44, including collection and owned cleanup.
 
+### Temporary identity-helper recovery
+
+`check_e2e_kiosk_identity_helper` dispatches `KioskIdentityHelperQualification`.
+Before the [short public history](#short-confinement-usability-history),
+[`system_kiosk_admission.identity_helper_recovery`](../../tests/integration/system_kiosk_admission.py)
+removes executable bits from the verified installed login helper while the
+station is inactive. The real GDM account callback must return an operational
+error while the ordinary account remains allowed. A descriptor-bound `finally`
+restores the original mode, requiring the same root-owned inode and bytes;
+fresh account admission must then succeed. It changes no account, saved routing
+or admission state and performs no reinstall.
+
+The engineering command has a 240-second deadline and supplies no public-entry
+credit. The existing 1800-second public worker checks ordinary graphical login,
+passwordless station entry, denial/Cancel without a grant, genuine approval with
+independently observed time, exit and usable fresh reentry.
+This finite helper-outage and public-use history passed on Ubuntu 26.04 and
+Fedora 44, including collection and owned cleanup. Existing product recovery
+needed no change; unavailable-account diagnosis, native error/timeout mapping,
+fresh retry and same-handle authorization retain their focused host controls.
+
 ### Reached service-route control
 
 `check_e2e_kiosk_service_route` dispatches

@@ -382,6 +382,61 @@ def routing_outage_probe(record, *, expected=0):
     probe('gdm-password', 'kiosk', expected, 'routing-outage.station', record)
 
 
+def identity_helper_recovery():
+    """One unavailable executable, restored before the caller's public history."""
+    from system_kiosk_confinement import wait_kiosk_inactive
+
+    guest.guard()
+    guest.enable_diagnostics()
+    wait_kiosk_inactive(pwd.getpwnam(USERS['kiosk']))
+    results = []
+
+    def record(stage, value):
+        results.append({'stage': stage, 'value': value})
+        print(json.dumps(results[-1], sort_keys=True), file=sys.stderr, flush=True)
+
+    helper = Path('/usr/libexec/oh-no-parent-control-login-check')
+    fd = os.open(helper, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    try:
+        def identity(info):
+            return (info.st_dev, info.st_ino, info.st_uid, info.st_gid,
+                    info.st_nlink, info.st_mode, info.st_size)
+
+        before = identity(os.fstat(fd))
+        guest.require(stat.S_ISREG(before[5]) and before[2:5] == (0, 0, 1)
+                      and stat.S_IMODE(before[5]) == 0o755 and 0 < before[6] <= 65536,
+                      'identity-helper:unsafe-file')
+        original = os.pread(fd, 65537, 0)
+
+        def current(expected):
+            guest.require(identity(os.fstat(fd)) == expected == identity(helper.lstat())
+                          and os.pread(fd, 65537, 0) == original,
+                          'identity-helper:file-changed')
+
+        current(before)
+        probe('gdm-password', 'kiosk', 0, 'helper.healthy', record)
+        unavailable = (*before[:5], stat.S_IFREG | 0o644, before[6])
+        try:
+            current(before)
+            os.fchmod(fd, 0o644)
+            current(unavailable)
+            probe('gdm-password', 'kiosk', 4, 'helper.unavailable', record)
+            probe('gdm-password', 'ordinary', 0, 'helper.ordinary', record)
+        finally:
+            # Restore only the exact file and mode this attempt changed. No
+            # helper replacement, account/routing edit or admission-state erase.
+            current(unavailable)
+            os.fchmod(fd, 0o755)
+            current(before)
+        probe('gdm-password', 'kiosk', 0, 'helper.restored-fresh', record)
+        current(before)
+    finally:
+        os.close(fd)
+    wait_kiosk_inactive(pwd.getpwnam(USERS['kiosk']))
+    return {'qualified': True, 'restored': True, 'controls': results,
+            'public_acceptance': False}
+
+
 def verify_gates(record):
     """Observe installed account gates without changing retained routing state."""
     guest.guard()
@@ -441,7 +496,9 @@ def verify(record):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3 and sys.argv[1] == 'ordinary-authentication':
+    if sys.argv[1:] == ['identity-helper-recovery']:
+        print(json.dumps(identity_helper_recovery(), sort_keys=True))
+    elif len(sys.argv) == 3 and sys.argv[1] == 'ordinary-authentication':
         token = sys.stdin.buffer.read(257)
         print(json.dumps(pam_callback('gdm-password', sys.argv[2], 'authentication-account',
                                       durable=True, token=token), sort_keys=True))

@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U04 — [Recover entry after a temporary identity-check failure](Kiosk-Usability-Tasks/U04-identity-helper.md)**.
+Next task: **U05 — [Restore entry after interrupted configuration](Kiosk-Usability-Tasks/U05-configuration-recovery.md)**.
 
 ## Outcome and scope
 

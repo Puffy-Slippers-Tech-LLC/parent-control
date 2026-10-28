@@ -561,6 +561,43 @@ class KioskAdmissionContentionQualification(KioskLeaseVariationQualification):
     lease_expectation = 'contention'
 
 
+class KioskIdentityHelperQualification(ConfinementUsabilityQualification):
+    """Temporary helper outage, restoration and the short public use history."""
+
+    def journey(self, context, progress):
+        import watch_activity
+        journey = super().journey(context, progress)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage != 'setup-detached':
+                return
+            context.lease.guard()
+            with watch_activity.operation('Checking temporary identity helper failure and recovery'):
+                raw = journey.transport.call([
+                    'env', 'ONPC_EXPECTED_RUN=' + context.lease.state['run'],
+                    '/usr/bin/python3', '-B',
+                    smoke.runner.PAYLOAD + '/system_kiosk_admission.py',
+                    'identity-helper-recovery'], timeout=240)
+            smoke.require(type(raw) is bytes and 0 < len(raw) <= 65536,
+                          'identity-helper:response-bound')
+            result = json.loads(raw)
+            smoke.require(type(result) is dict and result.get('qualified') is True
+                          and result.get('restored') is True,
+                          'identity-helper:recovery-incomplete')
+            context.lease.guard()
+            self.result['identity_helper'] = observed['identity_helper'] = result
+
+        journey.check_settings = check
+        return journey
+
+    def execute(self, lease, guestfs):
+        super().execute(lease, guestfs)
+        smoke.require(self.result.get('identity_helper', {}).get('restored') is True,
+                      'identity-helper:history-incomplete')
+
+
 class BaselineJourneyQualification(KioskEntryQualification):
     # This fixed caller selects its finite closure before VM acquisition.
     from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets

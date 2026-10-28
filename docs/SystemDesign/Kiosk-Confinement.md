@@ -59,8 +59,7 @@ Fresh creation starts with no expiry and a locked password. After UID publicatio
 configuration journals original expiry and quarantines the account before deleting
 the password. Reconfiguration uses the same UID-bound transaction; interruption
 and reboot retain quarantine. Foreign identities/changed records refuse adoption.
-Successful native/distro PAM readiness permits expiry restoration, subject to the
-[expiry provenance limitation](Lifecycle.md#kiosk-provisioning-and-selected-session).
+Successful native/distro PAM readiness permits expiry restoration.
 
 The [native PAM module](../../tools/pam_oh_no_parent_control.c) checks actual service
 and account. The qualified child-run `su-l` route is denied; unfamiliar service
@@ -285,8 +284,6 @@ Removing state is published before its marker; completion erases the marker
 before state. A marker without authoritative state is unowned and cannot be
 deleted merely because no lock is live. Recover valid interrupted owned state
 through the configuration writer, preserving capture/rollback authority.
-The [expiry provenance limitation](Lifecycle.md#kiosk-provisioning-and-selected-session)
-remains unresolved.
 
 Benign optional variation must preserve entry and approval. Required-service,
 routing and owned-lock faults need bounded retry or safe owned repair; restored

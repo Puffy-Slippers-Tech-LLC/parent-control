@@ -122,8 +122,7 @@ failures can still require safe refusal and exit; U07's unavailable/no-grant
 result is distinct from its fresh authenticated approval after restoration.
 Persistent writer contention and unsafe, foreign or live state retain the
 [admission limits](SystemDesign/Kiosk-Confinement.md#lease-and-lifecycle-boundary).
-The concurrent administrator-expiry [provenance gap](SystemDesign/Lifecycle.md#kiosk-provisioning-and-selected-session)
-remains unresolved outside U05's controlled interruption. These finite results
+These finite results
 do not qualify arbitrary faults, general confinement, other queues or a release.
 U09 reconciled the current owners and registered bindings; no further work or
 owned resources remain in this queue.

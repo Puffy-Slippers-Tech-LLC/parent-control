@@ -132,10 +132,7 @@ the password. [Owned migration](#prepared-owned-lifecycle-migration) owns expiry
 and recovery; successful native/distro readiness permits release.
 
 The expiry record stores UID, original expiry and phase. Product writers serialize
-only with each other: an administrator's later expiry-day-1 denial is indistinguishable
-from product quarantine and may be overwritten on release. Other unexpected values
-refuse recovery. Matching phase/readback does not prove writer provenance; this
-administrator-policy compatibility gap remains unresolved.
+with each other; unexpected expiry values refuse recovery.
 
 Provisioning verifies account/home/admin-group identity, generates broker/system-bus
 configuration, and establishes/readbacks `Session=oh-no-parent-control`,
@@ -260,7 +257,7 @@ legacy-lock validation; native PAM never repairs an existing lease.
 4. Restore original PAM under quarantine, install replacement integration and invoke
    the real side-effect-free readiness verifier. Recheck state before retiring old
    records and releasing expiry through its retryable phase. A boolean is not a
-   readiness witness; expiry provenance remains limited as described above.
+   readiness witness.
 5. Failed post-unpack configuration/legacy recovery keeps quarantine, removal intent
    and journal with vendor-only kiosk denials. Never republish incompatible old
    native-module options that could reject ordinary users. Abort-remove releases

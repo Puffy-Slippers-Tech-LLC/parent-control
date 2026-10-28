@@ -22,8 +22,8 @@ under the master's [sizing boundary](Kiosk-Usability-Plan.md#task-sizing).
 | [x] | U09 | Close the scoped usability repairs | U08 | Reconcile delivered fixes and remaining limits without a general acceptance rerun | Reconciled current design/test owners and all ten registered fault bindings; Markdown links and scoped diff passed; no owned resources remain. |
 
 The master's [delivered results and remaining limits](Kiosk-Usability-Plan.md#delivered-results-and-remaining-limits)
-distinguish usable restored requests from operational refusal and retain the
-unresolved administrator-expiry limitation. No general acceptance rerun was added.
+distinguish usable restored requests from operational refusal. No general
+acceptance rerun was added.
 
 Use the shared completion policy: short results and normal failure diagnostics
 are enough. No automatic report archive, historical-proof renewal or cross-queue

@@ -107,10 +107,6 @@ from pathlib import PurePosixPath
 # ownership, cleanup and all bucket reservations remain unchanged.
 # Correlated operation/wait spans use the same stream and bounded nesting-local
 # counters. They add no poller/thread, event dispatch, input or resource owner.
-# Parent preview keyboard checks restore only the spawned child's simulated
-# VS Code Snap overrides before GTK imports. They reuse Request behavior's
-# private display/bus, public IDs and owned process; no host environment,
-# monitor settings, shared cache or cleanup lifetime changes.
 # Query/occupancy, worker CPU and stream-write diagnostics add bounded counters
 # to the same worker-local timing recorder and retained stream. No new reads,
 # threads, files, processes or resource owners; all UI reservations remain valid.
@@ -210,9 +206,12 @@ GROUPS = (
     ('Automation identity', ('test_automation_identity.py', 'test_translation_widget_contracts.py'), 12),
 )
 
-# The adapter's Shell search shares the headless runner with its own artifact/
-# runtime root; it does not publish Nested Shell's stable latest paths.
-# Automation identity uses the standard private preview session.
+# Product-only reduction removes the adapter's nested-Shell search, checked-state
+# observer, ID inventories and preview reload/environment/token checks. Remaining
+# product cases keep the same private preview/display/bus, owned processes and
+# cleanup. Rapid saves use the existing guarded setters and finally-released
+# tmp_path gate. No resource owner or compatibility boundary is added; retain
+# the existing whole-module groups and conservative reservations above.
 # Parent Hebrew logical-text/Tab checks use Request behavior's existing private
 # preview process, compositor, accessibility bus and event file. No new live
 # owner, shared path, service or display; compatible UI classification stays.
@@ -231,8 +230,6 @@ GROUPS = (
 # accessibility bus; keyboard input and app cleanup stay inside that fixture.
 # Synthetic duplication uses that same editor's clipboard on the private
 # display; it adds no helper process or host clipboard access.
-# Checked-event observation uses that same private GTK preview/accessibility
-# bus, with scoped subscriptions and no added thread, display or shared cache.
 # Combined-format/rejection checks retain this same private preview and bounded
 # 1,200-line document, including close/reopen and decoration removal. No new
 # processes, sockets, caches or shared state; the existing adapter budget applies.

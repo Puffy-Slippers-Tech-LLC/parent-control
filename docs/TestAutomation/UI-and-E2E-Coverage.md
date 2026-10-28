@@ -18,7 +18,12 @@ Local owners are `test_parent_feedback.py` for feedback/attachments,
 `test_request_form_component.py` for request forms, `test_language_settings.py`
 for language/reminder/preset editing, `test_about_release.py` for information,
 `test_error_feedback.py` for errors and `test_child_shell_lifecycle.py` for the
-panel. Shared identity/refusal coverage belongs to `test_e2e_accessible_adapter.py`.
+panel. `test_e2e_accessible_adapter.py` and `test_automation_identity.py` retain
+product assertions through the shared operations. Automation protocol, identity
+inventory, tracing and deliberate wrong-target/refusal checks are outside UI
+acceptance; focused safety coverage belongs beneath the UI under the
+[test scope mandate](../Mandates/Test-Scope-Mandate.md). Product cases retain
+the shared runtime ownership and input guards without testing those guards.
 
 | Area | Local UI responsibility | Installed responsibility |
 | --- | --- | --- |
@@ -33,7 +38,7 @@ panel. Shared identity/refusal coverage belongs to `test_e2e_accessible_adapter.
 | Countdown/animation | Panel/tooltip/menu behavior | Work until natural exhaustion, normal locking, independent saved preferences across session/reboot without policy changes |
 | Language | Representative scripts, Save/Cancel/failure, inherited text and draft preservation | Account independence, offline/session persistence, native translated approvals, usable request surfaces and natural expiry |
 | Reminders/presets | Editing, sorting, duplicate/invalid values, literal text versus translated triggers, Save/Cancel/empty list | Saved custom reminders, exact cross-surface readback, reboot and unchanged peer settings; warning delivery is distinct |
-| Automation identity | Ownership, ambiguity, readiness, stale tokens and uncertain input | Every journey uses qualified shared guards; traces/per-keystroke sampling are not customer outcomes |
+| Automation safety | Shared runtime guards apply; no dedicated tooling assertions | Every journey uses qualified shared guards; traces/per-keystroke sampling are not customer outcomes |
 
 Attachment fixtures replace only the external chooser's returned file list;
 the frontend still reads/validates files and updates its draft. Local tests do

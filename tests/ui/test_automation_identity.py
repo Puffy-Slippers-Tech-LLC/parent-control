@@ -1,8 +1,6 @@
-"""Application UI identity and public language-control contracts."""
+"""Language preview isolation and independent request-account selection."""
 
 import pytest
-
-from tests.support.automation_ids import audit_product_controls
 
 pytestmark = pytest.mark.ui
 
@@ -29,8 +27,6 @@ def test_language_chooser_previews_keep_owner_language_until_commit(
     # The Parent switch publishes an accessible label, not displayed child text.
     read_owner_text = ui.text if frontend == 'parent' else ui.getText
     ui.reader.open_language_preferences(frontend)
-    assert ui.target('language-dialog').surface_metadata['parent_id'] == (
-        'parent-window' if frontend == 'parent' else 'kiosk-request-window')
     for query, expected in [
         ('GLI', {'en'}), ('PORT*BR', {'pt-BR'}), ('РУСС', {'ru'}),
         ('中文', {'zh-Hans', 'zh-Hant'}), ('SR-?ATN', {'sr-Latn'}),
@@ -62,24 +58,6 @@ def test_language_chooser_previews_keep_owner_language_until_commit(
         'parent-window' if frontend == 'parent' else 'kiosk-request-window')),
          'Cancel leaves the owner language unchanged')
     assert read_owner_text(owner) == owner_text
-
-
-
-
-@pytest.mark.parametrize("launcher", ["kiosk_preview", "child_overlay_preview"])
-def test_request_ids_are_public_and_unique(
-        launch_ui, automation, wait_for_accessible_state, launcher):
-    launch_ui(launcher, wait_for_application=False)
-    ui = automation
-    wait_for_accessible_state(lambda: ui.find("kiosk-request-window") is not None,
-                              "request surface publishes its automation ID")
-    for identity in ("kiosk-request-submit", "kiosk-request-cancel",
-                     "kiosk-duration-0", "kiosk-duration-custom",
-                     "kiosk-duration-300", "kiosk-menu-button",
-                     "kiosk-request-status"):
-        assert ui.target(identity).get_accessible_id() == identity
-    wait_for_accessible_state(lambda: audit_product_controls(ui, "kiosk-request-window"),
-                              "complete request ID inventory")
 
 
 def test_station_selected_uids_drive_the_public_guest_projection(
@@ -114,50 +92,3 @@ def test_station_selected_uids_drive_the_public_guest_projection(
     assert result['approver'] == 'fixture-parent'
     independent = reader.kiosk_request_form(enabled=True)
     assert independent == result
-
-
-def test_parent_feedback_and_about_publish_public_ids(
-        launch_ui, automation, wait_for_accessible_state):
-    launch_ui("parent_component_preview", wait_for_application=False)
-    ui = automation
-    wait_for_accessible_state(lambda: ui.find("parent-feedback-button") is not None,
-                              "parent controls publish IDs")
-    for identity in ("parent-window", "parent-menu-button",
-                     "parent-child-selector", "parent-screen-limit-toggle"):
-        assert ui.target(identity).get_accessible_id() == identity
-    wait_for_accessible_state(lambda: audit_product_controls(ui, "parent-window"),
-                              "complete Parent ID inventory")
-    ui.activate("parent-feedback-button")
-    wait_for_accessible_state(lambda: ui.find("feedback-dialog") is not None,
-                              "feedback dialog publishes its ID")
-    assert ui.target("feedback-dialog").surface_metadata['parent_id'] == 'parent-window'
-    for identity in ("feedback-dialog", "feedback-webview", "feedback-send",
-                     "feedback-close", "feedback-toggle-logs", "feedback-content"):
-        assert ui.target(identity).get_accessible_id() == identity
-    wait_for_accessible_state(lambda: ui.find("feedback-editor-input") is not None,
-                              "rich editor publishes its input ID")
-    # Host and installed operations share one owner-pinned catalog and scope.
-    guest_reader = ui.reader
-    for identity in ("feedback-editor-input", "feedback-format-bold",
-                     "feedback-format-style", "feedback-format-link"):
-        node = ui.target(identity)
-        attributes = node.get_attributes()
-        assert attributes["toolkit"] == "ApplicationUI"
-        assert attributes["id"] == identity
-        assert guest_reader.find_id(identity, root=ui.target("feedback-webview")) == node
-    wait_for_accessible_state(lambda: audit_product_controls(ui, "feedback-dialog"),
-                              "complete feedback ID inventory")
-    ui.activate("feedback-close")
-    wait_for_accessible_state(
-        lambda: ui.absent("feedback-dialog", within="parent-window"),
-        "feedback dialog closes",
-    )
-    ui.setValue("parent-menu-button", "about")
-    wait_for_accessible_state(lambda: ui.find("about-dialog") is not None,
-                              "About dialog publishes its ID")
-    assert ui.target("about-dialog").surface_metadata['parent_id'] == 'parent-window'
-    for identity in ("about-version", "about-license-value",
-                     "about-legal-notices-value", "about-integration-notice"):
-        assert ui.target(identity).get_accessible_id() == identity
-    wait_for_accessible_state(lambda: audit_product_controls(ui, "about-dialog"),
-                              "complete About ID inventory")

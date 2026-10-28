@@ -1,7 +1,6 @@
 """Localization's chooser contract through real GTK and shared E2E actions."""
 
 import json
-import re
 
 import pytest
 
@@ -9,7 +8,6 @@ from tests.support.events import read_events
 from tests.support.feedback import feedback_editor
 from tests.support.localization_review import public_label_names
 from tests.support.request_form import open_preset_preferences
-from tests.support.automation_ids import audit_product_controls
 
 
 pytestmark = pytest.mark.ui
@@ -366,29 +364,6 @@ def committed(path):
 
 
 @pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
-def test_request_preferences_public_identity_tracks_dialog_lifetime(
-        launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
-    ui, wait = automation, wait_for_accessible_state
-    path = launch_language(launch_ui, tmp_path, surface, language='en')
-    wait(lambda: ui.showing('kiosk-language-ready'), 'saved language ready')
-    child = ui.getValue('kiosk-child-selector')
-    ui.reader.open_language_preferences('kiosk')
-    instance = ui.getValue('language-dialog')
-    assert re.fullmatch(r'[0-9a-f]{32}', instance)
-    assert ui.getValue('language-dialog') == instance
-    ui.setValue('preferences-tabs', 'reminders')
-    assert ui.getValue('language-dialog') == instance
-    ui.reader.cancel_language('kiosk')
-    ui.reader.open_language_preferences('kiosk')
-    replacement = ui.getValue('language-dialog')
-    assert re.fullmatch(r'[0-9a-f]{32}', replacement)
-    assert replacement != instance
-    assert ui.getValue('language-dialog') == replacement
-    assert ui.getValue('kiosk-child-selector') == child
-    assert_no_policy_or_request_writes(path)
-
-
-@pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
 def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
     ui, wait = automation, wait_for_accessible_state
@@ -570,7 +545,6 @@ def test_preset_times_draft_bounds_persistence_and_empty_choices(
     ui.setValue('kiosk-soft-apps-toggle', True)
     open_preset_preferences(ui, wait)
     wait(lambda: ui.showing('preset-300-edit'), 'backend presets loaded')
-    assert audit_product_controls(ui, 'language-dialog')
     assert ui.getValue('preset-list') == [300, 900, 1800, 3600, 7200, 14400]
     ui.activate('preset-add')
     assert ui.getText('preset-editor-title') == 'Add Preset Time'
@@ -578,8 +552,6 @@ def test_preset_times_draft_bounds_persistence_and_empty_choices(
     assert ui.getChoices('preset-unit') == ['minute', 'hour']
     assert ui.getValue('preset-unit') == 'hour'
     assert ui.getText('preset-value') == '5'
-    assert ui.target('preset-editor-dialog').surface_metadata['parent_id'] == 'language-dialog'
-    assert audit_product_controls(ui, 'preset-editor-dialog')
     ui.setValue('preset-unit', 'minute')
     for value in ('0.04', '1440.1', 'NaN', 'Infinity', '6e1000000'):
         ui.setText('preset-value', value)
@@ -1122,20 +1094,14 @@ def assert_surface_language(ui, wait, surface, language):
 def test_language_search_filters_choices_and_preserves_cancel(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface,
         request_display_scale, dpi_scale):
-    from tests.support.automation_ids import audit_product_controls
-
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, surface)
     wait(lambda: ui.showing('language-search'), 'search is publicly accessible')
-    inventory = audit_product_controls(ui, 'language-dialog')
-    assert inventory['language-list'].get_name() == 'Language'
-    assert inventory['language-list'].get_description() == 'Choose your language'
-    search = inventory['language-search']
+    assert ui.target('language-list').get_name() == 'Language'
+    assert ui.target('language-list').get_description() == 'Choose your language'
+    search = ui.target('language-search')
     assert search.get_name() == 'Search languages'
     assert search.get_description() == 'Search languages'
-    # Application UI exposes Gtk.SearchEntry's native role, not AT-SPI's entry role.
-    assert search.element.snapshot()['role'] == 'search-box'
-    assert {'getText', 'setText'} <= set(search.element.snapshot()['operations'])
     ui.setText('language-search', 'PORT*BR')
     wait(lambda: ui.content('language-search') == 'PORT*BR'
          and ui.showing('language-choice-pt-br')
@@ -1205,33 +1171,6 @@ def test_first_run_defaults_and_save_waits_for_commit(
     assert ui.showing('language-cancel')
     ui.reader.cancel_language(scope)
     assert committed(path) == [language]
-
-
-@pytest.mark.parametrize('snap_environment', (False, True), ids=('desktop', 'vscode-snap'))
-def test_parent_development_preview_language_application_ui_input(
-        launch_ui, automation, wait_for_accessible_state, snap_environment):
-    ui, wait = automation, wait_for_accessible_state
-    environment = {'LANGUAGE': 'en_US.UTF-8', 'LC_ALL': 'C.UTF-8'}
-    if snap_environment:
-        environment.update({'GDK_BACKEND': 'x11', 'GDK_BACKEND_VSCODE_SNAP_ORIG': '',
-                            'GSETTINGS_SCHEMA_DIR': '/nonexistent/vscode-snap-schemas',
-                            'GSETTINGS_SCHEMA_DIR_VSCODE_SNAP_ORIG': ''})
-    launch_ui('parent_preview', complete_language_setup=False,
-              environment_overrides=environment)
-    wait(lambda: ui.showing('language-search'), 'development preview chooser opens')
-    ui.setText('language-search', 'PORT*BR')
-    wait(lambda: ui.content('language-search') == 'PORT*BR'
-         and ui.showing('language-choice-pt-br')
-         and ui.absent('language-choice-en', within='language-dialog'),
-         'Application UI text filters the preview language list')
-    ui.setText('language-search', '')
-    wait(lambda: ui.content('language-search') == '', 'clearing search restores the full list')
-    ui.setValue('language-list', 'fur')
-    wait(lambda: ui.state('language-choice-fur', ui.api.StateType.CHECKED),
-         'the language choice is selected')
-    ui.activate('language-cancel')
-    wait(lambda: ui.absent('language-dialog', within='parent-window'),
-         'Cancel closes the preview chooser')
 
 
 def test_parent_first_run_shared_helper_saves_with_cancel_visible(

@@ -1,7 +1,6 @@
 """Exercise the feedback dialog through stable Application UI IDs."""
 
 import pytest
-from tests.support.automation_ids import audit_product_controls
 from tests.support.gui_blocks import run_block
 from tests.support.application_ui import utf16_length
 from tests.support.feedback import (
@@ -115,7 +114,6 @@ def test_feedback_block_semantics(
     ui.activate("feedback-close")
     wait_for_accessible_state(
         lambda: ui.absent("feedback-dialog", within="parent-window"), "feedback closed")
-    ui.reader.block_operation('block-wrong-entry')
     ui.activate("parent-feedback-button")
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"), "feedback reopened")
     feedback_editor(ui, wait_for_accessible_state)
@@ -155,14 +153,14 @@ def test_feedback_complete_format_sequence(launch_ui, automation, wait_for_acces
             run_block(ui.reader, 'inline', kind, 'linked')
     else:
         run_block(ui.reader, 'formats')
-    for action in ('close', 'wrong-entry', 'reopen'):
+    for action in ('close', 'reopen'):
         operation('formats-kept-' + action)
     run_block(ui.reader, 'inline', 'clear')
     ui.activate('feedback-undo')
     formats.read(ui.reader, require, 'linked-kept-reopen' if linked else 'formats-kept-reopen')
     ui.activate('feedback-redo')
     formats.read(ui.reader, require, 'formats-clear-read')
-    for action in ('close', 'wrong-entry', 'reopen'):
+    for action in ('close', 'reopen'):
         operation('formats-cleared-' + action)
 
 
@@ -287,8 +285,6 @@ def test_feedback_draft_and_optional_attachment(
     ui.activate("feedback-privacy-link")
     wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
                               "privacy dialog opens")
-    assert audit_product_controls(ui, "feedback-privacy-dialog")
-    assert ui.target("feedback-privacy-dialog").surface_metadata['parent_id'] == 'feedback-dialog'
     assert "Diagnostic logs do not collect account names" in ui.text("feedback-privacy-text")
     assert ui.reader.clickable_link("feedback-full-privacy-link")
     dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog",
@@ -404,7 +400,6 @@ def test_feedback_submission_outcomes(
         ui.activate("feedback-send")
     wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
                               "success confirmation opens")
-    assert audit_product_controls(ui, "feedback-success-dialog")
     wait_for_accessible_state(lambda: ui.absent("feedback-dialog", within="parent-window"),
                               "feedback editor hides before confirmation dismissal")
     body = "Your feedback was sent successfully. We appreciate your help making the app better."

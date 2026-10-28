@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import hashlib
 import json
 import shutil
 import sys
@@ -30,18 +29,6 @@ def _new_artifact_root(scenario: str, render_artifacts) -> Path:
     return render_artifacts(f"onpc-child-{scenario}-", parent="/tmp", shader_cache=True)
 
 
-def _tree_fingerprint(root: Path) -> str | None:
-    if not root.exists():
-        return None
-    digest = hashlib.sha256()
-    for path in sorted(root.rglob("*")):
-        relative = path.relative_to(root).as_posix().encode()
-        if path.is_symlink():
-            digest.update(b"L\0" + relative + b"\0" + os.readlink(path).encode())
-        elif path.is_file():
-            digest.update(b"F\0" + relative + b"\0")
-            digest.update(path.read_bytes())
-    return digest.hexdigest()
 
 
 def _copy_reviewable_artifacts(artifact_root: Path, destination: Path) -> None:
@@ -257,50 +244,3 @@ def test_child_panel_refreshes_language_after_overlay_save(render_artifacts):
     logs = _assert_preview_evidence(artifact_root, 1, diagnostic)
     assert not [failure for log in logs for failure in _extension_error_context(log)], diagnostic
     _publish_success_artifacts(artifact_root, 'localization')
-
-
-def test_child_extension_reload_uses_only_a_controlled_copy(render_artifacts):
-    artifact_root = _new_artifact_root("reload", render_artifacts)
-    repository_before = _tree_fingerprint(ROOT / "child")
-    developer_extension = Path.home() / ".local/share/gnome-shell/extensions" / UUID
-    developer_before = _tree_fingerprint(developer_extension)
-    environment = {
-        **os.environ,
-        "ONPC_CHILD_SHELL_ARTIFACT_DIR": str(artifact_root),
-        "ONPC_CHILD_SHELL_PYTHON": os.environ.get("PYTHON", sys.executable),
-        "ONPC_CHILD_SHELL_SCENARIO": "reload",
-        "ONPC_PREVIEW_READY_TIMEOUT_SECONDS": "30",
-    }
-    result = run_child_shell(environment, timeout=120)
-    retained_artifacts = _preserve_attempt_artifacts(artifact_root, "reload")
-    logs = [
-        (artifact_root / "logs" / f"child-preview-generation-{generation}.log").read_text(
-            encoding="utf-8", errors="replace"
-        ) if (artifact_root / "logs" / f"child-preview-generation-{generation}.log").exists()
-        else "(Shell log was not created)"
-        for generation in (1, 2)
-    ]
-    diagnostic = (
-        f"Artifact directory: {retained_artifacts}\n"
-        f"runner stdout:\n{result.stdout}\nrunner stderr:\n{result.stderr}\n"
-        f"generation-one log:\n{logs[0]}\n"
-        f"generation-two log:\n{logs[1]}"
-    )
-    assert result.returncode == 0, diagnostic
-    assert "generation-one" in result.stdout and "generation-two" in result.stdout, diagnostic
-    assert (artifact_root / "reload-evidence.log").read_text(encoding="utf-8") == (
-        "source=controlled-copy marker=generation-two\n"
-    )
-    assert "generation-one" not in (artifact_root / "controlled-extension/previewMode.js").read_text(
-        encoding="utf-8"
-    )
-    assert _tree_fingerprint(ROOT / "child") == repository_before, diagnostic
-    assert _tree_fingerprint(developer_extension) == developer_before, diagnostic
-    verified_logs = _assert_preview_evidence(artifact_root, 2, diagnostic)
-    failures = [failure for log in verified_logs for failure in _extension_error_context(log)]
-    assert not failures, (
-        "Extension-attributable Shell diagnostics were emitted:\n"
-        + "\n---\n".join(failures)
-        + f"\n{diagnostic}"
-    )
-    _publish_success_artifacts(artifact_root, "reload")

@@ -2775,7 +2775,7 @@ recorded under the [status contract](README.md#status-vocabulary). A later
 complete scenario is not a prerequisite of its own block. Ready primitives above
 refer to existing
 [public-UI regressions](../../tests/unit/test_accessible_e2e_ui.py),
-[real adapter checks](../../tests/ui/test_e2e_accessible_adapter.py),
+[local product checks](../../tests/ui/test_e2e_accessible_adapter.py),
 [actual pointer](../../tests/unit/test_e2e_pointer_helper.py), with existing
 case results in retained runner artifacts.
 They do not claim qualification for future kiosk, lock, terminal or game

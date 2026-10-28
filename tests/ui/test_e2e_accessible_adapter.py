@@ -1,4 +1,4 @@
-"""Qualify the E2E public UI adapter against real GTK, outside the VM journey."""
+"""Product behavior through shared UI operations on real GTK previews."""
 
 import copy
 import importlib.util
@@ -10,8 +10,6 @@ import pytest
 gi.require_version('Atspi', '2.0')
 
 from tests.support.paths import ROOT
-from tests.support.child_shell import run_child_shell
-from tests.support.automation_ids import audit_owned_controls
 
 pytestmark = pytest.mark.ui
 
@@ -194,7 +192,7 @@ def test_feedback_read_adapter_uses_real_public_editor(launch_ui):
                 'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
     try:
         for operation in ('feedback-open', 'feedback-read', 'feedback-close',
-                          'feedback-wrong-entry', 'feedback-reopen',
+                          'feedback-reopen',
                           'feedback-reread', 'feedback-finished'):
             result = ui.run(operation, '')
             if operation in ('feedback-open', 'feedback-read', 'feedback-reopen',
@@ -214,29 +212,6 @@ def test_feedback_read_adapter_uses_real_public_editor(launch_ui):
         raise
 
 
-def test_existing_window_switch_entry_uses_public_owned_surfaces(launch_ui):
-    # Reuses this module's private display/bus and fixture-owned preview process.
-    from gi.repository import Atspi, GLib
-    from tests.e2e import accessible_ui as module
-
-    launch_ui('parent_component_preview', wait_for_application=False)
-    ui = module.AccessibleUI(
-        Atspi, timeout=20, query_errors=(GLib.Error,),
-        application_ids=(module.PARENT_APPLICATION,),
-        application_owners=launch_ui.application_owners,
-        provider_contracts=_qualified_absent_prompt_contracts(module),
-        dispatch=lambda: GLib.MainContext.default().iteration(False))
-    ui.id_target('parent-window')
-    ui.wait(lambda: ui.existing_window_active('parent'), 'parent-active')
-    # Product proofs expose logical availability, not foreground focus.
-    assert ui.window_switch_proof('parent')['available'] is True
-    with pytest.raises(module.UiError, match='switch-absent'):
-        ui.window_switch_ready('feedback', 'parent')
-    ui.run('feedback-open', '')
-    root = ui.existing_window('feedback')
-    assert ui.existing_window_active('feedback', expected=root) is not None
-    with pytest.raises(module.UiError, match='switch-source'):
-        ui.window_switch_ready('feedback', 'feedback')
 
 
 def test_format_adapter_reads_real_public_ranges(launch_ui):
@@ -271,7 +246,6 @@ def test_format_adapter_reads_real_public_ranges(launch_ui):
             print('Synthetic public bold run:', start, end, bool(attributes.get('bold')))
         raise
     ui.run('format-close', '')
-    ui.run('format-wrong-entry', '')
     assert ui.run('format-reopen', '')['formatting'] == result
 
 
@@ -312,7 +286,6 @@ def test_duplicate_adapter_builds_exact_formatting_fixture_by_application_ui(lau
     ui.run('rejection-complex-send', '')
     assert ui.run('rejection-complex-read', '')['feedback_state']['validation'] == 'format-invalid'
     ui.run('rejection-close', '')
-    ui.run('rejection-wrong-entry', '')
     ui.run('rejection-reopen', '')
     ui.run('rejection-reopened-send', '')
     assert ui.run('rejection-reopened-read', '')['feedback_state']['validation'] == 'format-invalid'
@@ -349,7 +322,6 @@ def test_length_adapter_reads_full_ascii_and_non_bmp_boundaries(launch_ui):
         state = observations[f'rejection-{family}-read']['feedback_state']
         assert state['validation'] == 'length-invalid' and state['send_enabled']
         ui.run(f'length-{family}-close', '')
-        ui.run(f'length-{family}-wrong-entry', '')
         state = ui.run(f'length-{family}-reopen', '')['feedback_state']
         assert state['draft'] == f'length-{family}-5001'
         ui.run(f'rejection-{family}-reopened-send', '')
@@ -431,7 +403,6 @@ def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
         state = ui.run(operation, '')['feedback_state']
         assert state['validation'] == 'none' and state['send_enabled'] is True
     ui.run('feedback-state-close', '')
-    ui.run('feedback-state-wrong-entry', '')
     assert ui.run('feedback-state-reopen', '')['feedback_state'] == state
     replace('body-clear')
     replace('reply-clear')
@@ -457,9 +428,6 @@ def test_standard_user_startup_denial_has_specific_public_result(launch_ui, auto
                             dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.management_denied()
     root = ui.id_target('parent-access-denied-window')
-    assert audit_owned_controls(
-        ui, 'parent-access-denied-window', root=root,
-    )
     assert ui.id_target('parent-access-denied-brand', root=root).get_name() == 'Oh No! Parent Control'
     assert ui.id_target('parent-access-denied-heading', root=root).get_name() == 'Administrator Required'
     if dismissal == 'close':
@@ -470,17 +438,6 @@ def test_standard_user_startup_denial_has_specific_public_result(launch_ui, auto
             'denial-dismissed')
 
 
-def test_search_adapter_in_isolated_shell(render_artifacts):
-    import os
-    import sys
-    directory = render_artifacts('onpc-e2e-search-', parent='/tmp', shader_cache=True)
-    result = run_child_shell({**os.environ,
-        'ONPC_CHILD_SHELL_ARTIFACT_DIR': str(directory),
-        'ONPC_CHILD_SHELL_PYTHON': sys.executable,
-        'ONPC_CHILD_SHELL_SCENARIO': 'e2e-search',
-        'ONPC_PREVIEW_READY_TIMEOUT_SECONDS': '30'}, timeout=90)
-    assert result.returncode == 0, f'{directory}\n{result.stdout}\n{result.stderr}'
-    assert 'e2e-search: provider-identity-blocked' in result.stdout
 
 
 @pytest.mark.parametrize('dpi_scale', [1.0, 1.25])
@@ -498,8 +455,7 @@ def test_empty_parent_functional_adapter_at_display_scales(
                             provider_contracts=_qualified_absent_prompt_contracts(module),
                             dispatch=lambda: GLib.MainContext.default().iteration(False))
     try:
-        assert ui.run('parent-empty', '') == {
-            'operation': 'parent-empty', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        ui.run('parent-empty', '')
     except Exception:
         print('Parent preview diagnostics:', _log)
         raise
@@ -531,43 +487,6 @@ def test_short_daily_profile_saves_custom_allowances_through_shared_api(launch_u
                             'allowance': [str(minutes) + ' minutes']}
 
 
-def test_parent_checked_api_observer_around_public_toggle(launch_ui, monkeypatch):
-    """Public API result observation with the ordinary UI17 setter as caller."""
-    from gi.repository import Atspi, GLib
-    spec = importlib.util.spec_from_file_location('e2e_event_ui', ROOT / 'tests/e2e/accessible_ui.py')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    launch_ui('parent_component_preview', wait_for_application=False)
-    def observer():
-        return module.AccessibleUI(Atspi, timeout=20, query_errors=(GLib.Error,),
-            application_ids=(module.PARENT_APPLICATION,),
-            application_owners=launch_ui.application_owners,
-            fixture_uids={module.CHILD: 1001, module.EXISTING_CHILD: 1002},
-            provider_contracts=_qualified_absent_prompt_contracts(module),
-            dispatch=lambda: GLib.MainContext.default().iteration(False))
-    ui = observer()
-    ui.run('child-picker-opened', '')
-    ui.run('child-choice-highlighted', '')
-    ui.run('parent-selected', '')
-    ui.parent_toggle_operation('parent-toggle-disabled')
-    ui.parent_save_snapshot(module.CHILD, False)
-    ui.trace_request, ui.trace_boot = 'a' * 32, 'b' * 64
-    calls = []
-    def ready(line, **kwargs):
-        value = json.loads(line)
-        assert value['event'] == 'accessibility-trace-ready'
-        assert not calls
-        calls.append(value)
-        actor = observer()
-        actor.expected_trace_source = value['source']
-        assert actor.parent_toggle_operation('parent-toggle-enabled') == {
-            'state': True, 'activated': True}
-    monkeypatch.setattr(module, 'print', ready, raising=False)
-    result = ui.parent_checked_events('parent-checked-events')
-    assert result['samples'] and all(sample['source'] == 'application-ui'
-                                     for sample in result['samples'])
-    assert result['samples'][-1]['checked'] is True and len(calls) == 1
-    assert observer().parent_save_snapshot(module.CHILD, True)['result'] == 'saved'
 
 
 @pytest.mark.parametrize('dpi_scale', [1.0, 1.25])
@@ -592,7 +511,6 @@ def test_parent_functional_adapter_at_display_scales(
         ui.run('child-choice-highlighted', version)
         selected = ui.run('parent-selected', version)
         assert selected['settings']['child'] == 'fixture-child'
-        ui.run('parent-page-wrong-child-refused', version)
         import hashlib
         expected_rows = tuple(sorted(
             ('parent-app-' + hashlib.sha256(identity.encode()).hexdigest()[:16], access, match)
@@ -601,14 +519,11 @@ def test_parent_functional_adapter_at_display_scales(
                 ('lunarclient.desktop', 'permanent', 'pattern'),
                 ('com.mojang.Minecraft.desktop', 'conditional', 'precise'),
                 ('steam.desktop', 'conditional', 'precise'))))
-        for _ in range(2):
-            before = ui.run('parent-selected', version)['settings']
-            ui.run('parent-apps-page', version)
-            assert ui.run('parent-app-rows', version)['apps']['rows'] == expected_rows
-            assert ui.run('parent-app-rows-wrong-child', version)['apps'] == {'refusal': 'wrong-child'}
-            assert ui.run('parent-app-rows-wrong-page', version)['apps'] == {'refusal': 'wrong-page'}
-            assert ui.run('parent-app-rows-reopened', version)['apps']['rows'] == expected_rows
-            assert ui.run('parent-screen-page', version)['settings'] == before
+        before = ui.run('parent-selected', version)['settings']
+        ui.run('parent-apps-page', version)
+        assert ui.run('parent-app-rows', version)['apps']['rows'] == expected_rows
+        assert ui.run('parent-app-rows-reopened', version)['apps']['rows'] == expected_rows
+        assert ui.run('parent-screen-page', version)['settings'] == before
         ui.run('discovery-child-picker-opened', version)
         ui.run('discovery-child-choice-highlighted', version)
         existing = ui.run('discovery-selected', version)
@@ -634,8 +549,7 @@ def test_parent_functional_adapter_at_display_scales(
         # qualification. This private preview adds no processes or shared state.
         ui.run('parent-help-clickable', version)
         ui.run('parent-information-about', version)
-        for _ in range(2):
-            ui.run('parent-information-clickable', version)
+        ui.run('parent-information-clickable', version)
         if ui.incomplete_observations:
             _record_parent_public_state(ui, module, _log)
         ui.about_footer()

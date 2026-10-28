@@ -539,7 +539,7 @@ pending and is never selected. Other pending/retired system IDs and pending E2E
 variants remain excluded by their inventories; package-format-specific histories
 retain their target filtering.
 
-Bare `integration` runs the regular `check_*.py` bindings through the existing
+Bare `integration` runs product checks and essential shared safety checks through the existing
 guarded per-check launcher, including named input preparation and fixture
 selection. It never calls script bodies inside the coordinator. The
 [binding inventory](integration_inventory.py) owns scheduling exclusions and
@@ -554,6 +554,15 @@ exposes their reasons in `tools/run-tests integration --list`:
   profile, and `check_package_notice` requires host-native APT/dpkg (Ubuntu or
   Debian). They are excluded on Fedora hosts, independently of the selected VM;
   listing includes that applicability reason.
+- Standalone fixture provisioning, snapshots, live refresh, transfer, serial,
+  recorded serial, system preparation and product-free E2E preparation
+  qualifications are explicit engineering probes, excluded from routine
+  scheduling. The graphics attachment API comparison/trace probe is likewise
+  excluded. Their guarded explicit selectors remain available when changing
+  those mechanisms. Product journeys still exercise their normal preparation
+  and shared runtime guards; `check_fixture_e2e_installed` retains its product
+  catalogue/save checks. Credential, worker containment, ownership, recovery
+  and verdict safety checks remain in their existing owners.
 
 Dormant Parent About/access wrappers and duplicate MATE-prompt, toggle and
 expanded-time wrappers have been removed. Their product coverage remains in

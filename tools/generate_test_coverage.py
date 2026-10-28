@@ -74,7 +74,8 @@ def collect_counts(root):
     rows.append(('Child GJS', len(commands),
                  'Checks child extension behavior that depends on the GNOME JavaScript runtime.'))
     inventory = runpy.run_path(str(root / 'tests/integration/integration_inventory.py'))
-    # Count tests across supported hosts, excluding operational maintenance.
+    # Count scheduled tests across supported hosts, excluding explicit probes
+    # and operational maintenance.
     integrations = [item for item in inventory['inventory'](root / 'tests/integration')
                     if item['name'] not in inventory['EXCLUDED']]
     rows.append(('Integration qualification', len(integrations),
@@ -129,7 +130,7 @@ def render(document, counts, *, root=ROOT):
         'Python parameter combinations count separately; property-test examples do not. '
         'Script-based checks count once per executable entry point; Node subtests are not expanded. '
         'Installed-system cases count repeated phases and prerequisites once. '
-        'Integration excludes maintenance operations and counts host-specific tests once. '
+        'Integration excludes maintenance operations and explicit engineering probes, and counts host-specific tests once. '
         'Aggregate, build, static-analysis and prerequisite commands are not additional test cases.',
         '', '## E2E scenarios', '',
         '| Subcategory | Count (Ready/Pending/Total) |',

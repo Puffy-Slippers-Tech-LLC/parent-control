@@ -1486,7 +1486,10 @@ def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
         'check_tmp_storage', 'check_tmp_storage_cleanup', 'check_storage_migration',
         'check_retained_runs_cleanup'})
     assert {'check_fixture_snapshots', 'check_fixture_live_refresh',
-            'check_graphical_worker'} <= set(scheduled)
+            'check_fixture_system_installed', 'check_graphical_attachment'
+            }.isdisjoint(scheduled)
+    assert {'check_e2e_baseline_journey', 'check_fixture_e2e_installed',
+            'check_graphical_credentials', 'check_graphical_worker'} <= set(scheduled)
     ubuntu = set(listing['runnable'](host_os='ubuntu'))
     fedora = set(listing['runnable'](host_os='fedora'))
     assert ubuntu - fedora == {'check_package_notice', 'check_graphical_transport'}

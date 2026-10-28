@@ -4,13 +4,23 @@ import json
 from pathlib import Path
 import platform
 
-# Operations are callable through the dispatcher, but are never tests. Keep
-# exclusions visible in --list instead of treating every check_* as coverage.
+# Explicit engineering probes and operations remain callable through the
+# dispatcher. Routine integration covers product behavior and essential safety;
+# keep exclusions visible in --list rather than scheduling every check_*.
 EXCLUDED = {
     **{name: 'maintenance/recovery operation, not a test' for name in (
         'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery',
         'check_tmp_storage', 'check_tmp_storage_cleanup', 'check_storage_migration',
         'check_retained_runs_cleanup')},
+    **{name: 'standalone fixture preparation qualification; explicit engineering use only'
+       for name in (
+        'check_fixture_provisioning', 'check_fixture_snapshots',
+        'check_fixture_live_refresh', 'check_fixture_transfer',
+        'check_fixture_serial', 'check_fixture_recorded_serial',
+        'check_fixture_system_product_free', 'check_fixture_system_installed',
+        'check_fixture_e2e_product_free')},
+    'check_graphical_attachment':
+        'graphics API comparison/trace probe; explicit engineering use only',
 }
 
 # These checks exercise host-native services/tools, independently of the guest.

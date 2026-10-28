@@ -1,11 +1,10 @@
 package onpc_allowance_boundaries;
 use strict;
 use warnings;
-use JSON::PP ();
-use testapi ();
 use onpc_progress ();
 use onpc_journey ();
-use onpc_allowance ();
+use onpc_gdm ();
+use onpc_parent ();
 use onpc_allowance_selection ();
 use onpc_text ();
 
@@ -85,7 +84,10 @@ sub run {
     die 'allowance-boundaries:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(exchange => $exchange,
         prefix => 'allowance-boundaries', review => 0);
-    onpc_allowance::qualify($journey);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    seen($journey, $_) for ('parent-toggle-enabled', 'parent-save-enabled');
     exercise($journey);
     $journey->finish();
 }

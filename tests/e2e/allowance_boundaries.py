@@ -1,8 +1,7 @@
-"""Task 040a's finite boundary slice, retaining ordinary commit regressions."""
+"""Installed custom-allowance boundaries with independent saved-value reloads."""
 from installed_journey import InstalledJourney, JourneyPlan
-from allowance import SCREENS as ORDINARY_SCREENS
 from allowance_values import ACCEPTED, INVALID
-from journey_blocks import allowance_selection
+from journey_blocks import allowance_selection, fresh_desktop, parent_management
 
 def boundary_screens(accepted=ACCEPTED, invalid=tuple(INVALID)):
     """Share operation declarations; callers choose the size of their sample."""
@@ -49,7 +48,14 @@ def boundary_screens(accepted=ACCEPTED, invalid=tuple(INVALID)):
 
 
 BOUNDARY_SCREENS = boundary_screens()
-SCREENS = {**ORDINARY_SCREENS, **BOUNDARY_SCREENS}
+# Ordinary commit routes have their own check_e2e_allowance qualification. Only
+# enable editing here before exercising each accepted/rejected boundary.
+SCREENS = {
+    **fresh_desktop('parent'), **parent_management(),
+    'parent-toggle-enabled': 'ui:parent-toggle-enabled',
+    'parent-save-enabled': 'ui:parent-save-enabled',
+    **BOUNDARY_SCREENS,
+}
 
 PLAN = JourneyPlan(
     prefix='allowance-boundaries', worker_mode='allowance_boundaries', screen_tags=SCREENS,
@@ -57,7 +63,7 @@ PLAN = JourneyPlan(
             **{stage: 'step-1' for stage in SCREENS}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in SCREENS
                if stage.startswith(('boundary-', 'invalid-'))}},
-    advance_after={'custom-3-reopen': 'step-2'},
+    advance_after={'parent-save-enabled': 'step-2'},
 )
 
 

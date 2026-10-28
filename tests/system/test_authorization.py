@@ -99,7 +99,11 @@ def accounts():
 
 @pytest.fixture(scope='module')
 def callers(accounts):
-    """Reuse synchronous agentless calls; lifecycle/agent cases own their callers."""
+    """Reuse agentless calls, including lifecycle setup/readback/restoration.
+
+    Authentication, disconnect and role-change subjects keep dedicated callers;
+    their supporting administrator calls need no separate process per request.
+    """
     with ExitStack() as stack:
         connections = {}
 
@@ -741,12 +745,13 @@ def authentication_diagnostics(request, record_testsuite_property):
     return record
 
 
-def test_requester_disconnect_during_approval(accounts, passwords,
+def test_requester_disconnect_during_approval(accounts, callers, passwords,
                                             authentication_diagnostics,
                                             record_testsuite_property):
     """Requester exit cancels approval while its real authentication agent lives."""
     target = accounts['child1']
     selected, other = accounts['parent1'], accounts['parent2']
+    manager = callers('parent2')
 
     def request_log_lines():
         # Include rotated event segments; ignore a writer's unfinished final line.
@@ -755,7 +760,7 @@ def test_requester_disconnect_during_approval(accounts, passwords,
                 if line.endswith('\n')}
 
     for surface in ('child', 'kiosk'):
-        accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, True, 0)))
         granted_at = None
         try:
             before = snapshot_accounts(accounts)
@@ -858,8 +863,8 @@ def test_requester_disconnect_during_approval(accounts, passwords,
                 print(f'onpc-system: stage=requester-disconnect-recovery surface={surface} '
                       'outcome=approved', flush=True)
         finally:
-            accepted(call(other, 'RevokeOneTimeGrant', '(u)', (target,)))
-            accepted(call(other, 'SetParentControl', '(ubu)', (target, False, 60)))
+            accepted(manager.call('RevokeOneTimeGrant', '(u)', (target,)))
+            accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
             if granted_at is not None:
                 # The successful control must not rate-limit a later registered
                 # case using the same child/kiosk UID. Let the real interval
@@ -869,7 +874,7 @@ def test_requester_disconnect_during_approval(accounts, passwords,
                 time.sleep(max(0, granted_at + interval - time.monotonic()))
 
 
-def test_authenticated_request_rejects_deleted_target(accounts, passwords,
+def test_authenticated_request_rejects_deleted_target(accounts, callers, passwords,
                                                       authentication_diagnostics,
                                                       record_testsuite_property):
     """Both real request surfaces reject deletion after successful authentication."""
@@ -879,8 +884,9 @@ def test_authenticated_request_rejects_deleted_target(accounts, passwords,
         'target', record_testsuite_property, surface=surface) for surface in ('child', 'kiosk')}
     guest.require(len(set(targets.values())) == 2, 'authorization:deletion-target-isolation')
     selected, other = accounts['parent1'], accounts['parent2']
+    manager = callers('parent2')
     for target in targets.values():
-        accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, True, 0)))
 
     surviving_targets = set(targets.values())
     for surface, target in targets.items():
@@ -917,7 +923,7 @@ def test_authenticated_request_rejects_deleted_target(accounts, passwords,
             guest.require((record.read_bytes() if record.exists() else None) == deleted_record,
                           'authorization:authenticated-deleted-target-record-write:' + surface)
             guest.require(target not in {row[0] for row in accepted(
-                call(other, 'ListManagedUsers'))[0]},
+                manager.call('ListManagedUsers'))[0]},
                 'authorization:authenticated-deleted-target-reappeared:' + surface)
             record_testsuite_property('onpc.inflight-target-result',
                                       surface + ':authenticated-invalid-request-state-preserved')
@@ -932,13 +938,14 @@ def test_authenticated_request_rejects_deleted_target(accounts, passwords,
         ('approver-role', 'child1'), ('preferences', 'kiosk'),
     )
 ])
-def test_authenticated_request_revalidates_live_state(accounts, passwords, surface, mutation,
+def test_authenticated_request_revalidates_live_state(accounts, callers, passwords, surface, mutation,
                                                      authentication_diagnostics):
     """Cover both target routes and each shared post-authentication predicate."""
     target = accounts['child1']
     selected, other = accounts['parent1'], accounts['parent2']
-    accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))
-    original_preferences = accepted(call(other, 'GetPreferences', '(u)', (target,)))[0]
+    manager = callers('parent2')
+    accepted(manager.call('SetParentControl', '(ubu)', (target, True, 0)))
+    original_preferences = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
     changed_uid = target if mutation == 'child-role' else selected
     original_role = 0 if mutation == 'child-role' else 1
     interface = 'org.freedesktop.Accounts.User'
@@ -951,9 +958,9 @@ def test_authenticated_request_revalidates_live_state(accounts, passwords, surfa
             agent.prompt(selected, other)
             if mutation == 'preferences':
                 saved = json.loads(original_preferences)
-                accepted(call(other, 'SetRequestMuted', '(usb)',
-                              (target, 'child', not saved['request']['child_muted'])))
-                current = accepted(call(other, 'GetPreferences', '(u)', (target,)))[0]
+                accepted(manager.call('SetRequestMuted', '(usb)',
+                                      (target, 'child', not saved['request']['child_muted'])))
+                current = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
                 guest.require(current != original_preferences,
                               'authorization:inflight-preferences-not-visible')
             else:
@@ -982,21 +989,22 @@ def test_authenticated_request_revalidates_live_state(accounts, passwords, surfa
         if role_changed:
             guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                        path, interface, 'SetAccountType', 'i', str(original_role)])
-        accepted(call(other, 'SetPreferences', '(us)', (target, original_preferences)))
-        accepted(call(other, 'SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(manager.call('SetPreferences', '(us)', (target, original_preferences)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
 
 @pytest.mark.parametrize('surface', ('child1', 'kiosk'))
 def test_request_rejects_locked_approver_during_authentication(
-        accounts, passwords, surface, authentication_diagnostics):
+        accounts, callers, passwords, surface, authentication_diagnostics):
     """A parent locked after selection cannot approve through an active prompt."""
     target, selected, other = (accounts[key] for key in ('child1', 'parent1', 'parent2'))
+    manager = callers('parent2')
     interface = 'org.freedesktop.Accounts.User'
     path = f'/org/freedesktop/Accounts/User{selected}'
     guest.require(account_property(selected, interface, 'Locked') is False,
                   'authorization:lock-fixture')
-    original = accepted(call(other, 'GetPreferences', '(u)', (target,)))[0]
-    accepted(call(other, 'SetParentControl', '(ubu)', (target, True, 0)))
+    original = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
+    accepted(manager.call('SetParentControl', '(ubu)', (target, True, 0)))
     try:
         with PersistentCaller(accounts[surface]) as caller, TextAgent(
                 caller, record_diagnostic=authentication_diagnostics) as agent:
@@ -1009,7 +1017,7 @@ def test_request_rejects_locked_approver_during_authentication(
                        path, interface, 'SetLocked', 'b', 'true'])
             guest.require(account_property(selected, interface, 'Locked') is True,
                           'authorization:inflight-lock-not-visible')
-            rows = accepted(call(other, 'ListApprovers'))[0]
+            rows = accepted(manager.call('ListApprovers'))[0]
             guest.require(selected not in {row[0] for row in rows},
                           'authorization:locked-approver-discovery')
             before = snapshot_accounts(accounts)
@@ -1030,16 +1038,17 @@ def test_request_rejects_locked_approver_during_authentication(
                    path, interface, 'SetLocked', 'b', 'false'])
         guest.require(account_property(selected, interface, 'Locked') is False,
                       'authorization:approver-unlock-not-visible')
-        accepted(call(other, 'SetParentControl', '(ubu)', (target, False, 60)))
-        accepted(call(other, 'SetPreferences', '(us)', (target, original)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(manager.call('SetPreferences', '(us)', (target, original)))
 
 
 @pytest.mark.parametrize('surface', ('child1', 'kiosk'))
-def test_real_selected_parent_authentication(accounts, passwords, surface,
+def test_real_selected_parent_authentication(accounts, callers, passwords, surface,
                                             authentication_diagnostics):
     target = accounts['child1']
     selected, other = accounts['parent1'], accounts['parent2']
-    accepted(call(selected, 'SetParentControl', '(ubu)', (target, True, 0)))
+    manager = callers('parent1')
+    accepted(manager.call('SetParentControl', '(ubu)', (target, True, 0)))
     try:
         before = snapshot_accounts(accounts)
         with PersistentCaller(accounts[surface]) as caller, TextAgent(
@@ -1082,4 +1091,4 @@ def test_real_selected_parent_authentication(accounts, passwords, surface,
                               for key, state in before.items() if key != 'child1'),
                           'authorization:approved-cross-account-write')
     finally:
-        accepted(call(selected, 'SetParentControl', '(ubu)', (target, False, 60)))
+        accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))

@@ -24,7 +24,7 @@ EXCLUDED = {
     **{name: 'standalone harness qualification, not a product or essential safety check'
        for name in (
         'check_graphical_smoke', 'check_graphical_transport',
-        'check_graphical_serial', 'check_e2e_watch',
+        'check_graphical_serial', 'check_graphical_vt6_prompt', 'check_e2e_watch',
         'check_e2e_upgrade_assets',
         'check_e2e_give_repeated_public_operations_distinct_stages')},
 }

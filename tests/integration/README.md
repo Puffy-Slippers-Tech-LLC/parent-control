@@ -562,14 +562,15 @@ exposes their reasons in `tools/run-tests integration --list`:
   and shared runtime guards; `check_fixture_e2e_installed` retains its product
   catalogue/save checks. Credential, worker containment, ownership, recovery
   and verdict safety checks remain in their existing owners.
-- Standalone graphics smoke, graphics transport, serial transport, spectator
+- Standalone graphics smoke, graphics transport, serial transport, credential-free
+  VT6 fixture-prompt inspection (`check_graphical_vt6_prompt`), spectator
   (`check_e2e_watch`), upgrade-asset transfer and repeated-operation stage-label
   qualifications are also excluded. These qualify harness availability or
   presentation rather than product outcomes or a distinct essential safety
   boundary. Explicit engineering selectors remain available. Product journeys,
   including real upgrades and repeated operations, retain their preparation,
   credential-recipient, ownership, cleanup and verdict guards. Dedicated
-  credential and worker-containment checks remain scheduled.
+  credential, VT6 authentication and worker-containment checks remain scheduled.
 
 Dormant Parent About/access wrappers and duplicate MATE-prompt, toggle and
 expanded-time wrappers have been removed. Their product coverage remains in

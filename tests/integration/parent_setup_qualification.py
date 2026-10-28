@@ -107,6 +107,7 @@ class ParentJourneyQualification(smoke.Qualification):
     upgrade_assets = False
     fixture_subsets = ('native',)
     fixture_caller = None
+    worker_timeout = 1800
 
     def attach_installed_snapshot(self, lease):
         """Reuse a prepared app snapshot; default qualifications stay on baseline."""
@@ -161,7 +162,7 @@ class ParentJourneyQualification(smoke.Qualification):
                 self.directory, lease, self.ledger, expected_inputs=self.verified.source_files,
                 observe=lambda: None, guarded_observe=journey.step, validate=journey.validate,
                 on_failure=lambda category, code: self.journey_failure(journey, category, code),
-                timeout=1800, credentials=self.credentials)
+                timeout=self.worker_timeout, credentials=self.credentials)
             self.result['matched_screens'] = journey.validate()
         except BaseException as error:
             code = (str(error) if isinstance(error, smoke.EvidenceError)
@@ -596,6 +597,57 @@ class KioskIdentityHelperQualification(ConfinementUsabilityQualification):
         super().execute(lease, guestfs)
         smoke.require(self.result.get('identity_helper', {}).get('restored') is True,
                       'identity-helper:history-incomplete')
+
+
+class KioskConfigurationRecoveryQualification(ConfinementUsabilityQualification):
+    """One installed configure interruption, retry and restored public use."""
+
+    worker_timeout = 2400
+
+    def journey(self, context, progress):
+        import watch_activity
+        journey = super().journey(context, progress)
+        check_settings = journey.check_settings
+
+        def check(stage, observed):
+            check_settings(stage, observed)
+            if stage != 'setup-detached':
+                return
+            context.lease.guard()
+            try:
+                with watch_activity.operation('Checking interrupted configuration and supported recovery'):
+                    raw = journey.transport.call([
+                        'env', 'ONPC_EXPECTED_RUN=' + context.lease.state['run'],
+                        '/usr/bin/python3', '-B',
+                        smoke.runner.PAYLOAD + '/system_first_configure.py',
+                        'reconfiguration-recovery'], timeout=1200)
+                smoke.require(type(raw) is bytes and 0 < len(raw) <= 65536,
+                              'configuration-recovery:response-bound')
+                result = json.loads(raw)
+                smoke.require(type(result) is dict and result.get('qualified') is True
+                              and result.get('restored') is True,
+                              'configuration-recovery:retry-incomplete')
+                context.lease.guard()
+            except Exception as error:
+                try:
+                    context.lease.guard()
+                    journey.transport.copy(True, smoke.runner.PAYLOAD + '/private/',
+                        str(context.directory / 'configuration-recovery-private') + '/')
+                    context.lease.guard()
+                    journey.transport.copy(True, smoke.runner.PAYLOAD + '/results/',
+                        str(context.directory / 'configuration-recovery-results') + '/')
+                except Exception:
+                    error.add_note('configuration-recovery:diagnostics-unavailable')
+                raise
+            self.result['configuration_recovery'] = observed['configuration_recovery'] = result
+
+        journey.check_settings = check
+        return journey
+
+    def execute(self, lease, guestfs):
+        super().execute(lease, guestfs)
+        smoke.require(self.result.get('configuration_recovery', {}).get('restored') is True,
+                      'configuration-recovery:history-incomplete')
 
 
 class BaselineJourneyQualification(KioskEntryQualification):

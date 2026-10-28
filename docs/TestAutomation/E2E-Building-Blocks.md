@@ -4170,6 +4170,29 @@ Fedora 44, including collection and owned cleanup. Existing product recovery
 needed no change; unavailable-account diagnosis, native error/timeout mapping,
 fresh retry and same-handle authorization retain their focused host controls.
 
+### Interrupted configuration recovery
+
+`check_e2e_kiosk_configuration_recovery` binds one same-package configuration
+interruption to the existing first-configuration fault owner, followed by the
+[short public history](#short-confinement-usability-history) in that same
+installation. The selected `pam-ready` wrapper refuses only the exact Malcontent
+service-account command after native quarantine and distro PAM activation.
+Known original expiry, the owned journal and command witness establish this
+controlled history; expiry day 1 alone does not establish writer provenance.
+
+Require native refusal while incomplete, ordinary-account isolation, exact
+wrapper restoration and supported configuration retry without product-state
+deletion. Recovery must preserve the original account/home, expiry, empty
+password and selected routing, then permit genuine approval with independent
+time readback, exit and usable passwordless reentry. On Ubuntu, require the
+package-failure report to be absent before injection; after successful recovery,
+validate the newly created report's current package/version and exact injected
+exit 79, then mark only its pinned inode seen, preserving its contents. Other
+reports and unknown modal refusal remain intact. The administrator expiry
+[provenance limitation](../SystemDesign/Lifecycle.md#kiosk-provisioning-and-selected-session)
+remains unresolved. Ubuntu 26.04 and Fedora 44 passed the complete history and
+owned cleanup. Existing product recovery needed no change.
+
 ### Reached service-route control
 
 `check_e2e_kiosk_service_route` dispatches

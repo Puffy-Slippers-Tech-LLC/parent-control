@@ -1,21 +1,23 @@
-"""One product-free configure interruption/retry/reboot history.
+"""Configuration interruption/retry histories at the owned quarantine boundary.
 
 Faults refuse exact current integration and service-account commands through
 the shared owned mount fixture. Product scripts, PAM configuration
 and policy bytes remain the package's own; fixture evidence stays private.
 """
 
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 import grp
 import hashlib
 import json
 import os
 from pathlib import Path
 import pwd
+import re
 import runpy
 import shlex
 import shutil
 import stat
+import sys
 import tempfile
 
 import system_guest as guest
@@ -33,6 +35,7 @@ PAM_DEFERRED = b'onpc-first-configure:default-profile-activation-deferred\n'
 COMPLETE = Path('/run/oh-no-parent-control-package-configuration-complete')
 SHARED_PAM = b'pam_oh_no_parent_control.so'
 QUARANTINE = Path('/var/lib/oh-no-parent-control/kiosk-configuration-account.json')
+PACKAGE_REPORT = Path('/var/crash/oh-no-parent-control.0.crash')
 
 
 def require(condition, reason):
@@ -202,9 +205,9 @@ def deferred_default_pam(record):
         fault.verify_triggered()
 
 
-def ordinary_controls(record, stage):
+def ordinary_controls(record, stage, *, services=('gdm-password', 'login', 'sshd')):
     """Prove the same native account boundary works before kiosk negatives."""
-    for service in ('gdm-password', 'login', 'sshd'):
+    for service in services:
         for role in ('ordinary', 'other'):
             probe(service, role, 0, 'first-configure.' + stage + '.' + service + '.' + role, record)
     for role in ('ordinary', 'other'):
@@ -212,10 +215,10 @@ def ordinary_controls(record, stage):
                       'first-configure.' + stage + '.systemd-user.' + role, record)
 
 
-def verify_quarantine(record, stage):
+def verify_quarantine(record, stage, *, services=('gdm-password', 'login', 'sshd')):
     """Expiry must deny native account admission even with an empty password."""
     guest.guard()
-    ordinary_controls(record, stage)
+    ordinary_controls(record, stage, services=services)
     account = pwd.getpwnam(PRODUCT)
     saved = identity(QUARANTINE)
     state = json.loads(saved[-1])
@@ -232,7 +235,7 @@ def verify_quarantine(record, stage):
     if passwordless():
         empty_authentication_probe(expected['gdm-password'],
                                    'first-configure.' + stage + '.empty-authentication', record)
-    for service in ('gdm-password', 'login', 'sshd'):
+    for service in services:
         probe(service, 'kiosk', expected[service],
               'first-configure.' + stage + '.' + service + '.expired', record)
     durable_probe('systemd-user', 'kiosk', 'account', expected['systemd-user'],
@@ -482,3 +485,139 @@ def verify_reboot(record):
     verify_loaded_confinement()
     guest.guard()
     record('onpc.first-configure.reboot', 'new-boot; same-owned-identity; selected-pam-ready; dedicated-routing; ordinary-controls')
+
+
+def reconfiguration_recovery():
+    """One healthy installed account, exact interruption and supported retry."""
+    from system_kiosk_confinement import wait_kiosk_inactive
+
+    guest.guard()
+    guest.enable_diagnostics()
+    (guest.PAYLOAD / 'results').mkdir(mode=0o700, exist_ok=True)
+    controls = []
+
+    def record(stage, value):
+        controls.append({'stage': stage, 'value': value})
+        print(json.dumps(controls[-1], sort_keys=True), file=sys.stderr, flush=True)
+
+    account = pwd.getpwnam(PRODUCT)
+    wait_kiosk_inactive(account)
+    guest.installed()
+    lifecycle = runpy.run_path('/usr/lib/oh-no-parent-control/lifecycle/lifecycle_migration.py')
+    original_expiry = lifecycle['current_expiry']()
+    require(original_expiry is None, 'reconfiguration-original-expiry-not-unrestricted')
+    for name in ('STATE', 'DISABLED', 'EXPIRY', 'CAPTURE'):
+        require(lifecycle['read'](lifecycle[name], optional=True) is None,
+                'reconfiguration-preexisting-' + name.lower())
+    require(guest.reboot_cleared(), 'reconfiguration-preexisting-reboot-request')
+    original_boot = boot()
+    saved = account_identity()
+    ordinary = ordinary_state()
+    require(passwordless(), 'reconfiguration-original-password-not-empty')
+    ordinary_controls(record, 'reconfiguration-before', services=('gdm-password',))
+    empty_authentication_probe(0, 'reconfiguration.before.empty-authentication', record)
+    if guest.package_path().suffix == '.deb':
+        # APT/Apport records our deliberate postinst failure. Never consume a
+        # report that predates this exact owned interruption.
+        require(not os.path.lexists(PACKAGE_REPORT), 'preexisting-package-report')
+    with configure_fault('pam-ready', record) as fault:
+        # This is a healthy same-package reinstall, not the half-configured
+        # DEB retry used by the product-free exercise above.
+        try:
+            guest.install_package()
+        except guest.CommandError:
+            pass
+        record('onpc.first-configure.reconfiguration.transaction-status',
+               guest.commands.last_returncode)
+        fault.verify_triggered()
+        require(not COMPLETE.exists(), 'reconfiguration-interruption-marked-complete')
+        guest.verify_package_payload()
+        quarantine = identity(QUARANTINE)
+        # U05 covers the station and its user manager. The separate fresh
+        # installation history retains its terminal/SSH service matrix.
+        verify_quarantine(record, 'pam-ready', services=('gdm-password',))
+        # The known healthy start, exact fault and untouched journal establish
+        # this finite history. Expiry day 1 alone never proves its writer.
+        require(identity(QUARANTINE) == quarantine, 'reconfiguration-journal-changed')
+        verify_account_identity(saved, 'during-reconfiguration', record)
+        require(passwordless(), 'reconfiguration-changed-password')
+        verify_visibility()
+        verify_loaded_confinement()
+        verify_ordinary(ordinary)
+        require(boot() == original_boot and guest.reboot_cleared(),
+                'reconfiguration-interruption-changed-activation')
+    retry_configuration()
+    require(lifecycle['current_expiry']() == original_expiry,
+            'reconfiguration-original-expiry-not-restored')
+    for name in ('STATE', 'DISABLED', 'EXPIRY', 'CAPTURE'):
+        require(lifecycle['read'](lifecycle[name], optional=True) is None,
+                'reconfiguration-retained-' + name.lower())
+    # COMPLETE is a transient DEB frontend notice, consumed when printed;
+    # installed() below independently verifies configured package/readiness.
+    require(boot() == original_boot and guest.reboot_cleared(),
+            'reconfiguration-retry-requires-reboot')
+    guest.installed()
+    verify_account_identity(saved, 'after-retry', record)
+    require(passwordless(), 'reconfiguration-retry-password-not-empty')
+    verify_visibility()
+    verify_loaded_confinement()
+    empty_authentication_probe(0, 'reconfiguration.restored.empty-authentication', record)
+    ordinary_controls(record, 'reconfiguration-restored', services=('gdm-password',))
+    verify_ordinary(ordinary)
+    wait_kiosk_inactive(pwd.getpwnam(PRODUCT))
+    acknowledge_injected_package_report(record)
+    guest.guard()
+    record('onpc.first-configure.reconfiguration-recovery',
+           'exact-pam-ready-interruption; original-expiry-restored; same-owned-identity; no-reboot')
+    return {'qualified': True, 'restored': True, 'controls': controls,
+            'public_acceptance': False}
+
+
+def acknowledge_injected_package_report(record):
+    """Acknowledge only APT's expected injected failure, preserving the report."""
+    if guest.package_path().suffix != '.deb':
+        return
+    # Keep unrelated/changed reports unseen. O_NOATIME prevents validation
+    # itself from acknowledging an unexpected report; the pinned descriptor
+    # also keeps the timestamp update away from a replaced directory entry.
+    fd = os.open(PACKAGE_REPORT, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_NOATIME)
+    with os.fdopen(fd, 'rb') as stream:
+        before = os.fstat(stream.fileno())
+        require(stat.S_ISREG(before.st_mode) and before.st_uid == 0 and
+                before.st_nlink == 1 and not before.st_mode & 0o022 and
+                0 < before.st_size <= 4 * 1024 * 1024, 'unsafe-package-report')
+        data = stream.read(4 * 1024 * 1024 + 1)
+        # Apport uses colon fields with space-prefixed continuation lines.
+        # Read only the four expected text fields with the standard library;
+        # no distro Python dependency enters the frozen guest import closure.
+        fields = re.findall(r'^(ProblemType|Package|SourcePackage|ErrorMessage):'
+                            r'([^\n]*(?:\n [^\n]*)*)', data.decode('utf-8'), re.MULTILINE)
+        report = {key: value.strip().replace('\n ', '\n') for key, value in fields}
+        require(len(fields) == 4 and report == {
+            'ProblemType': 'Package',
+            'Package': PRODUCT + ' ' + guest.package_identity(guest.package_path()),
+            'SourcePackage': PRODUCT,
+            'ErrorMessage': 'old oh-no-parent-control package postinst maintainer '
+                            'script subprocess failed with exit status 79',
+        }, 'unexpected-package-report')
+        require(os.fstat(stream.fileno()) == before and
+                PACKAGE_REPORT.lstat() == before, 'package-report-changed')
+        # Apport considers atime > mtime seen. Change only that timestamp on
+        # this validated report; never delete it or disable crash reporting.
+        os.utime(stream.fileno(), ns=(before.st_mtime_ns + 1_000_000_000,
+                                     before.st_mtime_ns))
+        after = PACKAGE_REPORT.lstat()
+        stream.seek(0)
+        require(after.st_ino == before.st_ino and after.st_dev == before.st_dev and
+                after.st_mtime_ns == before.st_mtime_ns and after.st_atime_ns > after.st_mtime_ns
+                and stream.read(4 * 1024 * 1024 + 1) == data, 'package-report-not-preserved')
+    record('onpc.first-configure.expected-package-report',
+           'exact-injected-exit-79-report-seen; report-preserved')
+
+
+if __name__ == '__main__':
+    require(sys.argv[1:] == ['reconfiguration-recovery'], 'arguments')
+    # Keep the callable's JSON reply separate from ordinary installer output.
+    with redirect_stdout(sys.stderr):
+        result = reconfiguration_recovery()
+    print(json.dumps(result, sort_keys=True))

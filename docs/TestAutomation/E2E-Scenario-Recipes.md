@@ -742,6 +742,14 @@ through public revoke/Confirm, zero allowance and limits off. Runner cleanup
 restores the baseline and persistent VM configuration, leaves the owned guest
 off and releases its lease. A restoration failure keeps the task open.
 
+The separate U05 binding `check_e2e_kiosk_configuration_recovery` precedes that
+same public history with one owned configuration interruption and supported
+retry. Its [engineering fault and recovery boundary](E2E-Building-Blocks.md#interrupted-configuration-recovery)
+preserves account/home identity and original expiry, observes refusal while
+incomplete and never deletes product state to recover. It supplies no new
+customer case or administrator-expiry provenance guarantee. Ubuntu 26.04 and
+Fedora 44 passed the complete history and owned cleanup without product changes.
+
 Cases 50–52 retain their registered `restricted_station.py` approved/denied/
 cancelled histories and 1800-second bounds. They exercise three shortcuts,
 including repetition after rejection/Cancel, but supply neither Alt+F2 nor the

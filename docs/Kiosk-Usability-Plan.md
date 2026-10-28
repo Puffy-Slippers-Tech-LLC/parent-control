@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U05 — [Restore entry after interrupted configuration](Kiosk-Usability-Tasks/U05-configuration-recovery.md)**.
+Next task: **U06 — [Keep entry working after a relevant update](Kiosk-Usability-Tasks/U06-update-reentry.md)**.
 
 ## Outcome and scope
 

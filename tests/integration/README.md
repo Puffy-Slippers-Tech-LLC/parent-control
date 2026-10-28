@@ -692,6 +692,20 @@ JUnits, binds the exact host observer/transport source hashes, and checks boot
 and execution-rule continuity around entry. No app snapshot replaces either
 phase. This system history supplies no general customer E2E completion.
 
+`check_e2e_kiosk_configuration_recovery` selects one owned same-package
+configuration interruption at the first-configuration owner's `pam-ready`
+boundary. It retains native refusal and ordinary-account controls, restores the
+exact command wrapper, and uses supported configuration retry. The same
+installation then runs the short public entry, no-grant controls, genuine
+approval with independent time readback, exit and fresh usable reentry. This
+finite recovery binding is separate from the product-free multi-fault history
+below; it does not resolve the documented concurrent administrator-expiry
+provenance limitation. Ubuntu's expected APT failure report must be absent
+before injection and match the exact package/version and injected exit 79 before
+the recovered test marks only that pinned report seen, preserving its bytes.
+Unrelated reports and unknown modal guards remain unchanged. Ubuntu 26.04 and
+Fedora 44 passed the complete history and owned cleanup without product changes.
+
 `package` → `test_first_configuration_interruption_retry` starts from the
 verified product-free baseline in its own attempt. Its `first-configure` phase
 owns fresh installation, failures after visibility publication and after current

@@ -150,7 +150,14 @@ compiled policy, its backup, and the service's active/enabled state. Removal
 rebuilds policy from any remaining administrator rule files. If none remain,
 it restores the original compiled policy and undoes the package's service
 activation. This explicitly handles fagenrules leaving compiled rules unchanged
-when its source directory is empty. Reloads use fapolicyd's supported CLI.
+when its source directory is empty. A surviving active daemon is synchronously
+restarted with the restored policy and configuration. Removal verifies a new,
+active systemd invocation before accepting cleanup or retiring the baseline;
+a failed or policy-skipped restart retains the records needed for retry.
+When administrator rules survive, a restart obligation is recorded in the
+baseline before attempting it, so retry still activates them if failure left
+the daemon stopped. An already stopped administrator service is left stopped
+when no earlier cleanup attempt recorded that obligation.
 Symlink substitutions are rejected.
 The baseline is retained across upgrades and until successful removal.
 An upgrade with a missing baseline fails rather than treating the installed
@@ -158,9 +165,10 @@ product's enforcement as pre-existing administrator policy. Systemd reloads
 the removed display-manager dependency before stopping fapolicyd, so dependency
 stop propagation cannot end the desktop session.
 
-**Acknowledgement limitation:** adapter and final CLI reloads verify command
-completion, not the daemon's active generation. No generation receipt currently
-qualifies rollback or baseline restoration; see
+**Acknowledgement limitation:** the earlier adapter reload verifies command
+completion, not the daemon's active generation. Final baseline restoration
+uses the verified restart above to avoid a reload queued behind trust refresh.
+There is no exact generation receipt for adapter rollback; see
 [application-policy verification](Applications.md#generation-witness-design-gate).
 Any future witness must survive account-policy deletion long enough to verify
 removal, then retire before the administrator-rule emptiness check. Ownership,

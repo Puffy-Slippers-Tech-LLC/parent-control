@@ -170,6 +170,24 @@ remove_package_created_kiosk() {
     echo 'oh-no-parent-control: kiosk cleanup outcome=accepted' >&2
 }
 
+restart_execution_policy() {
+    # CLI reload only queues work: a trust refresh can leave the removed
+    # product's rules active after the command succeeds. A completed restart
+    # loads the restored rules/configuration in a new daemon invocation.
+    policy_invocation_before=$(systemctl show --property=InvocationID --value fapolicyd.service)
+    @service_command@ restart fapolicyd.service >/dev/null
+    policy_invocation_after=$(systemctl show --property=InvocationID --value fapolicyd.service)
+    # Debian's service helper can return success without executing the job
+    # when local service policy refuses it. Do not accept that as activation.
+    if [ -z "$policy_invocation_after" ] ||
+       [ "$policy_invocation_after" = "$policy_invocation_before" ] ||
+       ! systemctl is-active --quiet fapolicyd.service; then
+        echo 'oh-no-parent-control: execution-policy restart not verified' >&2
+        exit 1
+    fi
+    execution_policy_restarted=1
+}
+
 restore_execution_policy() {
     baseline=/var/lib/oh-no-parent-control/fapolicyd-before-install
     if [ -L "$baseline" ]; then
@@ -181,6 +199,11 @@ restore_execution_policy() {
     fi
     if [ ! -f "$baseline/complete" ]; then
         echo 'oh-no-parent-control: incomplete execution-policy baseline' >&2
+        exit 1
+    fi
+    if [ -L "$baseline/restart-required" ] ||
+       { [ -e "$baseline/restart-required" ] && [ ! -d "$baseline/restart-required" ]; }; then
+        echo 'oh-no-parent-control: unsafe execution-policy restart record' >&2
         exit 1
     fi
     for policy_file in compiled.rules compiled.rules.prev; do
@@ -198,8 +221,12 @@ restore_execution_policy() {
     if [ "$remaining_rules" -eq 1 ] && [ "$original_stock_policy" != yes ]; then
         # Preserve rules belonging to other software/admins and their service.
         /usr/sbin/fagenrules
-        if [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
-            /usr/sbin/fapolicyd-cli --reload-rules
+        if [ -d /run/systemd/system ] &&
+           { [ -d "$baseline/restart-required" ] || systemctl is-active --quiet fapolicyd.service; }; then
+            # A failed restart can leave the daemon inactive. Retain this
+            # obligation across retries without changing the original flags.
+            mkdir -p "$baseline/restart-required"
+            restart_execution_policy
         fi
     else
         # fagenrules leaves compiled and live policy unchanged for an empty
@@ -217,7 +244,7 @@ restore_execution_policy() {
             rm -f /etc/fapolicyd/compiled.rules
         fi
         if [ -f "$baseline/active" ] && [ -d /run/systemd/system ]; then
-            /usr/sbin/fapolicyd-cli --reload-rules
+            restart_execution_policy
         fi
         if [ ! -f "$baseline/enabled" ] && [ -d /run/systemd/system ]; then
             systemctl disable fapolicyd.service >/dev/null
@@ -298,8 +325,9 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
     fi
     restore_execution_policy
     if [ "${trust_backend_restored:-0}" -eq 1 ]; then
-        if [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
-            @service_command@ restart fapolicyd.service >/dev/null
+        if [ "${execution_policy_restarted:-0}" -eq 0 ] &&
+           [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
+            restart_execution_policy
         fi
         remove_tree /var/lib/oh-no-parent-control/child-trust-backend
     fi

@@ -556,6 +556,8 @@ systemctl() {
                     printf '%s\n' "${READINESS_STATE:-inactive}" ;;
                 'show --property=ActiveState --value oh-no-parent-control-broker.service')
                     printf '%s\n' "${BROKER_STOP_STATE:-inactive}" ;;
+                'show --property=InvocationID --value fapolicyd.service')
+                    printf '%s\n' "${POLICY_INVOCATION:-before}" ;;
                 *) return 1 ;;
             esac ;;
         stop)
@@ -567,6 +569,8 @@ systemctl() {
                 return "${BROKER_STOP_STATUS:-0}"
             fi
             return 0 ;;
+        restart)
+            if [ "$2" = fapolicyd.service ]; then restart_policy; fi ;;
         is-active)
             case "$3" in
                 user@*) test "${KIOSK_ACTIVE:-0}" = 1 ;;
@@ -582,10 +586,20 @@ systemctl() {
 }
 deb_systemd_invoke() {
     record deb-systemd-invoke "$@"
-    SERVICE_ACTIVE=0
+    if [ "$1 $2" = 'restart fapolicyd.service' ]; then
+        restart_policy
+        return "$?"
+    fi
+    if [ "$1 $2" = 'stop fapolicyd.service' ]; then SERVICE_ACTIVE=0; fi
     if [ "$1 $2" = 'stop oh-no-parent-control-broker.service' ]; then
         return "${BROKER_STOP_STATUS:-0}"
     fi
+}
+restart_policy() {
+    if [ "${POLICY_RESTART_SKIPPED:-0}" = 1 ]; then return 0; fi
+    if [ "${POLICY_RESTART_STATUS:-0}" != 0 ]; then return "$POLICY_RESTART_STATUS"; fi
+    POLICY_INVOCATION=after
+    SERVICE_ACTIVE=${POLICY_RESTART_ACTIVE:-1}
 }
 invoke_rc_d() { record invoke-rc.d "$@"; }
 pam_auth_update() { record pam-auth-update "$@"; }

@@ -309,22 +309,44 @@ def test_removal_preserves_unsettled_probe_generations(machine, action):
     assert "systemctl clean" not in machine.commands
 
 
-def test_restores_preexisting_compiled_policy_and_service(machine):
+@pytest.mark.parametrize('fault', ['', 'failed', 'skipped', 'inactive'])
+def test_restores_preexisting_compiled_policy_and_service(machine, fault):
     machine.baseline(active=True, enabled=True, rules="administrator policy\n")
-    result = machine.run("postrm", "remove")
-    assert result.returncode == 0, result.stderr
+    result = machine.run("postrm", "remove", SERVICE_ACTIVE='1',
+                         POLICY_RESTART_STATUS='7' if fault == 'failed' else '0',
+                         POLICY_RESTART_SKIPPED='1' if fault == 'skipped' else '0',
+                         POLICY_RESTART_ACTIVE='0' if fault == 'inactive' else '1')
+    assert (result.returncode == 0) == (not fault), result.stderr
     assert (machine.root / "etc/fapolicyd/compiled.rules").read_text() == "administrator policy\n"
-    assert "fapolicyd-cli --reload-rules" in machine.commands
+    restart = machine.service_command + ' restart fapolicyd.service'
+    assert restart in machine.commands
+    assert machine.commands.index('systemctl daemon-reload') < machine.commands.index(restart)
+    assert (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install/complete').exists() == bool(fault)
+    assert ('execution-policy cleanup outcome=accepted' in result.stderr) == (not fault)
     assert "stop fapolicyd" not in machine.commands
     assert "disable fapolicyd" not in machine.commands
 
 
-def test_preserves_other_rule_sources_added_after_install(machine):
+@pytest.mark.parametrize('restart_failure', [False, True])
+def test_preserves_other_rule_sources_added_after_install(machine, restart_failure):
     machine.baseline()
     machine.write("etc/fapolicyd/rules.d/10-admin.rules", "administrator policy\n")
-    result = machine.run("postrm", "remove")
+    result = machine.run("postrm", "remove", SERVICE_ACTIVE='1',
+                         POLICY_RESTART_STATUS='7' if restart_failure else '0')
+    baseline = machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install'
+    if restart_failure:
+        assert result.returncode == 7
+        assert (baseline / 'complete').exists()
+        assert (baseline / 'restart-required').is_dir()
+        assert 'execution-policy cleanup outcome=accepted' not in result.stderr
+        # Restart failure stopped the old daemon. Retry must still restore
+        # administrator enforcement before retiring its recovery record.
+        result = machine.run('postrm', 'remove', SERVICE_ACTIVE='0')
     assert result.returncode == 0, result.stderr
+    assert not baseline.exists()
     assert (machine.root / "etc/fapolicyd/compiled.rules").read_text() == "administrator policy\n"
+    assert machine.commands.count(machine.service_command + ' restart fapolicyd.service') == (
+        2 if restart_failure else 1)
     assert "stop fapolicyd" not in machine.commands
     assert "disable fapolicyd" not in machine.commands
 
@@ -462,12 +484,18 @@ def test_first_install_captures_original_policy_once(machine):
     assert (baseline / "compiled.rules").read_text() == "original policy"
 
 
-def test_failed_policy_reload_keeps_baseline_for_retry(machine):
+def test_failed_trust_refresh_keeps_baseline_for_retry(machine):
     machine.baseline(active=True, enabled=True, rules="original policy")
-    machine.write("usr/sbin/fapolicyd-cli", "#!/bin/sh\nexit 1\n").chmod(0o755)
-    result = machine.run("postrm", "remove")
+    cli = machine.root / 'usr/sbin/fapolicyd-cli'
+    original = cli.read_bytes()
+    cli.write_text("#!/bin/sh\nexit 1\n")
+    result = machine.run("postrm", "remove", SERVICE_ACTIVE='1')
     assert result.returncode != 0
     assert (machine.root / "var/lib/oh-no-parent-control/fapolicyd-before-install/complete").exists()
+    cli.write_bytes(original)
+    result = machine.run('postrm', 'remove', SERVICE_ACTIVE='1')
+    assert result.returncode == 0, result.stderr
+    assert not (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install').exists()
 
 
 def test_purge_refuses_nested_bind_mount_before_deleting_any_content(machine):

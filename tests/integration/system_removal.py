@@ -272,7 +272,8 @@ def verify_removed(state, *, purged=False, record=None):
             observe_launch(state['accounts'][role], True,
                            variant=state.get('native_variant', 'command'))
         except guest.GuestError:
-            removed_launch_failure_diagnostics()
+            removed_launch_failure_diagnostics(
+                state['accounts'][role], variant=state.get('native_variant', 'command'))
             raise
     if guest.package_path().suffix == '.rpm':
         guest.run(['authselect', 'check'])
@@ -281,24 +282,43 @@ def verify_removed(state, *, purged=False, record=None):
         guest.require(guest.run(['getenforce']) == 'Enforcing', 'removal:selinux-not-enforcing')
 
 
-def removed_launch_failure_diagnostics():
-    """Capture policy/reload evidence only after the unchanged launch check fails."""
+def removed_launch_failure_diagnostics(uid, *, variant='command'):
+    """Observe delayed activation without changing the original failed verdict."""
     previous_returncode = guest.commands.last_returncode
     probes = (
         ('compiled', ['cat', '/etc/fapolicyd/compiled.rules']),
         ('rules', ['fapolicyd-cli', '--list']),
+        ('daemon', ['systemctl', 'show', 'fapolicyd.service',
+                    '--property=MainPID,InvocationID,ActiveState,SubState']),
         ('journal', ['journalctl', '--boot', '--unit=fapolicyd.service',
                      '--lines=80', '--no-pager', '--output=short-monotonic']),
     )
     try:
-        for name, arguments in probes:
-            try:
-                # Reuse private command artifacts and never replace the failure.
-                guest.commands.run(arguments, check=False, timeout=10, merge_stderr=True)
-                outcome = 'collected' if guest.commands.last_returncode == 0 else 'failed'
-            except Exception:
-                outcome = 'unavailable'
-            print(f'onpc-system: stage=removed-launch-{name} outcome={outcome}', flush=True)
+        for phase in ('initial', 'delayed'):
+            if phase == 'delayed':
+                # The retained failure caught a trust DB refresh still running
+                # 48 seconds after it began. Observe once after a finite wait;
+                # never reload policy, restart the service or change the verdict.
+                print('onpc-system: stage=removed-launch-delay seconds=60', flush=True)
+                time.sleep(60)
+                try:
+                    observe_launch(uid, True, variant=variant)
+                    outcome = 'allowed'
+                except guest.GuestError:
+                    outcome = 'still-failed'
+                except Exception:
+                    outcome = 'unavailable'
+                print(f'onpc-system: stage=removed-launch-delayed-launch outcome={outcome}',
+                      flush=True)
+            for name, arguments in probes:
+                try:
+                    # Keep raw observations in the existing private artifacts.
+                    guest.commands.run(arguments, check=False, timeout=10, merge_stderr=True)
+                    outcome = 'collected' if guest.commands.last_returncode == 0 else 'failed'
+                except Exception:
+                    outcome = 'unavailable'
+                print(f'onpc-system: stage=removed-launch-{phase}-{name} outcome={outcome}',
+                      flush=True)
     finally:
         guest.commands.last_returncode = previous_returncode
 

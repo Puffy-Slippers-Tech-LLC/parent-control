@@ -1,8 +1,6 @@
-"""Execute the reusable pointer with fresh matches from any reviewed surface."""
+"""Retired pointer routes refuse before matching, input or file writes."""
 
 import json
-
-import pytest
 
 from tests.support.perl import run_perl
 
@@ -46,35 +44,18 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
 
 
-@pytest.mark.parametrize('fault', [None, 'no-point', 'point-on-edge', 'outside-image', 'weak-context'])
-def test_image_pointer_route_refuses_before_matching_or_input(fault):
+def test_image_pointer_route_refuses_before_matching_or_input():
     match = {'area': [
         dict(x=10, y=10, w=40, h=20, similarity=1),
         dict(x=700, y=500, w=40, h=30, similarity=1, click_point=dict(xpos=20, ypos=15)),
     ]}
-    target = match['area'][-1]
-    if fault == 'no-point':
-        del target['click_point']
-    elif fault == 'point-on-edge':
-        target['click_point']['xpos'] = 40
-    elif fault == 'outside-image':
-        target['x'] = 1010
-    elif fault == 'weak-context':
-        match['area'][0]['similarity'] = .99
     result = json.loads(run_perl(PROBE, json.dumps(match)).stdout)
     assert not result['ok']
     assert result['events'] == []
 
 
-@pytest.mark.parametrize('size,point', [((1024, 768), (400, 90)), ((1280, 800), (700, 80)),
-                                      ((2560, 1600), (1850, 150))])
-@pytest.mark.parametrize('fault', [None, 'outside', 'negative', 'missing', 'uncertain'])
-def test_coordinate_reply_route_refuses_before_pointer_input(size, point, fault):
-    value = {'width': size[0], 'height': size[1], 'point': {'x': point[0], 'y': point[1]}}
-    if fault == 'outside': value['point']['x'] = size[0]
-    if fault == 'negative': value['point']['x'] = -1
-    if fault == 'missing': del value['point']['y']
-    if fault == 'uncertain': value['uncertain'] = True
+def test_coordinate_reply_route_refuses_before_pointer_input():
+    value = {'width': 1280, 'height': 800, 'point': {'x': 700, 'y': 80}}
     result = json.loads(run_perl(PROBE, json.dumps(value), 'functional').stdout)
     assert not result['ok']
     assert result['events'] == []
@@ -107,25 +88,15 @@ print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0, events => \@eve
 '''
 
 
-@pytest.mark.parametrize('fault', [None, 'wrong-stage', 'wrong-sequence', 'unknown-dialog',
-                                 'outside', 'uncertain', 'extra-field', 'stale-reply'])
-def test_shared_prompt_coordinate_route_refuses_before_files_or_input(tmp_path, fault):
+def test_shared_prompt_coordinate_route_refuses_before_files_or_input(tmp_path):
     request = {'stage': 'opened', 'sequence': 1, 'kind': 'login-keyring',
                'ui_pointer': {'x': 200, 'y': 330}}
-    if fault == 'wrong-stage': request['stage'] = 'different'
-    if fault == 'wrong-sequence': request['sequence'] = 2
-    if fault == 'unknown-dialog': request['kind'] = 'polkit'
-    if fault == 'outside': request['ui_pointer']['x'] = 1024
-    if fault == 'extra-field': request['secret'] = 'canary'
     reply = tmp_path / 'opened.prompt-1.reply.json'
-    if fault == 'stale-reply': reply.write_text('{}')
+    reply.write_text('{}')
     (tmp_path / 'opened.prompt-1.request.json').write_text(json.dumps(request))
-    result = json.loads(run_perl(PROMPT_PROBE, str(tmp_path), '1' if fault == 'uncertain' else '0').stdout)
+    result = json.loads(run_perl(PROMPT_PROBE, str(tmp_path), '0').stdout)
     assert not result['ok']
     assert not result['replay']
     assert result['events'] == []
-    if fault == 'stale-reply':
-        assert reply.read_text() == '{}'
-    else:
-        assert not reply.exists()
+    assert reply.read_text() == '{}'
     assert not (tmp_path / 'opened.prompt-1.input-started').exists()

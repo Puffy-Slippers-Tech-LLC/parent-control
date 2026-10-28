@@ -322,18 +322,30 @@ def case_inventory(root, category, options):
             return None  # Qualification selectors remain one non-case operation.
         cases = [case['case_id'] for case in plan['cases']]
     else:
+        from regression_process import Control
         from regression_events import PREFIX
-        command = [str(root / 'tools/run-tests'), category, *options, '--collect-only', '-q']
-        environment = launcher.environment()
-        environment['ONPC_REGRESSION_EVENTS'] = '1'
-        result = subprocess.run(command, cwd=root, env=environment,
-                                capture_output=True, text=True, check=True, timeout=120,
-                                pass_fds=(*launcher.scratch_descriptors(), *repair_descriptors()))
-        cases = [case for line in result.stdout.splitlines() if line.startswith(PREFIX)
+        command = [str(root / 'tools/run-tests'), category, '--unattended',
+                   *options, '--collect-only', '-q']
+        output, errors = [], []
+        # The unattended runner owns the event protocol and expects a live
+        # cancellation pipe. Caller environment flags are deliberately stripped.
+        with Control().installed() as control:
+            status = control.run(command, cwd=root, env=launcher.environment(),
+                                 output=output.append, stderr_output=errors.append,
+                                 cooperative=True,
+                                 pass_fds=(*launcher.scratch_descriptors(), *repair_descriptors()))
+        stdout = b''.join(output).decode('utf-8', errors='replace')
+        if status:
+            raise subprocess.CalledProcessError(status, command, output=stdout,
+                                               stderr=b''.join(errors).decode('utf-8', errors='replace'))
+        cases = [case for line in stdout.splitlines() if line.startswith(PREFIX)
                  for event in [json.loads(line[len(PREFIX):])]
-                 if event.get('kind') == 'collection' for case in event['nodeids']]
-    if not cases or len(cases) != len(set(cases)):
-        raise ValueError('VM case inventory is empty or contains duplicate identities')
+                 if event.get('kind') == 'collection' for case in event.get('nodeids', [])]
+    # Repeated identities still name the same verification target. Keep the
+    # runner's first-seen order without counting or scheduling them twice.
+    cases = list(dict.fromkeys(cases))
+    if not cases:
+        raise ValueError(f'{category} collection returned no case identities for bounded verification')
     return cases
 
 

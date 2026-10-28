@@ -410,6 +410,7 @@ def category_run(root, category, argv, *, pipe=True):
         env = host.test_environment(root)
         if pipe:
             env['ONPC_REGRESSION_EVENTS'] = '1'
+            env['ONPC_REGRESSION_INVENTORY'] = '1'
         env['PYTHONUNBUFFERED'] = '1'
     if category == 'coverage':
         directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-coverage-', dir='/tmp')

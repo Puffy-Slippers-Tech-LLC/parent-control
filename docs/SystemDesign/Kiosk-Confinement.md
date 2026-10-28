@@ -255,6 +255,8 @@ catalogue of familiar services or saved desktop choices. The specific reached
 ownership checks. The helper receives user, service and fixed PATH, with bounded
 execution and distinct failure mapping. Missing service and malformed PAM state
 remain operational/API failures, not evidence of an attack.
+After a temporary helper/NSS failure, restore the authoritative dependency and
+retry entry; the failure never substitutes for a successful identity check.
 
 Saved session/type and `XDG_SESSION_TYPE` have no admission vote. Provisioning
 owns initial AccountsService routing; login does not query or rewrite it.
@@ -347,6 +349,14 @@ controls if authorization or enforcement can change. Cover directly affected
 benign/fault boundaries with finite representative inputs. Keep injected errors
 and installed engineering probes separate from public usability after restoration.
 Required-service recovery must never replay approval.
+
+For an availability repair, select one finite fault and its supported recovery
+action. Entry/lifecycle repairs follow the entry/approval/exit/reentry history
+above after restoration; request-only repairs need one entry and the affected
+request/recovery sequence. Safe refusal during an outage is distinct from usable
+requests after restoration; a diagnostic-only form or successful callback is
+insufficient. Keep denial/Cancel checks at the lowest effective layer, retaining
+installed controls when authentication association or dispatch changes.
 
 Use existing qualified operations and the
 [short public history](../TestAutomation/E2E-Building-Blocks.md#short-confinement-usability-history).

@@ -894,7 +894,6 @@ The current adapters use these components according to their workflow:
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |
 | `reliability-plan` | The same ordinary plan driver and shared lifecycle | [VM reliability](Reliability-Plan.md), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 | `kiosk-prompt-new` | The same ordinary plan driver and shared lifecycle | [Remaining confinement improvements](Kiosk-Session-Confinement-New-Plan.md#execution), with its own master-path namespace, registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
-| `kiosk` | The same ordinary plan driver and shared lifecycle | [Focused kiosk usability repairs](Kiosk-Usability-Plan.md#execution-and-ownership), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 
 Run `tools/reliability-plan --check` to validate its plan, or
 `tools/reliability-plan --tasks 0` to execute its remaining queue. It defaults to

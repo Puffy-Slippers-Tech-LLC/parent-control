@@ -70,8 +70,6 @@ prefix_rule(
         "./tools/fix-tests",
         "tools/generate_test_coverage.sh",
         "./tools/generate_test_coverage.sh",
-        "tools/kiosk",
-        "./tools/kiosk",
         "tools/kiosk-prompt-new",
         "./tools/kiosk-prompt-new",
         "tools/onpc-diagnostics",

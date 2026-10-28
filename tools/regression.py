@@ -204,6 +204,15 @@ class Dashboard:
         hosts = [item for item in self.categories if item.host]
         rendered = set()
         for item in self.categories:
+            if item.retry_category == 'integration':
+                if 'integration' not in rendered:
+                    rendered.add('integration')
+                    checks = [other for other in self.categories
+                              if other.retry_category == 'integration' and other.count_overall]
+                    if checks:
+                        lines.extend(('│  ' if hosts else '') + line
+                                     for line in self.integration(checks, now))
+                continue
             if item.host:
                 if item.phase not in rendered:
                     rendered.add(item.phase)
@@ -234,6 +243,25 @@ class Dashboard:
                       if self.cleanup_finished else
                       'Tests interrupted. Shutting down safely; please wait for cleanup to finish.')
             lines.append('\033[31;1m' + notice + '\033[0m')
+        return lines
+
+    def integration(self, checks, now):
+        """Summarize the selected checks without flooding each VM's dashboard."""
+        state = next((state for state in ('Failed', 'Interrupted', 'Blocked', 'Running')
+                      if any(item.state == state for item in checks)),
+                     'Passed' if all(item.state == 'Passed' for item in checks) else 'Pending')
+        summary = Category(CATEGORY_NAMES['integration'],
+                           None if any(item.progress_total is None for item in checks) else
+                           sum(item.progress_total for item in checks),
+                           done=sum(item.progress_done for item in checks), state=state,
+                           failures=sum(item.failures for item in checks),
+                           elapsed=sum(item.elapsed + (now - item.started if item.started is not None else 0)
+                                       for item in checks))
+        lines = [self.category(summary, now)]
+        # Keep the active check, admission reasons and failures actionable. Full
+        # per-check results remain in the report and progress inventory.
+        lines.extend('  ' + self.category(item, now) for item in checks
+                     if item.state in ('Running', 'Failed', 'Interrupted', 'Blocked') or item.wait_reason)
         return lines
 
     @classmethod

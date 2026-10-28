@@ -50,6 +50,7 @@ class SelectedRun(Run):
             item.selection_args = tuple(args)
             if kind == 'integration':
                 item.name += ' — ' + args[0]
+                item.retry_category = kind
             if kind == 'e2e' and events:
                 item.nodeids = e2e_case_ids(root, args)
                 item.total = len(item.nodeids)

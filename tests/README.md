@@ -430,6 +430,10 @@ over selected categories; `System Cases: (x/y)` and `E2E Cases: (x/y)` show comp
 cases over the named category's selected total. These counters and `Overall` use
 the shared progress renderer: only the completed numerator in `(x/y)` is green;
 labels, percentages, totals and durations retain their default color.
+Integration checks share one compact progress row per VM, counting completed
+checks over the selected inventory. Only active checks, admission waits and
+failures expand beneath it; pending and successful checks remain available in
+the detailed report and progress inventory.
 The VM tile uses the category's completed/total count, the active
 selected case's persistent ID/title and case/category clocks,
 including while its prerequisites run. These display counts never grant a pass;

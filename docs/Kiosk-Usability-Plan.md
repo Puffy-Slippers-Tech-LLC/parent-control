@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U07 — [Recover requests after a temporary service outage](Kiosk-Usability-Tasks/U07-service-recovery.md)**.
+Next task: **U08 — [Keep requests usable when presentation resources fail](Kiosk-Usability-Tasks/U08-optional-presentation.md)**.
 
 ## Outcome and scope
 

@@ -1,12 +1,12 @@
 """One owned broker outage, safe exit and fresh genuine request after recovery."""
 from installed_journey import JourneyPlan
 from journey_blocks import (desktop_entry, fresh_desktop, parent_management,
-                            prefixed_stages, retained_parent_entry)
+                            prefixed_stages, retained_parent_entry, station_entry)
 from kiosk_approval import KioskApprovalJourney
 from kiosk_approved_flow import approved_request
 from kiosk_feedback_confinement import BrokerOutage
 from private_artifacts import require
-from request_flow import CHOICES, daily_station_entry, prepared_request
+from request_flow import CHOICES, daily_station_entry
 
 
 ENTRIES = {prefix: prefixed_stages(prefix + '-parent', desktop_entry(
@@ -31,7 +31,12 @@ SCREENS = {
     **prefixed_stages('outage-supplied', parent_management()),
     'outage-balance': 'ui:time-explanation-reach-read',
     'outage-switch': 'system:parent-switch-user', 'outage-greeter': 'ui:gdm-returned',
-    **prepared_request(prefix='new', entry='new', initial='default', compact=True, **CHOICES),
+    **station_entry('cancel-'),
+    'new-duration': 'ui:kiosk-valid-custom-open',
+    **{'new-text-' + action: 'ui:text-kiosk-fraction-' + action
+       for action in ('focus', 'selected', 'read')},
+    'new-apps': 'ui:kiosk-valid-fraction-soft-select',
+    'new-estimate': 'ui:kiosk-valid-fraction-soft-read',
     **approved_request(**CHOICES, exit='automatic'),
     **ENTRIES['approved'],
     **prefixed_stages('approved-supplied', retained_parent_entry(

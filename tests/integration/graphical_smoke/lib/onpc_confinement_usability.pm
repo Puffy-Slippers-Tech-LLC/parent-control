@@ -69,8 +69,9 @@ sub service_recovery {
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'outage-parent');
     onpc_parent::named_management($journey, 'outage-supplied', 'child');
     $journey->seen($_) for qw(outage-balance outage-switch outage-greeter);
-    onpc_request_flow::prepare($journey, 'new', 'new', 'default',
-        'fixture-child', 'fixture-parent', 75, 1, 'compact');
+    onpc_gdm::enter_station($journey, 'cancel-');
+    $journey->seen($_) for qw(new-duration new-text-focus new-text-selected
+        new-text-read new-apps new-estimate);
     onpc_request_flow::approve($journey, 'fixture-child', 'fixture-parent', 75, 1, 'automatic');
     parent_return($journey, 'approved');
     $journey->seen('approved-balance');

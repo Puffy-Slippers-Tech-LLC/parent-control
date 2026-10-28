@@ -239,7 +239,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
 @pytest.mark.parametrize('fault,binding,credential,scope', [
     *[('', binding, 'fixture-only-canary', scope)
       for scope in ('base', 'flow', 'package-removal', 'revoke-cancel', 'revocation', 'unknown',
-                    'confinement-usability', 'confinement-usability-rejection')
+                    'confinement-usability', 'confinement-usability-rejection',
+                    'kiosk-service-recovery')
       for binding in ('approval', 'rejection')],
     *[(fault, 'approval', 'fixture-only-canary', 'base')
       for fault in ('qualified', 'rechecked', 'typing', 'capture', 'review', 'stale', 'missing')],
@@ -287,7 +288,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     assert 'fixture-only-canary' not in raw
     value = json.loads(raw)
     allowed = (scope in ('base', 'flow') or
-               scope in ('package-removal', 'revoke-cancel', 'revocation', 'confinement-usability')
+               scope in ('package-removal', 'revoke-cancel', 'revocation', 'confinement-usability',
+                         'kiosk-service-recovery')
                and binding == 'approval' or
                scope == 'confinement-usability-rejection' and binding == 'rejection')
     assert bool(value['ok']) == (allowed and not fault), value

@@ -10361,6 +10361,10 @@ class AccessibleUI:
                   CHINESE_VALID_BINDINGS[operation] if chinese else
                   operation.replace('overlay-', 'kiosk-', 1) if overlay else operation)
         if action == 'kiosk-valid-custom-open':
+            def ready():
+                request = self.snapshot_owned_target('kiosk-request-submit', check_prompt=True)
+                return request is not None and self.has_state(request, self.api.StateType.SENSITIVE)
+            self.wait(ready, 'kiosk-custom-ready')
             self._invoke_target(self.kiosk_valid_target('kiosk-duration-custom', child=child, overlay=overlay))
             self.invalidate_observation()
             self.wait(lambda: self.kiosk_valid_target('kiosk-custom-duration', awaiting_custom=True,

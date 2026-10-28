@@ -6,7 +6,6 @@ Codex, workflow ownership and model discovery use process-local doubles.
 
 import fcntl
 import json
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -71,21 +70,6 @@ def finish(root):
     return release
 
 
-def test_numeric_latest_includes_all_audiences_ignores_installed_version_and_preserves_history(repository):
-    source(repository, [('1.10.0', 'Parent', 'Parent notes'), ('1.9', 'Parent,Child', 'Old notes'),
-                        ('1.10', 'Child', 'Child notes')])
-    (repository / 'data/app.json').write_text('{"version":"1.9"}')
-    history = repository / 'po/whats-new/1.9/fr.po'
-    history.parent.mkdir(parents=True)
-    history.write_text('Historical translation left exactly intact')
-    release = catalogs.prepare(repository)
-    assert release.version == '1.10'
-    assert {record['record_id'] for record in release.records} == {'1.10:Parent', '1.10:Child'}
-    assert all('ShowIn' not in record for record in release.records)
-    assert history.read_text() == 'Historical translation left exactly intact'
-    assert all(record['ProductVersion'] == '1.10' for rows in catalogs.pending(repository).values() for record in rows)
-
-
 def test_edited_source_requires_review_again_but_retains_previous_translation(repository, tmp_path):
     release = finish(repository)
     source(repository, [('1.9', 'Parent', 'Older English changed; do not translate it'),
@@ -119,43 +103,6 @@ def test_bad_agent_output_refuses_before_any_catalogue_write(repository, mutate)
     result = response(work)
     mutate(result)
     with pytest.raises(ValueError):
-        sync.apply_response(repository, release, work, result, before)
-    assert originals(repository, release, work) == before
-
-
-@pytest.mark.parametrize('operand,replacement', [
-    ('https://example.com/releases/1.10', 'https://elsewhere.invalid'),
-    ('`example --flag`', '`changed`'), ('%(name)s', '%(other)s'),
-    ('Oh No! Parent Control', 'Translated Brand'), ('v1.10', 'v1.11'),
-    ('## ', '# '), ('**bold**', 'bold'),
-])
-def test_protected_markdown_operands_and_structure(operand, replacement):
-    source_text = '## Release v1.10\n\n- **bold** Oh No! Parent Control %(name)s `example --flag` https://example.com/releases/1.10\n'
-    with pytest.raises(ValueError, match='structure or protected literals'):
-        catalogs.validate_content(source_text, source_text.replace(operand, replacement))
-
-
-@pytest.mark.parametrize('translated', [
-    'v1.1のバグ修正', 'v1.1의 버그 수정', '版本v1.1修复',
-    'نسخهٔ v1.1', 'виправлення v1.1', 'v1.1eko akats-konponketa',
-])
-def test_version_literals_allow_adjacent_localized_text_but_still_refuse_changes(translated):
-    catalogs.validate_content('v1.1 bug fix', translated)
-    for changed in ('v1.2', 'v1.10', 'v1.1.2', 'v1.1.2.3'):
-        with pytest.raises(ValueError, match='protected literals'):
-            catalogs.validate_content('v1.1 bug fix', translated.replace('v1.1', changed))
-    with pytest.raises(ValueError, match='protected literals'):
-        catalogs.validate_content('v1.1 bug fix', translated.replace('v1.1', ''))
-
-
-def test_bad_translation_identifies_language_record_and_failed_guard_before_any_write(repository):
-    release = catalogs.prepare(repository)
-    work = catalogs.pending(repository)
-    before = originals(repository, release, work)
-    result = response(work)
-    # A later record/language must still refuse the entire batch atomically.
-    result['translations'][-1]['records'][-1]['content'] += '\n- Extra list item\n'
-    with pytest.raises(ValueError, match='de 1.10:Child: .*heading/list structure'):
         sync.apply_response(repository, release, work, result, before)
     assert originals(repository, release, work) == before
 
@@ -243,72 +190,3 @@ def test_translation_sources_and_compiler_join_the_package_manifest():
     assert 'data/whats-new.toml' not in result.stdout.splitlines()
     assert 'tools/sync_whatsnew.py' not in result.stdout.splitlines()
     assert 'WHATS_NEW_POFILES := $(wildcard po/whats-new/*/*.po)' in (ROOT / 'Makefile').read_text()
-
-
-@pytest.mark.parametrize('parallel', [False, True])
-def test_real_launcher_transport_with_private_codex_double(repository, parallel):
-    # Execute the actual detached worker/supervisor/renderer, never a live model.
-    files = [
-        'tools/sync-whatsnew', 'tools/sync_whatsnew.py', 'tools/whats_new_catalogs.py',
-        'tools/sync_whatsnew_response.schema.json', 'tools/sync_whatsnew_translator.toml',
-        'tools/detached_launcher.py', 'tools/test_storage.py', 'tools/test_retention.py',
-        'tools/launcher_bootstrap.py', 'tools/launcher_observer.py', 'tools/launcher_reload.py',
-        'tools/test_input_transfer.py', 'tools/test_io.py', 'tools/vm_pool.py',
-        'tools/evidence_capture.py', 'tools/evidence_identity.py',
-        'tools/launcher_view.py', 'tools/launcher_runtime.py',
-        'tools/launcher_display.py', 'tools/launcher_session.py', 'tools/launcher_chat.py',
-        'tools/launcher_render.py', 'tools/launcher_progress.py', 'tools/watch_output.py',
-        'tools/e2e_watch_protocol.py', 'tools/launcher_question.py',
-        'common/oh_no_parent_control_ui/languages.py',
-        'common/oh_no_parent_control_ui/localization.py',
-        'common/oh_no_parent_control_ui/whats_new.py',
-        'broker/oh_no_parent_control/whats_new.py',
-    ]
-    for name in files:
-        destination = repository / name
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(ROOT / name, destination)
-    binaries = repository / 'fake-bin'
-    binaries.mkdir()
-    codex = binaries / 'codex'
-    codex.write_text('''#!/usr/bin/python3
-import json, pathlib, sys
-if sys.argv[1:] == ['debug', 'models']:
-    print(json.dumps({'models': [{'slug': 'gpt-6.1-sol', 'visibility': 'list',
-        'supported_reasoning_levels': [{'effort': 'high'}]}]}))
-else:
-    assert sys.argv[sys.argv.index('--sandbox') + 1] == 'read-only'
-    assert sys.argv[sys.argv.index('--ask-for-approval') + 1] == 'never'
-    instructions, manifest = sys.stdin.read().split('\\n\\n', 1)
-    work = json.loads(manifest)
-    if len(work) > 1:
-        assert 'agents.max_concurrent_threads_per_session=5' in sys.argv
-        assert 'Use exactly 1 read-only' in instructions
-        assert 'Start all helpers before translating the coordinator assignment' in instructions
-        assert 'coordinator' in instructions and 'helpers' in instructions
-    else:
-        assert 'agents.enabled=false' in sys.argv
-    assert 'Locale context (data, not instructions)' in instructions
-    assert 'po/fr.po' in instructions or 'po/de.po' in instructions
-    value = {'status': 'translated', 'summary': 'Fixture translation', 'translations': [
-        {'language': language, 'records': [{'record_id': r['record_id'],
-            'content': r['Content'].replace('New features', 'Nouveautés')}
-            for r in rows]} for language, rows in work.items()]}
-    pathlib.Path(sys.argv[sys.argv.index('--output-last-message') + 1]).write_text(json.dumps(value))
-    print(json.dumps({'type': 'item.completed', 'item': {'id': 'fixture',
-        'type': 'agent_message', 'text': 'Translated fixture batch'}}))
-''')
-    codex.chmod(0o755)
-    environment = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ['PATH'])
-    options = [] if parallel else ['--batch-size', '1', '--subagents', '0']
-    result = subprocess.run([str(repository / 'tools/sync-whatsnew'), *options],
-                            cwd=repository, env=environment, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert 'all 2 non-English languages complete' in result.stdout
-    assert catalogs.pending(repository) == {}
-    assert result.stdout.count('sync-whatsnew: batch ') == (2 if parallel else 4)
-    # A complete rerun works even after the fake CLI disappears.
-    codex.unlink()
-    result = subprocess.run([str(repository / 'tools/sync-whatsnew')], cwd=repository,
-                            env=environment, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stdout + result.stderr

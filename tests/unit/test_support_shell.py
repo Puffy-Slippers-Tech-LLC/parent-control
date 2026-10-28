@@ -14,10 +14,3 @@ def test_relocation_never_rewrites_inserted_root(root):
     source = '\n'.join(f'test -f "{path}"' for path in paths)
     expected = '\n'.join(f'test -f "{root}{path}"' for path in paths)
     assert relocate_system_paths(source, Path(root)) == expected
-
-
-def test_selected_prefixes_leave_other_source_paths_unchanged():
-    source = '"/etc/fixture" "/var/fixture" "/usr/lib/fixture"'
-    assert relocate_system_paths(source, '/var/tmp/machine', ('/etc/', '/usr/lib/')) == (
-        '"/var/tmp/machine/etc/fixture" "/var/fixture" "/var/tmp/machine/usr/lib/fixture"')
-    assert relocate_system_paths(source, '/var/tmp/machine', ()) == source

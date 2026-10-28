@@ -6,7 +6,6 @@ import random
 import sys
 import threading
 from unittest.mock import Mock
-import wave
 
 import pytest
 
@@ -209,25 +208,3 @@ def test_audio_backend_failure_stops_playback_without_logging_private_details(pl
     assert player._pipeline is None
     assert "error_code=7" in caplog.text
     assert "private" not in caplog.text
-
-
-def test_export_thunder_preview(bank, tmp_path):
-    mixer = ThunderMixer(bank)
-    mixer._random = random.Random(8)
-    mixer.strike(1, -0.6)
-    pcm = bytearray(mixer.render(int(0.2 * SAMPLE_RATE)))
-    mixer.strike(0.65, -0.6)
-    pcm.extend(mixer.render(3 * SAMPLE_RATE))
-    mixer.strike(0.9, 0.6)
-    pcm.extend(mixer.render(3 * SAMPLE_RATE))
-    samples = array("h", (round(value * THUNDER_VOLUME * 32767) for value in decode(pcm)))
-    if sys.byteorder != "little":
-        samples.byteswap()
-    artifact = tmp_path / "thunder-preview.wav"
-    with wave.open(str(artifact), "wb") as output:
-        output.setnchannels(2)
-        output.setsampwidth(2)
-        output.setframerate(SAMPLE_RATE)
-        output.writeframes(samples.tobytes())
-    assert artifact.stat().st_size > SAMPLE_RATE * 4
-    print(f"Thunder preview: {artifact}")

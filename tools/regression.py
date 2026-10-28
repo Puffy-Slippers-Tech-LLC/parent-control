@@ -247,6 +247,8 @@ class Dashboard:
 
     def integration(self, checks, now):
         """Summarize the selected checks without flooding each VM's dashboard."""
+        if len(checks) == 1:
+            return [self.category(checks[0], now)]
         state = next((state for state in ('Failed', 'Interrupted', 'Blocked', 'Running')
                       if any(item.state == state for item in checks)),
                      'Passed' if all(item.state == 'Passed' for item in checks) else 'Pending')

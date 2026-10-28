@@ -155,7 +155,7 @@ def test_source_edit_proof_uses_actual_private_origin_and_edits_after_selection(
     events = []
     roots = []
 
-    def freeze(root, destination, target):
+    def freeze(root, destination, target, *, fixture_path=None):
         if Path(root) == source:
             with store.opened() as fd:
                 registered = store.read(fd)['paths']
@@ -163,7 +163,7 @@ def test_source_edit_proof_uses_actual_private_origin_and_edits_after_selection(
             assert any(item['path'] == str(allocated) for item in registered)
             assert not list(Path(destination).iterdir())
             events.append('registered-before-freeze')
-        return real_freeze(root, destination, target)
+        return real_freeze(root, destination, target, fixture_path=fixture_path)
 
     def selected(*, target, root):
         roots.append(Path(root).resolve())

@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import time
+import re
 
 if __package__:
     from .regression_events import completed_cases
@@ -23,6 +24,84 @@ ONLY = 'ONPC_TEST_RETRY_CASE'
 INDEPENDENT_SYSTEM_AREAS = ('authorization', 'enforcement', 'session')
 SAVE_INTERVAL = 5
 RESUME_SELECTION_MISMATCH = 'resume selection differs from checkpoint; start without --resume to reset it'
+
+
+def recover_family_claims(root, vm_name):
+    """Return interrupted work to pending after maintained VM cleanup.
+
+    The caller holds that VM's reservation and has verified its cleanup. No
+    case gains completion credit; unresolved work can run again safely.
+    """
+    import test_activity
+    from vm_case_queue import work_key
+    def read(store, fd):
+        try:
+            source = os.open('current.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+        except FileNotFoundError:
+            return None
+        with os.fdopen(source) as stream:
+            private(os.fstat(stream.fileno()), regular=True)
+            if os.fstat(stream.fileno()).st_size > 16 * 1024 * 1024:
+                raise ValueError('family queue recovery checkpoint is oversized')
+            state = json.load(stream)
+        if (not isinstance(state, dict) or state.get('version') != 1
+                or not isinstance(state.get('categories'), dict)
+                or not isinstance(state.get('queue_completed', []), list)
+                or any(not isinstance(value, str) for value in state.get('queue_completed', []))):
+            raise ValueError('invalid retained family case progress')
+        for entry in state['categories'].values():
+            if (not isinstance(entry, dict) or not isinstance(entry.get('args'), list)
+                    or not isinstance(entry.get('passed'), list) or type(entry.get('complete')) is not bool):
+                raise ValueError('invalid retained family case progress')
+            completed_cases(json.dumps(entry['passed']))
+        claims, items = state.get('queue_claims', {}), state.get('queue_items', {})
+        if not isinstance(claims, dict) or not isinstance(items, dict):
+            raise ValueError('invalid retained family case claims')
+        for key, owner in claims.items():
+            item = items.get(key)
+            if (not isinstance(key, str) or not isinstance(owner, str) or not isinstance(item, dict)
+                    or not {'category', 'case', 'cases', 'options', 'area'} <= item.keys()
+                    or not isinstance(item['category'], str) or item['category'] not in state['categories']
+                    or not isinstance(item['cases'], list) or not isinstance(item['options'], list)
+                    or any(not isinstance(value, str) for value in (*item['cases'], *item['options']))
+                    or type(item['area']) is not bool
+                    or (item['case'] is not None and item['case'] not in item['cases'])
+                    or work_key(item) != key):
+                raise ValueError('invalid retained family case claims')
+        return state
+
+    paths = [path for path in directory('state', root=root).glob('run-tests-family-vm-*')
+             if re.fullmatch(r'run-tests-family-vm-[0-9a-f]{24}', path.name)]
+    candidates = []
+    for path in paths:
+        store = Store(path)
+        with store.opened() as fd:
+            state = read(store, fd)
+            if state is not None and vm_name in state.get('queue_claims', {}).values():
+                candidates.append(path)
+    if not candidates:
+        return 0
+    recovered = 0
+    with test_activity.exclusive_vm_progress():
+        for path in candidates:
+            store = Store(path)
+            with store.opened() as fd:
+                state = read(store, fd)
+                if state is None:
+                    continue
+                claims = state.get('queue_claims', {})
+                owned = [key for key, owner in claims.items() if owner == vm_name]
+                for key in owned:
+                    item = state['queue_items'][key]
+                    category = state['categories'][item['category']]
+                    category['passed'] = [case for case in category['passed'] if case != item['case']]
+                    category['complete'] = False
+                    state['queue_completed'] = [value for value in state.get('queue_completed', []) if value != key]
+                    del claims[key]
+                    recovered += 1
+                if owned:
+                    store.save(fd, state, name='current.json')
+    return recovered
 
 
 def request_record(root, namespace, value=None):
@@ -120,8 +199,8 @@ class Checkpoint:
                     private(os.fstat(stream.fileno()), regular=True)
                     if os.fstat(stream.fileno()).st_size > 16 * 1024 * 1024:
                         raise ValueError('resume checkpoint is oversized')
-                    state = json.load(stream) if resume else None
-            if resume and state is not None:
+                    state = json.load(stream) if resume or namespace == 'run-tests-family' else None
+            if (resume or namespace == 'run-tests-family') and state is not None:
                 if (not isinstance(state, dict) or state.get('version') != 1
                         or not isinstance(state.get('categories'), dict)
                         or any(not isinstance(entry, dict) or not isinstance(entry.get('args'), list)
@@ -146,9 +225,21 @@ class Checkpoint:
                 # Only fully validated state can identify a different selection.
                 # Repair launchers may replay that selection from scratch, but
                 # malformed progress must retain its refusal and evidence.
-                if any(kind not in state['categories'] or state['categories'][kind]['args'] != args
+                if resume and any(kind not in state['categories'] or state['categories'][kind]['args'] != args
                        for kind, args in logical.items()):
                     raise ValueError(RESUME_SELECTION_MISMATCH)
+                if namespace == 'run-tests-family':
+                    claims = state.get('queue_claims', {})
+                    if (not isinstance(claims, dict) or any(not isinstance(key, str)
+                            or not isinstance(owner, str) for key, owner in claims.items())):
+                        raise ValueError('invalid retained family case claims')
+                    if not resume:
+                        if claims:
+                            raise ValueError('family cases remain claimed; use --resume with the original '
+                                             'selection to finish or recover their VM owners before a fresh run')
+                        state = dict(version=1, categories={kind: dict(args=args, passed=[], complete=False)
+                                                            for kind, args in logical.items()})
+                        self.dirty = True
                 self.state = state
                 if self.dirty:
                     self.store.save(fd, self.state, name=self.name)

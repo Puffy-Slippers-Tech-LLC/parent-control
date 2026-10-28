@@ -262,16 +262,21 @@ def test_active_vm_session_keeps_its_guest_when_configured_ids_swap(tmp_path, wo
     import vm_config
     config = tmp_path / 'test-vm.json'
     entries = [
-        {'id': '17', 'name': 'first-guest', 'disk_anchor': '/first', 'enabled': 'true', 'package_format': 'deb'},
-        {'id': '83', 'name': 'second-guest', 'disk_anchor': '/second', 'enabled': 'true', 'package_format': 'rpm'}]
-    config.write_text(json.dumps({'vms': entries}))
+        {'id': '17', 'name': 'first-guest', 'disk_anchor': '/first', 'enabled': 'true'},
+        {'id': '83', 'name': 'second-guest', 'disk_anchor': '/second', 'enabled': 'true'}]
+    document = {'families': [
+        {'family': 'first family', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
+         'vms': [entries[0]]},
+        {'family': 'second family', 'package_format': 'rpm', 'fixture_path': 'common/fedora/common',
+         'vms': [entries[1]]}]}
+    config.write_text(json.dumps(document))
     monkeypatch.setattr(vm_config, 'CONFIG', config)
     run, started = session.select(tmp_path, ['e2e', '--vm', '17'])
     assert started
     current = json.loads((run.parent / 'current.json').read_text())
     assert current['argv'] == ['e2e', '--vm', 'first-guest']
     entries[0]['id'], entries[1]['id'] = entries[1]['id'], entries[0]['id']
-    config.write_text(json.dumps({'vms': entries}))
+    config.write_text(json.dumps(document))
     assert session.select(tmp_path, ['--stop', '--vm', '17']) == (None, False)
     assert not (run / 'cancel').exists()
     for selector in ('83', 'first-guest'):
@@ -285,9 +290,11 @@ def test_explicit_vm_queue_reattaches_by_canonical_names_and_rejects_other_selec
     import vm_selection
     config = tmp_path / 'test-vm.json'
     entries = [dict(id=str(index + 1), name=f'guest-{index}', disk_anchor=f'/disk-{index}',
-                    enabled='true' if index == 0 else 'false',
-                    package_format='rpm' if index % 2 else 'deb') for index in range(3)]
-    config.write_text(json.dumps({'concurrency': 2, 'vms': entries}))
+                    enabled='true' if index == 0 else 'false') for index in range(3)]
+    config.write_text(json.dumps({'concurrency': 2, 'families': [
+        {'family': f'family {index}', 'package_format': 'rpm' if index % 2 else 'deb',
+         'fixture_path': 'common/fedora/common' if index % 2 else 'common/ubuntu/common',
+         'vms': [entry]} for index, entry in enumerate(entries)]}))
     monkeypatch.setattr(vm_config, 'CONFIG', config)
     vm_selection.execution_selection('2,1')
     run, started = session.select(tmp_path, ['e2e', '--vm', '2,1'])

@@ -163,9 +163,10 @@ def test_make_entrypoints_dispatch_and_propagate_failure(tmp_path, target, categ
         destination.write_bytes((ROOT / name).read_bytes())
     vm = 'onpc-fixture'
     (tmp_path / 'config').mkdir()
-    (tmp_path / 'config/test-vm.json').write_text(json.dumps({'vms': [{
+    (tmp_path / 'config/test-vm.json').write_text(json.dumps({'families': [{
+        'family': 'fixture', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common', 'vms': [{
         'name': vm, 'disk_anchor': str(tmp_path / 'unused.qcow2'), 'enabled': 'true',
-    }]}))
+    }]}]}))
     launcher = tmp_path / 'tools/run-tests'
     launcher.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@"\nexit {status}\n')
     launcher.chmod(0o755)

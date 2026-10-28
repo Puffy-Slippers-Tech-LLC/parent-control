@@ -88,7 +88,8 @@ def main(*, conversation_prompt=None):
         fix_tests_queue.WORKER = Path(__file__).resolve()
         import vm_pool
         vm_pool.selected_reservation = lambda **kwargs: nullcontext()
-        vm_pool.reservation = lambda *args, **kwargs: nullcontext()
+        vm_pool.reservation = lambda *args, **kwargs: nullcontext(
+            '00000000-0000-0000-0000-000000000001:' + 'a' * 32)
         import vm_recording
         vm_recording.recording = lambda *args, **kwargs: nullcontext()
         root, run, owner, *options = args

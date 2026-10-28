@@ -197,8 +197,10 @@ def backup_rig(rig, tmp_path, monkeypatch):
     state_root = tmp_path / 'state'
     state_root.mkdir(mode=0o700)
     config.write_text(json.dumps({'backup_root': str(tmp_path / 'backups'), 'concurrency': 2,
+        'families': [{'family': 'backup fixture', 'package_format': 'deb',
+                      'fixture_path': 'common/ubuntu/common',
         'vms': [{'id': '9', 'name': 'Backup-guest', 'disk_anchor': str(rig.anchor), 'enabled': 'true'},
-                {'id': 12, 'name': 'Other-guest', 'disk_anchor': str(tmp_path / 'other.qcow2'), 'enabled': 'false'}]}))
+                {'id': 12, 'name': 'Other-guest', 'disk_anchor': str(tmp_path / 'other.qcow2'), 'enabled': 'false'}]}]}))
     monkeypatch.setattr(vm_config, 'CONFIG', config)
     monkeypatch.setattr(vm_config, 'STATE_ROOT', state_root)
     vm = vm_config.select('9')
@@ -948,14 +950,18 @@ def test_restore_prepares_auto_only_after_archive_success(backup_rig, monkeypatc
 @pytest.mark.parametrize('value', ['relative', '/', '/path/../backup', '/path//backup', None])
 def test_backup_root_validation_is_shared_with_other_registry_consumers(tmp_path, value):
     config = tmp_path / 'registry.json'
-    config.write_text(json.dumps({'backup_root': value, 'vms': [{'name': 'Guest', 'disk_anchor': '/disk'}]}))
+    config.write_text(json.dumps({'backup_root': value, 'families': [
+        {'family': 'fixture', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
+         'vms': [{'name': 'Guest', 'disk_anchor': '/disk'}]}]}))
     with pytest.raises(ValueError, match='backup_root'):
         vm_config.registry(config)
 
 
-def test_optional_backup_root_preserves_old_registries(tmp_path):
+def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path):
     config = tmp_path / 'registry.json'
-    config.write_text(json.dumps({'vms': [{'name': 'Guest', 'disk_anchor': '/disk'}]}))
+    config.write_text(json.dumps({'families': [
+        {'family': 'fixture', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
+         'vms': [{'name': 'Guest', 'disk_anchor': '/disk'}]}]}))
     assert vm_config.registry(config)['Guest'].name == 'Guest'
     with pytest.raises(ValueError, match='backup_root is required'):
         vm_config.backup_root(config)

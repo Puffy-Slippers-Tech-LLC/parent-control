@@ -34,12 +34,77 @@ def digest(value):
     return hashlib.sha256(encoded(value)).hexdigest()
 
 
-def source_snapshot(root):
+def fixture_directory(root, target, fixture_path=None):
+    """Resolve a recipe directory without changing the finite build target set."""
+    root = Path(root).resolve(strict=True)
+    fixtures = root / 'tests/fixtures'
+    if fixture_path is None:
+        fixture_path = 'common/' + target + '/common'
+        # Private frozen source trees already contain the effective sources.
+        if (root != ROOT and not (fixtures / fixture_path).exists()
+                and not (fixtures / fixture_path).is_symlink()):
+            return None
+    if (type(fixture_path) is not str or not fixture_path
+            or Path(fixture_path).is_absolute()
+            or str(Path(fixture_path)) != fixture_path
+            or any(part in ('.', '..') for part in Path(fixture_path).parts)):
+        raise ValueError('invalid fixture path')
+    directory = fixtures / fixture_path
+    if directory.resolve(strict=True) != directory or not directory.is_dir():
+        raise ValueError('fixture directory contains a link or is not a directory')
+    current = directory
+    while True:
+        recipe = current / 'recipe.json'
+        if recipe.exists() or recipe.is_symlink():
+            if recipe.resolve(strict=True) != recipe or not recipe.is_file():
+                raise ValueError('invalid fixture recipe')
+            def unique(pairs):
+                value = {}
+                for key, item in pairs:
+                    if key in value:
+                        raise ValueError('duplicate fixture recipe field')
+                    value[key] = item
+                return value
+            document = json.loads(recipe.read_text(), object_pairs_hook=unique)
+            if document != {'target': target}:
+                raise ValueError('fixture recipe target mismatch')
+            return directory
+        if current == fixtures:
+            raise ValueError('fixture directory has no recipe.json')
+        current = current.parent
+
+
+def source_snapshot(root, *, fixture_path=None, target=None):
     """Read the exact source closure, refusing links and concurrent mutation."""
     root = Path(root).resolve(strict=True)
     records, contents = {}, {}
+    directory = fixture_directory(root, target, fixture_path) if target is not None else None
+    paths = {name: root / name for name in artifact_inputs.NATIVE_RUNTIME_SOURCES}
+    if directory is not None:
+        ancestors = []
+        current = directory
+        while True:
+            ancestors.append(current)
+            if current == root / 'tests/fixtures':
+                break
+            current = current.parent
+        for ancestor in reversed(ancestors):
+            layer = ancestor / 'files'
+            if not layer.exists() and not layer.is_symlink():
+                continue
+            if layer.resolve(strict=True) != layer or not layer.is_dir():
+                raise ValueError('invalid fixture source layer')
+            for path in sorted(layer.rglob('*')):
+                if path.resolve(strict=True) != path:
+                    raise ValueError('fixture sources contain a link')
+                if path.is_dir():
+                    continue
+                name = path.relative_to(layer).as_posix()
+                if name not in paths or not path.is_file():
+                    raise ValueError('unsupported fixture source override: ' + name)
+                paths[name] = path
     for name in artifact_inputs.NATIVE_RUNTIME_SOURCES:
-        path = root / name
+        path = paths[name]
         if path.resolve(strict=True) != path:
             raise ValueError('fixture sources contain a link')
         before = path.lstat()
@@ -77,8 +142,8 @@ def environment_inputs(root, target):
             'image': image}
 
 
-def freeze(root, destination, target):
-    records, contents = source_snapshot(root)
+def freeze(root, destination, target, *, fixture_path=None):
+    records, contents = source_snapshot(root, target=target, fixture_path=fixture_path)
     environment = environment_inputs(root, target)
     for name, data in contents.items():
         path = destination / name
@@ -92,7 +157,8 @@ def freeze(root, destination, target):
         path = destination / name
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(root / name, path)
-    if (source_snapshot(root)[0] != records or source_snapshot(destination)[0] != records
+    if (source_snapshot(root, target=target, fixture_path=fixture_path)[0] != records
+            or source_snapshot(destination)[0] != records
             or environment_inputs(root, target) != environment
             or environment_inputs(destination, target) != environment):
         raise ValueError('fixture sources changed while freezing')
@@ -205,7 +271,7 @@ def _output_identity(output, descriptor, original):
         os.close(current)
 
 
-def build(output, *, target, root=ROOT, publication='move', publish_guard=None):
+def build(output, *, target, root=ROOT, fixture_path=None, publication='move', publish_guard=None):
     if target not in TARGETS:
         raise ValueError('unsupported fixture target')
     if publication not in ('move', 'copy'):
@@ -220,12 +286,13 @@ def build(output, *, target, root=ROOT, publication='move', publish_guard=None):
             raise ValueError('fixture output must be an empty allocated directory')
         _output_identity(output, descriptor, original)
         return _build(output, descriptor, original, target=target, root=root,
+                      fixture_path=fixture_path,
                       publication=publication, publish_guard=publish_guard)
     finally:
         os.close(descriptor)
 
 
-def _build(output, output_fd, original, *, target, root, publication, publish_guard):
+def _build(output, output_fd, original, *, target, root, fixture_path, publication, publish_guard):
     transaction = uuid.uuid4().hex
     print('fixture-bundle: transaction=' + transaction, flush=True)
     store = fixture_producer.Store()
@@ -233,7 +300,7 @@ def _build(output, output_fd, original, *, target, root, publication, publish_gu
                                compatibility_key='native-runtime-' + target,
                                build_key='frozen-native-runtime-v1') as producer:
         source = producer.allocate('sources')
-        records, environment_record = freeze(root, source, target)
+        records, environment_record = freeze(root, source, target, fixture_path=fixture_path)
         workspace = producer.allocate('build')
         environment = producer.environment({'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
             'LANG': 'C.UTF-8', 'HOME': str(workspace), 'SOURCE_DATE_EPOCH': '0',
@@ -249,7 +316,8 @@ def _build(output, output_fd, original, *, target, root, publication, publish_gu
         assemble(source, compiled, staging, inputs, environment)
         producer.verifying()
         manifest = fixture_manifest.verify(staging, target=target)
-        if (source_snapshot(root)[0] != records or source_snapshot(source)[0] != records
+        if (source_snapshot(root, target=target, fixture_path=fixture_path)[0] != records
+                or source_snapshot(source)[0] != records
                 or environment_inputs(root, target) != environment_record):
             raise ValueError('fixture sources changed during build')
         # Account for both target workspace scratch and the producer's host
@@ -327,6 +395,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--target', choices=tuple(TARGETS), required=True)
+    parser.add_argument('--fixture-path')
     parser.add_argument('--verify', action='store_true')
     args = parser.parse_args()
     try:
@@ -334,7 +403,7 @@ def main():
             manifest = fixture_manifest.verify(args.output, target=args.target)
             print('fixture-bundle: verify=passed build=' + manifest['build_identity'])
         else:
-            build(args.output, target=args.target)
+            build(args.output, target=args.target, fixture_path=args.fixture_path)
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         if isinstance(error, subprocess.CalledProcessError):
             print((error.stderr or '')[-16000:], file=sys.stderr)

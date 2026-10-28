@@ -191,7 +191,7 @@ def keep(vm, *, incoming=0, output=sys.stdout):
 
 
 @contextmanager
-def reservation(name, *, stopped=None):
+def reservation(name, *, stopped=None, bind=True):
     """Caller-side lifetime: keep checkout across builds, failures and probing."""
     from vm_selection import vm_config
     configured = vm_config.load(name)
@@ -235,7 +235,8 @@ def reservation(name, *, stopped=None):
             raise ValueError('vm-pool: nested checkout changed VM')
         if cancelled():
             raise KeyboardInterrupt
-        os.environ[VARIABLE] = receipt
+        if bind:
+            os.environ[VARIABLE] = receipt
         token = _keeper.set(dict(name=configured.name, receipt=receipt, pid=process.pid,
                                  input=process.stdin.fileno(), output=process.stdout.fileno()))
         if inherited is not None:
@@ -245,14 +246,15 @@ def reservation(name, *, stopped=None):
             os.close(saved['output'])
             if os.waitstatus_to_exitcode(os.waitpid(saved['pid'], 0)[1]):
                 raise ValueError('vm-pool: inherited checkout checkin failed')
-        yield
+        yield receipt
     finally:
         if token is not None:
             _keeper.reset(token)
-        if previous is None:
-            os.environ.pop(VARIABLE, None)
-        else:
-            os.environ[VARIABLE] = previous
+        if bind:
+            if previous is None:
+                os.environ.pop(VARIABLE, None)
+            else:
+                os.environ[VARIABLE] = previous
         process.stdin.close()
         process.stdout.close()
         status = process.wait()
@@ -266,7 +268,7 @@ def selected_reservation(*, enabled=True, stopped=None):
     from vm_selection import BATCH, selected
     batch = json.loads(os.environ[BATCH]) if BATCH in os.environ else None
     vm = selected(required=False) if enabled else None
-    if vm is None or batch is not None and len(batch['vms']) > 1:
+    if vm is None or batch is not None:
         if enabled and binding() is not None and batch is not None and len(batch['vms']) > 1:
             raise ValueError('vm-pool: a reserved driver cannot request a multi-VM batch')
         yield

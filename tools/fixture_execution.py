@@ -203,7 +203,7 @@ def _selection(store, fd, run, record, target, key, manifest):
                      manifest['build_identity'])
 
 
-def prepare(*, target, root=ROOT):
+def prepare(*, target, root=ROOT, fixture_path=None):
     """Register then build, or reuse verified bytes from this exact active run.
 
     A failed/interrupted allocation stays recorded. Matching incomplete,
@@ -212,7 +212,7 @@ def prepare(*, target, root=ROOT):
     if type(target) is not str or target not in bundle.TARGETS:
         raise ValueError('fixture execution: unsupported target')
     with _activity() as (store, fd, run):
-        source, _ = bundle.source_snapshot(root)
+        source, _ = bundle.source_snapshot(root, target=target, fixture_path=fixture_path)
         environment = bundle.environment_inputs(root, target)
         key = input_key(source, environment, target)
         prefix = _prefix(target, key)
@@ -238,11 +238,11 @@ def prepare(*, target, root=ROOT):
                 if record not in current['paths'] or 'retired' in record:
                     raise ValueError('fixture execution: publication registration changed')
                 _publication_allocation(record)
-                if (bundle.source_snapshot(root)[0] != source
+                if (bundle.source_snapshot(root, target=target, fixture_path=fixture_path)[0] != source
                         or bundle.environment_inputs(root, target) != environment):
                     raise ValueError('fixture execution: selected sources changed before publication')
 
-            bundle.build(path, target=target, root=root, publication='copy',
+            bundle.build(path, target=target, root=root, fixture_path=fixture_path, publication='copy',
                          publish_guard=publish_guard)
             manifest = _manifest(record, target, key)
         _state(store, fd, run)
@@ -293,7 +293,7 @@ def validate_source_selection(record, selection):
     return dict(record)
 
 
-def prepare_source_edit(*, target, root=ROOT, edit=True):
+def prepare_source_edit(*, target, root=ROOT, fixture_path=None, edit=True):
     """Select from a private actual source origin, then edit only that origin.
 
     This finite host qualification proof is registered before its first write.
@@ -320,7 +320,8 @@ def prepare_source_edit(*, target, root=ROOT, edit=True):
             # All writes and prepare's source reads use the pinned allocation,
             # including if its public locator is replaced during a failed run.
             source = Path('/proc/self/fd/' + str(allocation)) / 'source'
-            original, environment = bundle.freeze(Path(root), source, target)
+            original, environment = bundle.freeze(Path(root), source, target,
+                                                   fixture_path=fixture_path)
             _publication_allocation(record)
         selected = prepare(target=target, root=source)
         if verify(selected)['inputs']['source'] != original:
@@ -411,6 +412,7 @@ def prepare_live_replacement(selection, source_selection):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--target', choices=tuple(bundle.TARGETS), required=True)
+    parser.add_argument('--fixture-path')
     parser.add_argument('--qualify-source-edit', action='store_true')
     parser.add_argument('--live-refresh-source', action='store_true')
     parser.add_argument('--live-refresh-selection')
@@ -431,11 +433,12 @@ def main():
         elif args.live_refresh_source:
             if args.qualify_source_edit:
                 raise ValueError('fixture execution: conflicting source proof options')
-            selection, source = prepare_source_edit(target=args.target, edit=False)
+            selection, source = prepare_source_edit(target=args.target,
+                fixture_path=args.fixture_path, edit=False)
         elif args.qualify_source_edit:
-            selection, source = prepare_source_edit(target=args.target)
+            selection, source = prepare_source_edit(target=args.target, fixture_path=args.fixture_path)
         else:
-            selection = prepare(target=args.target)
+            selection = prepare(target=args.target, fixture_path=args.fixture_path)
         print('fixture-execution: selection=' + bundle.encoded(selection.record()).decode())
         if source is not None:
             print('fixture-execution: source-edit=' + bundle.encoded(source).decode())

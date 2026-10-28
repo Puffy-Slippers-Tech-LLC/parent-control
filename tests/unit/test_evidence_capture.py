@@ -2174,9 +2174,10 @@ def test_named_capture_targets_require_canonical_registry_names(
     from tests.integration import vm_config
 
     config = tmp_path / 'fixture-vms.json'
-    config.write_text(json.dumps(dict(vms=[dict(name='Fixture-Guest', id='7',
+    config.write_text(json.dumps(dict(families=[dict(family='fixture', package_format='deb',
+        fixture_path='common/ubuntu/common', vms=[dict(name='Fixture-Guest', id='7',
                                                disk_anchor='/fixture/guest.qcow2',
-                                               enabled='false', package_format='deb')])))
+                                               enabled='false')])])))
     monkeypatch.setattr(vm_config, 'CONFIG', config)
     monkeypatch.setitem(sys.modules, 'vm_config', vm_config)
     options = dict(repository=producer.checkout, workflow='capture-fixture',

@@ -299,8 +299,10 @@ resume. Required preparation and lifecycle prerequisites still run.
 --stop requests cancellation of the active run and waits for owned cleanup.
 --reload refreshes a running launcher at safe boundaries and stays attached;
 when idle, the flag is ignored and execution starts normally.
-VM categories read config/test-vm.json and execute every entry with enabled
-equal to the string "true", using at most concurrency VMs simultaneously.
+VM categories read config/test-vm.json and select VMs with enabled equal to
+the string "true", using at most concurrency VMs simultaneously. Each family
+has one case queue: idle VMs atomically pull its next work, so every selected
+case runs once per family. One VM uses the same queue as multiple workers.
 --vm accepts a name or ID, a comma-separated list, all-enabled, or all.
 Explicit names/IDs and all include disabled entries. Free slots refill immediately.
 Each invocation resolves IDs
@@ -349,7 +351,7 @@ Complete categories (combine in any order; execute host, system, integration, e2
   Narrowed combined categories share one report and reuse host's package artifacts.
   Without host, VM categories prepare verified package inputs (reuse or build).
   Focused system --area AREA --test CASE also prepares inputs per VM when
-  --artifacts is omitted. Each VM must declare package_format (deb or rpm) in
+  --artifacts is omitted. Each family must declare package_format (deb or rpm) in
   config/test-vm.json; there is no default. Configured concurrency still applies.
   After host and e2e, system and integration remain.
   Separate host and vm runs may execute in parallel, with independent locks,
@@ -725,7 +727,9 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
                     (records if selected_prefix == prefix else source_records).append(line[len(selected_prefix):])
         if len(pending) > 65536:
             invalid, pending = True, b''
+    from vm_selection import selected
     status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', target,
+                                   '--fixture-path', selected().fixture_path,
                                    *(['--qualify-source-edit'] if source_edit else [])),
                          cwd=root, env=environment, output=output, timeout=600.0)
     if status:
@@ -775,7 +779,8 @@ def run_live_refresh(root, command, *, control, environment):
                     sources.append(line.partition(b'=')[2])
             if len(pending) > 65536 or len(records) > 1 or len(sources) > 1:
                 raise ValueError('fixture live refresh builder output is invalid')
-        status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', targets[selected().name], *options),
+        status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', targets[selected().name],
+                                        '--fixture-path', selected().fixture_path, *options),
                              cwd=root, env=environment, output=output, timeout=600.0)
         if status or len(records) != 1:
             raise ValueError('fixture live refresh preparation failed; status=' + str(status))
@@ -1039,8 +1044,13 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
         from vm_selection import BATCH
         if BATCH in os.environ:
             from vm_test_queue import run
-            return run(Path(__file__).resolve().parents[1], argv,
-                       **({'reloading': True} if reloading else {}))
+            try:
+                return run(Path(__file__).resolve().parents[1], argv,
+                           **({'reloading': True} if reloading else {}))
+            except (ValueError, OSError) as error:
+                detail = str(error) if isinstance(error, ValueError) else 'filesystem or execution failure'
+                print('run-tests: ' + detail, file=sys.stderr)
+                return 2
     try:
         argv, stop_on_error = execution_arguments(argv)
         if os.geteuid() == 0:

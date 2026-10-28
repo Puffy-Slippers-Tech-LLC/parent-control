@@ -685,6 +685,11 @@ no shared journal or public endpoint is touched, so compatible overlap remains.
 VM rename checks use private pytest provenance trees and process-local libvirt
 doubles, including rollback and lock contention. No real VM, disk, socket,
 display or shared controller state is accessed; compatible overlap remains.
+VM family queue checks keep their claim/checkpoint files in pytest-private
+storage and join bounded in-process worker threads. Single/multiple-worker and
+duplicate-claim coverage adds no VM, display, socket, bus, shared cache or new
+subprocess owner; vm_config retains compatible scheduling, with no cleanup/UI
+inventory change.
 VM queue checks join bounded in-process thread pools and mocked controllers,
 with private retained logs and journals. Lease/legacy-journal tests hold only
 tmp_path flock files; existing compatible VM, launcher and storage buckets apply.

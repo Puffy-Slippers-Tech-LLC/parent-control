@@ -580,8 +580,9 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
 
 
 @pytest.mark.parametrize('history', [False, True])
+@pytest.mark.parametrize('family_queue', [False, True])
 def test_system_case_retry_selects_its_required_history_without_crediting_omissions(
-        tmp_path, monkeypatch, history):
+        tmp_path, monkeypatch, history, family_queue):
     import fix_tests_queue
     import system_runner
     from tests.support.vm_registry import vm_name
@@ -636,6 +637,9 @@ def test_system_case_retry_selects_its_required_history_without_crediting_omissi
     monkeypatch.setattr(fix_tests_queue, 'case_inventory', lambda *_: cases)
     monkeypatch.setattr(fix_tests_queue, 'publish_case_progress', lambda *_, **__: None)
     normal_root = tmp_path / 'normal'
+    if family_queue:
+        normal_root.mkdir()
+        (normal_root / 'pipeline.json').write_text(json.dumps({'parent': str(tmp_path)}))
     gate = fix_tests_queue.RepairGate(normal_root)
     calls = []
     status = 1
@@ -674,6 +678,10 @@ def test_system_case_retry_selects_its_required_history_without_crediting_omissi
     interrupted = Checkpoint(normal_root, [('system', options)], resume=True, binding=vm_name())
     assert cases[-1] not in interrupted.passed('system')
     assert not interrupted.complete('system')
+    # The real repair owner drains its source ticket before ordinary work
+    # resumes. Model that boundary instead of waiting behind our own failure.
+    gate.acquire()
+    gate.release(changed=True)
     status = 0
     assert fix_tests_queue.run_cases(normal_root, 'system', [*options, '--resume'], execute, gate,
                                     inventory=inventory, round_number=1) == 0
@@ -951,19 +959,63 @@ def test_vm_queue_preserves_resume_and_first_failure_policy():
 
 def test_fresh_vm_queue_resets_queued_progress_even_when_host_fails(tmp_path, monkeypatch):
     import vm_test_queue as queue
-    from vm_selection import BATCH
-    vm = SimpleNamespace(name='guest')
+    from pathlib import Path
+    from vm_selection import BATCH, VARIABLE
+    from vm_case_queue import family_binding
+    vm = queue.vm_config.VMConfig('guest', Path('/disk'), family='literal family')
+    monkeypatch.setenv(VARIABLE, vm.name)
     monkeypatch.setenv(BATCH, json.dumps(dict(vms=['guest'], concurrency=1)))
-    monkeypatch.setattr(queue.vm_config, 'registry', lambda: {'guest': vm})
+    monkeypatch.setattr(queue.vm_config, 'registry', lambda *args: {'guest': vm})
+    monkeypatch.setattr(queue, 'case_inventory', lambda *args, **kwargs: ['package::case'])
     monkeypatch.setattr(test_commands, '_main', lambda *_, **__: 1)
     expand = test_commands.execution_selections
     monkeypatch.setattr(test_commands, 'execution_selections', lambda root, groups: expand(ROOT, groups))
     selection = [('system', []), ('integration', []), ('e2e', [])]
-    previous = Checkpoint(tmp_path, selection, binding='guest')
+    binding = family_binding(vm.family, [vm.name])
+    previous = Checkpoint(tmp_path, selection, binding=binding, namespace='run-tests-family')
     previous.event('e2e', dict(kind='finished', nodeid='old-pass'), set())
     previous.save()
     assert queue.run(tmp_path, ['host', 'vm']) == 1
-    assert Checkpoint(tmp_path, selection, resume=True, binding='guest').passed('e2e') == set()
+    assert Checkpoint(tmp_path, selection, resume=True, binding=binding,
+                      namespace='run-tests-family').passed('e2e') == set()
+    # Interrupted ownership can be reset only after the maintained cleanup
+    # boundary, with all competing VM coordinators excluded.
+    import fcntl
+    import test_activity
+    from test_checkpoint import recover_family_claims
+    from vm_case_queue import work_items, work_key
+    pending = Checkpoint(tmp_path, selection, resume=True, binding=binding,
+                         namespace='run-tests-family')
+    work = work_items('e2e', [], ['old-pass'])[0]
+    key = work_key(work)
+    pending.state.update(queue_claims={key: vm.name}, queue_items={key: work})
+    pending.entry('e2e')['passed'] = ['old-pass']
+    pending.save()
+    with pytest.raises(ValueError, match='remain claimed'):
+        Checkpoint(tmp_path, selection, binding=binding, namespace='run-tests-family')
+    with test_activity.activity(tmp_path, named_vm=True):
+        other = os.open(tmp_path / 'artifacts/test-activity/lock', os.O_RDWR)
+        try:
+            fcntl.flock(other, fcntl.LOCK_SH)
+            with pytest.raises(ValueError, match='idle VM'):
+                recover_family_claims(tmp_path, vm.name)
+        finally:
+            os.close(other)
+        assert pending.state['queue_claims'] == {key: vm.name}
+        pending.entry('e2e')['complete'] = 'invalid'
+        pending.save()
+        before = (pending.store.path / 'current.json').read_bytes()
+        with pytest.raises(ValueError, match='invalid retained'):
+            recover_family_claims(tmp_path, vm.name)
+        assert (pending.store.path / 'current.json').read_bytes() == before
+        pending.entry('e2e')['complete'] = False
+        pending.save()
+        assert recover_family_claims(tmp_path, vm.name) == 1
+    recovered = Checkpoint(tmp_path, selection, resume=True, binding=binding,
+                           namespace='run-tests-family')
+    assert recovered.state['queue_claims'] == {} and recovered.passed('e2e') == set()
+    assert not recovered.complete('e2e')
+    Checkpoint(tmp_path, selection, binding=binding, namespace='run-tests-family')
 
 
 @pytest.mark.parametrize('selectors', [('--scenario', 'selected'), ('--id=1,2',)])

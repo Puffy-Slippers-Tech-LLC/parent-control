@@ -942,6 +942,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 with (run / 'last-test.log').open('rb') as stream:
                     attached = b'Attached to run-tests session:' in stream.read(8192)
                 if not attached:
+                    if parent is not None and status == 0 and retry_case and requested in ('system', 'integration', 'e2e'):
+                        from fix_tests_queue import acknowledge_family_retry
+                        acknowledge_family_retry(root, repair_gate, requested,
+                            inventory[requested]['args'], round_number, retry_case)
                     if display_cases:
                         saved = Checkpoint(root, [(requested, original)], resume=True, binding=selected().name)
                         publish_case_progress(root, run, requested, display_cases, retry_case,
@@ -986,7 +990,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                        *(['--resume-case-only'] if resume and (focused or probe) else [])]
             description = 'the repaired case' if focused else 'the requested category'
             generation = repair_gate.generation()
-            if parent is not None and category in ('system', 'e2e') and not retry_case:
+            if parent is not None and category in ('system', 'integration', 'e2e') and not retry_case:
                 from fix_tests_queue import run_cases
                 status = run_cases(root, category, options, lambda case_options:
                     run_requested(category, case_options, description, vm=verification_vm), repair_gate,
@@ -1648,6 +1652,7 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
     retained_waiting = []
     retained_evidence = {}
     retained_sources = {}
+    retained_family_cases = {}
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
         with lock(legacy / 'owner') as owner:
@@ -1675,6 +1680,10 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
                     if path.exists():
                         retained_pipelines[child.name] = json.loads(path.read_text())
         if previous is not None:
+            queues = previous / 'family-cases'
+            if queues.exists():
+                for path in queues.glob('*.json'):
+                    retained_family_cases[path.name] = json.loads(path.read_text())
             pending = previous / 'repair-pending.json'
             if pending.exists():
                 retained_pending = json.loads(pending.read_text())
@@ -1736,6 +1745,10 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
             atomic(run / 'checkpoint.json', retained_git)
         if retained_queue:
             atomic(run / 'pipelines.json', retained_queue)
+        if retained_family_cases:
+            queues = private_directory(run / 'family-cases')
+            for filename, state in retained_family_cases.items():
+                atomic(queues / filename, state)
         for pipeline_name, state in retained_pipelines.items():
             child = private_directory(run / pipeline_name)
             atomic(child / 'checkpoint.json', state)

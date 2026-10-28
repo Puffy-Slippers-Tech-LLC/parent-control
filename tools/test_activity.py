@@ -114,6 +114,27 @@ def cleanup_verified(root):
 
 
 @contextmanager
+def exclusive_vm_progress():
+    """Recover queue progress only after every checkout VM worker has left.
+
+    Standalone recovery already holds the selected VM's checkout and named
+    activity. Upgrade its shared compatibility gate without waiting, so it
+    cannot race a batch coordinator's in-memory progress or deadlock with one.
+    """
+    if not _named_vm or _compatibility_descriptor is None:
+        raise ValueError('family queue recovery requires owned named VM activity')
+    try:
+        fcntl.flock(_compatibility_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        fcntl.flock(_compatibility_descriptor, fcntl.LOCK_SH)
+        raise ValueError('family queue recovery requires idle VM test launchers; wait for their cleanup') from error
+    try:
+        yield
+    finally:
+        fcntl.flock(_compatibility_descriptor, fcntl.LOCK_SH)
+
+
+@contextmanager
 def activity(root, *, host_only=None, named_vm=None, includes_host=False):
     global _descriptor, _host_only, _named_vm, _compatibility_descriptor
     directory = Path(root) / 'artifacts/test-activity'

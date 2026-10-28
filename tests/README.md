@@ -284,10 +284,16 @@ coverage and compatible overlap for the changed scope using the maintained
 launcher, without expanding validation to unrelated host categories.
 
 `system`, `integration` and `e2e` remain sequential within each VM. VM tests default to every
-entry in `config/test-vm.json` whose `enabled` equals the string `"true"`.
+VM in `config/test-vm.json` whose `enabled` equals the string `"true"`.
+The [family configuration](integration/Environment.md#shared-vm-configuration)
+defines equivalent workers sharing package format and a fixture directory.
 Its positive integer `concurrency` limits active guests: 1 is serial, 2 permits
-two simultaneous guests. Free slots refill until every enabled VM executes,
-including after another guest fails. Cancellation stops queued work and waits
+two simultaneous guests. Every selected case runs once per selected family.
+Each available VM atomically claims the next pending work from its family's
+queue, including when the family has only one VM. Claims are recorded before
+execution, preventing concurrent duplicate cases; credit follows teardown and
+owned cleanup. Stateful histories remain indivisible, as do independent system
+area attempts that share preparation. Cancellation stops queued work and waits
 for active guests' cleanup. `--vm` accepts one name or ID, a comma-separated
 list, `all-enabled`, or `all`. Explicit entries and `all` include disabled VMs.
 Baseline and app-snapshot preparation use the same selector and rolling scheduler,
@@ -406,8 +412,11 @@ and its required prerequisites through the case-only runner, for diagnostic
 execution and corrective verification alike. Each newly entered
 category and each fresh verification pass starts without `--resume`.
 
-For a configured VM queue, host categories run once and each VM owns its
-system/E2E pipeline, checkpoint and reports through all requested rounds. The
+For a configured VM queue, host categories run once. Each family owns one case
+queue per category and round, while each VM owns its pipeline, checkpoint and
+reports. Idle VMs pull work using an atomic shared claim, rather than receiving
+fixed shards or repeating the family's selection. Failed claims stay bound to
+their VM for recovery and exact repair verification. The
 host pipeline runs alongside the VM pipelines without consuming a VM slot;
 the registry concurrency cap limits only the VM pipelines. Normal cases execute in
 parallel through fresh runner invocations with the original selectors
@@ -2028,6 +2037,11 @@ the host activity and storage owner locks. Reconnect registration journals are
 also reconciled under the startup gates and activity lock before registration.
 `tools/cleanup-e2e --host-only` exposes the same host recovery without VM access;
 plain `tools/cleanup-e2e` reconciles enabled VMs followed by host retention.
+After verified VM cleanup, standalone cleanup returns that VM's interrupted
+family case claims to pending without granting passes. It requires idle VM
+test launchers before changing shared progress; active owners are preserved.
+Use this route before starting a fresh selection when a family still has
+claimed work, or use `--resume` to continue its original selection and owners.
 The launcher must hold checkout activity ownership
 and acquire the storage owner locks; a live owner is never killed or displaced.
 The installed `check_test_recovery` route reconciles the VM through the existing

@@ -269,26 +269,34 @@ def test_repair_worker_retains_reservation_and_finishes_queued_cancellation(
         os.fstat(owner)
 
 
-@pytest.mark.parametrize('at_grant', [False, True])
-def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkeypatch, at_grant):
+@pytest.mark.parametrize('at_grant', [None, False, True])
+@pytest.mark.parametrize('bind', [False, True])
+def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkeypatch, at_grant, bind):
     import io
     from types import SimpleNamespace
     import dev_privileges
     from vm_selection import selected
     receipt = A + ':' + 'a' * 32
-    process = SimpleNamespace(stdin=io.BytesIO(), stdout=io.BytesIO(
+    process = SimpleNamespace(pid=42, stdin=io.BytesIO(), stdout=io.BytesIO(
         json.dumps({'checkout': receipt}).encode() + b'\n'), wait=lambda: 0)
+    process.stdin.fileno = lambda: 101
+    process.stdout.fileno = lambda: 102
     spawns = []
     monkeypatch.setattr(dev_privileges, 'check', lambda _: None)
     monkeypatch.setattr(vm_pool.subprocess, 'Popen', lambda *a, **k: spawns.append(a) or process)
     monkeypatch.setattr(vm_pool.select, 'select', lambda readers, *args: (readers, [], []))
-    cancellations = iter([False, True] if at_grant else [True])
-    with pytest.raises(KeyboardInterrupt):
-        with vm_pool.reservation(selected().name, stopped=lambda: next(cancellations)):
-            pytest.fail('cancelled request entered the driver workflow')
-    assert len(spawns) == int(at_grant)
+    if at_grant is None:
+        with vm_pool.reservation(selected().name, bind=bind) as granted:
+            assert granted == receipt
+            assert os.environ.get(vm_pool.VARIABLE) == (receipt if bind else None)
+    else:
+        cancellations = iter([False, True] if at_grant else [True])
+        with pytest.raises(KeyboardInterrupt):
+            with vm_pool.reservation(selected().name, stopped=lambda: next(cancellations), bind=bind):
+                pytest.fail('cancelled request entered the driver workflow')
+    assert len(spawns) == (1 if at_grant is None else int(at_grant))
     assert vm_pool.VARIABLE not in os.environ
-    if at_grant:
+    if at_grant is None or at_grant:
         assert process.stdin.closed and process.stdout.closed
 
 

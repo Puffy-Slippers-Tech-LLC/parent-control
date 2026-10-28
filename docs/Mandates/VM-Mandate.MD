@@ -39,9 +39,15 @@ never a saved ID mapping. Queue selectors do not imply that every Make entry
 point accepts a queue; use the public launcher's help.
 
 The positive integer `concurrency` caps parallel queue operations with or without
-`--vm`. Each free slot immediately takes the next VM; the finite execution or
-preparation queue drains even after an individual VM fails. Tests within each VM
-remain ordered. Baseline helper refresh runs once after preparation workers finish.
+`--vm`. Tests use one pending case queue per selected family: an available VM
+atomically claims its next case, so each case executes once per family. The same
+pull mechanism serves one or more VMs. Claims cannot overlap on a case identity;
+failed or interrupted claims retain their owner through cleanup and recovery.
+Stateful histories and system area attempts remain indivisible. Each VM runs
+one attempt at a time, retaining its own lease and journals.
+Preparation remains per VM: each free slot takes the next registered VM, and
+the preparation queue drains even after an individual VM fails.
+Baseline helper refresh runs once after preparation workers finish.
 Cancellation stops queued work and waits for active cleanup; an active baseline
 replacement finishes before returning cancellation because it has no cooperative
 stop protocol. Multiple preparation selections are confirmed together before

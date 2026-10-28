@@ -1,4 +1,5 @@
 from tests.support.modules import load_module
+import json
 import os
 import stat
 import subprocess
@@ -67,7 +68,9 @@ def test_environment_guard_accepts_relocated_checkout_in_product_free_guest(tmp_
     # Load the fixture's actual preparer so its __file__ ownership check stays
     # intact. Do not require Git metadata in the package build's source tree.
     (checkout / 'config/test-vm.json').write_text(
-        '{"vms":[{"name":"another-test-vm","disk_anchor":"/images/base.qcow2"}]}')
+        '{"families":[{"family":"fixture","package_format":"deb",'
+        '"fixture_path":"common/ubuntu/common","vms":[{"name":"another-test-vm",'
+        '"disk_anchor":"/images/base.qcow2"}]}]}')
     monkeypatch.setattr(prepare.vm_config, 'CONFIG', checkout / 'config/test-vm.json')
     native_load = prepare.vm_config.load
     monkeypatch.setattr(prepare.vm_config, 'load', lambda name: native_load(name, checkout / 'config/test-vm.json'))
@@ -498,6 +501,18 @@ def test_clean_digest_separates_fixture_payloads_from_environment_and_shared_sou
         target.write_bytes((ROOT / relative).read_bytes())
     original = prepare.preparation_digest(tmp_path, os_id=os_id)
     assert prepare.preparation_files(os_id) == prepare.SCRIPT_FILES
+    config = tmp_path / 'config/test-vm.json'
+    source_config = config.read_text()
+    document = json.loads(source_config)
+    document['concurrency'] = 17
+    for family in document['families']:
+        family['fixture_path'] = 'replacement/fixture/directory'
+        for index, entry in enumerate(family['vms']):
+            entry['id'] = str(index + 100)
+            entry['enabled'] = 'false'
+    config.write_text(json.dumps(document))
+    assert prepare.preparation_digest(tmp_path, os_id=os_id) == original
+    config.write_text(source_config)
     fixture_path = tmp_path / 'tests/fixtures/onpc_test_application.c'
     fixture_path.write_bytes(fixture_path.read_bytes() + b'\n/* fixture-only edit */\n')
     assert prepare.preparation_digest(tmp_path, os_id='ubuntu') == original

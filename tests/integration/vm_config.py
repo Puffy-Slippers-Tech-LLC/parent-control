@@ -10,6 +10,7 @@ import sys
 
 
 CONFIG = Path(__file__).resolve().parents[2] / 'config/test-vm.json'
+FIXTURE_ROOT = Path(__file__).resolve().parents[1] / 'fixtures'
 URI = 'qemu:///system'
 STATE_ROOT = Path('/Data/virt-manager/oh-no-parent-control-baseline-state')
 VARIABLE = 'ONPC_TEST_VM'
@@ -22,10 +23,11 @@ class VMConfig:
     enabled: bool = False
     id: str | None = None
     package_format: str | None = None
+    family: str | None = None
+    fixture_path: str | None = None
 
     def require_package_format(self):
-        # Non-package maintenance can read an older registry, but no package
-        # consumer may infer a format from a name or silently choose a default.
+        # Consumers must never infer a format from a VM or family name.
         if self.package_format not in ('deb', 'rpm'):
             raise ValueError('vm-config:package_format must explicitly be deb or rpm for ' + self.name)
         return self.package_format
@@ -65,25 +67,60 @@ def read_document(path=None):
         document = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique_keys)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError('vm-config:unreadable; check config/test-vm.json') from error
-    if (not isinstance(document, dict) or not {'vms'} <= set(document) or
-            not set(document) <= {'vms', 'concurrency', 'backup_root', 'fixture_targets'} or
-            not isinstance(document['vms'], list) or not document['vms']):
+    if (not isinstance(document, dict) or not {'families'} <= set(document) or
+            not set(document) <= {'families', 'concurrency', 'backup_root'} or
+            not isinstance(document['families'], list) or not document['families']):
         raise ValueError('vm-config:fields')
     if 'backup_root' in document:
         absolute_path(document['backup_root'], 'backup_root')
-    targets = document.get('fixture_targets', {})
-    if not isinstance(targets, dict):
-        raise ValueError('vm-config:fixture_targets must be a qualified VM name-to-platform map')
-    for name, target in targets.items():
-        validate_name(name)
-        if target not in ('ubuntu', 'fedora'):
-            raise ValueError('vm-config:fixture_targets platform must be ubuntu or fedora')
     return document
 
 
 def fixture_targets(path=None):
-    """Explicitly qualified fixture targets; registration alone grants no route."""
-    return read_document(path).get('fixture_targets', {})
+    """Adapt directory recipes to the existing finite fixture builder targets."""
+    targets = {}
+    for vm in registry(path).values():
+        root = FIXTURE_ROOT.resolve()
+        directory = (root / vm.fixture_path).resolve()
+        if not directory.is_relative_to(root) or not directory.is_dir():
+            raise ValueError('vm-config:fixture_path must name a directory under tests/fixtures')
+        while True:
+            recipe = directory / 'recipe.json'
+            if recipe.exists():
+                if not recipe.resolve().is_relative_to(root):
+                    raise ValueError('vm-config:fixture recipe escapes tests/fixtures')
+                try:
+                    document = json.loads(recipe.read_text(encoding='utf-8'),
+                                          object_pairs_hook=unique_keys)
+                except (OSError, UnicodeError, json.JSONDecodeError) as error:
+                    raise ValueError('vm-config:unreadable fixture recipe') from error
+                if (not isinstance(document, dict) or set(document) != {'target'} or
+                        document['target'] not in ('ubuntu', 'fedora')):
+                    raise ValueError('vm-config:fixture recipe target must be ubuntu or fedora')
+                targets[vm.name] = document['target']
+                break
+            if directory == root:
+                raise ValueError('vm-config:fixture_path has no recipe.json')
+            directory = directory.parent
+    return targets
+
+
+def validate_family(document):
+    if (not isinstance(document, dict) or
+            set(document) != {'family', 'package_format', 'fixture_path', 'vms'} or
+            not isinstance(document['vms'], list) or not document['vms']):
+        raise ValueError('vm-config:family fields')
+    family = document['family']
+    if not isinstance(family, str) or not family.strip() or any(ord(char) < 32 for char in family):
+        raise ValueError('vm-config:family must be a nonempty literal string')
+    if document['package_format'] not in ('deb', 'rpm'):
+        raise ValueError('vm-config:package_format must explicitly be deb or rpm')
+    value = document['fixture_path']
+    if (not isinstance(value, str) or not value or value.startswith('/') or
+            any(ord(char) < 32 for char in value) or
+            any(part in {'', '.', '..'} for part in value.split('/'))):
+        raise ValueError('vm-config:fixture_path; use a relative directory without traversal')
+    return document
 
 
 def absolute_path(value, field):
@@ -109,16 +146,22 @@ def configuration(path=None):
     result = {}
     anchors = set()
     ids = set()
-    for entry in document['vms']:
-        configured = validate_entry(entry)
-        if configured.name in result or configured.disk_anchor in anchors:
-            raise ValueError('vm-config:duplicate-vm-or-disk')
-        result[configured.name] = configured
-        anchors.add(configured.disk_anchor)
-        if configured.id is not None:
-            if configured.id in ids:
-                raise ValueError('vm-config:duplicate-id')
-            ids.add(configured.id)
+    families = set()
+    for family in document['families']:
+        validate_family(family)
+        if family['family'] in families:
+            raise ValueError('vm-config:duplicate-family')
+        families.add(family['family'])
+        for entry in family['vms']:
+            configured = validate_entry(entry, family)
+            if configured.name in result or configured.disk_anchor in anchors:
+                raise ValueError('vm-config:duplicate-vm-or-disk')
+            result[configured.name] = configured
+            anchors.add(configured.disk_anchor)
+            if configured.id is not None:
+                if configured.id in ids:
+                    raise ValueError('vm-config:duplicate-id')
+                ids.add(configured.id)
     for vm in result.values():
         if vm.id in result and result[vm.id] != vm:
             raise ValueError('vm-config:ambiguous-id-or-name')
@@ -156,10 +199,10 @@ def execution(name=None, path=None):
     return min(concurrency, len(vms)), vms
 
 
-def validate_entry(document):
+def validate_entry(document, family):
     if (not isinstance(document, dict) or
             not {'name', 'disk_anchor'} <= set(document) or
-            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id', 'package_format'}):
+            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id'}):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
     value = document['disk_anchor']
@@ -173,10 +216,8 @@ def validate_entry(document):
             identifier = str(identifier)
         if not isinstance(identifier, str) or not re.fullmatch(r'[1-9][0-9]*', identifier):
             raise ValueError('vm-config:id must be a positive decimal integer or string')
-    package_format = document.get('package_format')
-    if 'package_format' in document and package_format not in ('deb', 'rpm'):
-        raise ValueError('vm-config:package_format must explicitly be deb or rpm')
-    return VMConfig(name, Path(value), enabled == 'true', identifier, package_format)
+    return VMConfig(name, Path(value), enabled == 'true', identifier,
+                    family['package_format'], family['family'], family['fixture_path'])
 
 
 def load(name=None, path=None):

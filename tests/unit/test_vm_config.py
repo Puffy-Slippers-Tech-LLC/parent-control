@@ -21,15 +21,26 @@ from tests.support.vm_runner import lease_rig
 
 def write_config(tmp_path, **changes):
     path = tmp_path / 'test-vm.json'
-    document = {'name': 'custom-test-vm', 'disk_anchor': '/images/base.qcow2', 'package_format': 'deb'}
-    path.write_text(json.dumps({'vms': [{**document, **changes}]}))
+    package_format = changes.pop('package_format', 'deb')
+    family = changes.pop('family', 'custom literal family')
+    fixture_path = changes.pop('fixture_path', 'common/ubuntu/common')
+    document = {'name': 'custom-test-vm', 'disk_anchor': '/images/base.qcow2'}
+    path.write_text(json.dumps({'families': [{'family': family,
+        'package_format': package_format, 'fixture_path': fixture_path,
+        'vms': [{**document, **changes}]}]}))
     return path
+
+
+def entries(document):
+    return [entry for family in document['families'] for entry in family['vms']]
 
 
 def test_shared_config_selects_domain_hostname_disk_and_separate_state(tmp_path):
     configured = vm_config.load('custom-test-vm', write_config(tmp_path))
     assert configured.name == 'custom-test-vm'
     assert configured.disk_anchor == Path('/images/base.qcow2')
+    assert configured.family == 'custom literal family'
+    assert configured.fixture_path == 'common/ubuntu/common'
     assert configured.baseline_directory == vm_config.STATE_ROOT / 'custom-test-vm'
     assert host.DOMAIN == vm_config.selected().name
     assert guest.HOSTNAME == vm_config.selected().hostname
@@ -43,6 +54,9 @@ def test_shared_config_selects_domain_hostname_disk_and_separate_state(tmp_path)
     {'name': []}, {'disk_anchor': 'relative.qcow2'}, {'disk_anchor': '/images/../disk'},
     {'disk_anchor': '/images//disk'}, {'disk_anchor': '/images/disk\n'},
     {'disk_anchor': None}, {'unexpected': True},
+    {'family': ''}, {'family': None}, {'family': 'family\nname'},
+    {'fixture_path': '../outside'}, {'fixture_path': '/absolute'},
+    {'fixture_path': 'common//ubuntu'}, {'fixture_path': None},
 ])
 def test_invalid_config_is_refused_before_resource_access(tmp_path, changes):
     with pytest.raises(ValueError, match='vm-config:'):
@@ -50,7 +64,8 @@ def test_invalid_config_is_refused_before_resource_access(tmp_path, changes):
 
 
 @pytest.mark.parametrize('contents', ['{', '[]', '{}',
-    '{"name":"first","name":"second","disk_anchor":"/disk"}'])
+    '{"name":"first","name":"second","disk_anchor":"/disk"}',
+    '{"vms":[{"name":"legacy","disk_anchor":"/disk"}]}'])
 def test_malformed_or_ambiguous_configuration_is_refused(tmp_path, contents):
     path = tmp_path / 'test-vm.json'
     path.write_text(contents)
@@ -78,11 +93,11 @@ def test_invalid_declared_package_formats_refuse_without_a_default(tmp_path, val
 def test_missing_package_format_refuses_the_entire_test_queue_before_binding(selector_config, monkeypatch):
     import vm_selection
     path, document = selector_config
-    document['vms'][1].pop('package_format')
+    document['families'][1].pop('package_format')
     path.write_text(json.dumps(document))
     bind = Mock()
     monkeypatch.setattr(vm_selection, 'select', bind)
-    with pytest.raises(ValueError, match='package_format.*Beta-guest'):
+    with pytest.raises(ValueError, match='vm-config:family fields'):
         vm_selection.execution_selection()
     bind.assert_not_called()
 
@@ -91,9 +106,11 @@ def test_missing_package_format_refuses_the_entire_test_queue_before_binding(sel
 def selector_config(tmp_path, monkeypatch):
     path = tmp_path / 'config/test-vm.json'
     path.parent.mkdir()
-    document = {'concurrency': 2, 'vms': [
-        {'id': '17', 'name': 'Alpha-guest', 'disk_anchor': '/alpha', 'enabled': 'true', 'package_format': 'deb'},
-        {'id': 83, 'name': 'Beta-guest', 'disk_anchor': '/beta', 'enabled': 'true', 'package_format': 'rpm'}]}
+    document = {'concurrency': 2, 'families': [
+        {'family': 'alpha family', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
+         'vms': [{'id': '17', 'name': 'Alpha-guest', 'disk_anchor': '/alpha', 'enabled': 'true'}]},
+        {'family': 'beta family', 'package_format': 'rpm', 'fixture_path': 'common/fedora/common',
+         'vms': [{'id': 83, 'name': 'Beta-guest', 'disk_anchor': '/beta', 'enabled': 'true'}]}]}
     path.write_text(json.dumps(document))
     monkeypatch.setattr(vm_config, 'CONFIG', path)
     return path, document
@@ -104,10 +121,10 @@ def test_ids_are_fresh_lookups_after_swapping_in_the_same_process(selector_confi
     path, document = selector_config
     for swapped in (False, True):
         if swapped:
-            first, second = document['vms']
+            first, second = entries(document)
             first['id'], second['id'] = second['id'], first['id']
             path.write_text(json.dumps(document))
-        for entry in document['vms']:
+        for entry in entries(document):
             identifier = str(entry['id'])
             by_name = vm_config.load(entry['name'])
             assert vm_config.load(identifier) == by_name
@@ -123,7 +140,7 @@ def test_ids_are_fresh_lookups_after_swapping_in_the_same_process(selector_confi
 @pytest.mark.parametrize('identifier', [None, '', '0', 0, -1, True, '01', '1.5', ' 17', 'guest', [], {}])
 def test_invalid_ids_fail_closed(selector_config, identifier):
     path, document = selector_config
-    document['vms'][0]['id'] = identifier
+    entries(document)[0]['id'] = identifier
     path.write_text(json.dumps(document))
     with pytest.raises(ValueError, match='vm-config:id'):
         vm_config.registry()
@@ -133,9 +150,9 @@ def test_invalid_ids_fail_closed(selector_config, identifier):
 def test_ids_cannot_ambiguously_select_another_guest(selector_config, collision):
     path, document = selector_config
     if collision == 'duplicate':
-        document['vms'][1]['id'] = int(document['vms'][0]['id'])
+        entries(document)[1]['id'] = int(entries(document)[0]['id'])
     else:
-        document['vms'][1]['name'] = document['vms'][0]['id']
+        entries(document)[1]['name'] = entries(document)[0]['id']
     path.write_text(json.dumps(document))
     with pytest.raises(ValueError, match='vm-config:(duplicate-id|ambiguous-id-or-name)'):
         vm_config.load('17')
@@ -144,7 +161,7 @@ def test_ids_cannot_ambiguously_select_another_guest(selector_config, collision)
 def test_deleted_id_never_uses_an_earlier_lookup(selector_config):
     path, document = selector_config
     assert vm_config.load('17').name == 'Alpha-guest'
-    document['vms'][0]['id'] = '96'
+    entries(document)[0]['id'] = '96'
     path.write_text(json.dumps(document))
     with pytest.raises(ValueError, match='unknown-vm'):
         vm_config.load('17')
@@ -157,22 +174,22 @@ def test_all_and_make_vm_selectors_rebind_from_json(selector_config):
     from vm_selection import make_command, execution_binding
     path, document = selector_config
     make_e2e = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))['make_arguments']
-    for entry in document['vms']:
+    for entry in entries(document):
         for selector in (str(entry['id']), entry['name']):
             args, selected = test_commands.vm_request(['all', '--vm', selector])
             assert args == ['all'] and selected.name == entry['name']
-            assert execution_binding() == entry['name']
+            assert execution_binding() == {'concurrency': 1, 'vms': [entry['name']]}
             for target in ('all', 'all-verify', 'system', 'appsnapshot'):
                 command = make_command(ROOT, target, {'ONPC_MAKE_VM': selector})
                 assert command[-2:] == ['--vm', entry['name']]
             assert make_e2e({'ONPC_E2E_VM': selector}) == ['--vm', entry['name']]
-    document['vms'][0]['id'], document['vms'][1]['id'] = (
-        document['vms'][1]['id'], document['vms'][0]['id'])
+    entries(document)[0]['id'], entries(document)[1]['id'] = (
+        entries(document)[1]['id'], entries(document)[0]['id'])
     path.write_text(json.dumps(document))
     assert make_command(ROOT, 'all', {'ONPC_MAKE_VM': '17'})[-1] == 'Beta-guest'
     assert make_e2e({'ONPC_E2E_VM': '17'}) == ['--vm', 'Beta-guest']
     test_commands.vm_request(['all', '--vm', '17'])
-    assert execution_binding() == 'Beta-guest'
+    assert execution_binding() == {'concurrency': 1, 'vms': ['Beta-guest']}
 
 
 def test_agent_launchers_resolve_current_ids_before_session_creation(selector_config, monkeypatch):
@@ -184,20 +201,20 @@ def test_agent_launchers_resolve_current_ids_before_session_creation(selector_co
     monkeypatch.setattr(write_e2e.launcher, 'select', Mock(return_value=(None, False)))
     for swapped in (False, True):
         if swapped:
-            first, second = document['vms']
+            first, second = entries(document)
             first['id'], second['id'] = second['id'], first['id']
             path.write_text(json.dumps(document))
-        for entry in document['vms']:
+        for entry in entries(document):
             for selector in (str(entry['id']), entry['name']):
                 assert fix_tests.main(['system', '--vm', selector]) == 0
-                assert vm_selection.execution_binding() == entry['name']
+                assert vm_selection.execution_binding() == {'concurrency': 1, 'vms': [entry['name']]}
                 assert write_e2e.select(ROOT, ['--vm', selector]) == (None, False)
-                assert vm_selection.execution_binding() == entry['name']
+                assert vm_selection.execution_binding() == {'concurrency': 1, 'vms': [entry['name']]}
 
 
 def test_disabled_vm_id_is_explicitly_selectable_like_its_name(selector_config):
     path, document = selector_config
-    document['vms'][1]['enabled'] = 'false'
+    entries(document)[1]['enabled'] = 'false'
     path.write_text(json.dumps(document))
     assert vm_config.load('83') == vm_config.load('Beta-guest')
     for selector in ('83', 'Beta-guest'):
@@ -216,10 +233,10 @@ def test_installed_dispatcher_keeps_uuid_pins_by_name_when_ids_swap(selector_con
     dispatch.__globals__['VM_UUIDS'] = pins
     for swapped in (False, True):
         if swapped:
-            first, second = document['vms']
+            first, second = entries(document)
             first['id'], second['id'] = second['id'], first['id']
             path.write_text(json.dumps(document))
-        for entry in document['vms']:
+        for entry in entries(document):
             by_id = dispatch(root, ['vm', 'status', '--vm', str(entry['id'])])
             assert by_id == dispatch(root, ['vm', 'status', '--vm', entry['name']])
             assert by_id[3:7] == ['--vm', entry['name'], '--expected-uuid', pins[entry['name']]]
@@ -329,7 +346,8 @@ def test_selection_requires_exact_configured_name(name):
     {'name': 'second', 'disk_anchor': '/disk'}]])
 def test_registry_refuses_ambiguous_entries(tmp_path, entries):
     path = tmp_path / 'config.json'
-    path.write_text(json.dumps({'vms': entries}))
+    path.write_text(json.dumps({'families': [{'family': 'literal', 'package_format': 'deb',
+        'fixture_path': 'common/ubuntu/common', 'vms': entries}]}))
     with pytest.raises(ValueError, match='vm-config:'):
         vm_config.registry(path)
 
@@ -400,19 +418,21 @@ def test_public_vm_commands_refuse_before_privileges_resources_or_sessions(comma
 @pytest.mark.parametrize('concurrency', [0, -1, True, '2', 1.5, None])
 def test_execution_refuses_invalid_concurrency(tmp_path, concurrency):
     path = tmp_path / 'config.json'
-    path.write_text(json.dumps({'concurrency': concurrency, 'vms': [
-        {'name': 'first', 'disk_anchor': '/first', 'enabled': 'true'}]}))
+    path.write_text(json.dumps({'concurrency': concurrency, 'families': [
+        {'family': 'literal', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
+         'vms': [{'name': 'first', 'disk_anchor': '/first', 'enabled': 'true'}]}]}))
     with pytest.raises(ValueError, match='concurrency'):
         vm_config.execution(path=path)
 
 
 def test_execution_selects_only_literal_true_in_registry_order(tmp_path):
     path = tmp_path / 'config.json'
-    path.write_text(json.dumps({'concurrency': 2, 'vms': [
+    path.write_text(json.dumps({'concurrency': 2, 'families': [
+        {'family': 'literal', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common', 'vms': [
         {'name': 'first', 'disk_anchor': '/first', 'enabled': 'true'},
         {'name': 'disabled', 'disk_anchor': '/disabled', 'enabled': 'false'},
         {'name': 'missing', 'disk_anchor': '/missing'},
-        {'name': 'last', 'disk_anchor': '/last', 'enabled': 'true'}]}))
+        {'name': 'last', 'disk_anchor': '/last', 'enabled': 'true'}]}]}))
     concurrency, vms = vm_config.execution(path=path)
     assert concurrency == 2 and [vm.name for vm in vms] == ['first', 'last']
     assert vm_config.execution('last', path)[0] == 1
@@ -429,7 +449,7 @@ def test_execution_selects_only_literal_true_in_registry_order(tmp_path):
 ])
 def test_queue_selectors_resolve_names_ids_disabled_entries_and_aliases(selector_config, selector, expected):
     path, document = selector_config
-    document['vms'][1]['enabled'] = 'false'
+    entries(document)[1]['enabled'] = 'false'
     path.write_text(json.dumps(document))
     concurrency, vms = vm_config.execution(selector)
     assert [vm.name for vm in vms] == expected
@@ -606,18 +626,18 @@ def test_batch_test_selection_and_explicit_diagnosis_obey_enabled_config(selecto
     import test_commands
     import vm_selection
     path, document = selector_config
-    for entry, value in zip(document['vms'], enabled):
+    for entry, value in zip(entries(document), enabled):
         entry['enabled'] = value
     path.write_text(json.dumps(document))
-    names = [entry['name'] for entry in document['vms'] if entry['enabled'] == 'true']
+    names = [entry['name'] for entry in entries(document) if entry['enabled'] == 'true']
     args, configured = test_commands.vm_request(['system'])
     assert args == ['system'] and configured is None
     assert vm_selection.execution_arguments() == ['--vm', ','.join(names)]
     assert vm_selection.execution_binding() == {'concurrency': len(names), 'vms': names}
-    for entry in document['vms']:
+    for entry in entries(document):
         test_commands.vm_request(['system', '--vm', entry['name']])
         assert vm_selection.execution_arguments() == ['--vm', entry['name']]
-        assert vm_selection.execution_binding() == entry['name']
+        assert vm_selection.execution_binding() == {'concurrency': 1, 'vms': [entry['name']]}
 
 
 def test_mixed_host_and_vm_categories_use_queue_without_reinterpreting_host_options(selector_config):
@@ -676,9 +696,14 @@ def test_legacy_controller_lease_excludes_all_named_leases(rig, monkeypatch):
     (['system', '--area', 'authorization', '--test', 'case[param]'], [], True, None),
     (['vm'], [], False, None),
     (['vm'], [], True, 'missing'), (['vm'], [], True, 'malformed'),
+    (['vm'], [], True, 'audit'),
+    (['--resume', '--resume-case=package::history', '--resume-case-only', 'system'], [], False, None),
+    (['--resume', '--resume-case=authorization::case-0', '--resume-case-only', 'system'], [], False, None),
+    (['--resume', '--resume-case=authorization::case-0', '--resume-area-only', 'system'], [], False, None),
 ])
+@pytest.mark.parametrize('workers', [1, 5])
 def test_queue_controller_runs_host_once_and_admits_guests_independently(
-        tmp_path, monkeypatch, requested, expected_host, failed_guest, handoff_fault):
+        tmp_path, monkeypatch, requested, expected_host, failed_guest, handoff_fault, workers):
     from contextlib import contextmanager
     import threading
     import time
@@ -691,10 +716,14 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
     monkeypatch.setattr(runner_evidence, 'ReportEvidence', unexpected)
     monkeypatch.setattr(runner_evidence, 'recover_pending', unexpected)
     monkeypatch.setattr(runner_evidence, 'resolve_reference', unexpected)
-    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True) for index in range(5)]
-    monkeypatch.setenv(vm_selection.BATCH, json.dumps({'vms': [vm.name for vm in vms], 'concurrency': 2}))
+    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True,
+                             family='same family' if index < 3 else 'another family')
+           for index in range(workers)]
+    concurrency = min(2, workers)
+    monkeypatch.setenv(vm_selection.VARIABLE, vms[0].name)
+    monkeypatch.setenv(vm_selection.BATCH, json.dumps({'vms': [vm.name for vm in vms], 'concurrency': concurrency}))
     monkeypatch.setenv('ONPC_RUNNER_INVOCATION', '{"target":"previous-worker"}')
-    monkeypatch.setattr(vm_config, 'registry', lambda: {vm.name: vm for vm in vms})
+    monkeypatch.setattr(vm_config, 'registry', lambda *args: {vm.name: vm for vm in vms})
     monkeypatch.setattr(queue.test_activity, 'retention_path', lambda root: tmp_path / 'journal')
     monkeypatch.setattr(queue.test_launcher, 'environment', lambda root: dict(os.environ))
     original_allocate = queue.test_retention.allocate
@@ -709,33 +738,81 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
     monkeypatch.setattr(test_commands, '_main', lambda argv, **kwargs: hosts.append(argv) or 0)
     monkeypatch.setattr(test_commands, 'qualification_artifact_command',
                         lambda *args: pytest.fail('batch must not allocate VM-owned inputs'))
+    identities = {'system': [f'package::case-{index}' for index in range(6)],
+                  'integration': [f'check_case_{index}' for index in range(6)],
+                  'e2e': [f'E2E-004/case-{index}' for index in range(6)]}
+    replay = next((arg.partition('=')[2] for arg in requested if arg.startswith('--resume-case=')), None)
+    if replay == 'package::history':
+        identities['system'] = ['package::history', 'post_install::history']
+    elif replay:
+        identities['system'] = [f'authorization::case-{index}' for index in range(6)]
+    monkeypatch.setattr(queue, 'case_inventory', lambda root, category, options, **kwargs: identities[category])
     calls, active, peak = [], 0, 0
+    failure_vm = None
+    active_cases = set()
     gate = threading.Lock()
     free_started = threading.Event()
+    @contextmanager
+    def vacant(vm, slots, stopped, *, needed):
+        # An occupied VM cannot claim work or consume a case slot. The free
+        # equivalent worker must pull and start the first queued case.
+        if workers > 1 and not replay and vm.name == 'guest-0':
+            assert free_started.wait(5)
+        if not needed():
+            yield None
+            return
+        with slots:
+            yield 'f95890e1-88e7-4779-8ae3-53fdcc34330a:' + 'a' * 32
+    monkeypatch.setattr(queue, 'available_worker', vacant)
     class FakeControl:
         stopped = threading.Event()
         @contextmanager
         def installed(self, **kwargs):
             yield self
         def run(self, command, *, env, output=None, **kwargs):
-            nonlocal active, peak
+            nonlocal active, peak, failure_vm
             mode, name = command[3:5]
             assert env[vm_selection.VARIABLE] == name
+            assert env[vm_selection.WORKER] == '1'
             assert vm_selection.BATCH not in env
             assert 'ONPC_RUNNER_INVOCATION' not in env
+            args, _ = test_commands.execution_arguments(command[5:])
+            category = args[0]
+            case = next(arg.partition('=')[2] for arg in command[5:] if arg.startswith('--resume-case='))
+            family = next(vm.family for vm in vms if vm.name == name)
+            identity = family, category, case
             with gate:
-                calls.append((mode, name))
+                assert identity not in active_cases
+                active_cases.add(identity)
+                calls.append((mode, name, identity))
+                if failed_guest and failure_vm is None:
+                    failure_vm = name
                 assert mode == '--execute'
                 active += 1
                 peak = max(peak, active)
             # A blocked guest must not prevent the next free VM from starting.
-            if name == 'guest-0':
+            if workers > 1 and not replay and name == 'guest-0':
                 assert free_started.wait(5)
-            elif name == 'guest-1':
+            else:
                 free_started.set()
-            assert command[5:] == (requested if 'system' in requested else ['system', 'integration', 'e2e'])
+            if replay:
+                assert case == replay
+                assert ('--resume-area-only' in command[5:]) == ('--resume-area-only' in requested)
+            else:
+                assert '--resume-case-only' in command[5:]
             time.sleep(.02)
-            if name == 'guest-0' and failed_guest:
+            failing = name == failure_vm and failed_guest
+            if not failing or handoff_fault == 'audit':
+                from test_checkpoint import Checkpoint
+                payload = json.loads(Path(env[queue.FAMILY_WORK]).read_text())
+                checkpoint = Checkpoint(tmp_path, test_commands.selections(tmp_path, payload['selection']),
+                                        binding=name)
+                executed = identities[category] if '--resume-area-only' in command[5:] else [case]
+                checkpoint.entry(category)['passed'] = sorted(set(payload['passed'][category]) | set(executed))
+                checkpoint.state['queue_attempt'] = payload['attempt']
+                checkpoint.save()
+                output((queue.CHECKPOINT_READY + payload['attempt'] + '\n').encode())
+            if failing:
                 handoff = tmp_path / 'guest-failure.json'
                 handoff.write_text(json.dumps({'categories': ['e2e'], 'failures': [
                     dict(category='e2e', case='E2E-004/terminal', vm='')]}))
@@ -748,32 +825,89 @@ def test_queue_controller_runs_host_once_and_admits_guests_independently(
                 output(b'test output\nRunner evidence: {broken\nFailure handoff: /expired/report.json\n')
             with gate:
                 active -= 1
-            return 1 if name == 'guest-0' and failed_guest else 0
+                active_cases.remove(identity)
+            return 1 if name == failure_vm and failed_guest else 0
     monkeypatch.setattr(queue, 'Control', FakeControl)
+    if replay:
+        from test_checkpoint import Checkpoint
+        from vm_case_queue import family_binding, work_items, work_key
+        for family in {vm.family for vm in vms}:
+            members = [vm.name for vm in vms if vm.family == family]
+            checkpoint = Checkpoint(tmp_path, [('system', [])], binding=family_binding(family, members),
+                                    namespace='run-tests-family')
+            original_unit = work_items('system', [], identities['system'])[0]
+            key = work_key(original_unit)
+            checkpoint.state.update(queue_claims={key: members[0]}, queue_items={key: original_unit})
+            checkpoint.save()
     assert queue.run(tmp_path, requested) == int(failed_guest)
     assert hosts == expected_host
-    assert len(calls) == len(vms)
-    assert sorted(name for mode, name in calls if mode == '--execute') == [vm.name for vm in vms]
-    assert peak == 2
+    assert len({identity for _, _, identity in calls}) == len(calls)
+    assert peak == concurrency
+    selected_categories = ['system'] if 'system' in requested else ['system', 'integration', 'e2e']
+    if workers > 1 or not failed_guest:
+        assert {identity for _, _, identity in calls} == {
+            (vm.family, category, case) for vm in vms for category in selected_categories
+            for case in ([replay] if replay else identities[category])}
+    else:
+        assert len(calls) == 1
     evidence, = tmp_path.glob('onpc-vm-queue-*')
     if failed_guest:
         handoff = json.loads((evidence / 'failure.json').read_text())
-        if handoff_fault:
-            assert handoff['categories'] == ['system', 'integration', 'e2e']
-            assert handoff['failures'] == [dict(category=kind, case='', vm='guest-0')
-                                          for kind in ('system', 'integration', 'e2e')]
+        if handoff_fault in ('missing', 'malformed'):
+            assert handoff['categories'] == selected_categories
+            assert handoff['failures'] == [dict(category=kind, case='', vm=failure_vm)
+                                          for kind in selected_categories]
         else:
             assert handoff['categories'] == ['e2e']
-            assert handoff['failures'] == [dict(category='e2e', case='E2E-004/terminal', vm='guest-0')]
+            assert handoff['failures'] == [dict(category='e2e', case='E2E-004/terminal', vm=failure_vm)]
     else:
         assert not (evidence / 'failure.json').exists()
     results = json.loads((evidence / 'results.json').read_text())
     assert set(results) == {vm.name for vm in vms}
-    assert [results[vm.name]['status'] for vm in vms] == [int(failed_guest), 0, 0, 0, 0]
+    assert {name: result['status'] for name, result in results.items()} == {
+        vm.name: int(failed_guest and vm.name == failure_vm) for vm in vms}
     assert all(set(result) == {'status', 'handoffs'} for result in results.values())
     for vm in vms:
-        text = (evidence / (vm.name + '.log')).read_text()
-        assert text.startswith('Failure handoff: ' if vm.name == 'guest-0' and failed_guest else 'test output\n')
+        log = evidence / (vm.name + '.log')
+        if log.exists():
+            text = log.read_text()
+            assert text.startswith('Failure handoff: ' if vm.name == failure_vm and failed_guest
+                                   and handoff_fault != 'audit' else queue.CHECKPOINT_READY)
+    if handoff_fault == 'audit':
+        from test_checkpoint import Checkpoint
+        from vm_case_queue import family_binding
+        family, category, case = next(identity for _, name, identity in calls if name == failure_vm)
+        checkpoint = Checkpoint(tmp_path, test_commands.selections(tmp_path, queue.split(tmp_path, requested)[1]),
+            resume=True, binding=family_binding(family, [vm.name for vm in vms if vm.family == family]),
+            namespace='run-tests-family')
+        assert case not in checkpoint.passed(category)
+        assert failure_vm in checkpoint.state['queue_claims'].values()
+        with pytest.raises(ValueError, match='family cases remain claimed'):
+            queue.run(tmp_path, requested)
+        attempts = len(calls)
+        failed_guest = False
+        assert queue.run(tmp_path, ['--resume', *requested]) == 0
+        assert calls[attempts:]
+        replayed = [identity for _, _, identity in calls[attempts:]]
+        assert (family, category, case) in replayed
+        assert set(replayed) & {identity for _, _, identity in calls[:attempts]} == {(family, category, case)}
+    if replay:
+        from test_checkpoint import Checkpoint
+        from vm_case_queue import family_binding
+        for family in {vm.family for vm in vms}:
+            checkpoint = Checkpoint(tmp_path, [('system', [])], resume=True, binding=family_binding(
+                family, [vm.name for vm in vms if vm.family == family]), namespace='run-tests-family')
+            expected = identities['system'] if '--resume-area-only' in requested else [replay]
+            assert checkpoint.passed('system') == set(expected)
+            assert checkpoint.complete('system') == (set(expected) == set(identities['system']))
+    if not failed_guest and not replay:
+        from test_checkpoint import Checkpoint
+        # An equivalent worker's earlier private selection cannot invalidate
+        # shared family progress or make already accepted cases run again.
+        Checkpoint(tmp_path, [('system', ['--area', 'package'])], binding=vms[0].name)
+        attempts = len(calls)
+        assert queue.run(tmp_path, ['--resume', *requested]) == 0
+        assert len(calls) == attempts
 
 
 def test_focused_queue_split_preserves_resume_and_exact_options():

@@ -9,9 +9,15 @@ another baseline, download a new image, or create a replacement domain.
 
 [config/test-vm.json](../../config/test-vm.json) is the single configuration for
 guest preparation, host capture, installed-system/E2E runners and VM maintenance.
-Its `vms` array contains one object per existing VM, each with a unique `name`
-and absolute base QCOW2 `disk_anchor`, plus `enabled` as the string `"true"` or
-`"false"`. Test and preparation selection follow the
+Its `families` array groups equivalent VMs. Each family has an opaque literal
+`family` label, an explicit `package_format` (`deb` or `rpm`), a `fixture_path`
+relative to `tests/fixtures`, and a `vms` array. Family names are not parsed or
+checked against guest OS metadata. Fixture directory composition follows the
+[fixture contract](../support/README.md#frozen-native-fixture-bundles).
+Each VM has a globally unique `name` and selector `id`, an absolute base QCOW2
+`disk_anchor`, and `enabled` as the string `"true"` or `"false"`. IDs are lookup
+and ordering values; they encode no family, package or fixture behavior.
+Test and preparation selection follow the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#authority-and-operation): optional
 `--vm` accepts names/IDs, lists, `all-enabled`, or `all`, defaulting to enabled
 entries except `tools/prepare-vm`, which defaults to `all` in both modes,
@@ -150,7 +156,7 @@ exclusively. Finish tests and stop maintenance on the same VM before preparation
 Guest identity and snapshot isolation configuration, and loader sources, are included
 in the preparation digest. Changing them requires matching guest preparation
 before a new baseline can be accepted. Queue `concurrency`, per-VM `enabled`
-flags and selector IDs are excluded: changing scheduling does not invalidate
+flags, selector IDs and movable `fixture_path` selections are excluded: changing scheduling does not invalidate
 prepared baselines or derived app snapshots.
 This is development tooling: activation is the next invocation (installed UUID
 pinning is refreshed by host preparation); no product activation or data migration.

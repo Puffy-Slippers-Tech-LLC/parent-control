@@ -86,6 +86,11 @@ def main(argv=None):
                         return status
                     test_retention.Store(test_activity.retention_path(root)).discard_completed(lambda paths: None)
                 status = cleanup(root)
+                if not status:
+                    from test_checkpoint import recover_family_claims
+                    recovered = recover_family_claims(root, vm.name)
+                    if recovered:
+                        print(f'cleanup-e2e: returned {recovered} interrupted family cases to pending', flush=True)
             if status:
                 return status
         return cleanup_host(root)

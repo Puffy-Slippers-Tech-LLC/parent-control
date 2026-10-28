@@ -30,7 +30,7 @@ def baseline_restoration(args, configured):
     with reservation(configured.name):
         store = Store(directory('state') / ('retention-baseline-restoration-' + configured.name))
         with store.session():
-            selection = prepare(target=targets[configured.name])
+            selection = prepare(target=targets[configured.name], fixture_path=configured.fixture_path)
             return subprocess.run(['/usr/bin/pkexec', '--keep-cwd',
                 '/usr/local/libexec/onpc-test-runner', *checkout_arguments(), 'vm',
                 '--vm', configured.name, *args, '--fixture-selection',
@@ -82,7 +82,7 @@ def fixture_maintenance(args, configured):
         if state is None:
             raise ValueError('start fixture maintenance before syncing fixtures')
         with store.session(run=state['run']):
-            selection = prepare(target=targets[configured.name])
+            selection = prepare(target=targets[configured.name], fixture_path=configured.fixture_path)
             return invoke(['sync-fixtures', '--fixture-selection',
                            json.dumps(selection.record(), sort_keys=True)])
 

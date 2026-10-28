@@ -16,6 +16,7 @@ selected = vm_config.selected
 registry = vm_config.registry
 VARIABLE = vm_config.VARIABLE
 BATCH = 'ONPC_TEST_VM_BATCH'
+WORKER = 'ONPC_TEST_VM_WORKER'
 SELECTOR_HELP = ('VM name or ID, comma-separated names/IDs, all-enabled (default), '
                  'or all (including disabled VMs); config concurrency limits active work')
 BASELINE_INSTRUCTIONS = (
@@ -39,8 +40,10 @@ def execution_selection(name=None):
     check_queue(vms)
     for vm in vms:
         vm.require_package_format()
+    if os.environ.get(WORKER) == '1' and len(vms) != 1:
+        raise ValueError('vm-config: an internal worker requires exactly one VM')
     select(vms[0].name)
-    if name is None or name in ('all', 'all-enabled') or len(vms) > 1:
+    if os.environ.get(WORKER) != '1':
         os.environ[BATCH] = json.dumps({'concurrency': concurrency, 'vms': [vm.name for vm in vms]})
     else:
         os.environ.pop(BATCH, None)
@@ -92,9 +95,10 @@ def execution_instructions():
     if BATCH in os.environ:
         queue = json.loads(os.environ[BATCH])
         return (f"Run VM tests through tools/run-tests --vm {','.join(queue['vms'])}: "
-                f"it executes the selected VMs, at most {queue['concurrency']} simultaneously. "
+                f"selected VMs pull queued cases, at most {queue['concurrency']} simultaneously. "
+                "Each selected case runs once per family; VMs in the same family are interchangeable workers. "
                 "Use an explicit --vm NAME only for scoped diagnosis, maintenance or preparation. "
-                "Complete required live validation on every selected VM before closing the task. "
+                "Complete required live validation for every selected family before closing the task. "
                 + PREPARATION_INSTRUCTIONS)
     vm = selected(required=False)
     selection = (f'Every VM command must include --vm {vm.name}; Make VM targets use VM={vm.name}. '

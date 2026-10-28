@@ -38,6 +38,7 @@ def paced_host_journals(request, monkeypatch):
 @pytest.fixture(autouse=True)
 def configured_vm_fixture(monkeypatch):
     monkeypatch.delenv('ONPC_TEST_VM_BATCH', raising=False)
+    monkeypatch.delenv('ONPC_TEST_VM_WORKER', raising=False)
     monkeypatch.setenv(vm_config.VARIABLE, vm_name())
     vm_config.select(vm_name())
     yield

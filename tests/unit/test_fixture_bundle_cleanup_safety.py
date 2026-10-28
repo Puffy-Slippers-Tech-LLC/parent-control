@@ -130,16 +130,42 @@ def assert_cleanup(private_store, witness, before):
 
 @pytest.mark.parametrize('target', ['ubuntu', 'fedora'])
 def test_freeze_copies_exact_closure_and_modes(source_root, tmp_path, target):
+    fixtures = source_root / 'tests/fixtures'
+    selected = 'common/' + target + '/common'
+    directory = fixtures / selected
+    directory.mkdir(parents=True)
+    # Generation composes shared, distro and leaf sources before compiling;
+    # a sibling distribution never contributes to the selected source closure.
+    (directory.parent / 'recipe.json').write_text('{"target":"' + target + '"}')
+    for layer, name, data in (
+            (fixtures / 'common', GUI, b'# shared GUI\n'),
+            (directory.parent, AUTOMATION, b'# distro automation\n'),
+            (fixtures / 'common', SOURCE, b'int shared_fixture;\n'),
+            (directory, SOURCE, b'int selected_fixture;\n'),
+            (fixtures / 'common/sibling', GUI, b'# sibling GUI\n')):
+        path = layer / 'files' / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        path.chmod(0o640)
     destination = tmp_path / 'frozen'
     destination.mkdir()
-    records, environment = bundle.freeze(source_root, destination, target)
+    records, environment = bundle.freeze(source_root, destination, target, fixture_path=selected)
     assert set(records) == set(CLOSURE)
-    assert bundle.source_snapshot(destination) == bundle.source_snapshot(source_root)
+    assert bundle.source_snapshot(destination) == bundle.source_snapshot(
+        source_root, target=target, fixture_path=selected)
+    assert (destination / GUI).read_bytes() == b'# shared GUI\n'
+    assert (destination / AUTOMATION).read_bytes() == b'# distro automation\n'
+    assert (destination / SOURCE).read_bytes() == b'int selected_fixture;\n'
+    assert (source_root / SOURCE).read_bytes() == b'int fixture;\n'
     assert environment == bundle.environment_inputs(destination, target)
     assert {str(path.relative_to(destination)) for path in destination.rglob('*')
             if path.is_file()} == set(CLOSURE) | set(ENVIRONMENT_FILES)
     assert not (destination / 'product.py').exists()
     assert (destination / SOURCE).stat().st_ino != (source_root / SOURCE).stat().st_ino
+    unknown = directory / 'files/undeclared.txt'
+    unknown.write_bytes(b'not a declared source\n')
+    with pytest.raises(ValueError, match='unsupported fixture source override'):
+        bundle.source_snapshot(source_root, target=target, fixture_path=selected)
 
 
 @pytest.mark.parametrize('changed', [SOURCE, 'debian/control'])

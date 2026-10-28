@@ -56,6 +56,19 @@ Construction freezes the finite `artifact_inputs.NATIVE_RUNTIME_SOURCES`, compil
 eight identities with the existing native compiler helper, and assembles in a
 fresh interpreter loading only the frozen declarations. Original and frozen
 sources are rechecked before atomic publication of the completed child directory.
+The configured family's `fixture_path` selects a directory under `tests/fixtures`.
+Its nearest ancestor `recipe.json` selects the existing Ubuntu or Fedora builder
+with `{"target":"ubuntu"}` or `{"target":"fedora"}`. Standalone target builds
+use `common/ubuntu/common` or `common/fedora/common`. Shared sources remain in
+their existing locations. A selected directory or its ancestors may override a
+finite source by placing it at `files/` followed by its repository-relative path;
+each ancestor's `files/` tree is read recursively, and the nearest override wins.
+Sibling directories contribute nothing. Unknown source files refuse rather than
+being silently omitted: generated runtime destinations remain the finite native
+declaration, rather than arbitrary copied input files. Overrides are composed
+before compilation and freeze to the same canonical source paths,
+so effective byte or mode changes invalidate the input identity and private frozen
+copies retain the selected inputs. Links and paths outside the fixture root refuse.
 Producer registration, inherited compiler/container leases and exact cleanup
 remain with the [storage owner](../../docs/Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes).
 Concurrent native builds use `Store.queued_producer()` to wait on a shared build

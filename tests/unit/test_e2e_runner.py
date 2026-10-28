@@ -46,6 +46,8 @@ def checkout(tmp_path):
     for relative in ('tests/e2e/runner.py', 'tests/e2e/inventory.py',
                      'tests/integration/test_account_password.py', 'tests/integration/vm_config.py',
                      'config/test-vm.json',
+                     'tests/fixtures/common/ubuntu/common/recipe.json',
+                     'tests/fixtures/common/fedora/common/recipe.json',
                      'tests/e2e/scenarios.json', 'tests/e2e/controller_qualification.py',
                      'tests/e2e/parent_about.py', 'tests/e2e/parent_discovery.py',
                      'tests/e2e/command_help.py',
@@ -370,6 +372,9 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
     # from acquiring the enclosing test run's retention lock.
     aggregate = Mock(side_effect=AssertionError('unexpected aggregate dispatch'))
     monkeypatch.setattr(regression, 'main', aggregate)
+    # Exercise command construction inside a guarded worker. Public single-VM
+    # requests now enter the family queue and spawn an isolated worker.
+    monkeypatch.setenv('ONPC_TEST_VM_WORKER', '1')
     with tempfile.TemporaryDirectory(prefix='onpc-e2e-command-test-', dir='/tmp') as directory:
         build = Mock(return_value=SimpleNamespace(returncode=status))
         execute = Mock()

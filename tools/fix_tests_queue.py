@@ -386,26 +386,10 @@ class RepairGate:
 
 def case_inventory(root, category, options):
     """Use the runner's original order and selectors, including lifecycle phases."""
-    if category == 'system':
-        from vm_selection import selected
-        from test_commands import execution_selections
-        import re
-        cases = []
-        for _, arguments in execution_selections(root, [('system', list(options))]):
-            command = [str(root / 'tools/run-tests'), 'system', *arguments,
-                       '--vm', selected().name, '--list']
-            result = subprocess.run(command, cwd=root, env=launcher.environment(),
-                                    capture_output=True, text=True, check=True,
-                                    pass_fds=(*launcher.scratch_descriptors(), *repair_descriptors()))
-            cases.extend(match[1] for line in result.stdout.splitlines()
-                         if (match := re.fullmatch(r'    (\S+::\S+) \[selected\](?: \[system-\d+\])?', line)))
-    elif category == 'e2e':
-        import runpy
-        runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
-        plan = runner['preflight'](list(options), root=root, allow_missing_artifacts=True)
-        if 'cases' not in plan:
-            return None  # Qualification selectors remain one non-case operation.
-        cases = [case['case_id'] for case in plan['cases']]
+    if category in ('system', 'integration', 'e2e'):
+        from vm_case_queue import case_inventory as collect
+        return collect(root, category, options,
+                       pass_fds=(*launcher.scratch_descriptors(), *repair_descriptors()))
     else:
         from regression_process import Control
         from regression_events import PREFIX
@@ -451,68 +435,146 @@ def run_cases(root, category, options, execute, gate, *, inventory, round_number
     Scoped runners retain the original checkpoint selectors and reconstruct
     required lifecycle prerequisites. Its teardown-complete checkpoint owns credit.
     """
-    from test_checkpoint import Checkpoint, INDEPENDENT_SYSTEM_AREAS
+    return run_family_cases(root, category, options, execute, gate,
+                            inventory=inventory, round_number=round_number,
+                            completed_categories=completed_categories)
+
+
+class FamilyCases:
+    """Small shared claim journal inside the existing repair-run allocation.
+
+    The file lock covers selecting and recording a claim together. A failed or
+    interrupted claim stays with its VM until that pipeline recovers it; another
+    VM cannot adopt it just because the original process stopped.
+    """
+    def __init__(self, parent, family, category, options, round_number):
+        identity = json.dumps([family, category, options, round_number], sort_keys=True)
+        self.path = launcher.private_directory(parent / 'family-cases') / (
+            hashlib.sha256(identity.encode()).hexdigest() + '.json')
+
+    @contextmanager
+    def state(self, *, write=True):
+        from test_retention import private
+        lock = os.open(self.path.with_suffix('.lock'),
+                       os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        try:
+            private(os.fstat(lock), regular=True)
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            state = json.loads(self.path.read_text()) if self.path.exists() else dict(
+                version=1, completed=[], claims={}, items={})
+            if (state.get('version') != 1 or not isinstance(state.get('completed'), list)
+                    or not isinstance(state.get('claims'), dict)
+                    or not isinstance(state.get('items'), dict)):
+                raise ValueError('invalid family case queue')
+            yield state
+            if write:
+                launcher.atomic(self.path, state)
+        finally:
+            os.close(lock)
+
+
+def run_family_cases(root, category, options, execute, gate, *, inventory,
+                     round_number, completed_categories=()):
+    from test_checkpoint import Checkpoint
     from vm_selection import selected
+    from vm_case_queue import work_items, work_key, claim
+    vm = selected()
     original = [arg for arg in options if arg != '--resume']
+    queue = FamilyCases(parent_run(gate.run) or gate.run, vm.family, category, original, round_number)
     checkpoint = Checkpoint(root, [(category, original)], resume='--resume' in options,
-                            binding=selected().name)
-    inventory_generation = None
+                            binding=vm.name)
+    generation = None
     while True:
         with gate.source():
-            generation = gate.generation()
-            if inventory_generation != generation:
+            current = gate.generation()
+            if current != generation:
                 cases = case_inventory(root, category, original)
+                items = work_items(category, original, cases)
                 totals = case_totals(root, inventory, category, cases) if cases is not None else None
-                inventory_generation = generation
-            if cases is None:
-                gate.last_generation = generation
-                status = execute(original)
-                gate.case_result(status)
-                return status
-            passed = checkpoint.passed(category)
-            case = next((case for case in cases if case not in passed), None)
-            if case is None:
-                break
-            area = category == 'system' and case.partition('::')[0] in INDEPENDENT_SYSTEM_AREAS
-            requested = {case}
-            if area:
-                requested = {candidate for candidate in cases if candidate not in passed
-                             and candidate.partition('::')[0] == case.partition('::')[0]}
-            elif category == 'system':
-                # Target the last selected phase of this logical case once.
-                # The runner executes its predecessors in order and credits
-                # only actual passes; missing predecessors remain queued.
-                logical_case = case.partition('::')[2]
-                case = next(candidate for candidate in reversed(cases)
-                            if candidate not in passed and
-                            candidate.partition('::')[2] == logical_case)
-                requested = {case}
-            print((f'fix-tests: executing system area {case.partition("::")[0]} '
-                   f'({len(requested)} remaining cases)' if area else
-                   f'fix-tests: executing case {case}'), flush=True)
-            publish_case_progress(root, gate.run, category, cases, case, passed,
-                                  totals=totals, round_number=round_number,
-                                  completed_categories=completed_categories, area=area)
-            gate.last_generation = generation
-            status = execute([*original, '--resume', '--resume-case=' + case,
-                              '--resume-area-only' if area else '--resume-case-only'])
+                generation = current
+            checkpoint = Checkpoint(root, [(category, original)], resume=True, binding=vm.name)
+            with queue.state() as state:
+                state['items'].update({work_key(item): item for item in items})
+                state['current'] = [work_key(item) for item in items]
+                accepted = {case for key in state['completed']
+                            for case in state['items'][key]['cases']}
+                if cases is not None:
+                    accepted.intersection_update(cases)
+                state['completed'] = list(set(state['completed']) | {
+                    work_key(item) for item in items if item['cases']
+                    and set(item['cases']) <= accepted})
+                pending = list({work_key(item): item for item in (
+                    *(state['items'][key] for key in state['claims']), *items)}.values())
+                owned = [item for item in pending if state['claims'].get(work_key(item)) == vm.name]
+                item = owned[0] if owned else claim(pending, state['completed'], state['claims'], vm.name)
+            passed = checkpoint.passed(category) | accepted
+            if cases is not None:
+                passed.intersection_update(cases)
+            checkpoint.entry(category)['passed'] = sorted(passed)
+            checkpoint.excluded[category] = passed
+            checkpoint.snapshot(category)
+            checkpoint.save()
+            if item is None:
+                # Other workers may still own work. They must finish before the
+                # parent accepts the family, but this idle VM need not occupy a
+                # concurrency slot while a queued owner recovers its claim.
+                checkpoint.entry(category)['complete'] = True
+                checkpoint.save()
+                return 0
+            requested = set(item['cases'])
+            target = item['case']
+            # Original selectors stay in the VM checkpoint; the shared work
+            # description controls only this bounded attempt's retry scope.
+            if item['case'] is None:
+                arguments = original
+            else:
+                target = (next((case for case in item['cases'] if case not in passed), item['case'])
+                          if item['area'] else item['case'])
+                arguments = [*original, '--resume', '--resume-case=' + target,
+                             '--resume-area-only' if item['area'] else '--resume-case-only']
+            if cases and category in ('system', 'e2e'):
+                publish_case_progress(root, gate.run, category, cases, target,
+                    checkpoint.passed(category), totals=totals, round_number=round_number,
+                    completed_categories=completed_categories, area=item['area'])
+            gate.last_generation = current
+            status = execute(arguments)
             gate.case_result(status)
-        checkpoint = Checkpoint(root, [(category, original)], resume=True, binding=selected().name)
-        publish_case_progress(root, gate.run, category, cases, case, checkpoint.passed(category),
-                              totals=totals, round_number=round_number,
-                              completed_categories=completed_categories, area=area)
-        if status:
-            return status
-        if not requested <= checkpoint.passed(category):
-            raise ValueError('case runner returned success without teardown-complete case evidence')
-    if not set(cases) <= checkpoint.passed(category):
-        raise ValueError('VM selection is incomplete after case execution')
-    checkpoint.entry(category)['complete'] = True
-    checkpoint.save()
-    publish_case_progress(root, gate.run, category, cases, None, checkpoint.passed(category),
-                          totals=totals, round_number=round_number,
-                          completed_categories=completed_categories)
-    return 0
+            if status:
+                return status
+            checkpoint = Checkpoint(root, [(category, original)], resume=True, binding=vm.name)
+            if not requested <= checkpoint.passed(category):
+                raise ValueError('case runner returned success without teardown-complete case evidence')
+            with queue.state() as state:
+                key = work_key(item)
+                if state['claims'].get(key) != vm.name:
+                    raise ValueError('family case claim ownership changed')
+                state['completed'] = list(set(state['completed']) | {key} | {
+                    work_key(candidate) for candidate in items
+                    if set(candidate['cases']) & requested
+                    and set(candidate['cases']) <= checkpoint.passed(category)})
+                del state['claims'][key]
+
+
+def acknowledge_family_retry(root, gate, category, original, round_number, case):
+    """A successful focused runner may finish its owner's retained claim.
+
+    Saved case passes alone do not acknowledge report/recording finalization or
+    cleanup. Call only after the current runner has returned success.
+    """
+    from test_checkpoint import Checkpoint
+    from vm_selection import selected
+    vm = selected()
+    queue = FamilyCases(parent_run(gate.run), vm.family, category, original, round_number)
+    if not queue.path.exists():
+        return
+    checkpoint = Checkpoint(root, [(category, original)], resume=True, binding=vm.name)
+    with queue.state() as state:
+        for key, owner in list(state['claims'].items()):
+            item = state['items'][key]
+            if (owner == vm.name and case in item['cases']
+                    and set(item['cases']) <= checkpoint.passed(category)):
+                state['completed'] = list(set(state['completed']) | {key})
+                del state['claims'][key]
 
 
 def publish_case_progress(root, run, category, cases, case, passed, *, totals, round_number,
@@ -616,7 +678,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
     """Run host work once alongside the independently capped VM pipelines."""
     from fix_tests import category_inventory, requested_inventory
     from vm_queue import dispatch
-    from vm_selection import BATCH, VARIABLE, vm_config
+    from vm_selection import BATCH, VARIABLE, WORKER as VM_WORKER, vm_config
     snapshot = json.loads(os.environ[BATCH])
     listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                              env=launcher.environment(), capture_output=True, text=True, check=True)
@@ -717,7 +779,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
         launcher.atomic(state_path, states)
 
     failed = threading.Event()
-    def execute_owned(name, selection, *, recovery=False):
+    def execute_owned(name, selection, *, recovery=False, receipt=None):
         if control.stopped.is_set() or (run / 'cancel').exists():
             return 130
         if launcher_reload.pending():
@@ -736,12 +798,17 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
         if launcher_reload.current is not None:
             launcher_reload.current.inherit(environment)
         environment.pop(BATCH, None)
+        if receipt is not None:
+            from vm_pool import VARIABLE as CHECKOUT
+            environment[CHECKOUT] = receipt
         if recovery:
             environment[RECOVERY_ONLY] = '1'
         if name == 'host':
             environment.pop(VARIABLE, None)
+            environment.pop(VM_WORKER, None)
         else:
             environment[VARIABLE] = name
+            environment[VM_WORKER] = '1'
         command = ['/usr/bin/python3', '-IBu', str(WORKER),
                    '--reload-worker' if (child / 'reload-ready.json').exists() else '--worker',
                    str(root), str(child), str(owner), model, effort, app_model,
@@ -800,9 +867,40 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             publish()
         return status
 
+    slots = threading.Semaphore(snapshot['concurrency'])
+
+    def needed(name, selection):
+        """An unused busy VM must not delay a family whose queue has drained."""
+        vm = configured[name]
+        for category, spec in selection.items():
+            for number in range(1, int(rounds) + 1):
+                queue = FamilyCases(run, vm.family, category, spec['args'], number)
+                if not queue.path.exists():
+                    return True
+                with queue.state(write=False) as saved:
+                    if not saved['items']:
+                        return True
+                    if name in saved['claims'].values():
+                        return True
+                    if set(saved.get('current', saved['items'])) - set(saved['completed']) - set(saved['claims']):
+                        return True
+        return False
+
     def execute(name, selection, *, recovery=False):
         try:
-            status = execute_owned(name, selection, recovery=recovery)
+            if name == 'host':
+                status = execute_owned(name, selection, recovery=recovery)
+            else:
+                from vm_case_queue import available_worker
+                with available_worker(configured[name], slots,
+                        lambda: control.stopped.is_set() or (run / 'cancel').exists(),
+                        needed=lambda: recovery or needed(name, selection)) as receipt:
+                    if receipt is None:
+                        with output_lock:
+                            states[name]['status'] = 'complete'
+                            publish()
+                        return 0
+                    status = execute_owned(name, selection, recovery=recovery, receipt=receipt)
         except launcher_reload.ReloadRequested:
             # A reload can arrive while the supervisor is waiting for a source
             # lease. No child was admitted; let the other pipelines drain.
@@ -848,7 +946,7 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
     with ThreadPoolExecutor(max_workers=1) as pool:
         host_task = pool.submit(execute, 'host', host) if host else None
         try:
-            results = dispatch(vms, snapshot['concurrency'], lambda vm: execute(vm.name, guests), control.stopped)
+            results = dispatch(vms, len(vms), lambda vm: execute(vm.name, guests), control.stopped)
             if host_task is not None:
                 host_task.result()
         except BaseException:
@@ -856,6 +954,13 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
             raise
     statuses = {name: value['status'] if isinstance(value, dict) else value for name, value in results.items()}
     launcher.atomic(run / 'vm-results.json', results)
+    if not failed.is_set() and not control.stopped.is_set() and not launcher_reload.pending():
+        queues = run / 'family-cases'
+        for path in queues.glob('*.json') if queues.exists() else ():
+            saved = json.loads(path.read_text())
+            if (not saved['items'] or saved['claims']
+                    or not set(saved.get('current', saved['items'])) <= set(saved['completed'])):
+                raise ValueError('family case queue is incomplete after workers finished')
     if any(value['status'] == 'limited' for value in states.values()):
         (run / 'limited').touch(mode=0o600)
     return (1 if failed.is_set() else 130 if control.stopped.is_set() else

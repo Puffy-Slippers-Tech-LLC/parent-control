@@ -1,73 +1,76 @@
-# Bedtime and weekly schedules — proposed backend design
+# Bedtime and weekly schedules — proposed design
 
 [System design overview](../System-Design.md)
 
-Status: proposal, not implemented. This document defines backend behavior and
-integration work; it does not change the current [specification](../Specification.md).
-The current enforcement contract remains in [Screen time](Screen-Time.md).
-No installed acceptance is claimed by this design.
+Status: proposed, not implemented. This does not change the current
+[specification](../Specification.md) or claim installed acceptance.
+Use existing Malcontent APIs and behavior. Add one weekly preference, one
+broker evaluator and integrations in the existing PAM helper and child component.
+No native weekly API, daily window rotation, extra daemon or grant rewriting.
 
-## Scope and policy
+## Policy
 
-Add an optional weekly bedtime schedule for each managed child. Each calendar
-day has one allowed-use window, expressed in the computer's local civil time.
-For example, Monday's 07:00–21:00 window permits ordinary use on Monday from
-07:00 inclusive until 21:00 exclusive. Outside that window, unused daily
-allowance cannot authorize access.
+Each child has seven independent allowed-use windows in the machine's local
+timezone. Monday 07:00–21:00 allows ordinary use from 07:00 inclusive to 21:00
+exclusive. Applying one value to all days or to workdays/weekends is an editing
+convenience, not another policy mode.
 
-The backend stores seven independent day entries. Applying the same schedule
-to every day, or one schedule to Monday–Friday and another to Saturday–Sunday,
-is simply an update of those entries. There is no separate workday/weekend
-policy mode or competing source of schedule truth. Frontends can provide those
-editing conveniences without changing the backend representation.
+The existing master switch controls daily allowance and bedtime together.
+Turning it off retains choices and clears grants as today. Zero daily allowance
+remains grant-only mode. App policy stays independent.
 
-Retain the existing screen-time master switch. When it is off, neither daily
-allowance nor bedtime is enforced and saved choices remain available. When it
-is on, the daily allowance retains its existing meaning, including zero as
-grant-only mode. Bedtime adds a restriction; enabling it does not create a
-daily allowance or change measured usage. App restrictions remain independent.
+An active one-time grant overrides allowance and bedtime until its existing
+elapsed-time expiry. Revocation exposes the current allowance and window.
+Date changes never reset usage or clear, renew, rebase or extend grants.
 
-One-time grants override both daily allowance and bedtime until their existing
-elapsed-time expiry. This includes grants approved before bedtime and grants
-approved while bedtime is in effect. Revocation removes that exception and
-exposes the current schedule and daily allowance again. A weekday transition
-must never clear, renew or extend a grant.
+Bounds are minute-aligned integer seconds, `0 <= start < end <= 86400`.
+`(0, 86400)` permits the full day, subject to daily allowance. One window per
+day is supported; multiple windows, crossing-midnight windows and entirely
+blocked days are rejected. Overnight bedtime 21:00–07:00 means allowed use
+07:00–21:00.
 
-## Native backend mapping
+Window membership follows the actual local clock. Skipped clock labels never
+occur; repeated labels obey the same window on both occurrences. Grant expiry
+continues using native elapsed-time semantics.
 
-Malcontent stores one repeating daily window, not a weekly schedule. Our broker
-selects today's entry and materializes it through the public AccountsService
-`com.endlessm.ParentalControls.SessionLimits` interface:
+## Existing backend and one evaluator
 
-| Property | Desired value while screen-time control is on |
-| --- | --- |
-| `DailySchedule` | Today's allowed start/end in seconds since midnight |
-| `DailyLimit` | Existing configured allowance in seconds |
-| `LimitType` | `2` for daily allowance alone; `3` for allowance plus bedtime |
-| `ActiveExtension` | Existing one-time grant, unchanged by schedule rotation |
+Keep live Malcontent time control in its existing daily-allowance mode,
+`LimitType=2`; disabled remains `0`. Keep its daily limit, usage recording,
+grant and existing transaction bridge. Do not persist weekday windows in
+`DailySchedule` or change flags at bedtime, midnight or grant expiry.
 
-Without a grant, usable time is constrained by both the allowance and the
-schedule. An active grant permits access outside the normal window. Follow the
-native semantics rather than introducing a separate grant type or secretly
-clipping grants at bedtime.
+The broker selects today's saved window. It uses the existing public
+`Malcontent.SessionLimitsBuilder` to build an **in-memory** schedule-only
+limit with no allowance or extension. Its `check_time_remaining(now, 0)`
+supplies membership. Nothing from this object is written to AccountsService.
+Read the real grant through native `get_active_extension(now)`, separately:
 
-Native windows require `0 <= start < end <= 86400`. The full-day window is
-`(0, 86400)`. The first version supports one such window per day; a window
-crossing midnight, multiple windows and an entirely blocked day are outside
-this representation and must be rejected rather than approximated. An ordinary
-overnight bedtime such as 21:00–07:00 is represented by allowed use 07:00–21:00.
+```text
+pass if saved master control is off or native limits are disabled
+pass if bedtime is disabled
+pass if the native one-time grant is currently active
+otherwise pass only inside today's allowed window
+```
 
-Reference baseline: malcontent 0.14.0's
-[property contract](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/accounts-service/com.endlessm.ParentalControls.SessionLimits.xml),
-[limit calculation](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent/session-limits.c)
-and [timer estimate interface](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/org.freedesktop.MalcontentTimer1.Child.xml).
-Supported distro builds still require qualification, especially around midnight
-and daylight-saving transitions.
+Passing does not supply daily time; native daily enforcement still applies.
+PAM and the child consume this same broker result, never duplicate weekday
+rules. The fast read obtains preferences and native limits, never usage history,
+authentication or policy writes. Missing/malformed data is unavailable, not off.
 
-## Durable state and backend API
+The native schedule remainder counts civil seconds. Use its membership boolean,
+but calculate elapsed boundaries in one timezone-aware broker helper. Enumerate
+valid civil endpoints and midnights over eight local dates, considering both
+occurrences of ambiguous endpoints and skipping nonexistent ones. Include actual
+timezone transitions, found by bracketing/bisecting public
+[timezone interval lookups](https://docs.gtk.org/glib/method.TimeZone.find_interval.html).
+Select the next membership change. Merge contiguous allowed days; seven full-day
+entries have no bedtime closing. Reload machine timezone rules after changes,
+rather than retaining a startup offset or adding 86400 elapsed seconds.
 
-Extend the existing root-owned per-child [preference record](State.md) with a
-policy section, conceptually:
+## Storage and broker API
+
+Extend the existing root-owned [preference record](State.md):
 
 ```json
 {
@@ -86,153 +89,199 @@ policy section, conceptually:
 }
 ```
 
-Use stable weekday names and integer seconds, with minute-aligned bounds in
-the initial API. Require exactly seven known days and validate every entry,
-even when disabled. Missing legacy bedtime settings normalize to disabled with
-full-day windows, preserving existing behavior. New child defaults are the same.
+Require exactly seven known days and validate disabled settings too. Reject
+booleans as integers, unknown/duplicate JSON keys and partial weeks. Use the
+existing bounded transport. Legacy and new defaults are disabled/full-day.
+Append a new preference-schema migration because older writers must not ignore
+enforcement policy; keep released migrations unchanged. Follow
+[Data migration](Data-Migration.md); no native weekly state is migrated.
 
-Use the existing migration framework for a new preference schema version:
-this adds enforcement policy that an older broker must not silently ignore or
-discard. Append a migration from the current version at implementation time;
-do not modify released migrations. Migration changes records only; native
-policy reconciliation follows separately under the [migration contract](Data-Migration.md).
+Add a complete screen-time-policy save to the product broker, administrator-only.
+Preserve existing signatures. `SetParentControl` retains saved bedtime;
+`SetPreferences` preserves it and keeps its existing storage-only allowance
+semantics. Child/kiosk request-choice writes cannot alter bedtime.
 
-Add an administrator-only system D-Bus operation to save the complete
-screen-time policy: master enablement, daily allowance and weekly bedtime
-settings. Validate caller, current child eligibility and the whole payload
-before effects. Preserve existing method signatures; route their writes through
-the same implementation while retaining any saved bedtime settings. Generic
-preference writes must not provide a way to bypass policy validation or activation.
+Fast bedtime reads and richer status are product broker additions, not new
+Malcontent APIs. Child reads derive the target from bus credentials; privileged
+PAM may select an eligible child. Parent/kiosk reads retain existing target-role
+checks under [Broker](Broker.md). Rich usage status has its existing separate
+query budget; it is never an admission dependency.
 
-Expose read-only schedule and effective-status data to already-authorized
-Parent, child-self and kiosk callers. Child and kiosk request-choice APIs must
-not be able to modify bedtime. Policy reads and writes use the existing broker
-identity and transaction boundaries described in [Broker](Broker.md).
+## Lifetime, concurrency and recovery
 
-## Daily reconciliation and service lifetime
+No root scheduler or boot dependency is needed. Every fast read evaluates the
+current date. The child schedules absolute boundaries and refreshes on policy/
+grant changes, midnight, resume, clock/timezone changes and broker-owner changes.
+A five-second refresh recovers missed signals; a known closing uses its timer,
+not polling.
 
-The broker owns one scheduler across managed children. It must be running while
-weekly bedtime policy requires rotation; a frontend being open is not a
-prerequisite. Reconcile the applicable schedule:
+Give the fast read one three-second end-to-end budget, including native reads
+and at most one retry of a changed snapshot. Keep existing request serialization,
+including Polkit lifetime, but do not acquire that long lock for bedtime reads.
+Mark actual effects and revisions per child. Read only a stable snapshot;
+an unanswered password prompt and another child's transaction cannot block it.
 
-- Before publishing normal policy readiness at broker startup.
-- At each local calendar midnight.
-- On resume and after system-clock or timezone changes.
-- Immediately after a successful parent policy change.
-- Before admitting a managed login or unlock if schedule freshness is uncertain.
+Admission refuses a busy snapshot. An already running desktop can retain its
+last verified permission during mutation contention, until its original
+absolute boundary; contention cannot extend it. Other read failures or owner
+loss lock with an availability error, retaining balances for diagnostics.
+Ignore stale owners/replies and check expiry again when a reply arrives.
 
-Always select from the current local date and timezone, rather than incrementing
-a remembered weekday. Recalculate the next local midnight after each event;
-never assume a day lasts 86400 elapsed seconds. Catch up directly to today's
-policy after downtime, suspension or missed callbacks. Coalesce duplicate events
-and perform idempotent writes only where native state differs.
+Keep the D-Bus main loop free of blocking management work. Register the fast
+read after configuration/native adapters are validated, before startup extension
+reassertion can wait on Shell; complete remaining startup in a worker. Management
+stays not-ready until normal checks pass. Migration/reboot guards remain in
+force. The fast path never enters a user bus, invokes PAM or activates Shell,
+so startup and unlock cannot wait indefinitely on each other.
 
-Use public system clock/timezone and sleep lifecycle notifications, with a
-bounded periodic freshness check as recovery for missed events. Serialize
-reconciliation with policy edits, approvals and revocation through the existing
-shared transaction lock. Contention queues another attempt; it must not drop a
-day transition. Re-read current preferences when the lock is acquired.
+Saved bedtime applies when both saved master control and live native limits
+are enabled. Native `0` means inactive, preserving retained choices after
+[removal/reinstallation](Lifecycle.md#broker-readiness). A parent reapply
+reactivates them. An unexpected enabled type, including a crashed transition
+bridge, is unavailable until verified reapply; stable product state is `2`.
+There is no activation marker, grant reconstruction or recovery journal.
 
-An in-memory freshness key can include the local date, timezone identity and
-policy revision, but is only an optimization. Read back the native state before
-acknowledging reconciliation; after a crash or backend owner replacement, an old
-success marker is not proof of the current policy.
+## Login, unlock and resume
 
-## Admission and running-session enforcement
+Access requires native daily permission **and** the bedtime check. Extend the
+product PAM helper to check bedtime before native fresh-login account checks,
+again at session opening, and before GDM password unlock. Use current time,
+not authentication-start time. Unavailable and confirmed exhausted remain
+distinct. Preserve administrator, kiosk and verified administrative user-bus
+transport exemptions from [existing enforcement](Screen-Time.md#countdown-and-expiry-enforcement).
 
-Retain malcontent as the authority deciding access under the installed daily
-window. Native PAM checks cover fresh login. Our existing GDM authentication
-helper covers password unlock, which does not repeat PAM account management.
-GNOME's native deadline and the child extension's countdown cover an already
-running desktop. See [countdown and PAM enforcement](Screen-Time.md#countdown-and-expiry-enforcement).
+The existing child component adds one guard, active in user/unlock-dialog modes:
 
-Those paths currently consult the installed native window, not a weekly policy.
-A midnight timer alone is insufficient: yesterday's native window remains valid
-to malcontent until replaced. The implementation must establish a freshness
-handoff at startup, resume and login/unlock so the native check cannot admit a
-child using yesterday's window. This coordination is required new work, not an
-existing guarantee of the current asynchronous session-preparation call.
+- Install it before reporting component readiness. Evaluate on enable and startup
+  completion; use a before-redraw check for pending expiry. Unknown permission
+  stays restricted. Bedtime readiness requires an effective native lock and
+  a lockable account; passwordless/lock-disabled configurations cannot pass.
+- At a closing boundary, call public `ScreenShield.lock(false)` directly in
+  Shell's main loop, without a D-Bus hop.
+- On public `locked-changed` becoming false, perform the fast own-account read
+  synchronously, within its three-second budget. Recheck absolute expiry.
+  Denial, stale data or failure calls `lock(false)` in the same callback before
+  yielding to painting/input. This covers authentication, logind Unlock and
+  ScreenSaver deactivation despite GNOME's daily-only native guard.
+- Use a reentrancy guard and one owned idle reassertion after a rejected unlock,
+  preserving the actual lock and logind hint after native completion settles.
+  The existing unlock-continuation controller consults cached permission before
+  deactivation; completion performs the single fresh blocking read.
+- Acquire the public logind sleep-delay inhibitor before sleep notifications.
+  On prepare-for-sleep, invalidate permission, lock synchronously, verify the
+  lock and release the inhibitor. Reacquire on resume. Respect logind's finite
+  delay budget; failure to lock is a protection failure, never readiness success.
+- Owner loss/failed refresh locks. Recovery or morning reopening never unlocks
+  automatically. Release owned timers, signals and inhibitor on shutdown.
 
-Use a bounded broker reconciliation/readiness operation before the existing
-native admission decision; the PAM helper must not independently interpret the
-seven-day schedule. If freshness cannot be established, deny managed admission
-with an availability error, preserving administrator recovery and kiosk access.
-For retained sessions, complete reconciliation before permitting usable desktop
-access after resume; a notification delivered after access resumes does not
-establish this ordering. Review the supported GNOME/logind lifecycle before
-claiming that barrier is implemented. If public APIs cannot establish it, retain
-the limitation explicitly and resolve it before claiming gap-free enforcement.
+The bounded synchronous check is an explicit cost, once per completed unlock,
+with no human wait or usage query. No Shell method replacement, private-state
+write or new unlock-veto API is required. This uses normal desktop event-loop
+timing, not a hard real-time promise against a frozen/compromised compositor.
+Installed acceptance must prove startup and unlock protection before usable
+desktop access; a later asynchronous relock or polling is not that proof.
 
-This avoids a second weekly-policy engine while making the scheduler's ownership
-and failure behavior explicit. A reconciliation failure must be reported and
-retried; it must never install a full-day fallback. A stale permissive window on
-an active desktop requires the existing public lock path until freshness is
-restored. AccountsService alone cannot detect broker failure or stale dates;
-broker recovery and this session-side freshness handling require dedicated checks.
+## Saves, grants and failure ordering
 
-## Transactions and existing grants
+A bedtime-only save atomically replaces the complete bedtime section. It writes
+no native time state and changes no grant or app policy. Combined saves use the
+existing verified native transaction and rollback:
 
-Reuse the broker's verified snapshots and rollback for native limit flags,
-schedule, daily allowance, grant and durable preferences. Publish success only
-after the desired native state and saved policy are verified. Reconciliation
-failure preserves durable intent for retry and reports failed activation.
+1. Authorize/validate everything and capture old preference policy, native time/
+   filter state and extension state before effects.
+2. Mark this child's effects in progress. If new policy can deny current access,
+   lock its live desktops through verified public Shell endpoints and await lock
+   acknowledgement before writes. Also prelock an earlier boundary less than the
+   five-second refresh plus three-second read budget away. Required-lock failure
+   aborts; no live desktop needs no lock.
+3. Apply native master/allowance/grant/filter changes through the existing
+   transaction bridge. Preserve grants for an already-enabled edit and clear
+   them on master-toggle transitions, as today. Bedtime-only saves skip this step.
+   The separate child/PAM bedtime guard remains effective during the bridge.
+4. Recheck current time and required locks immediately before atomically saving
+   preferences; machine work may have crossed a boundary. Merge current personal/
+   unrelated request choices, verify preferences and changed native values, then
+   publish the stable revision, notify clients and report success.
 
-The existing time-state helper temporarily installs a full-day schedule. Do not
-blindly reuse that bridge for weekday rotation: it can temporarily relax a real
-bedtime. Define and verify write ordering for schedule changes and flag changes,
-including crash points and observer-visible intermediate states. The properties
-are separate writes, not an atomic AccountsService transaction. Ordinary rotation
-with unchanged flags should update only the schedule and preserve the grant.
+On ordinary failure, keep admission gated while restoring/verifying old native
+time/filter state, old preference policy and extension state, preserving unrelated
+edits. Successful rollback reports the failed save. Failed rollback leaves that
+child unavailable and reports recovery failure; parent reapply uses the same
+verified path. Other children retain their own stable permission.
 
-Keep existing master-toggle grant-clearing behavior. Edits while control stays
-on preserve grant deadlines. Policy changes revalidate in-flight approvals under
-the existing request revision/snapshot contract. Request cancellation and app
-termination retain their existing transaction semantics.
+Native properties and preferences are not jointly crash-atomic. Restart reads
+actual native master/allowance/grant plus the complete old-or-new bedtime record.
+Native off stays off; enabled `2` applies saved bedtime; an interrupted bridge
+is unavailable. Report configured/live allowance mismatches without replaying
+limits or approvals. These rules define each crash outcome without another store.
 
-## Effective time and approval calculations
+Keep existing approval/revocation and irreversible app-termination rules.
+Include bedtime in approval-policy snapshots. Before clearing a grant overriding
+closed bedtime, lock as above. Recalculate request time after authentication.
+Weekday changes write nothing and cannot be delayed by a password prompt.
 
-Extend backend status to distinguish raw daily allowance remaining, grant
-remaining, current usable time, today's closing boundary and the next allowed
-opening. Include whether bedtime is the current restriction. Keep existing D-Bus
-status signatures for compatibility and add a richer status operation.
+## Status and request calculations
 
-Parent status, request estimates, child countdown and lock decisions must agree.
-Preserve the current treatment of ongoing active usage: a fresh recorded-use
-query must not move a running countdown deadline forward. Calculate local civil
-boundaries using timezone-aware calendar operations, not elapsed seconds added
-to midnight. Use malcontent's estimates and supported limit calculation where
-appropriate; qualify any disagreement with those native results rather than
-displaying an access promise the backend will deny.
+Preserve existing raw-balance signatures. Rich status distinguishes configured/
+live enablement, raw daily balance, grant balance, usable time, restriction reason,
+evaluation time, absolute closing/expiry and next opening. An opening is not a
+promise of daily allowance.
 
-Proposed request behavior: fixed requests add their duration to the greater of
-the schedule-constrained daily balance and current grant balance. For example,
-at 20:50 with bedtime at 21:00, 90 unused daily minutes and no grant, requesting
-30 minutes creates 40 minutes of elapsed access, ending at 21:30. This is a
-deliberate extension of the current allowance-based arithmetic and requires
-specification approval before implementation. Rest-of-day retains its current
-local-midnight expiry and overrides bedtime until that expiry.
+Combine the native daily estimate with the same broker bedtime result:
 
-## Validation and implementation boundaries
+```text
+ordinary = inside_window ? min(native_estimate, time_to_closing) : 0
+usable   = max(ordinary, native_grant_remaining)
+```
 
-Backend implementation must update the owning specification, state, broker,
-screen-time and lifecycle contracts alongside executable changes. Scheduling
-does not alter application-policy ownership or create a new privileged service
-unless lifecycle analysis demonstrates one is necessary. Extend approved,
-bounded diagnostics with reconciliation reason, freshness and outcome categories;
-do not log child identities or their schedule contents.
+A native estimate already including the grant does not add it twice. Preserve
+the existing active-use deadline and recorded-use fallback; a fresh query must
+not move a running deadline forward. Keep daily-reset behavior and grant expiry
+distinct. Failed reads are unavailable, not invented free time or exhaustion.
 
-Use focused engineering checks for seven-day validation, defaults/migration,
-authorization, day selection, clock/timezone changes, missed events, retries,
-write ordering, rollback and races with approval/revocation. Exercise grants
-across bedtime, midnight and daylight-saving transitions against the actual
-supported malcontent versions; source inspection alone does not establish those
-edge cases work.
+Keep fixed requests at `max(raw_daily_remaining, grant_remaining) + requested`.
+At 20:50, bedtime 21:00, 90 unused daily minutes and no grant, a 30-minute request
+creates a 120-minute grant ending 22:50. Explain that unused allowance carries
+past bedtime. Using a schedule-clipped request base would change the existing
+contract and is excluded. Rest-of-day keeps its existing local-midnight expiry.
 
-Installed acceptance must observe bedtime locking despite unused allowance,
-fresh-login denial, retained-session unlock denial, morning reopening and
-authenticated grant/revocation behavior. Cover distinct weekday/weekend windows,
-startup/resume catch-up, backend failure/recovery and isolation between children.
-Engineering clock injection belongs in engineering tests; customer acceptance
-uses the public actions and natural boundaries required by the
-[test documentation](../TestAutomation/README.md). This document creates no
-completed task or passing acceptance claim.
+## API evidence and implementation acceptance
+
+Existing Malcontent references:
+[property contract](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/accounts-service/com.endlessm.ParentalControls.SessionLimits.xml),
+[builder/limit API](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent/session-limits.h),
+[calculation](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent/session-limits.c)
+and [estimates](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/org.freedesktop.MalcontentTimer1.Child.xml).
+The live backend stays daily-only; the in-memory window has no grant, avoiding
+native combined schedule/grant arithmetic across midnight/DST.
+
+GNOME 50.6's [ScreenShield](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/screenShield.js)
+emits lock completion synchronously; its
+[ScreenSaver API](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/shellDBus.js)
+uses the same shield. The design observes existing signals and calls public
+methods. Qualify that ordering on each supported Shell, rather than assuming
+an unavailable native feature.
+
+Implementation must update specification, broker, state, screen-time, lifecycle
+and removal owners. Use bounded, non-identifying guard/save diagnostics.
+Engineering checks cover validation/migration, authorization, timezone endpoints,
+native-builder membership, read budgets, per-child revisions, prompt-spanning
+midnight, all save/rollback/crash stages and grant/revocation races.
+
+Installed acceptance must cover:
+
+- Bedtime locking with unused allowance; fresh-login/unlock denial; morning
+  return; fixed/rest-of-day grants and revocation through public actions.
+- Different weekday/weekend windows, full-day continuity, both DST directions,
+  grants issued yesterday before today's opening, and independent children.
+- Direct logind Unlock/ScreenSaver deactivation, an unlock animation crossing
+  bedtime, startup crossing a boundary, and broker loss/timeouts during unlock.
+- Suspend with ordinary lock-on-suspend disabled; recovery without automatic
+  unlock; healthy in-window/grant-backed return with one authentication.
+- Removal/reinstall retaining choices without native reactivation, followed by
+  parent reapply without recreating grants.
+
+Observe actual protected desktop/input outcomes, not only lock requests or logs.
+Use engineering clock injection only in engineering checks; customer acceptance
+follows the natural-boundary/public-action [test contracts](../TestAutomation/README.md).
+This review implements nothing and claims no passing runtime acceptance.

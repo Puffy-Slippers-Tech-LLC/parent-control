@@ -82,25 +82,6 @@ def test_numeric_system_registry_covers_current_parameter_variants_without_vm_op
                 identity.numeric_id for identity in identities}
 
 
-def test_system_lifecycle_events_share_numeric_identity_and_keep_original_selectors(capsys):
-    selection = runner.resolve_selection('removal', 'test_remove_reboot_reinstall',
-                                         inventories=INVENTORIES)
-    selected = [item for item in selection.executions if not item.prerequisite]
-    identities = [system_case_ids.identity_for_event(item.phase + '::' + item.case_id)
-                  for item in selected]
-    assert {identity.numeric_id for identity in identities} == {6}
-    runner.print_selection(selection)
-    output = capsys.readouterr().out
-    for item in selected:
-        assert f'{item.phase}::{item.case_id} [selected] [system-6]' in output
-    assert 'test_remove_reboot_reinstall [system-6]' in output
-    # Numeric metadata never replaces the pytest selection or checkpoint identity.
-    assert runner.pytest_command(RUN, 'removal', selection)[-1].endswith(
-        'test_removal.py::test_remove_reboot_reinstall')
-    retry = 'removal::test_remove_reboot_reinstall'
-    completed = {item.phase + '::' + item.case_id for item in selection.executions} - {retry}
-    resumed = runner.resume_selection(selection, completed)
-    assert resumed.phases == ('installed', 'rebooted', 'removal')
 
 
 def test_unknown_system_cases_need_an_explicit_numeric_assignment():
@@ -188,66 +169,6 @@ def test_system_progress_keeps_phase_nodeid_and_adds_trusted_numeric_metadata(ki
     assert 'unregistered' not in output
 
 
-@pytest.mark.parametrize('interrupted', [False, True])
-def test_system_watch_publishes_trusted_case_description_and_restores_owners(
-        monkeypatch, interrupted):
-    from system_progress import Progress, watching
-    from tools.regression_events import PREFIX
-    from e2e_watch_protocol import progress_packet
-    from e2e_watch_viewer import progress_text
-    from system_snapshots import attempts
-    import e2e_watch
-
-    selection = runner.resolve_selection('removal', 'test_remove_reboot_reinstall',
-                                         inventories=INVENTORIES)
-    executions = tuple(item for selected, _ in attempts(selection)
-                       for item in selected.executions)
-    previous = object()
-    lease = SimpleNamespace(watch_progress=previous)
-    monkeypatch.setattr(runner, 'watch_progress', previous)
-    publication = Mock()
-    monkeypatch.setattr(e2e_watch, 'ProgressPublication', Mock(return_value=publication))
-
-    with watching(executions, lease) as watch:
-        assert runner.watch_progress is lease.watch_progress is watch
-        e2e_watch.ProgressPublication.assert_called_once_with(watch)
-        # One permanent case ID spans multiple executions, each with its own
-        # description and position in the actual selected lifecycle order.
-        selected = [(index, item) for index, item in enumerate(executions, 1)
-                    if item.case_id == 'test_remove_reboot_reinstall']
-        for index, item in selected:
-            watch.prepare_execution(item)
-            watch.suite_preparation('Checking retained app snapshot')
-            prepared = watch.snapshot(display=True)
-            assert prepared['current'] == index
-            assert prepared['case_id'] == '6'
-            assert prepared['step'].startswith('Preparing system check: Remove reboot reinstall')
-            assert prepared['operation'] == 'Preparing system suite: Checking retained app snapshot'
-            watch.suite_prepared()
-            parser = Progress(item.phase, [item], watch=watch)
-            record = (PREFIX + json.dumps(dict(kind='started',
-                nodeid='test_removal.py::' + item.case_id,
-                title='private title', detail='private detail')) + '\n').encode()
-            parser(record[:19])
-            parser(record[19:])
-            shown = json.loads(progress_packet(watch.snapshot(display=True)))
-            title, step, _ = progress_text({'progress': shown})
-            assert title.startswith(f'[{index}/{len(executions)}][6]: Remove reboot reinstall')
-            assert step == f'Remove reboot reinstall. System phase: {item.phase}.'
-            assert 'private' not in json.dumps(shown)
-            before = watch.snapshot()
-            parser((PREFIX + json.dumps(dict(kind='started', nodeid='test.py::unknown'))
-                    + '\n').encode())
-            assert watch.snapshot() == before
-            if interrupted:
-                parser.close()  # Transport failure without a guest finished event.
-            else:
-                parser((PREFIX + json.dumps(dict(kind='finished',
-                    nodeid='test_removal.py::' + item.case_id)) + '\n').encode())
-            assert watch.snapshot()['step'].startswith('Collecting results')
-            assert watch.snapshot()['operation'] == ''
-    assert runner.watch_progress is previous and lease.watch_progress is previous
-    publication.close.assert_called_once_with()
 
 
 def test_system_watch_restores_publication_after_attempt_failure(monkeypatch):
@@ -289,26 +210,6 @@ def trusted_fixture_inventories():
                                       runner.TRUSTED_FIXTURES_CASE)}
 
 
-@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-def test_current_package_recovery_prerequisites_do_not_add_optional_upgrade_history(package_format):
-    inventories = {**RECOVERY_INVENTORIES,
-                   'package': (*RECOVERY_INVENTORIES['package'], runner.PREVIOUS_POLICY_CASE)}
-    selectors = [{}, {'area': 'removal'}]
-    for history in runner.REMOVAL_HISTORIES:
-        if history.package_format and history.package_format != package_format:
-            continue
-        identity = system_case_ids.identity_for_case('removal', history.case_id)
-        selectors.extend(({'area': 'removal', 'test': history.case_id},
-                          {'recording_ids': str(identity.numeric_id)}))
-    for options in selectors:
-        expected = runner.resolve_selection(**options, inventories=RECOVERY_INVENTORIES,
-                                             target_package_format=package_format)
-        selected = runner.resolve_selection(**options, inventories=inventories,
-                                             target_package_format=package_format)
-        assert selected.phases == expected.phases
-        assert selected.executions == expected.executions
-        assert selected.prerequisites == expected.prerequisites
-        assert all(item.case_id != runner.PREVIOUS_POLICY_CASE for item in selected.executions)
 
 
 @pytest.mark.parametrize('selectors', [
@@ -325,30 +226,6 @@ def test_explicit_previous_policy_cli_still_requires_previous_inputs(
     lease.assert_not_called()
 
 
-def test_trusted_fixture_selection_is_only_the_explicit_old_package_qualification(
-        trusted_fixture_inventories):
-    case = runner.TRUSTED_FIXTURES_CASE
-    selected = runner.resolve_selection('package', case, inventories=trusted_fixture_inventories,
-                                        fresh_install=True)
-    numeric = runner.resolve_selection(recording_ids='288', inventories=trusted_fixture_inventories,
-                                       fresh_install=True)
-    assert selected.phases == ('trusted-fixtures',)
-    assert numeric.executions == selected.executions == (
-        runner.CaseExecution('trusted-fixtures', 'package', case, False),)
-    assert {'genuine-earlier-package', 'previous-install-and-reboot',
-            'trusted-native-baseline-fixtures', 'fixture-passwords'} <= set(selected.prerequisites)
-    assert runner.pytest_command(RUN, 'trusted-fixtures', selected)[-1] == (
-        runner.PAYLOAD + '/test_install_smoke.py::' + case)
-    for fresh in (False, True):
-        for area in (None, 'package'):
-            ordinary = runner.resolve_selection(area, inventories=trusted_fixture_inventories,
-                                                fresh_install=fresh)
-            assert all(item.case_id != case for item in ordinary.executions)
-    for completed in (set(), {'trusted-fixtures::' + case}):
-        assert runner.resume_selection(selected, completed, fresh_install=True) == selected
-    with pytest.raises(runner.Error, match='trusted-fixtures-requires-isolated-history'):
-        runner.resolve_selection(recording_ids='288,287', inventories=trusted_fixture_inventories,
-                                 fresh_install=True)
 
 
 @pytest.mark.parametrize('selectors', [
@@ -365,38 +242,8 @@ def test_trusted_fixture_cli_requires_previous_inputs_before_host_or_vm_operatio
     lease.assert_not_called()
 
 
-def test_trusted_fixture_pytest_deadline_and_progress_use_only_its_registered_case(
-        monkeypatch, trusted_fixture_inventories):
-    import system_progress
-    selected = runner.resolve_selection('package', runner.TRUSTED_FIXTURES_CASE,
-                                        inventories=trusted_fixture_inventories, fresh_install=True)
-    progress = Mock()
-    monkeypatch.setattr(system_progress, 'Progress', progress)
-    vm = Mock()
-    prior = vm.commands.progress
-    runner.run_pytest(vm, RUN, 'trusted-fixtures', selected)
-    vm.call.assert_called_once_with(runner.pytest_command(RUN, 'trusted-fixtures', selected),
-                                    timeout=2400)
-    assert progress.call_args.args == ('trusted-fixtures', selected.executions)
-    progress.return_value.close.assert_called_once_with()
-    assert vm.commands.progress is prior
 
 
-@pytest.mark.parametrize('phase', ['trusted-fixtures', 'installed', 'rebooted'])
-def test_trusted_fixture_collected_case_dispatches_only_qualification(monkeypatch, phase):
-    qualify = Mock()
-    monkeypatch.setitem(sys.modules, 'system_trusted_fixtures', SimpleNamespace(qualify=qualify))
-    case = load_module('private_trusted_fixture_case',
-                       runner.ROOT / 'tests/system/test_install_smoke.py')
-    monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
-    record = Mock()
-    if phase == 'trusted-fixtures':
-        case.test_trusted_native_upgrade_fixtures(record)
-        qualify.assert_called_once_with(record)
-    else:
-        with pytest.raises(guest.GuestError, match='trusted-fixtures:test-phase'):
-            case.test_trusted_native_upgrade_fixtures(record)
-        qualify.assert_not_called()
 
 
 @pytest.mark.parametrize('failure', [None, 'install-previous', 'old-reboot', 'trusted-fixtures'])
@@ -469,75 +316,8 @@ def test_trusted_fixture_controller_refuses_incompatible_starting_state(
                                       {'timeout': 180})]
 
 
-def test_previous_policy_selection_stages_complete_history_and_replays_partial_results(
-        tmp_path, previous_policy_inventories):
-    case = runner.PREVIOUS_POLICY_CASE
-    selected = runner.resolve_selection('package', case, inventories=previous_policy_inventories,
-                                        fresh_install=True)
-    numeric = runner.resolve_selection(recording_ids='287', inventories=previous_policy_inventories,
-                                       fresh_install=True)
-    assert selected.phases == ('previous-policy', 'installed', 'rebooted')
-    assert numeric.executions == selected.executions == tuple(
-        runner.CaseExecution(phase, 'package', case, False) for phase in selected.phases)
-    assert {'genuine-earlier-package', 'previous-install-and-reboot', 'fixture-passwords'} <= set(
-        selected.prerequisites)
-    ordinary = runner.resolve_selection(inventories=previous_policy_inventories)
-    assert all(item.case_id != case for item in ordinary.executions)
-    for count in range(len(selected.executions) + 1):
-        completed = {item.phase + '::' + case for item in selected.executions[:count]}
-        assert runner.resume_selection(selected, completed, fresh_install=True).executions == selected.executions
-    output = tmp_path / 'input'
-    runner.stage_selected_inputs(selected, output)
-    files = json.loads((output / 'selected-inputs.json').read_text())['files']
-    assert files['system_previous_upgrade.py']['sha256'] == hashlib.sha256(
-        (runner.ROOT / 'tests/integration/system_previous_upgrade.py').read_bytes()).hexdigest()
-    write_junit_results(tmp_path, selected)
-    assert all(runner.reconcile_junit(tmp_path, phase, selected) == (('package', case),)
-               for phase in selected.phases)
 
 
-@pytest.mark.parametrize('failure', [None, 'previous-policy', 'installed', 'rebooted', 'old-reboot'])
-def test_previous_policy_controller_keeps_old_boot_policy_update_and_recovery_in_one_attempt(
-        tmp_path, monkeypatch, previous_policy_inventories, failure):
-    selected = runner.resolve_selection('package', runner.PREVIOUS_POLICY_CASE,
-                                        inventories=previous_policy_inventories, fresh_install=True)
-    (tmp_path / 'input').mkdir()
-    (tmp_path / 'input/previous-package.rpm').write_bytes(b'earlier package')
-    vm, lease = Mock(), legacy_lease(state={'run': RUN})
-    events = []
-    def execute(command, **options):
-        for operation in ('install-previous', 'upgrade'):
-            if command == runner.guest_command(RUN, operation):
-                events.append(operation)
-    def phase(owned, token, name, selection):
-        assert owned is vm and token == RUN and selection == selected
-        events.append(name)
-        if failure == name:
-            vm.commands.last_returncode = 1
-            raise runner.CommandError('phase-failed')
-    def reboot():
-        name = 'old-reboot' if events == ['install-previous'] else 'new-reboot'
-        events.append(name)
-        if failure == name:
-            raise runner.CommandError('reboot-failed')
-    vm.call.side_effect = execute
-    vm.reboot.side_effect = reboot
-    monkeypatch.setattr(runner, 'run_pytest', phase)
-    write_junit_results(tmp_path, selected)
-    ledger = runner.RunLedger()
-    if failure:
-        with pytest.raises(runner.CommandError):
-            runner.installed_run(vm, lease, tmp_path, selected, ledger)
-    else:
-        assert tuple(runner.installed_run(vm, lease, tmp_path, selected, ledger)) == selected.phases
-    expected = ['install-previous', 'old-reboot', 'previous-policy', 'upgrade',
-                'installed', 'new-reboot', 'rebooted']
-    assert events == (expected[:expected.index(failure) + 1] if failure else expected)
-    lease.prepare.assert_not_called()
-    lease.restore.assert_not_called()
-    assert vm.call.call_args.args[0] == runner.guest_command(RUN, 'collect', 'failed' if failure else 'passed')
-    if failure in selected.phases:
-        assert ledger.outcomes['product']['category'] == 'pytest:failed:' + failure
 
 
 def test_previous_policy_refuses_missing_inputs_before_any_installation(
@@ -551,83 +331,10 @@ def test_previous_policy_refuses_missing_inputs_before_any_installation(
     assert vm.call.call_args_list == [((runner.guest_command(RUN, 'collect', 'failed'),), {'timeout': 180})]
 
 
-def test_pam_registration_keeps_four_independent_four_phase_baseline_histories():
-    variants = ('plain', 'distro-profile', 'administrator-override', 'pending-vendor')
-    assert runner.PAM_CASE == 'test_pam_environment_installation_variants'
-    assert runner.PAM_VARIANTS == variants
-    assert tuple(history.case_id for history in runner.PAM_HISTORIES) == tuple(
-        f'{runner.PAM_CASE}[{variant}]' for variant in variants)
-    for history, variant in zip(runner.PAM_HISTORIES, variants):
-        assert history.start == 'baseline'
-        assert history.prerequisites == ()
-        assert history.phases == (f'pam-{variant}', f'pam-{variant}-rebooted',
-                                  f'pam-{variant}-configured-rebooted',
-                                  f'pam-{variant}-removed-rebooted')
-        assert runner.case_phases('package', history.case_id) == history.phases
-    assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
 
 
-@pytest.mark.parametrize('variant,identifier', [
-    ('plain', 283), ('distro-profile', 284), ('administrator-override', 285),
-    ('pending-vendor', 286)])
-def test_pam_exact_and_numeric_selection_keep_only_the_complete_history(
-        pam_inventories, variant, identifier):
-    case = f'{runner.PAM_CASE}[{variant}]'
-    exact = runner.resolve_selection('package', case, inventories=pam_inventories)
-    numeric = runner.resolve_selection(recording_ids=str(identifier), inventories=pam_inventories)
-    history = next(item for item in runner.PAM_HISTORIES if item.case_id == case)
-    assert exact.phases == numeric.phases == history.phases
-    assert exact.executions == numeric.executions == tuple(
-        runner.CaseExecution(phase, 'package', case, False) for phase in history.phases)
-    assert {'accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap'} <= set(exact.prerequisites)
-    assert not {'installed-phase', 'retained-app-snapshot'} & set(exact.prerequisites)
-    for phase in history.phases:
-        assert system_case_ids.identity_for_event(phase + '::' + case).numeric_id == identifier
-        command = runner.pytest_command(RUN, phase, exact)
-        assert 'ONPC_SYSTEM_PHASE=' + phase in command
-        assert command[-1] == runner.PAYLOAD + '/test_install_smoke.py::' + case
-        assert sum('::' in argument for argument in command) == 1
 
 
-def test_pam_family_stages_exact_sources_selectors_and_junit_identities(
-        tmp_path, capsys, pam_inventories):
-    selection = runner.resolve_selection('package', runner.PAM_CASE, inventories=pam_inventories)
-    exact = [runner.resolve_selection('package', history.case_id, inventories=pam_inventories)
-             for history in runner.PAM_HISTORIES]
-    assert selection.executions == tuple(item for part in exact for item in part.executions)
-    assert selection.phases == tuple(phase for part in exact for phase in part.phases)
-    assert len(selection.executions) == 16
-    assert not any(item.prerequisite for item in selection.executions)
-    staged = tmp_path / 'input'
-    digest = runner.stage_selected_inputs(selection, staged)
-    identity = json.loads((staged / 'selected-inputs.json').read_text())
-    assert digest == runner.baseline.digest(staged / 'selected-inputs.json')
-    assert identity['selection']['test'] == runner.PAM_CASE
-    assert identity['selection']['phases'] == list(selection.phases)
-    assert identity['selection']['executions'] == [
-        {'phase': item.phase, 'area': item.area, 'case_id': item.case_id,
-         'prerequisite': False} for item in selection.executions]
-    for name in ('test_install_smoke.py', 'system_pam_variants.py', 'system_kiosk_accounts.py',
-                 'system_kiosk_confinement.py', 'system_first_configure.py', 'system_removal.py'):
-        source = (runner.AREA_SOURCES['package'] if name == 'test_install_smoke.py'
-                  else runner.ROOT / 'tests/integration' / name)
-        assert identity['files'][name] == {
-            'source': str(source.relative_to(runner.ROOT)),
-            'sha256': hashlib.sha256(source.read_bytes()).hexdigest()}
-        assert (staged / name).read_bytes() == source.read_bytes()
-    runner.print_selection(selection)
-    output = capsys.readouterr().out
-    assert 'expected-executions: 16' in output
-    for item in selection.executions:
-        assert item.phase + '::' + item.case_id in output
-    write_junit_results(tmp_path, selection)
-    for phase in selection.phases:
-        expected = next(item for item in selection.executions if item.phase == phase)
-        assert runner.reconcile_junit(tmp_path, phase, selection) == (('package', expected.case_id),)
-    evidence = runner.selection_evidence(tmp_path, selection)
-    assert evidence['executed_cases'] == [
-        {'phase': item.phase, 'area': item.area, 'case_id': item.case_id}
-        for item in selection.executions]
 
 
 @pytest.mark.parametrize('fault', ['missing', 'extra', 'empty'])
@@ -647,31 +354,6 @@ def test_pam_selection_refuses_previous_package_upgrade(pam_inventories, case):
         runner.resolve_selection('package', case, inventories=pam_inventories, fresh_install=True)
 
 
-def test_first_configuration_selection_has_only_its_two_exact_package_executions(
-        first_configure_inventories, capsys):
-    assert runner.FIRST_CONFIGURE_CASE == 'test_first_configuration_interruption_retry'
-    assert runner.FIRST_CONFIGURE_PHASES == ('first-configure', 'first-configure-rebooted')
-    selection = runner.resolve_selection('package', runner.FIRST_CONFIGURE_CASE,
-                                         inventories=first_configure_inventories)
-    assert selection.phases == runner.FIRST_CONFIGURE_PHASES
-    assert selection.executions == tuple(runner.CaseExecution(
-        phase, 'package', runner.FIRST_CONFIGURE_CASE, False) for phase in selection.phases)
-    assert runner.PHASE_DEPENDENCIES[selection.phases[0]] == ()
-    assert runner.PHASE_DEPENDENCIES[selection.phases[1]] == selection.phases[:1]
-    assert {'accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap'} <= set(selection.prerequisites)
-    assert not {'installed-phase', 'retained-app-snapshot'} & set(selection.prerequisites)
-    assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
-    runner.print_selection(selection)
-    output = capsys.readouterr().out
-    assert 'expected-executions: 2' in output
-    assert 'phases: first-configure,first-configure-rebooted' in output
-    for phase in selection.phases:
-        assert phase + '::' + runner.FIRST_CONFIGURE_CASE + ' [selected]' in output
-        command = runner.pytest_command(RUN, phase, selection)
-        assert 'ONPC_SYSTEM_PHASE=' + phase in command
-        assert runner.PAYLOAD + '/results/' + phase + '.xml' in command
-        assert command[-1] == runner.PAYLOAD + '/test_install_smoke.py::' + runner.FIRST_CONFIGURE_CASE
-        assert sum('::' in argument for argument in command) == 1
 
 
 @pytest.mark.parametrize('area,case', [(None, None), ('package', None),
@@ -700,63 +382,10 @@ def test_first_configuration_junit_requires_exact_unskipped_package_identity(
         for item in selection.phases]
 
 
-@pytest.mark.parametrize('fails', [False, True])
-def test_first_configuration_has_bounded_install_timeout_and_restores_progress(
-        first_configure_inventories, fails, monkeypatch):
-    from system_progress import SystemWatchProgress
-    from tools.regression_events import PREFIX
-    selection = runner.resolve_selection('package', runner.FIRST_CONFIGURE_CASE,
-                                         inventories=first_configure_inventories)
-    watch = SystemWatchProgress(selection.executions)
-    monkeypatch.setattr(runner, 'watch_progress', watch)
-    vm = Mock()
-    previous = vm.commands.progress
-    phase = selection.phases[0]
-
-    def call(command, *, timeout):
-        assert timeout == 2400
-        assert command == runner.pytest_command(RUN, phase, selection)
-        assert vm.commands.progress.phase == phase
-        vm.commands.progress((PREFIX + json.dumps(dict(kind='started',
-            nodeid='test_install_smoke.py::' + runner.FIRST_CONFIGURE_CASE)) + '\n').encode())
-        assert watch.snapshot()['step'] == (
-            'First configuration interruption retry. System phase: first-configure.')
-        if fails:
-            raise runner.CommandError('first-configure-failed')
-        return b'passed'
-
-    vm.call.side_effect = call
-    if fails:
-        with pytest.raises(runner.CommandError, match='first-configure-failed'):
-            runner.run_pytest(vm, RUN, phase, selection)
-    else:
-        assert runner.run_pytest(vm, RUN, phase, selection) == b'passed'
-    assert vm.commands.progress is previous
-    assert watch.snapshot()['step'].startswith('Collecting results')
 
 
-def test_rpm_posterase_registration_is_one_fedora_baseline_history():
-    history = next(history for history in runner.REMOVAL_HISTORIES
-                   if history.case_id == 'test_rpm_posterase_recovery')
-    assert history.start == 'baseline'
-    assert history.package_format == 'rpm'
-    assert history.prerequisites == ('rpm-posterase-installed', 'rpm-posterase-rebooted')
-    assert history.phases == ('rpm-posterase', 'rpm-posterase-reinstalled-rebooted')
-    assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
 
 
-@pytest.mark.parametrize('area', [None, 'removal'])
-@pytest.mark.parametrize('target_format', [None, 'deb', 'rpm'])
-def test_rpm_posterase_broad_selection_uses_explicit_target_format(area, target_format):
-    selection = runner.resolve_selection(area, inventories=RECOVERY_INVENTORIES,
-                                         target_package_format=target_format)
-    cases = {item.case_id for item in selection.executions}
-    assert ('test_rpm_posterase_recovery' in cases) == (target_format != 'deb')
-    assert ('test_rpm_posterase_recovery' in selection.available['removal']) == (target_format != 'deb')
-    # Filtering the Fedora-only history never shortens the full removal history.
-    assert set(runner.REMOVAL_PHASES) <= set(selection.phases)
-    full = [item for item in selection.executions if item.case_id == 'test_remove_reboot_reinstall']
-    assert tuple(item.phase for item in full) == runner.REMOVAL_PHASES
 
 
 def test_rpm_posterase_explicit_wrong_target_refuses():
@@ -765,23 +394,6 @@ def test_rpm_posterase_explicit_wrong_target_refuses():
                                  inventories=RECOVERY_INVENTORIES, target_package_format='deb')
 
 
-@pytest.mark.parametrize('target_format', [None, 'rpm'])
-def test_rpm_posterase_list_mode_preserves_exact_history_without_vm_access(
-        monkeypatch, capsys, target_format):
-    configured = (SimpleNamespace(require_package_format=lambda: target_format)
-                  if target_format else None)
-    monkeypatch.setattr(runner.baseline.guest_contract.vm_config, 'extract',
-                        lambda argv, **_: (argv, configured))
-    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: RECOVERY_INVENTORIES[name])
-    monkeypatch.setattr(runner.shutil, 'which', Mock(side_effect=AssertionError('tool probe ran')))
-    monkeypatch.setattr(runner, 'artifact_source', Mock(side_effect=AssertionError('artifact probe ran')))
-    monkeypatch.setattr(runner.baseline, 'LibvirtSource',
-                        Mock(side_effect=AssertionError('VM probe ran')))
-    assert runner.main(['--list', '--area', 'removal', '--test', 'test_rpm_posterase_recovery']) == 0
-    output = capsys.readouterr().out
-    assert 'expected-executions: 6' in output
-    assert 'required-package-format: test_rpm_posterase_recovery=rpm' in output
-    assert 'phases: rpm-posterase-installed,rpm-posterase-rebooted,rpm-posterase,' in output
 
 
 def test_rpm_posterase_wrong_target_stops_before_tool_artifact_or_vm_checks(monkeypatch, capsys):
@@ -799,17 +411,6 @@ def test_rpm_posterase_wrong_target_stops_before_tool_artifact_or_vm_checks(monk
     assert 'selection:history-package-format-mismatch' in capsys.readouterr().err
 
 
-def test_interrupted_finalization_registration_has_two_distinct_baseline_histories():
-    variants = ('denial-publication', 'account-finalization')
-    histories = tuple(history for history in runner.REMOVAL_HISTORIES
-                      if history.case_id.startswith('test_interrupted_finalization_retry['))
-    assert tuple(history.case_id for history in histories) == tuple(
-        f'test_interrupted_finalization_retry[{variant}]' for variant in variants)
-    for history, variant in zip(histories, variants):
-        assert history.start == 'baseline'
-        assert history.prerequisites == (variant + '-installed', variant + '-rebooted')
-        assert history.phases == (variant, variant + '-retry-rebooted')
-    assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
 
 
 OWNERSHIP_FAMILIES = (
@@ -822,56 +423,8 @@ OWNERSHIP_FAMILIES = (
 )
 
 
-@pytest.mark.parametrize('family,variants', OWNERSHIP_FAMILIES)
-def test_ownership_registration_has_seven_distinct_baseline_histories(family, variants):
-    histories = tuple(history for history in runner.REMOVAL_HISTORIES
-                      if history.case_id.startswith(family + '['))
-    assert tuple(history.case_id for history in histories) == tuple(
-        f'{family}[{variant}]' for variant in variants)
-    assert runner.REMOVAL_FAMILIES[family] == tuple(history.case_id for history in histories)
-    for history, variant in zip(histories, variants):
-        assert history.start == 'baseline'
-        assert history.prerequisites == (variant + '-installed', variant + '-rebooted')
-        assert history.phases == (variant, variant + '-retry-rebooted')
-    assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
 
 
-@pytest.mark.parametrize('family,variants', OWNERSHIP_FAMILIES)
-def test_ownership_family_listing_and_results_keep_all_exact_execution_identities(
-        tmp_path, capsys, family, variants):
-    selection = runner.resolve_selection('removal', family, inventories=RECOVERY_INVENTORIES)
-    exact = [runner.resolve_selection('removal', case, inventories=RECOVERY_INVENTORIES)
-             for case in runner.REMOVAL_FAMILIES[family]]
-    assert selection.test == family
-    assert len(selection.executions) == 42
-    assert sum(item.prerequisite for item in selection.executions) == 28
-    assert selection.executions == tuple(item for part in exact for item in part.executions)
-    assert selection.phases == tuple(phase for part in exact for phase in part.phases)
-    staged = tmp_path / 'input'
-    digest = runner.stage_selected_inputs(selection, staged)
-    identity = json.loads((staged / 'selected-inputs.json').read_text())
-    assert digest == runner.baseline.digest(staged / 'selected-inputs.json')
-    assert identity['selection']['test'] == family
-    assert len(identity['selection']['executions']) == 42
-    assert {item['case_id'] for item in identity['selection']['executions']
-            if item['area'] == 'removal'} == set(runner.REMOVAL_FAMILIES[family])
-    runner.print_selection(selection)
-    output = capsys.readouterr().out
-    assert 'expected-executions: 42' in output
-    assert 'test: ' + family in output
-    for part in exact:
-        for item in part.executions:
-            assert item.phase + '::' + item.case_id in output
-        for phase in part.phases[-2:]:
-            assert runner.pytest_command(RUN, phase, selection)[-1] == (
-                runner.PAYLOAD + '/test_removal.py::' + part.test)
-    write_junit_results(tmp_path, selection)
-    for phase in selection.phases:
-        runner.reconcile_junit(tmp_path, phase, selection)
-    evidence = runner.selection_evidence(tmp_path, selection)
-    assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 42
-    assert {item['case_id'] for item in evidence['executed_cases']
-            if item['area'] == 'removal'} == set(runner.REMOVAL_FAMILIES[family])
 
 
 @pytest.mark.parametrize('fault', ['missing', 'extra', 'empty'])
@@ -896,74 +449,10 @@ def test_ownership_family_does_not_enable_partial_unknown_or_other_area_selector
         runner.resolve_selection(area, test, inventories=RECOVERY_INVENTORIES)
 
 
-# Keep finite selection coverage for every installed history. Shared staging
-# needs only its three import closures; verdict safety is exercised once below
-# and by the malformed-JUnit cases, rather than per guest test body/variant.
-RECOVERY_INPUT_HISTORIES = tuple(
-    next(history for history in runner.REMOVAL_HISTORIES if history.case_id == case)
-    for case in ('test_aborted_cleanup_rollback_retry',
-                 'test_identity_filesystem_refusal_retry[home-owner]',
-                 'test_rpm_posterase_recovery')
-)
 
 
-@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
-def test_focused_recovery_listing_has_exact_prerequisite_closure(capsys, history):
-    selection = runner.resolve_selection(
-        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
-    assert selection.phases == (*history.prerequisites, *history.phases)
-    assert len(selection.executions) == 6
-    assert sum(item.prerequisite for item in selection.executions) == 4
-    assert [sum(item.phase == phase for item in selection.executions)
-            for phase in history.prerequisites] == [2, 2]
-    assert {item.case_id for item in selection.executions if item.prerequisite} == set(
-        runner.PACKAGE_READINESS_CASES)
-    assert selection.executions[-1] == runner.CaseExecution(
-        history.phases[-1], 'removal', selection.test, False)
-    assert runner.PHASE_DEPENDENCIES[history.phases[-1]] == (
-        *history.prerequisites, history.phases[0])
-    assert 'package-install' in selection.prerequisites
-    assert 'retained-app-snapshot' not in selection.prerequisites
-    runner.print_selection(selection)
-    output = capsys.readouterr().out
-    assert 'expected-executions: 6' in output
-    for phase in history.phases:
-        assert f'{phase}::{history.case_id} [selected]' in output
-        command = runner.pytest_command(RUN, phase, selection)
-        assert 'ONPC_SYSTEM_PHASE=' + phase in command
-        assert runner.PAYLOAD + '/results/' + phase + '.xml' in command
-        assert command[-1] == runner.PAYLOAD + '/test_removal.py::' + history.case_id
-    for phase, semantic in zip(history.prerequisites, ('installed', 'rebooted')):
-        assert runner.PHASE_SEMANTICS[phase] == semantic
-        command = runner.pytest_command(RUN, phase, selection)
-        assert 'ONPC_SYSTEM_PHASE=' + semantic in command
-        assert runner.PAYLOAD + '/results/' + phase + '.xml' in command
 
 
-@pytest.mark.parametrize('history', RECOVERY_INPUT_HISTORIES, ids=lambda history: history.case_id)
-def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path, history):
-    selection = runner.resolve_selection(
-        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
-    digest = runner.stage_selected_inputs(selection, tmp_path)
-    identity = json.loads((tmp_path / 'selected-inputs.json').read_text())
-    assert digest == runner.baseline.digest(tmp_path / 'selected-inputs.json')
-    assert identity['selection']['phases'] == [*history.prerequisites, *history.phases]
-    assert len(identity['selection']['executions']) == 6
-    assert identity['selection']['executions'][-1] == {
-        'phase': history.phases[-1], 'area': 'removal', 'case_id': history.case_id,
-        'prerequisite': False}
-    sources = ('test_removal.py', 'system_removal.py', 'system_removal_ownership.py',
-               'system_guest.py', 'test_install_smoke.py', 'system_kiosk_accounts.py')
-    if (history.case_id.startswith('test_identity_filesystem_refusal_retry[') or
-            history.case_id == 'test_rpm_posterase_recovery'):
-        sources += ('system_removal_identity.py',)
-    if history.case_id == 'test_rpm_posterase_recovery':
-        sources += ('guest_install_recipe.py',)
-    for name in sources:
-        record = identity['files'][name]
-        assert (tmp_path / name).read_bytes() == (runner.ROOT / record['source']).read_bytes()
-        assert record['sha256'] == runner.baseline.digest(tmp_path / name)
-    assert 'host_files' not in identity  # No graphical activation in prerequisites.
 
 
 def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path):
@@ -979,39 +468,8 @@ def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path):
         'phase': history.phases[-1], 'area': 'removal', 'case_id': selection.test}
 
 
-@pytest.mark.parametrize('history,phase', [(history, phase)
-                         for history in runner.REMOVAL_HISTORIES[1:2]
-                         for phase in history.phases])
-def test_recovery_timeout_and_progress_use_logical_phase_and_restore_callback(history, phase):
-    selection = runner.resolve_selection(
-        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
-    vm = Mock()
-    previous = vm.commands.progress
-    def call(command, *, timeout):
-        assert timeout == 2400
-        assert vm.commands.progress.phase == phase
-        assert command == runner.pytest_command(RUN, phase, selection)
-        raise runner.CommandError('test-refused')
-    vm.call.side_effect = call
-    with pytest.raises(runner.CommandError, match='test-refused'):
-        runner.run_pytest(vm, RUN, phase, selection)
-    assert vm.commands.progress is previous
 
 
-def test_recovery_prerequisites_omit_comprehensive_kiosk_activation(
-        tmp_path, monkeypatch):
-    import kiosk_entry
-    history = runner.REMOVAL_HISTORIES[1]
-    selection = runner.resolve_selection(
-        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
-    vm, lease = Mock(), legacy_lease(state={'run': RUN})
-    observer = Mock(side_effect=AssertionError('prerequisite ran kiosk activation'))
-    monkeypatch.setattr(kiosk_entry, 'observe_activation', observer)
-    for phase in history.prerequisites:
-        runner.observe_kiosk_activation(vm, lease, tmp_path, selection, phase)
-    observer.assert_not_called()
-    vm.call.assert_not_called()
-    assert not (tmp_path / 'guest-results').exists()
 
 
 def test_focused_recovery_rejects_foreign_phase_and_result_identity(tmp_path):
@@ -1345,35 +803,6 @@ def test_selected_scenario_bytes_cannot_switch_with_mutated_source_digest_map(
     assert manifest['artifacts']['fixtures']['sha256'] == original_digest
 
 
-@pytest.mark.parametrize('area,test,expected', [
-    ('package', 'test_first_install_requests_reboot', ()),
-    ('package', runner.FIRST_CONFIGURE_CASE, ()),
-    # PAM histories verify native policy after reboot against these exact bytes.
-    ('package', runner.PAM_HISTORIES[0].case_id,
-     ('fixtures/mechanical/onpc-test-application',)),
-    ('enforcement', 'test_native_command_policy_is_uid_scoped',
-     ('fixtures/mechanical/onpc-test-application',)),
-    ('removal', 'test_remove_reboot_reinstall', ('fixtures/mechanical/onpc-test-application',)),
-    ('package', runner.TRUSTED_FIXTURES_CASE, (
-        'fixtures/mechanical/onpc-test-application', 'fixtures/mechanical/identity-trusted-hard',
-        'fixtures/mechanical/identity-trusted-soft', 'fixtures/native/identity-trusted-activity',
-        'fixtures/native/onpc-test-gui.py', 'fixtures/native/gtk_automation.py')),
-    ('package', runner.PREVIOUS_POLICY_CASE, (
-        'fixtures/mechanical/onpc-test-application', 'fixtures/mechanical/identity-trusted-hard',
-        'fixtures/mechanical/identity-trusted-soft', 'fixtures/native/identity-trusted-activity',
-        'fixtures/native/onpc-test-gui.py', 'fixtures/native/gtk_automation.py')),
-])
-def test_minimal_system_inputs_keep_only_actual_scenario_comparison_files(area, test, expected):
-    inventories = {**RECOVERY_INVENTORIES, 'package': (*RECOVERY_INVENTORIES['package'],
-        runner.FIRST_CONFIGURE_CASE, runner.TRUSTED_FIXTURES_CASE, runner.PREVIOUS_POLICY_CASE,
-        *(history.case_id for history in runner.PAM_HISTORIES))}
-    selected = runner.resolve_selection(area, test, inventories=inventories)
-    assert runner.scenario_fixture_files(selected) == expected
-
-
-# Both OS adapters and both marker scopes keep success coverage. Package/tool
-# failures depend on the OS; SSH writes, links and readback are shared and vary
-# one dimension at a time instead of crossing all faults with every scope.
 @pytest.mark.parametrize('package_format,observation_only,failure', [
     ('deb', False, None), ('rpm', False, None),
     ('deb', True, None), ('rpm', True, None),

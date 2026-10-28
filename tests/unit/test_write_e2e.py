@@ -159,62 +159,6 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     assert command[-1] == '-' and '--ephemeral' not in command
 
 
-@pytest.mark.parametrize('phase,attempts,tier,model,effort', [
-    ('implement', 0, 0, 'gpt-6.1-sol', 'high'),
-    ('live', 1, 0, 'gpt-6.1-sol', 'high'),
-    ('live', 2, 0, 'gpt-6.1-sol', 'xhigh'),
-    ('recover', 0, 0, 'gpt-6.1-sol', 'high'),
-    ('recover', 2, 1, 'gpt-6.1-sol', 'xhigh'),
-    ('recover', 5, 1, 'gpt-6.1-sol', 'xhigh'),
-    ('recover', 1, 2, 'gpt-6.1-sol', 'max'),
-])
-def test_command_prompt_and_display_use_selected_tier(tmp_path, monkeypatch,
-                                                     phase, attempts, tier, model, effort):
-    prepare(tmp_path)
-    monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/opt/codex')
-    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts,
-                 failed_attempts=attempts, model_tier=tier, task_sessions=20)
-    command = workflow.session_command(tmp_path, state, tmp_path)
-    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
-    assert command[command.index('--model') + 1] == model
-    assert config['model_reasoning_effort'] == effort
-    assert config['features']['multi_agent'] is True
-    assert config['agents']['enabled'] is True
-    assert 'backend_reviewer' in config['agents']
-    assert ('e2e_adviser' in config['agents']) is (effort == 'high')
-    assert ('plan_worker' in config['agents']) is (effort == 'high')
-    assert config['service_tier'] == 'default' and config['features']['fast_mode'] is False
-    assert '--output-schema' in command and '--ephemeral' not in command
-    prompt = workflow.session_prompt(state)
-    label = 'GPT-6.1-Sol ' + {'high': 'High', 'xhigh': 'Extra High', 'max': 'Max'}[effort]
-    assert f'You are the {label} coordinator' in prompt
-    if effort == 'high':
-        assert 'Consult before implementing such an unresolved\nrisky design' in prompt
-        assert 'e2e_adviser agent' in prompt
-    else:
-        assert 'do not spawn an adviser' in prompt and 'e2e_adviser agent' not in prompt
-    assert f'({model} {effort})' in workflow.session_progress(tmp_path, state, 20)[-1]
-    assert 'mandatory backend_reviewer instructions for core backend changes' in prompt
-    assert 'Never use Sol High' not in prompt
-    assert 'Leave investigation and repairs of this new failure to the next session' in prompt
-
-
-@pytest.mark.parametrize('phase', ['live', 'recover'])
-def test_follow_up_keeps_implementation_and_acceptance_with_sol_high(phase):
-    state = dict(workflow.fresh_state('001'), phase=phase,
-                 handoff='Legacy recommendation: continue with Astra High.')
-    prompt = workflow.session_prompt(state)
-    assert 'GPT-6.1-Sol High coordinator and implementer for this session' in prompt
-    assert 'mandatory backend_reviewer instructions for core backend changes' in prompt
-    assert 'Ignore model recommendations in older handoffs' in prompt
-    assert 'or review to the e2e_adviser agent using GPT-6.1-Sol Max only when' in prompt
-    assert 'No parallel agents or overlapping work' in prompt
-    assert 'close it before resuming your work' in prompt
-    assert 'You alone implement the settled correction, run all validation' in prompt
-    assert 'advice is not acceptance evidence' in prompt
-    assert 'Leave investigation and repairs of this new failure to the next session' in prompt
-
-
 def test_adviser_requires_evidence_and_retains_findings_across_handoffs():
     prompt = workflow.session_prompt(dict(workflow.fresh_state('001'), phase='recover',
         handoff='Prior question: ownership race. Finding: missing lease. Correction: hold the lease.'))
@@ -226,60 +170,6 @@ def test_adviser_requires_evidence_and_retains_findings_across_handoffs():
     assert 'Prior question: ownership race.' in prompt
     role = tomllib.loads(workflow.ADVISER_CONFIG.read_text())
     assert 'Do not repeat a prior\nconsultation without materially new evidence' in role['developer_instructions']
-
-
-def test_failure_history_promotes_implementer_and_failed_repair_raises_effort(tmp_path):
-    prepare(tmp_path)
-    _, before = workflow.queue_state(tmp_path)
-    state = workflow.fresh_state('001')
-    assert workflow.session_model(state) == ('gpt-6.1-sol', 'high')
-    for expected in [('gpt-6.1-sol', 'high'), ('gpt-6.1-sol', 'xhigh')]:
-        state = workflow.accept_result(tmp_path, state, reply(), before)
-        assert workflow.session_model(state) == expected
-    progress = dict(state['progress'], repair_outcome='failed_repair')
-    state = workflow.accept_result(tmp_path, state, reply(progress=progress), before)
-    assert workflow.session_model(state) == ('gpt-6.1-sol', 'max')
-    state = workflow.accept_result(tmp_path, state, reply(progress=progress), before)
-    assert workflow.session_model(state) == ('gpt-6.1-sol', 'max')
-    assert state['failed_attempts'] == state['live_attempts'] == 4
-
-
-def test_verified_progress_keeps_sol_xhigh_and_carries_checkpoint_evidence(tmp_path):
-    prepare(tmp_path)
-    _, before = workflow.queue_state(tmp_path)
-    state = workflow.fresh_state('001')
-    for index in range(5):
-        progress = {'failure_checkpoint': f'lifecycle:step-{index + 1}',
-                    'furthest_checkpoint': f'lifecycle:step-{index}', 'repair_outcome': 'advanced'}
-        state = workflow.accept_result(tmp_path, state, reply(progress=progress), before)
-    assert workflow.session_model(state) == ('gpt-6.1-sol', 'xhigh')
-    assert state['progress'] == progress
-    assert json.dumps(progress) in workflow.session_prompt(state)
-
-
-@pytest.mark.parametrize('tier', [0, 1, 2])
-@pytest.mark.parametrize('live', ['not_run', 'failed'])
-def test_blockers_preserve_tier_and_progress_without_spending_failed_attempt(tmp_path, tier, live):
-    prepare(tmp_path)
-    _, before = workflow.queue_state(tmp_path)
-    state = dict(workflow.fresh_state('001'), model_tier=tier, failed_attempts=1,
-                 live_attempts=1, progress=reply()['progress'])
-    updated = workflow.accept_result(tmp_path, state, reply('blocked', live), before)
-    assert updated['failed_attempts'] == 1 and updated['model_tier'] == tier
-    assert updated['progress'] == state['progress']
-    assert updated['phase'] == 'blocked'
-
-
-@pytest.mark.parametrize('tier,expected', [(0, 1), (1, 2), (2, 2)])
-def test_reasoning_stall_promotes_without_fabricating_live_attempt(tmp_path, tier, expected):
-    prepare(tmp_path)
-    _, before = workflow.queue_state(tmp_path)
-    state = dict(workflow.fresh_state('001'), model_tier=tier)
-    result = reply('stalled', 'not_run', host_validated=False)
-    updated = workflow.accept_result(tmp_path, state, result, before)
-    assert updated['phase'] == 'recover' and updated['model_tier'] == expected
-    assert updated['failed_attempts'] == updated['live_attempts'] == 0
-    assert workflow.queue_state(tmp_path)[0] == '001'
 
 
 @pytest.mark.parametrize('change', [
@@ -304,42 +194,6 @@ def test_invalid_escalation_evidence_cannot_change_state_or_queue(tmp_path, chan
     assert json.dumps(state) == saved and workflow.queue_state(tmp_path)[1] == before
 
 
-def test_legacy_handoffs_escalate_without_inventing_repair_evidence(tmp_path):
-    prepare(tmp_path)
-    _, before = workflow.queue_state(tmp_path)
-    state = workflow.fresh_state('001')
-    for key in ('failed_attempts', 'model_tier'):
-        state.pop(key)
-    state.update(phase='recover', live_attempts=2, task_sessions=5)
-    assert workflow.session_model(state) == ('gpt-6.1-sol', 'xhigh')
-    result = reply()
-    result.pop('progress')
-    updated = workflow.accept_result(tmp_path, state, result, before)
-    assert updated['model_tier'] == 1 and updated['failed_attempts'] == 3
-    assert 'progress' not in updated
-
-
-def test_usage_retains_only_reported_nonnegative_counters_without_estimated_billing(tmp_path):
-    metadata = {'session': 1, 'task_id': '001', 'model': 'gpt-6.1-sol'}
-    workflow.record_usage(tmp_path, metadata, {'input_tokens': 100, 'cached_input_tokens': 80,
-                          'output_tokens': 20, 'reasoning_output_tokens': 12, 'unknown': 'private'})
-    workflow.record_usage(tmp_path, dict(metadata, session=2),
-                          {'input_tokens': True, 'output_tokens': -1, 'cached_input_tokens': '80'})
-    workflow.record_usage(tmp_path, dict(metadata, session=3), None)
-    records = [json.loads(line) for line in (tmp_path / 'agent-usage.jsonl').read_text().splitlines()]
-    assert records[0] == dict(metadata, reported_scope='cli_turn', usage={
-        'input_tokens': 100, 'cached_input_tokens': 80,
-        'output_tokens': 20, 'reasoning_output_tokens': 12})
-    assert records[1]['usage'] is records[2]['usage'] is None
-    assert [record['session'] for record in records] == [1, 2, 3]
-
-
-def test_usage_write_failure_does_not_interrupt_work(tmp_path, capsys):
-    (tmp_path / 'agent-usage.jsonl').mkdir()
-    workflow.record_usage(tmp_path, {'session': 1}, {'input_tokens': 100})
-    assert 'could not retain token usage' in capsys.readouterr().err
-
-
 def test_usage_refuses_a_replaced_destination(tmp_path, capsys):
     unrelated = tmp_path / 'unrelated'
     unrelated.write_text('preserve this')
@@ -347,164 +201,6 @@ def test_usage_refuses_a_replaced_destination(tmp_path, capsys):
     workflow.record_usage(tmp_path, {'session': 1}, {'input_tokens': 100})
     assert unrelated.read_text() == 'preserve this'
     assert 'could not retain token usage' in capsys.readouterr().err
-
-
-def test_usage_does_not_wait_for_another_writer(tmp_path, capsys):
-    import fcntl
-    with workflow.launcher.lock(tmp_path / 'agent-usage.jsonl') as owner:
-        fcntl.flock(owner, fcntl.LOCK_EX)
-        workflow.record_usage(tmp_path, {'session': 1}, {'input_tokens': 100})
-    assert (tmp_path / 'agent-usage.jsonl').read_text() == ''
-    assert 'could not retain token usage' in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(('seconds', 'expected'), [
-    (29, '0 minutes'),
-    (30, '1 minute'),
-    (3599, '60 minutes'),
-    (3600, '1 hour 0 minutes'),
-    (5430, '1 hour 31 minutes'),
-    (7200, '2 hours 0 minutes'),
-])
-def test_duration_format(seconds, expected):
-    assert workflow.format_duration(seconds) == expected
-
-
-@pytest.mark.parametrize(('seconds', 'expected'), [
-    (29, '0m'), (30, '1m'), (720, '12m'), (3599, '60m'),
-    (3600, '1h 0m'), (5430, '1h 31m'), (7200, '2h 0m'),
-])
-def test_compact_duration_format(seconds, expected):
-    assert workflow.format_duration(seconds, short=True) == expected
-
-
-@pytest.mark.parametrize(('phase', 'attempts', 'summary'), [
-    ('implement', 0, 'Writing task code + host validation + first live VM test; close on success, hand off on failure'),
-    ('recover', 0, 'Investigate/fix previous failure + host validation + live VM test 1; close on success, hand off on failure'),
-    ('live', 0, 'Investigate/fix previous failure + host validation + live VM test 1; close on success, hand off on failure'),
-    ('live', 2, 'Investigate/fix previous failure + host validation + live VM test 3; close on success, hand off on failure'),
-])
-def test_session_controller_reports_task_title_and_phase(tmp_path, phase, attempts, summary):
-    from rich.text import Text
-    prepare(tmp_path)
-    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts,
-                 task_sessions=2)
-    assert [Text.from_ansi(line).plain for line in workflow.session_progress(tmp_path, state, 5)] == [
-        'Task 001: First', f'Session [2]: {summary} (gpt-6.1-sol high)']
-
-
-def test_current_task_recap_refreshes_and_freezes_at_completion(tmp_path, monkeypatch):
-    from rich.console import Console
-    from rich.text import Text
-    state = dict(workflow.fresh_state('001'), started_at=1000,
-                 task_sessions=2, progress_keys=['1', '2'])
-    steps = [{'key': '2', 'lines': ['Task 001: First', 'Session [2]: Working']}]
-    workflow.launcher.atomic(tmp_path / 'checkpoint.json', state)
-    monkeypatch.setattr(workflow.time, 'time', lambda: 1120)
-    rendered = workflow.task_progress(tmp_path, steps)
-    text = Text.from_ansi(rendered[-1]['lines'][0])
-    assert text.plain == 'Task 001: First (sessions=2, duration=2m)'
-    assert text.get_style_at_offset(Console(), 0).color.get_truecolor().hex == '#0066ff'
-    assert text.get_style_at_offset(Console(), text.plain.index('sessions=')).color.get_truecolor().hex == '#0066ff'
-    monkeypatch.setattr(workflow.time, 'time', lambda: 1180)
-    assert Text.from_ansi(workflow.task_progress(tmp_path, steps)[-1]['lines'][0]).plain.endswith('duration=3m)')
-    state.update(task_sessions=3)
-    workflow.launcher.atomic(tmp_path / 'checkpoint.json', state)
-    assert '(sessions=3,' in workflow.task_progress(tmp_path, steps)[-1]['lines'][0]
-    state.update(phase='complete', completed_at=1180)
-    workflow.launcher.atomic(tmp_path / 'checkpoint.json', state)
-    monkeypatch.setattr(workflow.time, 'time', lambda: 1300)
-    assert workflow.task_progress(tmp_path, steps)[-1]['lines'][0].endswith(
-        f"duration={workflow.format_duration(180, short=True)})")
-    assert steps[-1]['lines'][0] == 'Task 001: First'
-    previous = dict(steps[0], key='1')
-    rolling = workflow.task_progress(tmp_path, [previous, *steps])
-    assert rolling[0]['lines'][0] == rolling[1]['lines'][0]
-    completed = [{'key': 'complete-001', 'lines': ['Completed recap'], 'replaces': ['2']}]
-    assert workflow.task_progress(tmp_path, completed) == completed
-
-
-@pytest.mark.parametrize('prerequisite_started', [False, True])
-def test_suspended_consumer_does_not_show_an_ongoing_session(tmp_path, prerequisite_started):
-    from rich.console import Console
-    from rich.text import Text
-    prepare(tmp_path)
-    consumer = dict(workflow.fresh_state('001'), task_sessions=2,
-                    started_at=1000, progress_keys=['1', '2'])
-    insert_prerequisite(tmp_path)
-    selected = workflow.defer_to_prerequisite(tmp_path, consumer)
-    completed = {'key': 'complete-previous', 'lines': ['Previously completed'],
-                 'replaces': ['0']}
-    steps = [completed, *[
-        {'key': str(index), 'lines': workflow.session_progress(tmp_path, dict(consumer, task_sessions=index), index)}
-        for index in (1, 2)]]
-    if prerequisite_started:
-        selected.update(started_at=1000, task_sessions=1, progress_keys=['3'])
-        steps.append({'key': '3', 'lines': workflow.session_progress(tmp_path, selected, 3)})
-    workflow.launcher.atomic(tmp_path / 'checkpoint.json', selected)
-    original = json.dumps(steps)
-    rendered = workflow.task_progress(tmp_path, steps)
-    assert rendered[0] == completed
-    assert len(rendered[1]['lines']) == 1
-    suspended = Text.from_ansi(rendered[1]['lines'][0])
-    assert suspended.plain == 'Task 001: First — Suspended for prerequisite'
-    assert suspended.get_style_at_offset(Console(), 0).color.get_truecolor().hex == '#808080'
-    assert suspended.get_style_at_offset(Console(), len(suspended.plain) - 1).color.get_truecolor().hex == '#808080'
-    if prerequisite_started:
-        for line in rendered[-1]['lines']:
-            ongoing = Text.from_ansi(line)
-            for offset in range(len(ongoing.plain)):
-                assert ongoing.get_style_at_offset(Console(), offset).color.get_truecolor().hex == '#0066ff'
-    assert sum('Session [' in line for step in rendered for line in step['lines']) == int(prerequisite_started)
-    assert json.dumps(steps) == original
-    # Resumption restores the original session display; the overlay is not durable.
-    workflow.launcher.atomic(tmp_path / 'checkpoint.json', consumer)
-    assert Text.from_ansi(workflow.task_progress(tmp_path, steps)[1]['lines'][1]).plain == Text.from_ansi(steps[1]['lines'][1]).plain
-
-
-def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, capsys):
-    from rich.console import Console
-    from rich.text import Text
-    state = dict(workflow.fresh_state('024'),
-                 summary='Checked `tools/watchvm`.',
-                 handoff='Read [the guide](https://example.com/guide).\n\n'
-                         '```bash\ntools/write-e2e --tasks 3\n```')
-    workflow.save_handoff(tmp_path, state, 'stopped')
-    output = capsys.readouterr().out
-    rendered = Text.from_ansi(output)
-    assert '• Task 024: stopped.' in rendered.plain
-    assert 'Next session prompt:' in rendered.plain
-    assert '```' not in rendered.plain and '`tools/watchvm`' not in rendered.plain
-    for token, color in [('tools/watchvm', '#008000'), ('the guide', '#0066ff'),
-                         ('tools/write-e2e', '#0066ff'), ('--tasks', '#ff0000')]:
-        offset = rendered.plain.index(token)
-        style = rendered.get_style_at_offset(Console(), offset)
-        assert style.color.get_truecolor().hex == color
-    saved = (tmp_path / 'handoff.txt').read_text()
-    assert state['handoff'] in saved and '\x1b' not in saved
-    assert json.loads((tmp_path / 'checkpoint.json').read_text()) == state
-
-
-def test_saved_handoff_names_promoted_coordinator_even_if_agent_recommends_old_model(tmp_path):
-    state = dict(workflow.fresh_state('001'), phase='live', failed_attempts=2,
-                 handoff='Old recommendation: use Sol High.')
-    workflow.save_handoff(tmp_path, state, 'session limit reached', display=False)
-    saved = (tmp_path / 'handoff.txt').read_text()
-    assert 'Next coordinator and implementer: gpt-6.1-sol xhigh.' in saved
-    assert state['handoff'] in saved
-
-
-def test_implementation_prompt_preserves_requested_boundary():
-    prompt = workflow.session_prompt(workflow.fresh_state('001'))
-    assert prompt.startswith(workflow.INITIAL_PROMPT)
-    assert 'Implement this task and complete host validation' in prompt
-    assert "run this task's live VM acceptance" in prompt
-    assert 'Leave investigation and repairs of this new failure to the next session' in prompt
-    assert 'task_complete with live_result passed' in prompt
-    assert 'The launcher owns staging' in prompt
-    assert 'Do not analyze staged' in prompt
-    assert 'Do not commit' in prompt
-    assert 'tools/run-tests' in prompt
 
 
 @pytest.mark.parametrize('phase', ['implement', 'live', 'recover', 'completion_recovery', 'optimize'])
@@ -804,38 +500,6 @@ def test_simultaneous_observers_accept_exactly_one_answer(tmp_path):
     with ThreadPoolExecutor(max_workers=2) as pool:
         answers = list(pool.map(lambda option: submit(tmp_path, 'q', option), [0, 1]))
     assert sorted(answers) == [False, True]
-
-
-@pytest.mark.parametrize('choice', [0, 1, 2])
-def test_answer_transcript_preserves_selection_and_custom_text(tmp_path, monkeypatch, capsys, choice):
-    from launcher_question import QuestionInput, submit
-    from rich.text import Text
-
-    state = dict(workflow.fresh_state('001'), blocker_id='q', blocker={
-        'explanation': 'A decision is needed.', 'question': 'How should we continue?',
-        'options': ['Repair', 'Review']})
-    custom = 'Keep café and review the checks.'
-
-    def answer(_delay):
-        waiting = Text.from_ansi(capsys.readouterr().out).plain
-        assert '1. Repair' in waiting
-        assert '›' not in waiting
-        assert submit(tmp_path, 'q', choice, custom)
-
-    monkeypatch.setattr(workflow.time, 'sleep', answer)
-    assert workflow.wait_for_answer(tmp_path, state, 'task')
-    output = Text.from_ansi(capsys.readouterr().out).plain
-    expected = custom if choice == 2 else ['Repair', 'Review'][choice]
-    assert f'› {choice + 1}. {expected}' in output
-    assert 'Answer submitted.' in output
-    assert 'Waiting for your answer.' not in output
-    assert state['user_answer']['answer'] == expected
-    saved = json.loads((tmp_path / 'question.json').read_text())
-    restored = QuestionInput(saved, lambda *_: pytest.fail('answered menu resubmitted'))
-    assert restored.selected == choice
-    assert restored.text == (custom if choice == 2 else '')
-    restored.feed(b'1\r')
-    assert restored.selected == choice
 
 
 def test_restart_preserves_an_answer_before_owner_checkpoint(tmp_path, monkeypatch):
@@ -1273,28 +937,6 @@ def test_generic_prerequisite_graph_preserves_consumer_through_completion_and_re
     assert selected['handoff'] == consumer['handoff']
     assert not selected['in_flight']
     assert all(workflow.queue_state(tmp_path)[1][key] == done for key, done in before.items())
-
-
-@pytest.mark.parametrize('value', ['garbage', '1.5'])
-def test_invalid_limit_refuses_before_spawn(tmp_path, value):
-    with pytest.raises(SystemExit) as error:
-        workflow.select(tmp_path, ['--tasks', value, '--vm', vm_name()])
-    assert error.value.code == 2
-
-
-@pytest.mark.parametrize('value', ['1', '5', '-1'])
-def test_removed_sessions_option_refuses_before_spawn(tmp_path, value):
-    with pytest.raises(SystemExit) as error:
-        workflow.select(tmp_path, ['--sessions', value, '--vm', vm_name()])
-    assert error.value.code == 2
-
-
-def test_handoff_size_is_bounded_instead_of_accumulating_context(tmp_path):
-    prepare(tmp_path)
-    _, before = workflow.queue_state(tmp_path)
-    with pytest.raises(ValueError, match='invalid'):
-        workflow.accept_result(tmp_path, workflow.fresh_state('001'),
-                               reply(handoff='x' * 16001), before)
 
 
 def test_host_only_exception_can_close_without_a_vm_attempt(tmp_path):

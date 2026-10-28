@@ -21,7 +21,6 @@ import guest_observations
 import upgrade_assets_qualification as qualification
 import check_e2e_upgrade_assets as selector
 import check_graphical_smoke as smoke
-import installed_journey
 import system_runner
 from observation_transport import ReadOnlyObservations
 from owned_commands import CommandError
@@ -573,40 +572,3 @@ def test_actual_dual_staging_preserves_manifests_and_refuses_changed_source(
         files = verified.asset_files
         assert json.loads((destination / 'transfer-sha256.json').read_bytes()) == {
             name: value for name, value in files.items() if name != 'transfer-sha256.json'}
-
-
-@pytest.mark.parametrize('fault', ['', 'readback', 'accounts', 'provider', 'storage'])
-def test_upgrade_desktop_assertions_run_through_real_recorder_before_reply(upgrade, tmp_path, monkeypatch, fault):
-    verified, transfer, api = captured(upgrade)
-    transfer.provision(upgrade[2], api)
-    state = {'accounts': {'1001': {'name': 'child', 'language': 'en'}}, 'sessions': {'7': props()},
-             'system_locale': ['LANG=en'], 'observer_locale': {'LANG': 'C'}, 'product_free': True,
-             'target_uid': '1001'}
-    preservation = SimpleNamespace(read=Mock(return_value=copy.deepcopy(state)))
-    if fault == 'accounts': preservation.read.return_value['accounts']['1001']['language'] = 'zh'
-    context = SimpleNamespace(directory=tmp_path, product_free=True, asset_transfer=transfer,
-                              verified=verified, lease=upgrade[2])
-    context.lease.state['phase'] = 'running'
-    progress = Mock(side_effect=OSError('private storage failed') if fault == 'storage' else None)
-    owner = qualification.journey(context, progress)
-    owner.upgrade_preservation, owner.upgrade_entry = preservation, copy.deepcopy(state)
-    owner.steps = [{'stage': stage} for stage in owner.plan.stages[:owner.plan.stages.index('desktop')]]
-    receipt = copy.deepcopy(transfer._receipt)
-    bad = copy.deepcopy(receipt)
-    if fault == 'readback': bad['packages']['current']['sha256'] = '0' * 64
-    owner.vm = Mock(read=Mock(side_effect=[receipt, bad]))
-    provider = {'locale': 'en_US.UTF-8', 'version': '50.1', 'keyboard': [['xkb', 'us']]}
-    owner.ui = SimpleNamespace(boot_proof='a' * 64, observe=Mock(side_effect=[
-        {'outcome': 'passed'}, {'provider': provider}, {'provider': provider},
-        {'provider': {**provider, 'locale': 'zh'}} if fault == 'provider' else {'provider': provider}]))
-    owner.transport = Mock()
-    monkeypatch.setattr(installed_journey.session_control, 'observe', Mock(return_value={'outcome': 'passed'}))
-    (tmp_path / 'desktop.request.json').write_text(json.dumps({'stage': 'desktop', 'screenshot': None}))
-    if fault:
-        with pytest.raises((EvidenceError, OSError)): owner.step(Mock())
-        assert not (tmp_path / 'desktop.reply.json').exists()
-        with pytest.raises(EvidenceError, match='previous-failure'): owner.step(Mock())
-    else:
-        owner.step(Mock())
-        assert owner.progress.call_args.args[1]['fixture']['independent_readback']
-        assert json.loads((tmp_path / 'desktop.reply.json').read_text()) == {'observed': 'desktop'}

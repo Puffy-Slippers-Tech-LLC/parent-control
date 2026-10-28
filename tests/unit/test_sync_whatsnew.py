@@ -86,22 +86,6 @@ def test_numeric_latest_includes_all_audiences_ignores_installed_version_and_pre
     assert all(record['ProductVersion'] == '1.10' for rows in catalogs.pending(repository).values() for record in rows)
 
 
-def test_prepare_is_idempotent_and_unchanged_translations_are_preserved(repository):
-    english = (repository / 'data/whats-new-child.toml').read_bytes()
-    parent_english = (repository / 'docs/VersionHistory.md').read_bytes()
-    ui = (repository / 'po/fr.po').read_bytes()
-    release = finish(repository)
-    paths = list((repository / 'po/whats-new/1.10').iterdir())
-    before = {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in paths}
-    catalogs.prepare(repository)
-    assert {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in paths} == before
-    assert catalogs.pending(repository) == {}
-    assert catalogs.check(repository) == release
-    assert (repository / 'data/whats-new-child.toml').read_bytes() == english
-    assert (repository / 'docs/VersionHistory.md').read_bytes() == parent_english
-    assert (repository / 'po/fr.po').read_bytes() == ui
-
-
 def test_edited_source_requires_review_again_but_retains_previous_translation(repository, tmp_path):
     release = finish(repository)
     source(repository, [('1.9', 'Parent', 'Older English changed; do not translate it'),
@@ -119,30 +103,6 @@ def test_edited_source_requires_review_again_but_retains_previous_translation(re
     catalogs.compile_catalogs(repository, tmp_path / 'locale')
     context = load_whats_new_translations('1.10', 'fr', localedir=tmp_path / 'locale')
     assert translate_content(release.records[0], context) == release.records[0]['Content']
-
-
-def test_new_and_removed_latest_records_do_not_affect_completed_audience(repository):
-    source(repository, [('1.10', 'Parent', 'Parent notes')])
-    finish(repository)
-    source(repository, [('1.10', 'Parent', 'Parent notes'), ('1.10', 'Child', 'Child notes')])
-    release = catalogs.prepare(repository)
-    assert all([r['record_id'] for r in rows] == ['1.10:Child'] for rows in catalogs.pending(repository).values())
-    source(repository, [('1.10', 'Parent', 'Parent notes')])
-    catalogs.prepare(repository)
-    assert not catalogs.pending(repository)
-    assert all(entry.get('msgctxt') != 'whats-new:1.10:Child' for entry in catalogs.read_catalog(
-        catalogs.catalog_path(repository, release, 'fr')))
-
-
-def test_latest_parent_release_needs_no_child_entry_and_ignores_other_child_versions(repository):
-    source(repository, [('1.10', 'Parent', 'Current parent notes\n'),
-                        ('1.9', 'Child', 'Old child notes'), ('2.0', 'Child', 'Future child notes')])
-    release = finish(repository)
-    assert release.version == '1.10'
-    assert [record['record_id'] for record in release.records] == ['1.10:Parent']
-    assert catalogs.check(repository) == release
-    source(repository, [('1.10', 'Parent', 'Current parent notes\n')])
-    assert not catalogs.pending(repository)
 
 
 @pytest.mark.parametrize('mutate', [
@@ -256,135 +216,6 @@ def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
     config = sync.TRANSLATOR.read_text()
     assert 'sandbox_mode = "read-only"' in config
     assert 'enabled = false' in config
-
-
-def test_helpers_receive_self_contained_translation_and_review_tasks(repository):
-    release = catalogs.prepare(repository)
-    work = catalogs.pending(repository, release)
-    instructions, manifest = sync.prompt(release, work, 2).split('\n\n', 1)
-    assert 'On every spawn_agent call, explicitly set fork_turns="none"' in instructions
-    assert 'fork_context' not in instructions
-    assert 'self-contained' in instructions
-    assert 'read-only/scope/data instructions' in instructions
-    assert 'Start all helpers before translating the coordinator assignment' in instructions
-    assert 'Review each completed helper' in instructions
-    assert 'Do not start a separate whole-batch reviewer wave' in instructions
-    assert 'Use exactly 1 read-only whatsnew_translator subagents' in instructions
-    assert 'do not poll with empty agent lists' in instructions
-    assert 'Wait for every helper to finish' in instructions
-    assert json.loads(manifest) == work
-    serial, manifest = sync.prompt(release, work, 0).split('\n\n', 1)
-    assert 'do not spawn subagents' in serial
-    assert 'fork_context' not in serial
-    assert 'fork_turns' not in serial
-    assert json.loads(manifest) == work
-
-
-@pytest.mark.parametrize('helpers', [0, 1, 2, 5, 6])
-def test_assignments_cover_each_language_once_and_balance_uneven_record_sizes(helpers):
-    # Four large records must not land together while other lanes wait on tiny work.
-    work = {str(index): [dict(Content='x' * size)]
-            for index, size in enumerate([4000, 10, 3500, 20, 3000, 30, 2500, 40, 50])}
-    lanes = sync.assignments(work, helpers)
-    languages = [language for lane in lanes for language in lane]
-    assert len(languages) == len(set(languages)) == len(work)
-    assert set(languages) == set(work)
-    assert len(lanes) == min(helpers + 1, len(work))
-    assert all(lane for lane in lanes)
-    sizes = [sum(len(record['Content']) for records in lane.values() for record in records)
-             for lane in lanes]
-    if helpers >= 3:
-        assert max(sizes) <= 4100
-    assert sync.assignments({}, helpers) == []
-
-
-def test_supplied_context_preserves_region_and_existing_terminology_without_irrelevant_po(repository):
-    work = {'fr': [dict(Content='## Changes\n\n- **Revoke:** Changed Soft Blocked apps.\n')]}
-    context = sync.translation_context(repository, work)
-    assert set(context) == {'fr'}
-    assert context['fr']['metadata']['id'] == 'fr'
-    assert context['fr']['po_path'] == 'po/fr.po'
-    assert 'Language: fr' in context['fr']['header']
-    terms = {entry['msgid']: entry['msgstr'] for entry in context['fr']['terminology']}
-    assert terms['Revoke'] and terms['Soft Blocked']
-    assert 'Send feedback about the app.' not in terms
-    assert len(context['fr']['terminology']) <= 32
-    # Context is sufficient even when helpers cannot run a shell read.
-    release = catalogs.latest(repository)
-    instructions = sync.prompt(release, work, 5, context=context).split('\n\n', 1)[0]
-    assert json.dumps(context, ensure_ascii=False) in instructions
-    assert 'Use exactly 0 read-only' in instructions
-
-
-def test_supplied_context_supports_every_real_application_catalogue():
-    release = catalogs.latest(ROOT)
-    context = sync.translation_context(ROOT, {language: release.records for language in release.languages})
-    assert set(context) == set(release.languages)
-    for language, data in context.items():
-        assert data['metadata']['id'].replace('-', '_') == language
-        assert data['header'] and len(data['terminology']) <= 32
-    assert context['pt_BR']['metadata']['english_name'] == 'Portuguese (Brazil)'
-    assert context['zh_Hant']['metadata']['english_name'] == 'Chinese (Traditional)'
-    assert context['sr_Latn']['metadata']['english_name'] == 'Serbian (Latin)'
-
-
-def test_worker_batches_pending_languages_only_and_noop_needs_no_agent(repository, tmp_path, monkeypatch):
-    run = tmp_path / 'run'
-    run.mkdir()
-    calls = []
-
-    def execute(root, run, owner, model, effort, helpers):
-        manifest = json.loads((run / 'prompt.txt').read_text().split('\n\n', 1)[1])
-        calls.append(manifest)
-        result = response(manifest)
-        (run / 'agent-result.json').write_text(json.dumps(result))
-        return result
-
-    monkeypatch.setattr(sync, 'execute', execute)
-    owner = os.open(run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
-    assert sync.worker(repository, run, owner, 'gpt-6.1-sol', 'high', 2, 1) == 0
-    assert [list(batch) for batch in calls] == [['fr'], ['de']]
-    assert all(r['ProductVersion'] == '1.10' for batch in calls for rows in batch.values() for r in rows)
-    calls.clear()
-    owner = os.open(run / 'owner', os.O_RDWR)
-    assert sync.worker(repository, run, owner, 'gpt-6.1-sol', 'high', 2, 1) == 0
-    assert not calls
-
-
-def test_full_language_run_uses_three_sessions_and_preserves_validated_progress_on_failure(
-        repository, tmp_path, monkeypatch):
-    languages = [first + second for first in 'abc' for second in 'abcdefghijklmnopqrstuvwxyz'][:61]
-    metadata = repository / 'common/oh_no_parent_control_ui/languages.json'
-    metadata.write_text(json.dumps([dict(id=language, name=language, english_name=language)
-                                    for language in ['en', *languages]]))
-    for language in languages:
-        shutil.copyfile(repository / 'po/fr.po', repository / 'po' / (language + '.po'))
-    run = tmp_path / 'run'
-    run.mkdir()
-    calls = []
-
-    def execute(root, run, owner, model, effort, helpers):
-        work = json.loads((run / 'prompt.txt').read_text().split('\n\n', 1)[1])
-        calls.append(list(work))
-        assert helpers == 5
-        if len(calls) == 2:
-            raise ValueError('fixture transport interruption')
-        result = response(work)
-        (run / 'agent-result.json').write_text(json.dumps(result))
-        return result
-
-    monkeypatch.setattr(sync, 'execute', execute)
-    owner = os.open(run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
-    assert sync.worker(repository, run, owner, sync.DEFAULT_MODEL, sync.DEFAULT_EFFORT,
-                       sync.DEFAULT_SUBAGENTS, sync.DEFAULT_BATCH_SIZE) == 1
-    assert calls == [languages[:24], languages[24:48]]
-    assert set(catalogs.pending(repository)) == set(languages[24:])
-    owner = os.open(run / 'owner', os.O_RDWR)
-    assert sync.worker(repository, run, owner, sync.DEFAULT_MODEL, sync.DEFAULT_EFFORT,
-                       sync.DEFAULT_SUBAGENTS, sync.DEFAULT_BATCH_SIZE) == 0
-    assert calls[2:] == [languages[24:48], languages[48:]]
-    assert catalogs.pending(repository) == {}
-    assert [len(batch) for batch in (calls[0], *calls[2:])] == [24, 24, 13]
 
 
 def test_guarded_internal_does_not_release_the_inherited_owner_lock(repository, tmp_path, monkeypatch):

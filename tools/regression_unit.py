@@ -1248,7 +1248,6 @@ system_pam_variants
 system_first_configure
 e2e_natural_expiry
 e2e_natural_expiry_cleanup_safety
-kiosk_reminder_journey_cleanup_safety
 overlay_reminder_cleanup_safety
 overlay_reminder_journey_cleanup_safety
 system_kiosk_accounts

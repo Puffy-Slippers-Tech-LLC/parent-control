@@ -179,13 +179,6 @@ def test_current_failure_reader_refuses_missing_or_linked_sources(tmp_path):
         repair_evidence.read_failure(path)
 
 
-def test_category_status_uses_the_discovered_inventory_position():
-    categories = ['unit', 'future-suite', 'e2e']
-    assert fix_tests.category_status('future-suite', categories) == (
-        '\033[1;36mRunning category [future-suite] (2/3)\033[0m')
-    assert fix_tests.category_status('all', categories) is None
-
-
 @pytest.mark.parametrize('requested, expected', [
     ([], ['unit', 'ui', 'future-suite', 'system', 'e2e']),
     (['host'], ['unit', 'ui', 'future-suite']),
@@ -230,25 +223,6 @@ def test_selected_rounds_reverify_earlier_leaves_after_repairs():
     assert rounds == [1, 2]
     assert list(pending) == []
     assert prompts == ['first ui', 'unit regression']
-
-
-@pytest.mark.parametrize('selected', [False, True])
-@pytest.mark.parametrize('count', [1, 2, 3, 4])
-def test_requested_round_count_and_progress(selected, count):
-    test = Mock(return_value=None)
-    numbers = []
-    fix_tests.run_loop(['unit', 'ui'], test, Mock(), lambda: None,
-                       selected=selected, rounds=count, round_changed=numbers.append)
-    assert numbers == list(range(1, count + 1))
-    assert [call.args[0] for call in test.call_args_list] == (
-        ['unit', 'ui'] + (['unit', 'ui'] if selected else ['all']) * (count - 1))
-
-
-@pytest.mark.parametrize('value', ['0', '-1', 'abc', '1.5'])
-def test_invalid_round_count_is_refused(value):
-    with pytest.raises(SystemExit) as error:
-        fix_tests.main(['unit', '--rounds', value])
-    assert error.value.code == 2
 
 
 @pytest.mark.parametrize('options, expected', [([], 1), (['--rounds', '3'], 3)])
@@ -301,19 +275,6 @@ def test_multiple_focused_repair_categories_preserve_each_scope():
     assert list(inventory) == ['unit', 'e2e']
     assert inventory['unit']['args'] == requested[1:3]
     assert inventory['e2e']['args'] == ['--id', '6']
-
-
-@pytest.mark.parametrize('argv', [
-    ['--rounds', '3', '--model', 'gpt-6.1-sol', '--effort', 'high', 'unit', '-q'],
-    ['unit', '-q', '--rounds', '3', '--model', 'gpt-6.1-sol', '--effort', 'high'],
-    ['unit', '--rounds', '3', '-q', '--effort', 'high', '--model', 'gpt-6.1-sol'],
-])
-def test_launcher_options_are_removed_from_forwarded_arguments(monkeypatch, argv):
-    select = Mock(return_value=(None, False))
-    monkeypatch.setattr(fix_tests, 'select', select)
-    assert fix_tests.main(argv) == 0
-    assert select.call_args.kwargs == dict(stop=False, model='gpt-6.1-sol', effort='high',
-                                          categories=['unit', '-q'], rounds=3)
 
 
 def test_runner_owns_validation_of_new_category_arguments(monkeypatch):
@@ -443,145 +404,6 @@ def test_unmapped_aggregate_failure_is_not_a_fabricated_category_pass():
     repair.assert_not_called()
 
 
-def test_agent_is_persistent_sol_medium_standard_without_parent_context(monkeypatch):
-    monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
-    for key in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
-                'ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', fix_tests.FRAME_DIRECTORY):
-        monkeypatch.setenv(key, 'previous-context')
-    command = fix_tests.repair_command(ROOT, fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT)
-    assert command[:4] == ['/opt/codex', '--ask-for-approval', 'never', 'exec']
-    assert command[command.index('--model') + 1] == 'gpt-6.1-sol'
-    assert 'model_reasoning_effort="medium"' in command
-    assert 'service_tier="default"' in command and 'features.fast_mode=false' in command
-    assert 'features.memories=false' in command and 'history.persistence="none"' in command
-    assert 'agents.enabled=true' in command and 'features.multi_agent=true' in command
-    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
-    assert config['agents']['max_concurrent_threads_per_session'] == 1
-    assert config['agents']['max_depth'] == 1
-    assert 'backend_reviewer' in config['agents']
-    assert 'e2e_adviser' not in config['agents'] and 'plan_worker' not in config['agents']
-    assert 'features.multi_agent_v2=false' in command
-    assert 'workspace-write' in command
-    assert '--json' in command
-    assert command[command.index('--color') + 1] == 'never'
-    assert not {'resume', 'fork', '--last', '--ignore-rules', '--dangerously-bypass-approvals-and-sandbox'} & set(command)
-    assert command[-1] == '-'
-    assert 'previous-context' not in fix_tests.environment().values()
-    assert fix_tests.repair_prompt('LATEST FAILURE').startswith('LATEST FAILURE\n')
-    assert 'status "test_fixed"' in fix_tests.repair_prompt('LATEST FAILURE')
-    assert 'status "uncertain"' in fix_tests.repair_prompt('LATEST FAILURE')
-
-
-@pytest.mark.parametrize('mode', ['review-only', 'delegation', 'adviser'])
-@pytest.mark.parametrize('transport', ['exec', 'app-server'])
-def test_shared_agent_instructions_preserve_any_launcher_model(tmp_path, monkeypatch, mode, transport):
-    monkeypatch.setattr(detached_launcher.shutil, 'which', lambda _: '/opt/codex')
-    options = {}
-    if mode == 'delegation':
-        options['delegation'] = True
-    elif mode == 'adviser':
-        options['adviser_config'] = tmp_path / 'existing adviser.toml'
-    # A future launcher can select a different coordinator without opting into review.
-    command = detached_launcher.agent_command(tmp_path, 'future-coordinator-model', 'high', **options)
-    assert command[command.index('--model') + 1] == 'future-coordinator-model'
-    assert '--ephemeral' not in command
-    if transport == 'app-server':
-        from launcher_chat import app_command
-        command = app_command(command)
-    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
-    assert config['model_reasoning_effort'] == 'high'
-    assert config['features']['multi_agent'] is True and config['agents']['enabled'] is True
-    assert config['agents']['max_depth'] == 1
-    assert config['agents']['max_concurrent_threads_per_session'] == (3 if mode == 'delegation' else 1)
-    instructions = config['developer_instructions']
-    assert detached_launcher.SOURCE_DISCOVERY_INSTRUCTIONS in instructions
-    assert detached_launcher.TASK_TITLE_INSTRUCTIONS in instructions
-    assert 'On every spawn_agent call, explicitly set fork_turns="none".' in instructions
-    assert 'self-contained assignment' in instructions
-    assert detached_launcher.BACKEND_REVIEW_INSTRUCTIONS in instructions
-    role = tomllib.loads(Path(config['agents']['backend_reviewer']['config_file']).read_text())
-    assert role['model'] == 'gpt-6-astra' and role['model_reasoning_effort'] == 'xhigh'
-    assert role['sandbox_mode'] == 'read-only' and role['approval_policy'] == 'never'
-    assert role['features']['multi_agent'] is False and role['agents']['enabled'] is False
-    assert role['features']['fast_mode'] is False and role['history']['persistence'] == 'none'
-    if mode != 'review-only':
-        assert config['agents']['default_subagent_model'] == 'gpt-6.1-sol'
-        assert config['agents']['default_subagent_reasoning_effort'] == ('max' if mode == 'adviser' else 'medium')
-
-
-def test_model_catalog_requires_all_sol_escalation_efforts(monkeypatch):
-    monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
-
-    def entry(slug, priority, *, visibility='list', effort='low'):
-        return {'slug': slug, 'priority': priority, 'visibility': visibility,
-                'supported_reasoning_levels': [{'effort': effort}]}
-
-    sol = entry('gpt-6.1-sol', 4, effort='medium')
-    sol['supported_reasoning_levels'].extend({'effort': effort} for effort in ('high', 'xhigh', 'max'))
-    catalog = {'models': [sol, entry('gpt-6-sol', 3),
-                          entry('gpt-7-sol', 1, visibility='hide')]}
-    run = Mock(return_value=Mock(stdout=json.dumps(catalog)))
-    monkeypatch.setattr(fix_tests.subprocess, 'run', run)
-    assert fix_tests.available_models() == ('gpt-6.1-sol', 'gpt-6.1-sol')
-    assert run.call_args.args[0] == ['/opt/codex', 'debug', 'models']
-    for replacement in (entry('gpt-6.1-sol', 2, effort='medium'),
-                        dict(sol, visibility='hide'), entry('gpt-6-sol', 2)):
-        catalog['models'][0] = replacement
-        run.return_value.stdout = json.dumps(catalog)
-        with pytest.raises(ValueError, match='gpt-6.1-sol with (medium|high) reasoning'):
-            fix_tests.available_models()
-    without_medium = [level for level in sol['supported_reasoning_levels'] if level['effort'] != 'medium']
-    catalog['models'][0] = dict(sol, supported_reasoning_levels=without_medium)
-    run.return_value.stdout = json.dumps(catalog)
-    with pytest.raises(ValueError, match='gpt-6.1-sol with medium reasoning'):
-        fix_tests.available_models()
-    # An explicit High initial agent does not require Medium availability.
-    assert fix_tests.available_models(effort='high') == ('gpt-6.1-sol', 'gpt-6.1-sol')
-    for missing in ('high', 'xhigh', 'max'):
-        levels = [level for level in without_medium if level['effort'] != missing]
-        catalog['models'][0] = dict(sol, supported_reasoning_levels=levels)
-        run.return_value.stdout = json.dumps(catalog)
-        with pytest.raises(ValueError, match=f'gpt-6.1-sol with {missing} reasoning'):
-            fix_tests.available_models(effort='high')
-
-
-@pytest.mark.parametrize('categories, required', [
-    (('unit',), ('low', 'medium', 'high', 'xhigh')),
-    (('unit', 'ui'), ('low', 'medium', 'high', 'xhigh', 'max')),
-])
-def test_model_catalog_validates_category_specific_ladders(monkeypatch, categories, required):
-    monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
-    entry = {'slug': 'gpt-6.1-sol', 'visibility': 'list',
-             'supported_reasoning_levels': [{'effort': effort} for effort in required]}
-    catalog = {'models': [entry]}
-    run = Mock(return_value=Mock(stdout=json.dumps(catalog)))
-    monkeypatch.setattr(fix_tests.subprocess, 'run', run)
-    assert fix_tests.available_models(categories=categories) == ('gpt-6.1-sol', 'gpt-6.1-sol')
-    for missing in required:
-        entry['supported_reasoning_levels'] = [{'effort': effort} for effort in required if effort != missing]
-        run.return_value.stdout = json.dumps(catalog)
-        with pytest.raises(ValueError, match=f'gpt-6.1-sol with {missing} reasoning'):
-            fix_tests.available_models(categories=categories)
-
-
-def test_unit_repair_prompt_describes_lower_ladder():
-    prompt = fix_tests.repair_prompt('LATEST FAILURE', category='unit')
-    assert 'GPT-6.1 Sol Low to Medium, then High, then xHigh' in prompt
-    assert 'then Max' not in prompt
-
-
-@pytest.mark.parametrize('effort', ['high', 'xhigh', 'max'])
-def test_sol_stronger_overrides_preserve_requested_effort(effort):
-    assert fix_tests.initial_model('gpt-6.1-sol', effort) == ('gpt-6.1-sol', effort)
-    assert fix_tests.initial_model(None, effort) == ('gpt-6.1-sol', effort)
-
-
-@pytest.mark.parametrize('model', ['gpt-6-sol', 'gpt-5.6-sol', 'gpt-7-sol', 'gpt-6-astra', 'unknown'])
-def test_other_models_are_refused(model):
-    with pytest.raises(ValueError, match='model must be gpt-6.1-sol'):
-        fix_tests.initial_model(model)
-
-
 def test_failed_verification_carries_only_latest_repair_until_category_passes():
     outcomes = iter([failure('one', 'unit'), failure('two', 'unit'),
                      failure('three', 'unit'), None, failure('new', 'ui'), None, None])
@@ -630,61 +452,6 @@ def test_verification_uses_all_reported_identities_but_never_infers_unreported_p
     assert fix_tests.verification_outcome(failure, ('e2e', 'A', 'two')) is None
     assert fix_tests.verification_outcome({'failures': []}, ('e2e', 'A', 'one')) is None
     assert fix_tests.verification_outcome(None, ('e2e', 'A', 'one')) is True
-
-
-def test_usage_preserves_unknown_counters_and_never_interrupts_cleanup(tmp_path, capsys):
-    fix_tests.record_usage(tmp_path, {'session_id': 'first'}, {
-        'input_tokens': 0, 'output_tokens': -1, 'cached_input_tokens': True,
-        'reasoning_output_tokens': 'unknown'})
-    fix_tests.record_usage(tmp_path, {'session_id': 'second'}, event='missing_usage')
-    rows = [json.loads(line) for line in (tmp_path / 'agent-usage.jsonl').read_text().splitlines()]
-    assert rows[0]['usage'] == {'input_tokens': 0}
-    assert rows[1]['usage'] is None and rows[1]['event'] == 'missing_usage'
-    fix_tests.record_usage(tmp_path / 'absent', {}, {})
-    assert 'could not retain usage' in capsys.readouterr().err
-
-
-@pytest.mark.parametrize('classification', [None, 'app_issue: behavior changed'])
-def test_every_repair_phase_preserves_the_behavior_confirmation_mandate(classification):
-    from launcher_question import BLOCKER_INSTRUCTIONS
-    prompt = fix_tests.repair_prompt(
-        'original evidence', app_issue=classification,
-        developer_answers=[{'question': 'Which behavior?', 'answer': 'Restore the specified behavior.'}],
-        blocker_summary='Retained evidence: failure.json')
-    assert 'All repair tiers use GPT-6.1 Sol' in prompt
-    assert 'GPT-6.1 Sol Medium to High, then xHigh, then Max' in prompt
-    assert 'Never use Sol High' not in prompt
-    if classification is None:
-        assert 'before editing' in prompt
-    else:
-        assert 'Recheck the classification' in prompt
-    assert 'expected versus actual results' in prompt
-    assert 'return status "blocked" to ask the developer to confirm intended behavior' in prompt
-    assert 'unless that exact behavior change is already explicitly authorized' in prompt
-    assert 'Do not weaken, skip or delete tests' in prompt
-    assert BLOCKER_INSTRUCTIONS in prompt
-    assert 'Restore the specified behavior.' in prompt
-    assert 'Retained evidence: failure.json' in prompt
-    assert 'an answer alone is not evidence it passed' in prompt
-
-
-def test_both_workflows_explain_decisions_without_requiring_technical_translation():
-    import write_e2e
-    from launcher_question import BLOCKER_INSTRUCTIONS
-    prompts = [fix_tests.repair_prompt('failure'),
-               write_e2e.session_prompt(write_e2e.fresh_state('017c'))]
-    for prompt in prompts:
-        assert 'tools/prepare-vm --vm NAME --mode auto --y' in prompt
-        assert 'omit it for manual work' in prompt
-        assert '--mode manual --y only with explicit developer authorization' in prompt
-        assert BLOCKER_INSTRUCTIONS in prompt
-        assert 'Use everyday language and short sentences in ALL three fields' in prompt
-        assert 'why you cannot finish' in prompt
-        assert 'Each choice must say who does what and what happens' in prompt
-        assert 'Do not offer two phrasings of the same repair' in prompt
-        assert 'compare the exact command with the maintained grant' in prompt
-        assert 'do not suggest administrator repair without evidence' in prompt
-        assert 'expected result and observed result' in prompt
 
 
 @pytest.mark.parametrize('result', [

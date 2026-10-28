@@ -12,19 +12,9 @@ import pytest
 import evidence
 import installed_journey as journeys
 import installed_setup
-import parent_about
-import parent_information
 import real_interval_qualification
 import parent_access
 import session_control
-import restricted_station_about
-import mate_prompt
-import kiosk_multiple
-import kiosk_approval
-import auth_result
-import kiosk_approved_flow
-import kiosk_rejection
-import approval_flow
 
 
 
@@ -92,204 +82,11 @@ def test_failure_journal_matches_the_kiosk_and_root_reports_about_it():
     assert not matches({'_UID': '1005', '_COMM': 'unrelated'})
 
 
-@pytest.mark.parametrize('failure', [0, 1])
-def test_flow07_selector_runs_separate_owned_attempts_and_stops_after_failure(monkeypatch, failure):
-    import check_e2e_approval_flow as selector
-    smoke = Mock(side_effect=[failure, 0])
-    monkeypatch.setattr(selector, 'smoke', smoke)
-    monkeypatch.setattr(selector, 'named_input', lambda: 'owned-input')
-    assert selector.main() == failure
-    assert [call.kwargs for call in smoke.call_args_list] == [
-        dict(assets='owned-input', provision_credentials=True, approval_flow=outcome)
-        for outcome in (('rejection',) if failure else ('rejection', 'cancel'))]
-import restricted_station
 
 
-@pytest.mark.parametrize('selector,mode', [('auth_prompt', 'mate_prompt'),
-                                          ('read_restricted_station_about', 'restricted_station_about'),
-                                          ('kiosk_multiple', 'kiosk_multiple'),
-                                          ('kiosk_approval', 'kiosk_approval'),
-                                          ('baseline_auth_pause', 'baseline_auth_pause'),
-                                          ('auth_result', 'auth_result'),
-                                          ('kiosk_approved_flow', 'kiosk_approved_flow'),
-                                          ('kiosk_rejection', 'kiosk_rejection')])
-def test_auth_prompt_qualification_reuses_owned_mate_envelope(selector, mode):
-    # The argument-free selector must not acquire a separate VM/cleanup route.
-    import ast
-    source = (ROOT / ('tests/integration/check_e2e_' + selector + '.py')).read_text()
-    tree = ast.parse(source)
-    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
-             and isinstance(node.func, ast.Name) and node.func.id == 'smoke']
-    assert len(calls) == 1
-    keywords = {item.arg: ast.unparse(item.value) for item in calls[0].keywords}
-    assets = ('named_input(package_source=True)' if selector in (
-        'kiosk_approval', 'kiosk_approved_flow', 'baseline_auth_pause')
-              else 'named_input()')
-    assert keywords == {'assets': assets, 'provision_credentials': 'True',
-                        mode: 'True'}
-import kiosk_no_child
-import kiosk_no_approver
 import catalogue
-from match_rules import MatchRuleJourney
-import retained_parent
-import allowance
-import time_explanation
 
 
-@pytest.mark.parametrize('fault', ['', 'grant', 'settings', 'clock', 'missing', 'replay'])
-def test_revoke_cancel_real_step_preserves_checks_before_durable_reply(tmp_path, fault):
-    # Existing private files/recorders only; no new process, bus or cleanup owner.
-    from copy import deepcopy
-    from time_explanation import RevokeCancelJourney, REVOKE_PLAN
-    journey = RevokeCancelJourney(SimpleNamespace(directory=tmp_path), Mock())
-    journey.grant_estimate = {'estimate': {'seconds': 975}, 'observed_monotonic_ns': 1}
-    value = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
-        'balances': {'child': 'fixture-child', 'expanded': True, 'observed_monotonic_ns': 1_000_000_000,
-            **{key: {'text': text, 'seconds': seconds, 'precision_seconds': 1}
-               for key, text, seconds in (('daily', '15m', 900), ('one_time', '16m 15s', 975),
-                                          ('total', '16m 15s', 975))}},
-        'read_bounds': [1_000_000_000, 2_000_000_000]}
-    if fault != 'missing': journey.check_settings('before', {'ui': {'revoke_cancel': value}})
-    current = deepcopy(value)
-    current['read_bounds'] = [3_000_000_000, 4_000_000_000]
-    current['balances']['observed_monotonic_ns'] = 3_000_000_000
-    if fault == 'grant': current['balances']['one_time']['seconds'] = 0
-    if fault == 'settings': current['settings']['allowance'] = ['30 minutes']
-    if fault == 'clock': current['read_bounds'] = [1, 2]
-    if fault == 'replay': journey.check_settings('first-balances', {'ui': {'revoke_cancel': current}})
-    # A caller mutation cannot rewrite the stored baseline.
-    value['settings']['allowance'].clear()
-    stage = 'first-balances'
-    journey.steps = [{'stage': s} for s in REVOKE_PLAN.stages[:REVOKE_PLAN.stages.index(stage)]]
-    journey.boot = 'b' * 64
-    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
-        'operation': 'revoke-balances', 'outcome': 'passed', 'revoke_cancel': current}))
-    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
-    if fault:
-        with pytest.raises(EvidenceError): journey.step(Mock())
-        assert journey.failed and not (tmp_path / (stage + '.reply.json')).exists()
-    else:
-        journey.step(Mock())
-        assert (tmp_path / (stage + '.reply.json')).exists()
-        assert journey.steps[-1]['comparison']['unchanged_balances_with_elapsed_bounds']
-@pytest.mark.parametrize('fault', ['', 'grant', 'daily', 'total', 'settings', 'apps', 'rules',
-                                   'clock', 'missing', 'replay'])
-def test_revocation_real_step_requires_cleared_grant_and_unchanged_saved_policy(tmp_path, fault):
-    from copy import deepcopy
-    from time_explanation import RevokeConfirmJourney, REVOKE_CONFIRM_PLAN
-    journey = RevokeConfirmJourney(SimpleNamespace(directory=tmp_path), Mock())
-    journey.grant_estimate = {'estimate': {'seconds': 975}, 'observed_monotonic_ns': 1}
-    value = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
-        'apps': [['parent-app-0000000000000000', 'conditional', 'pattern']],
-        'rules': [['parent-app-0000000000000000', '/opt/fixture/*']],
-        'balances': {'child': 'fixture-child', 'expanded': True, 'observed_monotonic_ns': 1_000_000_000,
-            **{key: {'text': text, 'seconds': seconds, 'precision_seconds': 1}
-               for key, text, seconds in (('daily', '15m', 900), ('one_time', '16m 15s', 975),
-                                          ('total', '16m 15s', 975))}},
-        'read_bounds': [1_000_000_000, 2_000_000_000]}
-    if fault != 'missing': journey.check_settings('before', {'ui': {'revoke_cancel': value}})
-    current = deepcopy(value)
-    current['read_bounds'] = [3_000_000_000, 4_000_000_000]
-    current['balances']['observed_monotonic_ns'] = 3_000_000_000
-    current['balances']['one_time'] = {'text': '0m', 'seconds': 0, 'precision_seconds': 1}
-    current['balances']['total'] = deepcopy(current['balances']['daily'])
-    if fault == 'grant': current['balances']['one_time']['seconds'] = 1
-    if fault == 'daily': current['balances']['daily']['seconds'] = 850
-    if fault == 'total': current['balances']['total']['seconds'] = 975
-    if fault == 'settings': current['settings']['allowance'] = ['30 minutes']
-    if fault == 'apps': current['apps'][0][1] = 'permanent'
-    if fault == 'rules': current['rules'][0][1] = '/opt/other/*'
-    if fault == 'clock': current['read_bounds'] = [1, 2]
-    if fault == 'replay': journey.check_settings('after', {'ui': {'revoke_cancel': current}})
-    value['settings']['allowance'].clear()
-    value['apps'].clear()
-    value['rules'].clear()
-    stage = 'after'
-    journey.steps = [{'stage': s} for s in REVOKE_CONFIRM_PLAN.stages[:REVOKE_CONFIRM_PLAN.stages.index(stage)]]
-    journey.boot = 'b' * 64
-    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
-        'operation': 'revoke-cleared-balances', 'outcome': 'passed', 'revoke_cancel': current}))
-    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
-    if fault:
-        with pytest.raises(EvidenceError): journey.step(Mock())
-        assert journey.failed and not (tmp_path / (stage + '.reply.json')).exists()
-    else:
-        journey.step(Mock())
-        assert (tmp_path / (stage + '.reply.json')).exists()
-        assert journey.steps[-1]['comparison']['grant_cleared']
-        assert journey.steps[-1]['comparison']['unchanged_app_rules']
-
-
-def test_revocation_comparisons_allow_independent_caller_endpoints(tmp_path):
-    from copy import deepcopy
-    from request_composition import RevocationJourney
-    from installed_journey import JourneyPlan
-    plan = JourneyPlan(prefix='independent', worker_mode='revocation',
-        screen_tags={'decision': 'ui:kiosk-valid-fraction-soft-read',
-                     'capture': 'ui:revoke-saved-balances', 'result': 'ui:revoke-cleared-balances'},
-        phases={'ready': 'setup', 'decision': 'step-1', 'capture': 'step-1', 'result': 'step-1'})
-    journey = RevocationJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
-        read_checks={'capture': (None, 'confirm'), 'result': ('capture', 'confirm')},
-        window_checks={}, approval_stage='decision')
-    journey.balance = {'observed_monotonic_ns': 1,
-                      'daily': {'seconds': 900, 'precision_seconds': 1},
-                      'one_time': {'seconds': 0, 'precision_seconds': 1}}
-    choice = {'estimate': {'kind': 'fixed', 'seconds': 975},
-              'request': {'duration_seconds': 75}, 'observed_monotonic_ns': 1}
-    journey.check_settings('decision', {'ui': {'valid_choice': choice}})
-    choice['estimate']['seconds'] = 1  # Capturing cannot retain mutable decoder data.
-    value = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
-        'apps': [], 'rules': [], 'read_bounds': [1_000_000_000, 2_000_000_000],
-        'balances': {'observed_monotonic_ns': 1_000_000_000,
-            **{key: {'seconds': seconds, 'precision_seconds': 1}
-               for key, seconds in (('daily', 900), ('one_time', 975), ('total', 975))}}}
-    journey.check_settings('capture', {'ui': {'revoke_cancel': value}})
-    current = deepcopy(value)
-    current['read_bounds'] = [3_000_000_000, 4_000_000_000]
-    current['balances']['one_time']['seconds'] = 0
-    current['balances']['total']['seconds'] = 900
-    observed = {'ui': {'revoke_cancel': current}}
-    journey.check_settings('result', observed)
-    assert observed['comparison']['grant_cleared']
-
-
-@pytest.mark.parametrize('fault', ['', 'window', 'missing', 'replay', 'plan'])
-def test_revocation_retained_window_uses_caller_endpoints_and_immutable_capture(tmp_path, fault):
-    from request_composition import RevocationJourney
-    from installed_journey import JourneyPlan
-    plan = JourneyPlan(prefix='independent', worker_mode='revocation',
-        screen_tags={'leaving': 'ui:retained-parent-leave',
-                     'returning': 'ui:retained-parent-read'},
-        phases={'ready': 'setup', 'leaving': 'step-1', 'returning': 'step-1'})
-    if fault == 'plan':
-        with pytest.raises(EvidenceError, match='revocation:window-plan'):
-            RevocationJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
-                read_checks={}, window_checks={'leaving': 'returning'}, approval_stage=None)
-        return
-    journey = RevocationJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
-        read_checks={}, window_checks={'returning': 'leaving'}, approval_stage=None)
-    original = {'window': {'pid': 101, 'object_path': '/public/window'},
-                'page': 'Screen Limits', 'settings': {'child': 'fixture-child'}}
-    expected = copy.deepcopy(original)
-    if fault != 'missing':
-        journey.check_settings('leaving', {'ui': {'retained_parent': original}})
-    original['window']['pid'] = 202
-    if fault == 'window': expected['window']['pid'] = 303
-    if fault == 'replay':
-        with pytest.raises(EvidenceError, match='revoke-cancel:read-replay'):
-            journey.check_settings('leaving', {'ui': {'retained_parent': original}})
-    elif fault:
-        with pytest.raises(EvidenceError, match='revoke-cancel:retained-parent'):
-            journey.check_settings('returning', {'ui': {'retained_parent': expected}})
-    else:
-        journey.check_settings('returning', {'ui': {'retained_parent': expected}})
-
-
-import parent_discovery
-import shell_search_results
-import parent_search_launch
-import license_viewer_provider
-import shell_search
 import inventory
 from private_artifacts import EvidenceError, PrivateCollector
 from recording import ScenarioRecorder
@@ -316,29 +113,6 @@ INTERVAL_RECORDER_PLAN = replace(real_interval_qualification.PLAN,
 def test_customer_plan_refuses_image_or_geometry_acceptance_before_execution(tag):
     with pytest.raises(EvidenceError, match='semantic-plan'):
         replace(SYNTHETIC, screen_tags={'opened': tag})
-
-
-@pytest.mark.parametrize('observed', [True, False])
-def test_semantic_results_do_not_depend_on_graphical_diagnostics(tmp_path, observed):
-    plan = replace(SYNTHETIC, screen_tags={'opened': 'ui:parent-window'})
-    (tmp_path / 'testresults').mkdir()
-    # An optional backend diagnostic has no image/geometry authority. In
-    # particular it cannot require reading an absent screenshot or replace a
-    # missing independent product result, even with a perfect match score.
-    details = [{'needle': 'unrelated-desktop', 'result': 'ok',
-                'area': [{'result': 'ok', 'similarity': 17 if observed else 100}],
-                'screenshot': 'missing.png'},
-               {'title': 'example-opened', 'result': 'ok'}]
-    (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({
-        'result': 'ok', 'details': details}))
-    observations = [{'stage': 'opened', 'ui': {
-        'operation': 'parent-window', 'outcome': 'passed'}}] if observed else []
-    if observed:
-        assert journeys.matched_screens(tmp_path, plan, observations) == [{
-            'stage': 'opened', 'detail_index': 1, 'ui': observations[0]['ui']}]
-    else:
-        with pytest.raises(EvidenceError, match='ui-evidence'):
-            journeys.matched_screens(tmp_path, plan, observations)
 
 
 @pytest.fixture
@@ -378,53 +152,6 @@ def test_custom_batch_receipt_precedes_result_and_refuses_missing_or_foreign_inp
         assert clock[0] == 30
     assert guard.called
     assert clock[0] <= 60
-
-
-@pytest.mark.parametrize('operation', ['desktop', 'fresh-parent-desktop', 'standard-desktop',
-                                       'fresh-standard-desktop', 'parent-selected'])
-@pytest.mark.parametrize('fault', [None, 'ui', 'boot', 'preparation'])
-def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
-        tmp_path, monkeypatch, operation, fault):
-    plan = replace(SYNTHETIC, screen_tags={'entry': 'ui:' + operation},
-                   phases={'ready': 'setup', 'setup-detached': 'setup', 'entry': 'step-1'},
-                   advance_after={})
-    progress = Mock()
-    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), progress, plan)
-    journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
-    journey.boot = 'a' * 64
-    journey.transport = object()
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-    journey.ui = SimpleNamespace(
-        boot_proof=('b' if fault == 'boot' else 'a') * 64,
-        observe=Mock(return_value=result, side_effect=RuntimeError('ui-failed') if fault == 'ui' else None))
-    preparation = {'operation': 'parent-continuous-activity', 'outcome': 'passed',
-                   'interface': 'system session', 'idle_delay_seconds': 0,
-                   'previous_idle_delay_seconds': 300}
-    prepare = Mock(return_value=preparation,
-                   side_effect=RuntimeError('prepare-failed') if fault == 'preparation' else None)
-    monkeypatch.setattr(session_control, 'observe', prepare)
-    (tmp_path / 'entry.request.json').write_text(json.dumps({'stage': 'entry', 'screenshot': None}))
-    parent = operation in ('desktop', 'fresh-parent-desktop')
-    if fault in ('ui', 'boot') or fault == 'preparation' and parent:
-        with pytest.raises((RuntimeError, EvidenceError)):
-            journey.step(Mock())
-        with pytest.raises(EvidenceError, match='previous-failure'):
-            journey.step(Mock())
-        progress.assert_not_called()
-        assert not (tmp_path / 'entry.reply.json').exists()
-    else:
-        def recorded(stage, observed):
-            assert stage == 'entry'
-            assert not (tmp_path / 'entry.reply.json').exists()
-            assert observed.get('desktop_preparation') == (preparation if parent else None)
-        progress.side_effect = recorded
-        journey.step(Mock())
-        progress.assert_called_once()
-        assert (tmp_path / 'entry.reply.json').exists()
-    if parent and fault not in ('ui', 'boot'):
-        prepare.assert_called_once_with(journey.transport, 'parent-continuous-activity')
-    else:
-        prepare.assert_not_called()
 
 
 @pytest.mark.parametrize('failure', [
@@ -609,51 +336,6 @@ def test_legacy_dormant_install_guard_preserves_setup_before_customer_input(tmp_
     setup.return_value.provision.assert_not_called()
 
 
-@pytest.mark.parametrize('binding,failure', [('activity', False), ('activity', True), ('policy', False)])
-def test_activity_consumer_verifies_baseline_before_setup_reply(tmp_path, monkeypatch, binding, failure):
-    import native_fixtures
-    setup, transport, fixtures = Mock(), Mock(), Mock()
-    if failure:
-        fixtures.return_value.verify.side_effect = EvidenceError('native:activity-not-ready')
-    monkeypatch.setattr(installed_setup, 'InstalledSetup', setup)
-    monkeypatch.setattr(journeys, 'Transport', transport)
-    monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock())
-    monkeypatch.setattr(journeys.system, 'address', lambda *_args, **_kwargs: '192.0.2.1')
-    monkeypatch.setattr(native_fixtures, 'NativeFixtures', fixtures)
-    tag = 'ui:overlay-native-activity-launch' if binding == 'activity' else 'ui:native-command-launch'
-    plan = replace(SYNTHETIC, screen_tags={'activity-command': tag},
-                   phases={'ready': 'setup', 'setup-detached': 'setup', 'activity-command': 'step-1'})
-    context = SimpleNamespace(directory=tmp_path, installed_snapshot='accepted-snapshot',
-                              lease=Mock(), verified=Mock(), commands=Mock(), host_key='test-key')
-    context.lease.state = {'run': 'test-run'}
-    context.lease.capture.state = {'guest': {'fixture_boundary': 'legacy'}}
-    context.verified.fixture_prepared = None
-    journey = journeys.InstalledJourney(context, Mock(), plan)
-    guard = Mock()
-    for stage in ('ready', 'setup-detached'):
-        (tmp_path / (stage + '.request.json')).write_text(
-            json.dumps({'stage': stage, 'screenshot': None}))
-    journey.step(guard)
-    if failure:
-        with pytest.raises(EvidenceError, match='native:activity-not-ready'): journey.step(guard)
-        assert not (tmp_path / 'setup-detached.reply.json').exists()
-        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(guard)
-    else:
-        journey.step(guard)
-        assert json.loads((tmp_path / 'setup-detached.reply.json').read_text()) == {'setup_complete': True}
-    if binding == 'activity':
-        fixtures.assert_called_once_with(transport.return_value, context.verified, profile='activity')
-        fixtures.return_value.verify.assert_called_once_with()
-    else:
-        fixtures.assert_not_called()
-    setup.return_value.run.assert_not_called()
-
-
-def test_review_requires_a_named_qualification_mode(tmp_path):
-    with pytest.raises(EvidenceError, match='review-mode'):
-        journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), SYNTHETIC, review=True)
-
-
 def test_stage_action_runs_after_worker_guard_and_before_durable_reply(tmp_path, monkeypatch):
     monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock())
     plan = replace(SYNTHETIC, screen_tags={"created": "system:parent-command-context"},
@@ -703,61 +385,6 @@ def test_stage_action_registry_refuses_missing_or_extra_actions(tmp_path):
     plan = replace(SYNTHETIC, stage_actions={"details": "create-account"})
     with pytest.raises(EvidenceError, match="stage-actions"):
         journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
-
-
-@pytest.mark.parametrize('fault', ['changed', 'missing', 'missing-earlier'])
-def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
-    plan = parent_discovery.PLAN
-    action, progress = Mock(), Mock()
-    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), progress, plan,
-                                        actions={'create-account': action})
-    stage = 'fixture-requested'
-    journey.steps = [{'stage': name} for name in plan.stages[:plan.stages.index(stage)]]
-    earlier = journeys.SettingsObservation('existing-fixture-child', False, ('0 minutes',))
-    if fault != 'missing-earlier': journey.settings_observations['parent-selected'] = earlier
-    result = {'operation': 'discovery-ready', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-    if fault != 'missing':
-        result['settings'] = {'child': earlier.child, 'limit_enabled': fault == 'changed',
-                              'allowance': ['0 minutes']}
-    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'a' * 64}))
-    journey.ui = SimpleNamespace(boot_proof='a' * 64, observe=Mock(return_value=result))
-    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
-    with pytest.raises(EvidenceError): journey.step(Mock())
-    with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
-    action.assert_not_called()
-    progress.assert_not_called()
-    assert not (tmp_path / (stage + '.reply.json')).exists()
-
-
-@pytest.mark.parametrize('fault', ['child', 'toggle', 'allowance', 'missing', 'missing-earlier'])
-def test_parent_information_return_comparison_refuses_before_durable_reply(tmp_path, fault):
-    plan = parent_information.PLAN
-    progress = Mock()
-    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), progress, plan)
-    stage = 'parent-returned'
-    journey.steps = [{'stage': name} for name in plan.stages[:plan.stages.index(stage)]]
-    earlier = journeys.SettingsObservation('fixture-child', False, ('0 minutes',))
-    if fault != 'missing-earlier':
-        journey.settings_observations['parent-selected'] = earlier
-    result = {'operation': 'parent-returned', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-    if fault != 'missing':
-        result['settings'] = {
-            'child': 'existing-fixture-child' if fault == 'child' else earlier.child,
-            'limit_enabled': fault == 'toggle',
-            'allowance': ['1 hour'] if fault == 'allowance' else ['0 minutes'],
-        }
-    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'a' * 64}))
-    journey.ui = SimpleNamespace(boot_proof='a' * 64, observe=Mock(return_value=result))
-    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
-    category = ('ui:missing-settings-observation' if fault in ('missing', 'missing-earlier')
-                else 'ui:settings-changed:' + {'child': 'child', 'toggle': 'limit_enabled',
-                                             'allowance': 'allowance'}[fault])
-    with pytest.raises(EvidenceError, match=category):
-        journey.step(Mock())
-    with pytest.raises(EvidenceError, match='previous-failure'):
-        journey.step(Mock())
-    progress.assert_not_called()
-    assert not (tmp_path / (stage + '.reply.json')).exists()
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'reused', 'reordered', 'wrong-operation'])

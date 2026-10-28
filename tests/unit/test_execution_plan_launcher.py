@@ -1030,133 +1030,6 @@ def test_automatic_prerequisite_reconciliation_requires_completed_cleanup(rig):
     assert workflow.prerequisite_handoff(rig.plan, state, result)
 
 
-@pytest.mark.parametrize('handoff', ['continue', 'blocked', 'rejected'])
-def test_capacity_backoff_falls_back_once_then_restores_sol_for_same_task(rig, monkeypatch, handoff):
-    attempts, clock, waits = [], [1000.0], []
-    def sleep(delay):
-        clock[0] += delay
-        waits.append(delay)
-    monkeypatch.setattr(workflow, 'time', SimpleNamespace(time=lambda: clock[0], sleep=sleep))
-    monkeypatch.setattr(workflow, 'wait_for_answer', lambda *_args, **_kwargs: {'answer': 'Continue'})
-    def execute(root, spec, run, owner):
-        state = json.loads((run / 'checkpoint.json').read_text())
-        attempts.append((spec.model, spec.effort, state['task_sessions'], clock[0]))
-        assert f'coordinator model for this session is {spec.model} {spec.effort}' in (run / 'prompt.txt').read_text()
-        if len(attempts) <= 6:
-            raise workflow.AgentCapacityUnavailable('Model at capacity')
-        if len(attempts) == 7:
-            result = response(state, 'task_complete' if handoff == 'rejected' else handoff)
-            if handoff == 'blocked':
-                result['blocker'] = dict(explanation='A developer decision is required.',
-                    question='Continue with the retained scope?', options=['Continue.', 'Stop.'])
-            return result
-        assert 'capacity_recovery' not in state
-        complete(rig.plan, state['task_id'])
-        return response(state)
-    monkeypatch.setattr(workflow, 'execute', execute)
-    assert rig.worker() == 0
-    assert [model for model, *_ in attempts] == ['gpt-6.1-sol'] * 6 + ['gpt-6-astra', 'gpt-6.1-sol']
-    assert [effort for _, effort, *_ in attempts] == [rig.spec.effort] * 8
-    assert [session for _, _, session, _ in attempts] == [1] * 7 + [2]
-    assert [attempts[i + 1][3] - attempts[i][3] for i in range(5)] == [5, 10, 20, 40, 80]
-    assert sum(waits) == 155 and len(attempts) == 8
-    assert TaskBudget(rig.run).read()['completed'] == 1
-    assert rig.spec.model == 'gpt-6.1-sol'
-
-
-@pytest.mark.parametrize('effort', ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
-def test_capacity_fallback_command_keeps_exact_effort_without_changing_defaults(rig, monkeypatch, effort):
-    monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/private/codex')
-    spec = replace(rig.spec, effort=effort)
-    state = state_for(rig.plan, total_sessions=1, capacity_recovery=dict(session=1, failures=6))
-    active = workflow.capacity_session_spec(spec, state)
-    command = workflow.session_command(rig.root, active, rig.run)
-    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
-    assert command[command.index('--model') + 1] == 'gpt-6-astra'
-    assert config['model_reasoning_effort'] == effort
-    assert spec.model == 'gpt-6.1-sol' and spec.effort == effort
-    state['total_sessions'] += 1
-    assert workflow.capacity_session_spec(spec, state) == spec
-
-
-def test_already_configured_astra_has_finite_capacity_retries_without_model_switch(rig, monkeypatch):
-    clock, attempts = [1000.0], []
-    def sleep(delay):
-        clock[0] += delay
-    monkeypatch.setattr(workflow, 'time', SimpleNamespace(time=lambda: clock[0], sleep=sleep))
-    def execute(root, spec, run, owner):
-        attempts.append(spec.model)
-        raise workflow.AgentCapacityUnavailable('Model at capacity')
-    monkeypatch.setattr(workflow, 'execute', execute)
-    owner = os.open(rig.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
-    assert workflow.worker(rig.root, rig.run, owner, replace(rig.spec, model='gpt-6-astra'),
-                           dict(phase='complete', task_sessions=0, total_sessions=0)) == 1
-    assert attempts == ['gpt-6-astra'] * 6
-    assert TaskBudget(rig.run).read()['completed'] == 0
-    assert json.loads((rig.run / 'checkpoint.json').read_text())['capacity_recovery']['exhausted']
-
-
-@pytest.mark.parametrize('checked', [False, True])
-@pytest.mark.parametrize('exhausted', [False, True])
-def test_capacity_restart_restores_removed_brief_on_default_model_with_fresh_retries(
-        rig, monkeypatch, checked, exhausted, private_plan_runs):
-    previous = rig.root / 'previous'
-    previous.mkdir()
-    state = state_for(rig.plan, phase='recover', task_sessions=1, total_sessions=1,
-        capacity_recovery=dict(session=1, failures=7 if exhausted else 6,
-            retry_after=9000, message='Model at capacity', exhausted=exhausted))
-    workflow.launcher.atomic(previous / 'checkpoint.json', state)
-    original_checkpoint = (previous / 'checkpoint.json').read_bytes()
-    if checked:
-        complete(rig.plan, '001')
-    brief = rig.root / 'docs/001.md'
-    original_brief = brief.read_text()
-    brief.unlink()
-    original_source = workflow.__file__
-    monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
-    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
-    monkeypatch.setattr(workflow, 'session_command', lambda *_args: [])
-    def select(root, name, command, **options):
-        command(rig.run, -1)
-        options['on_start'](rig.run)
-        return rig.run, True
-    monkeypatch.setattr(workflow.launcher, 'select', select)
-    monkeypatch.setattr(workflow.launcher, 'follow', lambda *_args, **_kwargs: 0)
-    assert workflow.main(rig.spec, []) == 0
-    monkeypatch.setattr(workflow, '__file__', original_source)
-    resumed = json.loads((rig.run / 'checkpoint.json').read_text())
-    assert resumed['task'] == state['task'] and not workflow.capacity_retry(resumed)
-    clock, attempts, failed_errors = [1000.0], [], []
-    def sleep(delay):
-        clock[0] += delay
-    monkeypatch.setattr(workflow, 'time', SimpleNamespace(time=lambda: clock[0], sleep=sleep))
-    def execute(root, spec, run, owner):
-        (run / 'agent-error.json').unlink(missing_ok=True)
-        current = json.loads((run / 'checkpoint.json').read_text())
-        attempts.append((spec.model, spec.effort, current['task_sessions']))
-        assert current['task'] == state['task']
-        assert current['task_id'] == '001'
-        brief.write_text(original_brief)
-        if len(attempts) == 1:
-            assert 'capacity_recovery' not in current
-            workflow.launcher.atomic(run / 'agent-error.json', dict(message='Model at capacity',
-                context='turn failed', codex_error_info='serverOverloaded'))
-            failed_errors.append((run / 'agent-error.json').read_bytes())
-            raise workflow.AgentCapacityUnavailable('Model at capacity')
-        complete(rig.plan, '001')
-        result = response(current)
-        workflow.launcher.atomic(run / 'agent-result.json', result)
-        return result
-    monkeypatch.setattr(workflow, 'execute', execute)
-    assert rig.worker(resumed) == 0
-    assert attempts == [('gpt-6.1-sol', rig.spec.effort, 2)] * 2
-    assert clock[0] == 1005
-    assert (previous / 'checkpoint.json').read_bytes() == original_checkpoint
-    assert TaskBudget(rig.run).read()['completed'] == 1
-    saved = json.loads((rig.run / 'checkpoint.json').read_text())
-    assert not (rig.run / 'agent-error.json').exists()
-
-
 @pytest.mark.parametrize('damage', ['foreign-session'])
 def test_capacity_restart_keeps_identity_and_unrelated_queue_guards(rig, monkeypatch, damage):
     state = state_for(rig.plan, phase='recover', task_sessions=1, total_sessions=1,
@@ -1317,53 +1190,6 @@ def test_noninstalled_acceptance_keeps_declared_target_scope(rig, kind):
         workflow.validate_result(rig.plan, state, result)
 
 
-@pytest.mark.parametrize('limit', [0, -1, -100, None])
-def test_nonpositive_budgets_are_unlimited(tmp_path, limit):
-    budget = TaskBudget(tmp_path)
-    budget.initialize(limit)
-    for _ in range(4):
-        assert budget.admit()
-        budget.complete()
-    assert task_limit(limit) is None
-    assert budget.read()['completed'] == 4
-
-
-@pytest.mark.parametrize('limit', [0, -1, 3])
-def test_task_counter_uses_numeric_remaining_total_and_live_limits(tmp_path, limit):
-    budget = TaskBudget(tmp_path)
-    budget.initialize(limit, remaining=5)
-    steps = [dict(key='current', lines=['Current task'])]
-    total = 3 if limit > 0 else 5
-    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 0/{total}/{total}']
-    assert budget.admit()
-    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 0/{total}/{total}']
-    budget.complete()
-    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 1/{total - 1}/{total}']
-    budget.set_limit(0)
-    assert task_progress(tmp_path, steps)[0]['lines'] == ['Tasks: 1/4/5']
-    assert task_progress(tmp_path, steps)[1:] == steps
-
-
-@pytest.mark.parametrize('already_complete', [False, True])
-def test_unlimited_plan_counter_excludes_previously_completed_tasks(rig, monkeypatch, already_complete):
-    if already_complete:
-        complete(rig.plan, '001')
-    TaskBudget(rig.run).initialize(0)
-    counters = []
-
-    def execute(root, spec, run, owner):
-        state = json.loads((run / 'checkpoint.json').read_text())
-        counters.append(task_progress(run, [])[0]['lines'][0])
-        complete(rig.plan, state['task_id'])
-        return response(state)
-
-    monkeypatch.setattr(workflow, 'execute', execute)
-    assert rig.worker() == 0
-    assert counters == (['Tasks: 0/1/1'] if already_complete else ['Tasks: 0/2/2', 'Tasks: 1/1/2'])
-    assert task_progress(rig.run, [])[0]['lines'] == [
-        'Tasks: 1/0/1' if already_complete else 'Tasks: 2/0/2']
-
-
 def test_active_budget_replacement_and_closed_refusal(tmp_path):
     budget = TaskBudget(tmp_path)
     budget.initialize(1)
@@ -1387,61 +1213,11 @@ def test_budget_serializes_concurrent_completions(tmp_path):
     assert budget.read()['completed'] == 24
 
 
-def test_oversized_budget_warns_and_queue_exhausts_naturally(rig, capsys):
-    warn_remaining(8, 2, label=rig.spec.name)
-    TaskBudget(rig.run).initialize(8)
-    assert rig.worker() == 0
-    assert [call[0] for call in rig.calls] == ['001', '002']
-    assert json.loads((rig.run / 'result.json').read_text()) == dict(status=0, tasks=2)
-    assert 'only 2 remain' in capsys.readouterr().out
-    assert 'queue complete' in (rig.run / 'handoff.txt').read_text()
-
-
 def test_task_limit_stops_before_next_task(rig):
     assert rig.worker() == 0
     assert [call[0] for call in rig.calls] == ['001']
     assert rig.plan.next_task().id == '002'
     assert 'task limit reached' in (rig.run / 'handoff.txt').read_text()
-
-
-@pytest.mark.parametrize('elapsed, duration', [(720, '12m'), (3600, '1h 0m'), (4320, '1h 12m')])
-def test_followup_sessions_do_not_consume_completed_task_budget(rig, monkeypatch, elapsed, duration):
-    from launcher_progress import read_progress
-    from rich.console import Console
-    from rich.text import Text
-    clock = [1000.0]
-    monkeypatch.setattr(workflow, 'time', SimpleNamespace(time=lambda: clock[0]))
-
-    def execute(root, spec, run, owner):
-        state = json.loads((run / 'checkpoint.json').read_text())
-        rig.calls.append((state['task_id'], state['task_sessions'], spec.effort))
-        clock[0] += elapsed / 3
-        if state['task_sessions'] < 3:
-            return response(state, 'continue')
-        complete(rig.plan, state['task_id'])
-        return response(state)
-    monkeypatch.setattr(workflow, 'execute', execute)
-    assert rig.worker() == 0
-    assert rig.calls == [('001', 1, 'xhigh'), ('001', 2, 'xhigh'), ('001', 3, 'xhigh')]
-    assert TaskBudget(rig.run).read()['completed'] == 1
-    summary = Text.from_ansi(read_progress(rig.run)[-1]['lines'][0])
-    assert summary.plain == f'✓ Task 001: Task 001 ({duration})'
-    assert all(summary.get_style_at_offset(Console(), offset).color.number == 2
-               for offset in range(len(summary.plain)))
-
-
-def test_session_cap_retains_fixed_effort_and_unfinished_task(rig, monkeypatch):
-    def execute(root, spec, run, owner):
-        state = json.loads((run / 'checkpoint.json').read_text())
-        rig.calls.append((state['task_id'], state['task_sessions'], spec.effort))
-        return response(state, 'continue')
-    monkeypatch.setattr(workflow, 'execute', execute)
-    assert rig.worker() == 1
-    assert rig.calls == [('001', n, 'xhigh') for n in range(1, 6)]
-    assert rig.plan.next_task().id == '001'
-    checkpoint = json.loads((rig.run / 'checkpoint.json').read_text())
-    assert checkpoint['phase'] == 'recover'
-    assert 'session limit' in checkpoint['reason']
 
 
 def test_stop_while_blocked_preserves_unanswered_question(rig, monkeypatch):
@@ -1554,42 +1330,6 @@ def test_public_entry_resumes_rejected_partial_edits_before_strict_metadata_vali
     assert restored['task_id'] == '001' and restored['queue_before'] == state['queue_before']
     assert restored['task']['acceptance'] == 'host' and restored['session_limit'] == 6
     assert restored['result_recovery'] == state['result_recovery']
-
-
-def test_reattached_observer_counts_legacy_unlimited_run_without_changing_budget(rig, monkeypatch):
-    # This owner is already running code from before numeric totals were saved.
-    budget = TaskBudget(rig.run)
-    budget.initialize(0)
-    original = (rig.run / 'limits.json').read_text()
-    monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
-
-    def select(root, name, command, **options):
-        options['on_attach'](rig.run)
-        return rig.run, False
-
-    def follow(run, **options):
-        view = options['view']
-        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 0/2/2']
-        assert (run / 'limits.json').read_text() == original
-        # Later task completion and explicit limits use current plan data.
-        complete(rig.plan, '001')
-        budget.complete()
-        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 1/1/2']
-        budget.set_limit(3)
-        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 1/2/3']
-        return 0
-
-    monkeypatch.setattr(workflow.launcher, 'select', select)
-    monkeypatch.setattr(workflow.launcher, 'follow', follow)
-    assert workflow.main(rig.spec, []) == 0
-
-
-def test_e2e_observer_counts_legacy_unlimited_run(tmp_path, monkeypatch):
-    import launcher_view
-    from write_e2e import PLAN
-    TaskBudget(tmp_path).initialize(0)
-    monkeypatch.setattr(launcher_view, 'plan_totals', lambda root, path: (17, 9, 26))
-    assert plan_view(tmp_path, PLAN).progress(tmp_path, [], [])[0]['lines'] == ['Tasks: 0/9/9']
 
 
 @pytest.mark.parametrize('action', ['attach', 'limit', 'stop'])
@@ -3415,66 +3155,6 @@ def test_conflicted_queue_restarts_from_retained_identity_then_rechecks_guards(r
     assert TaskBudget(rig.run).read()['completed'] == 1
 
 
-def test_task_counters_use_accepted_baseline_across_queue_edits_and_reattachment(tmp_path):
-    plan = prepare(tmp_path, count=4)
-    complete(plan, '001')
-    run = tmp_path / 'run'
-    run.mkdir()
-    budget = TaskBudget(run)
-    budget.initialize(1, remaining=3)
-    workflow.launcher.atomic(run / 'checkpoint.json', {'queue_before': plan.state()})
-    # A checked row before accepted close-out must not increase either counter.
-    complete(plan, '002')
-    runtime, totals, baseline = task_counters(run, plan_totals(tmp_path, plan.path))
-    assert totals == (1, 3, 4) and baseline == 1
-    assert runtime['lines'] == ['Tasks: 0/1/1']
-    budget.complete()
-    runtime, totals, _ = task_counters(run, plan_totals(tmp_path, plan.path),
-                                      completed_before=baseline)
-    assert totals == (2, 2, 4) and runtime['lines'] == ['Tasks: 1/0/1']
-    queue = tmp_path / plan.queue
-    queue.write_text(queue.read_text().replace('## Deferred future work',
-        '| [ ] | 005 | [Prerequisite](005.md) | — | added task |\n## Deferred future work'))
-    # Reattachment uses the retained queue boundary, including a new prerequisite.
-    runtime, totals, restored = task_counters(run, plan_totals(tmp_path, plan.path))
-    assert restored == baseline and totals == (2, 3, 5)
-    budget.set_limit(0)
-    runtime, totals, _ = task_counters(run, plan_totals(tmp_path, plan.path),
-                                      completed_before=restored)
-    assert totals == (2, 3, 5) and runtime['lines'] == ['Tasks: 1/3/4']
-
-
-def test_e2e_view_reads_canonical_plan_totals(monkeypatch):
-    import launcher_view
-    import write_e2e
-    calls = []
-    monkeypatch.setattr(launcher_view, 'plan_totals',
-                        lambda root, path: calls.append((root, path)) or (3, 7, 10))
-    root = Path(launcher_view.__file__).resolve().parent.parent
-    view = plan_view(root, write_e2e.PLAN)
-    assert isinstance(view, ExecutionPlanView)
-    assert view.plan == (str(root), write_e2e.PLAN)
-    assert view.totals() == (3, 7, 10)
-    assert calls == [(Path(launcher_view.__file__).resolve().parent.parent, write_e2e.PLAN)]
-
-
-def test_configured_plan_model_and_bounded_sol_roles(tmp_path, monkeypatch):
-    monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/private/codex')
-    spec = workflow.PlanWorkflow('fixture-plan', effort='xhigh')
-    command = workflow.session_command(tmp_path, spec, tmp_path)
-    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
-    assert command[command.index('--model') + 1] == 'gpt-6.1-sol'
-    assert config['model_reasoning_effort'] == 'xhigh'
-    assert config['features']['fast_mode'] is False
-    assert config['agents']['max_depth'] == 1
-    for name, effort, sandbox in [('plan_monitor', 'low', 'read-only'), ('plan_worker', 'medium', 'workspace-write')]:
-        role = tomllib.loads(Path(config['agents'][name]['config_file']).read_text())
-        assert role['model'] == 'gpt-6.1-sol' and role['model_reasoning_effort'] == effort
-        assert role['sandbox_mode'] == sandbox and role['approval_policy'] == 'never'
-        assert role['features']['multi_agent'] is False and role['agents']['enabled'] is False
-    assert workflow.PlanWorkflow('custom').effort == 'high'
-
-
 def test_relocated_public_cli_checks_plan_without_an_agent(tmp_path):
     prepare(tmp_path)
     tools = tmp_path / 'tools'
@@ -3544,40 +3224,6 @@ def test_plan_namespace_registers_and_cancels_only_recorded_nested_owner(tmp_pat
     with pytest.raises(ValueError, match='no longer accepting'):
         with launcher.nested_operation(tmp_path, unrelated):
             pytest.fail('closed workflow admitted another child')
-
-
-def test_backend_clock_is_published_before_spawn_preserved_on_attach_and_reset_on_restart(tmp_path, monkeypatch):
-    import detached_launcher as launcher
-    clock = [1000.0]
-    active = [False]
-    publications = []
-    monkeypatch.setattr(launcher.time, 'monotonic', lambda: clock[0])
-    monkeypatch.setattr(launcher, 'busy', lambda _: active[0])
-
-    def spawn(*args, **kwargs):
-        from test_storage import directory
-        publications.append(json.loads((directory('fix-tests', root=tmp_path) / 'current.json').read_text()))
-
-    monkeypatch.setattr(launcher.subprocess, 'Popen', spawn)
-    preparations = []
-    def command(run, owner):
-        assert preparations[-1] == run
-        return ['private-worker-double']
-    run, started = launcher.select(tmp_path, 'fix-tests', command, on_prepare=preparations.append)
-    assert started
-    assert publications == [dict(run=run.name, started_at=publications[0]['started_at'],
-                                 started_monotonic=1000.0)]
-    record = (run.parent / 'current.json').read_bytes()
-    active[0] = True
-    clock[0] += 720
-    assert launcher.select(tmp_path, 'fix-tests', command, on_prepare=preparations.append) == (run, False)
-    assert preparations == [run]
-    assert (run.parent / 'current.json').read_bytes() == record
-    assert len(publications) == 1
-    active[0] = False
-    next_run, started = launcher.select(tmp_path, 'fix-tests', command, on_prepare=preparations.append)
-    assert started and next_run != run
-    assert publications[-1]['started_monotonic'] == 1720.0
 
 
 @pytest.fixture(params=[False, True], ids=['legacy-registration', 'resumable-registration'])

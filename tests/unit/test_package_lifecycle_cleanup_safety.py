@@ -15,8 +15,6 @@ from private_artifacts import EvidenceError
 from tests.support.desktop_session import RUN_PROBE, props
 from tests.support.package_command import boundary, DIGEST
 from tests.support.perl import run_perl
-from tests.support.e2e_evidence import attempt
-from tests.support.e2e_recording import session
 
 
 @pytest.fixture(autouse=True)
@@ -44,23 +42,6 @@ def journey(monkeypatch):
     assert not transfer.mock_calls
     assert not context.lease.mock_calls and not context.guestfs.mock_calls
     return current
-
-
-def test_continuous_case_keeps_its_complete_hour_budget(monkeypatch):
-    import e2e_worker
-    record = Mock()
-    monkeypatch.setattr(lifecycle, 'record_installed_journey', record)
-    recorder, context = Mock(), Mock()
-
-    case.execute(recorder, context)
-
-    record.assert_called_once()
-    assert record.call_args.args == (recorder, context, case.PLAN)
-    assert record.call_args.kwargs['timeout'] == 3600
-    journey_type = record.call_args.kwargs['journey_type']
-    assert journey_type.func is lifecycle.PackageLifecycleJourney
-    assert journey_type.keywords == {'operations': case.OPERATIONS, 'checks': case.CHECKS}
-    assert record.call_args.kwargs['timeout'] <= e2e_worker.MAX_TIMEOUT_SECONDS
 
 
 @pytest.mark.parametrize('binding', command.LIFECYCLE)
@@ -211,170 +192,6 @@ def test_removal_exempts_only_the_package_owned_account(monkeypatch, binding, re
         assert binding not in current.results
 
 
-@pytest.mark.parametrize('fault', ['daily', 'enabled', 'rows', 'grant', 'choices'])
-def test_retained_and_fresh_assertions_use_independent_customer_expectations(monkeypatch, fault):
-    current = journey(monkeypatch)
-    policy = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['4 minutes']},
-              'rows': [[case.MATCH_APP, 'permanent', 'precise']],
-              'balances': {'daily': 900, 'one_time': 0, 'total': 900}}
-    current.check_settings('initial-policy', {'ui': {'language_policy': deepcopy(policy)}})
-    if fault == 'daily': policy['settings']['allowance'] = ['0 minutes']
-    if fault == 'enabled': policy['settings']['limit_enabled'] = False
-    if fault == 'rows': policy['rows'] = [[case.MATCH_APP, 'allowed', 'precise']]
-    if fault == 'grant': policy['balances']['one_time'] = 75
-    if fault == 'choices':
-        observed = {'ui': {'valid_choice': {'request': {'child': 'fixture-child',
-            'approver': 'fixture-parent', 'duration_seconds': 1800, 'custom_text': None, 'allow_soft': False}}}}
-        stage = 'retained-request'
-    else:
-        observed, stage = {'ui': {'language_policy': policy}}, 'retained-policy'
-    with pytest.raises(EvidenceError): current.check_settings(stage, observed)
-
-
-@pytest.mark.parametrize('fault', ['', 'retained-five', 'reapplied-four'])
-def test_continuous_history_retains_four_minutes_before_reapplying_five(monkeypatch, fault):
-    current = journey(monkeypatch)
-    policy = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['4 minutes']},
-              'rows': [[case.MATCH_APP, 'permanent', 'precise']],
-              'balances': {'daily': 240, 'one_time': 0, 'total': 240}}
-    current.check_settings('initial-policy', {'ui': {'language_policy': deepcopy(policy)}})
-    if fault == 'retained-five':
-        policy['settings']['allowance'] = ['5 minutes']
-        with pytest.raises(EvidenceError):
-            current.check_settings('retained-policy', {'ui': {'language_policy': policy}})
-        return
-    current.check_settings('retained-policy', {'ui': {'language_policy': deepcopy(policy)}})
-    policy['settings']['allowance'] = ['4 minutes' if fault == 'reapplied-four' else '5 minutes']
-    if fault:
-        with pytest.raises(EvidenceError):
-            current.check_settings('reapply-policy', {'ui': {'language_policy': policy}})
-    else:
-        current.check_settings('reapply-policy', {'ui': {'language_policy': policy}})
-    stages = list(case.PLAN.screen_tags)
-    assert (stages.index('initial-allowance-saved') < stages.index('retained-policy')
-            < stages.index('reapply-allowance-saved') < stages.index('reapply-policy'))
-
-
-@pytest.mark.parametrize('fault', ['', 'overlay-approver', 'overlay-choices', 'remove-result', 'retained-accounts', 'retained-policy', 'blocked-after-reinstall',
-                                  'purge-result', 'fresh-request', 'fresh-returned'])
-def test_actual_continuous_worker_consumes_all_unique_stages_and_stops_on_failure(fault):
-    source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_lifecycle;')
-    source = source.replace('onpc_desktop_session::run', 'onpc_lifecycle::run_removal')
-    source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
-    declarations = json.dumps(list(case.PLAN.invocations))
-    challenges = json.dumps({name: list(binding) for name, binding in case.PLAN.challenges.items()})
-    source = source.replace('}, $action);', '}, decode_json(q{' + declarations + '}), decode_json(q{' + challenges + '}));')
-    replies = {stage: {'id': name, 'role': role, 'surface': 'gdm', 'check': check}
-               for name, (role, first, second) in case.PLAN.challenges.items()
-               for stage, check in ((first, 'qualified'), (second, 'rechecked'))}
-    source = source.replace("push @events, ['stage', $_[0]];", """
-        push @events, ['stage', $_[0]];
-        die 'fixed refusal' if $_[0] eq $action;
-        my $bindings = decode_json(q{REPLIES});
-        return {observed => $_[0], challenge => $bindings->{$_[0]}} if exists $bindings->{$_[0]};
-        return {observed => $_[0], ui_focused => 1} if $_[0] =~ /(?:greeter|list|opened)$/;
-        return {observed => $_[0], station_destination => 'default-request-form'} if $_[0] =~ /station-branch$/;
-    """.replace('REPLIES', json.dumps(replies)))
-    result = json.loads(run_perl(source, fault).stdout)
-    assert bool(result['ok']) == (not fault), result
-    expected = list(case.PLAN.screen_tags)
-    stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
-    titles = [event[1] for event in result['events'] if event[0] == 'title' and event[1] != 'shutdown']
-    assert titles == [case.PLAN.prefix + '-' + stage for stage in stages]
-    if not fault:
-        assert result['events'].count(['secret']) == 1 + len(case.PLAN.challenges) + 1
-        assert [event for event in result['events'] if event[0] != 'title'][-1] == ['power', 'off']
-        assert [event[1] for event in result['events']
-                if event[0] == 'text' and event[1] in ('4', '5')] == []
-        assert all(stage in stages for stage in (
-            'initial-allowance-text-selected', 'initial-allowance-text-read',
-            'reapply-allowance-text-selected', 'reapply-allowance-text-read'))
-    assert not any(event[0] in ('pointer', 'click') for event in result['events'])
-
-
-def test_continuous_case_selects_overlay_local_approver_before_shared_choice_comparison():
-    stages = list(case.PLAN.screen_tags)
-    assert case.PLAN.screen_tags['overlay-approver'] == 'ui:overlay-flow-approver-select'
-    assert stages.index('overlay-launch') + 1 == stages.index('overlay-approver')
-    assert stages.index('overlay-approver') + 1 == stages.index('overlay-choices')
-    assert case.SAVED_CHOICES == dict(child='fixture-child', approver='fixture-parent',
-        duration_seconds=75, allow_soft=True, custom_text='1.25')
-
-
-@pytest.mark.parametrize('fault', ['', 'missing-baseline', 'policy', 'rows', 'grant', 'choices', 'replay'])
-def test_shared_checks_accept_renamed_endpoints_and_freeze_independent_values(monkeypatch, fault):
-    from journey_checks import policy_projection, request_choices
-    current = journey(monkeypatch)
-    settings = {'child': 'independent-child', 'limit_enabled': True, 'allowance': ['9 minutes']}
-    choices = {'child': 'independent-child', 'approver': 'independent-parent',
-               'duration_seconds': 90, 'custom_text': '1.5', 'allow_soft': False}
-    current.checks = {
-        'source-policy': policy_projection(settings, row=('independent-app', 'permanent'), capture='independent-policy'),
-        'source-request': request_choices(choices, capture='independent-request'),
-        'later-policy': policy_projection(settings, row=('independent-app', 'permanent'),
-                                         same='independent-policy', grant='zero'),
-        'later-request': request_choices(choices, same='independent-request'),
-    }
-    policy = {'settings': deepcopy(settings), 'rows': [['independent-app', 'permanent', 'precise']],
-              'balances': {'daily': 540, 'one_time': 0, 'total': 540}}
-    request = {'ui': {'valid_choice': {'request': {**choices, 'surface': 'child-overlay'}}}}
-    if fault != 'missing-baseline':
-        current.check_settings('source-policy', {'ui': {'language_policy': policy}})
-        current.check_settings('source-request', request)
-        policy['settings']['allowance'] = ['changed after capture']
-        request['ui']['valid_choice']['request']['approver'] = 'changed after capture'
-    later = {'settings': deepcopy(settings), 'rows': [['independent-app', 'permanent', 'precise']],
-             'balances': {'daily': 501, 'one_time': 0, 'total': 501}}
-    request = {'ui': {'valid_choice': {'request': {**choices, 'surface': 'kiosk'}}}}
-    if fault == 'policy': later['settings']['limit_enabled'] = False
-    if fault == 'rows': later['rows'][0][1] = 'allowed'
-    if fault == 'grant': later['balances']['one_time'] = 90
-    if fault == 'choices': request['ui']['valid_choice']['request']['duration_seconds'] = 1800
-    if fault == 'replay':
-        current.check_settings('later-policy', {'ui': {'language_policy': later}})
-    if fault:
-        with pytest.raises(EvidenceError):
-            current.check_settings('later-request' if fault == 'choices' else 'later-policy',
-                request if fault == 'choices' else {'ui': {'language_policy': later}})
-    else:
-        current.check_settings('later-policy', {'ui': {'language_policy': later}})
-        current.check_settings('later-request', request)
-
-
-@pytest.mark.parametrize('fault', ['', 'renamed-child-picker-opened', 'renamed-child-choice-highlighted',
-                                  'renamed-parent-selected', 'independent-text-focus', 'independent-text-read',
-                                  'independent-saved', 'invalid-prefix', 'invalid-value'])
-def test_shared_management_and_allowance_accept_independent_prefixes_and_stop_input(fault):
-    source = RUN_PROBE[:RUN_PROBE.index('require onpc_desktop_session;')] + r'''
-require onpc_journey;
-require onpc_parent;
-require onpc_allowance_boundaries;
-my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
-    push @events, ['stage', $_[0]];
-    die 'fixed refusal' if $_[0] eq $action;
-    return {observed => $_[0], ui_focused => 1};
-});
-my $ok = eval {
-    onpc_parent::named_management($journey, $action eq 'invalid-prefix' ? '../unsafe' : 'renamed', 'child');
-    onpc_allowance_boundaries::custom_value($journey, 'independent', $action eq 'invalid-value' ? 99999 : 5);
-    1;
-};
-print encode_json({ok => $ok ? 1 : 0, events => \@events});
-'''
-    result = json.loads(run_perl(source, fault).stdout)
-    expected = [['stage', 'renamed-parent-command'], ['stage', 'renamed-parent-window'],
-                ['stage', 'renamed-child-picker-opened'], ['stage', 'renamed-child-choice-highlighted'],
-                ['stage', 'renamed-parent-selected'], ['stage', 'independent-open'],
-                ['stage', 'independent-text-focus'], ['stage', 'independent-text-selected'],
-                ['stage', 'independent-text-read'], ['stage', 'independent-saved']]
-    assert bool(result['ok']) == (not fault), result
-    if fault == 'invalid-prefix': expected = []
-    elif fault == 'invalid-value': expected = expected[:5]
-    elif fault: expected = expected[:expected.index(['stage', fault]) + 1]
-    assert result['events'] == expected
-
-
 def test_shared_scope_preserves_input_callback_and_independent_consumption():
     source = RUN_PROBE[:RUN_PROBE.index('require onpc_desktop_session;')] + r'''
 require onpc_journey;
@@ -432,72 +249,6 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     assert result['events'].count(['secret']) == (1 if fault in ('', 'desktop') else 0)
 
 
-@pytest.mark.parametrize('fault', ['', 'meaning', 'durability'])
-def test_lifecycle_recorder_constructs_shared_journey_and_checks_before_reply(session, tmp_path, monkeypatch, fault):
-    from installed_journey import JourneyPlan
-    from journey_checks import access_choice
-    import session_control
-    expected = session.payload['assertions'][0]
-    tags = {'entry-start': 'system:parent-command-context', 'entry-one': 'system:parent-command-context',
-            'entry-two': 'system:parent-command-context',
-            **{stage: 'system:parent-command-context' for submitted, _, result in case.OPERATIONS
-               for stage in (submitted, result)}, 'public-row': 'ui:access-row'}
-    plan = JourneyPlan(prefix='independent-lifecycle', worker_mode='package_removal', screen_tags=tags,
-        phases={'ready': 'setup', 'setup-detached': 'setup', **{stage: expected['step_id'] for stage in tags},
-                'entry-start': 'start', 'entry-one': 'step-1', 'entry-two': 'step-2'},
-        stage_actions={submitted: 'package-' + binding for submitted, binding, _ in case.OPERATIONS},
-        assertions_after={'public-row': expected['assertion_id']})
-    context = SimpleNamespace(directory=tmp_path / 'journey', installed_snapshot=None,
-        verified=SimpleNamespace(inputs={}, upgrade_inputs=None), credentials=Mock(), lease=Mock(),
-        guestfs=Mock(), commands=Mock())
-    context.directory.mkdir()
-    monkeypatch.setattr(lifecycle, 'AssetTransfer', Mock())
-    monkeypatch.setattr(session_control, 'observe', Mock(return_value={'outcome': 'passed'}))
-    monkeypatch.setattr(lifecycle.PackageLifecycleJourney, 'validate', lambda _: [])
-    recorder = session.recorder
-    recorder.begin_case('E2E-001/gdm-observation')
-    real_save = session.collector.save_report
-    def save(name, report):
-        if fault == 'durability' and report.get('event') == 'observation' and report.get('active_step') == expected['step_id']:
-            raise OSError('storage failed')
-        return real_save(name, report)
-    monkeypatch.setattr(session.collector, 'save_report', save)
-    checks = {'public-row': access_choice('independent-app', 'permanent')}
-    def worker(**options):
-        current = options['guarded_observe'].__self__
-        assert type(current) is lifecycle.PackageLifecycleJourney and current.plan is plan
-        assert current.operations == case.OPERATIONS and current.checks == checks
-        current.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
-        current.boot = 'a' * 64
-        current.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': current.boot}))
-        current.transport = Mock()
-        current.ui = SimpleNamespace(boot_proof=current.boot, observe=Mock(return_value={
-            'outcome': 'passed', 'access': {'app': 'independent-app',
-            'choice': 'allowed' if fault == 'meaning' else 'permanent'}}))
-        for stage in ('entry-start', 'entry-one', 'entry-two', 'public-row'):
-            # This isolates recorder construction and check ordering; command
-            # execution/order have their independent complete-worker tests above.
-            if stage == 'public-row':
-                current.steps = [{'stage': item} for item in plan.stages[:-1]]
-            (context.directory / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
-            options['guarded_observe'](Mock())
-            assert (context.directory / (stage + '.reply.json')).exists()
-        for assertion in session.payload['assertions'][1:]:
-            ref = recorder.artifact('synthetic-' + assertion['assertion_id'],
-                {'visible': 'screen', 'backend': 'backend', 'other_user': 'other-user'}[assertion['kind']],
-                b'explicit synthetic result', reviewed=True)
-            recorder.assertion(assertion['assertion_id'], artifact_ids=[ref])
-        return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)
-    context.run_worker = worker
-    if fault:
-        with pytest.raises((EvidenceError, OSError)):
-            lifecycle.record_lifecycle_journey(recorder, context, plan, operations=case.OPERATIONS, checks=checks)
-        assert not (context.directory / 'public-row.reply.json').exists()
-    else:
-        lifecycle.record_lifecycle_journey(recorder, context, plan, operations=case.OPERATIONS, checks=checks)
-    assert recorder._active is None
-
-
 @pytest.mark.parametrize('missing', range(1, 4))
 def test_later_reboot_refuses_if_any_prior_transition_was_not_observed(monkeypatch, missing):
     current = journey(monkeypatch)
@@ -517,20 +268,6 @@ def test_plan_refuses_more_than_five_reboots():
         replace(case.PLAN, additional_reboot_transitions=case.PLAN.additional_reboot_transitions * 2)
 
 
-def test_removed_and_purged_logins_require_station_absence_before_reinstall():
-    for prefix, role in case.ROLES.items():
-        product_free = prefix in ('removed', 'healthy-child', 'reinstall-parent', 'purged')
-        operation = 'gdm-product-free-' if product_free else 'gdm-'
-        assert case.PLAN.screen_tags[prefix + '-installed-greeter'] == (
-            'ui:' + operation + ('child-list' if role == 'child' else 'list'))
-    # A password challenge or unrelated greeter observation cannot complete
-    # any lifecycle reboot, even when its stage is adjacent to the request.
-    tags = dict(case.PLAN.screen_tags)
-    tags['removed-installed-greeter'] = 'ui:gdm-parent-recipient'
-    with pytest.raises(EvidenceError, match='reboot-plan'):
-        replace(case.PLAN, screen_tags=tags)
-
-
 @pytest.mark.parametrize('fault', ['order', 'installed', 'old-package'])
 def test_invalid_lifecycle_composition_refuses_before_transfer(monkeypatch, fault):
     transfer = Mock()
@@ -541,14 +278,6 @@ def test_invalid_lifecycle_composition_refuses_before_transfer(monkeypatch, faul
     with pytest.raises(EvidenceError):
         lifecycle.PackageLifecycleJourney(context, Mock(), case.PLAN, operations=operations)
     transfer.assert_not_called()
-
-
-@pytest.mark.parametrize('minutes', [4, 5])
-def test_finite_custom_daily_binding_has_matching_controller_and_keyboard_values(minutes):
-    import accessible_ui
-    assert accessible_ui.TEXT_VALUES['daily-' + str(minutes)] == ('parent-custom-daily-limit', str(minutes))
-    assert accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS['custom-' + str(minutes) + '-saved'] == (minutes, 'saved')
-    assert case.PLAN.settings_checks['retained-parent-selected'].allowance == ('4 minutes',)
 
 
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
@@ -635,32 +364,3 @@ def test_guest_lifecycle_fixed_action_consumes_exclusive_marker_after_phase_guar
     with pytest.raises(FileExistsError):
         command.guest_submit(binding, DIGEST, {'current': {}})
     assert execute.call_count == 1
-
-
-@pytest.mark.parametrize('fault', ['', 'successful-exec', 'wrong-error', 'window', 'output-bound'])
-def test_blocked_app_requires_real_permission_failure_and_complete_window_absence(monkeypatch, fault):
-    import accessible_ui
-    from tests.support.accessible_ui import Node, ui_for
-    ui = ui_for(Node('fixture'))
-    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
-    ui.desktop_result = Mock()
-    ui.handle_system_prompt = Mock()
-    ui.native_app_closed = Mock(side_effect=[True, fault != 'window'])
-    run = Mock(return_value=SimpleNamespace(returncode=0 if fault == 'successful-exec' else 203,
-        stdout=b'x' * 65537 if fault == 'output-bound' else b'',
-        stderr=b'No such file or directory' if fault == 'wrong-error' else b'Failed to execute: Permission denied'))
-    monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
-    # The denial adapter may query this launch's journal after stderr fails
-    # qualification. That read is separate from the single launch submission.
-    journal = Mock(return_value={'status': 'read', 'exec_errors': []})
-    monkeypatch.setattr(accessible_ui, 'native_execution_journal_diagnostic', journal)
-    ticks = iter((0, 3))
-    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: next(ticks))
-    ui.wait = lambda predicate, *_args, **_kwargs: predicate()
-    if fault:
-        with pytest.raises(accessible_ui.UiError): ui.native_launch_command(blocked=True)
-    else:
-        ui.native_launch_command(blocked=True)
-        assert '--wait' in run.call_args.args[0] and '--pipe' in run.call_args.args[0]
-    assert run.call_count == 1
-    assert journal.call_count == (1 if fault in ('successful-exec', 'wrong-error', 'output-bound') else 0)

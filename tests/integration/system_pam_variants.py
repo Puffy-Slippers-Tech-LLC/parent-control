@@ -409,9 +409,9 @@ def remove(record, variant):
     accounts = state['accounts']
     kiosk = pwd.getpwnam(removal.PRODUCT)
     guest.retain_identity_for_redaction(kiosk.pw_uid)
+    other, other_policy = removal.account_digests(accounts['other'])
     removed = {'accounts': accounts, 'native_variant': state['native_variant'],
-               'other': removal.account_digest(accounts['other']),
-               'other_policy': removal.account_digest(accounts['other'], include_preferences=False),
+               'other': other, 'other_policy': other_policy,
                'other_extensions': removal.extension_lists(accounts['other']),
                'preferences': state['preferences'], 'pam_services': state['pam_original'],
                'hook': '/etc/gdm/PreSession/Default' if fedora() else '/etc/gdm3/PreSession/Default',

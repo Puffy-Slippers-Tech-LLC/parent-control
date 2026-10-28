@@ -50,7 +50,17 @@ def boot():
 
 def account_digest(uid, *, include_preferences=True):
     """Witness full retained state, or native policy independently of purge data."""
+    return _account_digest(account_state(uid), include_preferences=include_preferences)
+
+
+def account_digests(uid):
+    """Derive both removal/purge witnesses from one fresh native observation."""
     state = account_state(uid)
+    return (_account_digest(state, include_preferences=True),
+            _account_digest(state, include_preferences=False))
+
+
+def _account_digest(state, *, include_preferences):
     values = ([state[0].hex() if state[0] is not None else None, *state[1:]]
               if include_preferences else state[1:])
     return hashlib.sha256(json.dumps(
@@ -707,8 +717,7 @@ def aborted_cleanup_rollback_retry(record):
     defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
     guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},
                   'rollback:nonfresh-start')
-    other, other_policy = account_digest(accounts['other']), account_digest(
-        accounts['other'], include_preferences=False)
+    other, other_policy = account_digests(accounts['other'])
     other_extensions = extension_lists(accounts['other'])
     try:
         for role in ('child', 'parent', 'other'):
@@ -1037,8 +1046,7 @@ def focused_recovery_start(record, variant, state_key, *, native_variant='comman
     defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
     guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},
                   'finalization:nonfresh-start')
-    other = account_digest(accounts['other'])
-    other_policy = account_digest(accounts['other'], include_preferences=False)
+    other, other_policy = account_digests(accounts['other'])
     other_extensions = extension_lists(accounts['other'])
     try:
         for role in ('child', 'parent', 'other'):
@@ -1750,8 +1758,7 @@ def remove(record):
     variant = 'trusted-hard' if guest.package_path().suffix == '.rpm' else 'command'
     accounts = provision_native(variant)
     parent, child = accounts['parent'], accounts['child']
-    other = account_digest(accounts['other'])
-    other_policy = account_digest(accounts['other'], include_preferences=False)
+    other, other_policy = account_digests(accounts['other'])
     other_extensions = extension_lists(accounts['other'])
     defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
     guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},

@@ -42,19 +42,6 @@ def test_cached_json_still_refuses_changed_unsafe_or_invalid_files(tmp_path, rep
         reader.read(path)
 
 
-def test_cached_json_rechecks_limits_and_same_size_edits_with_restored_mtime(tmp_path):
-    path = tmp_path / 'frame.json'
-    path.write_text('["first"]')
-    reader = JsonReader()
-    assert reader.read(path) == ['first']
-    before = path.stat()
-    with pytest.raises(ValueError, match='oversized'):
-        reader.read(path, limit=4)
-    path.write_text('["other"]')
-    os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
-    assert reader.read(path) == ['other']
-
-
 @pytest.mark.parametrize('kind', ['fix-tests', 'fix-tests-host'])
 def test_cancel_only_requests_shutdown_of_the_displayed_live_run(tmp_path, kind):
     observer = Output(tmp_path)

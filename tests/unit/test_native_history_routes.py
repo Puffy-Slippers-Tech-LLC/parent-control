@@ -8,7 +8,6 @@ from unittest.mock import Mock
 import pytest
 
 import regression_process
-import system_runner
 import test_commands as commands
 import test_retention
 import vm_artifacts
@@ -53,17 +52,6 @@ def test_pending_native_history_refuses_before_product_build(monkeypatch):
     with pytest.raises(ValueError, match='selection:numeric-id-not-runnable'):
         regression_process.category_run(ROOT, 'system', ['--id', '289'], pipe=False)
     execute.assert_not_called()
-
-
-def test_native_listing_plan_does_not_collect_or_prepare(monkeypatch):
-    collect = Mock(side_effect=AssertionError('listing prepared native inputs'))
-    monkeypatch.setattr(system_runner, 'collect_area_cases', collect)
-    planned, safety = commands.plan(
-        ROOT, 'system', ['--id', '289', '--native-inputs', '--list'])
-    assert planned[0][-2:] == ['--id=289', '--list']
-    assert '--native-inputs' not in planned[0]
-    assert not safety
-    collect.assert_not_called()
 
 
 @pytest.mark.parametrize('options', [

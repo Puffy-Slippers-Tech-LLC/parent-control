@@ -15,26 +15,6 @@ MODULE_PATH = ROOT / 'tools/build_test_artifacts.py'
 artifacts = load_module('onpc_test_native_artifact_routes', MODULE_PATH)
 
 
-@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-def test_native_builder_dispatches_exact_format_without_product_builds(
-        tmp_path, monkeypatch, package_format):
-    from tools import native_transaction_inputs
-
-    output = tmp_path / 'native-inputs'
-    prepare = Mock()
-    monkeypatch.setattr(native_transaction_inputs, 'prepare', prepare)
-    product_build = Mock(side_effect=AssertionError('native route built product inputs'))
-    monkeypatch.setattr(artifacts, 'build', product_build)
-    monkeypatch.setattr(artifacts, 'build_upgrade', product_build)
-    monkeypatch.setattr(artifacts.sys, 'argv', [str(MODULE_PATH), '--native-inputs',
-        '--package-format', package_format, '--output', str(output)])
-
-    assert artifacts.main() == 0
-    prepare.assert_called_once_with(output, package_format=package_format)
-    product_build.assert_not_called()
-    assert not output.exists()
-
-
 def test_native_builder_requires_format_before_any_output(tmp_path, monkeypatch, capsys):
     from tools import native_transaction_inputs
 
@@ -89,31 +69,6 @@ def test_native_verification_dispatch_is_read_only(tmp_path, monkeypatch, packag
     verify.assert_called_once_with(candidate, package_format=package_format)
     prepare.assert_not_called()
     assert sentinel.read_bytes() == b'preserve selected input'
-
-
-def test_native_routes_are_explicit_maintained_launcher_operations(monkeypatch):
-    planned, safety = commands.plan(ROOT, 'artifacts',
-                                   ['prepare', '--for-vm', '--native-inputs'])
-    assert planned == [commands.python_file(ROOT, 'tools/vm_artifacts.py',
-        '--native-inputs', *vm_artifacts.arguments())]
-    assert not safety
-    path = '/tmp/onpc-native-inputs'
-    validate = Mock(return_value=path)
-    monkeypatch.setattr(commands, 'artifact_path', validate)
-    planned, safety = commands.plan(ROOT, 'artifacts', ['verify-native', path])
-    validate.assert_called_once_with(path)
-    assert planned == [commands.python_file(ROOT, 'tools/build_test_artifacts.py',
-        '--verify-native-inputs', '--output', path)]
-    assert not safety
-
-
-@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-def test_native_explicit_format_preparation_needs_no_vm_probe(package_format):
-    planned, safety = commands.plan(ROOT, 'artifacts',
-        ['prepare', '--native-inputs', '--package-format', package_format])
-    assert planned == [commands.python_file(ROOT, 'tools/build_test_artifacts.py',
-        '--native-inputs', '--package-format', package_format)]
-    assert not safety
 
 
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])

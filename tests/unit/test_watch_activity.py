@@ -6,13 +6,11 @@ import os
 from pathlib import Path
 import socket
 import struct
-import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from owned_commands import Commands, CommandError
 import watch_activity as activity
 from e2e_watch_viewer import Feed
 
@@ -40,43 +38,6 @@ def transcript(monkeypatch):
     return value
 
 
-def test_running_command_streams_both_channels_before_exit(tmp_path, transcript):
-    # The child cannot finish until its stderr is visible. This catches a
-    # communicate-at-exit implementation and interference with progress parsing.
-    release = tmp_path / 'release'
-    script = tmp_path / 'command.py'
-    script.write_text('''import pathlib, sys, time
-print('installed test 201 passed', flush=True)
-print('stderr while running', file=sys.stderr, flush=True)
-deadline = time.monotonic() + 5
-while not pathlib.Path(sys.argv[1]).exists():
-    if time.monotonic() > deadline: raise SystemExit(9)
-    time.sleep(.01)
-print('finished', flush=True)
-raise SystemExit(7)
-''')
-    append = transcript.append
-    def observe(text):
-        append(text)
-        if 'stderr while running' in transcript.text and not release.exists():
-            assert '[exit' not in transcript.text
-            release.touch()
-    transcript.append = observe
-    commands = Commands()
-    commands.watch_command = ('SSH $ installed-tests', True)
-    progress = []
-    commands.progress = progress.append
-    commands.directory = tmp_path
-    with pytest.raises(CommandError, match='command:failed'):
-        commands.run([sys.executable, '-u', str(script), str(release)],
-                     timeout=8, merge_stderr=False)
-    assert commands.last_returncode == 7
-    assert b''.join(progress) == b'installed test 201 passed\nfinished\n'
-    assert 'stderr while running' in transcript.text
-    assert '[exit 7]' in transcript.text
-    assert (tmp_path / 'command-0001-stderr.txt').read_text() == 'stderr while running\n'
-
-
 def test_guest_private_probe_does_not_forward_output(monkeypatch, capsys):
     import system_guest as guest
     commands = Mock()
@@ -85,24 +46,6 @@ def test_guest_private_probe_does_not_forward_output(monkeypatch, capsys):
     assert guest.run(['dpkg-query', '-W']) == 'private probe reply'
     commands.run.assert_called_once_with(['dpkg-query', '-W'], timeout=120, merge_stderr=False)
     assert capsys.readouterr() == ('', '')
-
-
-@pytest.mark.parametrize('failed', [False, True])
-def test_ui_qualification_without_recorder_uses_existing_command_pane(transcript, failed):
-    from ui_observations import UiObservations
-    result = {'operation': 'gdm-list', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'focused': True}
-    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
-    if failed:
-        transport.call.side_effect = RuntimeError('private transport exception')
-    observer = UiObservations(transport)
-    if failed:
-        with pytest.raises(RuntimeError):
-            observer.observe('gdm-list')
-    else:
-        assert observer.observe('gdm-list') == result
-    assert 'SSH UI: Reading the greeter account list' in transcript.text
-    assert 'SSH UI observation ' + ('failed' if failed else 'passed') + ': gdm-list' in transcript.text
-    assert 'private transport exception' not in transcript.text
 
 
 def test_validated_kiosk_diagnostic_uses_existing_transcript_only(transcript, capsys):

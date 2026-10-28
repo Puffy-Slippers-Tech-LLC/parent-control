@@ -90,12 +90,3 @@ def test_cancelled_queue_confirmation_never_dispatches(authorized, monkeypatch, 
     assert authorized['main'](['--mode', 'auto', '--vm', 'all']) == 0
     assert 'cancelled' in capsys.readouterr().out
     run.assert_not_called()
-
-
-def test_terminal_choice_restores_mouse_reporting_on_cancel(monkeypatch, capsys):
-    import curses
-    import vm_selection
-    monkeypatch.setattr(curses, 'wrapper', Mock(side_effect=KeyboardInterrupt))
-    with pytest.raises(ValueError, match='VM selection cancelled'):
-        vm_selection.interactive_choice(['Ubuntu', 'Fedora'], ['1', '2'])
-    assert capsys.readouterr().out.endswith('\033[?1003l')

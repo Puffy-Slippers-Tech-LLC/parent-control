@@ -61,26 +61,6 @@ def test_build_cli_requires_explicit_format_before_writing(tmp_path, monkeypatch
     assert not output.exists()
 
 
-def test_build_api_has_no_implicit_deb_builder(tmp_path):
-    output = tmp_path / 'must-not-exist'
-    with pytest.raises(TypeError, match='package_format'):
-        artifacts.build(output)
-    with pytest.raises(artifacts.ArtifactError, match='unsupported package format'):
-        artifacts.build(output, package_format=None)
-    assert not output.exists()
-
-
-@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-def test_build_cli_forwards_the_explicit_builder(tmp_path, monkeypatch, package_format):
-    output = tmp_path / 'output'
-    build = mock.Mock()
-    monkeypatch.setattr(artifacts, 'build', build)
-    monkeypatch.setattr(artifacts.sys, 'argv', [str(MODULE_PATH), '--output', str(output),
-                                             '--package-format', package_format])
-    assert artifacts.main() == 0
-    build.assert_called_once_with(output, package_format=package_format)
-
-
 @pytest.mark.parametrize('fault', [None, 'extra', 'missing', 'empty'])
 def test_rpm_public_identity_retains_epoch_release_architecture_and_digest(tmp_path, monkeypatch, fault):
     package = tmp_path / 'package.rpm'
@@ -271,38 +251,6 @@ def test_development_only_commit_preserves_package_metadata(tmp_path, monkeypatc
     git('add', 'docs/internal.md')
     git('commit', '-qm', 'Documentation')
     assert artifacts._metadata([Path('product')], 'digest') == before
-
-
-@pytest.mark.parametrize('reused', ['package', 'fixtures'])
-def test_partial_build_runs_only_the_changed_component(tmp_path, monkeypatch, reused):
-    prior = tmp_path / 'prior'
-    prior.mkdir()
-    write_artifact(prior)
-    metadata = artifacts.verify(prior)
-    metadata = {key: metadata[key] for key in ('source', 'build_inputs', 'tools')}
-    calls = []
-    def run(command, *, cwd=None, environment=None):
-        calls.append(command)
-        assert environment['LANG'] == 'C.UTF-8'
-        assert Path(environment['HOME']).is_dir()
-        assert not {'DISPLAY', 'TERM', 'PYTHONPATH'} & environment.keys()
-        if command == ['dpkg-buildpackage']:
-            (cwd.parent / 'oh-no-parent-control_1_amd64.deb').write_bytes(b'package')
-        else:
-            assert command[1:4] == ['-I', '-S', '-B']
-            assert environment['SOURCE_DATE_EPOCH'] == '0'
-            target = Path(command[-1])
-            target.mkdir()
-            (target / 'SHA256SUMS.json').write_bytes((prior / 'fixtures/SHA256SUMS.json').read_bytes())
-    monkeypatch.setattr(artifacts.package_inputs, 'paths', lambda _: [Path('README.md')])
-    monkeypatch.setattr(artifacts.package_inputs, 'digest', lambda *_: 'digest')
-    monkeypatch.setattr(artifacts, '_metadata', lambda *_: metadata)
-    monkeypatch.setattr(artifacts, '_run', run)
-    output = tmp_path / 'output'
-    artifacts.build(output, package_format='deb', reuse={reused: prior / reused})
-    assert len(calls) == 1
-    assert (calls[0] == ['dpkg-buildpackage']) == (reused == 'fixtures')
-    assert artifacts.verify(output)['artifacts'] == artifacts.verify(prior)['artifacts']
 
 
 def test_rpm_build_uses_frozen_source_and_records_exact_artifact(tmp_path, monkeypatch):

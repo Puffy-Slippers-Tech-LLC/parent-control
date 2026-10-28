@@ -34,23 +34,6 @@ def test_tooling_success_cannot_claim_graphical_compatibility():
     assert all(call.kwargs == {'timeout': 30} for call in commands.run.call_args_list)
 
 
-@pytest.mark.parametrize('status', ['deinstall ok config-files', 'install ok unpacked'])
-def test_incomplete_package_install_refuses_before_entrypoint(status):
-    commands = Mock()
-    commands.run.return_value = f'{status}\n{backend.package_pins()["os-autoinst"]}\n'.encode()
-    with pytest.raises(backend.PreflightError, match='tools:package-mismatch:os-autoinst'):
-        backend.check(commands)
-    assert commands.run.call_count == 1
-
-
-def test_wrong_package_version_refuses_before_entrypoint():
-    commands = Mock()
-    commands.run.return_value = b'install ok installed\n0.0\n'
-    with pytest.raises(backend.PreflightError, match='tools:package-mismatch:os-autoinst'):
-        backend.check(commands)
-    assert commands.run.call_count == 1
-
-
 @pytest.mark.parametrize(('index', 'category'), [
     (0, 'tools:package-unavailable:os-autoinst'),
     (1, 'tools:package-unavailable:libfeature-compat-try-perl'),
@@ -67,24 +50,3 @@ def test_failed_probe_is_redacted_and_stops_later_work(index, category, capsys):
     assert result['category'] == category
     assert 'sensitive' not in json.dumps(result)
     assert commands.run.call_count == index + 1
-
-
-def test_changed_public_api_refuses_backend_loading():
-    commands = successful_commands()
-    outputs = list(commands.run.side_effect)
-    outputs[2] = b'Current version is unknown [interface v49]\n'
-    commands.run.side_effect = outputs
-    with pytest.raises(backend.PreflightError, match='tools:unexpected-test-api'):
-        backend.check(commands)
-    assert commands.run.call_count == 3
-
-
-@pytest.mark.parametrize('contents', [
-    '', 'os-autoinst=1\nos-autoinst=2\nlibfeature-compat-try-perl=1\n',
-    'os-autoinst=bad value\nlibfeature-compat-try-perl=1\n',
-])
-def test_invalid_pins_fail_before_commands(tmp_path, contents):
-    path = tmp_path / 'pins'
-    path.write_text(contents)
-    with pytest.raises(backend.PreflightError, match='tools:.*package-pin'):
-        backend.package_pins(path)

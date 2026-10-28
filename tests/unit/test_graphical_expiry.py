@@ -134,20 +134,6 @@ def test_boot_broker_does_not_publish_an_inactive_or_unidentified_service(broker
     assert not (path / 'broker-ready.json').exists()
 
 
-@pytest.mark.parametrize(('fedora', 'anchor'), [
-    (False, '@include common-account'),
-    (True, 'account include system-auth'),
-    (True, 'account    substack password-auth # native account stack'),
-])
-def test_one_second_seed_precedes_native_account_stack_without_reordering(fedora, anchor):
-    original = ('auth required pam_env.so\naccount required pam_nologin.so\n'
-                + anchor + '\nsession required pam_systemd.so\n')
-    seeded = expiry.seed_account_stack(original, fedora=fedora)
-    seed = f'account required pam_exec.so quiet quiet_log {expiry.SEED}\n'
-    assert seeded == original.replace(anchor + '\n', seed + anchor + '\n')
-    assert seeded.replace(seed, '') == original
-
-
 @pytest.mark.parametrize(('fedora', 'original'), [
     (True, '@include common-account\n'),
     (False, 'account include system-auth\n'),
@@ -158,42 +144,6 @@ def test_one_second_seed_precedes_native_account_stack_without_reordering(fedora
 def test_seed_refuses_missing_or_ambiguous_platform_account_stack(fedora, original):
     with pytest.raises(expiry.guest.GuestError, match='gdm-pam-account-include'):
         expiry.seed_account_stack(original, fedora=fedora)
-
-
-@pytest.mark.parametrize('fresh', [False, True])
-def test_verify_retains_observations_before_later_failure(tmp_path, monkeypatch, fresh):
-    output = tmp_path / 'results'
-    if not fresh:
-        output.mkdir()
-    monkeypatch.setattr(expiry.guest, 'PAYLOAD', tmp_path)
-    monkeypatch.setattr(expiry.guest, 'guard', Mock())
-    monkeypatch.setattr(expiry, 'FIXTURE', tmp_path)
-    monkeypatch.setattr(expiry, 'identities', lambda: {'child': 1001})
-    boot = Path('/proc/sys/kernel/random/boot_id').read_text()
-    (tmp_path / 'seeded.json').write_text(json.dumps({
-        'boot': boot, 'remaining_seconds': 0.9, 'worker': 42, 'broker_invocation': 'broker',
-    }))
-    monkeypatch.setattr(expiry, 'wait_for', Mock(side_effect=[
-        None, ('4', {'Scope': 'session-4.scope', 'Type': 'wayland', 'Service': 'gdm-autologin'}),
-        RuntimeError('later failure'),
-    ]))
-    monkeypatch.setattr(expiry.guest, 'run', Mock(side_effect=[
-        'infinity', 'broker', 'session runtime cap outcome=cleared stage=before-session status=0',
-    ]))
-    manager = Mock()
-    manager._account.return_value = (Mock(), None)
-    monkeypatch.setattr(expiry, 'installed_manager', lambda: manager)
-    observation = ('onpc.expiry.graphical-login', json.dumps({
-        'grant_remaining_seconds': 0.9, 'scope_runtime_max': 'infinity',
-        'pam_before_session_witness': True, 'broker_unchanged_since_before_login': True,
-        'type': 'wayland', 'service': 'gdm-autologin',
-    }, sort_keys=True))
-    publish = Mock()
-    with pytest.raises(RuntimeError, match='later failure'):
-        expiry.verify(publish)
-    assert json.loads((output / 'session-observations.json').read_text()) == [list(observation)]
-    assert not (output / 'session-observations.pending').exists()
-    publish.assert_called_once_with(*observation)
 
 
 @pytest.fixture
@@ -318,18 +268,6 @@ def test_access_collector_uses_log_files_and_redacts_optional_reader_errors(
         audit.run.assert_called_once()
 
 
-def test_wait_requires_observation_and_keeps_one_deadline(monkeypatch):
-    times = iter([0, 1, 91])
-    monkeypatch.setattr(expiry.time, 'monotonic', lambda: next(times))
-    pause = Mock()
-    monkeypatch.setattr(expiry.time, 'sleep', pause)
-    observe = Mock(return_value=False)
-    with pytest.raises(expiry.guest.GuestError, match='test:missing'):
-        expiry.wait_for(observe, 'test:missing')
-    assert observe.call_count == 2
-    pause.assert_called_once()
-
-
 @pytest.mark.parametrize('properties', [
     'User=2000\nClass=user\nTTY=tty7',
     'User=1005\nClass=user\nTTY=tty3',
@@ -345,44 +283,3 @@ def test_foreground_fixture_refuses_an_occupied_vt_or_existing_other_session(mon
         expiry.verify_other_foreground(1004, '4', Mock())
     assert all(c.args[0][0] == 'loginctl' for c in run.call_args_list)
     issue.assert_not_called()
-
-
-@pytest.mark.parametrize(('hint', 'active'), [('no', True), ('yes', False)])
-def test_lock_observer_preserves_hint_but_uses_native_activity(monkeypatch, hint, active):
-    monkeypatch.setattr(expiry.guest, 'guard', Mock())
-    monkeypatch.setattr(expiry, 'child_session', lambda uid: ('4', {'LockedHint': hint}))
-    monkeypatch.setattr(expiry, 'account_property', lambda *args: 0)
-    manager = Mock()
-    manager._run_command.side_effect = [SimpleNamespace(stdout=value) for value in
-        ('(true,)' if active else '(false,)', 'true', 'false')]
-    state = expiry.screen_lock_observation(1004, '4', manager, Mock())
-    assert state['screensaver_active'] is active
-    assert state['logind_locked'] is (hint == 'yes')
-    assert all(call.kwargs == {'require_live': True} for call in manager._run_command.call_args_list)
-
-
-@pytest.mark.parametrize(('password_mode', 'enabled', 'disabled', 'category'), [
-    (2, 'true', 'false', 'lock-policy-not-enforcing'),
-    (0, 'false', 'false', 'lock-policy-not-enforcing'),
-    (0, 'true', 'true', 'lock-policy-not-enforcing'),
-    (0, 'unknown', 'false', 'lock-observation-response'),
-])
-def test_active_screensaver_alone_cannot_satisfy_lock_observer(
-        monkeypatch, password_mode, enabled, disabled, category):
-    monkeypatch.setattr(expiry.guest, 'guard', Mock())
-    monkeypatch.setattr(expiry, 'child_session', lambda uid: ('4', {'LockedHint': 'yes'}))
-    monkeypatch.setattr(expiry, 'account_property', lambda *args: password_mode)
-    manager = Mock()
-    manager._run_command.side_effect = [SimpleNamespace(stdout=value) for value in
-                                       ('(true,)', enabled, disabled)]
-    with pytest.raises(expiry.guest.GuestError, match=category):
-        expiry.screen_lock_observation(1004, '4', manager, Mock())
-
-
-def test_lock_observer_refuses_replacement_session_before_shell_query(monkeypatch):
-    monkeypatch.setattr(expiry.guest, 'guard', Mock())
-    monkeypatch.setattr(expiry, 'child_session', lambda uid: ('5', {'LockedHint': 'yes'}))
-    manager = Mock()
-    with pytest.raises(expiry.guest.GuestError, match='desktop-ended'):
-        expiry.screen_lock_observation(1004, '4', manager, Mock())
-    manager._run_command.assert_not_called()

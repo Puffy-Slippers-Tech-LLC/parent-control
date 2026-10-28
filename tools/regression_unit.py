@@ -241,9 +241,10 @@ waited child for abrupt-interruption recovery. All file/xattr mutations are
 private; there is no live system bus, service, package account, VM, display or
 shared cache. Its existing compatible unit bucket remains appropriate.
 
-launcher_chat uses tiny pytest-private protocol/mailbox trees and one bounded, waited
-Codex schema-generator process (no model inference). It has no VM, network,
-display, bus, shared mutable cache or cleanup-inventory entry; compatible.
+launcher_chat uses tiny pytest-private protocol/mailbox trees and in-process
+doubles. watch_activity uses private transcript/socket fixtures and in-process
+command doubles. Both retain compatible classifications, with no external
+process, shared resource or cleanup/UI owner.
 write_e2e_cleanup_safety's agent double now speaks app-server over its existing
 private pipes. Its detached children, nested owner lifetimes, Git fixtures and
 serial cleanup remain unchanged; existing unit/cleanup classifications apply.
@@ -1303,7 +1304,7 @@ execution_plan_launcher launcher_worktrees launcher_chat licensing lightning log
 package_content package_install_cleanup_safety
 package_os_gate package_payload package_removal package_transaction_notice pam_runtime_cap
 parent_about_cleanup_safety parent_client
-parent_grid_pixels parent_main parent_native_surface parent_needles
+parent_main parent_native_surface parent_needles
 parent_setup_cleanup_safety ppa_build preferences prepare_baseline
 prepare_baseline_cleanup_safety prepare_baseline_tool prepare_vm prepare_vm_contract
 prepared_kiosk_pam privileged_test_runner probe_bus_client_cleanup_safety

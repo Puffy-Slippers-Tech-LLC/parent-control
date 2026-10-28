@@ -571,6 +571,13 @@ exposes their reasons in `tools/run-tests integration --list`:
   including real upgrades and repeated operations, retain their preparation,
   credential-recipient, ownership, cleanup and verdict guards. Dedicated
   credential, VT6 authentication and worker-containment checks remain scheduled.
+- `check_e2e_app_row_observations` is excluded as a duplicate of the complete
+  App Limits row read in `check_e2e_native_fixtures`. Both use the shared
+  `read_rows` composition, reject wrong-child/page observations and independently
+  reread unchanged allowed rows. The retained native-catalogue check additionally
+  verifies the fixture catalogue. The explicit row-reader selector remains
+  available for focused engineering diagnosis; customer journeys retain their
+  own child discovery and catalogue assertions.
 
 Dormant Parent About/access wrappers and duplicate MATE-prompt, toggle and
 expanded-time wrappers have been removed. Their product coverage remains in

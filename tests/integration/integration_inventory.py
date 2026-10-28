@@ -21,6 +21,8 @@ EXCLUDED = {
         'check_fixture_e2e_product_free')},
     'check_graphical_attachment':
         'graphics API comparison/trace probe; explicit engineering use only',
+    'check_e2e_app_row_observations':
+        'duplicate complete row-read qualification; covered by check_e2e_native_fixtures',
     **{name: 'standalone harness qualification, not a product or essential safety check'
        for name in (
         'check_graphical_smoke', 'check_graphical_transport',

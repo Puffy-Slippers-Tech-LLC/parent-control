@@ -1,7 +1,7 @@
 # Kiosk usability repairs
 
 Task queue: [Ordered task queue](Kiosk-Usability-Queue.md).
-Next task: **U03a — [Restore entry after stale owned admission state](Kiosk-Usability-Tasks/U03a-stale-admission.md)**.
+Next task: **U04 — [Recover entry after a temporary identity-check failure](Kiosk-Usability-Tasks/U04-identity-helper.md)**.
 
 ## Outcome and scope
 

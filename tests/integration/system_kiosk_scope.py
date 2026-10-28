@@ -113,8 +113,12 @@ def verify_units(account, backend):
                                      '--value', '--property=UnitPath']).decode().strip()
     guest.require(unit_path and str(PAYLOAD) not in unit_path, 'kiosk-collateral:private-unit-path')
     for service in SERVICES:
-        values = properties(account, service, ('LoadState', 'FragmentPath', 'DropInPaths',
-                                              'Environment', 'ExecStart', 'NoNewPrivileges'))
+        names = ('LoadState', 'FragmentPath', 'DropInPaths',
+                 'Environment', 'ExecStart', 'NoNewPrivileges')
+        if service == 'wireplumber.service':
+            names += ('LockPersonality', 'MemoryDenyWriteExecute',
+                      'SystemCallFilter', 'SystemCallArchitectures')
+        values = properties(account, service, names)
         guest.require(values['LoadState'] == 'loaded' and values['FragmentPath'] and
                       all(str(PAYLOAD) not in values[key] for key in
                           ('FragmentPath', 'DropInPaths', 'Environment', 'ExecStart')),
@@ -125,11 +129,9 @@ def verify_units(account, backend):
             guest.require('GIO_USE_VFS=local' not in shlex.split(values['Environment']),
                           'kiosk-collateral:compositor-environment')
         if service == 'wireplumber.service':
-            hardening = properties(account, service, ('LockPersonality', 'MemoryDenyWriteExecute',
-                                                       'SystemCallFilter', 'SystemCallArchitectures'))
-            guest.require(hardening['LockPersonality'] == hardening['MemoryDenyWriteExecute'] == 'yes'
-                          and hardening['SystemCallArchitectures'] == 'native' and
-                          hardening['SystemCallFilter'] not in ('', '~'),
+            guest.require(values['LockPersonality'] == values['MemoryDenyWriteExecute'] == 'yes'
+                          and values['SystemCallArchitectures'] == 'native' and
+                          values['SystemCallFilter'] not in ('', '~'),
                           'kiosk-collateral:vendor-audio-hardening')
         if service == 'dbus.service':
             executable = '/usr/bin/dbus-daemon' if backend == 'apparmor' else '/usr/bin/dbus-broker-launch'
@@ -178,15 +180,17 @@ def verify(record):
             ordinary_process(process, account, selected_backend)
             verify_units(account, selected_backend)
             verify_services(account, selected_backend)
-            for index, command in enumerate((
-                ['/bin/sh', '-c', 'printf onpc-ordinary-shell'],
-                ['/usr/bin/python3', '-I', '-c', 'print("onpc-ordinary-python")'],
-                ['/usr/bin/gjs', '-c', 'print("onpc-ordinary-gjs")'],
-            )):
-                result = user_command(account, ['systemd-run', '--user', '--wait', '--collect',
-                    '--pipe', '--unit=onpc-collateral-' + str(index), *command])
-                guest.require(result.strip() == b'onpc-ordinary-' + (b'shell', b'python', b'gjs')[index],
-                              'kiosk-collateral:ordinary-execution')
+            # These commands share the same ordinary transient-service boundary.
+            # One fail-fast unit still executes each interpreter and witnesses
+            # each result, without repeating systemd admission/collection.
+            result = user_command(account, ['systemd-run', '--user', '--wait', '--collect',
+                '--pipe', '--unit=onpc-collateral-execution', '/bin/sh', '-ec',
+                "printf '%s\\n' onpc-ordinary-shell\n"
+                "/usr/bin/python3 -I -c 'print(\"onpc-ordinary-python\")'\n"
+                "/usr/bin/gjs -c 'print(\"onpc-ordinary-gjs\")'"])
+            guest.require(result.splitlines() == [b'onpc-ordinary-shell', b'onpc-ordinary-python',
+                                                  b'onpc-ordinary-gjs'],
+                          'kiosk-collateral:ordinary-execution')
             guest.require(process_identity(process) == identity,
                           'kiosk-collateral:manager-process-replaced')
             record('onpc.kiosk.collateral.' + role + '.pam-manager-and-policy-preserved', True)

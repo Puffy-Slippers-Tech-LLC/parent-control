@@ -329,7 +329,7 @@ def test_quarantine_reads_installed_expiry_after_ordinary_controls_before_kiosk_
     saved = {'version': 1, 'uid': 1006, 'expires': None, 'phase': 'quarantined'}
     monkeypatch.setattr(configure, 'identity', lambda path:
                         (1, 2, 0, 0, stat.S_IFREG | 0o600, 1, json.dumps(saved).encode()))
-    monkeypatch.setattr(configure, 'ordinary_controls', lambda record, stage:
+    monkeypatch.setattr(configure, 'ordinary_controls', lambda record, stage, *, services:
                         events.append(('ordinary', stage)))
     def current_expiry():
         events.append(('expiry',))

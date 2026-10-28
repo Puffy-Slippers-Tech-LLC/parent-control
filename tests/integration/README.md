@@ -576,6 +576,11 @@ exposes their reasons in `tools/run-tests integration --list`:
   fixture/provider preservation without exercising the product. Its explicit
   engineering selector and direct account/input safety regressions remain;
   installed product language and localization journeys stay scheduled.
+- `check_e2e_gdm_product_free` is excluded as a standalone product-free GDM
+  navigation qualification. It repeats account focus, credential-prompt opening
+  and return without installing or exercising the product or entering credentials.
+  Its explicit engineering selector remains available; product lifecycle journeys
+  and dedicated credential-recipient checks retain their shared guards.
 - `check_e2e_app_row_observations` is excluded as a duplicate of the complete
   App Limits row read in `check_e2e_native_fixtures`. Both use the shared
   `read_rows` composition, reject wrong-child/page observations and independently

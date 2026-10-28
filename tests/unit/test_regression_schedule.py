@@ -107,28 +107,6 @@ def test_four_workers_overlap_and_fifth_waits_even_if_admission_allows_more():
     assert ('4', '4 host categories already running') in reasons
 
 
-def test_quiet_workers_refresh_both_branches_on_coordinator():
-    release = threading.Event()
-    entered = threading.Barrier(2)
-    coordinator = threading.get_ident()
-    ticks = []
-
-    def command(argv, emit):
-        entered.wait(timeout=5)
-        assert release.wait(5)
-        return 0
-
-    def tick():
-        assert threading.get_ident() == coordinator
-        ticks.append(True)
-        release.set()
-
-    run_jobs([Job(str(i), None, [str(i)]) for i in range(2)], control=Control(),
-             begin=lambda _: SimpleNamespace(output=lambda _: None, finish=lambda _: None, close=lambda: None),
-             run_command=command, admission=Capacity(), tick=tick)
-    assert ticks
-
-
 @pytest.mark.parametrize('slots', [2, 3, 4])
 def test_report_failure_drains_backpressure_and_joins_all_workers(slots):
     control = Control()

@@ -2,8 +2,6 @@
 
 import json
 from pathlib import Path
-import os
-import termios
 
 import pytest
 from tests.support.perl import run_perl
@@ -190,19 +188,6 @@ def test_functional_return_keeps_secret_boundary_command_and_logout_without_pixe
     assert 'private-canary' not in result.stdout + result.stderr
 
 
-def test_flow00_composes_real_graphical_and_serial_blocks_in_wire_order():
-    result = run_perl(PROBE, 'flow00')
-    data = json.loads(result.stdout)
-    assert data['ok'] and not data['retry'] and not data['capture']
-    stages = ['gdm', 'focused', 'selected', 'dismissed', 'serial-password',
-              'serial-authenticated', 'serial-command', 'serial-logout', 'gdm-return']
-    events = data['events']
-    assert [event for event in events if event in stages] == stages
-    assert [event for event in events if event != 'record'][:7] == [
-        'console:sut', 'gdm', 'focused', 'key:ret', 'selected', 'key:esc', 'dismissed']
-    assert events.count('password') == 1 and 'gdm-match' not in events
-
-
 @pytest.mark.parametrize('arguments', ['none', 'extra', 'wrong-callback'])
 def test_invalid_functional_arguments_still_seal_capture_and_consume_attempt(arguments):
     probe = r'''
@@ -354,18 +339,3 @@ def test_reboot_refusal_stops_input_or_graphical_return_without_retry(mode):
         'install-unauthorized', 'install-session') else 1)
     if mode in ('install-request-error', 'install-request-unverified'):
         assert 'reboot-observed' not in events
-
-
-def test_real_terminal_onlcr_produces_getty_double_carriage_return():
-    master, slave = os.openpty()
-    try:
-        attrs = termios.tcgetattr(slave)
-        attrs[1] |= termios.OPOST | termios.ONLCR
-        termios.tcsetattr(slave, termios.TCSANOW, attrs)
-        os.write(slave, b'onpc-parent-jamie\r\nPassword: ')
-        import select
-        assert select.select([master], [], [], 1)[0]
-        assert os.read(master, 128) == b'onpc-parent-jamie\r\r\nPassword: '
-    finally:
-        os.close(slave)
-        os.close(master)

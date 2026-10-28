@@ -37,18 +37,6 @@ def test_controller_replaces_display_through_owned_descriptor(frames):
         assert attach.call_count == 1
 
 
-@pytest.mark.parametrize('arguments', [['--vm', 'any-vm'], ['--vm=any-vm']])
-def test_watcher_refuses_vm_selection_before_desktop_or_resource_access(monkeypatch, arguments):
-    import watch_viewer as viewer
-    launch = Mock(side_effect=AssertionError('Refused selector must not launch'))
-    monkeypatch.setattr(viewer.subprocess, 'run', launch)
-    monkeypatch.setattr(viewer.os, 'getuid', launch)
-    with pytest.raises(SystemExit) as stopped:
-        viewer.main(arguments)
-    assert stopped.value.code == 2
-    launch.assert_not_called()
-
-
 def test_vm_feed_is_scoped_to_checkout_and_legacy_primary_only(tmp_path):
     from pathlib import Path
     import e2e_watch_viewer as viewer

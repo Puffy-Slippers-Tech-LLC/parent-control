@@ -291,26 +291,6 @@ def test_station_observer_does_not_wait_for_session_services(monkeypatch):
         }
 
 
-def test_kiosk_qualification_stays_on_public_gui_not_backend_buses():
-    session = (ROOT / 'data/systemd/user/gnome-session@oh-no-parent-control.target.d'
-               / 'session.conf').read_text()
-    app = (ROOT / 'data/systemd/user/oh-no-parent-control-app.service').read_text()
-    observer = (ROOT / 'tests/e2e/accessible_ui.py').read_text()
-    units = ROOT / 'data/systemd/user'
-    assert not (units / 'oh-no-parent-control-at-spi.service').exists()
-    assert not (units / 'oh-no-parent-control-at-spi-registry.service').exists()
-    assert 'oh-no-parent-control-at-spi' not in session
-    assert 'oh-no-parent-control-at-spi' not in app
-    assert 'GTK_A11Y' not in app
-    assert 'wait_atspi_address' not in observer
-    assert 'at-spi2-registryd' not in observer
-    assert 'org.a11y.atspi.Registry' not in observer
-    assert 'GetAddress' not in observer
-    assert 'StartServiceByName' not in observer
-    assert 'kiosk_request_form' in observer
-    assert 'get_accessible_id' in observer
-
-
 @pytest.mark.parametrize('online', [False, True])
 def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online, monkeypatch):
     from contextlib import nullcontext

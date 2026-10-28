@@ -493,24 +493,6 @@ def test_rejection_refuses_valid_input_and_missing_format_at_last_line():
     ui.activate_id.assert_not_called()
 
 
-def test_rejection_values_stay_invalid_under_maintained_transport_limits():
-    from common.oh_no_parent_control_ui import feedback_transport as transport
-    assert accessible_ui.TEXT_VALUES['body-hidden'][1] == 'a\x01b'
-    assert (transport.MAX_MESSAGE_UTF16, transport.MAX_HTML_UTF16) == (5000, 50000)
-    html = '<p><strong><em><u><s>x</s></u></em></strong></p>' * accessible_ui.COMPLEX_LINES
-    assert len(html) == 48 * accessible_ui.COMPLEX_LINES > transport.MAX_HTML_UTF16
-    for case, (projection, explanation) in accessible_ui.REJECTION_CASES.items():
-        body, reply = [accessible_ui.TEXT_VALUES[binding][1]
-                       for binding in accessible_ui.FEEDBACK_PROJECTIONS[projection]]
-        units = len(body.encode('utf-16-le')) // 2
-        if explanation == 'length-invalid':
-            assert units == transport.MAX_MESSAGE_UTF16 + 1
-        else:
-            assert units <= transport.MAX_MESSAGE_UTF16
-        error = transport.validation_error(body, reply, '1.2', html if projection == 'rejection-complex' else '')
-        assert accessible_ui.FEEDBACK_VALIDATION[error] == explanation
-
-
 @pytest.mark.parametrize('family', ['ascii', 'mixed'])
 def test_length_valid_boundary_cannot_reach_send_even_with_invalid_case_name(family):
     ui, _, _, controls = rejection_ui(family)

@@ -2836,9 +2836,17 @@ class AccessibleUI:
         """Dismiss only the requested frontend's observed release-note modal."""
         require(surface in ('parent', 'kiosk'), 'ui:startup-note-surface')
         window_id = 'parent-window' if surface == 'parent' else 'kiosk-request-window'
-        observation = self.read_snapshot()
-        dialog = self.snapshot_owned_target('whats-new-dialog', observation=observation,
-                                            check_prompt=True)
+
+        def observed_notes():
+            observation = self.read_snapshot()
+            dialog = self.snapshot_owned_target('whats-new-dialog', observation=observation,
+                                                check_prompt=True)
+            # A complete read with no notes is a result too. Startup error
+            # reports can still be loading their editor during this scan.
+            return (dialog,)
+
+        (dialog,) = self.wait(observed_notes, 'startup-note-observation',
+                              prompt_in_predicate=True)
         if dialog is None:
             return
         metadata = dialog.surface_metadata

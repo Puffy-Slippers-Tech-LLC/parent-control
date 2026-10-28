@@ -27,7 +27,7 @@ EXCLUDED = {
        for name in (
         'check_graphical_smoke', 'check_graphical_transport',
         'check_graphical_serial', 'check_graphical_vt6_prompt', 'check_e2e_watch',
-        'check_e2e_upgrade_assets',
+        'check_e2e_upgrade_assets', 'check_e2e_desktop_language',
         'check_e2e_give_repeated_public_operations_distinct_stages')},
 }
 

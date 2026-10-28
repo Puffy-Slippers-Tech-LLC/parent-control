@@ -571,6 +571,11 @@ exposes their reasons in `tools/run-tests integration --list`:
   including real upgrades and repeated operations, retain their preparation,
   credential-recipient, ownership, cleanup and verdict guards. Dedicated
   credential, VT6 authentication and worker-containment checks remain scheduled.
+- `check_e2e_desktop_language` is excluded as a standalone product-free
+  AccountsService fixture qualification. It sets a desktop language and checks
+  fixture/provider preservation without exercising the product. Its explicit
+  engineering selector and direct account/input safety regressions remain;
+  installed product language and localization journeys stay scheduled.
 - `check_e2e_app_row_observations` is excluded as a duplicate of the complete
   App Limits row read in `check_e2e_native_fixtures`. Both use the shared
   `read_rows` composition, reject wrong-child/page observations and independently

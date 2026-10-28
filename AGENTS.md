@@ -95,7 +95,7 @@
 - Apply the [test scope mandate](docs/Mandates/Test-Scope-Mandate.md) when
   planning or maintaining coverage: test product behavior, maintain existing core
   test infrastructure coverage, limit recursive tests, and exclude UI tests of test tools.
-- No new unit tests allowed for non-product changes, unless explicitly asked for.
+- No new tests allowed for non-product changes, unless explicitly asked for.
 - Select the lowest effective validation scope using
   [test maintenance](tests/README.md#all-established-regressions),
   `tools/run-tests --help` and `tools/run-tests --list`. Use the maintained launcher

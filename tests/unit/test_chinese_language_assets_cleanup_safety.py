@@ -212,14 +212,7 @@ def test_package_profile_changes_source_identity_and_keeps_fedora_branch():
     with pytest.raises(ValueError, match='unsupported-platform'): assets.verify(g, 'fedora')
 
 
-def test_actual_selector_uses_existing_guarded_product_free_envelope(monkeypatch):
-    import check_e2e_chinese_language_assets as selector
-    smoke = Mock(return_value=0)
-    monkeypatch.setattr(selector, 'smoke', smoke)
-    monkeypatch.setattr(selector, 'named_input', lambda: 'verified-input')
-    assert selector.main() == 0
-    smoke.assert_called_once_with(assets='verified-input', provision_credentials=True,
-                                  chinese_language_assets=True)
+def test_existing_guarded_product_free_envelope():
     assert ChineseLanguageQualification.__bases__ == (ProductFreeEntryQualification,)
     assert ChineseLanguageQualification.observation_only
     context = SimpleNamespace(product_free=True, asset_transfer=Mock())

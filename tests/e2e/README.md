@@ -485,7 +485,7 @@ or private evidence validation.
 
 `tools/run-tests e2e --vm NAME` prepares verified package/fixture inputs automatically,
 using the [startup cache](#reusable-startup-preparation). Fixed qualifications
-such as `check_e2e_toggle` similarly prepare their managed named input when
+such as `check_e2e_parent_save` similarly prepare their managed named input when
 absent. For explicit input preparation, use `tools/run-tests artifacts prepare`
 and pass its printed directory with `--artifacts`. Use the
 [managed allocation route](../../docs/Approval-Tools.md#category-coverage-and-future-additions)

@@ -694,26 +694,14 @@ def test_qualification_uses_argument_arrays_and_reads_independently(home):
     assert not list(home.iterdir())
 
 
-def test_qualification_entry_and_prerequisites(monkeypatch):
-    import check_e2e_files
+def test_qualification_prerequisites():
     import check_graphical_smoke
-    run = Mock(return_value=0)
-    monkeypatch.setattr(check_e2e_files, 'smoke', run)
-    assert check_e2e_files.main() == 0
-    assert run.call_args.kwargs['synthetic_files'] is True
-    assert run.call_args.kwargs['fresh_desktop'] == 'parent'
     with pytest.raises(CommandError, match='synthetic-files-prerequisites'):
         check_graphical_smoke.main(synthetic_files=True)
 
 
-def test_document_open_entry_and_prerequisites(monkeypatch):
-    import check_e2e_document_open
+def test_document_open_prerequisites():
     import check_graphical_smoke
-    run = Mock(return_value=0)
-    monkeypatch.setattr(check_e2e_document_open, 'smoke', run)
-    assert check_e2e_document_open.main() == 0
-    assert run.call_args.kwargs['document_open'] is True
-    assert run.call_args.kwargs['fresh_desktop'] == 'parent'
     with pytest.raises(CommandError, match='document-open-prerequisites'):
         check_graphical_smoke.main(document_open=True)
 
@@ -772,14 +760,9 @@ def test_archive_qualification_shared_reader_and_cleanup(home):
     assert not list(home.iterdir())
 
 
-def test_archive_entry_plan_and_prerequisites(tmp_path, monkeypatch):
-    import check_e2e_open_a_customer_document_or_archive as entry
+def test_archive_plan_and_prerequisites(tmp_path):
     import check_graphical_smoke
     from parent_setup_qualification import ArchiveOpenQualification
-    run = Mock(return_value=0)
-    monkeypatch.setattr(entry, 'smoke', run)
-    assert entry.main() == 0
-    assert run.call_args.kwargs['archive_open'] is True
     with pytest.raises(CommandError, match='archive-open-prerequisites'):
         check_graphical_smoke.main(archive_open=True)
     journey = ArchiveOpenQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
@@ -1001,14 +984,9 @@ def test_source_short_write_is_uncertain_and_never_replayed(home, monkeypatch):
     assert files.previous == original
 
 
-def test_source_entry_registration_and_refusal(tmp_path, monkeypatch):
-    import check_e2e_edit_and_save_an_open_synthetic_document as entry
+def test_source_registration_and_refusal(tmp_path):
     import check_graphical_smoke
     from parent_setup_qualification import SourceChangeQualification
-    run = Mock(return_value=0)
-    monkeypatch.setattr(entry, 'smoke', run)
-    assert entry.main() == 0
-    assert run.call_args.kwargs['source_change'] is True
     with pytest.raises(CommandError, match='source-change-prerequisites'):
         check_graphical_smoke.main(source_change=True)
     journey = SourceChangeQualification.journey(SimpleNamespace(directory=tmp_path), Mock())

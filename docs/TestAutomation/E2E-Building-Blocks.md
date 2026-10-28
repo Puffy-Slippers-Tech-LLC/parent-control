@@ -14,10 +14,18 @@ concrete gaps. The [documentation map](README.md) defines ownership/status;
 Every row below records an implementation status. Existing behavior that still
 needs extraction, migration or qualification is `pending`, even when an older
 scenario run passed. Current ready inventory bindings retain implementations,
-behavioral evidence and functional customer assertions. Retain their helper
-regressions while migrating them. Retired E2E IDs 140–150 remain engineering
+behavioral evidence and functional customer assertions. Retain critical shared
+safety regressions while migrating them. Retired E2E IDs 140–150 remain engineering
 system-test obligations and cannot be selected by the E2E runner. Current scenario counts come from
 `tests/e2e/scenarios.json` and the generated coverage report, not this catalogue.
+
+Standalone qualifications for ordinary supporting helpers were removed under
+the [integration scope reduction](../../tests/integration/README.md#aggregate-scheduling).
+Their names below and in completed queue rows describe historical qualification;
+they do not require recreating the entry points or repeating those histories.
+Keep the qualified shared operations and runtime guards. Validate changes through
+affected product consumers and focused critical-boundary checks under the
+[test scope mandate](../Mandates/Test-Scope-Mandate.md).
 
 ## How to implement one block
 

@@ -26,7 +26,7 @@ PRODUCT_FREE_FIXTURE_SELECTORS = ('check_fixture_system_product_free',
 
 
 @pytest.mark.parametrize('name,options,target,suffix,build_status', [
-    ('check_e2e_gdm_navigation', {}, vm_name(0), '', 0),
+    ('check_e2e_gdm_recipient', {}, vm_name(0), '', 0),
     ('check_e2e_feedback_read', {'package_source': True}, vm_name(1), '.py', 7),
     ('check_e2e_read_overlay_about_and_links', {'fixture_source': True}, vm_name(1), '.py', 0),
     ('check_e2e_upgrade_assets', {'upgrade_source': True}, vm_name(0), '', 7),
@@ -1155,11 +1155,9 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
 
 
 
-@pytest.mark.parametrize('selector', ['check_e2e_toggle',
+@pytest.mark.parametrize('selector', ['check_e2e_parent_save',
     'check_e2e_operate_public_connectivity_controls',
-    'check_e2e_operate_public_connectivity_controls.py',
-    'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard',
-    'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py'])
+    'check_e2e_operate_public_connectivity_controls.py'])
 def test_toggle_qualification_reuses_existing_inputs_without_overwriting(
         monkeypatch, synthetic_package_identity, selector):
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)

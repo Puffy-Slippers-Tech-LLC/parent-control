@@ -52,7 +52,7 @@ For VM qualifications, use the maintained runner, which derives that choice
 from pinned baseline provenance and prepares the declared input automatically:
 
 ```sh
-tools/run-tests --vm NAME integration 'check_e2e_riley_native_grid'
+tools/run-tests --vm NAME integration 'check_e2e_policy'
 ```
 
 Replace `NAME` with the registered VM name or ID from
@@ -550,22 +550,28 @@ exposes their reasons in `tools/run-tests integration --list`:
   `check_retained_runs_cleanup` are operational recovery, inventory or maintenance
   commands. They stay explicitly callable, outside test scheduling. Required
   owned recovery still runs through the normal execution preflight.
-- `check_parent_about` and `check_parent_access` use dormant fixture envelopes
-  that are not qualified for clean captures. They remain outside aggregates
-  until their preparation route is qualified; ready customer cases retain their
-  independent coverage.
-- `check_e2e_mate_prompt`, `check_e2e_toggle` and
-  `check_e2e_read_an_expanded_time_explanation` duplicate the actual qualification
-  calls in `check_e2e_auth_prompt`, `check_e2e_parent_save` and
-  `check_e2e_time_explanation`, respectively. Only the latter routes are scheduled.
 - `check_graphical_transport` requires the Ubuntu host's libvirtd AppArmor
   profile, and `check_package_notice` requires host-native APT/dpkg (Ubuntu or
   Debian). They are excluded on Fedora hosts, independently of the selected VM;
   listing includes that applicability reason.
 
-Other standalone qualifications retain distinct assertions or preparation,
-fault/refusal or process/privilege boundaries; readiness of a related customer
-case alone does not establish equivalent coverage. Fixture refresh qualification
+Dormant Parent About/access wrappers and duplicate MATE-prompt, toggle and
+expanded-time wrappers have been removed. Their product coverage remains in
+the customer cases and `check_e2e_auth_prompt`, `check_e2e_parent_save` and
+`check_e2e_time_explanation`.
+
+Routine desktop navigation, synthetic-file operations, native fixture app use,
+Chinese asset reads, observation traces and bounded waits no longer have
+separate integration entry points. Product journeys still use their shared
+helpers and runtime guards. Historical qualification names in the
+[catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md) and completed queue
+rows record past results, not commands to recreate or rerun. Regressions belong
+to the affected product consumers or focused critical-boundary checks under the
+[test scope mandate](../../docs/Mandates/Test-Scope-Mandate.md).
+
+Retained non-product qualifications protect credential recipients, execution and
+evidence integrity, resource ownership or concrete unsafe privileged changes.
+Fixture refresh qualification
 is a finite test of maintenance behavior; it is distinct from invoking a
 maintenance operation. No excluded test-tool UI tests or task-history tests are
 recreated. Integration passes are checkpointed per check only after successful

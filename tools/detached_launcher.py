@@ -385,7 +385,10 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         for index, value in enumerate(command):
             if index and command[index - 1] == '-c' and value.partition('=')[0].strip() == 'model_reasoning_effort':
                 session_view['effort'] = tomllib.loads(value)['model_reasoning_effort']
-        session_transcript = SessionTranscript(sys.stdout, run)
+        view_path = run / 'session-view.json'
+        previous_view = json.loads(view_path.read_text()) if view_path.exists() else {}
+        session_transcript = SessionTranscript(sys.stdout, run,
+            append=previous_view.get('continue_transcript') is True)
         renderer = AgentRenderer(session_transcript, command_log=run / 'agent-commands.log',
                                  hide_task_completion=hide_task_completion, on_usage=on_usage,
                                  on_description=descriptive_output(run),

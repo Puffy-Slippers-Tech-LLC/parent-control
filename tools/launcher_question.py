@@ -108,7 +108,14 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
             on_poll()
             question = json.loads(path.read_text())
             if question['answer'] is not None:
-                renderer.console.print('\n'.join(QuestionInput(question, None).lines()), markup=False)
+                renderer.message(question['answer'], 'You')
+                # The answer starts a new agent process, but continues the
+                # displayed conversation. Consume this display-only flag when
+                # the next supervisor publishes its fresh session identity.
+                view_path = run / 'session-view.json'
+                if view_path.exists():
+                    launcher.atomic(view_path, dict(json.loads(view_path.read_text()),
+                                                    continue_transcript=True))
                 return {'question': question['question'], 'answer': question['answer']}
             time.sleep(.1)
 

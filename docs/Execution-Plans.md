@@ -454,6 +454,9 @@ authority and retire with that run. Plan and repair sessions use the shared
 conversation input throughout work, including steering the active agent and
 answering pending developer decisions. Prompts entered between repair sessions
 queue for the next agent in the displayed workflow.
+Answering a pending developer decision retains the displayed conversation and
+adds the answer as a `You` message. The following agent session appends its
+output after that answer rather than clearing the transcript.
 The repair launcher's lower-left area additionally splits current pipeline status
 from tabbed output, initially 1:2. Its draggable divider uses the shared ratio
 and scrolling controls and retains the chosen proportion across terminal resizing.

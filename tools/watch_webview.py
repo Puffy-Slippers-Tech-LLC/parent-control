@@ -340,8 +340,15 @@ class Viewer:
         valid_ids = {entry_id(Path(root), key) for root, key in scoped}
         if selected not in valid_ids:
             selected = 'all'
+        runs = self.run_status(request.get('session_root'))
+        # Follow the displayed terminal sections, including changes on refresh.
+        # Checkouts without a displayed run follow in discovery order.
+        ordered_roots = dict.fromkeys([section['id'] for section in runs] +
+                                     [str(root) for root in self.roots])
+        root_order = {root: index for index, root in enumerate(ordered_roots)}
         values, shown = [], set()
-        for (root, key), (view, name, active, locked) in scoped.items():
+        for (root, key), (view, name, active, locked) in sorted(
+                scoped.items(), key=lambda item: root_order[item[0][0]]):
             identifier = entry_id(Path(root), key)
             entry = root, key
             render = active if selected == 'all' else selected == identifier
@@ -352,7 +359,7 @@ class Viewer:
                 label=f'[{self.roots[Path(root)]}] {name}', active=active, locked=locked))
         self.images = {entry: value for entry, value in self.images.items() if entry in shown}
         return dict(scope=scope, selected=selected, entries=values,
-                    runs=self.run_status(request.get('session_root')), session_result=result,
+                    runs=runs, session_result=result,
                     checkouts=[dict(id=str(root), label=branch) for root, branch in self.roots.items()],
                     resources=self.resources.text(), resource_sample=self.resources.last,
                     resource_charts=self.resources.charts)

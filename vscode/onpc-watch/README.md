@@ -63,7 +63,9 @@ count is underlined; click it to open the cumulative `errors.md` in the editor.
 
 The right panel contains the shared All grid across checkouts, UI worker and VM tabs,
 VM progress, filtered command output and host resource usage. Screens are view
-only. Start tests through the usual launchers. Select an idle VM tab to wait for
+only. Tiles and viewer tabs group by worktree in the left panel's current order,
+following changes on each refresh. Worktrees without a displayed run follow those
+shown on the left. Start tests through the usual launchers. Select an idle VM tab to wait for
 its next run. The Reconnect button restarts only this tab's reader.
 
 Each VM footer has an **SSH** toggle at the right, off by default. Turn it on

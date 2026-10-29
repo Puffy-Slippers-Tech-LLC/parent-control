@@ -78,10 +78,13 @@ def verify_runtime_trust(variant, preparation, *, variants=('trusted-hard',)):
     comparison with its frozen build, exact native admission and backend/tool
     verification here before the case changes product policy.
     """
+    platform = {'.deb': 'ubuntu', '.rpm': 'fedora'}.get(guest.package_path().suffix)
+    prepared_guest = preparation['guest']
     guest.require(variants in (('trusted-hard',), TRUSTED_VARIANTS)
-                  and variant in variants and guest.package_path().suffix == '.rpm'
-                  and preparation['guest'].get('os_id') == 'fedora'
-                  and preparation['guest'].get('version') == '44',
+                  and variant in variants
+                  and prepared_guest.get('os_id', 'ubuntu') == platform
+                  and (platform, prepared_guest.get('version', prepared_guest.get('ubuntu_version')))
+                      in (('ubuntu', '26.04'), ('fedora', '44')),
                   'trusted-fixtures:runtime-selection')
     files = {}
     for identity in variants:
@@ -105,30 +108,43 @@ def verify_runtime_trust(variant, preparation, *, variants=('trusted-hard',)):
     backend = validate_backend_record(json.loads(root_file(BACKEND_RECORD, 0o600, limit=300000)))
     metadata = backend['metadata']
     config = root_file(BACKEND_CONFIG, metadata['mode'], gid=metadata['gid'], limit=65536)
-    guest.require(backend['complete'] and backend['os_id'] == 'fedora'
+    guest.require(backend['complete'] and backend['os_id'] == platform
                   and bytes.fromhex(backend['after_hex']) == config
-                  and file_backend_config(config, 'fedora') == config,
+                  and file_backend_config(config, platform) == config,
                   'trusted-fixtures:native-backend')
-    checksums = guest.commands.run(['rpm', '-q', '--queryformat',
-        '%{FILEDIGESTALGO}\n[%{FILENAMES}\t%{FILEDIGESTS}\n]', 'fapolicyd'],
-        timeout=120, merge_stderr=False).decode().splitlines()
-    guest.require(bool(checksums) and checksums[0] == '8', 'trusted-fixtures:native-tool-changed')
-    rows = [line.split('\t') for line in checksums[1:]]
+    if platform == 'fedora':
+        checksums = guest.commands.run(['rpm', '-q', '--queryformat',
+            '%{FILEDIGESTALGO}\n[%{FILENAMES}\t%{FILEDIGESTS}\n]', 'fapolicyd'],
+            timeout=120, merge_stderr=False).decode().splitlines()
+        guest.require(bool(checksums) and checksums[0] == '8',
+                      'trusted-fixtures:native-tool-changed')
+        rows = [line.split('\t') for line in checksums[1:]]
+    else:
+        checksums = guest.commands.run(['dpkg-query', '--control-show', 'fapolicyd', 'md5sums'],
+            timeout=120, merge_stderr=False).decode().splitlines()
+        guest.require(bool(checksums), 'trusted-fixtures:native-tool-changed')
+        # Use the same package checksum API as the shared fixture provisioner.
+        rows = [line.split() for line in checksums]
     guest.require(all(len(row) == 2 for row in rows), 'trusted-fixtures:native-tool-changed')
-    for executable in native_tool_paths('fedora').values():
+    for executable in native_tool_paths(platform).values():
         guest.require((Path('/usr/sbin') / Path(executable).name).resolve() == Path(executable),
                       'trusted-fixtures:native-tool-alias')
         tool = root_file(executable, 0o755, limit=16777216)
-        guest.require(guest.run(['rpm', '-qf', '--queryformat', '%{NAME}', executable]) == 'fapolicyd'
-                      and [row[1] for row in rows if row[0] == executable]
-                          == [hashlib.sha256(tool).hexdigest()], 'trusted-fixtures:native-tool-changed')
-    guest.run([native_tool_paths('fedora')['cli'], '--check-config'])
+        owner = guest.run(['rpm', '-qf', '--queryformat', '%{NAME}', executable]
+                          if platform == 'fedora' else ['dpkg-query', '-S', executable])
+        expected = ([row[1] for row in rows if row[0] == executable] if platform == 'fedora'
+                    else [row[0] for row in rows if row[1] == executable.lstrip('/')])
+        digest = (hashlib.sha256(tool).hexdigest() if platform == 'fedora'
+                  else hashlib.md5(tool).hexdigest())
+        guest.require(owner == ('fapolicyd' if platform == 'fedora' else 'fapolicyd: ' + executable)
+                      and expected == [digest], 'trusted-fixtures:native-tool-changed')
+    guest.run([native_tool_paths(platform)['cli'], '--check-config'])
     guest.require(guest.run(['systemctl', 'is-active', 'fapolicyd.service']) == 'active',
                   'trusted-fixtures:native-service')
     # Clean captures contain no legacy mechanical admissions. Preserve the
     # negative controls instead of requiring their retired payload records.
     untrusted = [str(native_paths(name)[0]) for name in ('command', 'whitespace')]
-    database = guest.run([native_tool_paths('fedora')['cli'], '--dump-db'])
+    database = guest.run([native_tool_paths(platform)['cli'], '--dump-db'])
     validate_database(database, files, untrusted)
     return {'files': files, 'backend': backend}
 

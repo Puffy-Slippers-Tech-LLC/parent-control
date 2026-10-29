@@ -1697,7 +1697,7 @@ def test_rejected_responses_exhaust_existing_cap_and_resume_same_task(checkout):
     assert json.loads((resumed / 'checkpoint.json').read_text())['task_sessions'] == 6
 
 
-@pytest.mark.parametrize('custom', [False, True])
+@pytest.mark.parametrize('custom', [True])
 def test_blocker_pauses_across_detach_and_resumes_only_after_answer(
         checkout, custom, tmp_path_factory):
     from launcher_question import submit

@@ -1074,6 +1074,10 @@ affected request form, read readiness and intended target before closing normall
 they need no full duration/custom/soft/selector persistence matrix. Reboot case
 138 owns that complete comparison on both forms using the explicit saved values.
 No route inherits another case's update, activation or enforcement results.
+The installed upgrade history (system 287) owns package/migration/internal-state
+matrices. Do not repeat those probes or add a standalone update qualifier for
+each recipe step. Keep the actual update, all required activation, public
+saved-value comparisons and usable/denied app outcomes above in each journey.
 
 ### E2E-027
 
@@ -1105,6 +1109,12 @@ before reading Riley's retained shared request choices, without editing them.
 2. FLOW16 → FLOW03 → both forms FLOW04/REQUEST03/REQUEST12 → FLOW06 → C → FLOW08.
 3. P → LIFE04(remove) → FILE06(notice) → LIFE02 → C(fresh) → FLOW08(formerly blocked,usable).
 4. V(parent,fresh after the removal reboot) → LIFE04(reinstall) → LIFE05 → P(new window) → PARENT03/PARENT09/PARENT12(retained choices,zero grant) → request-entry(kiosk) → REQUEST03 → REQUEST12(cancel) → FLOW16/FLOW03(reapply) → C → FLOW08. P → LIFE04(purge) → LIFE05 → LIFE04(reinstall) → LIFE05 → P(new window) → PARENT03(defaults) → G → REQUEST01 → REQUEST03(fresh shared defaults). A removed product has no Parent window to launch; package work uses the shared administrator SSH helper. A disabled child has no overlay entry until limits are publicly enabled.
+
+System 6 owns the package-file, ownership, PAM/service, internal retention and
+cleanup matrices. Reuse its maintained package mechanics without repeating
+those probes or adding separate remove/reinstall/purge qualification histories.
+All four phases above remain one continuous customer journey, including the
+public notices, retained/default values, grant clearing and actual child use.
 
 ### E2E-030
 
@@ -1333,6 +1343,13 @@ settings. Shared account preparation remains for the branches below.
 Case 180 absorbs former case 183; that ID must not be reused. Prepare and remove
 the spare child once for both screens, using the finite data below. Cases 181
 (no surviving child) and 182 (ineligible approver) remain independent journeys.
+Shared account mechanics come from `system_accounts` and the guarded E2E
+account-fixture transport. Case 180 owns the missing finite spare-child profile
+and create/remove binding; case 182 adds only the spare-approver/role binding.
+Validate changed destructive/credential guards in the existing direct owner
+before mutation, then observe preparation and the actual change in each complete
+journey. No fixture-only qualification or repeated backend authorization matrix
+is part of case acceptance. Shared code reuse never reuses another case's state.
 
 ### E2E-041
 
@@ -1949,15 +1966,17 @@ time result and continued hard/soft denial, including the final recovery.
 Accounts in cases 180–182 are disposable spare accounts, prepared independently
 for each journey; case 180 shares its preparation across both screens.
 Shared account operations validate administrator authority through AUTH04.
-The ordinary two-child baseline is protected. First qualify the exact
-disposable-child profiles: two eligible registered spares for 180 and
+The ordinary two-child baseline is protected. Implement the shared finite
+profiles, then independently prepare and read them in each complete attempt:
+two eligible registered spares for 180 and
 one for 181, with the same guarded Parent/station bindings. Recipe role names
 Jordan/Riley identify those disposable inputs, never permission to delete the
 baseline accounts. No current callable supplies these profiles. Keep them
 planned until preparation and independent public eligible-set readback are
 available; an engineering empty-list mutation cannot replace the journey.
-The scoped qualification separately needs the registered spare Sam administrator before its
-role change; retain Jamie and the last-administrator/station protections.
+Case 182 independently prepares and reads the registered spare Sam
+administrator before its role change, without a separate fixture qualification;
+retain Jamie and the last-administrator/station protections.
 Remove only logged-out spare children, retaining an administrator to finish the
 journey. For 180, Jordan and Riley are the only eligible children. Save Jordan's
 daily allowance as 30 minutes and Riley's as 15 minutes through Parent. Save
@@ -1971,8 +1990,9 @@ the station and independently require Riley selected with Custom 2.5 and soft
 apps included before editing or requesting. Jordan's 30-minute allowance or
 request choices must not leak into either result. No reset or second removal
 separates the checks. For 182, both station and overlay remember Sam before
-ACCOUNT02 changes Sam to standard; reopen and select the remaining eligible
-Jamie. A missing eligible replacement uses separate case 181 instead.
+ACCOUNT02 changes Sam to standard. Reopen both forms and independently require
+Sam excluded and Jamie automatically selected before any edit or manual
+selection. Case 181 separately checks removal of the last eligible child.
 
 ### Feedback local values
 
@@ -2433,6 +2453,12 @@ diagnostic production/retention/privacy, and disabled future mute behavior.
 Unsupported-OS/reserved-account installation refusal needs its separate package
 environment qualification; this Ubuntu 26.04 customer runner does not simulate
 another distribution by changing release files.
+
+Engineering obligation 147 is allocated to the existing requester-disconnect
+system test (255), with no duplicate E2E implementation task. The remaining
+engineering briefs target only missing assertions under their existing owners.
+Apply [system/integration reuse](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+at case, step and acceptance level while keeping the complete public journeys.
 
 Requirement references identify the clauses exercised by each family, not
 complete proof of every clause in a compound requirement. Public balances,

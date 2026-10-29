@@ -36,14 +36,18 @@ the product result or substitute a different launch after failure.
 In a fresh guarded installed attempt, verify the baseline's two exact launcher
 identities and observe their distinct public Parent rows for Jordan. With both
 Allowed, launch/use each declared alias in separate invocations, closing the
-first normally before the next. Publicly block the first while the second
-remains Allowed; require both routes denied through the qualified result
-observers, using a separate command-denial witness if a grid entry is hidden.
-Qualify independently supplied valid entry and focused wrong-alias/owner and
-uncertain-input refusal. Reuse unchanged single-target qualification.
+first normally before the next. Qualify the newly added alias identity and
+input/result route; reuse unchanged single-target ownership, wrong-recipient
+and uncertain-input guards without replaying their refusal matrix.
 
-The full reverse-block/both-Allowed customer history remains case 187; this
-slice establishes reusable alias readiness/results without completing that case.
+Case 187 owns the complete public block-first, reverse-block and both-Allowed
+recovery history, including saved choices and both launch results at every
+declared effect. Do not run that policy/effect sequence in this prerequisite.
+System ID 280, `test_native_catalog_is_selected_child_scoped`, owns engineering
+catalogue membership and target resolution through
+`system_enforcement.observe_catalog`; it does not qualify these alias rows,
+shared-target policy merging or their public launch routes. This slice supplies
+alias readiness/results, with no saved VM state or complete case acceptance.
 
 Planned selector; implement and register it before use:
 

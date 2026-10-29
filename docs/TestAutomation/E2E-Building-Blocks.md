@@ -965,6 +965,13 @@ Callers own lifecycle/finite expectations; case 184 remains separate.
 
 ### Baseline operation applicability
 
+Compatible fixture preparation and the finite native grant/use/revoke history
+formerly scheduled as 313a/313 were delivered through C04p1/C04p. Their duplicate
+E2E queue tasks are removed; the scope below remains reusable. Trust accepted
+delivery without retrieving old reports or rerunning unchanged qualification.
+Changed boundaries receive their affected checks; later customer journeys keep
+their own complete public outcomes.
+
 The [baseline recipe](E2E-Scenario-Recipes.md#c04b-baseline-public-use-slice)
 defines a finite request/grant/use/revoke history. Reuse exact qualified
 operations rather than duplicating feature mechanics. Qualification applies only
@@ -2974,8 +2981,9 @@ both-target full-profile qualification from still-unrenewed Riley-grid and
 copy/update/nonmatch histories.
 
 `native_launch_command` and public activity readers bind A to primary and S to
-secondary for the finite core-effects history; those exact new public-window
-bindings remain pending installed qualification. Distinct bytes alone do not
+secondary for the delivered finite C04p core-effects history; those exact
+Submit/result bindings are qualified on both declared targets. Broader roles,
+routes and compositions remain pending. Distinct bytes alone do not
 prove window identity. Two launchers sharing one target and a future-version/
 new-nonmatch profile remain separate pending capabilities. The isolated S
 directory supplies neither. Space-bearing ELF nonmatches in the legacy directory
@@ -3369,6 +3377,17 @@ acceptance. Their removal from customer recipes does not delete the obligations:
 Maintained owners are [system tests](../../tests/system),
 [broker components](../../tests/component), [unit tests](../../tests/unit) and
 [UI tests](../../tests/ui). Missing exact implementation remains pending.
+The [assertion allocation](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+governs reuse without shortening customer journeys. In particular, obligation
+147 is already executable as system 255 in
+[`test_requester_disconnect_during_approval`](../../tests/system/test_authorization.py).
+It covers child/kiosk requester loss while the real agent lives, cancellation
+without writes, released transaction, a fresh authenticated grant and unchanged
+other accounts. It needs no separate E2E-queue task or duplicate test.
+Obligations 140–146 and 148–150 retain their specific missing fault/observation
+or recovery assertions in the queue briefs; their existing system/component
+matrices are reused rather than implemented again. This mapping supplies no
+new installed result.
 Unsupported OS/reserved-account failures, conversion/rollback, all-account
 authorization and injected faults remain technical coverage. Same-child
 multiple desktops and an already-open hard-blocked app require real public

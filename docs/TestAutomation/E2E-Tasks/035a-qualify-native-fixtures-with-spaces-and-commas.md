@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Session boundary
 
-Add the comma-containing fixture and its identical-copy checks. Reuse 035d's special-path transfer/copy/result operations; retain both finite fixtures.
+Add the comma-containing fixture and its identical-copy readiness. Reuse 035d's special-path transfer/copy/result operations; retain both finite fixtures.
 
 Reuse the delivered scope of tasks **035d** under the
 [split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
@@ -36,7 +36,17 @@ this new profile; extend their registered finite inputs before qualification.
 
 ## Live VM acceptance
 
-On the live VM, copy the added comma-containing executable through the shared FILE05 command helper and verify its exact destination/content. Under publicly saved Hard and Soft rules, require original and identical-copy denial while N remains usable. Qualify independently prepared owned source/destination entry and wrong-path/owner/destination refusal before mutation. Reuse 035d's unchanged exact space-path qualification, rerunning it only when affected; it supplies no saved VM state. Case 188 still exercises both finite fixtures. Do not generalize this to arbitrary copied programs.
+On the live VM, copy the added comma-containing executable through the shared
+FILE05 command helper, verify its exact destination/content and launch/use the
+Allowed copy through the shared finite result binding. Reuse 035d's unchanged
+space-path readiness and path/owner/destination guards without another copy
+refusal matrix. A new finite source/destination does not require requalifying
+the unchanged shared mechanism.
+
+Case 188 owns the full public Hard/Soft policy-save, original/copy denial and
+unaffected-N journey for both finite fixtures. Do not repeat that feature matrix
+in this prerequisite or generalize readiness to arbitrary copied programs.
+Readiness supplies no saved VM state or complete case acceptance.
 
 Planned qualification selector (not registered; implement before use):
 

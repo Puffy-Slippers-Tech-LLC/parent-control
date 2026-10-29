@@ -18,6 +18,7 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 | Selecting or resuming work | [Plan reading routes](E2E-Execution-Plan.md#load-only-the-selected-context); the first unchecked active queue row is authoritative. Prerequisite task IDs select delivered scope, not predecessor briefs or saved VM state. |
 | Any implementation | [Shared support guide](../../tests/support/README.md), [bounded supporting work](E2E-Building-Blocks.md#keep-supporting-work-bounded) and [composition preflight](E2E-Building-Blocks.md#composition-preflight). Cases and qualifications call the same shared operations; callers retain their distinct assertions. |
 | Designing or revising a journey | [Product-focused journeys](#product-focused-journeys): retain product outcomes and necessary safety guards; remove incidental provider requirements from completed and unfinished coverage. |
+| Existing system/integration coverage | Apply [assertion-level reuse](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage) to the case, its steps and acceptance. Remove duplicate engineering work; preserve the complete customer journey and its independent public outcomes. |
 | UI work | [Application UI API](Application-UI-API.md), [UI mandate](../Mandates/UI-Automation-Mandate.MD) and [UI/E2E allocation](UI-and-E2E-Coverage.md). All existing and new product reads/actions use the shared UI/E2E facade with scoped stable IDs and canonical values. Keep authentication, file choosers and supporting tools in their external adapters; supporting system operations use shared commands/APIs. |
 | Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Deliberate package/account/file mutations under test remain in the journey. |
 | Host checks | Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md) before adding infrastructure coverage; then use [suite selection](../../tests/README.md#all-established-regressions) and [parallelism review](../../tests/README.md#host-test-parallelism-review). Use selected `tools/run-tests unit`/`ui` scopes. Direct launchers remain available for narrow diagnosis. |
@@ -503,8 +504,11 @@ target set. These per-target commands do not reduce acceptance to one VM;
 report any explicitly narrowed diagnostic run as such.
 
 If no listed test covers the obligation, implement the brief's bounded planned
-test under the same maintained owner and require it to be listed before running
-it. Require the exact fault, observed failure, real recovery, unrelated-user
+assertions under the same maintained owner, extending an existing test where
+possible. Add a separate test only for a distinct uncovered fault history and
+require it to be listed before running it. Do not replay an unchanged covered
+matrix as a prerequisite; validate the changed history and affected boundaries.
+Require the exact fault, observed failure, real recovery, unrelated-user
 isolation and owned cleanup on the guarded VM. A mapping, proposed selector or
 host-only check cannot complete it.
 

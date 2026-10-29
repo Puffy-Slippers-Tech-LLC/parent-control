@@ -5,7 +5,7 @@ and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 
 Estimate: 30–50 minutes.
 
-Session exception: The real update, logout/login of every affected user and package activation checks must all complete.
+Session exception: Keep the real update, notice and logout/login of every affected user together.
 
 ## Scope and prerequisites
 
@@ -19,18 +19,26 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Bind a verified old/new package profile requiring session activation. Extend LIFE04(update) and LIFE05 only for this route. Follow the displayed requirement for every named affected app/user; preserve all mechanical migration obligations.
+Bind a verified old/new package profile requiring session activation. Extend
+LIFE04(update) and LIFE05 only for this route. Follow the displayed requirement
+for every named affected app/user.
 
 Reuse `package_install.submit_release` / `observe_release`; bind the exact
 session-activation notice and each named session's normal logout/fresh login.
 The current `package_upgrade.PLAN` is a reboot-notice qualification, not this
-binding. Keep one before/after saved-setting comparison per affected account;
-the complete case owns app enforcement and request-choice persistence. Reuse
+binding. Independently require each affected app usable after its normal session
+renewal and read one before/after saved setting per affected account. The
+registered `package::test_previous_package_policy_preservation` owns native
+policy, migration and grant-preservation probes; the complete case retains its
+public enforcement results and case 138 owns the full request-choice tour. Reuse
 unchanged updater and entry qualification; do not repeat their refusal histories.
 
 ## Live VM acceptance
 
-On the VM install the real update, read its session requirement, perform the normal logout/login for every affected user sequence and read settings before edits. Run the affected existing package activation checks separately.
+On the VM install the real update, read its exact session requirement, perform
+normal logout/login for every affected user and independently require the
+affected app usable with retained visible settings before edits. Run an existing package-owner check only when this
+implementation changes the behavior it covers.
 
 Planned qualification selector (not registered; implement before use):
 

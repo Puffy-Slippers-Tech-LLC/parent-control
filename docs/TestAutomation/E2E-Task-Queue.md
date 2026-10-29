@@ -38,17 +38,16 @@ other C06–C13 improvements. It owns its targeted tests and adds no release
 baseline prerequisites. The plans share operations under the
 [cross-plan reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) and
 [operation-reuse contract](E2E-Execution-Contracts.md#cross-plan-operation-reuse).
-C04p1/C04p consume tasks 313a/313's fixture and core-effects evidence; C04j owns
+C04p1/C04p delivered the shared fixture and core-effects scope; C04j owns
 only the confinement baseline composition. New general feature automation stays
 here; tasks 314/315 are not kiosk baseline prerequisites. Later tasks
 065a, 079b/079d and 197/197a/197k consume applicable shared work and implement
 their remaining scope. C04l/s/r/i reuse existing feature coverage; C04w adds
 only the bounded usability pause. Existing and pending E2E scenarios keep their
-distinct acceptance. Task 059 remains this queue's first unchecked row;
-313a/313 follow it before their later E2E consumers, with no dependency on
-unfinished kiosk C04p/C05 or new-plan tasks. C04p1/p wait for those deliveries,
-never execute this queue implicitly. Keep that one-way ownership to avoid a
-cross-plan cycle. No queue row is completed by this reconciliation.
+distinct acceptance. Task 059 remains this queue's first unchecked row.
+The delivered 313a/313 scope is reused through the catalogue, without duplicate
+queue tasks or a dependency on unfinished kiosk/new-plan work. Neither plan
+executes the other implicitly. No queue row is completed by this reconciliation.
 
 The remaining-scope review keeps enforcement, approval, recovery, retained work,
 child isolation and lifecycle results. Feedback confirmation needs one acceptance
@@ -65,6 +64,44 @@ Catalogue update/removal reopens Parent after Save; timing uses bounded
 public-state waits and measured read intervals. Required launch integrations,
 natural expiry, authentication, interval coverage and ownership guards remain.
 These planning changes leave task status and live qualification unchanged.
+
+The [system/integration allocation](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+removes duplicate engineering cases, prerequisite steps and acceptance matrices
+while preserving complete customer journeys.
+
+## Reallocated system coverage
+
+Tasks **313a/313** are removed from scheduling: C04p1 delivered the compatible
+native fixture/host work and C04p delivered the finite both-target 600-second
+grant/use/revoke history. Their maintained
+[scope and reuse boundaries](E2E-Building-Blocks.md#cross-plan-baseline-reuse)
+replace the duplicate briefs. Reuse that accepted scope without repeating
+preparation, reviewing old reports or running a second qualification. Broader
+FLOW13/19/20 bindings and complete customer scenarios remain pending with their
+own missing operations and acceptance. Removing duplicate tasks supplies no
+additional completion credit.
+
+Tasks **141b/141/141a** are absorbed into task **142 / case 139**. The finite
+remove/reinstall/purge commands and complete worker already exist; three new
+qualifier workers would repeat parts of the same lifecycle. Case 139 keeps all
+five real package operations, reboots, retained/default readbacks and app results.
+
+Tasks **184/184b/184c** are absorbed into the account journeys. Task **222** owns
+the missing finite spare-child profiles and shared create/remove binding, reused
+by **223**; **224** owns the spare-approver/role binding. Existing system account
+mechanics are reused. Protected-account, credential and cleanup guarantees still
+require their affected direct checks before mutation. Each case prepares its
+own exact profile and observes its actual account change and public results;
+there is no separate fixture-only qualification or forward acceptance dependency.
+
+Task **176** is removed from scheduling. Its engineering obligation **147** is
+fully executable in system **255**,
+`test_authorization.test_requester_disconnect_during_approval`: both requester
+surfaces, cancellation without writes, transaction release, authenticated retry
+and peer isolation. Do not recreate a separate implementation/qualification task
+or the proposed `test_e2e_disconnect_recovery` wrapper. This is suite allocation,
+not a new pass or completion claim. Customer case **176** (overlay cooldown) and
+task **218** remain unchanged; task IDs and case IDs are separate namespaces.
 
 ## Reallocated UI coverage
 
@@ -166,7 +203,7 @@ Task 221, its brief and inventory case 179 are removed, neither completed nor
 deferred; do not recreate them or reuse case ID 179. Completed
 [case 3](E2E-Building-Blocks.md#parent-discovery-block-contracts) already adds a
 child while the same Parent window remains open, selects it and checks its
-settings. Preserve that journey and task 184's shared account preparation for
+settings. Preserve that journey and the shared account preparation within
 the remaining account-change consumers.
 
 Task **256** and standalone inventory case **214** are absorbed into
@@ -413,8 +450,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 052a | Measure final-second countdown ticks | 052d | TIME02 minute/final-second progression passed on Ubuntu 26.04 and Fedora 44: public two-minute daily-only preparation, fresh child entry, `00:01` → `57` → `53` → `50`, immutable controller read brackets, original 90-second transition/15-second exact-progression bounds and two-second tolerance. Both reports also retain the unchanged exact minute qualification in separate clean attempts. [Qualified scope and retained reports](E2E-Building-Blocks.md#final-second-countdown-progression-qualification). Scoped host safety/composition/resource/source and close-out checks passed; all four attempts passed collection, worker/callback shutdown, owned cleanup, baseline restoration, finalization and host/source preservation. Both VMs verified off. No clock/usage manipulation or complete-scenario credit. | 20–30 |
 | [x] | 062 | Use an app until a natural enforced lock | 052a, 047 | TIME04 Riley/native two-minute daily-only natural lock and same-lock harmless input passed on Ubuntu 26.04 / Fedora 44 in `20261013T211559Z-9707db41` / `20261013T211559Z-1783060f`; affected case 6, scoped host/source checks, collection, owned cleanup and preservation passed. [Exact binding and retained reports](E2E-Building-Blocks.md#natural-enforced-lock-qualification). Other app/game/fullscreen bindings and complete scenarios remain separate | 20–30 |
 | [ ] | 059 | [E2E-011: daily-only](E2E-Tasks/059-case-27.md) | 052a, 043c, 062 | Cases 27 | 35–55 (exception) |
-| [ ] | 313a | [Prepare compatible shared native app fixtures](E2E-Tasks/313a-compatible-native-fixtures.md) | 079, 035p | Finite representable A/H/S fixture profile and exact shared bindings; host qualification only, first consumer is 313 | 20–30 |
-| [ ] | 313 | [Qualify shared native grant, use and revocation effects](E2E-Tasks/313-native-grant-effects.md) | 313a, 180, 079, 047, 050, 052, 043c, 044b | Finite shared A/H/S policy, distinct native instances, genuine grant-only approval, use/denial and revocation effects; first consumer is kiosk baseline C04p; broader FLOW13/19/20 remain pending | 30–60 (exception) |
 | [ ] | 181m | [Operate the countdown context menu](E2E-Tasks/181m-operate-the-countdown-context-menu.md) | 052 | UI28 and PANEL01/02 | 20–30 |
 | [ ] | 064 | [E2E-008: fresh-login](E2E-Tasks/064-case-22.md) | 062, 043a, 050, 181m | Cases 22; animation enabled during existing natural exhaustion | 40–60 (exception) |
 | [ ] | 052b | [Verify countdown availability in UI tests](E2E-Tasks/052b-countdown-absence.md) | 052 | UI obligation; countdown availability on desktop, locked and greeter states | 20–30 |
@@ -484,7 +519,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 273 | [E2E-049: native-grid-child-overlay](E2E-Tasks/273-case-231.md) | 197, 079b, 079a, 180 | Cases 231 | 20–30 |
 | [ ] | 274 | [E2E-049: native-grid-kiosk](E2E-Tasks/274-case-232.md) | 197k, 079b, 079a, 180 | Cases 232 | 20–30 |
 | [ ] | 280 | [E2E-049: native-command-kiosk](E2E-Tasks/280-case-238.md) | 197k, 079b, 079a, 180 | Cases 238 | 20–30 |
-| [ ] | 035d | [Qualify a native executable path containing a space](E2E-Tasks/035d-native-space-path.md) | 036, 079d | FIX06 space-path readiness; FILE05 copy and command-policy result | 20–30 |
+| [ ] | 035d | [Qualify a native executable path containing a space](E2E-Tasks/035d-native-space-path.md) | 036, 079d | FIX06 space-path readiness; FILE05 executable copy and Allowed native-result binding; case 188 owns policy effects | 20–30 |
 | [ ] | 035a | [Qualify the comma-containing native fixture](E2E-Tasks/035a-qualify-native-fixtures-with-spaces-and-commas.md) | 035d | FIX06 special-path readiness; FILE05 and command-result bindings | 20–30 |
 | [ ] | 230 | [E2E-041: special-paths](E2E-Tasks/230-case-188.md) | 035a, 180 | Cases 188 | 20–30 |
 | [ ] | 035b | [Qualify versioned AppImage pattern assets](E2E-Tasks/035b-qualify-versioned-appimage-pattern-assets.md) | 036, 079d, 186, 052c | FIX06 versioned-path readiness; FILE05 and pattern launch results | 20–30 |
@@ -567,10 +602,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 138 | [E2E-026: session](E2E-Tasks/138-case-137.md) | 137, 079d, 079b, 065, 052 | Cases 137 | 40–60 (exception) |
 | [ ] | 139 | [Follow reboot activation after a real update](E2E-Tasks/139-activation-reboot.md) | 135a, 007 | LIFE04 update; LIFE05 reboot scope | 30–50 (exception) |
 | [ ] | 140 | [E2E-026: reboot](E2E-Tasks/140-case-138.md) | 139, 155, 079d, 079b, 065, 052 | Cases 138 | 40–60 (exception) |
-| [ ] | 141b | [Remove the product and follow its reboot notice](E2E-Tasks/141b-product-remove.md) | 007, 047 | LIFE04 remove and LIFE05 removal activation | 40–60 (exception) |
-| [ ] | 141 | [Reinstall after removal and follow activation](E2E-Tasks/141-product-removal.md) | 141b, 180 | LIFE04 product remove/reinstall; LIFE05 corresponding notices/activation | 30–50 (exception) |
-| [ ] | 141a | [Qualify purge and reinstall to visible defaults](E2E-Tasks/141a-product-purge.md) | 141 | LIFE04 purge; LIFE05 notice and reinstall/defaults | 30–50 (exception) |
-| [ ] | 142 | [E2E-027: continuous](E2E-Tasks/142-case-139.md) | 141a, 155, 065, 079b | Cases 139 | 20–30 + continuous run (exception) |
+| [ ] | 142 | [E2E-027: continuous](E2E-Tasks/142-case-139.md) | 007, 047, 180, 155, 065, 079b | Cases 139; reuse existing five-command lifecycle worker; own remaining composition and complete continuous acceptance | 20–30 + continuous run (exception) |
 | [ ] | 182 | [Prepare a daily balance that outlasts a soft exception](E2E-Tasks/182-prepare-a-daily-balance-that-outlasts-a-soft-exception.md) | 065, 079b, 047, 052, 052c | FLOW18 | 20–30 |
 | [ ] | 206 | [E2E-038: none](E2E-Tasks/206-case-164.md) | 182, 047a, 079d | Cases 164 | 20–30 |
 | [ ] | 207 | [E2E-038: unlock](E2E-Tasks/207-case-165.md) | 182, 047a, 079a | Cases 165 | 20–30 |
@@ -579,12 +611,9 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 210 | [E2E-038: toggle](E2E-Tasks/210-case-168.md) | 182, 047a, 079d | Cases 168 | 20–30 |
 | [ ] | 211 | [E2E-038: app-save](E2E-Tasks/211-case-169.md) | 182, 047a, 079d | Cases 169 | 20–30 |
 | [ ] | 212 | [E2E-038: revoke](E2E-Tasks/212-case-170.md) | 182, 047a, 079a | Cases 170 | 20–30 |
-| [ ] | 184 | [Create the registered spare child through shared account helpers](E2E-Tasks/184-change-disposable-accounts-through-users-settings.md) | Baseline | ACCOUNT01/02 shared account read/create; AUTH04 protected-account guards | 20–30 |
-| [ ] | 184b | [Remove a logged-out spare child through shared account helpers](E2E-Tasks/184b-remove-disposable-child.md) | 184 | ACCOUNT02 remove-child | 20–30 |
-| [ ] | 222 | [E2E-040: remove-selected](E2E-Tasks/222-case-180.md) | 184b, 017, 014, 180, 044 | Cases 180; one removal, independent Parent and reopened-station fallback; absorbs case 183 | 40–60 (exception) |
-| [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 184b, 017 | Cases 181 | 20–30 |
-| [ ] | 184c | [Change a spare approver role through shared account helpers](E2E-Tasks/184c-change-spare-account-role.md) | 184 | ACCOUNT02 change-role | 20–30 |
-| [ ] | 224 | [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md) | 184c, 155 | Cases 182 | 20–30 |
+| [ ] | 222 | [E2E-040: remove-selected](E2E-Tasks/222-case-180.md) | 017, 014, 180, 044 | Cases 180; shared spare-child profiles/create/remove binding, one removal, independent Parent and reopened-station fallback; absorbs case 183 | 40–60 (exception) |
+| [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 017 | Cases 181; reuse shared spare-only profile and removal operation in an independent complete journey | 20–30 |
+| [ ] | 224 | [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md) | 155 | Cases 182; shared spare-approver creation/role binding and both public selector fallbacks | 40–60 (exception) |
 | [x] | 312a | Qualify overlay reminder editing and persistence | 300i | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_overlay_reminder_editing`: defaults, literal 75-to-90-second editing with stable ID, independent Save/Cancel/empty-list readback, unchanged language/request/time/policy and owned cleanup. No natural-delivery or complete-case credit. | 20–30 |
 | [x] | 312b | Qualify kiosk reminder ownership and persistence | 312a, 300j | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_kiosk_reminder_binding`: exact saved-ID persistence from the 90-second overlay row through the 75-second kiosk edit and overlay readback, independent station reopen, Jordan list/language isolation, Riley preservation through Jamie → Casey and child switches, unchanged request/time/policy and owned cleanup. No natural-delivery or complete-case credit. | 20–30 |
 | [ ] | 312 | [Child reminder preferences persist across request surfaces](E2E-Tasks/312-child-reminder-preferences.md) | 312a, 312b, 007 | Planned scenario; create/edit/save custom text, exact station readback, one Cancel, delete/save empty list, then reboot and check both screens and the other child's unchanged reminders/language. Duplicate times, sorting and detailed translations belong to smaller local editing checks; installed editing and kiosk bindings qualified by 312a/312b; complete scenario has no implementation or acceptance | 35–55 (exception) |
@@ -599,7 +628,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 173 | [Preserve and qualify system obligation 144: kiosk authentication agent](E2E-Tasks/173-system-144.md) | Baseline | System obligation 144 | 30–60 (exception) |
 | [ ] | 174 | [Preserve and qualify system obligation 145: failed save](E2E-Tasks/174-system-145.md) | Baseline | System obligation 145 | 30–60 (exception) |
 | [ ] | 175 | [Preserve and qualify system obligation 146: stale identity](E2E-Tasks/175-system-146.md) | Baseline | System obligation 146 | 30–60 (exception) |
-| [ ] | 176 | [Preserve and qualify system obligation 147: disconnect](E2E-Tasks/176-system-147.md) | Baseline | System obligation 147 | 30–60 (exception) |
 | [ ] | 177 | [Preserve and qualify system obligation 148: concurrent transaction](E2E-Tasks/177-system-148.md) | Baseline | System obligation 148 | 30–60 (exception) |
 | [ ] | 178 | [Preserve and qualify system obligation 149: policy reload](E2E-Tasks/178-system-149.md) | Baseline | System obligation 149 | 30–60 (exception) |
 | [ ] | 179 | [Preserve and qualify system obligation 150: partial termination](E2E-Tasks/179-system-150.md) | Baseline | System obligation 150 | 30–60 (exception) |

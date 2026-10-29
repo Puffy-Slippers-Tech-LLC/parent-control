@@ -45,6 +45,34 @@ the frontend still reads/validates files and updates its draft. Local tests do
 not replace the installed chooser handoff. Language/reminder fixtures likewise
 do not prove native authentication or actual warning delivery.
 
+## Reuse of system and integration coverage
+
+Keep each complete customer journey: its starting state, customer actions,
+intermediate access/recovery results and final usable destination. Assess overlap
+per assertion, not per feature name. Saving a rule in Parent and observing its
+effect remains a customer result even when system tests also call the broker.
+A reference to another suite cannot replace that observation in the journey.
+
+Remove repeated engineering cases, steps and acceptance matrices instead. Reuse
+their maintained operations for setup; do not create another qualification
+wrapper or rerun an unchanged matrix merely to consume it. Extend an existing
+owner only for a concrete missing assertion. A pending declaration or a helper
+without executable assertions establishes no coverage.
+
+| Existing owner | Work not to duplicate | Customer journey retained |
+| --- | --- | --- |
+| `test_authorization.test_requester_disconnect_during_approval` (system 255) | Engineering obligation 147: both requester disconnects, cancellation/no writes, released transaction, fresh authenticated recovery and other-account isolation | Cases 171–175 still observe leaving an actual pending graphical approval and its public result |
+| Native command, whitespace, future-pattern, missing-launcher and catalogue system tests (272, 277–280) | Backend policy/UID/path/catalogue matrices and separate qualifiers for unchanged fixture mechanics | Parent edits and saved rules, declared launch routes, use/refusal, copied-executable/shared-launcher interactions and required peer access |
+| `test_removal.test_remove_reboot_reinstall` (system 6); `test_install_smoke.test_previous_package_policy_preservation` (287) | Package files/ownership/service/PAM/migration matrices, internal snapshots and duplicate lifecycle qualifiers | Case 139's continuous install/configure/use/remove/use/reinstall/retained-settings/reapply/purge/defaults history; cases 136–138's real notices, activation and usable apps |
+| Kiosk service/configuration recovery and update-reentry integration checks | Reimplementation of their fault/recovery controls and unchanged qualification | Actual unavailable result, restoration, genuine approval and usable return within each complete recipe |
+| Delivered native fixture and grant/use/revoke scope in the [reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) | Rebuilding compatible fixtures or repeating the accepted finite native history for 313a/313 | Each later journey's own approval, access, expiry/revocation and retained-work results; different durations/providers/entry modes retain their missing qualification |
+
+Obligation 147 remains scheduled in its system owner without a separate E2E
+implementation task; this allocation claims no new pass. Other engineering
+obligations retain the gaps named in their briefs. Natural expiry, suspend,
+calendar transitions, graphical authentication and retained work still need
+their full installed journeys.
+
 ## Complete scenario-family review
 
 The [inventory](../../tests/e2e/scenarios.json) owns stable IDs, executable bindings

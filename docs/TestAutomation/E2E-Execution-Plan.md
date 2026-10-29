@@ -49,9 +49,10 @@ defines the existing graphical session boundary; the
 [remaining confinement plan](../Kiosk-Session-Confinement-New-Plan.md) owns the
 other later protections. It owns its targeted negative/normal-use tests.
 New general feature automation remains in this queue. The
-[reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) assigns outstanding
-shared fixture/core-effects work to 313a/313 and optional feature expansion to
-314/315. Preserve the queue order and pointer; delivery closes no other plan's row.
+[reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) records the delivered
+shared fixture/core-effects work; duplicate tasks 313a/313 are no longer
+scheduled. Optional feature expansion remains in 314/315. Preserve the queue
+order and pointer; reuse closes no other plan's row.
 
 The [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)
 applies the required [Application UI API](Application-UI-API.md) route,
@@ -66,6 +67,13 @@ The queue owns exclusions and displaced UI obligations; the
 completion from current route qualification and scenario registration.
 Documentation or allocation review does not advance the pointer or replace
 live acceptance.
+
+The [system/integration allocation](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+keeps complete customer journeys while removing duplicate engineering cases,
+steps and acceptance matrices. The queue records removed duplicate tasks;
+remaining briefs identify the missing assertion or binding under the existing
+owner. Do not recreate removed qualifications or replace a journey's public
+result with another suite's pass.
 
 Current scenario status and counts come from `tests/e2e/scenarios.json`; block
 status comes from the catalogue. The initial provider migration gate is closed.

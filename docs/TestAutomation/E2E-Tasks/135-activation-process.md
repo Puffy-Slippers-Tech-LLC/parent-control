@@ -5,7 +5,7 @@ and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 
 Estimate: 30–50 minutes.
 
-Session exception: Real update activation and the affected mechanical package checks remain required alongside the narrowed process branch.
+Session exception: Keep the real update, its notice and affected-process renewal together.
 
 ## Session boundary
 
@@ -30,16 +30,23 @@ retained-session qualification histories are not part of this slice.
 
 ## Implementation
 
-Bind a verified old/new package profile requiring process activation. Extend LIFE04(update) and LIFE05 only for this process route; reuse 135a's unchanged no-action branch. Follow the displayed requirement for every named affected app/user; preserve all mechanical migration obligations.
+Bind a verified old/new package profile requiring process activation. Extend
+LIFE04(update) and LIFE05 only for this process route; reuse 135a's unchanged
+no-action branch. Follow the displayed requirement for every named affected
+app/user. Reuse the existing package verification/activation checks; native
+policy, migration and grant-preservation probes stay in
+`package::test_previous_package_policy_preservation` rather than being repeated
+as this capability's engineering steps.
 
 ## Live VM acceptance
 
 On the VM install the real process-activation update, read its requirement,
-perform the normal affected-app close/reopen sequence and independently read
-retained settings before edits. Reuse unchanged no-action qualification from
+perform the normal affected-app close/reopen sequence and independently require
+each affected app usable again with retained visible settings before edits.
+Reuse unchanged no-action qualification from
 135a; rerun it when shared changes affect that branch. Both claimed LIFE05
-branches retain scoped live evidence. Run affected package activation checks
-separately.
+branches retain scoped live evidence. Run an existing package-owner check only
+when this implementation changes the behavior it covers.
 
 Planned qualification selector (not registered; implement before use):
 

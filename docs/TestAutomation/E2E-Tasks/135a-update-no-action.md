@@ -19,8 +19,8 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Bind the verified no-action old/new package pair to the shared LIFE04
 administrator SSH package command. Independently read completion and its actual
-notice through FILE06 without adding a restart; retain mechanical
-activation/migration checks. No Terminal rendering or password-prompt exercise.
+notice through FILE06 without adding a restart. No Terminal rendering or
+password-prompt exercise.
 
 Reuse `package_install.submit_release` / `observe_release` and
 `package_command.PackageCommand`; the existing `package_upgrade.PLAN` expects a
@@ -29,14 +29,20 @@ reboot notice and does not implement this no-action profile.
 upgrade bindings; extend its finite notice contract and affected host checks
 before this selector can run. Bind genuine reviewed old/new assets and the
 exact no-action result; do not accept a generic successful exit as the notice.
-Keep one nondefault allowance comparison on the same usable Parent window; no
-request-form tour, policy-edit matrix, retained-child visit or extra reboot is
-needed to qualify the no-action operation. Earlier-release activation during
+Keep one nondefault allowance comparison on the same usable Parent window.
+Native-policy, schema-migration and grant-arithmetic probes remain in the
+registered `package::test_previous_package_policy_preservation` history; do not
+add its engineering matrix to this public notice/settings binding.
+Earlier-release activation during
 preparation still follows its actual notice through the shared package envelope.
 
 ## Live VM acceptance
 
-Install the declared no-action update, independently read the final notice and unchanged usable app entry/settings. Wrong assets, failed completion or an unexpected activation notice refuse.
+Install the declared no-action update, independently read the exact final notice
+and unchanged usable Parent entry/settings without restarting it. Wrong assets, failed
+completion or an unexpected activation notice refuse. Validate changed shared
+package mechanics in their existing owner; do not run its unchanged suite as
+an additional acceptance prerequisite.
 
 Planned qualification selector (not registered; implement before use):
 

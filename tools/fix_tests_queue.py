@@ -362,6 +362,34 @@ class RepairGate:
                 launcher.atomic(self.run / 'controller.json', previous)
 
     @contextmanager
+    def reload_source(self, *, root=None):
+        """Protect coordinator imports under its retained pipeline's writer.
+
+        Pipelines have drained before controller replacement. Normal reader
+        admission must still refuse their unverified edits; only the recorded
+        FIFO owner may carry those bytes through reload into recovery.
+        """
+        with self.coordinator.state() as (waiting, owner):
+            ticket = owner or next(iter(waiting), None)
+        if self.fd is None and self.parent is None and ticket not in (None, '.'):
+            if not ticket.startswith('pipeline-') or Path(ticket).name != ticket:
+                raise ValueError('invalid retained reload pipeline ticket')
+            child = self.run / ticket
+            if child.parent != self.run or parent_run(child) != self.run:
+                raise ValueError('retained reload ticket is not a pipeline of this run')
+            writer = RepairGate(child, root=root, stopped=self.stopped)
+            try:
+                writer.acquire()
+                yield writer.fd
+            finally:
+                # Exec failure closes only our kernel lease, retaining the
+                # journals and source fence for the same recovery transaction.
+                writer.detach()
+        else:
+            with self.source() as source:
+                yield source
+
+    @contextmanager
     def source(self):
         """A waiting writer stops new cases; active readers finish normally."""
         if self.fd is not None:

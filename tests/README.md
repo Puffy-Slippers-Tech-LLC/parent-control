@@ -624,6 +624,12 @@ repair verification or close-out, keeping the original failure and owned-file
 baseline. Reloading grants no new session or retry credit and requires no
 reattachment or manual restart. Cancellation still takes priority. The separate
 E2E implementation launcher retains its source-change handoff behavior.
+
+For a VM pipeline reload, the drained coordinator carries its recorded FIFO
+writer's source lease through fresh imports, then drains retained recovery before
+normal admission. A failed interpreter replacement closes that temporary lease
+without clearing the repair journals or admitting unrelated readers.
+
 The runner's `failure.json` includes `failures` entries with category, case ID
 and VM name; host cases have an empty VM name. Worker bucket names, report paths
 and model-generated labels never define a case. Multi-VM handoffs retain each

@@ -66,7 +66,7 @@ def reload_controller(root, run, owner, *options, gate=None):
     from contextlib import ExitStack
     from fix_tests_queue import repair_descriptors, STARTUP_SOURCE
     with ExitStack() as startup:
-        source = startup.enter_context(gate.source()) if gate is not None else None
+        source = startup.enter_context(gate.reload_source(root=root)) if gate is not None else None
         if source is not None:
             os.environ[STARTUP_SOURCE] = str(source)
         writers = (gate.fd,) if gate is not None and gate.fd is not None else ()

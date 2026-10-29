@@ -25,17 +25,42 @@ def failure(prompt, *categories):
 
 
 def test_reload_preserves_owner_and_scratch_flags_on_exec_failure(tmp_path, monkeypatch):
+    import fix_tests_queue as queue
+    child = detached_launcher.private_directory(tmp_path / 'pipeline-repair')
+    detached_launcher.atomic(child / 'pipeline.json', {'parent': str(tmp_path)})
+    writer = queue.RepairGate(child, root=tmp_path)
+    writer.acquire()
+    writer.release(unfinished=True)
+    detached_launcher.atomic(child / 'result.json', {'status': 75})
+    gate = queue.RepairGate(tmp_path, root=tmp_path)
+    # Ordinary imports still refuse the retained edits. Reload must use the
+    # exact child writer, and exec failure must not clear its recovery fence.
+    with pytest.raises(ValueError, match='unfinished case repair'):
+        with gate.source():
+            pytest.fail('unverified source admitted as a reader')
     with (tmp_path / 'owner').open('wb') as owner, (tmp_path / 'scratch').open('wb') as scratch:
         descriptors = (owner.fileno(), scratch.fileno())
         monkeypatch.setattr(detached_launcher, 'scratch_descriptors', lambda: (scratch.fileno(),))
         def fail(program, command):
             assert all(os.get_inheritable(fd) for fd in descriptors)
+            source = int(os.environ[queue.STARTUP_SOURCE])
+            assert os.get_inheritable(source)
+            with detached_launcher.lock(gate.coordinator.source / 'repair-owner') as other:
+                with pytest.raises(BlockingIOError):
+                    fcntl.flock(other, fcntl.LOCK_SH | fcntl.LOCK_NB)
             assert command[3:7] == ['--reload-worker', str(tmp_path), str(tmp_path), str(owner.fileno())]
             raise OSError('synthetic exec failure')
         monkeypatch.setattr(fix_tests.os, 'execv', fail)
         with pytest.raises(OSError, match='synthetic exec failure'):
-            fix_tests.reload_controller(tmp_path, tmp_path, owner.fileno(), 'model', 'low')
+            fix_tests.reload_controller(tmp_path, tmp_path, owner.fileno(), 'model', 'low', gate=gate)
         assert all(not os.get_inheritable(fd) for fd in descriptors)
+    assert queue.STARTUP_SOURCE not in os.environ
+    assert json.loads((tmp_path / 'repair-pending.json').read_text()) == {'run': child.name}
+    assert json.loads((gate.coordinator.source / 'repair-source-pending.json').read_text()) == {
+        'run': str(child.resolve())}
+    # Recovery can reacquire the same ticket after the failed exec.
+    writer.acquire()
+    writer.release()
 
 
 def test_missing_handoff_reports_the_runner_infrastructure_error(tmp_path):

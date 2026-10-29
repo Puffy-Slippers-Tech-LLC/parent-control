@@ -474,6 +474,8 @@ def test_resume_counts_only_completed_cases_matching_original_selectors(selector
 
 
 def test_selected_run_skips_completed_category_and_retains_serial_failure_limit(tmp_path, monkeypatch):
+    # Keep this private checkpoint independent of the outer repair run's exclusions.
+    monkeypatch.delenv('ONPC_REPAIR_FAILED_CASES', raising=False)
     selection = [('static', ['shell']), ('unit', ['-x'])]
     checkpoint = Checkpoint(tmp_path, selection)
     checkpoint.finish([SimpleNamespace(retry_category='static', count_overall=True, state='Passed')])

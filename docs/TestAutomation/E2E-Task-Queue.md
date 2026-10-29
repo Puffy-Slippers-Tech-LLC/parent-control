@@ -71,6 +71,14 @@ while preserving complete customer journeys.
 
 ## Reallocated system coverage
 
+Task **102** is absorbed into cases **23/24/126/127** (tasks
+**103/104/127/130**). They compose natural lock, time denial, parameterized kiosk
+approval and retained activity comparisons through their existing capability
+owners. Task **197k** still owns the missing retained-return approval binding;
+game bindings remain with **126/129**. Remove the extra expiry/replacement
+qualifier, keeping each complete history and its usable final activity pending.
+Cases 23/24 now follow their last capability, **079b**, in case order.
+
 Tasks **123/123a** are absorbed into **124/125** (cases **110/111**).
 The shared package transport, owned match-editor Save and Parent reopen/select
 operations are reused directly. Each case owns only its missing verified fixture
@@ -117,6 +125,14 @@ and peer isolation. Do not recreate a separate implementation/qualification task
 or the proposed `test_e2e_disconnect_recovery` wrapper. This is suite allocation,
 not a new pass or completion claim. Customer case **176** (overlay cooldown) and
 task **218** remain unchanged; task IDs and case IDs are separate namespaces.
+
+Task **177** is removed from scheduling. Engineering obligation **148** reuses
+the executable threaded broker conflict/retry tests in `tests/unit/test_core.py`,
+private-bus concurrent-dispatch coverage and system **255**'s real bus/agent
+Busy/release boundary. The [allocation owner](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
+names the exact assertions. Do not add another installed concurrency qualifier
+for the same ordering, rollback and retry results. This allocation supplies no
+new pass and leaves customer approval/interruption histories pending.
 
 ## Reallocated UI coverage
 
@@ -512,6 +528,8 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 083 | [E2E-006: disabled-pattern](E2E-Tasks/083-case-16.md) | 079a, 079b, 047a, 180, 021a, 028 | Cases 16 | 40–60 (exception) |
 | [ ] | 084 | [E2E-007: zero-single](E2E-Tasks/084-case-17.md) | 079b, 047, 047a, 065a | Cases 17 | 40–60 (exception) |
 | [ ] | 085 | [E2E-007: remaining-single](E2E-Tasks/085-case-19.md) | 079b, 079a, 047a, 065 | Cases 19 | 40–60 (exception) |
+| [ ] | 103 | [E2E-009: excluded](E2E-Tasks/103-case-23.md) | 062, 079a, 065a, 043a, 197k, 079b | Cases 23 | 35–55 (exception) |
+| [ ] | 104 | [E2E-009: included](E2E-Tasks/104-case-24.md) | 062, 079a, 065a, 043a, 197k, 079b | Cases 24 | 35–55 (exception) |
 | [ ] | 086 | [E2E-012: excluded-first](E2E-Tasks/086-case-30.md) | 197, 079b, 079a, 065, 052, 052c | Cases 30 | 20–30 |
 | [ ] | 087b | [E2E-012: included-second](E2E-Tasks/087b-case-33.md) | 197, 079b, 079a, 065, 052, 052c | Cases 33 | 20–30 |
 | [ ] | 088 | [E2E-013: child-overlay-recovery](E2E-Tasks/088-case-34.md) | 079b, 079a, 048b, 052 | Cases 34; wrong password → separate Cancel → fresh valid approval; time, app restrictions and remembered choices after each failure (absorbs 088b / case 35) | 20–30 |
@@ -580,21 +598,18 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 118 | [E2E-019: flatpak-grid-hard-blocked-enabled](E2E-Tasks/118-case-100.md) | 180, 116a | Cases 100 | 20–30 |
 | [ ] | 119 | [E2E-019: flatpak-grid-soft-blocked-enabled](E2E-Tasks/119-case-102.md) | 180, 116a | Cases 102 | 20–30 |
 | [ ] | 285 | [E2E-049: flatpak-grid-child-overlay](E2E-Tasks/285-case-243.md) | 197, 079b, 180, 116a | Cases 243 | 20–30 |
-| [ ] | 102 | [Compose expiry recovery through kiosk approval](E2E-Tasks/102-replacement.md) | 062, 079a, 065a | FLOW11 | 20–30 |
-| [ ] | 103 | [E2E-009: excluded](E2E-Tasks/103-case-23.md) | 102, 079b | Cases 23 | 35–55 (exception) |
-| [ ] | 104 | [E2E-009: included](E2E-Tasks/104-case-24.md) | 102, 079b | Cases 24 | 35–55 (exception) |
 | [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 079, 006, 079d, 180 | Cases 110; missing fixture-update binding and complete retained-editor history, absorbs 123 | 35–55 (exception) |
 | [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 079, 006, 079d, 180 | Cases 111; missing fixture remove/reinstall binding and complete retained-editor history, absorbs 123a | 35–55 (exception) |
 | [ ] | 126p | [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md) | 006, 077a | Offline-game baseline assets and FIX06 verification | 20–30 |
 | [ ] | 126a | [Launch and observe the prepared offline game](E2E-Tasks/126a-game-activity.md) | 126p, 047 | Game APP01/02/03/04 and FLOW08 usable activity | 20–30 |
 | [ ] | 126 | [Compose windowed gameplay through natural expiry](E2E-Tasks/126-game.md) | 126a, 062, 065a | APP05/FLOW10 windowed game | 20–30 |
-| [ ] | 127 | [E2E-023: windowed](E2E-Tasks/127-case-126.md) | 126, 102, 079b | Cases 126 | 40–60 (exception) |
+| [ ] | 127 | [E2E-023: windowed](E2E-Tasks/127-case-126.md) | 126, 043a, 197k, 079b | Cases 126 | 40–60 (exception) |
 | [ ] | 132 | [Compose a daily-dominant profile without clearing the grant](E2E-Tasks/132-time-profiles-dominant.md) | 065a | FLOW13 daily-dominant scope | 20–30 |
 | [ ] | 133 | [E2E-024: daily-dominant-windowed](E2E-Tasks/133-case-128.md) | 126, 048b, 079b, 132 | Cases 128 | 40–60 (exception) |
 | [ ] | 269 | [E2E-048: daily-dominant-child-overlay](E2E-Tasks/269-case-227.md) | 197, 052c, 132 | Cases 227; gate in brief | 20–30 |
 | [ ] | 270 | [E2E-048: daily-dominant-kiosk](E2E-Tasks/270-case-228.md) | 197k, 052c, 132 | Cases 228; gate in brief | 20–30 |
 | [ ] | 129 | [Play fullscreen to natural lock](E2E-Tasks/129-game-fullscreen.md) | 126 | APP05/FLOW10 fullscreen play | 20–30 |
-| [ ] | 130 | [E2E-023: fullscreen](E2E-Tasks/130-case-127.md) | 102, 079b, 129 | Cases 127 | 40–60 (exception) |
+| [ ] | 130 | [E2E-023: fullscreen](E2E-Tasks/130-case-127.md) | 043a, 197k, 079b, 129 | Cases 127 | 40–60 (exception) |
 | [ ] | 129a | [Reach an overlay request from fullscreen gameplay](E2E-Tasks/129a-fullscreen-request.md) | 129, 048a | DESK12 fullscreen panel API entry; REQUEST13 launch and overlay/game return | 20–30 |
 | [ ] | 131 | [E2E-024: grant-dominant-fullscreen](E2E-Tasks/131-case-131.md) | 048b, 079b, 129a, 065 | Cases 131 | 40–60 (exception) |
 | [ ] | 196a | [Save and reopen a child's synthetic work document](E2E-Tasks/196a-child-saved-work.md) | 036, 047, 048e | FILE08/09 and APP03/04 child-owned saved work | 20–30 |
@@ -639,7 +654,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 173 | [Preserve and qualify system obligation 144: kiosk authentication agent](E2E-Tasks/173-system-144.md) | Baseline | System obligation 144 | 30–60 (exception) |
 | [ ] | 174 | [Preserve and qualify system obligation 145: failed save](E2E-Tasks/174-system-145.md) | Baseline | System obligation 145 | 30–60 (exception) |
 | [ ] | 175 | [Preserve and qualify system obligation 146: stale identity](E2E-Tasks/175-system-146.md) | Baseline | System obligation 146 | 30–60 (exception) |
-| [ ] | 177 | [Preserve and qualify system obligation 148: concurrent transaction](E2E-Tasks/177-system-148.md) | Baseline | System obligation 148 | 30–60 (exception) |
 | [ ] | 178 | [Preserve and qualify system obligation 149: policy reload](E2E-Tasks/178-system-149.md) | Baseline | System obligation 149 | 30–60 (exception) |
 | [ ] | 179 | [Preserve and qualify system obligation 150: partial termination](E2E-Tasks/179-system-150.md) | Baseline | System obligation 150 | 30–60 (exception) |
 | [ ] | 150a | [Prepare the reviewed feedback submission profile](E2E-Tasks/150a-feedback-profile.md) | 038, 031a, 030 | Concrete synthetic reports, recipient and authorization scope for FEED11 consumers | 20–30 |

@@ -459,7 +459,7 @@ Bindings: soft-apps = excluded / included.
 
 1. FLOW13(grant-only, soft included) → C(fresh) → FLOW08(allowed,soft) → APP04(each).
 2. TIME04 → DESK08(time denial).
-3. FLOW11(replacement, variant soft choice) → APP04(allowed compare) → APP02(soft expected) → FLOW08(hard and soft launches).
+3. DESK11 → FLOW20(kiosk, retained child, 180-second replacement, variant soft choice) → APP04(allowed compare) → APP02(soft expected) → FLOW08(hard and soft launches). Compare this attempt's original activity captures after legitimate unlock; no separate FLOW11 qualifier.
 
 ### E2E-010
 
@@ -1024,7 +1024,7 @@ Bindings: gameplay = windowed / fullscreen.
 3. DESK11 → FLOW06(short real grant).
 4. C(fresh) → TIME01 → FLOW08(game) → APP05(mode,level) → APP03 → APP04.
 5. TIME04(game natural lock).
-6. DESK08(time denial) → FLOW11(replacement,game preserved) → APP04(compare) → APP03.
+6. DESK08(time denial) → DESK11 → FLOW20(kiosk, retained child, 180-second replacement, game preserved) → APP04(compare original pre-expiry activity) → APP03. Game-mode/activity and retained approval bindings remain required; no separate FLOW11 qualifier.
 
 ### E2E-024
 
@@ -2437,9 +2437,11 @@ Retain `check_e2e_restart_notice` and `check_e2e_customer_reboot` regressions.
 
 ## Coverage ownership and remaining limits
 
-Repeated setup and sanity observations do not count as duplicate primary
-coverage. A continuous journey may reuse an outcome to reach a later distinct
-outcome. The [UI/E2E family allocation](UI-and-E2E-Coverage.md#complete-scenario-family-review)
+Prepare only the state required by the selected journey through existing guarded
+helpers. Do not replay their qualification histories or add internal sanity
+matrices to the recipe. A continuous journey keeps observations on both sides
+of a transition when they establish distinct access, recovery, isolation or
+retained-work results. The [UI/E2E family allocation](UI-and-E2E-Coverage.md#complete-scenario-family-review)
 owns duplicate review, primary assertion ownership and absorbed, removed or
 reallocated coverage. Use that review with the selected finite recipe;
 this document does not maintain a second family ownership table.
@@ -2454,8 +2456,10 @@ Unsupported-OS/reserved-account installation refusal needs its separate package
 environment qualification; this Ubuntu 26.04 customer runner does not simulate
 another distribution by changing release files.
 
-Engineering obligation 147 is allocated to the existing requester-disconnect
-system test (255), with no duplicate E2E implementation task. The remaining
+Engineering obligations 147/148 reuse their executable requester-disconnect,
+broker concurrency and private-bus owners under the
+[allocation record](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage),
+with no duplicate E2E implementation tasks. The remaining
 engineering briefs target only missing assertions under their existing owners.
 Apply [system/integration reuse](UI-and-E2E-Coverage.md#reuse-of-system-and-integration-coverage)
 at case, step and acceptance level while keeping the complete public journeys.

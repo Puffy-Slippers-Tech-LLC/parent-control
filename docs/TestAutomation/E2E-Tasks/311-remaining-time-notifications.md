@@ -42,9 +42,10 @@ Bind notification reads to the ChildUI endpoint's `child-time-notification`
 surface: `child-time-notification-message` supplies literal body and canonical
 threshold seconds; `child-time-notification-urgency` supplies `critical`/`high`.
 These IDs describe the emitted notification, not native banner visibility.
-Qualify the repository-owned banner through the shared Application UI API;
-require logical body text, current owned identity and independent visible/hidden
-surface observations. Urgency alone proves no visibility. Preserve 311b's
+Consume 311b/311c's repository-owned banner observations through the shared
+Application UI API; require logical body text, current owned identity and
+independent visible/hidden surface observations in this journey. Urgency alone
+proves no visibility. Preserve 311b's
 canonical-seconds contract gate; no generic Shell adapter, coordinates, private
 actors or pixel/rendering acceptance is required.
 
@@ -73,12 +74,19 @@ Save an empty list for one child and a customized list/fullscreen choice for the
 other. Re-enter after a real reboot on the latest installed version; require
 retained choices, no restored presets for the empty list, and delivery of the
 customized reminder during renewed access. Keep all limits/grants and the other
-child's state independent of reminder changes. Verify upgrade migration with
-the targeted maintained host regressions, without an older-version package
-journey: `tools/run-tests unit 'tests/unit/test_package_configuration.py' -k 'v1_4_configuration_upgrades_legacy_policy_without_losing_choices'` checks
-legacy schema normalization and reminder defaults, and
-`tools/run-tests unit 'tests/unit/test_preferences.py' -k 'notification_crud_persists_isolated_and_preserves_policy_and_language'` checks
-saved notification persistence and isolation.
+child's state independent of reminder changes.
+
+Reuse the existing lower-suite assertions for schema normalization/defaults in
+`test_v1_4_configuration_upgrades_legacy_policy_without_losing_choices` and
+customized/empty reminders in
+`test_v1_4_configuration_retains_personal_customizations`
+([package configuration owner](../../../tests/unit/test_package_configuration.py)).
+`test_notification_crud_persists_isolated_and_preserves_policy_and_language`
+([preference owner](../../../tests/unit/test_preferences.py)) covers storage
+persistence/isolation. Their unchanged matrices are not additional acceptance
+runs for this case. Run affected checks when implementation affects the behavior
+they cover. They supply no warning-delivery, fullscreen, account-transition or
+current-version reboot result; retain every such customer observation above.
 
 Register a numeric case, finite recipe, shared worker and exact selector during
 implementation, then use `tools/generate_test_coverage.sh`. No runnable selector,

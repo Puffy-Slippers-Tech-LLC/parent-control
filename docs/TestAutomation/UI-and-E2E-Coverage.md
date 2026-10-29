@@ -62,6 +62,7 @@ without executable assertions establishes no coverage.
 | Existing owner | Work not to duplicate | Customer journey retained |
 | --- | --- | --- |
 | `test_authorization.test_requester_disconnect_during_approval` (system 255) | Engineering obligation 147: both requester disconnects, cancellation/no writes, released transaction, fresh authenticated recovery and other-account isolation | Cases 171–175 still observe leaving an actual pending graphical approval and its public result |
+| `test_core.test_parent_disable_cannot_interleave_with_admitted_approval`, `test_approval_cannot_snapshot_parent_disable_bridge_or_rollback`; `test_private_dbus_service.test_request_workers_dispatch_concurrently`; system 255 | Engineering obligation 148: real threaded broker conflict, Busy/no writes, final time/policy and successful retry; private-bus worker dispatch; installed bus/agent Busy/release and authenticated recovery. No separate task 177 or repeated concurrency qualifier. | Complete graphical approvals, pending-request interruptions and independent child/parent journeys retain their public results |
 | Native command, whitespace, future-pattern, missing-launcher and catalogue system tests (272, 277–280) | Backend policy/UID/path/catalogue matrices and separate qualifiers for unchanged fixture mechanics | Parent edits and saved rules, declared launch routes, use/refusal, copied-executable/shared-launcher interactions and required peer access |
 | Existing language selection and `language_persistence.PLAN` request readers | A second presentation-history qualifier (308a/309a) repeating saved Hebrew/custom-request/approver bindings | Tasks 308/309's complete restoration histories and original-work comparisons; 308b's missing translated approval and 310a's new panel projection remain distinct |
 | Shared `PackageCommand`, match Save and Parent reopen/select operations | Complete catalogue update/remove/reinstall histories repeated in 123/123a qualifiers | Cases 110/111 implement missing verified fixture bindings and retain open drafts, actual package changes, Save, refreshed catalogue, retained rules and child launch results |
@@ -69,8 +70,8 @@ without executable assertions establishes no coverage.
 | Kiosk service/configuration recovery and update-reentry integration checks | Reimplementation of their fault/recovery controls and unchanged qualification | Actual unavailable result, restoration, genuine approval and usable return within each complete recipe |
 | Delivered native fixture and grant/use/revoke scope in the [reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) | Rebuilding compatible fixtures or repeating the accepted finite native history for 313a/313 | Each later journey's own approval, access, expiry/revocation and retained-work results; different durations/providers/entry modes retain their missing qualification |
 
-Obligation 147 remains scheduled in its system owner without a separate E2E
-implementation task; this allocation claims no new pass. Other engineering
+Obligations 147/148 remain with their executable lower-suite owners without
+separate E2E implementation tasks; this allocation claims no new pass. Other engineering
 obligations retain the gaps named in their briefs. Natural expiry, suspend,
 calendar transitions, graphical authentication and retained work still need
 their full installed journeys.
@@ -81,6 +82,13 @@ FLOW19 uses the existing setup mode and a complete saved-set comparison, while
 feature cases retain each tested policy transition's independent effects.
 Removing a precursor history does not qualify a new provider or safety binding;
 keep genuinely missing qualification explicit in its consumer.
+
+Task 102's duplicate expiry/replacement qualifier is absorbed into cases
+23/24/126/127. Their existing natural-lock, time-denial, retained-entry and
+parameterized FLOW20 operations supply the composition; 197k and the game
+owners retain missing bindings. Every case still captures its original work,
+reaches real expiry, obtains real approval and independently observes recovery.
+No earlier qualification or lower-suite pass supplies those complete results.
 
 ## Complete scenario-family review
 

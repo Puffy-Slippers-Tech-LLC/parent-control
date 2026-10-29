@@ -57,24 +57,18 @@ both. Reminder edits must preserve request choices, grant no time and change no
 policy. Use public actions and independently observed results; private files,
 broker calls as UI input and injected reminders supply no acceptance.
 
-## Smaller editing checks
+## Existing local coverage
 
-Duplicate-time refusal, ascending trigger sorting and detailed translated
-descriptions belong to the [local reminder editing allocation](../UI-and-E2E-Coverage.md#duplicate-review-and-allocation)
-in `tests/ui/test_language_settings.py`. Preserve these functional assertions:
-
-- Equal thresholds, including 1 minute versus 60 seconds, show the duplicate
-  warning, disable editor Save and leave saved data unchanged; a distinct
-  threshold clears the refusal.
-- Rows sort by ascending remaining seconds after editing. Literal custom text
-  stays exact, its separate trigger description reflects the edited duration,
-  and no illustrative `Custom reminder` preset appears.
-- German candidate-language checks translate default text and trigger
-  descriptions while retaining literal custom text and request choices.
-
-The named local tests implement this matrix on both request surfaces. These
-checks need no additional two-child history or restart and do not qualify the
-installed route or claim live acceptance.
+Reuse the [local reminder editing allocation](../UI-and-E2E-Coverage.md#duplicate-review-and-allocation)
+and executable owners in
+[test_language_settings.py](../../../tests/ui/test_language_settings.py):
+`test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list` and
+`test_reminder_creation_validation_and_candidate_translation` cover sorting,
+duplicate-time refusal, exact literal text, translated descriptions and local
+Save/Cancel behavior on both request surfaces. Do not import their widget matrix
+or unchanged reruns into this case's steps, prerequisites or acceptance. These
+tests supply no installed route, two-child transition or reboot result; the
+complete customer history and missing bindings above remain required.
 
 This journey covers saved preference persistence and Cancel. Native notification delivery,
 fullscreen urgency, natural countdown and upgrade persistence remain in

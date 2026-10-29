@@ -1,11 +1,17 @@
 #!/usr/bin/python3 -I
 """Kiosk service and account identity checks, independent of saved routing."""
 import os
+from pathlib import Path
 import pwd
+import stat
 import sys
 import syslog
 
 KIOSK_USER = 'oh-no-parent-control'
+KIOSK_OWNERSHIP = Path('var/lib/oh-no-parent-control/package-created-kiosk-uid')
+OWNERSHIP_ROOT = Path('/')
+_OWNER_UID = 0
+_OWNER_GID = 0
 
 
 def record(stage, outcome, reason='none'):
@@ -13,6 +19,39 @@ def record(stage, outcome, reason='none'):
     syslog.syslog(syslog.LOG_INFO if outcome == 'allowed' else syslog.LOG_WARNING,
                   f'onpc.pam kiosk identity stage={stage} outcome={outcome} '
                   f'reason={reason}')
+
+
+def verify_ownership(uid):
+    """Read the lifecycle's UID through pinned, trusted directories.
+
+    Admission only reads this authority; repair belongs to the lifecycle writer
+    excluded by the caller's shared PAM lease.
+    """
+    directory = os.open(OWNERSHIP_ROOT, os.O_RDONLY | os.O_DIRECTORY |
+                        os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        for component in (None, *KIOSK_OWNERSHIP.parts[:-1]):
+            if component is not None:
+                child = os.open(component, os.O_RDONLY | os.O_DIRECTORY |
+                                os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
+                os.close(directory)
+                directory = child
+            info = os.fstat(directory)
+            if (info.st_uid != _OWNER_UID or info.st_mode & 0o002 or
+                    (info.st_mode & 0o020 and info.st_gid != _OWNER_GID)):
+                raise ValueError('unsafe ownership directory')
+        descriptor = os.open(KIOSK_OWNERSHIP.name, os.O_RDONLY | os.O_NOFOLLOW |
+                             os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory)
+        try:
+            info = os.fstat(descriptor)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != _OWNER_UID or
+                    stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1 or
+                    info.st_size > 32 or os.read(descriptor, 33) != f'{uid}\n'.encode()):
+                raise ValueError('changed ownership identity')
+        finally:
+            os.close(descriptor)
+    finally:
+        os.close(directory)
 
 
 def verify_identity(stage):
@@ -25,6 +64,7 @@ def verify_identity(stage):
         account = pwd.getpwnam(KIOSK_USER)
         if account.pw_uid == 0:
             raise ValueError('invalid station identity')
+        verify_ownership(account.pw_uid)
     except (KeyError, OSError, ValueError):
         record(stage, 'unavailable', reason='account')
         return 2

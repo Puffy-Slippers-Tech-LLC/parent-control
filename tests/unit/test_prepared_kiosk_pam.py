@@ -47,11 +47,18 @@ def prepared_pam_output(root, distribution):
 
 
 @pytest.fixture
-def routing(monkeypatch):
+def routing(monkeypatch, tmp_path):
     # Module globals must remain writable for test doubles.
     spec = importlib.util.spec_from_loader('selected_login', loader=None)
     helper = importlib.util.module_from_spec(spec)
     exec(compile(LOGIN_CHECK.read_bytes(), str(LOGIN_CHECK), 'exec'), helper.__dict__)
+    monkeypatch.setattr(helper, 'OWNERSHIP_ROOT', tmp_path)
+    monkeypatch.setattr(helper, '_OWNER_UID', os.getuid())
+    monkeypatch.setattr(helper, '_OWNER_GID', os.getgid())
+    marker = tmp_path / helper.KIOSK_OWNERSHIP
+    marker.parent.mkdir(parents=True)
+    marker.write_text('12345\n')
+    marker.chmod(0o600)
     state = SimpleNamespace(reply='s "oh-no-parent-control"\ns "wayland"\n',
                             calls=[], records=[], fault=None)
     monkeypatch.setenv('PAM_USER', helper.KIOSK_USER)
@@ -141,6 +148,32 @@ def test_identity_check_requires_root(routing, monkeypatch):
     monkeypatch.setattr(helper.os, 'geteuid', lambda: 12345)
     assert helper.main(['--kiosk-account']) == helper.main(['--kiosk-session']) == 2
     assert state.calls == []
+
+
+@pytest.mark.parametrize('conflict', ['different-uid', 'missing', 'symlink', 'writable'])
+def test_ownership_conflict_rejects_entry_and_restoration_allows_retry(routing, conflict):
+    helper, state = routing
+    marker = helper.OWNERSHIP_ROOT / helper.KIOSK_OWNERSHIP
+    if conflict == 'different-uid':
+        marker.write_text('23456\n')
+    elif conflict == 'missing':
+        marker.unlink()
+    elif conflict == 'symlink':
+        saved = marker.with_name('saved-uid')
+        marker.rename(saved)
+        marker.symlink_to(saved.name)
+    else:
+        marker.chmod(0o666)
+    assert helper.main(['--kiosk-account']) != 0
+    assert helper.main(['--kiosk-session']) != 0
+    assert state.records[-1] == 'onpc.pam kiosk identity stage=session outcome=unavailable reason=account'
+    assert state.calls == []
+    if marker.is_symlink():
+        marker.unlink()
+        saved.rename(marker)
+    marker.write_text('12345\n')
+    marker.chmod(0o600)
+    assert helper.main(['--kiosk-account']) == helper.main(['--kiosk-session']) == 0
 
 
 @pytest.fixture(scope='module')

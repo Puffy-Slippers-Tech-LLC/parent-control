@@ -1547,7 +1547,7 @@ def identity_filesystem_refusal_retry(record, variant):
             observe_launch(child, False, variant=state.get('native_variant', 'command'))
             for role in ('ordinary', 'other'):
                 probe('login', role, 0, 'identity-filesystem.refused.' + role, record)
-            probe('login', 'kiosk', 6, 'identity-filesystem.refused.kiosk', record)
+            probe('login', 'kiosk', None, 'identity-filesystem.refused.kiosk', record)
         else:
             # Fedora may report a successful erase despite failed postun. The
             # retained account, exact callback diagnostic and vendor account

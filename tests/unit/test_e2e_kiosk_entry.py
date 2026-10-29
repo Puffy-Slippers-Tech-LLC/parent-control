@@ -614,11 +614,15 @@ def test_station_diagnostic_survives_owned_transport_timeout(monkeypatch, tmp_pa
     monkeypatch.setattr(owned_commands.signal, 'pidfd_send_signal', signal)
     ticks = iter((0.0, 0.0, 121.0))
     monkeypatch.setattr(owned_commands.time, 'monotonic', lambda: next(ticks))
+    monkeypatch.setattr(vm_transport.time, 'perf_counter', lambda: 0.0)
     transport = vm_transport.Transport({'directory': str(tmp_path), 'hostname': 'fixture.invalid',
         'run': 'a' * 32, 'domain_uuid': 'b' * 32}, commands, guard=Mock())
     with pytest.raises(owned_commands.subprocess.TimeoutExpired):
         UiObservations(transport).call(['fixed-program'], operation)
-    assert capsys.readouterr().err.encode() == raw
+    # Failed exchanges also report fixed, sanitized transport timing fields.
+    timing = (b'vm-transport-timing: operation=ssh-command sequence=1 state=failed '
+              b'duration_seconds=0.000 guard_seconds=0.000 command_seconds=0.000\n')
+    assert capsys.readouterr().err.encode() == raw + timing
     assert (tmp_path / 'command-0001.txt').read_bytes() == raw
     assert commands.progress is previous
     # Command-local parsing leaves the ordinary progress subscriber intact.

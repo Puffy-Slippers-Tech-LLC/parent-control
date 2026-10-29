@@ -369,7 +369,8 @@ def test_fedora_removal_clears_readiness_after_detaching_display_manager(machine
         assert f'systemctl reset-failed {unit}' not in commands
         return
     assert commands.index('systemctl daemon-reload') < commands.index(cleanup)
-    assert commands.index(cleanup) < commands.index('fapolicyd-cli --reload-rules')
+    # Baseline restoration requires a verified restart, not a queued reload.
+    assert commands.index(cleanup) < commands.index('systemctl restart fapolicyd.service')
     assert 'systemctl stop fapolicyd.service' not in commands
     assert not any('gdm.service' in command for command in commands)
 

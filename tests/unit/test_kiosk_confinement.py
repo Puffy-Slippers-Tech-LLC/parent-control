@@ -240,14 +240,16 @@ def test_installed_admission_restores_owned_routing_after_failure(
             raise helper.guest.GuestError('worker-failed')
 
     monkeypatch.setattr(helper, 'probe', probe)
-    with pytest.raises(helper.guest.GuestError):
+    with pytest.raises(helper.guest.GuestError, match=f'{fault}-failed'):
         helper.verify(Mock())
     assert values == {41001: helper.DEDICATED, 41002: ('ordinary', 'wayland')}
     if fault == 'positive':
         assert not writes
         assert not any(expected == 6 for _, _, expected, _ in stages)
     else:
-        assert writes == [helper.DEDICATED, ('ubuntu', 'wayland'), helper.DEDICATED]
+        # Dedicated routing is already selected; only the deliberate mutation
+        # and its restoration need writes before the injected worker failure.
+        assert writes == [('ubuntu', 'wayland'), helper.DEDICATED]
 
 
 @pytest.mark.parametrize('data', [b'', b'x' * 4097])

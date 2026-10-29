@@ -21,8 +21,8 @@ ENTRIES = {
     'child-return': prefixed_stages('child-return', desktop_entry('child', source='gdm', entry='retained')),
 }
 POLICIES = {
-    'hard': policy_edit(MATCH_APPS['H'], 'match-hard-precise', 'permanent', 'hard'),
-    'soft': policy_edit(MATCH_APPS['S'], 'match-soft-wildcard', 'conditional', 'soft'),
+    'hard': policy_edit(MATCH_APPS['H'], 'match-hard-precise', 'permanent', 'hard', setup=True),
+    'soft': policy_edit(MATCH_APPS['S'], 'match-soft-wildcard', 'conditional', 'soft', setup=True),
 }
 PREPARATION = {
     **fresh_desktop('parent'), **parent_management(),
@@ -76,11 +76,6 @@ def disable_plan(binding):
                         ('child-return', 'child', '-child-recipient-')) if prefix in entries},
         settings_checks={'parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',))},
         balance_checks={'allowance-configured': 0},
-        match_checks={prefix + '-' + suffix: (MATCH_APPS[role], MATCH_RULES[index])
-                      for prefix, role, index in (('hard', 'H', 3), ('soft', 'S', 4))
-                      for suffix in ('open', 'old', 'match', 'final-match')},
-        access_checks={prefix + '-access': (MATCH_APPS[role], access)
-                       for prefix, role, access in (('hard', 'H', 'permanent'), ('soft', 'S', 'conditional'))},
         countdown_checks={'child-countdown': ('new-estimate', 600, 60, 180)},
         activity_checks={} if engineering else {'resumed-opened': ('activity-capture', 'same')},
         activity_entries={} if engineering else {'child-return-entry-guard': 'activity-capture'},

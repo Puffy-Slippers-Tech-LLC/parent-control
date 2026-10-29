@@ -913,12 +913,20 @@ apps and complete scenarios remain separate.
 
 ### Public app-policy edits
 
-`policy_edits.policy_edit(app,draft,access,prefix,filters=())` /
+`policy_edits.policy_edit(app,draft,access,prefix,filters=(),setup=False)` /
 `onpc_app_rows::edit_policy` compose finite launcher-identifier search,
 optional explicit filters, match Save, access Save and independent reads.
 Validate complete binding before input; caller supplies selected-child page and
 stages. Never select/reopen implicitly; retain complete row/owner/error-report/
 uncertain-input guards.
+
+For preparation, `setup=True` (the optional final `1` in Perl) omits redundant
+search-result, old-editor and saved-row observations. The caller must independently
+verify the complete saved rules and access choices after preparation, before
+exercising the behavior under test. Every input retains its existing guards and
+save-completion checks. Active-grant disable uses this route in both attempts;
+its changed composition still needs installed qualification before claiming a
+new live pass.
 
 `policy_qualification.PLAN` / `check_e2e_policy` qualify Jordan/native A,
 both filters, `/opt/onpc-test-fixtures/Applications/*.AppImage` Hard→Soft→Allowed,

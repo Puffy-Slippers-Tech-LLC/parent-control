@@ -1,12 +1,30 @@
 """Package-bound installed setup, before any customer action or secret input."""
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
 import shutil
+import sys
+import time
 
 import system_runner as system
 from private_artifacts import require
 from guest_inputs import Bundle
+
+
+@contextmanager
+def timed_stage(stage):
+    """Log fixed, nonsecret phase names, including interrupted setup work."""
+    started = time.monotonic()
+    outcome = 'failed'
+    print(f'e2e-timing: stage={stage} state=started', file=sys.stderr, flush=True)
+    try:
+        yield
+        outcome = 'finished'
+    finally:
+        elapsed = time.monotonic() - started
+        print(f'e2e-timing: stage={stage} state={outcome} duration_seconds={elapsed:.3f}',
+              file=sys.stderr, flush=True)
 
 
 def inputs(root):
@@ -127,7 +145,8 @@ class InstalledSetup:
         selection = json.loads((payload / 'selected-inputs.json').read_bytes())
         for target, entry in selection['files'].items():
             require(inventory[target] == entry['sha256'], 'setup:helper-changed')
-        self.transport.copy(False, str(payload) + '/', system.PAYLOAD + '/')
+        with timed_stage('setup-helper-transfer'):
+            self.transport.copy(False, str(payload) + '/', system.PAYLOAD + '/')
         guard()
         self.verified.recheck()
         if fixture_selection is not None:
@@ -138,8 +157,9 @@ class InstalledSetup:
                 observer('before', context)
             options = ({'subsets': fixture_subsets, 'caller': fixture_caller}
                        if fixture_subsets != ('native',) else {})
-            prepared = prepare(self.transport, self.verified.lease, self.directory,
-                               fixture_selection, **options)
+            with timed_stage('setup-fixture-provisioning'):
+                prepared = prepare(self.transport, self.verified.lease, self.directory,
+                                   fixture_selection, **options)
             if observer is not None:
                 observer('ready', prepared)
             self.verified.fixture_selection = fixture_selection

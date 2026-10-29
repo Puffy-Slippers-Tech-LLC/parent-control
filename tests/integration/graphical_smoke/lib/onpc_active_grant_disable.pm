@@ -29,7 +29,7 @@ sub run {
                   ['S', 'match-soft-wildcard', 'conditional', 'soft']) {
         my $app = 'parent-app-' . substr(sha256_hex(
             'com.puffyslippers.ONPCTest.' . $edit->[0] . '.desktop'), 0, 16);
-        onpc_app_rows::edit_policy($journey, $app, @$edit[1 .. 3], []);
+        onpc_app_rows::edit_policy($journey, $app, @$edit[1 .. 3], [], 1);
     }
     onpc_text::replace_text($journey, 'catalogue-clear', 'setup-clear');
     $journey->seen($_) for qw(saved-policy setup-switch setup-greeter);

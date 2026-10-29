@@ -237,6 +237,25 @@ The offline attachment requires the exact validated inactive domain settings in
 its shut-off disk snapshot, then applies the lease's isolated settings before
 boot. Online captures retain their private-console and sharing checks.
 
+Active-grant disable keeps separate engineering and public attempts so injected
+faults cannot supply customer acceptance state. Both use FLOW03's `setup=True`
+policy edits: guarded search, match Save and access Save remain, while the later
+`saved-policy` observation independently verifies the complete settings, exact
+app rules, access choices and zero starting balances. Repeated intermediate
+editor and row reads are unnecessary for this preparation. The public attempt
+also compares the granted and disabled policies and verifies retained child work.
+
+Installed journeys emit `e2e-timing:` lines in the normal run log. Each requested
+stage logs `state=started`, then `state=finished` and monotonic `duration_seconds`
+after its durable reply. Setup also times address discovery, SSH readiness,
+fixture-input validation, helper validation/transfer, fixture provisioning,
+child/activity verification and final readiness. Setup subphases emit
+`state=failed` with elapsed time when they raise; an unfinished journey stage
+retains its start line beside the normal failure diagnostics. Stage totals
+include their nested setup phases; do not add parent and child durations.
+Timing labels contain only declared stages and fixed phase names, never
+credentials, command arguments, account names or observation contents.
+
 ```sh
 tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
 tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_installed

@@ -313,8 +313,10 @@ sub access_choices {
 # the entire finite binding before any search/input; never reopen implicitly.
 sub edit_policy {
     onpc_progress::operation('Editing one declared app match and access rule through Parent');
-    my ($journey, $app, $draft, $access, $prefix, $filters) = @_;
-    die 'policy:binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
+    my ($journey, $app, $draft, $access, $prefix, $filters, $setup) = @_;
+    $setup //= 0;
+    die 'policy:binding' unless (@_ == 6 || @_ == 7) && ref($journey) eq 'onpc_journey'
+        && ($setup eq '0' || $setup eq '1')
         && (($app eq $policy_app && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages)\z/)
             || ($app eq $policy_apps{H} && $draft eq 'match-hard-precise')
             || ($app eq $policy_apps{S} && $draft eq 'match-soft-wildcard'))
@@ -331,6 +333,14 @@ sub edit_policy {
               : $app eq $policy_apps{S} ? 'catalogue-soft' : 'catalogue-identifier';
     onpc_text::replace_text($journey, $query, "$prefix-search");
     filter($journey, $_->[0], $_->[1], "$prefix-$_->[0]") for @$filters;
+    if ($setup) {
+        # The caller independently checks the complete saved policy after
+        # preparation. Keep every guarded input, without redundant row reads.
+        $journey->consume_observation("$prefix-open", $journey->seen("$prefix-open"));
+        onpc_text::replace_text($journey, $draft, "$prefix-draft");
+        $journey->consume_observation("$prefix-save", $journey->seen("$prefix-save"));
+        return $journey->consume_observation("$prefix-access-save", $journey->seen("$prefix-access-save"));
+    }
     $journey->consume_observation("$prefix-found", $journey->seen("$prefix-found"));
     match_edit($journey, $draft, $prefix, "$prefix-open", "$prefix-old", "$prefix-match");
     access_choice($journey, "$prefix-access-save", "$prefix-access");

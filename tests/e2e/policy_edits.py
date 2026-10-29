@@ -16,8 +16,12 @@ class AppPolicyJourney(AccessChoiceJourney):
             check_balances(self, observed, self.plan.balance_checks[stage])
 
 
-def policy_edit(app, draft, access, prefix, *, filters=()):
-    """Finite native binding for search → optional filters → match → access."""
+def policy_edit(app, draft, access, prefix, *, filters=(), setup=False):
+    """Edit a policy; setup callers independently check the final saved policy.
+
+    Setup omits intermediate row/editor reads already covered by that check.
+    Input operations retain their normal ownership and save-completion guards.
+    """
     import re
     require((app == MATCH_APP and draft in (
         'match-precise', 'match-precise-basename', 'match-wildcard', 'match-wildcard-basename',
@@ -25,7 +29,7 @@ def policy_edit(app, draft, access, prefix, *, filters=()):
         and BASELINE_POLICY_DRAFTS[draft] == app)
         and access in ACCESS_CHOICES and type(prefix) is str
         and re.fullmatch(r'[a-z][a-z0-9-]*', prefix), 'policy:binding')
-    require(type(filters) is tuple and len(filters) <= 2
+    require(type(setup) is bool and type(filters) is tuple and len(filters) <= 2
         and all(type(item) is tuple and len(item) == 2 and item[0] in FILTER_OPTIONS
                 and type(item[1]) is int and 0 <= item[1] < 1 << len(FILTER_OPTIONS[item[0]])
                 for item in filters)
@@ -46,4 +50,7 @@ def policy_edit(app, draft, access, prefix, *, filters=()):
         prefix + '-access': 'ui:' + access_operation + 'row',
         prefix + '-final-match': 'ui:' + match_operation + 'row',
     })
+    if setup:
+        for suffix in ('found', 'old', 'match', 'access', 'final-match'):
+            del screens[prefix + '-' + suffix]
     return screens

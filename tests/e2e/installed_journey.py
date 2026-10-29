@@ -15,6 +15,7 @@ import accessible_ui
 from check_graphical_smoke import module_result
 import command_documentation
 import session_control
+from installed_setup import timed_stage
 from observation_transport import ReadOnlyObservations
 from private_artifacts import require
 import system_runner as system
@@ -324,25 +325,30 @@ def prepare_installed_setup(context, transport, guard, *, observer=None):
         subsets = qualified_subsets(getattr(context, 'fixture_subsets', SUBSETS),
             caller=getattr(context, 'fixture_caller', None),
             product_free=getattr(context, 'product_free', False))
-        options = {'fixture_selection': validate_input(getattr(context, 'fixture_selection', None))}
+        with timed_stage('setup-fixture-input-validation'):
+            options = {'fixture_selection': validate_input(getattr(context, 'fixture_selection', None))}
         if subsets != SUBSETS:
             options.update(fixture_subsets=subsets, fixture_caller=context.fixture_caller)
         if observer is not None:
             options['observer'] = observer
-    prepared = InstalledSetup(context.directory, context.verified, transport).provision(guard, **options)
+    with timed_stage('setup-helper-validation-and-provisioning'):
+        prepared = InstalledSetup(context.directory, context.verified, transport).provision(guard, **options)
     if clean and subsets != SUBSETS:
         from native_fixtures import NativeFixtures
         guard()
-        prepared['child_fixture'] = NativeFixtures(
-            transport, context.verified, profile='baseline-child').verify()
+        with timed_stage('setup-child-fixture-verification'):
+            prepared['child_fixture'] = NativeFixtures(
+                transport, context.verified, profile='baseline-child').verify()
         guard()
-        prepared['activity_fixture'] = NativeFixtures(
-            transport, context.verified, profile='activity').verify()
+        with timed_stage('setup-activity-fixture-verification'):
+            prepared['activity_fixture'] = NativeFixtures(
+                transport, context.verified, profile='activity').verify()
         guard()
     if getattr(context, 'asset_transfer', None) is not None:
         context.asset_transfer.provision_installed(context.lease, transport)
     if clean:
-        prepared['controller'].require_ready(prepared['receipt'])
+        with timed_stage('setup-final-readiness'):
+            prepared['controller'].require_ready(prepared['receipt'])
     return prepared if clean else None
 
 
@@ -638,6 +644,9 @@ class InstalledJourney:
         destination = context.directory / (stage + '.reply.json')
         require(not os.path.lexists(pending) and not os.path.lexists(destination),
                 plan.prefix + ':reply-replay')
+        stage_started = time.monotonic()
+        print(f'e2e-timing: journey={plan.prefix} stage={stage} state=started',
+              file=sys.stderr, flush=True)
         guard()
         if stage in plan.activity_entries:
             require(plan.activity_entries[stage] in self.activity_observations, 'ui:missing-app-activity')
@@ -664,14 +673,16 @@ class InstalledJourney:
                     'fixtures:e2e-install-current-not-qualified')
             if self.watch_progress is not None:
                 self.watch_progress.operation('Preparing the application connection')
-            hostname = system.address(context.lease.source, timeout=90)
+            with timed_stage('setup-address-discovery'):
+                hostname = system.address(context.lease.source, timeout=90)
             (context.directory / 'known-hosts').write_text(f'{hostname} {context.host_key}\n')
             config = {'directory': str(context.directory), 'hostname': hostname,
                 'domain_uuid': context.lease.source.uuid, 'domain_id': context.lease.view.domain_id,
                 'run': context.lease.state['run']}
             transport = Transport(config, context.commands, guard=lambda _: context.lease.guard(),
                                   lease=context.lease)
-            transport.probe_ready(timeout=180)
+            with timed_stage('setup-ssh-readiness'):
+                transport.probe_ready(timeout=180)
             # The snapshot's installed app persists, but its helper payload
             # belongs to the snapshot-creation run. Bootstrap has already bound
             # the guard marker to this attempt's package and selected inputs.
@@ -847,13 +858,17 @@ class InstalledJourney:
         if stage == 'setup-detached':
             prepared = getattr(context.verified, 'fixture_prepared', None)
             if prepared is not None:
-                prepared['controller'].require_ready(prepared['receipt'])
+                with timed_stage('setup-reply-readiness'):
+                    prepared['controller'].require_ready(prepared['receipt'])
         # Qualified graphical recipients already require a masked password
         # field. Keep their watch recording visible, including failed results;
         # credential delivery and durable recipient acknowledgements stay gated.
         with pending.open('x') as stream:
             json.dump(reply, stream)
         pending.rename(destination)
+        elapsed = time.monotonic() - stage_started
+        print(f'e2e-timing: journey={plan.prefix} stage={stage} state=finished '
+              f'duration_seconds={elapsed:.3f}', file=sys.stderr, flush=True)
 
     def validate(self):
         require(not self.failed, self.plan.prefix + ':previous-failure')

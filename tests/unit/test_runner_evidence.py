@@ -784,16 +784,19 @@ def test_targeted_terminal_retains_original_attempt_dependency_and_live_cleanup_
 
 
 def test_targeted_terminal_recovery_keeps_exact_context_and_cleanup_resources(environment, monkeypatch):
+    class PublicationInterrupted(KeyboardInterrupt):
+        """Distinguish the injected fault from an outside cancellation."""
+
     root, store = environment
     resources = [dict(kind='maintenance', id='selected-target', disposition='preserved')]
     with store.session():
         evidence = runner.ReportEvidence(root, allocate(), workflow='qualification')
         def interrupted(stage):
             if stage == 'publication.copied':
-                raise KeyboardInterrupt('targeted publication interrupted')
+                raise PublicationInterrupted('targeted publication interrupted')
         with monkeypatch.context() as local:
             local.setattr(runner.publication, 'checkpoint', interrupted)
-            with pytest.raises(KeyboardInterrupt, match='targeted publication'):
+            with pytest.raises(PublicationInterrupted, match='targeted publication'):
                 finish(evidence, target='fedora', check='diagnostic-check', status='diagnostic',
                        cleanup='pending', cleanup_resources=resources)
         original = evidence._prepared[-1]['record']

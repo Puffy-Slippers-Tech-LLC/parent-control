@@ -246,8 +246,7 @@ bounded cleanup described above for UI.
 `-x`/`--exitfirst` and positive `--maxfail` keep one serial invocation so the
 failure limit remains selection-wide. `tools/run-unit-tests` remains the direct
 serial route for narrow iteration or diagnosis. Its execution output also appears
-in the left terminal of `tools/watch`, using the shared reconnectable session and
-cooperative cancellation. Inspection/collection-only
+in **ONPC: Watch** through shared run-status discovery. Inspection/collection-only
 commands keep their existing behavior. Unit buckets use the same CPU, memory,
 swap and compatibility limits as other host work; I/O pressure is advisory for
 ordinary units. Actual artifact construction retains its artifact I/O limits.
@@ -1323,7 +1322,7 @@ conversation composer described below. Repair prompts steer the active agent;
 messages sent during testing queue for the next repair session in that workflow.
 For `fix-tests`, the lower-left area has **Active**, **Session** and **Launcher**
 tabs across its full width. Pipeline status, round/category progress, case counts
-and the test tree are available in **ONPC: Watch** and `make watch`.
+and the test tree are available in **ONPC: Watch**.
 **Active (Session)** follows the active repair session, including its shared
 transcript and chatbox; otherwise **Active (Launcher)** shows launcher output.
 The explicit **Session** tab shares that same session and draft, or shows
@@ -1810,8 +1809,8 @@ This is development/test tooling only; package update activation is **none**.
 ### VM watch recordings
 
 `tools/run-tests` automatically records system and E2E execution through the
-same right-side GTK viewer, read-only VM feeds and filtered SSH terminals as
-`tools/watch`. The recording includes the viewer tabs, VM panels, SSH output
+private GTK recording renderer with shared read-only VM feeds and filtered SSH
+terminals. The recording includes the viewer tabs, VM panels, SSH output
 and progress footer at full frame size; it excludes the left runner terminal,
 window header and bottom checkout/resource controls.
 One private renderer/encoder belongs to the runner, including its concurrent VM
@@ -1819,8 +1818,8 @@ queue. For `fix-tests` VM queues, the parent repair launcher owns that controlle
 through all worker retries and owned cleanup; nested runners inherit its verified
 endpoint rather than creating competing controllers. Its recording index belongs
 to the parent run. Capture includes only that queue's feeds from this checkout: another
-controller's secret seals cannot authorize recording its display. A visible watch
-window can be opened, closed or absent independently.
+controller's secret seals cannot authorize recording its display. The **ONPC: Watch**
+tab can be opened, closed or absent independently.
 The recording is human review material; test assertions and result reports
 remain authoritative. Qualified masked graphical authentication in GDM, lock
 screens and MATE/Shell Polkit prompts remains visible, including rejection and
@@ -1857,8 +1856,8 @@ previous file and reports an infrastructure error. Every candidate is decoded
 in full before publication. Temporary full-session media
 uses shared scratch; final recordings have no automatic age or size rotation.
 This explicit latest-only policy is separate from ordinary report retention.
-Publication displays one refreshing `Recording: x/y` progress line in the runner
-and watch terminal, counting completed clips out of the session's total.
+Publication displays one refreshing `Recording: x/y` progress line in the runner,
+counting completed clips out of the session's total.
 Individual recording paths remain in the session's `recordings.json` index.
 Controller reload and resume atomically replace that index with the latest
 capture's snapshot in the retained run directory. An index-save failure preserves
@@ -2506,7 +2505,7 @@ state, uses the existing root SSH credentials and returns guest stdout, stderr
 and exit status. It supports arbitrary guest programs, shells and interpreters;
 it provides finite commands rather than an interactive shell. `--` separates
 guest arguments from host options, including guest `--vm`/`--help` arguments.
-Use `tools/watch` for the shared live screen and filtered command transcript.
+Use **ONPC: Watch** for the shared live screen and filtered command transcript.
 The existing detached display observer remains attached when probes finish.
 An active test controller, unowned guest or unavailable current online snapshot
 credentials cause refusal. A baseline-only `tools/test-vm start` does not provide
@@ -2563,128 +2562,14 @@ development tools, not customer E2E commands.
 
 ### Watching host UI tests
 
-To use run status and the viewers inside VS Code, install with `./setup.sh --watch`,
-reload VS Code, then open **Ctrl+Shift+P → ONPC: Watch** from a trusted checkout.
-The [workspace extension](../vscode/onpc-watch/README.md) uses the same read-only
-UI/VM feeds, worktree discovery and viewer scope selection as the desktop watcher.
-Its editor tab starts with a draggable 30:70 split: the left panel shows only
-Run Status across worktrees, without the desktop watcher's Run Status/Outputs/Session
-tabs; the right includes the All grid, individual viewers, progress and filtered
-VM command output. The split ratio is remembered. Ordinary setup and `--test-tools-only` also install it when a
-VS Code CLI is available. `--watch` installs only this extension, without host
-dependency, helper, rule or product setup. Both viewers can run together.
-
-Open `tools/watch` (or `make watch`) as the desktop user before or during a run.
-Both return after launching and repeated launches present one watcher for the
-desktop user session, including launches from other checkouts. Bottom tabs show
-**All** and each checkout's current Git branch name, in fixed discovery order.
-The bottom **All** tab divides the left terminal panel into equal vertical
-sections for branches with active runner output, in bottom-tab order. Each
-section has one bold title combining the branch and terminal status, such as
-**[main] Terminal Outputs -- fix-tests**. Sections appear and disappear as runners
-start and finish; when every runner is idle, the last finished terminal remains.
-Click a terminal heading to open its branch tab. An individual branch tab shows
-only its own terminal. Finished tabs retain their output and remain selectable.
-When a runner exits, its terminal heading uses the recorded result: **finished**
-for success, **failed** for a nonzero failure, **stopped** for cancellation, or
-**incomplete** when the result is missing or unreadable. A successful `fix-tests`
-run stopped at its task budget shows **task limit reached**.
-Failed headings and fatal repair-launcher messages appear in bold red.
-Related Git worktrees on named branches are discovered automatically; detached
-snapshots appear only when `tools/watch` is launched from that checkout. Launch
-`tools/watch` from an unrelated checkout to add it to the same window. Branch
-names update after Git branch switches; checkout paths identify separate tabs
-even when labels match.
-The footer's right-aligned resource line refreshes every second with host CPU,
-memory and disk busy percentages. Each percentage has a small filled graph of
-the last minute on a fixed 0–100% scale, reusing the same samples. History stays
-in memory only, starts fresh when the watcher reopens, and leaves gaps during
-sampling pauses. Fixed-width percentage fields keep labels stationary as values
-change; labels are bold and values use normal weight.
-**Disk** uses the kernel's elapsed I/O busy-time counter over the
-sample interval, matching `iostat %util`, and shows the busiest physical disk,
-excluding partitions and virtual mappings. Concurrent requests do not add their
-individual durations to this percentage. It measures activity, not the fraction
-of maximum throughput; a busy NVMe drive may still have performance headroom.
-Unavailable measurements show a dash until a valid sample is available.
-The left terminal follows active VM `fix-tests`, then host `fix-tests` output before `run-tests`,
-using VS Code Light+ colors, wrapping and vertical scrollback. The left panel
-has **Run Status**, **Outputs** and **Session** tabs below its heading separator.
-Run Status keeps the live pipeline dashboard. Outputs keeps ordinary launcher
-and test terminal output, excluding dashboards and mirrored agent sessions,
-with its own selection and scrollback. Session embeds the
-shared [session panel](../tools/launcher_session.py), following the active agent
-in that checkout, including VM repair pipelines and plan launchers. Its transcript,
-scroll position and draft are independent of Run Status. Interactive sessions
-support the existing prompt, interruption and continuation controls, including
-`fix-tests` repairs. Pending developer decisions appear in Session and remain
-available in the launcher. Session retains the latest agent's dedicated transcript
-through verification and after completion, until another agent session replaces it.
-Its label is blue while an agent is active or a developer decision is pending,
-and returns to the default text color otherwise. Input is disabled for a finished
-session without a pending decision. Before an agent starts, or when a supervisor
-has no dedicated session artifacts, the tab shows an empty-state message and
-disables input. Launcher output stays in Outputs.
-Input is checked against the displayed owner and session before delivery.
-The initial
-horizontal split is 25%/75%, adjustable by dragging. The right viewer has one
-flat tab row: **All**, **[branch] UI - category** for each active UI worker
-category, and **[branch] VM name** for each registered VM, for example
-**[main] onpc-Ubuntu26.04**. UI and VM tabs share the same prefix in every scope.
-The prefix follows the source checkout and updates when activity moves to
-another worktree. Each VM has one tab in the bottom
-**All** scope, using the checkout with its current controller or running display.
-Idle VM tabs in the combined scope come from the watcher's initial checkout's
-current registry. Other worktrees' retired names remain available in their own
-branch scope and appear globally only while they have live activity. Registry
-name/ID changes update the existing viewer without restarting it; a removed
-selected VM tab returns to **All**. Registry reads share the background checkout
-discovery worker and never block GTK rendering.
-Its viewer **All** tab puts active viewers in one flat grid ordered by bottom
-branch and UI category name, followed by VMs in ascending numeric configured ID
-order. Legacy VMs without IDs follow in registration order. VM tabs use that
-same order, and each tile title exactly matches its tab header.
-One cell fills the space; additional cells use two columns with as many
-rows as needed, leaving the right cell blank on an odd final row. Cell titles
-match their top tabs. Large grids scroll vertically at their minimum cell size.
-Double-click a cell to open its individual top tab while
-keeping the current bottom branch scope. UI categories and VMs share this grid;
-there is no nested UI tab row or separate UI/VM split. Viewer activity is
-independent of terminal activity. Locked VM tabs appear normally; unlocked VM tabs are gray and
-remain selectable, including running guests left idle between maintenance
-commands. The controller publishes that state through the read-only feed;
-the viewer never acquires a VM lease. Neither launcher accepts a VM parameter.
-The lease keeps one authenticated display feed connected through guest shutdown,
-snapshot restoration, offline inspection and gaps between steps. It shows the
-current operation while no guest display exists and attaches each newly guarded
-display to the same feed. The feed ends after the exclusive VM lock is released.
-The viewer clears the screen when the VM is off. Serial archive controllers
-publish their operation to each selected VM, including after queue-wide
-validation before the first VM is bound.
-
-Each VM's transport runs in its own worker with bounded latest-frame queues.
-Socket waits and shared-memory reads stay outside GTK and cannot block another
-cell. The grid renders at up to 10 fps per VM; an individual VM tab renders at
-up to 30 fps. Hidden panels inspect metadata twice per second and do not copy
-frame pixels or update widgets. Display and progress registrations are separate
-for each VM, and old controllers retain a compatible single-registry fallback.
-The viewer discovers
-private UI workers from each checkout for both `tools/run-ui-tests` and all
-aggregate paths (`tools/run-tests ui`, `host`, `all`, and mixed selections).
-Each UI cell and its individual tab show the current pytest node ID and phase. Workers
-appear when their private compositor fixture starts, disappear on shutdown or
-expired heartbeat, and later workers reconnect automatically. The viewer may be
-opened, closed, resized or reopened without controlling the tests. Runs started
-before this feature was loaded need to finish and start again to publish frames.
-The detached service records Python and native GTK output in a retained
-`onpc-watch-viewer-*/viewer.log` allocation under this checkout's test storage.
-Its location is printed in the service journal. Close and reopen the viewer to
-load source changes. VM display, progress and command publications carry their
-checkout identity, so activity appears in the checkout that started it. Already
-running controllers without that metadata remain visible in the watcher's
-initial checkout until they finish. The viewer does not create runner state,
-consume results or change test ownership. Ctrl+C and **Stop command** retain
-the displayed runner's cooperative cancellation route.
+Install with `./setup.sh --watch`, reload VS Code, then open
+**Ctrl+Shift+P → ONPC: Watch** from a trusted checkout. The
+[extension guide](../vscode/onpc-watch/README.md) owns viewer controls,
+worktree discovery, grid selection and resource history. Ordinary setup and
+`--test-tools-only` also install it when a VS Code CLI is available.
+`--watch` installs only the extension. Opening or closing the tab does not
+control tests or acquire VM leases. UI workers and registered VMs share the
+read-only viewer grid, with progress and filtered VM command output.
 
 The shared [fixture](ui/conftest.py) owns an optional
 [collector](../tools/ui_watch_capture.py) and private PipeWire/WirePlumber
@@ -2708,11 +2593,8 @@ failures are reported by the runner. Optional observation never retries a test
 action or changes test outcomes. Owned collector/service cleanup still runs.
 Frames are review aids, never automation targets or acceptance evidence.
 
-Activation is `none`: new test fixtures and viewer invocations load the source;
-no product package, service or data migration is involved. The existing
-`./setup.sh --test-tools-only` route installs the optional viewer desktop/icon
-identity, and the existing executable-tool discovery includes `tools/watch`
-at the next rules refresh. No broader command or privilege grant is needed.
+Activation is `none`: new test fixtures and extension readers load the source;
+no product package, service or data migration is involved.
 
 The bare-Mutter fixture disables its opening-window scale effect through
 `MUTTER_DEBUG_DISABLE_ANIMATIONS`, the upstream default plugin's test switch.

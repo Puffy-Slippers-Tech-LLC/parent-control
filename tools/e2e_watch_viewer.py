@@ -16,7 +16,6 @@ from e2e_watch_protocol import BASE, progress_packet, read_frame, receive_frames
 WAITING = 'Waiting for VM activity. You can leave this window open.'
 TITLE = 'VM — View only'
 CONNECTED = 'VM operation in progress · Waiting for display'
-APPLICATION_ID = 'org.onpc.E2EWatch'
 
 def duration_text(seconds):
     minutes = max(0, int(seconds) // 60)

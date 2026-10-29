@@ -320,7 +320,7 @@ def main(argv=None, *, category='unit'):
         inherited = test_activity.descriptors() or test_activity.VARIABLE in os.environ
         if category == 'unit' and not inherited and not any(
                 flag in argv for flag in ('--help', '-h', '--collect-only')):
-            # Publish through the same durable session watched by tools/watch.
+            # Publish through the same durable session observed by ONPC: Watch.
             # The direct launcher keeps one serial pytest invocation; aggregate
             # workers already own their session and must never reattach to it.
             from regression_session import main as session_main

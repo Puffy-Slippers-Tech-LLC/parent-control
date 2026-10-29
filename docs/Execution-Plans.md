@@ -441,7 +441,7 @@ stay on one physical line, truncating to the current pane width before `...`.
 The observer derives these previews from the existing current-session transcript;
 display reload applies them immediately, including during an active agent session,
 without waiting for controller or supervisor replacement. Hover requests a hand
-pointer where the terminal supports OSC 22; Watch uses its native hand pointer.
+pointer where the terminal supports OSC 22.
 Turning Simplified off restores the full output, including commands, tools and
 their results. Switching views keeps the chat draft
 and saved transcripts intact and returns the output viewport to its newest rows.
@@ -884,7 +884,7 @@ presentation strategy directly and can customize their layout and progress.
 | [`launcher_runtime.py`](../tools/launcher_runtime.py) | Common options, locked task budget and live limit changes | Worker defines an accepted task boundary and default budget |
 | [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, following | Worker command, validated namespace, lifecycle callbacks |
 | [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) / [`launcher_progress.py`](../tools/launcher_progress.py) | Synchronized panels, input routing, task formatting and durable completion rows | `ExecutionPlanView`: checkout/master data with shared plan wiring; `WorkflowView`: custom progress, layout options, questions and composer for other launchers |
-| [`launcher_session.py`](../tools/launcher_session.py) | Shared session transcript/composer layout, editor and caret geometry | Host supplies viewport, transcript, session state and authorized input callback; usable in a plan pane or a dedicated watch terminal |
+| [`launcher_session.py`](../tools/launcher_session.py) | Shared session transcript/composer layout, editor and caret geometry | Host supplies viewport, transcript, session state and authorized input callback in a launcher pane |
 | [`launcher_git.py`](../tools/launcher_git.py) / [`launcher_worktrees.py`](../tools/launcher_worktrees.py) | Upstream reconciliation, literal paths and mandatory commit/push/propagation close-out with recovery | Workflow owns source-pull policy and commit scope; shared Git owns commit, push, destination discovery, stash/merge/restore, automatic conflict resolution and recovery |
 
 The current adapters use these components according to their workflow:

@@ -1,4 +1,4 @@
-"""Embeddable, read-only host UI worker viewer for tools/watch."""
+"""Read-only host UI worker panels for private watch recordings."""
 
 from common.oh_no_parent_control_ui.gtk_automation import set_automation_id as identify
 from ui_watch_transport import Feeds, label

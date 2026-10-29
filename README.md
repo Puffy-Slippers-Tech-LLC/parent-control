@@ -72,13 +72,11 @@ version control.
 | Refresh Codex rules | `./setup.sh --codex-rules-only` |
 | Show all setup modes | `./setup.sh --help` |
 
-Full setup and `--test-tools-only` install the `tools/watch` desktop identity,
-supplied app logo and refreshed icon cache for the viewer's dock icon.
-Run `tools/watch` or `make watch` at any time. Both return after launching;
-subsequent launches present the same window for all registered VMs, across worktrees.
-The window retains the former VM viewer's dock and title-bar icons. Its UI feeds
-and runner logs belong to the checkout that opened it; close it and reopen from
-another worktree to follow that worktree instead. Closing it leaves tests running.
+Open **ONPC: Watch** from the VS Code Command Palette to view run status,
+host UI workers and registered VMs across worktrees. Install or update the
+[extension](vscode/onpc-watch/README.md) with `./setup.sh --watch`;
+full setup and `--test-tools-only` also install it when a VS Code CLI is available.
+Closing the tab leaves tests running.
 
 Restart Codex after refreshing rules; trust this checkout.
 

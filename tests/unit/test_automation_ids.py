@@ -1,5 +1,4 @@
 """ID lookup must not silently degrade into geometry or label targeting."""
-from tests.support.vm_registry import vm_name
 
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -18,7 +17,6 @@ from tests.e2e.accessible_ui import (
     AccessibleUI,
     EXTERNAL_PROVIDER_CONTRACTS,
     UiError,
-    WATCH_APPLICATION,
     owned_applications,
     owned_surface_id,
     public_automation_id,
@@ -78,18 +76,6 @@ def test_id_is_independent_of_order_and_unnamed_containers():
     assert ui.target("submit") is target
 
 
-def test_spectator_ids_are_scoped_to_the_owned_window_and_application():
-    assert owned_surface_id("e2e-watch-progress") == "watch-window"
-    assert owned_surface_id("watch-window") is None
-    assert owned_applications("e2e-watch-close") == (WATCH_APPLICATION,)
-    progress = Node("e2e-watch-progress")
-    window = Node("watch-window", [progress])
-    ui = adapter(window)
-    ui.application_ids = lambda: {WATCH_APPLICATION}
-    ui.application_owners = lambda: {WATCH_APPLICATION: {100}}
-    assert ui.find("e2e-watch-progress") is progress
-
-
 @pytest.mark.parametrize('surface', ('parent-window', 'kiosk-request-window'))
 @pytest.mark.parametrize('wrong_owner', (False, True))
 def test_update_modal_has_a_product_owner_and_scoped_controls(surface, wrong_owner):
@@ -136,23 +122,6 @@ def test_only_parent_can_own_a_standalone_update_dialog(application_id, other_wi
         with pytest.raises(AutomationError, match='surface-owner'):
             ui.activate('update-required-reboot')
         target.action.do_action.assert_not_called()
-
-
-@pytest.mark.parametrize('name', [vm_name(), vm_name(1)])
-def test_vm_viewer_accepts_only_its_declared_application_and_process(name):
-    progress = Node('e2e-watch-progress')
-    ui = adapter(Node('watch-window', [progress]))
-    application = ui.root()
-    identity = WATCH_APPLICATION + '.vm_' + name.encode('ascii').hex()
-    application.identity = identity
-    ui.application_ids = lambda: {identity}
-    ui.application_owners = lambda: {identity: {100}}
-    assert ui.find('e2e-watch-progress') is progress
-    ui.application_owners = lambda: {identity: {101}}
-    with pytest.raises(AutomationError, match='wrong-application-owner'):
-        ui.find('e2e-watch-progress')
-    ui.application_ids = lambda: {WATCH_APPLICATION + '.vm_' + 'another'.encode('ascii').hex()}
-    assert ui.find('e2e-watch-progress') is None
 
 
 def test_missing_and_duplicate_ids_refuse_input():
@@ -291,9 +260,9 @@ def test_disappearing_node_retries_complete_read_before_input():
 
 @pytest.mark.parametrize('replacement', ['showing', 'hidden', 'removed', 'duplicate'])
 def test_visibility_reacquires_retired_object_without_accepting_failed_read(replacement):
-    identity = 'watch-vm-grid'
+    identity = 'parent-app-grid'
     stale = Node(identity)
-    window = Node('watch-window', [stale])
+    window = Node('parent-window', [stale])
     ui = adapter(window, query_errors=(LookupError,))
     # Structure was readable during lookup, but GTK retires the accessible
     # before the separate live state query, as when a panel is reparented.
@@ -326,12 +295,12 @@ def test_visibility_reacquires_retired_object_without_accepting_failed_read(repl
 
 
 def test_visibility_does_not_translate_unconfigured_errors_into_read_retries():
-    target = Node('watch-vm-grid')
-    ui = adapter(Node('watch-window', [target]), query_errors=(LookupError,))
+    target = Node('parent-app-grid')
+    ui = adapter(Node('parent-window', [target]), query_errors=(LookupError,))
     target.snapshot_state_set = target.get_state_set
     target.get_state_set = Mock(side_effect=ValueError('invalid state response'))
     with pytest.raises(ValueError, match='invalid state response'):
-        ui.showing('watch-vm-grid')
+        ui.showing('parent-app-grid')
 
 
 def test_disabled_control_and_ambiguous_action_refuse_input():
@@ -443,33 +412,30 @@ def test_owned_gtk_surfaces_share_the_core_identity_publisher(monkeypatch):
     monkeypatch.setitem(sys.modules, "gi.repository", SimpleNamespace(Gtk=gtk))
     widget = Mock()
     widget.weak_ref.return_value = lambda: widget
-    assert gtk_automation.set_automation_id(widget, "e2e-watch-close") is widget
-    widget.set_name.assert_called_once_with("e2e-watch-close")
-    assert exposed == [("e2e-watch-close", widget)]
-    assert gtk_automation.automation_id(widget) == "e2e-watch-close"
+    assert gtk_automation.set_automation_id(widget, "parent-test-close") is widget
+    widget.set_name.assert_called_once_with("parent-test-close")
+    assert exposed == [("parent-test-close", widget)]
+    assert gtk_automation.automation_id(widget) == "parent-test-close"
     assert gtk_automation.automation_id(object()) == ""
-    gtk_automation.set_automation_id(widget, "e2e-watch-window")
-    assert gtk_automation.automation_id(widget) == "e2e-watch-window"
+    gtk_automation.set_automation_id(widget, "parent-test-window")
+    assert gtk_automation.automation_id(widget) == "parent-test-window"
     widget.weak_ref.assert_called_once()
     widget.weak_ref.call_args.args[0]()
     assert gtk_automation.automation_id(widget) == ""
-    for invalid in (None, "", "E2E-Watch", "e2e_watch", "-e2e-watch"):
+    for invalid in (None, "", "Parent-Test", "parent_test", "-parent-test"):
         with pytest.raises(ValueError, match="lowercase hyphenated"):
             gtk_automation.set_automation_id(widget, invalid)
 
-    viewer = (ROOT / "tools/watch_viewer.py").read_text()
     fixture = (ROOT / "tests/fixtures/gui_application.py").read_text()
-    assert "def set_automation_id" not in viewer
     assert "def identify" not in fixture
-    for source in (viewer, fixture):
-        assert "gtk_automation import" in source
-        assert "set_automation_id" in source
-        assert "add_identified_window_controls" in source
+    assert "gtk_automation import" in fixture
+    assert "set_automation_id" in fixture
+    assert "add_identified_window_controls" in fixture
 
 
-def test_owned_control_inventory_supports_product_spectator_and_fixture_namespaces():
+def test_owned_control_inventory_supports_product_and_fixture_namespaces():
     for surface_identity in (
-        "parent-window", "language-dialog", "watch-window", "onpc-fixture-native-primary",
+        "parent-window", "language-dialog", "onpc-fixture-native-primary",
     ):
         control = Node(surface_identity + "-submit")
         control.get_role_name = lambda: "button"
@@ -482,9 +448,9 @@ def test_owned_control_inventory_supports_product_spectator_and_fixture_namespac
 
     missing = Node("")
     missing.get_role_name = lambda: "button"
-    root = Node("watch-window", [missing])
+    root = Node("parent-window", [missing])
     with pytest.raises(AssertionError, match="owned controls without public IDs"):
-        audit_owned_controls(adapter(root), "watch-window")
+        audit_owned_controls(adapter(root), "parent-window")
 
 
 def test_language_inventory_rejects_anonymous_radio_buttons_and_duplicate_ids():

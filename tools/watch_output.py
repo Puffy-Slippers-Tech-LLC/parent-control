@@ -111,7 +111,7 @@ class Output:
         self.reader = JsonReader()
 
     def status(self, active):
-        """Read the same status publications for desktop and editor viewers."""
+        """Read shared launcher status publications for the editor viewer."""
         from launcher_progress import repair_progress
         from launcher_render import clean
         steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
@@ -251,34 +251,6 @@ class Output:
         return label, active, reset, data
 
 
-class LogOutput(Output):
-    """Follow ordinary launcher output without dashboards or mirrored sessions."""
-
-    def __init__(self, root=None):
-        super().__init__(root)
-        self.pending = b''
-        self.session_line = False
-
-    def poll(self):
-        from launcher_render import SESSION_LINE
-        label, active, reset, data = super().poll(progress=False)
-        if reset:
-            self.pending = b''
-            self.session_line = False
-        self.pending += data
-        output = bytearray()
-        while self.pending:
-            line, newline, rest = self.pending.partition(b'\n')
-            self.session_line = self.session_line or SESSION_LINE.encode() in line
-            # Wait for complete lines, keeping memory bounded for long writes.
-            if not newline and active and len(line) < TAIL_BYTES:
-                break
-            if not self.session_line:
-                output.extend(line + newline)
-            self.pending = rest
-            if newline:
-                self.session_line = False
-        return label, active, reset, bytes(output)
 
 
 class SessionOutput:

@@ -227,13 +227,9 @@ def save_binding(run, name):
 
 def make_command(root, target, environment):
     """Decode literal Make variables; never interpolate a VM name into shell code."""
-    if target not in ('all', 'all-verify', 'system', 'appsnapshot', 'watch'):
+    if target not in ('all', 'all-verify', 'system', 'appsnapshot'):
         raise ValueError('vm-config:unsupported Make target')
     name = environment.get('ONPC_MAKE_VM') or None
-    if target == 'watch':
-        if name is not None or environment.get('ONPC_WATCH_VM_ORIGIN', 'undefined') != 'undefined':
-            raise ValueError('watch: VM parameter refused; watches all registered VMs')
-        return [str(root / 'tools/watch')]
     options = []
     if target == 'system':
         if environment.get('ONPC_SYSTEM_VM_IMAGE'):

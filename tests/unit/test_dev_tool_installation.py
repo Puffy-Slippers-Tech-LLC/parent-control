@@ -152,40 +152,6 @@ def test_atomic_helper_install_and_symlink_refusal(tmp_path, monkeypatch):
     assert target.read_bytes() == b'validated-helper'
 
 
-@pytest.mark.parametrize('existing_cache', [False, True])
-def test_viewer_icon_resolves_after_fresh_and_repeated_setup(tmp_path, monkeypatch, existing_cache):
-    import gi
-    gi.require_version('Gtk', '4.0')
-    from gi.repository import Gio, GLib, Gtk
-
-    data_root = tmp_path / 'share'
-    theme = data_root / 'icons/hicolor'
-    icons = theme / '48x48/apps'
-    icons.mkdir(parents=True)
-    unrelated = icons / 'unrelated.png'
-    logo = (ROOT / 'data/app_logo_titlebar.png').read_bytes()
-    unrelated.write_bytes(logo)
-    if existing_cache:
-        subprocess.run(['/usr/bin/gtk-update-icon-cache', '--ignore-theme-index', str(theme)],
-                       check=True)
-    monkeypatch.setattr(os, 'fchown', Mock())
-    for _ in range(2):
-        installer['install_watch_desktop'](ROOT, data_root=data_root)
-        for app_id in ('org.onpc.E2EWatch',):
-            entry = Gio.DesktopAppInfo.new_from_filename(
-                str(data_root / 'applications' / (app_id + '.desktop')))
-            assert entry is not None
-            parsed, command = GLib.shell_parse_argv(entry.get_commandline())
-            assert parsed and command == [str(ROOT / 'tools' / 'watch')]
-            assert entry.get_startup_wm_class() == app_id
-            icon_name = entry.get_icon().to_string()
-            lookup = Gtk.IconTheme.new()
-            lookup.set_search_path([str(data_root / 'icons'), '/usr/share/icons'])
-            lookup.set_theme_name('hicolor')
-            assert lookup.has_icon(icon_name)
-            assert (icons / (icon_name + '.png')).read_bytes() == logo
-            assert lookup.has_icon('unrelated')
-            assert unrelated.read_bytes() == logo
 
 
 def test_tools_refresh_repairs_only_root_owned_cache_directory(tmp_path, monkeypatch):
@@ -338,8 +304,8 @@ def test_only_missing_fixed_dependencies_are_installed_without_upgrades(monkeypa
     if missing:
         command = execute.call_args.args[0]
         fedora = distribution == 'fedora'
-        assert command[-7:] == ['openssh-clients' if fedora else 'openssh-client',
-                               'ripgrep', 'curl', 'gtk-update-icon-cache', 'python3-pytest-cov',
+        assert command[-6:] == ['openssh-clients' if fedora else 'openssh-client',
+                               'ripgrep', 'curl', 'python3-pytest-cov',
                                'python3-gobject' if fedora else 'python3-gi',
                                'vte291-gtk4' if fedora else 'gir1.2-vte-3.91']
         if fedora:

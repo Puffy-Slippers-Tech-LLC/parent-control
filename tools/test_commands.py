@@ -341,7 +341,7 @@ Complete categories (combine in any order; execute host, system, integration, e2
 
   Each VM retains its report; configured queues retain a combined result summary.
   VM execution automatically records the shared watch layout, including all
-  active VMs in this runner's queue and their SSH output, with or without tools/watch open.
+  active VMs in this runner's queue and their SSH output, with or without ONPC: Watch open.
   Latest category-ID-VMs.webm files live in output/test-runs/recordings/.
   VM names follow numeric config IDs; no timestamp, age or size rotation.
   system --id N[,N...] selects persistent IDs shown by system --list.

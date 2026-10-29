@@ -193,10 +193,6 @@ updateversion:
 	@$(MAKE) --no-print-directory build PACKAGE_FORMAT=$(PACKAGE_FORMAT)
 
 .PHONY: package-source-files
-.PHONY: watch
-watch: export ONPC_WATCH_VM_ORIGIN := $(origin VM)
-watch:
-	@/usr/bin/python3 -IB tools/vm_selection.py --from-make watch
 
 package-source-files:
 	@printf '%s\n' $(sort $(PACKAGE_SOURCE_FILES))
@@ -334,7 +330,7 @@ uninstalldeb:
 
 # Prepare the current app version's snapshot through the guarded helper.
 .PHONY: prepare-appsnapshot
-watch prepare-appsnapshot check-system test-all test-all-verify: export ONPC_MAKE_VM := $(value VM)
+prepare-appsnapshot check-system test-all test-all-verify: export ONPC_MAKE_VM := $(value VM)
 prepare-appsnapshot:
 	@/usr/bin/python3 -IB tools/vm_selection.py --from-make appsnapshot
 

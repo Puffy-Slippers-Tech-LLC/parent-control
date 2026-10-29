@@ -623,8 +623,8 @@ journals remain blockers until recovered.
 The [runner reconnection contract](../tests/README.md#aggregate-execution-and-reconnection)
 owns attachment and cancellation of explicit selections and default queues.
 Current IDs may identify the same retained canonical guest, never adopt another
-guest after renumbering. `tools/watch` and `make watch` observe all registered
-VMs without a VM parameter; viewing does not authorize VM mutation.
+guest after renumbering. **ONPC: Watch** observes all registered
+VMs; viewing does not authorize VM mutation.
 
 `tools/test-vm` accepts this configured-name selector and no URI, disk, XML or
 snapshot-name input. Its `exec` action accepts arbitrary guest command arguments

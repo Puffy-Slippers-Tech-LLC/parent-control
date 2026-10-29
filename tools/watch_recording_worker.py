@@ -327,7 +327,7 @@ def render(control, root, output, *, compositor=None, sources=None, vm_names=Non
     import gi
     gi.require_version('Gtk', '4.0')
     from gi.repository import GLib
-    from watch_viewer import application
+    from watch_recording_viewer import application
     from watch_checkouts import Discovery
     state = dict(ready=False, closing=False, error=None, render_ns=0, samples=0,
                  last_render_ns=time.monotonic_ns(), skipped_render_frames=0)
@@ -338,8 +338,7 @@ def render(control, root, output, *, compositor=None, sources=None, vm_names=Non
     if vm_names is not None:
         sources = {checkout: dict(options, vm_names=vm_names) for checkout, options in sources.items()}
     app = application(checkouts={root: root.name}, sources=sources,
-                      application_id='org.onpc.WatchRecording',
-                      tick_interval=200, window_size=(WIDTH, HEIGHT), viewer_only=True)
+                      window_size=(WIDTH, HEIGHT))
     encoder = Encoder(output)
     control.setblocking(False)
 

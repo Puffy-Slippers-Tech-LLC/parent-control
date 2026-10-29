@@ -232,7 +232,7 @@ recovery routes remain necessary in that case.
 - Runner-owned recordings reuse the same watch renderer and shared feeds under
   the [recording contract](../../tests/README.md#vm-watch-recordings). They have
   no input channel or VM lifecycle authority and work without a visible viewer.
-- `tools/watch` observes all registered VMs without a VM parameter.
+- **ONPC: Watch** observes all registered VMs without selecting a mutation target.
   Its VM panels must remain read-only, live and interruption-free.
   The left runner terminal may request its displayed command's cooperative
   cancellation, including the owned cleanup of a VM test; it never sends direct

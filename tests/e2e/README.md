@@ -221,19 +221,13 @@ remain host-safe; a listing is never an execution pass.
 
 ### Optional live viewing
 
-Run `tools/watch` or `make watch` from your desktop terminal whenever you want to watch the
-registered test VMs, during E2E or any other VM work. Tests remain headless by default: the runner never launches a
-window. You can open, close or reopen the viewer during an attempt. Another
-`tools/watch` launch reuses and presents the existing window;
-the registered VMs share one viewer per desktop session, including concurrent launches.
-Launch commands return after service startup without holding the terminal.
-Select **VM** to keep the VM viewer visible, or **Active** to share the right
-panel with concurrent host UI tests. Hidden viewers stop rendering and reading
-pixel payloads. The left terminal follows the invoking checkout's active
-`fix-tests` or `run-tests` output. The VM command transcript stays in the VM view.
-Leave it open across reboot, shutdown, failure cleanup and subsequent attempts; it shows
-Waiting between available displays and resumes automatically. Only closing the
-window yourself ends it. Automation neither owns nor signals your viewer process.
+Open **ONPC: Watch** in VS Code to observe registered test VMs during E2E or
+other VM work. Tests remain headless: the runner never opens the tab.
+Select an individual VM or the All grid. Hidden tabs stop requesting frames;
+closing the tab leaves tests running. Run Status follows related worktrees,
+and each VM view includes progress and filtered command output. The reader
+resumes when displays return after shutdown, restoration or cleanup.
+See the [extension guide](../../vscode/onpc-watch/README.md) for setup and controls.
 
 The same viewer follows guarded VM experiments and integration qualifications:
 the existing display collector supplies the guest screen, and the command pane

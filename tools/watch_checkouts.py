@@ -1,4 +1,4 @@
-"""Checkout identities and bounded background discovery for the desktop watcher."""
+"""Checkout identities and bounded background discovery for watch readers."""
 
 import hashlib
 import os
@@ -19,7 +19,7 @@ def checkout(path):
     if (not root.is_absolute() or root.resolve() != root or
             any(part.is_symlink() for part in (root, *root.parents)) or
             root.stat().st_uid != os.getuid() or
-            not (root / 'tools/watch').is_file() or not (root / '.git').exists()):
+            not (root / 'tools/watch_webview.py').is_file() or not (root / '.git').exists()):
         raise ValueError('watch: invalid checkout')
     return root
 

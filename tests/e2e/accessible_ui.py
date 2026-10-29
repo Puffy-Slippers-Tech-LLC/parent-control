@@ -1388,9 +1388,6 @@ def owned_surface_id(identity):
         ('startup-error-', 'startup-error-window'),
         ('preview-screen-', 'preview-screen-dialog'),
         ('preview-viewer-', 'preview-viewer-window'),
-        ('e2e-watch-', 'watch-window'),
-        ('ui-watch-', 'watch-window'),
-        ('watch-', 'watch-window'),
         ('about-', 'about-dialog'),
         ('feedback-', 'feedback-dialog'),
         ('parent-', 'parent-window'),
@@ -1415,11 +1412,10 @@ PARENT_APPLICATION = 'com.puffyslippers.OhNoParentControl.Parent'
 KIOSK_APPLICATION = 'com.puffyslippers.OhNoParentControl'
 CHILD_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildRequest'
 CHILD_PANEL_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildUI'
-WATCH_APPLICATION = 'org.onpc.E2EWatch'
 PRODUCT_APPLICATIONS = (PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION)
 PROMPT_DIAGNOSTIC_APPLICATION_IDS = (
     *PRODUCT_APPLICATIONS, CHILD_PANEL_APPLICATION,
-    'com.puffyslippers.OhNoParentControl.KioskNotifications', WATCH_APPLICATION,
+    'com.puffyslippers.OhNoParentControl.KioskNotifications',
 )
 PROMPT_DIAGNOSTIC_SURFACE_IDS = (
     'language-dialog', 'update-required-dialog', 'startup-error-dialog',
@@ -1442,8 +1438,6 @@ def owned_applications(identity):
     fixture = re.match(r'^onpc-fixture-(native|flatpak|snap|game)-(primary|secondary)(?:-|$)', identity)
     if fixture:
         return (f'com.puffyslippers.ONPCFixture.{fixture[1]}.{fixture[2]}',)
-    if identity.startswith(('e2e-watch-', 'ui-watch-', 'watch-')):
-        return (WATCH_APPLICATION,)
     if identity.startswith('kiosk-system-notification'):
         return ('com.puffyslippers.OhNoParentControl.KioskNotifications',)
     if identity in ('child-reminder-preview', 'child-time-notification') or identity.startswith(
@@ -2105,17 +2099,7 @@ class AccessibleUI:
         return matches[0]
 
     def owned_applications(self, identity):
-        applications = owned_applications(identity)
-        if applications == (WATCH_APPLICATION,):
-            requested = (self.application_ids() if callable(self.application_ids)
-                         else self.application_ids)
-            if requested is not None:
-                # Host launchers declare exact, configuration-validated VM IDs.
-                # Never discover a watcher owner from a name or window title.
-                applications = tuple(value for value in requested
-                    if value == WATCH_APPLICATION or re.fullmatch(
-                        re.escape(WATCH_APPLICATION) + r'\.vm_(?:[0-9a-f]{2}){1,63}', value))
-        return applications
+        return owned_applications(identity)
 
     def snapshot_owned_target(self, identity, *, root=None, showing=True,
                               check_prompt=False, observation=None,
@@ -2281,7 +2265,6 @@ class AccessibleUI:
         app_id = identify(application)
         primary = ((f'onpc-fixture-{"-".join(app_id.split(".")[-2:])}',)
                    if app_id.startswith('com.puffyslippers.ONPCFixture.') else
-                   ('watch-window',) if app_id in self.owned_applications('watch-window') else
                    ('parent-window', 'parent-access-denied-window', 'startup-error-window',
                     'parent-startup-window')
                    if app_id == PARENT_APPLICATION else
@@ -12972,8 +12955,7 @@ class AccessibleUI:
             application_nodes = self.snapshot_scope(nodes, snapshot, application)
             application_kind = self._prompt_application_kind(facts[application]['name'])
             owned = bool(identities[application] in (
-                PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION,
-                *self.owned_applications('watch-window')))
+                PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION))
             for surface in application_nodes:
                 if surface is application or not facts[surface]['showing']:
                     continue

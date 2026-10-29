@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from e2e_watch_viewer import AsyncFeed, Feed, activity_text, progress_text, WAITING, CONNECTED
 from ui_watch_transport import Feeds, label
 from watch_checkouts import Discovery, checkout, identity
-from watch_viewer import ResourceUsage, viewer_entries
+from watch_model import ResourceUsage, viewer_entries
 from watch_output import Output
 
 

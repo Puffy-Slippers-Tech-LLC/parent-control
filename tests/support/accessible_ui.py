@@ -9,7 +9,6 @@ from accessible_ui import (
     EXTERNAL_PROVIDER_CONTRACTS,
     KIOSK_APPLICATION,
     PARENT_APPLICATION,
-    WATCH_APPLICATION,
     owned_applications,
 )
 
@@ -110,11 +109,10 @@ def product_tree(root):
         pending.extend(node.children)
     if not any(owned_applications(identity) for identity in identities):
         return root
-    if any(identity in (PARENT_APPLICATION, KIOSK_APPLICATION, WATCH_APPLICATION)
+    if any(identity in (PARENT_APPLICATION, KIOSK_APPLICATION)
            for identity in identities):
         return root
-    app_id = (WATCH_APPLICATION if any(identity.startswith(('e2e-watch-', 'ui-watch-', 'watch-')) for identity in identities)
-              else KIOSK_APPLICATION if any(identity.startswith('kiosk-') for identity in identities)
+    app_id = (KIOSK_APPLICATION if any(identity.startswith('kiosk-') for identity in identities)
               else PARENT_APPLICATION)
     application = Node(identity=app_id, children=[root])
     # Separate toplevel fixture dialogs explicitly declare their transient

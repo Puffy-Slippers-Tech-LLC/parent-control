@@ -845,6 +845,11 @@ with a failure result after draining the queue. Unverified repair edits remain
 in the checkout without being committed as verified repairs. Stateful histories
 retain their indivisible scheduling boundary.
 
+This fail-and-continue policy belongs only to `fix-tests`. `write-e2e` and other
+execution-plan launchers must exit with failure on allowance exhaustion while
+retaining the unfinished task and handoff; they must not advance to dependent
+tasks. See the [plan allowance contract](../docs/Execution-Plans.md#common-launcher-interface).
+
 Watch case and overall totals show **completed/failed/total**: completed is green,
 and failed is red and underlined. Clicking the failed count in **ONPC: Watch**
 opens the cumulative error log in the VS Code editor.

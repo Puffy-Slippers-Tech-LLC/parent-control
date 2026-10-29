@@ -234,6 +234,10 @@ The repair count survives reloads, fresh runs, prerequisite suspension and revie
 reconciliation; none resets or replenishes it. Capacity retries keep the original
 session's kind and charge neither allowance again. An exhausted allowance stops
 with the exact retained handoff rather than skipping the task.
+This is a launcher failure: the unfinished task remains unchecked and later
+tasks do not start, since they may depend on it. This rule also applies to
+`write-e2e`. Only `fix-tests` may record an exhausted case as failed and continue
+its independent repair queue; that exception must not enter shared plan execution.
 Older checkpoints retain their original charges; an absent repair counter starts
 at zero without guessing or refunding historical turn classifications.
 For an explicitly requested manual replan, first commit the reviewed master,

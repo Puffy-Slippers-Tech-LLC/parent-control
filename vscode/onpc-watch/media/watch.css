@@ -38,7 +38,7 @@ nav button[aria-pressed="true"] {
 .session-output .session-activity { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-composer { margin: 0 8px; }
 .session-composer textarea {
-    width: 100%; box-sizing: border-box; resize: vertical; min-height: 4em;
+    display: block; width: 100%; box-sizing: border-box; resize: none; overflow-y: hidden;
     color: var(--vscode-input-foreground); background: var(--vscode-input-background);
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
 }

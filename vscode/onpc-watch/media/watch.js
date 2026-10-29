@@ -96,15 +96,29 @@
         const composer = element('div', 'session-composer', session);
         const working = element('div', '', composer);
         const input = element('textarea', '', composer);
+        input.rows = 1;
         input.setAttribute('aria-label', 'Session chat');
         input.placeholder = 'Message the session…';
+        const fitInput = () => {
+            if (!input.clientWidth) return;
+            input.style.height = 'auto';
+            input.style.height = `${input.scrollHeight + input.offsetHeight - input.clientHeight}px`;
+        };
+        input.addEventListener('input', fitInput);
+        let inputWidth = 0;
+        const inputObserver = new ResizeObserver(([entry]) => {
+            if (entry.contentRect.width === inputWidth) return;
+            inputWidth = entry.contentRect.width;
+            fitInput();
+        });
+        inputObserver.observe(input);
         const error = element('div', 'session-error', body);
         error.setAttribute('role', 'status');
         const footer = element('div', 'session-footer', session);
         const model = element('span', '', footer);
         const simplified = element('span', '', footer);
         simplified.append('Simplified ');
-        const section = { session, output, composer, working, input, error, model };
+        const section = { session, output, composer, working, input, error, model, fitInput, inputObserver };
         section.toggle = link(simplified, '[on]', () => sessionAction(section, 'simplified'));
         input.addEventListener('keydown', event => {
             if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !event.altKey) {
@@ -134,7 +148,8 @@
             section.outputSignature = signature;
             if (follow) section.output.scrollTop = section.output.scrollHeight;
         }
-        section.working.textContent = `Chat${view.working ? ' · ' + view.working : ''}`;
+        section.working.textContent = view.working || '';
+        section.working.hidden = !view.working;
         section.model.textContent = view.model;
         section.toggle.textContent = view.simplified ? '[on]' : '[off]';
         section.input.disabled = !view.input_enabled;
@@ -268,7 +283,11 @@
     function runStatus(entries) {
         const ids = new Set(entries.map(entry => entry.id));
         for (const [id, section] of sections) {
-            if (!ids.has(id)) { section.body.remove(); sections.delete(id); }
+            if (!ids.has(id)) {
+                section.inputObserver.disconnect();
+                section.body.remove();
+                sections.delete(id);
+            }
         }
         if (entries.length) runs.querySelector('.empty')?.remove();
         entries.forEach((entry, index) => {
@@ -380,6 +399,7 @@
             if (kind !== 'extend') section.pending = undefined;
             if (result.ok && kind === 'send' && section.input.value === text) {
                 section.input.value = '';
+                section.fitInput();
             }
             if (!result.ok) section.error.textContent = result.error;
         }

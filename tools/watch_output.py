@@ -398,7 +398,8 @@ class SessionOutput:
             self.owner, self.run, self.identity = owner, run, state['session']
             simplified = self.panel.simplified if self.panel else True
             self.panel = SessionPanel(io.StringIO(), send=self.send,
-                terminal_size=self.terminal_size, embedded=self.embedded)
+                terminal_size=self.terminal_size, embedded=self.embedded,
+                hide_tool_results=True)
             self.panel.simplified = simplified
             self.panel.update_text_output({})
             self.offset = 0

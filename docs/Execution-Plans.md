@@ -443,7 +443,9 @@ display reload applies them immediately, including during an active agent sessio
 without waiting for controller or supervisor replacement. Hover requests a hand
 pointer where the terminal supports OSC 22.
 Turning Simplified off restores the full output, including commands, tools and
-their results. Switching views keeps the chat draft
+their results in launcher terminals. [Watch's Session view](../vscode/onpc-watch/README.md)
+hides command and tool result bodies in both modes, retaining activity names
+and the original saved transcript. Switching views keeps the chat draft
 and saved transcripts intact and returns the output viewport to its newest rows.
 The bottom-right column ends with Last Error and Status; it has no duplicate
 session transcript or trailing horizontal divider.

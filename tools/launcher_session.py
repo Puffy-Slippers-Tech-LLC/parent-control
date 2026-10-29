@@ -29,9 +29,10 @@ class SessionPanel(LauncherDisplay):
     Layout returns rows and caret geometry without claiming terminal ownership.
     """
 
-    def __init__(self, stream, *, send, embedded=False, **kwargs):
+    def __init__(self, stream, *, send, embedded=False, hide_tool_results=False, **kwargs):
         super().__init__(stream, **kwargs)
         self.embedded = embedded
+        self.hide_tool_results = hide_tool_results
         # Embedded hosts consume the retained transcript instead of terminal
         # bytes. Keep collecting it even when their backing stream is not a TTY.
         self.tty = self.tty or embedded
@@ -46,6 +47,42 @@ class SessionPanel(LauncherDisplay):
         self.text_identity = None
         self.text_width = 1
         self.simplified_cache = None
+
+    def visible_lines(self, logs):
+        """Watch keeps activity names without displaying captured tool results."""
+        if not self.hide_tool_results:
+            return logs
+        rows = []
+        activity = None
+        detail_pending = False
+        for line in logs:
+            text = Text.from_ansi(line)
+            plain = text.plain
+            if plain.startswith('• '):
+                if activity is not None and rows and clean(rows[-1]).strip():
+                    rows.append('')
+                activity = None
+                if text.get_style_at_offset(self.console, 2).bold:
+                    if plain.startswith('• Ran '):
+                        activity = 'command'
+                    elif plain == '• Explored':
+                        activity = 'exploration'
+                    elif re.fullmatch(r'• (?:Tool|Search) (?:working|complete)', plain):
+                        activity = 'tool'
+                detail_pending = activity == 'tool'
+            elif activity is not None:
+                if not plain.strip():
+                    continue
+                if activity == 'command' and plain.startswith('│ '):
+                    pass  # Wrapped command name.
+                elif activity == 'exploration' and re.match(r'^  (?:└ |  )(?:Read|Search) ', plain):
+                    pass
+                elif detail_pending:
+                    detail_pending = False  # Tool name or search query.
+                else:
+                    continue
+            rows.append(line)
+        return rows
 
     def simplified_lines(self, logs):
         """Project retained full output locally, so observer reloads apply now."""
@@ -191,6 +228,12 @@ class SessionPanel(LauncherDisplay):
     def layout(self, width, height, logs, *, scroll=None, output_width=None,
                input_mode='chat', question=None, working='', session_logs=None):
         """Return the same transcript/composer at any size and screen location."""
+        if self.hide_tool_results:
+            source = logs if session_logs is None else session_logs
+            logs = self.visible_lines(source)
+            if session_logs is not None:
+                session_logs = logs
+                logs = [*logs, *self.details]
         boxed = width >= 5
         show_hint = height >= 4
         chrome_height = 1 + int(boxed) + int(show_hint)
@@ -260,6 +303,7 @@ class SessionPanel(LauncherDisplay):
     def webview(self):
         """Expose the shared transcript/composer to a native webview host."""
         logs = [*self.transcript, *([self.pending] if self.pending else [])]
+        logs = self.visible_lines(logs)
         if self.simplified:
             logs = self.simplified_lines(logs) if logs else self.text_output or []
         return dict(lines=[*logs, *self.details], working=self.working(),

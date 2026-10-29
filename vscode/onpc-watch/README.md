@@ -26,9 +26,10 @@ minutes to the current question's deadline, including the launcher's actual wait
 **Session** is a blue, underlined link with a hand cursor. It replaces that
 worktree's status with the shared launcher session transcript, chatbox and
 model/effort footer, including the Simplified toggle. The transcript includes
-sent prompts and command output. Simplified mode collapses
-command activity and output to one clipped line; turn it off to see the retained
-output with its original line breaks. Successful Read/Search exploration shows
+sent prompts and agent messages. Command and tool result bodies are hidden in
+both modes; activity names remain visible and saved transcripts retain results.
+Simplified mode collapses command activity to one clipped line; turn it off to
+see each activity with its original line breaks. Successful Read/Search exploration shows
 the activity only; file contents and search matches stay out of both views.
 In the session view, the title shows `[main] fix-tests Status (mm:ss +)` while
 waiting; click **Status** to

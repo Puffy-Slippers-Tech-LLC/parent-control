@@ -1202,8 +1202,12 @@ def test_retention_permission_failure_identifies_allocation_without_starting_tes
         tmp_path, monkeypatch, capsys):
     import regression
     import test_retention
+    import vm_selection
 
     import test_activity
+    # Exercise the worker's retention gate directly. Public VM selections now
+    # enter the queue coordinator, which needs a complete checkout inventory.
+    monkeypatch.setenv(vm_selection.WORKER, '1')
     store = test_retention.Store(test_activity.retention_path(tmp_path))
     with pytest.raises(PermissionError):
         with store.session():

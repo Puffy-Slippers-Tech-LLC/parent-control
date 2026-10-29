@@ -259,6 +259,22 @@ include their nested setup phases; do not add parent and child durations.
 Timing labels contain only declared stages and fixed phase names, never
 credentials, command arguments, account names or observation contents.
 
+Parent setup/journey qualifications also record their preparation and worker
+execution in the existing `stage_durations_seconds` fields, including failures.
+Preparation finishes before test timing begins. Test timing includes nested
+worker cleanup, as in the base qualification; do not add that cleanup time to
+the test total. Older qualification results omit these spans, even when other
+preparation work was measured; their stage totals are not comparable.
+
+All guarded VM categories also emit `vm-transport-timing:` for SSH exchanges
+lasting at least one second and for failed exchanges. Each line separates the
+host ownership guard from command execution, with total monotonic elapsed time
+and the existing private command sequence when available. Use that sequence to
+find the command artifact; no command arguments or replies enter the timing
+line. These exchanges are nested within stage totals. Directory uploads prepare
+their destination and extract the archive in one guarded SSH exchange, retaining
+the transfer deadline and stopping before extraction if preparation fails.
+
 ```sh
 tools/run-tests integration --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
 tools/run-tests integration --vm 'onpc-Fedora44' check_fixture_e2e_installed
@@ -1507,6 +1523,13 @@ domain retains its first fixed failure category; later collection or cleanup
 failures remain visible without replacing the aggregate run's original category.
 An outcome is `not-run` when the attempt ended before that boundary could be
 established, rather than being inferred as a pass.
+
+`system-case-timing:` lines separate individual system cases within those stage
+totals, using the registered numeric case ID and phase. They measure host
+monotonic elapsed time between forwarded pytest start and teardown events,
+including setup and teardown. A case left active when its command closes logs
+`state=incomplete`; `state=finished` records lifecycle completion, not a passing
+verdict. These timings share the existing run log and add no guest probes.
 
 An incomplete `system-run.json` prevents a new attempt. Preserve it and its
 evidence for [identity-verified recovery](Environment.md#interrupted-or-invalid-state).

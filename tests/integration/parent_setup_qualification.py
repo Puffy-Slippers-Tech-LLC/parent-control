@@ -11,15 +11,16 @@ class ParentSetupQualification(smoke.Qualification):
     def execute(self, lease, guestfs):
         self.checkpoint('attempt-started')
         try:
-            lease.prepare()
-            host_key = smoke.runner.bootstrap(self.commands, lease, self.directory, guestfs,
-                                              system_product_free=True)
-            lease.guard(off=True)
-            lease.save('isolated')
-            self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets, package_only=True)
-            self.result['provenance'] = self.verified.inputs
-            self.result['fixture_credentials'] = self.credentials.provision(
-                lease, self.verified, self.directory, guestfs, self.commands)
+            with self.ledger.measure('preparation'):
+                lease.prepare()
+                host_key = smoke.runner.bootstrap(self.commands, lease, self.directory, guestfs,
+                                                  system_product_free=True)
+                lease.guard(off=True)
+                lease.save('isolated')
+                self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets, package_only=True)
+                self.result['provenance'] = self.verified.inputs
+                self.result['fixture_credentials'] = self.credentials.provision(
+                    lease, self.verified, self.directory, guestfs, self.commands)
             # Credentials remain controller-private: this worker only observes.
             input_review = self.result.get('scope') == 'installed-parent-input-qualification'
             standard_input_review = (
@@ -91,10 +92,11 @@ class ParentSetupQualification(smoke.Qualification):
                 smoke.require(len(steps) == len(stages), 'setup:missing-stages')
                 smoke.module_result(self.directory)
 
-            self.result['worker_evidence'] = smoke.e2e_worker.run_distribution(
-                self.directory, lease, self.ledger, expected_inputs=self.verified.source_files,
-                observe=lambda: None, guarded_observe=observe, validate=validate,
-                on_failure=self.failure, timeout=1800)
+            with self.ledger.measure('test'):
+                self.result['worker_evidence'] = smoke.e2e_worker.run_distribution(
+                    self.directory, lease, self.ledger, expected_inputs=self.verified.source_files,
+                    observe=lambda: None, guarded_observe=observe, validate=validate,
+                    on_failure=self.failure, timeout=1800)
         finally:
             self.checkpoint('before-cleanup')
 
@@ -130,44 +132,46 @@ class ParentJourneyQualification(smoke.Qualification):
     def execute(self, lease, guestfs):
         self.checkpoint('attempt-started')
         try:
-            lease.prepare()
-            self.attach_installed_snapshot(lease)
-            product_free = isinstance(self, (GdmProductFreeQualification,
-                                           ProductFreeEntryQualification))
-            host_key = smoke.runner.bootstrap(
-                self.commands, lease, self.directory, guestfs,
-                observation_only=self.observation_only,
-                **({'system_product_free': True} if self.system_product_free else
-                   {'e2e_product_free': True} if product_free else
-                   {'e2e_installed': True} if getattr(self, 'fixture_selection', None) is not None else {}))
-            lease.guard(off=True)
-            lease.save('isolated')
-            self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets,
-                                                upgrade=self.upgrade_assets,
-                **({'package_only': True} if self.package_only or
-                   getattr(self, 'fixture_selection', None) is not None else {}))
-            self.result['provenance'] = self.verified.inputs
-            if self.upgrade_assets:
-                self.result['upgrade_inputs'] = self.verified.upgrade_inputs
-            self.result['fixture_credentials'] = self.credentials.provision(
-                lease, self.verified, self.directory, guestfs, self.commands)
-            context = SimpleNamespace(directory=self.directory, lease=lease, verified=self.verified,
-                                      commands=self.commands, host_key=host_key)
-            context.fixture_selection = getattr(self, 'fixture_selection', None)
-            context.fixture_subsets = self.fixture_subsets
-            context.fixture_caller = self.fixture_caller
-            self.prepare_context(context)
+            with self.ledger.measure('preparation'):
+                lease.prepare()
+                self.attach_installed_snapshot(lease)
+                product_free = isinstance(self, (GdmProductFreeQualification,
+                                               ProductFreeEntryQualification))
+                host_key = smoke.runner.bootstrap(
+                    self.commands, lease, self.directory, guestfs,
+                    observation_only=self.observation_only,
+                    **({'system_product_free': True} if self.system_product_free else
+                       {'e2e_product_free': True} if product_free else
+                       {'e2e_installed': True} if getattr(self, 'fixture_selection', None) is not None else {}))
+                lease.guard(off=True)
+                lease.save('isolated')
+                self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets,
+                                                    upgrade=self.upgrade_assets,
+                    **({'package_only': True} if self.package_only or
+                       getattr(self, 'fixture_selection', None) is not None else {}))
+                self.result['provenance'] = self.verified.inputs
+                if self.upgrade_assets:
+                    self.result['upgrade_inputs'] = self.verified.upgrade_inputs
+                self.result['fixture_credentials'] = self.credentials.provision(
+                    lease, self.verified, self.directory, guestfs, self.commands)
+                context = SimpleNamespace(directory=self.directory, lease=lease, verified=self.verified,
+                                          commands=self.commands, host_key=host_key)
+                context.fixture_selection = getattr(self, 'fixture_selection', None)
+                context.fixture_subsets = self.fixture_subsets
+                context.fixture_caller = self.fixture_caller
+                self.prepare_context(context)
 
             def progress(stage, observed):
                 self.record_progress(journey, stage, observed)
 
             journey = self.journey(context, progress)
-            self.result['worker_evidence'] = smoke.e2e_worker.run_distribution(
-                self.directory, lease, self.ledger, expected_inputs=self.verified.source_files,
-                observe=lambda: None, guarded_observe=journey.step, validate=journey.validate,
-                on_failure=lambda category, code: self.journey_failure(journey, category, code),
-                timeout=self.worker_timeout, credentials=self.credentials)
-            self.result['matched_screens'] = journey.validate()
+            with self.ledger.measure('test'):
+                self.result['worker_evidence'] = smoke.e2e_worker.run_distribution(
+                    self.directory, lease, self.ledger, expected_inputs=self.verified.source_files,
+                    observe=lambda: None, guarded_observe=journey.step, validate=journey.validate,
+                    on_failure=lambda category, code: self.journey_failure(journey, category, code),
+                    timeout=self.worker_timeout, credentials=self.credentials)
+                self.result['matched_screens'] = journey.validate()
         except BaseException as error:
             code = (str(error) if isinstance(error, smoke.EvidenceError)
                     else smoke.runner.error_category(error))

@@ -182,21 +182,43 @@ class Transport:
 
     def _call(self, argv, *, input, timeout, check, attempts, on_output, on_stream, selection,
               diagnostic_stdout):
-        self.guard(self.config)
+        started = time.perf_counter()
+        command_started = None
+        sequence = None
+        outcome = 'failed'
         previous_watch = getattr(self.commands, 'watch_command', None)
-        self.commands.watch_command = selection
         try:
+            self.guard(self.config)
+            command_started = time.perf_counter()
+            current_sequence = getattr(self.commands, 'sequence', None)
+            if type(current_sequence) is int:
+                sequence = current_sequence + 1
+            self.commands.watch_command = selection
             def command_output(data, stream):
                 if stream == 'stdout':
                     on_output(data)
-            return self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
-                                     input=input, timeout=timeout, check=check, merge_stderr=False,
-                                     on_output=on_stream if on_stream is not None else
-                                     command_output if on_output is not None else None,
-                                     **({} if diagnostic_stdout is None else
-                                        {'diagnostic_stdout': diagnostic_stdout}))
+            result = self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
+                                       input=input, timeout=timeout, check=check, merge_stderr=False,
+                                       on_output=on_stream if on_stream is not None else
+                                       command_output if on_output is not None else None,
+                                       **({} if diagnostic_stdout is None else
+                                          {'diagnostic_stdout': diagnostic_stdout}))
+            outcome = 'finished' if self.commands.last_returncode == 0 else 'failed'
+            return result
         finally:
             self.commands.watch_command = previous_watch
+            finished = time.perf_counter()
+            elapsed = finished - started
+            # Keep fast probes quiet. Fixed fields and the existing private
+            # command sequence locate slow/failed exchanges without argv,
+            # paths, host addresses, credentials or observation contents.
+            if elapsed >= 1 or outcome == 'failed':
+                guard_elapsed = (command_started if command_started is not None else finished) - started
+                command_elapsed = finished - command_started if command_started is not None else 0
+                identity = '' if sequence is None else f' sequence={sequence}'
+                print(f'vm-transport-timing: operation=ssh-command{identity} state={outcome} '
+                      f'duration_seconds={elapsed:.3f} guard_seconds={guard_elapsed:.3f} '
+                      f'command_seconds={command_elapsed:.3f}', file=sys.stderr, flush=True)
 
     def ready(self):
         self.probe_ready()
@@ -366,8 +388,11 @@ class Transport:
             stream = io.BytesIO()
             with tarfile.open(fileobj=stream, mode='w') as archive:
                 archive.add(local, arcname='.')
-            self.call(['mkdir', '-p', '--', guest])
-            self.call(['tar', '-C', guest, '-xf', '-'], input=stream.getvalue(), timeout=300)
+            # One guarded SSH session owns both preparation and extraction.
+            # The destination stays a positional argument, including spaces
+            # and shell metacharacters; failed mkdir cannot start tar.
+            self.call(['/bin/sh', '-c', 'mkdir -p -- "$1" && exec tar -C "$1" -xf -',
+                       'onpc-copy', guest], input=stream.getvalue(), timeout=300)
         else:
             require(local.is_file() and not local.is_symlink(), 'transport:source-file')
             program = ('import os,pathlib,sys; p=pathlib.Path(sys.argv[1]); '

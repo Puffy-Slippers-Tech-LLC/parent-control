@@ -2,6 +2,7 @@
 
 import json
 import sys
+import time
 from contextlib import contextmanager
 
 from tools.e2e_progress import Progress as WatchProgress
@@ -67,8 +68,17 @@ class Progress:
         self.operation = None
         self.watch = watch
         self.active = False
+        self.timing = None
 
-    def close(self):
+    def close(self, *, finished=False):
+        if self.timing is not None:
+            case_id, started = self.timing
+            self.timing = None
+            elapsed = time.monotonic() - started
+            state = 'finished' if finished else 'incomplete'
+            print(f'system-case-timing: case_id={case_id} phase={self.phase} '
+                  f'state={state} duration_seconds={elapsed:.3f}',
+                  file=sys.stderr, flush=True)
         if self.operation is not None:
             self.operation.__exit__(None, None, None)
             self.operation = None
@@ -96,13 +106,14 @@ class Progress:
                     if kind == 'started':
                         from watch_activity import operation
                         self.close()
+                        self.timing = (identity.numeric_id, time.monotonic())
                         if self.watch is not None:
                             self.watch.started(result['nodeid'])
                         self.active = True
                         self.operation = operation(f'System case [{identity.numeric_id}]: {identity.title}')
                         self.operation.__enter__()
                     elif kind == 'finished':
-                        self.close()
+                        self.close(finished=True)
                 if kind == 'failure':
                     result['detail'] = ('Installed test failed; traceback is flushed in '
                                         'guest results/regression-failures.jsonl and collected '

@@ -400,7 +400,7 @@ def test_fedora_parent_alias_scopes_prepare_after_probe_before_installed_setup(
     controller = object.__new__(qualification.ParentSetupQualification)
     controller.directory = tmp_path
     controller.commands = Mock()
-    controller.ledger = Mock()
+    controller.ledger = qualification.smoke.runner.RunLedger()
     controller.assets = tmp_path / 'assets'
     controller.credentials = SimpleNamespace(provision=Mock(return_value={}))
     controller.result = {'scope': scope}
@@ -499,7 +499,7 @@ def test_acknowledgement_requires_durable_evidence_and_fresh_worker(
     controller = object.__new__(qualification.ParentSetupQualification)
     controller.directory = tmp_path
     controller.commands = Mock()
-    controller.ledger = Mock()
+    controller.ledger = qualification.smoke.runner.RunLedger()
     controller.assets = tmp_path / 'assets'
     controller.credentials = SimpleNamespace(provision=Mock(return_value={}))
     controller.result = {}

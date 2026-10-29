@@ -40,7 +40,7 @@ def test_parent_bootstrap_aliases_share_preparation_before_installed_setup(
 
     # All wrappers select this exact baseline class. Exercise its real detached
     # worker callback, with only VM, producer and installation operations doubled.
-    controller = qualification.ParentSetupQualification(tmp_path, Mock(), Mock(), Mock(),
+    controller = qualification.ParentSetupQualification(tmp_path, Mock(), smoke.runner.RunLedger(), Mock(),
         {'scope': scope}, {}, assets=tmp_path / 'assets', credentials=Mock())
     controller.fixture_selection = {'frozen': 'execution-owner'}
     controller.checkpoint = Mock()

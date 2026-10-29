@@ -183,8 +183,9 @@ def prepare(record):
         'candidate_sha256': marker['package_sha256'],
         'boundary': 'prelease-package-without-confinement-record-to-admission-protocol-1',
     }, sort_keys=True))
-    accounts = provision_native('trusted-hard')
-    guest.require(provision_native('trusted-soft') == accounts,
+    variants = ('trusted-hard', 'trusted-soft')
+    accounts = provision_native('trusted-hard', trusted_variants=variants)
+    guest.require(provision_native('trusted-soft', trusted_variants=variants) == accounts,
                   'previous-upgrade:fixture-identities')
     parent, child, other = (accounts[role] for role in ('parent', 'child', 'other'))
     before_other = account_digest(other)

@@ -186,7 +186,7 @@ def native_paths(variant):
     return paths[variant]
 
 
-def provision_native(variant='command'):
+def provision_native(variant='command', *, trusted_variants=None):
     """Verify fixed native witnesses installed by the fixture preparation owner."""
     guest.guard()
     target, desktop, _ = native_paths(variant)
@@ -205,7 +205,8 @@ def provision_native(variant='command'):
     verify_fixture_files(declaration, {})
     if variant in TRUSTED_VARIANTS:
         from system_trusted_fixtures import verify_trust
-        verify_trust(variant=variant)
+        verify_trust(variant=variant,
+                     **({'variants': trusted_variants} if trusted_variants is not None else {}))
     accounts = {role: pwd.getpwnam(name).pw_uid for role, name in (
         ('child', 'onpc-child-riley'), ('other', 'onpc-child-jordan'),
         ('parent', 'onpc-parent-jamie'))}

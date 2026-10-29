@@ -71,24 +71,27 @@ def validate_database(raw, files, untrusted):
                   'trusted-fixtures:untrusted-input-changed')
 
 
-def verify_runtime_trust(variant, preparation):
-    """Audit Fedora removal's attempt-owned hard witness, not retired captures.
+def verify_runtime_trust(variant, preparation, *, variants=('trusted-hard',)):
+    """Audit the attempt-owned trusted witnesses, not retired captures.
 
     The shared provisioner owns placement/readiness. Keep an independent
     comparison with its frozen build, exact native admission and backend/tool
     verification here before the case changes product policy.
     """
-    guest.require(variant == 'trusted-hard' and guest.package_path().suffix == '.rpm'
+    guest.require(variants in (('trusted-hard',), TRUSTED_VARIANTS)
+                  and variant in variants and guest.package_path().suffix == '.rpm'
                   and preparation['guest'].get('os_id') == 'fedora'
                   and preparation['guest'].get('version') == '44',
                   'trusted-fixtures:runtime-selection')
-    target, _, _ = native_paths(variant)
-    data = root_file(target, 0o755, limit=16777216)
-    source = guest.PAYLOAD / 'fixtures/mechanical/identity-trusted-hard'
-    guest.require(source.is_file() and not source.is_symlink()
-                  and hashlib.sha256(data).hexdigest() == guest.sha(source),
-                  'trusted-fixtures:payload-changed')
-    files = {str(target): {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}}
+    files = {}
+    for identity in variants:
+        target, _, _ = native_paths(identity)
+        data = root_file(target, 0o755, limit=16777216)
+        source = guest.PAYLOAD / ('fixtures/mechanical/identity-' + identity)
+        digest = hashlib.sha256(data).hexdigest()
+        guest.require(source.is_file() and not source.is_symlink()
+                      and digest == guest.sha(source), 'trusted-fixtures:payload-changed')
+        files[str(target)] = {'size': len(data), 'sha256': digest}
     service_gid = grp.getgrnam('fapolicyd').gr_gid
     trust = root_file('/etc/fapolicyd/trust.d/onpc-fixture-runtime.trust',
                       0o600, gid=service_gid)
@@ -130,7 +133,7 @@ def verify_runtime_trust(variant, preparation):
     return {'files': files, 'backend': backend}
 
 
-def verify_trust(*, variant=None):
+def verify_trust(*, variant=None, variants=('trusted-hard',)):
     """Verify exact prepared provenance and current native trust; never repair."""
     marker = guest.guard()
     guest.enable_diagnostics()
@@ -139,7 +142,7 @@ def verify_trust(*, variant=None):
         return {'baseline_sha256': marker['baseline_sha256'],
                 'preparation_sha256': marker['preparation_sha256'],
                 'selected_inputs_sha256': marker['selected_inputs_sha256'],
-                'provenance': verify_runtime_trust(variant, preparation)}
+                'provenance': verify_runtime_trust(variant, preparation, variants=variants)}
     transaction = json.loads(root_file(TRUST_RECORD, 0o600))
     guest.require(isinstance(transaction, dict) and set(transaction) == {
         'purpose', 'complete', 'pending'} and transaction['purpose'] == TRUST_PURPOSE

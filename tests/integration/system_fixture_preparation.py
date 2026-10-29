@@ -73,7 +73,7 @@ def validate_input(value, target=None):
 
 def stage_mechanical_comparison(selection, destination, *, identity='mechanical'):
     """Use the provisioned build as the independent guest comparison input."""
-    if identity not in ('mechanical', 'trusted-hard'):
+    if identity not in ('mechanical', 'trusted-hard', 'trusted-soft'):
         raise ValueError('fixtures:comparison-identity')
     loaded = fixture_provision.authenticated_bundle(selection_record(selection))
     # Every mechanical alias has identical verified bytes within this bundle.

@@ -658,7 +658,8 @@ def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suff
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_fixture_selection, failure, vm, target):
     import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
+    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(
+        name=vm, fixture_path='selected-fixtures'))
     record = frozen_fixture_selection.record()
     record['target'] = target
     record['allocation'] = record['allocation'].replace('ubuntu', target)

@@ -535,14 +535,16 @@ def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
 @pytest.mark.parametrize(('vm', 'target'), [(vm_name(0), 'ubuntu'), (vm_name(1), 'fedora')])
 @pytest.mark.parametrize('selector', ['check_fixture_e2e_installed', 'check_fixture_e2e_product_free'])
 def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fixture_selection, vm, target, selector):
+    import vm_selection
     monkeypatch.setenv('ONPC_TEST_VM', vm)
+    fixture_path = vm_selection.selected().fixture_path
     selected = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('runtime-ubuntu-', 'runtime-' + target + '-'))
     record = selected.record()
     source = source_proof_selection(selected)
     def execute(command, **options):
         assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
-            '--target', target, '--qualify-source-edit')
+            '--target', target, '--fixture-path', fixture_path, '--qualify-source-edit')
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n'
             + 'fixture-execution: source-edit=' + json.dumps(source) + '\n').encode())
         return 0

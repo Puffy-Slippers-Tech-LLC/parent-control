@@ -1538,6 +1538,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                                 resume=resuming, namespace='fix-tests')
         pending = checkpoint.state.get('pending')
         completed = [kind for kind in categories if checkpoint.complete(kind)]
+        if resuming and pending is None:
+            # Startup may have stopped before recording the active category.
+            # Preserve its runner checkpoint rather than starting it afresh.
+            pending = next((kind for kind in categories if kind not in completed), None)
         start_round = checkpoint.state.get('round', 1) if resuming else 1
         if start_round > int(rounds):
             raise ValueError('resume round exceeds --rounds; retain the original round count')

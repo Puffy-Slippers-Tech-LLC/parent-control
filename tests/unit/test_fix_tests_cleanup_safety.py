@@ -1619,10 +1619,9 @@ def test_category_diagnostics_and_repairs_use_one_bounded_case(checkout, resumin
         'attempted_case': None if resuming else 'removed::case'}))
     if resuming:
         from test_checkpoint import Checkpoint
-        checkpoint = Checkpoint(root, [('ui', ['--timeout', '1800s', '-m', 'not live_e2e'])],
-                                namespace='fix-tests')
-        checkpoint.state['pending'] = 'ui'
-        checkpoint.save()
+        # Startup can stop before the launcher records a pending category.
+        Checkpoint(root, [('ui', ['--timeout', '1800s', '-m', 'not live_e2e'])],
+                   namespace='fix-tests')
     run, _ = fix_tests.select(root, categories=('ui', '--timeout', '1800s', '-m', 'not live_e2e'),
                              resume=resuming)
     output = io.StringIO()

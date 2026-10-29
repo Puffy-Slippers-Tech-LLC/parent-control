@@ -33,6 +33,17 @@ nav button[aria-pressed="true"] {
 .run-links { margin-left: auto; white-space: nowrap; }
 .run-heading.failed { color: var(--vscode-errorForeground); }
 .session-link { color: #0066ff; text-decoration: underline; cursor: pointer; }
+.run-tab {
+    display: inline-block; padding: 4px 8px; border-bottom: 2px solid transparent;
+    color: var(--vscode-tab-inactiveForeground); background: var(--vscode-tab-inactiveBackground);
+    text-decoration: none; font-weight: normal;
+}
+.run-tab:hover { background: var(--vscode-tab-hoverBackground); }
+.run-tab[aria-current="page"] {
+    color: var(--vscode-tab-activeForeground); background: var(--vscode-tab-activeBackground);
+    border-bottom-color: var(--vscode-focusBorder); font-weight: bold;
+}
+.run-tab:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -2px; }
 .waiting-input { animation: waiting-input 1.2s ease-in-out infinite; }
 @keyframes waiting-input { 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .waiting-input { animation: none; } }

@@ -51,8 +51,9 @@
         element('span', 'run-label', section.heading).textContent = entry.label;
         const links = element('span', 'run-links', section.heading);
         for (const [view, label] of [['status', 'Status'], ['launcher', 'Launcher'], ['session', 'Session']]) {
-            if (links.childNodes.length) links.append(' ');
+            if (links.childNodes.length) links.append(' | ');
             const item = link(links, label, () => runView(entry.id, view));
+            item.classList.add('run-tab');
             if (section.view === view) item.setAttribute('aria-current', 'page');
         }
         if (entry.session_waiting) {

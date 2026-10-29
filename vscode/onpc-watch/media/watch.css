@@ -35,6 +35,7 @@ nav button[aria-pressed="true"] {
 @media (prefers-reduced-motion: reduce) { .waiting-input { animation: none; } }
 .session-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .session-output { flex: 1; }
+.session-output .session-activity { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-composer { margin: 0 8px; }
 .session-composer textarea {
     width: 100%; box-sizing: border-box; resize: vertical; min-height: 4em;

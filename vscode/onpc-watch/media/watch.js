@@ -121,6 +121,7 @@
             const follow = section.output.scrollHeight - section.output.clientHeight - section.output.scrollTop < 24;
             section.output.replaceChildren(...view.rows.map(row => {
                 const line = document.createElement('div');
+                line.classList.toggle('session-activity', row.some(part => part.compact));
                 if (!row.length) line.textContent = '\u00a0';
                 for (const part of row) {
                     const span = element('span', '', line);

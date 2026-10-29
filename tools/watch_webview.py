@@ -29,11 +29,12 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
     from rich.text import Text
     from rich.console import Console
     from rich.style import Style
-    from launcher_render import SESSION_LINE, clean
+    from launcher_render import COMPACT_LINE, SESSION_LINE, clean, compact_text
     console = Console()
     rows = []
     for line in lines:
-        text = Text.from_ansi(line.replace(SESSION_LINE, ''))
+        compact = line.startswith(COMPACT_LINE)
+        text = compact_text(line) if compact else Text.from_ansi(line.replace(SESSION_LINE, ''))
         match = re.search(r'Waiting for input', text.plain)
         if match:
             text.stylize('red', match.start(), match.end())
@@ -60,6 +61,7 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
             themed = color and (color.type.name == 'DEFAULT' or
                                (color.type.name == 'STANDARD' and color.number in (0, 7, 15)))
             spans.append(dict(text=clean(segment.text), bold=bool(style and style.bold),
+                              compact=compact,
                               waiting=bool(style and style.meta.get('waiting')),
                               link=style.link if style else None,
                               color=color.get_truecolor().hex if color and not themed else None))

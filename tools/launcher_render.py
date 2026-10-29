@@ -57,6 +57,15 @@ def clean(value):
     return CONTROL.sub('', str(value))
 
 
+def compact_text(line, width=None):
+    """Decode a shared activity preview and reserve its trailing dots."""
+    text = Text.from_ansi(line[len(COMPACT_LINE):])
+    if width is not None:
+        text.truncate(max(0, width - 3), overflow='crop')
+    text.append('.' * (3 if width is None else min(3, width)), style='dim')
+    return text
+
+
 def style_task_counts(text):
     """Apply the shared overview/totals palette, overriding retained ANSI colors."""
     counter = re.match(r'^(?:Total )?Tasks: (\d+|—)/(\d+|—)(?:/(\d+|—))?', text.plain)
@@ -332,10 +341,7 @@ class LauncherDisplay:
         rows = []
         for line in lines:
             if isinstance(line, str) and line.startswith(COMPACT_LINE):
-                text = Text.from_ansi(line[len(COMPACT_LINE):])
-                text.truncate(max(0, width - 3), overflow='crop')
-                text.append('.' * min(3, width), style='dim')
-                rows.append(text)
+                rows.append(compact_text(line, width))
                 continue
             text = line.copy() if isinstance(line, Text) else Text.from_ansi(line.replace(SESSION_LINE, ''))
             if task_labels:

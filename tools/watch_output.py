@@ -459,9 +459,8 @@ class SessionOutput:
                 submit(run, identity, choice, text) if self.current() else False) if question else None
         elif question is not None:
             panel.question.question = question
-        panel.details = ([question['question'],
-            *[f'{index + 1}. {option}' for index, option in enumerate(question['options'])],
-            'Type a number or your own instructions below.'] if question else [])
+        # The launcher writes the full question and choices to session-output.log.
+        # Keep question state for input routing without appending a second prompt.
         try:
             # JSON escaping can expand the bounded prose beyond its text budget.
             description = self.reader.read(run / 'descriptive-output.json', limit=2 * 1024 * 1024)

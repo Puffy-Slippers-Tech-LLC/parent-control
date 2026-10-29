@@ -1618,9 +1618,12 @@ def test_host_build_qualification_is_fixed_and_never_dispatches_vm(monkeypatch, 
 @pytest.mark.parametrize('detached', [False, True])
 def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, detached):
     import regression
+    import vm_selection
     execute = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    # Check aggregate dispatch without entering the real persistent family queue.
+    monkeypatch.setenv(vm_selection.WORKER, '1')
     phases = tuple(kind for kind in ('host', 'system', 'integration', 'e2e')
                    if kind in argv or (kind != 'host' and 'vm' in argv))
     for flag in ([], ['--continue-on-errors']):

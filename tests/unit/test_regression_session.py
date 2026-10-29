@@ -214,6 +214,11 @@ def workers(tmp_path, monkeypatch):
     checkout = Path(__file__).resolve().parents[2]
 
     def launch(command, **kwargs):
+        # subprocess is shared with Git lookups used by VM selection. Replace
+        # only the detached session worker, leaving other subprocesses intact.
+        if command[:4] != ['/usr/bin/python3', '-u', '-B',
+                           str(Path(session.__file__).resolve())]:
+            return spawn(command, **kwargs)
         command[3] = str(checkout / 'tests/support/regression_session_worker.py')
         kwargs['env']['PYTHONPATH'] = str(checkout / 'tools')
         child = spawn(command, **kwargs)
@@ -245,11 +250,22 @@ def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
     assert session.follow(run, io.StringIO()) == 7
 
 
-def test_active_vm_session_is_independent_of_other_vm_stop_requests(tmp_path, workers):
-    vm_args = ['--vm', vm_name(1)]
+def test_active_vm_session_is_independent_of_other_vm_stop_requests(tmp_path, workers, monkeypatch):
+    import vm_config
+
+    # Session isolation must not depend on this checkout's branch or deployed VMs.
+    # The harmless detached worker reads this same temporary configuration.
+    config = tmp_path / 'test-vm.json'
+    config.write_text(json.dumps({'families': [
+        {'family': 'session fixtures', 'package_format': 'deb',
+         'fixture_path': 'common/ubuntu/common', 'vms': [
+             {'name': 'first-guest', 'disk_anchor': '/first', 'enabled': 'true'},
+             {'name': 'second-guest', 'disk_anchor': '/second', 'enabled': 'true'}]}]}))
+    monkeypatch.setattr(vm_config, 'CONFIG', config)
+    vm_args = ['--vm', 'second-guest']
     run, started = session.select(tmp_path, ['e2e', *vm_args])
     assert started
-    for argv in (['--stop'], ['--stop', '--vm', vm_name()]):
+    for argv in (['--stop'], ['--stop', '--vm', 'first-guest']):
         assert session.select(tmp_path, argv) == (None, False)
         assert not (run / 'cancel').exists()
     assert session.select(tmp_path, ['e2e', *vm_args]) == (run, False)

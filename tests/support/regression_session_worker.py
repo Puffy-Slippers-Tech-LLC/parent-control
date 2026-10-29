@@ -15,6 +15,13 @@ import test_commands
 import test_recovery
 import vm_recording
 import vm_pool
+from vm_selection import vm_config
+
+# Use the parent test's controlled registry when it supplies one. Selection in
+# both processes must see the same guests, independent of the checkout branch.
+config = Path(sys.argv[1]) / 'test-vm.json'
+if config.exists():
+    vm_config.CONFIG = config
 
 # This process exercises session ownership against a temporary checkout. Its
 # host recovery may be enabled explicitly; never dispatch tests or VM work here.

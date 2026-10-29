@@ -20,6 +20,17 @@ Select from [the VM registry](../../config/test-vm.json) using the tool's suppor
 selector. The enabled default means entries whose `enabled` is the string
 `"true"`; an explicit name/ID or `all` also includes disabled entries.
 
+Each VM may specify `owning_branch`: omitted or `""` allows any branch; a nonempty
+value reserves that VM for the exact Git branch name in the invoking checkout
+(including linked worktrees). Automatic queues and `all` omit branch mismatches;
+explicit names/IDs refuse them before checkout. Detached HEAD or unavailable Git
+can use only unrestricted VMs. Branch restrictions also apply to new shared-pool
+reservations, regardless of `enabled`. Existing reservations may finish their
+owned work and cleanup after a branch change; read-only registry discovery is
+unfiltered. Direct maintenance also checks the branch before mutation, while
+observations and owned `stop`/`recover-online` remain available for inspection
+and cleanup.
+
 | Tool | Explicit selector | When omitted | Scheduling |
 | --- | --- | --- | --- |
 | `tools/run-tests`, `tools/fix-tests` | Name/ID, comma-separated list, `all-enabled`, `all` | Enabled queue for VM work | Registry concurrency cap |

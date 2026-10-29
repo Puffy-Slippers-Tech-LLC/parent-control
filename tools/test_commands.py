@@ -305,6 +305,8 @@ has one case queue: idle VMs atomically pull its next work, so every selected
 case runs once per family. One VM uses the same queue as multiple workers.
 --vm accepts a name or ID, a comma-separated list, all-enabled, or all.
 Explicit names/IDs and all include disabled entries. Free slots refill immediately.
+VM owning_branch restrictions always apply: empty or omitted owning_branch allows any branch;
+otherwise only the exact current Git branch can check out that VM.
 Each invocation resolves IDs
 from the current file; changing IDs needs no tool refresh or baseline replacement.
 Host-only tests and declaration listing need no VM.

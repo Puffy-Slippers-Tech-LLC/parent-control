@@ -196,6 +196,8 @@ def reservation(name, *, stopped=None, bind=True):
     from vm_selection import vm_config
     configured = vm_config.load(name)
     held = binding()
+    if held is None and configured.owning_branch:
+        vm_config.require_branch(configured, vm_config.current_branch())
     def cancelled():
         return stopped is not None and (stopped() if callable(stopped) else stopped.is_set())
     if cancelled():

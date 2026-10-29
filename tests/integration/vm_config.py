@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 
@@ -14,6 +15,7 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[1] / 'fixtures'
 URI = 'qemu:///system'
 STATE_ROOT = Path('/Data/virt-manager/oh-no-parent-control-baseline-state')
 VARIABLE = 'ONPC_TEST_VM'
+ROOT = Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,7 @@ class VMConfig:
     package_format: str | None = None
     family: str | None = None
     fixture_path: str | None = None
+    owning_branch: str = ''
 
     def require_package_format(self):
         # Consumers must never infer a format from a VM or family name.
@@ -186,23 +189,51 @@ def resolve(name, configured):
 def execution(name=None, path=None):
     """Resolve a finite queue; explicit selections also admit disabled entries."""
     concurrency, configured = configuration(path)
+    branch = current_branch() if any(vm.owning_branch for vm in configured.values()) else None
     if name is None or name == 'all-enabled':
-        vms = tuple(vm for vm in configured.values() if vm.enabled)
+        vms = tuple(vm for vm in configured.values()
+                    if vm.enabled and (not vm.owning_branch or vm.owning_branch == branch))
     elif name == 'all':
-        vms = tuple(configured.values())
+        vms = tuple(vm for vm in configured.values()
+                    if not vm.owning_branch or vm.owning_branch == branch)
     else:
         # Resolve the whole request before work, deduplicating aliases in order.
         vms = tuple({vm.name: vm for vm in
                      (resolve(value, configured) for value in name.split(','))}.values())
+        for vm in vms:
+            require_branch(vm, branch)
     if not vms:
-        raise ValueError('vm-config:no enabled VMs in config/test-vm.json')
+        raise ValueError('vm-config:no enabled VMs available for this branch in config/test-vm.json')
     return min(concurrency, len(vms)), vms
+
+
+def current_branch():
+    """Read this checkout's branch; detached HEAD or unavailable Git matches none."""
+    # Privileged backup/restore helpers must read Git as their authenticated
+    # caller, retaining Git's ownership check for a user-owned checkout.
+    caller = int(os.environ.get('PKEXEC_UID', '0')) if os.geteuid() == 0 else 0
+    try:
+        result = subprocess.run(['git', 'symbolic-ref', '--quiet', 'HEAD'], cwd=ROOT,
+                                capture_output=True, text=True, check=False,
+                                **({'user': caller} if caller > 0 else {}))
+    except OSError:
+        return None
+    ref = result.stdout.strip()
+    if not result.returncode and ref.startswith('refs/heads/'):
+        return ref.removeprefix('refs/heads/')
+    return None
+
+
+def require_branch(vm, branch):
+    if vm.owning_branch and vm.owning_branch != branch:
+        raise ValueError(f'vm-config:VM {vm.name} is reserved for branch {vm.owning_branch!r}; '
+                         f'current branch is {branch!r}')
 
 
 def validate_entry(document, family):
     if (not isinstance(document, dict) or
             not {'name', 'disk_anchor'} <= set(document) or
-            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id'}):
+            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id', 'owning_branch'}):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
     value = document['disk_anchor']
@@ -210,6 +241,10 @@ def validate_entry(document, family):
     enabled = document.get('enabled', 'false')
     if enabled not in ('true', 'false'):
         raise ValueError('vm-config:enabled must be the string true or false')
+    owning_branch = document.get('owning_branch', '')
+    if (not isinstance(owning_branch, str)
+            or any(char.isspace() or ord(char) < 32 for char in owning_branch)):
+        raise ValueError('vm-config:owning_branch must be an empty string or a branch name')
     identifier = document.get('id')
     if 'id' in document:
         if type(identifier) is int:
@@ -217,7 +252,7 @@ def validate_entry(document, family):
         if not isinstance(identifier, str) or not re.fullmatch(r'[1-9][0-9]*', identifier):
             raise ValueError('vm-config:id must be a positive decimal integer or string')
     return VMConfig(name, Path(value), enabled == 'true', identifier,
-                    family['package_format'], family['family'], family['fixture_path'])
+                    family['package_format'], family['family'], family['fixture_path'], owning_branch)
 
 
 def load(name=None, path=None):

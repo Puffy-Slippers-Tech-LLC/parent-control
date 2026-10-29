@@ -17,6 +17,10 @@ checked against guest OS metadata. Fixture directory composition follows the
 Each VM has a globally unique `name` and selector `id`, an absolute base QCOW2
 `disk_anchor`, and `enabled` as the string `"true"` or `"false"`. IDs are lookup
 and ordering values; they encode no family, package or fixture behavior.
+The optional per-VM `owning_branch` string reserves checkout for that exact Git branch;
+omitting it or using `""` permits any branch. Queue selectors skip mismatches,
+including with `all`; an explicit mismatched name/ID refuses checkout. Detached
+HEAD can use only unrestricted entries. Linked worktrees use their own branch.
 Test and preparation selection follow the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#authority-and-operation): optional
 `--vm` accepts names/IDs, lists, `all-enabled`, or `all`, defaulting to enabled

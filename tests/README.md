@@ -295,6 +295,10 @@ owned cleanup. Stateful histories remain indivisible, as do independent system
 area attempts that share preparation. Cancellation stops queued work and waits
 for active guests' cleanup. `--vm` accepts one name or ID, a comma-separated
 list, `all-enabled`, or `all`. Explicit entries and `all` include disabled VMs.
+All queues omit VMs reserved for another Git branch through the optional
+per-VM `owning_branch` field; explicit mismatched names/IDs refuse checkout. An omitted
+or empty `owning_branch` permits any branch. See the
+[branch selection contract](../docs/Mandates/VM-Mandate.MD#target-selection).
 Baseline and app-snapshot preparation use the same selector and rolling scheduler,
 with `tools/prepare-vm` defaulting to `all` (including disabled VMs) in both
 modes and app-snapshot preparation defaulting to enabled VMs; see the

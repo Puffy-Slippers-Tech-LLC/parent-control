@@ -223,7 +223,9 @@ def test_receipt_crosses_dispatch_prefix_and_host_work_keeps_it(monkeypatch):
 
 def test_vm_artifact_helper_uses_vm_scope_before_host_activity(monkeypatch):
     import test_commands
-    from vm_selection import selected, BATCH
+    from vm_selection import selected, BATCH, vm_config
+    branch = selected().owning_branch
+    monkeypatch.setattr(vm_config, 'current_branch', lambda: branch)
     name = selected().name
     request = ['artifacts', 'prepare', '--for-vm']
     assert not test_commands.host_only_request(request)
@@ -275,7 +277,9 @@ def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkey
     import io
     from types import SimpleNamespace
     import dev_privileges
-    from vm_selection import selected
+    from vm_selection import selected, vm_config
+    branch = selected().owning_branch
+    monkeypatch.setattr(vm_config, 'current_branch', lambda: branch)
     receipt = A + ':' + 'a' * 32
     process = SimpleNamespace(pid=42, stdin=io.BytesIO(), stdout=io.BytesIO(
         json.dumps({'checkout': receipt}).encode() + b'\n'), wait=lambda: 0)

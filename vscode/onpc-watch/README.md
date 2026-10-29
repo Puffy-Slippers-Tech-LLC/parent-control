@@ -34,6 +34,7 @@ both modes; activity names remain visible and saved transcripts retain results.
 Simplified mode collapses command activity to one clipped line; turn it off to
 see each activity with its original line breaks. Successful Read/Search exploration shows
 the activity only; file contents and search matches stay out of both views.
+The toggle also works on the retained transcript after the launcher finishes.
 The session timer stays beside **Session** in every view; click **Status** to
 return to run status. The space before each link is outside its underline.
 Waiting for input flashes unless reduced motion is

@@ -191,7 +191,7 @@ class Viewer:
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active or session.active, status=status, rows=self.status_cache[root][1],
                 launcher_output=self.launcher_logs[root],
-                session=session.identity if session.active else None,
+                session=session.identity,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
                 session_view=session_view))
         active = [section for section in sections if section['active']]
@@ -233,15 +233,19 @@ class Viewer:
         if action:
             try:
                 session = self.sessions.get(Path(action['root']))
-                if (session is None
-                        or session.identity != action['session'] or not session.current()):
+                if (session is None or session.panel is None
+                        or session.identity != action['session']):
                     raise ValueError('Session changed; review the current session before sending.')
-                if action['kind'] == 'send':
+                if action['kind'] == 'simplified':
+                    # This changes only the observer's presentation, including
+                    # the retained transcript after its launcher has exited.
+                    session.panel.simplified = not session.panel.simplified
+                elif not session.current():
+                    raise ValueError('Session changed; review the current session before sending.')
+                elif action['kind'] == 'send':
                     if not session.input_enabled:
                         raise ValueError('This session is not accepting input.')
                     session.send(action['text'])
-                elif action['kind'] == 'simplified':
-                    session.panel.simplified = not session.panel.simplified
                 elif action['kind'] == 'extend':
                     session.extend_deadline(action['text'])
                 result = dict(id=action['id'], ok=True)

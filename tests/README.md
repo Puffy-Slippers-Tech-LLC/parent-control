@@ -442,7 +442,9 @@ over their combined selected total for that VM and round. Both inventories are
 discovered before the first case, so changing categories does not reset Overall.
 The installed-system/E2E row shows completed cases over that category's selected
 inventory. Discovery, prerequisite replays and package preparation still run but
-add nothing to these totals. The round's category counter shows completed categories
+add nothing to these totals. Successful preparation rows disappear from the shared
+dashboard; unfinished preparation and failures remain visible.
+The round's category counter shows completed categories
 over selected categories; `System Cases: (x/y)` and `E2E Cases: (x/y)` show completed
 cases over the named category's selected total. These counters and `Overall` use
 the shared progress renderer: only the completed numerator in `(x/y)` is green;

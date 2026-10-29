@@ -201,9 +201,12 @@ class Dashboard:
 
     def render(self, now):
         lines = []
-        hosts = [item for item in self.categories if item.host]
+        # Preparation stays in reports and status accounting, but successful
+        # preparation is no longer useful in the live case display.
+        visible = [item for item in self.categories if item.count_overall or item.state != 'Passed']
+        hosts = [item for item in visible if item.host]
         rendered = set()
-        for item in self.categories:
+        for item in visible:
             if item.retry_category == 'integration':
                 if 'integration' not in rendered:
                     rendered.add('integration')

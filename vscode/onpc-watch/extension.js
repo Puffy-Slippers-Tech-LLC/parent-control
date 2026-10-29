@@ -43,8 +43,8 @@ function html(webview, context) {
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="14"/><rect x="12" y="3" width="5" height="14"/></svg></button>
         </div></div>
         <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main></section></div>
-        <footer><span id="resources"></span>
-        <button id="restart" title="Reconnect to the watch backend">Reconnect</button></footer>
+        <footer><button id="restart" title="Reconnect to the watch backend">Reconnect</button>
+        <span id="resources"></span></footer>
         <script nonce="${nonce}" src="${script}"></script></body></html>`;
 }
 

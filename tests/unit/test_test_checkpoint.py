@@ -311,7 +311,9 @@ def test_oversized_completion_cannot_poison_the_next_retry(tmp_path, monkeypatch
     assert regression_events.completed_cases(resumed.environment('unit')) == {boundary}
 
 
-def test_resume_repairs_legacy_oversized_ids_without_resetting_other_passes(tmp_path):
+def test_resume_repairs_legacy_oversized_ids_without_resetting_other_passes(tmp_path, monkeypatch):
+    # Keep this private checkpoint independent of the outer repair run's exclusions.
+    monkeypatch.delenv('ONPC_REPAIR_FAILED_CASES', raising=False)
     selection = [('unit', []), ('static', ['shell'])]
     checkpoint = Checkpoint(tmp_path, selection)
     oversized = 'tests/unit/test_progress.py::test_case[' + 'x' * 120000 + ']'

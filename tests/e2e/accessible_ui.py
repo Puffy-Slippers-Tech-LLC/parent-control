@@ -4074,7 +4074,12 @@ class AccessibleUI:
         elif operation in ('chooser-accept', 'chooser-cancel'):
             if operation == 'chooser-accept':
                 files = CHOOSER_FILES if profile == 'standard' else tuple(name for name, _ in BOUNDARY_FILES[profile])
-                _, _, _, accept, cancel, _ = self.chooser_selection(files, profile=profile)
+                # An unrelated accessibility owner can exit during this final
+                # read. Reacquire a complete observation before input, using
+                # the shared bounded read wait. Exact files, chooser ownership
+                # and selection still must pass; Open is never retried.
+                _, _, _, accept, cancel, _ = ready(
+                    lambda: self.chooser_selection(files, profile=profile), ())
             else:
                 _, _, _, _, accept, cancel, _ = self.chooser_snapshot()
             self._invoke_target(accept if operation == 'chooser-accept' else cancel)
@@ -7028,6 +7033,29 @@ class AccessibleUI:
             self.invalidate_observation()
             raise UiError('ui:incomplete-tree')
         result = tuple(sorted(result))
+        if expected_ids is not None and {row[0] for row in result} != set(expected_ids):
+            # Keep catalogue failures useful without recording installed app
+            # identities or names. Only the fixed synthetic fixture roles leave
+            # the guest; unrelated rows contribute a count. Bound repeated wait
+            # diagnostics and retain the original assertion and deadline below.
+            diagnostic_count = getattr(self, '_app_row_mismatch_diagnostics', 0)
+            if diagnostic_count < 8:
+                self._app_row_mismatch_diagnostics = diagnostic_count + 1
+                fixtures = {**MATCH_APPS, 'N': MATCH_OTHER_APP}
+                observed_ids = {row[0] for row in result}
+                print(json.dumps({
+                    'event': 'ui-app-row-set-mismatch',
+                    'sample': diagnostic_count + 1,
+                    'expected_fixture_roles': sorted(role for role, identity in fixtures.items()
+                                                     if identity in expected_ids),
+                    'inventoried_fixture_roles': sorted(role for role, identity in fixtures.items()
+                                                       if identity in row_ids),
+                    'observed_fixture_roles': sorted(role for role, identity in fixtures.items()
+                                                     if identity in observed_ids),
+                    'inventoried_row_count': len(rows),
+                    'observed_row_count': len(result),
+                    'other_row_count': len(observed_ids - set(fixtures.values())),
+                }, sort_keys=True), file=sys.stderr, flush=True)
         require(expected_ids is None or {row[0] for row in result} == set(expected_ids),
                 'ui:app-row-set')
         check_deadline()

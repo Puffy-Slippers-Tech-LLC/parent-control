@@ -414,6 +414,7 @@ def test_public_fixture_maintenance_keeps_one_selector_and_pins_sync_input(
     import test_retention
     import test_storage
     import vm_pool
+    configured = SimpleNamespace(name=vm, fixture_path='selected-fixtures')
     monkeypatch.setattr(dev_privileges, 'check', Mock())
     reserved = []
     @contextmanager
@@ -453,7 +454,8 @@ def test_public_fixture_maintenance_keeps_one_selector_and_pins_sync_input(
         return store
     monkeypatch.setattr(test_retention, 'Store', make_store)
     def prepare(**kwargs):
-        assert active and kwargs == {'target': target}
+        assert active and kwargs == {'target': target,
+                                     'fixture_path': configured.fixture_path}
         return frozen_fixture_selection
     monkeypatch.setattr(fixture_execution, 'prepare', prepare)
     calls = []
@@ -466,7 +468,7 @@ def test_public_fixture_maintenance_keeps_one_selector_and_pins_sync_input(
     monkeypatch.setattr(subprocess, 'run', run)
     function = runpy.run_path(str(ROOT / 'tools/test-vm'))['fixture_maintenance']
     options = ['start', '--fixture-maintenance'] if action == 'start' else [action]
-    assert function(options, SimpleNamespace(name=vm)) == status
+    assert function(options, configured) == status
     assert len(calls) == 1
     assert not reserved
     assert sessions == ([{}] if action == 'start' and status == 0 else

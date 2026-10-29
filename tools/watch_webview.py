@@ -59,19 +59,23 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
                 counts.append(str(failed), style=f'red underline link {error_log}')
                 counts.append('/' + match[2])
                 text = text[:match.start() + 1] + counts + text[match.end() - 1:]
-        spans = []
-        for segment in text.render(console):
-            style = segment.style
-            color = style.color if style else None
-            # Neutral terminal foregrounds must follow VS Code's light/dark theme.
-            themed = color and (color.type.name == 'DEFAULT' or
-                               (color.type.name == 'STANDARD' and color.number in (0, 7, 15)))
-            spans.append(dict(text=clean(segment.text), bold=bool(style and style.bold),
-                              compact=compact,
-                              waiting=bool(style and style.meta.get('waiting')),
-                              link=style.link if style else None,
-                              color=color.get_truecolor().hex if color and not themed else None))
-        rows.append(spans)
+        summary = re.fullmatch(r'(?:Round \d+: )?(Category: .+?) \| (Overall - .+)', text.plain)
+        display_lines = ([Text('• ') + text[summary.start(index):summary.end(index)]
+                          for index in (1, 2)] if summary else [text])
+        for display_line in display_lines:
+            spans = []
+            for segment in display_line.render(console):
+                style = segment.style
+                color = style.color if style else None
+                # Neutral terminal foregrounds must follow VS Code's light/dark theme.
+                themed = color and (color.type.name == 'DEFAULT' or
+                                   (color.type.name == 'STANDARD' and color.number in (0, 7, 15)))
+                spans.append(dict(text=clean(segment.text), bold=bool(style and style.bold),
+                                  compact=compact,
+                                  waiting=bool(style and style.meta.get('waiting')),
+                                  link=style.link if style else None,
+                                  color=color.get_truecolor().hex if color and not themed else None))
+            rows.append(spans)
     return rows
 
 

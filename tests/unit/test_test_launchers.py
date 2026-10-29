@@ -1543,9 +1543,12 @@ def test_integration_listing_is_host_safe_and_lists_the_snapshot_binding():
 @pytest.mark.parametrize('category', ['all', 'all-verify'])
 def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, category):
     import regression
+    import vm_selection
     execute = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    # Check worker dispatch without entering the real persistent family queue.
+    monkeypatch.setenv(vm_selection.WORKER, '1')
     assert commands._main([category, *VM_ARGS]) == 7
     execute.assert_called_once_with(ROOT)
     execute.reset_mock()

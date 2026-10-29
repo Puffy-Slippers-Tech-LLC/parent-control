@@ -183,8 +183,13 @@ def test_composite_conflicts_refuse_before_probe(monkeypatch, conflict):
 
 
 def test_explicit_native_inputs_require_one_target(monkeypatch):
-    from vm_selection import BATCH, VARIABLE
+    from vm_selection import BATCH, VARIABLE, vm_config
 
+    # Use branch-independent fixture targets so checkout reservations cannot
+    # reject this host-only request before the native-input queue guard runs.
+    concurrency, configured = vm_config.configuration()
+    configured = {name: replace(vm, owning_branch='') for name, vm in configured.items()}
+    monkeypatch.setattr(vm_config, 'configuration', lambda path=None: (concurrency, configured))
     monkeypatch.delenv(BATCH, raising=False)
     monkeypatch.setenv(VARIABLE, vm_name(0))
     with pytest.raises(ValueError, match='explicit native artifacts require a single VM'):

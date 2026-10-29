@@ -1559,9 +1559,12 @@ def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, ca
 @pytest.mark.parametrize('category', ['all', 'all-verify', 'host', 'host-builds', 'vm'])
 def test_continue_on_errors_is_a_valueless_aggregate_flag(monkeypatch, category):
     import regression
+    import vm_selection
     execute = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    # Check flag dispatch without entering the real persistent family queue.
+    monkeypatch.setenv(vm_selection.WORKER, '1')
     assert commands._main([category, '--continue-on-errors', *VM_ARGS]) == 7
     assert execute.call_args.kwargs['continue_on_errors'] is True
     if category == 'host-builds':

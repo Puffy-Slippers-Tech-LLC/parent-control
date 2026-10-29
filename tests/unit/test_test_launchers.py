@@ -182,12 +182,16 @@ def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparatio
 def test_recorded_serial_freezes_exact_input_before_dispatch(
         monkeypatch, frozen_fixture_selection, suffix, vm, target):
     monkeypatch.setenv('ONPC_TEST_VM', vm)
+    families = json.loads((ROOT / 'config/test-vm.json').read_text())['families']
+    fixture_path = next(family['fixture_path'] for family in families
+                        if any(entry['name'] == vm for entry in family['vms']))
     selector = 'check_fixture_recorded_serial' + suffix
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     record = frozen_fixture_selection.record()
     def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target)
+        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
+                                               '--target', target, '--fixture-path', fixture_path)
         options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
         return 0
     assert commands.qualification_fixture_options(ROOT, 'integration', [selector],

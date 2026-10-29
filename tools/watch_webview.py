@@ -192,6 +192,7 @@ class Viewer:
                 active=active or session.active, status=status, rows=self.status_cache[root][1],
                 launcher_output=self.launcher_logs[root],
                 session=session.identity,
+                session_active=session.active,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
                 session_view=session_view))
         active = [section for section in sections if section['active']]

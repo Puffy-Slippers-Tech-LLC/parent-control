@@ -43,7 +43,7 @@
 
     function sessionHeading(section) {
         const entry = section.entry;
-        const signature = JSON.stringify([entry.label, entry.session, entry.session_waiting,
+        const signature = JSON.stringify([entry.label, entry.session, entry.session_active, entry.session_waiting,
             entry.session_deadline, entry.session_question, section.view]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
@@ -54,6 +54,7 @@
             if (links.childNodes.length) links.append(' | ');
             const item = link(links, label, () => runView(entry.id, view));
             item.classList.add('run-tab');
+            if (view === 'session' && !entry.session_active) item.classList.add('session-inactive');
             if (section.view === view) item.setAttribute('aria-current', 'page');
         }
         if (entry.session_waiting) {

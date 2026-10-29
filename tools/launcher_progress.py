@@ -367,6 +367,12 @@ def publish_repair_status(run, round_number, category, categories, status, *, mo
     previous = repair_progress(run, read_progress(run))
     key = f'{round_number}:{category}'
     summary = f'Round {round_number}: Category: {category} ({completed}/{len(categories)})'
+    if previous and previous[-1]['key'] == key:
+        # A phase change is not a new case selection. Keep the last normal
+        # runner's counts while repairing, verifying or waiting to resume.
+        _, separator, detail = previous[-1]['lines'][0].partition(' | ')
+        if separator:
+            summary += separator + detail
     if status == 'fixing errors' and previous:
         key = previous[-1]['key']
         summary = previous[-1]['lines'][0]
@@ -377,7 +383,9 @@ def publish_repair_status(run, round_number, category, categories, status, *, mo
 
 def repair_progress(run, steps, *, child_steps=None):
     """Overlay a child's test summary without changing the repair controller."""
-    if not steps or steps[-1]['lines'][-1] not in ('Status: Running tests', 'Status: Verifying'):
+    # A focused verification describes only its retry, not the category's
+    # accumulated passes. Retain the normal-run summary until work resumes.
+    if not steps or steps[-1]['lines'][-1] != 'Status: Running tests':
         return steps
     if child_steps is None:
         child = run / 'test-controller.json'

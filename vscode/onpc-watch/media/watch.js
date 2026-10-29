@@ -44,8 +44,7 @@
 
     function sessionHeading(section) {
         const entry = section.entry;
-        const signature = JSON.stringify([entry.label, entry.session, entry.session_active, entry.session_waiting,
-            entry.session_deadline, entry.session_question, section.view]);
+        const signature = JSON.stringify([entry.label, entry.session, entry.session_active, section.view]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
         section.heading.replaceChildren();
@@ -57,21 +56,6 @@
             item.classList.add('run-tab');
             if (view === 'session' && !entry.session_active) item.classList.add('session-inactive');
             if (section.view === view) item.setAttribute('aria-current', 'page');
-        }
-        if (entry.session_waiting) {
-            if (Number.isFinite(entry.session_deadline)) {
-                links.append(' (');
-                const timer = element('span', '', links);
-                timer.dataset.deadline = String(entry.session_deadline);
-                countdown(timer);
-                links.append(' ');
-                const extend = link(links, '+', () => sessionAction(section, 'extend'));
-                extend.title = 'Add 10 minutes';
-                extend.setAttribute('aria-label', 'Add 10 minutes to answer');
-                links.append(')');
-            } else {
-                links.append(' (no timeout)');
-            }
         }
     }
 
@@ -347,7 +331,8 @@
                 }));
                 if (!section.errorStatus.childNodes.length) section.errorStatus.textContent = 'Waiting for run status…';
             }
-            const signature = JSON.stringify([entry.rows, entry.active, entry.session]);
+            const signature = JSON.stringify([entry.rows, entry.active, entry.session,
+                entry.session_waiting, entry.session_deadline]);
             if (section.signature === signature) return;
             section.signature = signature;
             const follow = section.content.scrollHeight - section.content.clientHeight - section.content.scrollTop < 24;
@@ -374,6 +359,21 @@
                     if (part.color) span.style.color = part.color;
                     if (part.bold) span.style.fontWeight = 'bold';
                 });
+                if (entry.session_waiting && row.some(part => part.waiting)) {
+                    if (Number.isFinite(entry.session_deadline)) {
+                        line.append(' (');
+                        const timer = element('span', '', line);
+                        timer.dataset.deadline = String(entry.session_deadline);
+                        countdown(timer);
+                        line.append(' ');
+                        const extend = link(line, '+10m', () => sessionAction(section, 'extend'));
+                        extend.title = 'Add 10 minutes';
+                        extend.setAttribute('aria-label', 'Add 10 minutes to answer');
+                        line.append(')');
+                    } else {
+                        line.append(' (no timeout)');
+                    }
+                }
                 return line;
             });
             if (!rows.length) {

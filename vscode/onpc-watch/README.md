@@ -20,14 +20,15 @@ the launcher terminal output, **Error** shows the shared launcher's **Last Error
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
 the session transcript and chat.
 The links remain available in every view, including while idle.
-While waiting for input, **Session** shows `Session (mm:ss +)` and
-the body shows `Paused - waiting for your answer`.
+While waiting for input, the Status body shows
+`Paused - waiting for your answer (mm:ss +10m)` for timed questions.
 The waiting text flashes in the same red as stopped/blocked statuses; the deadline
 counts down every second from the current prompt's deadline. Answering removes
 that timer; a new prompt starts a fresh countdown. Questions without a deadline
-show `(no timeout)`.
-Timed questions show `(mm:ss +)` in both views. Each click on **+** adds ten
-minutes to the current question's deadline, including the launcher's actual wait.
+show `Paused - waiting for your answer (no timeout)` in the Status body.
+Each click on **+10m** in
+the Status body adds ten minutes to the current question's deadline, including
+the launcher's actual wait. Questions without a deadline have no extension link.
 **Session** is a blue, underlined link with a hand cursor. It replaces that
 worktree's status with the shared launcher session transcript, chatbox and
 model/effort footer, including the Simplified toggle. The transcript includes
@@ -37,8 +38,8 @@ Simplified mode collapses command activity to one clipped line; turn it off to
 see each activity with its original line breaks. Successful Read/Search exploration shows
 the activity only; file contents and search matches stay out of both views.
 The toggle also works on the retained transcript after the launcher finishes.
-The session timer stays beside **Session** in every view; click **Status** to
-return to run status. The space before each link is outside its underline.
+Click **Status** to return to run status and its waiting countdown.
+The space before each link is outside its underline.
 Waiting for input flashes unless reduced motion is
 enabled. Enter sends chat directly; there is no Send button. Shift+Enter or
 Alt+Enter inserts a new line. Input is

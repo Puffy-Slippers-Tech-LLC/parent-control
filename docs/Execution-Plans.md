@@ -95,7 +95,7 @@ At the start of every agentic session, including coordinators, workers, monitors
 advisers and reviewers, activate this goal using Codex's `/goal` command:
 
 ```text
-/goal Simple, lean, robust, do not overenginering. If a problem can be solved by simplier approaches, do not use more complex ones
+/goal Simple, lean, robust, do not overengineer. If a problem can be solved by simplier approaches, do not use more complex ones
 ```
 
 The launcher must set the session's actual Codex goal state, using the supported

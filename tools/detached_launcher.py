@@ -143,7 +143,7 @@ Include this discovery requirement in every delegated assignment.
 """
 
 
-SESSION_GOAL = ('Simple, lean, robust, do not overenginering. If a problem can be solved '
+SESSION_GOAL = ('Simple, lean, robust, do not overengineer. If a problem can be solved '
                 'by simplier approaches, do not use more complex ones')
 
 GOAL_INSTRUCTIONS = f"""Before task work, use get_goal to inspect this session's actual

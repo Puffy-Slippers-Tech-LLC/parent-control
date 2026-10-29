@@ -64,6 +64,13 @@ def test_missing_password_fails_before_privilege_dispatch(launcher, tmp_path, mo
 
 
 def test_denied_authorization_never_starts_pkexec(authorized, monkeypatch, capsys):
+    import vm_pool
+
+    # Keep registry/branch discovery outside the privilege-dispatch trap, so
+    # this check reaches the denied authorization with a valid selection.
+    monkeypatch.setattr(authorized['vm_config'], 'execution',
+                        lambda selector: (1, (SimpleNamespace(name=VM_ARGS[1]),)))
+    monkeypatch.setattr(vm_pool, 'check_queue', lambda vms: None)
     authorized['check'].side_effect = ValueError('noninteractive authorization unavailable')
     run = Mock(side_effect=AssertionError('pkexec attempted'))
     monkeypatch.setattr(authorized['subprocess'], 'run', run)

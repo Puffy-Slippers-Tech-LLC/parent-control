@@ -5,7 +5,7 @@ and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **308b** — Hebrew product request/success with genuine Shell approval and normal return.
-- **308a** — Child-owned Hebrew/restored-English request observations and unchanged activity/choices.
+- **300i** — Installed overlay language selection and restored-English readback.
 
 Estimate: 30–45 minutes.
 Session exception: The complete child history retains language changes, immutable activity/request comparisons and real approval/return in one guarded attempt.
@@ -14,7 +14,7 @@ Session exception: The complete child history retains language changes, immutabl
 
 Compose the [fixed overlay recipe](../E2E-Scenario-Recipes.md#overlay-language-presentation-planned-task-308)
 as one complete case. Preserve the English → Hebrew → English saved-language
-history and unchanged child, approver, request values and activity from 308a.
+history and unchanged child, approver, request values and original activity.
 During the Hebrew part of that history, perform one genuine 75-second
 soft-included approval through 308b. Independently require Hebrew success, the
 expected public time increment and return to the original usable activity with
@@ -30,6 +30,14 @@ mixed-script ordinary feedback draft check.
 ## Shared implementation
 
 Compose qualified shared request, language, activity and approval fragments; the case owns finite ordering and comparisons, never authentication mechanics.
+
+Reuse `language_selection`, `AccessibleUI.language_history_request` and
+`kiosk_language_form` from the existing language persistence history. Add only
+the missing Riley/Jamie Hebrew and restored-English 75-second/soft-included
+literal bindings and immutable activity comparisons in this case. The existing
+overlay language and Hebrew/Casey request operations need no second presentation
+qualifier. Task 308b retains the distinct translated success/real Shell approval
+qualification. This complete history remains pending until its own acceptance.
 
 ## Implementation entry
 

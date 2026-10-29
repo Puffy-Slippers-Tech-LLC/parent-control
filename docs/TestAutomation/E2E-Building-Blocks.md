@@ -615,8 +615,11 @@ Both children retain Custom `1.25`, 75 seconds and soft inclusion.
 session and overlay reads to Riley; `InternetIsolation` owns recovery.
 Compare policy/name/app captures before/after recovery under the recipe's bound.
 
-Remaining bindings are separate and pending until their own public input/result
-scope is qualified:
+Remaining compositions and new bindings stay pending. Reuse existing LANG01
+and `language_persistence.PLAN` request readers instead of separate 308a/309a
+presentation histories. Implement missing finite literal projections and
+comparisons in tasks 308/309; 308b still qualifies the new translated approval
+result and 310a the new panel endpoint projection. The complete cases retain:
 
 | Binding | Required result |
 | --- | --- |
@@ -626,7 +629,7 @@ scope is qualified:
 
 Use the [language recipes](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)
 for full values/order. Shared IDs and prerequisite qualifications do not establish
-translated child/station routes or complete cases. Missing public text/identity
+additional translated bindings or complete cases. Missing public text/identity
 remains a gate. Mixed-script ordinary feedback belongs to Parent; error-report
 drafts end on closure under the
 [specification](../Specification.md#feedback-and-error-reports).
@@ -2557,6 +2560,14 @@ each selected interruption. Lock/switch reuse successful retained-child entry;
 sign-out uses fresh entry; app-close uses its own normal modal/busy-gated route,
 not Parent LIFE01. A cancelled/denied request consumes no successful-request
 cooldown, so interruption qualification needs no artificial TIME03 delay.
+
+FLOW19's AppSet preparation uses `policy_edits.policy_edit(..., setup=True)`
+and one independent complete saved-set comparison after the last save. This
+existing branch omits unchanged intermediate row/editor reads while retaining
+input ownership and save guards. Compare again after a declared persistence
+boundary. Tested policy transitions keep their own before/after access and
+running-app results; a setup read supplies neither those results nor qualification
+of additional named app arguments.
 
 | ID | Kind | Block and explicit contract | Callees, in order | Status |
 | --- | --- | --- | --- | --- |

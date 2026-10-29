@@ -7,15 +7,13 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **FIX06 versioned-path readiness; FILE05 and pattern launch results**. First scheduled consumer: [E2E-041, case 189](../E2E-Scenario-Recipes.md#e2e-041).
+Deliver **FIX06 versioned-path readiness; FILE05 and finite Allowed launch bindings**. First scheduled consumer: [E2E-041, case 189](../E2E-Scenario-Recipes.md#e2e-041).
 Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope), [related block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 - **079d** — APP02 and FLOW08 native blocked-launch results.
-- **186** — PARENT15 failed-save; FEED15 Parent and report-close binding.
-- **052c** — TIME03.
 
 ## Implementation
 
@@ -23,32 +21,35 @@ Bind the current/next matching versions and existing/new nonmatches from the
 maintained deterministic AppImage-path fixture assets for case 189. Declare
 reusable sources in baseline preparation and verify through FIX06. Prepare the
 recipe's copies through FILE05; no vendor download, updater or AppImageLauncher setup is
-needed for this pattern test. Reuse saved same-directory wildcard rules and
-command-result projections. Use the recipe's guarded 60-second refresh interval
-before the new nonmatch's one launch; no pre-launch APP02 absence read can prove
-policy readiness. Observe the launch result independently and never retry its
-input. Case 253 separately owns the real Lunar integration.
+needed for this pattern test. Reuse command-result projections. Case 189 owns
+the wildcard Save, matching/nonmatching policy effects, refresh wait and
+rejected-save recovery; do not repeat them as readiness qualification.
+Case 253 separately owns the real Lunar integration.
 
 Source boundary: `_build_native_layout` builds the next S version, but
 `native_assets.sources()`/baseline verification declare only the current four
 executables. Bind that existing next-version asset and the exact new nonmatch
 to a finite FILE05 profile; do not rebuild vendor assets. Extend the current
 primary-only `AccessibleUI.native_launch_command` and result projection for
-matching/nonmatching identities. Reuse 186's rejected-save report operation;
-do not rerun its entire match/reopen qualification here.
+matching/nonmatching identities. Reuse the installed system native-policy
+owner's backend wildcard/future-version/UID checks rather than another matrix.
 
-Declare a finite safe pattern directory/profile before implementation. The
-current native directory also contains Allowed space-bearing ELF nonmatches;
-a narrow version wildcard there can be rejected under the documented safe-rule
-contract. Reuse the existing asset bytes in a declared directory with the exact
-matching versions and representable nonmatches, or declare the necessary
-publicly blocked conflicts explicitly. Keep the successful pattern/enforcement
-result separate from the intentionally rejected pattern and prior-rule
-preservation; neither branch substitutes for the other.
+Reuse `native_assets.py`'s existing `Applications/Versioned` directory and
+`version_pattern`, with the GUI runtime already supplied by `baseline_assets.py`.
+Declare only missing next-version/nonmatch sources in that finite profile;
+do not move the fixture or build another directory preparation framework.
+Keep representable nonmatches distinct from the recipe's deliberately unsafe
+pattern. Its rejection and preservation of the prior confirmed rule stay in
+case 189, alongside the successful pattern/enforcement branch.
 
 ## Live VM acceptance
 
-On the live VM, add the next version through shared FILE05 copy commands, require matching versions denied and existing nonmatches usable. For the new nonmatch, allow the recipe's 60-second refresh interval and issue one declared launch. A rejected pattern must expose its report and preserve the prior confirmed rule.
+Verify the finite source identities through FIX06, add the declared files
+through shared FILE05 and independently observe their copy results. Qualify
+one usable Allowed launch/result for each newly supported executable binding.
+Reuse unchanged input/ownership guards and independent entry; no denial,
+60-second refresh or rejected-pattern history belongs to this asset slice.
+Those customer results remain pending in case 189.
 
 Planned qualification selector (not registered; implement before use):
 

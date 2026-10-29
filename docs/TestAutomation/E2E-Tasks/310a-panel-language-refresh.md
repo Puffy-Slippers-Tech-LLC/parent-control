@@ -12,12 +12,12 @@ Estimate: 20–30 minutes.
 
 ## Scope and acceptance
 
-Qualify Riley's panel binding for English → Hebrew → English through overlay
-Preferences. After each language save, close the overlay normally and
-independently observe the refreshed public countdown language and remaining
-time on the same child desktop. The next Preferences visit performs the next
-language change; no extra unchanged reopen or manual lock/unlock cycle is needed.
-Require Hebrew/restored English public meaning and correct
+Qualify Riley's missing panel language/time projection with one English → Hebrew
+Save through overlay Preferences. Close the overlay normally and independently
+observe the refreshed public countdown language and remaining time on the same
+child desktop. Reuse independent entry and unchanged language input/owner guards;
+the complete English → Hebrew → English history belongs to task 310, including
+its observation after each Save. Require Hebrew public meaning and correct
 remaining time through the shared `child-panel` Application UI API. Full
 tooltip/menu translation and content combinations belong to host UI coverage;
 public IDs and matching semantics remain automation guards.
@@ -50,4 +50,6 @@ its preview pass supplies no installed language/time result.
 Planned selector: `check_e2e_panel_language_refresh`; unregistered and unqualified.
 Register its fixed binding before invoking
 `tools/run-tests integration check_e2e_panel_language_refresh`.
-Retain affected child-panel API, overlay-language and countdown qualifications.
+Retain affected child-panel API checks and scoped installed qualification of
+the new projection. Reuse unchanged overlay-language/countdown qualifications;
+do not repeat their matrices or task 310's complete history here.

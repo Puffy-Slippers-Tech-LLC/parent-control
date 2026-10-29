@@ -71,6 +71,21 @@ while preserving complete customer journeys.
 
 ## Reallocated system coverage
 
+Tasks **123/123a** are absorbed into **124/125** (cases **110/111**).
+The shared package transport, owned match-editor Save and Parent reopen/select
+operations are reused directly. Each case owns only its missing verified fixture
+package binding and complete update or remove/reinstall history; no precursor
+repeats that same history as qualification. Missing fixture inputs remain gates.
+Open drafts, Save, refreshed catalogue, retained rules and child launch results
+remain mandatory. This removes duplicate work without completing either case.
+
+Tasks **308a/309a** are absorbed into **308/309**. Existing language selection
+and language-persistence request readers supply the surface bindings; the cases
+add their missing finite literals, ordering and immutable comparisons. Task
+308b retains genuine translated approval qualification, and 310a retains the
+missing child-panel projection. Complete language histories remain pending;
+existing coverage does not supply their customer acceptance.
+
 Tasks **313a/313** are removed from scheduling: C04p1 delivered the compatible
 native fixture/host work and C04p delivered the finite both-target 600-second
 grant/use/revoke history. Their maintained
@@ -461,10 +476,8 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 065 | [Compose the combined grant-dominant profile](E2E-Tasks/065-time-profiles-grant.md) | 065a | FLOW13 grant-only/combined; retained entry and explicit revoke preparation | 20–30 |
 | [ ] | 069 | [E2E-011: combined](E2E-Tasks/069-case-29.md) | 065, 052a, 062, 043c | Cases 29 | 35–55 (exception) |
 | [ ] | 308b | [Qualify translated overlay approval and return](E2E-Tasks/308b-overlay-translated-approval.md) | 048d, 300i | Qualify translated overlay approval and return; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
-| [ ] | 308a | [Qualify overlay Hebrew request presentation](E2E-Tasks/308a-overlay-dialog-language.md) | 300i | Qualify Hebrew/restored-English overlay requests with unchanged choices and original activity; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
-| [ ] | 308 | [Overlay Hebrew request and translated approval](E2E-Tasks/308-overlay-language-presentation.md) | 308b, 308a | Planned scenario; Hebrew/restored-English request, genuine translated approval and return to unchanged activity; exact binding and installed acceptance pending; gates and finite scope in brief | 30–45 (exception) |
-| [ ] | 309a | [Qualify kiosk Hebrew request presentation](E2E-Tasks/309a-kiosk-dialog-language.md) | 300j | Qualify Hebrew/restored-English station requests and child's language across approver changes; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
-| [ ] | 309 | [Kiosk Hebrew request and child-language ownership](E2E-Tasks/309-kiosk-language-presentation.md) | 309a | Planned scenario; Hebrew/restored-English requests with unchanged choices and child's language across approver changes; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
+| [ ] | 308 | [Overlay Hebrew request and translated approval](E2E-Tasks/308-overlay-language-presentation.md) | 308b, 300i | Planned scenario; Hebrew/restored-English request, genuine translated approval and return to unchanged activity; absorbs 308a's remaining finite projection/comparisons; installed acceptance pending | 30–45 (exception) |
+| [ ] | 309 | [Kiosk Hebrew request and child-language ownership](E2E-Tasks/309-kiosk-language-presentation.md) | 300j | Planned scenario; Hebrew/restored-English requests with unchanged choices and child's language across approver changes; absorbs 309a's composition; installed acceptance pending | 20–30 |
 | [ ] | 310a | [Qualify child panel language refresh and presentation](E2E-Tasks/310a-panel-language-refresh.md) | 052, 300i | Child language propagates to the countdown without resetting time or policy; exact binding and installed acceptance pending; gates in brief | 20–30 |
 | [ ] | 310 | [Language changes preserve countdown and natural expiry](E2E-Tasks/310-language-countdown-expiry.md) | 051, 052a, 062, 310a | Planned scenario; Language changes preserve countdown and natural expiry; exact binding and installed acceptance pending; gates and finite scope in brief | 35–55 (exception) |
 | [ ] | 197 | [Compose overlay approval and return](E2E-Tasks/197-compose-approval-and-return-to-the-child.md) | 048d, 052 | FLOW20 overlay new/open form | 20–30 |
@@ -522,8 +535,8 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 035d | [Qualify a native executable path containing a space](E2E-Tasks/035d-native-space-path.md) | 036, 079d | FIX06 space-path readiness; FILE05 executable copy and Allowed native-result binding; case 188 owns policy effects | 20–30 |
 | [ ] | 035a | [Qualify the comma-containing native fixture](E2E-Tasks/035a-qualify-native-fixtures-with-spaces-and-commas.md) | 035d | FIX06 special-path readiness; FILE05 and command-result bindings | 20–30 |
 | [ ] | 230 | [E2E-041: special-paths](E2E-Tasks/230-case-188.md) | 035a, 180 | Cases 188 | 20–30 |
-| [ ] | 035b | [Qualify versioned AppImage pattern assets](E2E-Tasks/035b-qualify-versioned-appimage-pattern-assets.md) | 036, 079d, 186, 052c | FIX06 versioned-path readiness; FILE05 and pattern launch results | 20–30 |
-| [ ] | 231 | [E2E-041: pattern-files](E2E-Tasks/231-case-189.md) | 035b, 180 | Cases 189 | 20–30 |
+| [ ] | 035b | [Qualify versioned AppImage pattern assets](E2E-Tasks/035b-qualify-versioned-appimage-pattern-assets.md) | 036, 079d | FIX06 versioned-path readiness; FILE05 and finite Allowed launch bindings; policy history stays in case 189 | 20–30 |
+| [ ] | 231 | [E2E-041: pattern-files](E2E-Tasks/231-case-189.md) | 035b, 180, 186, 052c | Cases 189; matching/nonmatching access, refresh and rejected-save recovery | 20–30 |
 | [ ] | 036f | [Launch separate usable native windows from Files](E2E-Tasks/036f-native-files-usable.md) | 047 | APP01/02/03 native file-manager usable/new-window route | 20–30 |
 | [ ] | 096 | [E2E-019: native-file-manager-allowed-enabled](E2E-Tasks/096-case-74.md) | 180, 036f | Cases 74 | 20–30 |
 | [ ] | 036a | [Observe policy results for Files launches](E2E-Tasks/036a-native-file-routes.md) | 036f | APP01/02/03 native file-manager route | 20–30 |
@@ -570,10 +583,8 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 102 | [Compose expiry recovery through kiosk approval](E2E-Tasks/102-replacement.md) | 062, 079a, 065a | FLOW11 | 20–30 |
 | [ ] | 103 | [E2E-009: excluded](E2E-Tasks/103-case-23.md) | 102, 079b | Cases 23 | 35–55 (exception) |
 | [ ] | 104 | [E2E-009: included](E2E-Tasks/104-case-24.md) | 102, 079b | Cases 24 | 35–55 (exception) |
-| [ ] | 123 | [Keep an unsaved match draft across a fixture update](E2E-Tasks/123-catalog-change.md) | 079, 006 | LIFE04 fixture update; PARENT15 retained-editor save; LIFE01/PARENT02 catalogue refresh | 20–30 |
-| [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 123, 079d, 180 | Cases 110 | 35–55 (exception) |
-| [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006 | LIFE04 fixture remove/reinstall; PARENT15 retained-editor save; LIFE01/PARENT02 catalogue refresh | 30–50 (exception) |
-| [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 123a, 079d, 180 | Cases 111 | 35–55 (exception) |
+| [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 079, 006, 079d, 180 | Cases 110; missing fixture-update binding and complete retained-editor history, absorbs 123 | 35–55 (exception) |
+| [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 079, 006, 079d, 180 | Cases 111; missing fixture remove/reinstall binding and complete retained-editor history, absorbs 123a | 35–55 (exception) |
 | [ ] | 126p | [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md) | 006, 077a | Offline-game baseline assets and FIX06 verification | 20–30 |
 | [ ] | 126a | [Launch and observe the prepared offline game](E2E-Tasks/126a-game-activity.md) | 126p, 047 | Game APP01/02/03/04 and FLOW08 usable activity | 20–30 |
 | [ ] | 126 | [Compose windowed gameplay through natural expiry](E2E-Tasks/126-game.md) | 126a, 062, 065a | APP05/FLOW10 windowed game | 20–30 |

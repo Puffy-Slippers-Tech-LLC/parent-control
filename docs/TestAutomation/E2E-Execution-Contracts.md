@@ -53,6 +53,12 @@ Briefs contain task-specific deltas. Use this format for new and revised briefs:
   individual widget behavior and local validation matrices to their UI owner.
   A capability brief states the named journey it enables and qualifies only
   the necessary operation/result and safety boundaries, not an extra UI matrix.
+  Do not copy that journey's whole history into prerequisite acceptance. Qualify
+  the missing shared binding with representative inputs and independent entry;
+  leave ordered language restoration, retained-editor lifecycle, recovery and
+  final usable-state assertions in the complete case. A genuinely new provider
+  or safety boundary retains its own required qualification. Existing operations
+  need no new standalone wrapper merely because a case composes them differently.
 - Bind product steps to the shared Application UI API facade: declare the
   endpoint/surface, stable IDs, canonical values and independent results in the
   owning shared operation. Reuse the same operation in host UI and installed

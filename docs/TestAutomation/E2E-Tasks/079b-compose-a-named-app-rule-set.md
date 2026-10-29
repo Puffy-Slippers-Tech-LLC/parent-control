@@ -33,6 +33,14 @@ Retain fresh/same/retained Parent entry as explicit caller arguments; consume
 044b's unchanged retained-window operation without replaying its child/session
 qualification history.
 
+For AppSet preparation, use the existing `policy_edit(..., setup=True)` branch:
+it keeps owned inputs and save-completion guards while omitting the intermediate
+found/old/match/access/final-match reads. Independently compare the complete
+saved named set once after its final save, then compare it after the declared
+return. Do not repeat each editor's local validation or app launch matrix.
+Cases 13–16 still observe their tested policy transitions and actual app effects;
+setup's final comparison does not replace those intermediate customer results.
+
 ## Live VM acceptance
 
 On the installed VM, configure a declared A/H/S set through Parent and finish at GDM. Return through qualified retained entry and read every saved row before editing. Repeat with an independently supplied Parent entry and a smaller explicit set.

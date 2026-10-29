@@ -63,6 +63,8 @@ without executable assertions establishes no coverage.
 | --- | --- | --- |
 | `test_authorization.test_requester_disconnect_during_approval` (system 255) | Engineering obligation 147: both requester disconnects, cancellation/no writes, released transaction, fresh authenticated recovery and other-account isolation | Cases 171–175 still observe leaving an actual pending graphical approval and its public result |
 | Native command, whitespace, future-pattern, missing-launcher and catalogue system tests (272, 277–280) | Backend policy/UID/path/catalogue matrices and separate qualifiers for unchanged fixture mechanics | Parent edits and saved rules, declared launch routes, use/refusal, copied-executable/shared-launcher interactions and required peer access |
+| Existing language selection and `language_persistence.PLAN` request readers | A second presentation-history qualifier (308a/309a) repeating saved Hebrew/custom-request/approver bindings | Tasks 308/309's complete restoration histories and original-work comparisons; 308b's missing translated approval and 310a's new panel projection remain distinct |
+| Shared `PackageCommand`, match Save and Parent reopen/select operations | Complete catalogue update/remove/reinstall histories repeated in 123/123a qualifiers | Cases 110/111 implement missing verified fixture bindings and retain open drafts, actual package changes, Save, refreshed catalogue, retained rules and child launch results |
 | `test_removal.test_remove_reboot_reinstall` (system 6); `test_install_smoke.test_previous_package_policy_preservation` (287) | Package files/ownership/service/PAM/migration matrices, internal snapshots and duplicate lifecycle qualifiers | Case 139's continuous install/configure/use/remove/use/reinstall/retained-settings/reapply/purge/defaults history; cases 136–138's real notices, activation and usable apps |
 | Kiosk service/configuration recovery and update-reentry integration checks | Reimplementation of their fault/recovery controls and unchanged qualification | Actual unavailable result, restoration, genuine approval and usable return within each complete recipe |
 | Delivered native fixture and grant/use/revoke scope in the [reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) | Rebuilding compatible fixtures or repeating the accepted finite native history for 313a/313 | Each later journey's own approval, access, expiry/revocation and retained-work results; different durations/providers/entry modes retain their missing qualification |
@@ -72,6 +74,13 @@ implementation task; this allocation claims no new pass. Other engineering
 obligations retain the gaps named in their briefs. Natural expiry, suspend,
 calendar transitions, graphical authentication and retained work still need
 their full installed journeys.
+
+Task 035b adds only missing finite versioned asset/copy/Allowed-launch bindings;
+case 189 owns matching denial, nonmatch use, refresh and rejected-save recovery.
+FLOW19 uses the existing setup mode and a complete saved-set comparison, while
+feature cases retain each tested policy transition's independent effects.
+Removing a precursor history does not qualify a new provider or safety binding;
+keep genuinely missing qualification explicit in its consumer.
 
 ## Complete scenario-family review
 

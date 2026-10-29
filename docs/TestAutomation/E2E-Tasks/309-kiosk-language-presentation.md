@@ -4,7 +4,7 @@ Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-
 and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
-- **309a** — Restricted station Hebrew/restored-English request and child-language ownership across approver changes.
+- **300j** — Kiosk selected-child language restoration and approver independence.
 
 Estimate: 20–30 minutes.
 
@@ -24,7 +24,14 @@ remain in task 300's independent continuous Chinese case.
 
 ## Shared implementation
 
-Reuse 309a and LANG01/REQUEST04 operations with finite case-owned order and immutable comparisons; do not copy station lifecycle mechanics.
+Reuse LANG01/REQUEST04, `AccessibleUI.language_history_request` and
+`kiosk_language_form` with finite case-owned order and immutable comparisons.
+The existing language persistence history already binds Riley's Hebrew custom
+75-second/soft-included request and Jamie/Casey changes. Extend only missing
+restored-English literal projections and this recipe's ordering; do not add a
+second request-presentation qualifier or copy station lifecycle mechanics.
+Reuse station restriction guards without link/file/shortcut tours. Existing
+language coverage does not pass this still-pending complete history.
 
 ## Implementation entry
 
